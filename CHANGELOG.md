@@ -9,6 +9,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+-   @matter/nodejs
+    - Fix: Corrects network interface selection logic for windows
+
 ## 0.15.4 (2025-09-20)
 
 -   @matter/general
