@@ -5,7 +5,6 @@
  */
 
 import { Channel, ChannelType, MatterError, NetInterface, NoProviderError, TransportInterface } from "#general";
-import { InstanceBroadcaster } from "../common/InstanceBroadcaster.js";
 import { Scanner } from "../common/Scanner.js";
 import { BLE_MAX_MATTER_PAYLOAD_SIZE } from "./BleConsts.js";
 
@@ -23,10 +22,14 @@ export abstract class Ble {
         return this.get !== BleDisabled;
     }
 
-    abstract getBlePeripheralInterface(): TransportInterface;
-    abstract getBleCentralInterface(): NetInterface;
-    abstract getBleBroadcaster(additionalAdvertisementData?: Uint8Array): InstanceBroadcaster;
-    abstract getBleScanner(): Scanner;
+    abstract get peripheralInterface(): BlePeripheralInterface;
+    abstract get centralInterface(): NetInterface;
+    abstract get scanner(): Scanner;
+}
+
+export interface BlePeripheralInterface extends TransportInterface {
+    advertise(advertiseData: Uint8Array, additionalAdvertisementData?: Uint8Array, intervalMs?: number): Promise<void>;
+    stopAdvertising(): Promise<void>;
 }
 
 export abstract class BleChannel<T> implements Channel<T> {

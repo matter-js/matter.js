@@ -32,8 +32,9 @@ import {
     DiscoveryAndCommissioningOptions,
     DiscoveryData,
     InteractionClient,
-    MdnsBroadcaster,
-    MdnsScanner,
+    MdnsAdvertiser,
+    MdnsClient,
+    MdnsServer,
     MdnsService,
     MessageChannel,
     NodeDiscoveryType,
@@ -166,8 +167,8 @@ export class CommissioningController {
     #environment?: Environment; // Set when new API was initialized correctly
     #storage?: StorageContext;
 
-    #mdnsScanner?: MdnsScanner;
-    #mdnsBroadcaster?: MdnsBroadcaster;
+    #mdnsClient?: MdnsClient;
+    #mdnsServer?: MdnsServer;
 
     #controllerInstance?: MatterController;
     readonly #initializedNodes = new Map<NodeId, PairedNode>();
@@ -208,13 +209,13 @@ export class CommissioningController {
     }
 
     #assertIsAddedToMatterServer() {
-        if (this.#mdnsScanner === undefined || (this.#storage === undefined && this.#environment === undefined)) {
+        if (this.#mdnsClient === undefined || (this.#storage === undefined && this.#environment === undefined)) {
             throw new ImplementationError("Add the node to the Matter instance before.");
         }
         if (!this.#started) {
             throw new ImplementationError("The node needs to be started before interacting with the controller.");
         }
-        return { mdnsScanner: this.#mdnsScanner, storage: this.#storage, environment: this.#environment };
+        return { mdnsClient: this.#mdnsClient, storage: this.#storage, environment: this.#environment };
     }
 
     #assertControllerIsStarted(errorText?: string) {
@@ -228,7 +229,7 @@ export class CommissioningController {
 
     /** Internal method to initialize a MatterController instance. */
     async #initializeController() {
-        const { mdnsScanner, storage, environment } = this.#assertIsAddedToMatterServer();
+        const { mdnsClient, storage, environment } = this.#assertIsAddedToMatterServer();
         if (this.#controllerInstance !== undefined) {
             return this.#controllerInstance;
         }
@@ -256,7 +257,7 @@ export class CommissioningController {
         const { netInterfaces, scanners, port } = await configureNetwork({
             network: environment?.has(Network) ? environment.get(Network) : Environment.default.get(Network),
             ipv4Disabled: this.#ipv4Disabled,
-            mdnsScanner,
+            mdnsClient,
             localPort,
             listeningAddressIpv4: this.#listeningAddressIpv4,
             listeningAddressIpv6: this.#listeningAddressIpv6,
@@ -282,8 +283,8 @@ export class CommissioningController {
             rootCertificateAuthority,
             rootFabric,
         });
-        if (this.#mdnsBroadcaster) {
-            controller.addBroadcaster(this.#mdnsBroadcaster.createInstanceBroadcaster(port));
+        if (this.#mdnsServer) {
+            controller.addAdvertiser(new MdnsAdvertiser(this.#crypto, this.#mdnsServer, { port }));
         }
         return controller;
     }
@@ -476,21 +477,21 @@ export class CommissioningController {
     /**
      * Set the MDNS Scanner instance. Should be only used internally
      *
-     * @param mdnsScanner MdnsScanner instance
+     * @param mdnsServer MdnsScanner instance
      * @private
      */
-    setMdnsScanner(mdnsScanner: MdnsScanner) {
-        this.#mdnsScanner = mdnsScanner;
+    setMdnsClient(mdnsServer: MdnsClient) {
+        this.#mdnsClient = mdnsServer;
     }
 
     /**
      * Set the MDNS Broadcaster instance. Should be only used internally
      *
-     * @param mdnsBroadcaster MdnsBroadcaster instance
+     * @param mdnsServer MdnsBroadcaster instance
      * @private
      */
-    setMdnsBroadcaster(mdnsBroadcaster: MdnsBroadcaster) {
-        this.#mdnsBroadcaster = mdnsBroadcaster;
+    setMdnsServer(mdnsServer: MdnsServer) {
+        this.#mdnsServer = mdnsServer;
     }
 
     /** Returns true if t least one node is commissioned/paired with this controller instance. */
@@ -551,8 +552,8 @@ export class CommissioningController {
         }
         await this.#controllerInstance?.close();
 
-        if (this.#mdnsScanner !== undefined && this.#mdnsTargetCriteria !== undefined) {
-            this.#mdnsScanner.targetCriteriaProviders.delete(this.#mdnsTargetCriteria);
+        if (this.#mdnsClient !== undefined && this.#mdnsTargetCriteria !== undefined) {
+            this.#mdnsClient.targetCriteriaProviders.delete(this.#mdnsTargetCriteria);
         }
 
         this.#controllerInstance = undefined;
@@ -609,8 +610,8 @@ export class CommissioningController {
             // Load the MDNS service from the environment and set onto the controller
             const mdnsService = await env.load(MdnsService);
             this.#ipv4Disabled = !mdnsService.enableIpv4;
-            this.setMdnsBroadcaster(mdnsService.broadcaster);
-            this.setMdnsScanner(mdnsService.scanner);
+            this.setMdnsServer(mdnsService.server);
+            this.setMdnsClient(mdnsService.client);
 
             this.#environment = env;
             const runtime = env.runtime;
@@ -630,9 +631,9 @@ export class CommissioningController {
                 },
             ],
         };
-        this.#mdnsScanner?.targetCriteriaProviders.add(this.#mdnsTargetCriteria);
+        this.#mdnsClient?.targetCriteriaProviders.add(this.#mdnsTargetCriteria);
 
-        await this.#controllerInstance.announce();
+        this.#controllerInstance.announce();
         if (this.#options.autoConnect !== false && this.#controllerInstance.isCommissioned()) {
             await this.connect();
         }
@@ -786,12 +787,12 @@ export class CommissioningController {
 export async function configureNetwork(options: {
     network: Network;
     ipv4Disabled?: boolean;
-    mdnsScanner?: MdnsScanner;
+    mdnsClient?: MdnsClient;
     localPort?: number;
     listeningAddressIpv6?: string;
     listeningAddressIpv4?: string;
 }) {
-    const { network, ipv4Disabled, mdnsScanner, localPort, listeningAddressIpv6, listeningAddressIpv4 } = options;
+    const { network, ipv4Disabled, mdnsClient, localPort, listeningAddressIpv6, listeningAddressIpv4 } = options;
 
     const netInterfaces = new NetInterfaceSet();
     const scanners = new ScannerSet();
@@ -815,14 +816,14 @@ export async function configureNetwork(options: {
             logger.info(`IPv4 UDP interface not created because IPv4 is not available`);
         }
     }
-    if (mdnsScanner) {
-        scanners.add(mdnsScanner);
+    if (mdnsClient) {
+        scanners.add(mdnsClient);
     }
 
     try {
         const ble = Ble.get();
-        netInterfaces.add(ble.getBleCentralInterface());
-        scanners.add(ble.getBleScanner());
+        netInterfaces.add(ble.centralInterface);
+        scanners.add(ble.scanner);
     } catch (e) {
         if (e instanceof NoProviderError) {
             logger.warn("BLE is not supported on this platform");

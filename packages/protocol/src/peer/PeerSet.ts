@@ -30,7 +30,7 @@ import {
     Timer,
 } from "#general";
 import { SubscriptionClient } from "#interaction/SubscriptionClient.js";
-import { MdnsScanner } from "#mdns/MdnsScanner.js";
+import { MdnsClient } from "#mdns/MdnsClient.js";
 import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
 import { ChannelManager } from "#protocol/ChannelManager.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
@@ -86,7 +86,7 @@ interface RunningDiscovery {
     type: NodeDiscoveryType;
     promises?: (() => Promise<MessageChannel>)[];
     stopTimerFunc?: (() => void) | undefined;
-    mdnsScanner?: MdnsScanner;
+    mdnsClient?: MdnsClient;
 }
 
 /**
@@ -147,7 +147,13 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
             this.#peersByAddress.delete(peer.address);
         });
 
-        this.#sessions.resubmissionStarted.on(this.#handleResubmissionStarted.bind(this));
+        this.#sessions.retry.on((session, count) => {
+            if (count !== 1) {
+                return;
+            }
+
+            this.#handleFirstRetry(session);
+        });
 
         /** A channel was added by ourselves */
         this.#channels.added.on((address, msgChannel) => {
@@ -375,7 +381,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
     }
 
     async close() {
-        for (const [address, { stopTimerFunc, mdnsScanner }] of this.#runningPeerDiscoveries.entries()) {
+        for (const [address, { stopTimerFunc, mdnsClient: mdnsScanner }] of this.#runningPeerDiscoveries.entries()) {
             stopTimerFunc?.();
 
             // This ends discovery without triggering promises
@@ -442,7 +448,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
             throw new ImplementationError("Cannot set retransmission discovery type.");
         }
 
-        const mdnsScanner = this.#scanners.scannerFor(ChannelType.UDP) as MdnsScanner | undefined;
+        const mdnsScanner = this.#scanners.scannerFor(ChannelType.UDP) as MdnsClient | undefined;
         if (!mdnsScanner) {
             throw new ImplementationError("Cannot discover device without mDNS scanner.");
         }
@@ -593,7 +599,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
             type: requestedDiscoveryType,
             promises: discoveryPromises,
             stopTimerFunc,
-            mdnsScanner,
+            mdnsClient: mdnsScanner,
         });
 
         return await anyPromise(discoveryPromises).finally(() => {
@@ -765,7 +771,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
             return lastKnownAddress;
         }
 
-        const mdnsScanner = this.#scanners.scannerFor(ChannelType.UDP) as MdnsScanner | undefined;
+        const mdnsScanner = this.#scanners.scannerFor(ChannelType.UDP) as MdnsClient | undefined;
         const discoveredAddresses = mdnsScanner?.getDiscoveredOperationalDevice(
             this.#sessions.fabricFor(address),
             address.nodeId,
@@ -810,7 +816,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
         if (this.#runningPeerDiscoveries.has(address)) {
             logger.info(`Found ${address} during discovery, cancel discovery.`);
             // We are currently discovering this node, so we need to update the discovery data
-            const { mdnsScanner } = this.#runningPeerDiscoveries.get(address) ?? {};
+            const { mdnsClient: mdnsScanner } = this.#runningPeerDiscoveries.get(address) ?? {};
 
             // This ends discovery and triggers the promises
             mdnsScanner?.cancelOperationalDeviceDiscovery(this.#sessions.fabricFor(address), address.nodeId, true);
@@ -821,7 +827,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
         return this.#peersByAddress.get(address)?.operationalAddress;
     }
 
-    #handleResubmissionStarted(session: Session) {
+    #handleFirstRetry(session: Session) {
         if (!session.isSecure || (session as SecureSession).fabric === undefined) {
             // For insecure sessions from CASE/PASE or not yet fabric bound session establishments we do not need to do anything
             return;

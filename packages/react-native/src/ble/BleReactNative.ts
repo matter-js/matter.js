@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ChannelType, ImplementationError, NetInterface, TransportInterface } from "#general";
-import { Ble, InstanceBroadcaster, Scanner } from "#protocol";
+import { ChannelType, ImplementationError, NetInterface } from "#general";
+import { Ble, BlePeripheralInterface, Scanner } from "#protocol";
 import { BleScanner } from "./BleScanner.js";
 import { ReactNativeBleCentralInterface } from "./ReactNativeBleChannel.js";
 import { ReactNativeBleClient } from "./ReactNativeBleClient.js";
@@ -17,26 +17,22 @@ export class BleReactNative extends Ble {
         super();
     }
 
-    getBleCentralInterface(): NetInterface {
+    get centralInterface(): NetInterface {
         if (this.bleCentral === undefined) {
             this.bleCentral = new ReactNativeBleClient();
         }
         return new ReactNativeBleCentralInterface();
     }
 
-    getBleScanner(): Scanner {
+    get scanner(): Scanner {
         if (this.bleCentral === undefined) {
             this.bleCentral = new ReactNativeBleClient();
         }
         return new BleScanner(this.bleCentral);
     }
 
-    getBlePeripheralInterface(): TransportInterface {
+    get peripheralInterface(): BlePeripheralInterface {
         throw new ImplementationError("React Native can only act as a central device, not a peripheral.");
-    }
-
-    getBleBroadcaster(): InstanceBroadcaster {
-        throw new ImplementationError("React Native can only act as a central device, not a broadcaster.");
     }
 
     supports(type: ChannelType) {

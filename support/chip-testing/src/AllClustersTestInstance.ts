@@ -80,6 +80,7 @@ import {
     WindowCovering,
 } from "@matter/main/clusters";
 import { GenericSwitchDevice, OnOffLightDevice } from "@matter/main/devices";
+import { MdnsAdvertiser } from "@matter/main/protocol";
 import { DeviceTypeId, EndpointNumber, VendorId } from "@matter/main/types";
 import { BackchannelCommand } from "@matter/testing";
 import { TestActivatedCarbonFilterMonitoringServer } from "./cluster/TestActivatedCarbonFilterMonitoringServer.js";
@@ -277,6 +278,23 @@ export class AllClustersTestInstance extends NodeTestInstance {
                 commissioning: {
                     passcode: this.config.passcode ?? 20202021,
                     discriminator: this.config.discriminator ?? 3840,
+                    mdns: {
+                        schedules: [
+                            {
+                                ...MdnsAdvertiser.DefaultBroadcastSchedule,
+
+                                // Some CHIP tests look for MDNS messages that are otherwise unnecessary (CADMIN/1.15
+                                // and SC/4.3 at a minimum).  It's possible this is because broadcast queries are not
+                                // escaping the container under Docker, although we run in host network mode so this
+                                // should not be an issue.  But, continuing to broadcast for an extended period resolves
+                                // the issue, so we just do that for now
+                                // TODO - if this is only an issue on macs either resolve the broadcast issue or make
+                                // this hack mac specific
+                                broadcastAfterConnection: 10_000,
+                            },
+                            MdnsAdvertiser.RetransmissionBroadcastSchedule,
+                        ],
+                    },
                 },
                 productDescription: {
                     name: this.appName,

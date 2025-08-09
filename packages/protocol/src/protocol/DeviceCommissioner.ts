@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { CommissioningMode } from "#advertisement/CommissioningMode.js";
+import { ServiceDescription } from "#advertisement/ServiceDescription.js";
 import { AdministratorCommissioning } from "#clusters/administrator-commissioning";
 import { FailsafeContext } from "#common/FailsafeContext.js";
-import { CommissioningMode } from "#common/InstanceBroadcaster.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import {
-    Diagnostic,
     Environment,
     Environmental,
     InternalError,
@@ -18,11 +18,13 @@ import {
     MatterFlowError,
     MaybePromise,
     ObserverGroup,
+    Time,
+    Timer,
 } from "#general";
 import { SecureChannelProtocol } from "#securechannel/SecureChannelProtocol.js";
 import { PaseServer } from "#session/pase/PaseServer.js";
 import { SessionManager } from "#session/SessionManager.js";
-import { CommissioningOptions, StatusCode, StatusResponseError } from "#types";
+import { CommissioningOptions, STANDARD_COMMISSIONING_TIMEOUT_S, StatusCode, StatusResponseError } from "#types";
 import type { ControllerCommissioner } from "../peer/ControllerCommissioner.js";
 import { DeviceAdvertiser } from "./DeviceAdvertiser.js";
 
@@ -59,51 +61,15 @@ export class DeviceCommissioner {
     #activeDiscriminator?: number;
     #activeCommissioningEndCallback?: () => MaybePromise;
     #observers = new ObserverGroup(this);
+    #commissioningTimeout?: Timer;
 
     constructor(context: DeviceCommissionerContext) {
         this.#context = context;
-
-        this.#observers.on(this.#context.advertiser.timedOut, this.endCommissioning);
-
-        // If a commissioning window is open then we re-announce this because it was ended as fabric got added
-        this.#observers.on(this.#context.fabrics.events.deleted, async () => {
-            // If a commissioning window is open, or we removed the last fabric, then we re-announce this
-            // because it was ended as fabric got added
-            if (
-                this.#context.fabrics.length === 0 ||
-                this.#windowStatus !== AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen
-            ) {
-                this.reactivateAdvertiser();
-            }
-        });
-
-        // No fabric paired yet, so announce as "ready for commissioning"
-        this.#observers.on(this.#context.advertiser.operationalModeEnded, this.allowBasicCommissioning);
 
         // Cancel commissioning when there are too many PASE errors
         this.#observers.on(this.#context.secureChannelProtocol.tooManyPaseErrors, async () => {
             logger.info("Maximum number of PASE pairing errors reached, canceling commissioning");
             await this.endCommissioning();
-        });
-
-        this.#observers.on(this.#context.sessions.sessions.deleted, session => {
-            const currentFabricIndex = session.fabric?.fabricIndex;
-
-            // Verify if the session associated fabric still exists
-            const existingSessionFabric =
-                currentFabricIndex === undefined
-                    ? undefined
-                    : this.#context.fabrics.findByIndex(currentFabricIndex)?.fabricIndex;
-
-            // When a session closes, announce existing fabrics again so that controller can detect the device again.
-            // When session was closed and no fabric exist anymore then this is triggering a factory reset in upper
-            // layer and it would be not good to announce a commissionable device and then reset that again with the
-            // factory reset
-            if (this.#context.fabrics.length > 0 || session.isPase || !existingSessionFabric) {
-                this.#context.advertiser
-                    .startAdvertising()
-                    .catch(error => logger.warn(`Error while announcing`, error));
-            }
         });
     }
 
@@ -131,12 +97,12 @@ export class DeviceCommissioner {
     ) {
         if (this.#windowStatus === AdministratorCommissioning.CommissioningWindowStatus.BasicWindowOpen) {
             throw new MatterFlowError(
-                "Basic commissioning window is already open! Cannot set Enhanced commissioning mode.",
+                "Basic commissioning window is already open! Cannot set enhanced commissioning mode.",
             );
         }
 
         this.#context.secureChannelProtocol.setPaseCommissioner(paseServer);
-        await this.#becomeCommissionable(
+        this.#becomeCommissionable(
             AdministratorCommissioning.CommissioningWindowStatus.EnhancedWindowOpen,
             commissioningEndCallback,
             discriminator,
@@ -146,7 +112,7 @@ export class DeviceCommissioner {
     async allowBasicCommissioning(commissioningEndCallback?: () => MaybePromise) {
         if (this.#windowStatus === AdministratorCommissioning.CommissioningWindowStatus.EnhancedWindowOpen) {
             throw new MatterFlowError(
-                "Enhanced commissioning window is already open! Cannot set Basic commissioning mode.",
+                "Enhanced commissioning window is already open! Cannot set basic commissioning mode.",
             );
         }
 
@@ -157,7 +123,7 @@ export class DeviceCommissioner {
             }),
         );
 
-        await this.#becomeCommissionable(
+        this.#becomeCommissionable(
             AdministratorCommissioning.CommissioningWindowStatus.BasicWindowOpen,
             commissioningEndCallback,
         );
@@ -165,16 +131,6 @@ export class DeviceCommissioner {
 
     beginTimed(failsafeContext: FailsafeContext) {
         this.#failsafeContext = failsafeContext;
-
-        this.#context.fabrics.events.added.on(fabric => {
-            const fabrics = this.#context.fabrics.fabrics;
-            this.#context.advertiser
-                .advertiseFabrics(fabrics, true)
-                .catch(error =>
-                    logger.warn(`Error sending Fabric announcement for Index ${fabric.fabricIndex}`, error),
-                );
-            logger.info("Announce done", Diagnostic.dict({ fabric: fabric.fabricId, fabricIndex: fabric.fabricIndex }));
-        });
 
         failsafeContext.commissioned.on(async () => await this.endCommissioning());
 
@@ -197,55 +153,79 @@ export class DeviceCommissioner {
         );
     }
 
-    reactivateAdvertiser() {
-        if (this.#windowStatus === AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen) {
-            return;
-        }
-        this.#enterCommissioningMode(this.#windowStatus, this.#activeDiscriminator).catch(error =>
-            logger.warn("Error sending announcement:", error),
-        );
-    }
-
-    async #enterCommissioningMode(
+    #enterCommissioningMode(
         windowStatus: AdministratorCommissioning.CommissioningWindowStatus,
         discriminator?: number,
     ) {
+        this.#cancelTimeout();
+
         this.#windowStatus = windowStatus;
         const commissioningConfig = this.#context.commissioningConfig.values;
-        await this.#context.advertiser.enterCommissioningMode(
+        const advertisementWindowS = commissioningConfig.advertisementWindowS ?? STANDARD_COMMISSIONING_TIMEOUT_S;
+
+        const mode =
             windowStatus === AdministratorCommissioning.CommissioningWindowStatus.EnhancedWindowOpen
                 ? CommissioningMode.Enhanced
-                : CommissioningMode.Basic,
-            {
+                : CommissioningMode.Basic;
+
+        this.#context.advertiser.enterCommissioningMode(
+            ServiceDescription.Commissionable({
                 ...commissioningConfig.productDescription,
+                mode,
                 discriminator: discriminator ?? commissioningConfig.discriminator,
-            },
+            }),
+        );
+
+        this.#commissioningTimeout = Time.getTimer(
+            "Commissioning timeout",
+            advertisementWindowS,
+            this.endCommissioning.bind(this),
         );
     }
 
-    async #becomeCommissionable(
-        windowStatus: AdministratorCommissioning.CommissioningWindowStatus,
+    #becomeCommissionable(
+        windowStatus:
+            | AdministratorCommissioning.CommissioningWindowStatus.EnhancedWindowOpen
+            | AdministratorCommissioning.CommissioningWindowStatus.BasicWindowOpen,
         activeCommissioningEndCallback?: () => MaybePromise,
         discriminator?: number,
     ) {
+        if (this.#windowStatus !== AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen) {
+            if (this.#windowStatus !== windowStatus) {
+                throw new InternalError(
+                    `Commissioning mode ${windowStatus} request but already in mode ${this.#windowStatus}`,
+                );
+            }
+
+            if (
+                this.#activeCommissioningEndCallback &&
+                this.#activeCommissioningEndCallback !== activeCommissioningEndCallback
+            ) {
+                throw new InternalError(`Already in commissioning mode with a different callback`);
+            }
+        }
+
         if (
             this.#windowStatus === windowStatus &&
             (discriminator === undefined || discriminator === this.#activeDiscriminator)
         ) {
-            // We want to re-announce
-            return this.reactivateAdvertiser();
+            this.#enterCommissioningMode(this.#windowStatus, this.#activeDiscriminator);
+            return;
         }
+
         if (this.#windowStatus !== AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen) {
             throw new InternalError(`Commissioning window already open with different mode (${this.#windowStatus})!`);
         }
+
         if (this.#activeCommissioningEndCallback !== undefined) {
             throw new InternalError("Commissioning window already open with different callback!");
         }
+
         this.#activeCommissioningEndCallback = activeCommissioningEndCallback;
         this.#activeDiscriminator = discriminator;
 
         // MDNS is sent in parallel
-        await this.#enterCommissioningMode(windowStatus, discriminator);
+        this.#enterCommissioningMode(windowStatus, discriminator);
     }
 
     async endCommissioning() {
@@ -253,7 +233,7 @@ export class DeviceCommissioner {
             return;
         }
 
-        logger.debug("Commissioning mode ended, stop announcements.");
+        this.#cancelTimeout();
 
         this.#context.secureChannelProtocol.removePaseCommissioner();
 
@@ -267,15 +247,25 @@ export class DeviceCommissioner {
 
         await this.#context.advertiser.exitCommissioningMode();
 
-        logger.info("All commissioning announcements stopped");
+        logger.debug("No longer commissioning");
     }
 
     async close() {
+        this.#cancelTimeout();
         this.#observers.close();
         await this.endCommissioning();
         if (this.#failsafeContext) {
             await this.#failsafeContext.close();
             this.#failsafeContext = undefined;
         }
+    }
+
+    #cancelTimeout() {
+        if (!this.#commissioningTimeout) {
+            return;
+        }
+
+        this.#commissioningTimeout.stop();
+        this.#commissioningTimeout = undefined;
     }
 }

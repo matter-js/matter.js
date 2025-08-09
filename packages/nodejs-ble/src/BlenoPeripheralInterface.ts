@@ -5,9 +5,10 @@
  */
 
 import { Channel, ChannelType, TransportInterface } from "#general";
+import { BlePeripheralInterface } from "@matter/protocol";
 import { BlenoBleServer } from "./BlenoBleServer.js";
 
-export class BlePeripheralInterface implements TransportInterface {
+export class BlenoPeripheralInterface implements BlePeripheralInterface {
     constructor(private readonly blenoServer: BlenoBleServer) {}
 
     // TransportInterface
@@ -32,5 +33,13 @@ export class BlePeripheralInterface implements TransportInterface {
         }
 
         return this.blenoServer.clientAddress === address;
+    }
+
+    advertise(advertiseData: Uint8Array, additionalAdvertisementData?: Uint8Array, intervalMs?: number) {
+        return this.blenoServer.advertise(advertiseData, additionalAdvertisementData, intervalMs);
+    }
+
+    stopAdvertising() {
+        return this.blenoServer.stopAdvertising();
     }
 }

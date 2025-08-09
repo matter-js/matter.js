@@ -214,6 +214,14 @@ export class Fabric {
         this.#sessions.delete(session);
     }
 
+    hasSessionForPeer(peerNodeId: NodeId) {
+        for (const session of this.#sessions) {
+            if (session.peerNodeId === peerNodeId) {
+                return true;
+            }
+        }
+    }
+
     addRemoveCallback(callback: () => MaybePromise<void>) {
         this.#removeCallbacks.push(callback);
     }

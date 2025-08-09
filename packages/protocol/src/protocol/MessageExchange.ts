@@ -26,12 +26,8 @@ import {
     MRP,
 } from "#protocol/MessageChannel.js";
 import { GroupSession } from "#session/GroupSession.js";
-import {
-    SESSION_ACTIVE_INTERVAL_MS,
-    SESSION_ACTIVE_THRESHOLD_MS,
-    SESSION_IDLE_INTERVAL_MS,
-    SessionParameters,
-} from "#session/Session.js";
+import { SessionParameters } from "#session/Session.js";
+import { SessionIntervals } from "#session/SessionIntervals.js";
 import {
     GroupId,
     NodeId,
@@ -103,7 +99,7 @@ export const MATTER_MESSAGE_OVERHEAD = 26 + 12 + CRYPTO_AEAD_MIC_LENGTH_BYTES;
  */
 export interface MessageExchangeContext {
     channel: MessageChannel;
-    resubmissionStarted(): void;
+    retry(number: number): void;
     localSessionParameters: SessionParameters;
 }
 
@@ -191,10 +187,10 @@ export class MessageExchange {
         this.#exchangeId = exchangeId;
         this.#protocolId = protocolId;
 
-        const { activeIntervalMs, idleIntervalMs, activeThresholdMs } = session.parameters;
-        this.#activeIntervalMs = activeIntervalMs ?? SESSION_ACTIVE_INTERVAL_MS;
-        this.#idleIntervalMs = idleIntervalMs ?? SESSION_IDLE_INTERVAL_MS;
-        this.#activeThresholdMs = activeThresholdMs ?? SESSION_ACTIVE_THRESHOLD_MS;
+        const { activeIntervalMs, idleIntervalMs, activeThresholdMs } = SessionIntervals(session.parameters);
+        this.#activeIntervalMs = activeIntervalMs;
+        this.#idleIntervalMs = idleIntervalMs;
+        this.#activeThresholdMs = activeThresholdMs;
 
         this.#used = !isInitiator; // If we are the initiator then exchange was not used yet, so track it
 
@@ -534,9 +530,7 @@ export class MessageExchange {
 
         this.session.notifyActivity(false);
 
-        if (this.#retransmissionCounter === 1) {
-            this.context.resubmissionStarted();
-        }
+        this.context.retry(this.#retransmissionCounter);
         const resubmissionBackoffTime = this.channel.getMrpResubmissionBackOffTime(this.#retransmissionCounter);
         logger.debug(
             `Resubmit message ${message.packetHeader.messageId} (retransmission attempt ${this.#retransmissionCounter}, backoff time ${resubmissionBackoffTime}ms))`,

@@ -315,14 +315,17 @@ describe("ServerNode", () => {
         // Simulate receiving the response to the removeFabric request which normally closes the underlying session
         // delayed
         await contextOptions.exchange.session.destroy(false, false);
+
         // ...then go offline...
         if (node.lifecycle.isOnline) {
             await MockTime.resolve(node.lifecycle.offline);
         }
+
         // ...then go back online
         if (!node.lifecycle.isOnline) {
             await MockTime.resolve(node.lifecycle.online);
         }
+
         await commissioning.commission(node);
 
         await node.close();

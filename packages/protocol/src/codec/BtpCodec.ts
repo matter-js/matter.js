@@ -283,6 +283,7 @@ export class BtpCodec {
         vendorId: number,
         productId: number,
         hasAdditionalAdvertisementData = false,
+        isExtendedAnnouncement = false,
     ) {
         const writer = new DataWriter(Endian.Little);
         writer.writeUInt8(0x02);
@@ -293,9 +294,9 @@ export class BtpCodec {
         writer.writeUInt16(0xfff6);
         writer.writeUInt8(0x00);
         writer.writeUInt16(discriminator);
-        writer.writeUInt16(vendorId);
-        writer.writeUInt16(productId);
-        writer.writeUInt8(hasAdditionalAdvertisementData ? 0x01 : 0x00);
+        writer.writeUInt16(isExtendedAnnouncement ? 0 : vendorId);
+        writer.writeUInt16(isExtendedAnnouncement ? 0 : productId);
+        writer.writeUInt8((hasAdditionalAdvertisementData ? 1 : 0) | (isExtendedAnnouncement ? 2 : 0));
         return writer.toByteArray();
     }
 

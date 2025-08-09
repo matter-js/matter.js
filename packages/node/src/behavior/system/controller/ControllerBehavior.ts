@@ -17,7 +17,7 @@ import {
     FabricAuthority,
     FabricAuthorityConfigurationProvider,
     FabricManager,
-    MdnsScanner,
+    MdnsClient,
     MdnsScannerTargetCriteria,
     MdnsService,
     Scanner,
@@ -54,14 +54,14 @@ export class ControllerBehavior extends Behavior {
             this.state.ip = true;
         }
         if (this.state.ip !== false) {
-            this.env.get(ScannerSet).add((await this.env.load(MdnsService)).scanner);
+            this.env.get(ScannerSet).add((await this.env.load(MdnsService)).client);
         }
 
         if (this.state.ble === undefined) {
             this.state.ble = (await this.agent.load(NetworkServer)).state.ble;
         }
         if (this.state.ble !== false) {
-            this.env.get(ScannerSet).add(Ble.get().getBleScanner());
+            this.env.get(ScannerSet).add(Ble.get().scanner);
         }
 
         // Configure management of controlled fabrics
@@ -118,7 +118,7 @@ export class ControllerBehavior extends Behavior {
             }
         }
         if (this.state.ble) {
-            netInterfaces.add(Ble.get().getBleCentralInterface());
+            netInterfaces.add(Ble.get().centralInterface);
         }
 
         // Install handler to receive data reports for subscriptions
@@ -166,7 +166,7 @@ export class ControllerBehavior extends Behavior {
     }
 
     #enableScanningForScanner(scanner: Scanner) {
-        if (!(scanner instanceof MdnsScanner)) {
+        if (!(scanner instanceof MdnsClient)) {
             return;
         }
         scanner.targetCriteriaProviders.add(this.internal.mdnsTargetCriteria);

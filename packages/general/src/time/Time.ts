@@ -32,7 +32,7 @@ export class Time {
     static readonly now = (): Date => Time.get().now();
 
     nowMs() {
-        return this.now().getTime();
+        return Date.now();
     }
     static readonly nowMs = (): number => Time.get().nowMs();
 

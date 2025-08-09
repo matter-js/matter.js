@@ -352,6 +352,12 @@ export const MockTime = {
     },
 
     callbackAtTime(atMs: number, callback: TimerCallback) {
+        // Encountered this in chromium web tests and reproduced in chrome.  But adding this test fixes it, so maybe a
+        // chrome v8 error?  If it triggers again note the stack trace
+        if (!Number.isInteger(atMs)) {
+            throw new Error(`Callback registered at non-integer time ${atMs}`);
+        }
+
         callbacks.push({ atMs, callback });
         callbacks.sort(({ atMs: atMsA }, { atMs: atMsB }) => atMsA - atMsB);
     },

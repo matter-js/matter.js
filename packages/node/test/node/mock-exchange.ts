@@ -39,7 +39,7 @@ export class MockExchange extends MessageExchange {
                     parameters: {},
                 },
             },
-            resubmissionStarted() {},
+            retry(_number: number) {},
             localSessionParameters: {},
         } as MessageExchangeContext;
 

@@ -23,7 +23,7 @@ import {
     serverAddressToString,
 } from "#general";
 import { InteractionClient, InteractionClientProvider } from "#interaction/InteractionClient.js";
-import { MdnsScanner } from "#mdns/MdnsScanner.js";
+import { MdnsClient } from "#mdns/MdnsClient.js";
 import {
     CommissioningError,
     ControllerCommissioningFlow,
@@ -306,7 +306,7 @@ export class ControllerCommissioner {
     ): Promise<MessageChannel> {
         let paseChannel: Channel<Uint8Array>;
         if (device !== undefined) {
-            logger.info(`Establish PASE to device`, MdnsScanner.discoveryDataDiagnostics(device));
+            logger.info(`Establish PASE to device`, MdnsClient.discoveryDataDiagnostics(device));
         }
         if (address.type === "udp") {
             const { ip } = address;

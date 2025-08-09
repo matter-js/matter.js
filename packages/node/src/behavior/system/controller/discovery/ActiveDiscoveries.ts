@@ -5,7 +5,7 @@
  */
 
 import { Environment, Environmental } from "#general";
-import { MdnsScanner, MdnsScannerTargetCriteria, Scanner, ScannerSet } from "#protocol";
+import { MdnsClient, MdnsScannerTargetCriteria, Scanner, ScannerSet } from "#protocol";
 import type { Discovery } from "./Discovery.js";
 
 /**
@@ -44,7 +44,7 @@ export class ActiveDiscoveries extends Set<Discovery<any>> {
     }
 
     #activateCommissionableScanningFor(scanner: Scanner) {
-        if (!(scanner instanceof MdnsScanner)) {
+        if (!(scanner instanceof MdnsClient)) {
             return;
         }
 
@@ -60,7 +60,7 @@ export class ActiveDiscoveries extends Set<Discovery<any>> {
         }
         const scanners = this.#env.get(ScannerSet);
         for (const scanner of scanners) {
-            if (scanner instanceof MdnsScanner) {
+            if (scanner instanceof MdnsClient) {
                 scanner.targetCriteriaProviders.delete(this.#mdnsTargetCriteria);
             }
         }

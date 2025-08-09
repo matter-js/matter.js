@@ -11,7 +11,7 @@ import {
     ControllerDiscovery,
     DiscoveryData,
     Fabric,
-    MdnsScanner,
+    MdnsClient,
     MdnsService,
     Scanner,
 } from "#protocol";
@@ -80,20 +80,20 @@ export class PaseCommissioner {
 
         const { certificateAuthorityConfig: rootCertificateData, fabricConfig: fabricConfig } = this.options;
 
-        let mdnsScanner: MdnsScanner | undefined;
+        let mdnsClient: MdnsClient | undefined;
         let ipv4Disabled = false;
 
         try {
             const mdnsService = await this.environment.load(MdnsService);
             ipv4Disabled = !mdnsService.enableIpv4;
-            mdnsScanner = mdnsService.scanner;
+            mdnsClient = mdnsService.client;
         } catch {
             logger.debug("No networking available, using only BLE");
         }
 
         const { scanners, netInterfaces } = await configureControllerNetwork({
             network: this.environment.get(Network),
-            mdnsScanner,
+            mdnsClient,
             ipv4Disabled,
             ...this.options,
         });

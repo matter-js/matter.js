@@ -300,6 +300,10 @@ export class NodeSession extends SecureSession {
         return this.#peerNodeId;
     }
 
+    get hasAssociatedFabric() {
+        return this.#fabric !== undefined;
+    }
+
     get associatedFabric(): Fabric {
         if (this.#fabric === undefined) {
             throw new NoAssociatedFabricError(

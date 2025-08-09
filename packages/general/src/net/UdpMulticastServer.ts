@@ -76,14 +76,18 @@ export class UdpMulticastServer {
     );
 
     private constructor(
-        private readonly network: Network,
+        readonly network: Network,
         private readonly broadcastAddressIpv4: string | undefined,
         private readonly broadcastAddressIpv6: string,
         private readonly broadcastPort: number,
         private readonly serverIpv4: UdpChannel | undefined,
         private readonly serverIpv6: UdpChannel,
-        private readonly netInterface: string | undefined,
+        readonly netInterface: string | undefined,
     ) {}
+
+    get supportsIpv4() {
+        return this.serverIpv4 !== undefined;
+    }
 
     onMessage(listener: (message: Uint8Array, peerAddress: string, netInterface: string) => void) {
         this.serverIpv4?.onData((netInterface, peerAddress, _port, message) => {

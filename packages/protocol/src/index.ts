@@ -5,6 +5,7 @@
  */
 
 export * from "./action/index.js";
+export * from "./advertisement/index.js";
 export * from "./ble/index.js";
 export * from "./certificate/index.js";
 export * from "./cluster/index.js";

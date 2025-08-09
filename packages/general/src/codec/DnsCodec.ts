@@ -16,20 +16,13 @@ import { ipv4BytesToString, ipv4ToBytes, ipv6BytesToString, ipv6ToBytes, isIPv4,
  */
 export const MAX_MDNS_MESSAGE_SIZE = 1232; // 1280bytes (IPv6 packet size) - 8bytes (UDP header) - 40bytes (IPv6 IP header, IPv4 is only 20bytes)
 
-export const PtrRecord = (
-    name: string,
-    ptr: string,
-    forInstance?: string,
-    ttl = 120,
-    flushCache = false,
-): DnsRecord<string> => ({
+export const PtrRecord = (name: string, ptr: string, ttl = 120, flushCache = false): DnsRecord<string> => ({
     name,
     value: ptr,
     ttl,
     recordType: DnsRecordType.PTR,
     recordClass: DnsRecordClass.IN,
     flushCache,
-    forInstance,
 });
 export const ARecord = (name: string, ip: string, ttl = 120, flushCache = false): DnsRecord<string> => ({
     name,
@@ -47,25 +40,17 @@ export const AAAARecord = (name: string, ip: string, ttl = 120, flushCache = fal
     recordClass: DnsRecordClass.IN,
     flushCache,
 });
-export const TxtRecord = (
-    name: string,
-    entries: string[],
-    forInstance?: string,
-    ttl = 120,
-    flushCache = false,
-): DnsRecord<string[]> => ({
+export const TxtRecord = (name: string, entries: string[], ttl = 120, flushCache = false): DnsRecord<string[]> => ({
     name,
     value: entries,
     ttl,
     recordType: DnsRecordType.TXT,
     recordClass: DnsRecordClass.IN,
     flushCache,
-    forInstance,
 });
 export const SrvRecord = (
     name: string,
     srv: SrvRecordValue,
-    forInstance?: string,
     ttl = 120,
     flushCache = false,
 ): DnsRecord<SrvRecordValue> => ({
@@ -75,7 +60,6 @@ export const SrvRecord = (
     recordType: DnsRecordType.SRV,
     recordClass: DnsRecordClass.IN,
     flushCache,
-    forInstance,
 });
 
 export type SrvRecordValue = {
@@ -92,14 +76,13 @@ export type DnsQuery = {
     uniCastResponse?: boolean;
 };
 
-export type DnsRecord<T> = {
+export type DnsRecord<T = unknown> = {
     name: string;
     recordType: DnsRecordType;
     recordClass: DnsRecordClass;
     flushCache?: boolean;
     ttl: number;
     value: T;
-    forInstance?: string;
 };
 
 export type DnsMessage = {

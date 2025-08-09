@@ -202,7 +202,7 @@ const PEER1_STATE = {
         deviceName: "Matter.js Test Product",
         rotatingIdentifier: undefined,
         pairingHint: 0x21,
-        pairingInstructions: "",
+        pairingInstructions: undefined,
         sessionParameters: { idleIntervalMs: 0x1f4, activeIntervalMs: 0x12c, activeThresholdMs: 0xfa0 },
         tcpSupport: 0,
         longIdleOperatingMode: undefined,
