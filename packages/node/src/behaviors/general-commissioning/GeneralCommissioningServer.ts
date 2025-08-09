@@ -8,7 +8,7 @@ import { AdministratorCommissioningServer } from "#behaviors/administrator-commi
 import { BasicInformationServer } from "#behaviors/basic-information";
 import { AdministratorCommissioning } from "#clusters/administrator-commissioning";
 import { GeneralCommissioning } from "#clusters/general-commissioning";
-import { Logger, MatterFlowError, MaybePromise } from "#general";
+import { Bytes, Diagnostic, Logger, MatterFlowError, MaybePromise } from "#general";
 import type { ServerNode } from "#node/ServerNode.js";
 import { DeviceCommissioner, FabricManager, GroupSession, NodeSession, SecureSession, SessionManager } from "#protocol";
 import { GeneralCommissioningBehavior } from "./GeneralCommissioningBehavior.js";
@@ -241,7 +241,13 @@ export class GeneralCommissioningServer extends GeneralCommissioningBehavior {
         // 5. The Breadcrumb attribute SHALL be reset to zero.
         this.state.breadcrumb = BigInt(0);
 
-        logger.info(`Commissioning completed on fabric #${fabric.fabricId} as node #${fabric.nodeId}.`);
+        logger.info(
+            "Commissioned",
+            Diagnostic.dict({
+                fabric: `${Bytes.toHex(fabric.operationalId)} (#${fabric.fabricIndex})`,
+                node: fabric.nodeId.toString(16).padStart(16, "0"),
+            }),
+        );
 
         return SuccessResponse;
     }

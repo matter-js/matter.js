@@ -20,7 +20,7 @@ describe("CADMIN", () => {
                 // Reduce sleep
                 "s/sleep(190)/sleep(2)/",
 
-                // Reduce commissioning timeout
+                // Reduce discovery timeout too just to make failure faster
                 "s/setupPinCode=/discoveryTimeoutMsec=5000,setupPinCode=/",
             ),
 
@@ -30,6 +30,19 @@ describe("CADMIN", () => {
                 after: /async def commission_on_network/,
                 lines: "        expected_error = 50",
             }),
+        ),
+    );
+
+    // 1.3 also has obnoxiously long sleeps but 181s instead of 190s (rolling eyes)
+    before(() =>
+        chip.testFor("CADMIN/1.3").edit(
+            edit.sed(
+                // Reduce commissioning window time
+                "s/timeout=180/timeout=1/",
+
+                // Reduce sleep
+                "s/sleep(181)/sleep(2)/",
+            ),
         ),
     );
 
@@ -49,10 +62,6 @@ describe("CADMIN", () => {
     chip("CADMIN/*").exclude(
         // Handled below
         "CADMIN/1.19",
-
-        // TODO - we fail 1.22 because we open a second commissioning window.  Unsure why we shouldn't, requires more
-        //  research
-        // "CADMIN/1.22",
     );
 
     chip("CADMIN/1.19").beforeTest(subject => {

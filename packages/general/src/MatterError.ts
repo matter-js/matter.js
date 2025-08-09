@@ -310,7 +310,7 @@ export class CanceledError extends MatterError {
 /**
  * Indicates an asynchronous operation was canceled due to timeout.
  */
-export class TimeoutError extends CanceledError {
+export class TimeoutError extends MatterError {
     constructor(message = "Operation timed out", options?: ErrorOptions) {
         super(message, options);
     }

@@ -10,10 +10,10 @@ import { AccessLevel } from "#model";
 import { DeviceCommissioner, FailsafeContext, PaseServer, SessionManager } from "#protocol";
 import {
     Command,
-    MAXIMUM_COMMISSIONING_TIMEOUT_S,
     MINIMUM_COMMISSIONING_TIMEOUT_S,
     PAKE_PASSCODE_VERIFIER_LENGTH,
-    StatusCode,
+    STANDARD_COMMISSIONING_TIMEOUT_S,
+    Status,
     StatusResponseError,
     TlvByteString,
     TlvField,
@@ -186,14 +186,14 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
         if (commissioningTimeout > this.internal.maximumCommissioningTimeoutS) {
             throw new StatusResponseError(
                 `Commissioning timeout must not exceed ${this.internal.maximumCommissioningTimeoutS} seconds.`,
-                StatusCode.InvalidCommand,
+                Status.InvalidCommand,
             );
         }
 
         if (commissioningTimeout < this.internal.minimumCommissioningTimeoutS) {
             throw new StatusResponseError(
                 `Commissioning timeout must not be lower then ${this.internal.minimumCommissioningTimeoutS} seconds.`,
-                StatusCode.InvalidCommand,
+                Status.InvalidCommand,
             );
         }
 
@@ -206,7 +206,7 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
      * This method is used internally when the commissioning window timer expires or the commissioning was completed.
      */
     #endCommissioning() {
-        logger.debug("End commissioning window.");
+        logger.debug("Ending commissioning");
         if (this.internal.commissioningWindowTimeout !== undefined) {
             this.internal.commissioningWindowTimeout.stop();
             this.internal.commissioningWindowTimeout = undefined;
@@ -264,9 +264,10 @@ export namespace AdministratorCommissioningServer {
         minimumCommissioningTimeoutS = MINIMUM_COMMISSIONING_TIMEOUT_S;
 
         /**
-         * Mandated by spec; should only be modified in testing.
+         * Commissioning beyond the standard 15-minute window is "extended commissioning" and has limitations on
+         * advertisement.  We default to the standard window.
          */
-        maximumCommissioningTimeoutS = MAXIMUM_COMMISSIONING_TIMEOUT_S;
+        maximumCommissioningTimeoutS = STANDARD_COMMISSIONING_TIMEOUT_S;
     }
 
     export class State extends AdministratorCommissioningBehavior.State {

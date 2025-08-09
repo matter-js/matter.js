@@ -7,6 +7,7 @@
 import { SubscriptionBehavior } from "#behavior/system/subscription/SubscriptionBehavior.js";
 import {
     Construction,
+    Crypto,
     InterfaceType,
     Logger,
     NetInterfaceSet,
@@ -23,13 +24,14 @@ import type { ServerNode } from "#node/ServerNode.js";
 import { NodePeerAddressStore } from "#node/client/NodePeerAddressStore.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
 import {
+    Advertiser,
     Ble,
+    BleAdvertiser,
     ChannelManager,
     DeviceAdvertiser,
     DeviceCommissioner,
     ExchangeManager,
-    InstanceBroadcaster,
-    MdnsInstanceBroadcaster,
+    MdnsAdvertiser,
     MdnsService,
     PeerAddressStore,
     PeerSet,
@@ -58,8 +60,8 @@ function convertNetworkEnvironmentType(type: string | number) {
  * Handles network functionality for {@link NodeServer}.
  */
 export class ServerNetworkRuntime extends NetworkRuntime {
-    #mdnsBroadcaster?: MdnsInstanceBroadcaster;
-    #bleBroadcaster?: InstanceBroadcaster;
+    #mdnsAdvertiser?: MdnsAdvertiser;
+    #bleAdvertiser?: BleAdvertiser;
     #bleTransport?: TransportInterface;
     #ipv6UdpInterface?: UdpInterface;
     #observers = new ObserverGroup(this);
@@ -71,15 +73,17 @@ export class ServerNetworkRuntime extends NetworkRuntime {
     }
 
     /**
-     * Access the MDNS broadcaster for the node.
+     * Access the MDNS advertiser for the node.
      */
-    get mdnsBroadcaster() {
-        if (!this.#mdnsBroadcaster) {
-            this.#mdnsBroadcaster = this.owner.env
-                .get(MdnsService)
-                .createInstanceBroadcaster(this.owner.state.network.operationalPort);
+    get mdnsAdvertiser() {
+        if (!this.#mdnsAdvertiser) {
+            const port = this.owner.state.network.operationalPort;
+            const options = this.owner.state.commissioning.mdns;
+            const crypto = this.owner.env.get(Crypto);
+            const { server } = this.owner.env.get(MdnsService);
+            this.#mdnsAdvertiser = new MdnsAdvertiser(crypto, server, { ...options, port });
         }
-        return this.#mdnsBroadcaster;
+        return this.#mdnsAdvertiser;
     }
 
     get networkInterfaceConfiguration(): NetworkInterface[] {
@@ -109,14 +113,15 @@ export class ServerNetworkRuntime extends NetworkRuntime {
     }
 
     /**
-     * A BLE broadcaster.
+     * A BLE advertiser.
      */
-    protected get bleBroadcaster() {
-        if (this.#bleBroadcaster === undefined) {
-            const bleData = this.owner.state.commissioning.additionalBleAdvertisementData;
-            this.#bleBroadcaster = Ble.get().getBleBroadcaster(bleData);
+    protected get bleAdvertiser() {
+        if (this.#bleAdvertiser === undefined) {
+            const { peripheralInterface } = Ble.get();
+            const options = this.owner.state.commissioning.ble;
+            this.#bleAdvertiser = new BleAdvertiser(peripheralInterface, options);
         }
-        return this.#bleBroadcaster;
+        return this.#bleAdvertiser;
     }
 
     /**
@@ -124,7 +129,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
      */
     protected get bleTransport() {
         if (this.#bleTransport === undefined) {
-            this.#bleTransport = Ble.get().getBlePeripheralInterface();
+            this.#bleTransport = Ble.get().peripheralInterface;
         }
         return this.#bleTransport;
     }
@@ -177,7 +182,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
      * Add broadcasters to the {@link DeviceAdvertiser}.
      */
     protected async addBroadcasters(advertiser: DeviceAdvertiser) {
-        await advertiser.clearBroadcasters();
+        await advertiser.clearAdvertisers();
 
         const isCommissioned = !!this.#commissionedFabrics;
 
@@ -189,11 +194,11 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         }
 
         if (discoveryCapabilities.onIpNetwork) {
-            advertiser.addBroadcaster(this.mdnsBroadcaster);
+            advertiser.addAdvertiser(this.mdnsAdvertiser);
         }
 
         if (discoveryCapabilities.ble) {
-            advertiser.addBroadcaster(this.bleBroadcaster);
+            advertiser.addAdvertiser(this.bleAdvertiser);
         }
     }
 
@@ -201,11 +206,11 @@ export class ServerNetworkRuntime extends NetworkRuntime {
      * When the first Fabric gets added we need to enable MDNS broadcasting.
      */
     enableMdnsBroadcasting() {
-        const advertiser = this.owner.env.get(DeviceAdvertiser);
-        const mdnsBroadcaster = this.mdnsBroadcaster;
-        if (!advertiser.hasBroadcaster(mdnsBroadcaster)) {
+        const device = this.owner.env.get(DeviceAdvertiser);
+        const mdnsBroadcaster = this.mdnsAdvertiser;
+        if (!device.hasAdvertiser(mdnsBroadcaster)) {
             logger.debug("Enabling MDNS broadcasting");
-            advertiser.addBroadcaster(mdnsBroadcaster);
+            device.addAdvertiser(mdnsBroadcaster);
         }
     }
 
@@ -219,27 +224,26 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         // node was not on an IP network prior to commissioning
         this.enableMdnsBroadcasting();
 
-        if (this.#bleBroadcaster) {
-            this.owner.env.runtime.add(this.#removeBleBroadcaster(this.#bleBroadcaster));
-            this.#bleBroadcaster = undefined;
+        if (this.#bleAdvertiser) {
+            this.owner.env.runtime.add(this.#deleteAdvertiser(this.#bleAdvertiser));
+            this.#bleAdvertiser = undefined;
         }
 
         if (this.#bleTransport) {
-            this.owner.env.runtime.add(this.#removeBleTransport(this.#bleTransport));
+            this.owner.env.runtime.add(this.#deleteTransport(this.#bleTransport));
             this.#bleTransport = undefined;
         }
     }
 
-    async #removeBleBroadcaster(bleBroadcaster: InstanceBroadcaster) {
-        const advertiser = this.owner.env.get(DeviceAdvertiser);
-        await advertiser.deleteBroadcaster(bleBroadcaster);
-        await bleBroadcaster.close();
+    async #deleteAdvertiser(advertiser: Advertiser) {
+        const device = this.owner.env.get(DeviceAdvertiser);
+        await device.deleteAdvertiser(advertiser);
     }
 
-    async #removeBleTransport(bleTransport: TransportInterface) {
+    async #deleteTransport(transport: TransportInterface) {
         const transportInterfaces = this.owner.env.get(TransportInterfaceSet);
-        transportInterfaces.delete(bleTransport);
-        await bleTransport.close();
+        transportInterfaces.delete(transport);
+        await transport.close();
     }
 
     get #commissionedFabrics() {
@@ -285,15 +289,20 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         // Monitor CommissioningServer to end "uncommissioned" mode when we are commissioned
         this.#observers.on(this.owner.eventsOf(CommissioningServer).commissioned, this.endUncommissionedMode);
 
-        // Monitor DeviceAdvertiser to enable MDNS broadcasting when the first Fabric is added
-        this.#observers.on(advertiser.operationalModeEnabled, this.enableMdnsBroadcasting);
+        // Enable MDNS broadcasting if there are fabrics present
+        if (this.owner.stateOf(CommissioningServer).commissioned) {
+            this.enableMdnsBroadcasting();
+        }
     }
 
     override async [Construction.construct]() {
         await super[Construction.construct]();
 
+        // Initialize MDNS
+        const mdns = await this.owner.env.load(MdnsService);
+
         // Initialize ScannerSet
-        this.owner.env.get(ScannerSet).add((await this.owner.env.load(MdnsService)).scanner);
+        this.owner.env.get(ScannerSet).add(mdns.client);
         this.owner.env.set(PeerAddressStore, new NodePeerAddressStore(this.owner));
         await this.owner.env.load(PeerSet);
 
@@ -317,8 +326,8 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         // We kick-off the Advertiser shutdown to prevent re-announces when removing sessions and wait a bit later
         const advertisementShutdown = this.owner.env.has(DeviceAdvertiser)
             ? this.owner.env.close(DeviceAdvertiser)
-            : this.#mdnsBroadcaster?.close();
-        this.#mdnsBroadcaster = undefined;
+            : this.#mdnsAdvertiser?.close();
+        this.#mdnsAdvertiser = undefined;
 
         await this.owner.prepareRuntimeShutdown();
 

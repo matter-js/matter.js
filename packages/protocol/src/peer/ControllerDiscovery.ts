@@ -16,7 +16,7 @@ import {
     Scanner,
 } from "../common/Scanner.js";
 import { Fabric } from "../fabric/Fabric.js";
-import { MdnsScanner } from "../mdns/MdnsScanner.js";
+import { MdnsClient } from "../mdns/MdnsClient.js";
 import { RetransmissionLimitReachedError } from "../protocol/MessageExchange.js";
 
 const logger = Logger.get("ControllerDiscovery");
@@ -117,7 +117,7 @@ export class ControllerDiscovery {
     static async discoverOperationalDevice(
         fabric: Fabric,
         peerNodeId: NodeId,
-        scanner: MdnsScanner,
+        scanner: MdnsClient,
         timeoutSeconds?: number,
         ignoreExistingRecords?: boolean,
     ): Promise<OperationalDevice> {
@@ -135,7 +135,7 @@ export class ControllerDiscovery {
         return foundDevice;
     }
 
-    static cancelOperationalDeviceDiscovery(fabric: Fabric, peerNodeId: NodeId, scanner: MdnsScanner) {
+    static cancelOperationalDeviceDiscovery(fabric: Fabric, peerNodeId: NodeId, scanner: MdnsClient) {
         scanner.cancelOperationalDeviceDiscovery(fabric, peerNodeId);
     }
 

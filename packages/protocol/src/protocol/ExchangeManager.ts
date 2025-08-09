@@ -422,7 +422,7 @@ export class ExchangeManager {
         return {
             channel,
             localSessionParameters: this.#sessionManager.sessionParameters,
-            resubmissionStarted: () => this.#sessionManager.resubmissionStarted.emit(channel.session),
+            retry: number => this.#sessionManager.retry.emit(channel.session, number),
         };
     }
 

@@ -57,9 +57,9 @@ export class ReactNativeBleCentralInterface implements NetInterface {
         }
 
         // Get the peripheral by address and connect to it.
-        const { peripheral, hasAdditionalAdvertisementData } = (
-            Ble.get().getBleScanner() as BleScanner
-        ).getDiscoveredDevice(address.peripheralAddress);
+        const { peripheral, hasAdditionalAdvertisementData } = (Ble.get().scanner as BleScanner).getDiscoveredDevice(
+            address.peripheralAddress,
+        );
         if (this.openChannels.has(address)) {
             throw new BleError(
                 `Peripheral ${address.peripheralAddress} is already connected. Only one connection supported right now.`,

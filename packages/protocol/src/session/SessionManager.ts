@@ -5,6 +5,7 @@
  */
 
 import { DecodedPacket } from "#codec/MessageCodec.js";
+import { SupportedTransportsSchema } from "#common/SupportedTransportsBitmap.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import {
     BasicSet,
@@ -28,7 +29,6 @@ import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
 import { GroupSession } from "#session/GroupSession.js";
 import { CaseAuthenticatedTag, DEFAULT_MAX_PATHS_PER_INVOKE, FabricId, FabricIndex, GroupId, NodeId } from "#types";
 import { UnexpectedDataError } from "@matter/general";
-import { SupportedTransportsSchema } from "../common/Scanner.js";
 import { Fabric } from "../fabric/Fabric.js";
 import { MessageCounter } from "../protocol/MessageCounter.js";
 import { InsecureSession } from "./InsecureSession.js";
@@ -41,19 +41,15 @@ import {
     FALLBACK_MAX_TCP_MESSAGE_SIZE,
     FALLBACK_SPECIFICATION_VERSION,
     Session,
-    SESSION_ACTIVE_INTERVAL_MS,
-    SESSION_ACTIVE_THRESHOLD_MS,
-    SESSION_IDLE_INTERVAL_MS,
     SessionParameterOptions,
     SessionParameters,
 } from "./Session.js";
+import { SessionIntervals } from "./SessionIntervals.js";
 
 const logger = Logger.get("SessionManager");
 
 const DEFAULT_SESSION_PARAMETERS = {
-    idleIntervalMs: SESSION_IDLE_INTERVAL_MS,
-    activeIntervalMs: SESSION_ACTIVE_INTERVAL_MS,
-    activeThresholdMs: SESSION_ACTIVE_THRESHOLD_MS,
+    ...SessionIntervals.defaults,
     dataModelRevision: Specification.DATA_MODEL_REVISION,
     interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
     specificationVersion: Specification.SPECIFICATION_VERSION,
@@ -126,7 +122,7 @@ export class SessionManager {
     readonly #globalUnencryptedMessageCounter;
     readonly #subscriptionsChanged = Observable<[session: NodeSession, subscription: Subscription]>();
     #sessionParameters: SessionParameters;
-    readonly #resubmissionStarted = Observable<[session: Session]>();
+    readonly #retry = Observable<[session: Session, number: number]>();
     readonly #construction: Construction<SessionManager>;
     readonly #observers = new ObserverGroup();
     readonly #subscriptionUpdateMutex = new Mutex(this);
@@ -215,8 +211,8 @@ export class SessionManager {
     /**
      * Emits when resubmission is necessary due to timeout or network error.
      */
-    get resubmissionStarted() {
-        return this.#resubmissionStarted;
+    get retry() {
+        return this.#retry;
     }
 
     /**
@@ -612,9 +608,9 @@ export class SessionManager {
                     peerNodeId,
                     sessionParameters: {
                         // Make sure to initialize default values when restoring an older resumption record
-                        idleIntervalMs: idleIntervalMs ?? SESSION_IDLE_INTERVAL_MS,
-                        activeIntervalMs: activeIntervalMs ?? SESSION_ACTIVE_INTERVAL_MS,
-                        activeThresholdMs: activeThresholdMs ?? SESSION_ACTIVE_THRESHOLD_MS,
+                        idleIntervalMs: idleIntervalMs ?? SessionIntervals.defaults.idleIntervalMs,
+                        activeIntervalMs: activeIntervalMs ?? SessionIntervals.defaults.activeIntervalMs,
+                        activeThresholdMs: activeThresholdMs ?? SessionIntervals.defaults.activeThresholdMs,
                         dataModelRevision: dataModelRevision ?? FALLBACK_DATAMODEL_REVISION,
                         interactionModelRevision: interactionModelRevision ?? FALLBACK_INTERACTIONMODEL_REVISION,
                         specificationVersion: specificationVersion ?? FALLBACK_SPECIFICATION_VERSION,

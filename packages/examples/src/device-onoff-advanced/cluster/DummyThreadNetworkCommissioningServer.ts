@@ -132,7 +132,7 @@ export class DummyThreadNetworkCommissioningServer extends NetworkCommissioningB
         this.state.lastConnectErrorValue = null;
 
         // Announce operational in IP network
-        await this.env.get(DeviceAdvertiser).startAdvertising();
+        this.env.get(DeviceAdvertiser).restartAdvertisement();
 
         return {
             networkingStatus,

@@ -32,7 +32,7 @@ class GenericCache<T> {
         return Array.from(this.knownKeys.values());
     }
 
-    private async deleteEntry(key: string) {
+    async delete(key: string) {
         const value = this.values.get(key);
         if (this.expireCallback !== undefined && value !== undefined) {
             await this.expireCallback(key, value);
@@ -43,7 +43,7 @@ class GenericCache<T> {
 
     async clear() {
         for (const key of this.values.keys()) {
-            await this.deleteEntry(key);
+            await this.delete(key);
         }
         this.values.clear();
         this.timestamps.clear();
@@ -59,7 +59,7 @@ class GenericCache<T> {
         const now = Time.nowMs();
         for (const [key, timestamp] of this.timestamps.entries()) {
             if (now - timestamp < this.expirationMs) continue;
-            await this.deleteEntry(key);
+            await this.delete(key);
         }
     }
 }

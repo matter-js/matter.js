@@ -116,7 +116,7 @@ export class CancelablePromise<T = void> implements Promise<T>, Cancelable {
     catch<TResult = never>(
         onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | null,
     ): CancelablePromise<T | TResult> {
-        return this.then(onrejected);
+        return this.then(undefined, onrejected);
     }
 
     finally(onfinally?: (() => void) | null): CancelablePromise<T> {

@@ -9,8 +9,6 @@ import {
     Bytes,
     ChannelType,
     Diagnostic,
-    DnsCodec,
-    DnsMessagePartiallyPreEncoded,
     DnsMessageType,
     DnsQuery,
     DnsRecord,
@@ -20,14 +18,11 @@ import {
     InternalError,
     Lifespan,
     Logger,
-    MAX_MDNS_MESSAGE_SIZE,
-    Network,
     ObserverGroup,
     ServerAddressIp,
     SrvRecordValue,
     Time,
     Timer,
-    UdpMulticastServer,
     createPromise,
     isIPv6,
 } from "#general";
@@ -43,17 +38,17 @@ import { Fabric } from "../fabric/Fabric.js";
 import {
     MATTER_COMMISSION_SERVICE_QNAME,
     MATTER_SERVICE_QNAME,
+    getCommissionableDeviceQname,
     getCommissioningModeQname,
-    getDeviceInstanceQname,
-    getDeviceMatterQname,
     getDeviceTypeQname,
     getLongDiscriminatorQname,
+    getOperationalDeviceQname,
     getShortDiscriminatorQname,
     getVendorQname,
 } from "./MdnsConsts.js";
-import { MDNS_BROADCAST_IPV4, MDNS_BROADCAST_IPV6, MDNS_BROADCAST_PORT } from "./MdnsServer.js";
+import { MdnsSocket } from "./MdnsSocket.js";
 
-const logger = Logger.get("MdnsScanner");
+const logger = Logger.get("MdnsClient");
 
 const MDNS_EXPIRY_GRACE_PERIOD_FACTOR = 1.05;
 
@@ -118,22 +113,8 @@ export interface MdnsScannerTargetCriteria {
  * This class implements the Scanner interface for a MDNS scanner via UDP messages in a IP based network. It sends out
  * queries to discover various types of Matter device types and listens for announcements.
  */
-export class MdnsScanner implements Scanner {
+export class MdnsClient implements Scanner {
     readonly type = ChannelType.UDP;
-
-    static async create(network: Network, options?: { enableIpv4?: boolean; netInterface?: string }) {
-        const { enableIpv4, netInterface } = options ?? {};
-        return new MdnsScanner(
-            await UdpMulticastServer.create({
-                network,
-                netInterface: netInterface,
-                broadcastAddressIpv4: enableIpv4 ? MDNS_BROADCAST_IPV4 : undefined,
-                broadcastAddressIpv6: MDNS_BROADCAST_IPV6,
-                listeningPort: MDNS_BROADCAST_PORT,
-            }),
-            enableIpv4,
-        );
-    }
 
     /** Active announces by queryId with queries and known answers */
     readonly #activeAnnounceQueries = new Map<string, { queries: DnsQuery[]; answers: StructuredDnsAnswers }>();
@@ -163,8 +144,7 @@ export class MdnsScanner implements Scanner {
     #nextAnnounceIntervalSeconds = START_ANNOUNCE_INTERVAL_SECONDS;
     readonly #periodicTimer: Timer;
     #closing = false;
-    readonly #multicastServer: UdpMulticastServer;
-    readonly #enableIpv4?: boolean;
+    readonly #socket: MdnsSocket;
 
     readonly #targetCriteriaProviders = new BasicSet<MdnsScannerTargetCriteria>();
     #scanForCommissionableDevices = false;
@@ -175,12 +155,9 @@ export class MdnsScanner implements Scanner {
     /** True, if any node is interested in MDNS traffic, else we ignore all traffic */
     #listening = false;
 
-    constructor(multicastServer: UdpMulticastServer, enableIpv4?: boolean) {
-        multicastServer.onMessage((message, remoteIp, netInterface) =>
-            this.#handleDnsMessage(message, remoteIp, netInterface),
-        );
-        this.#multicastServer = multicastServer;
-        this.#enableIpv4 = enableIpv4;
+    constructor(socket: MdnsSocket) {
+        this.#socket = socket;
+        this.#observers.on(this.#socket.receipt, this.#handleMessage.bind(this));
         this.#periodicTimer = Time.getPeriodicTimer("Discovered node expiration", 60 * 1000 /* 1 mn */, () =>
             this.#expire(),
         ).start();
@@ -284,56 +261,11 @@ export class MdnsScanner implements Scanner {
         const nextAnnounceInterval = this.#nextAnnounceIntervalSeconds * 2;
         this.#nextAnnounceIntervalSeconds = Math.min(nextAnnounceInterval, 60 * 60 /* 1 hour */);
 
-        const answersToSend = [...answers];
-
-        const dnsMessageDataToSend = {
-            messageType: DnsMessageType.TruncatedQuery,
-            transactionId: 0,
+        await this.#socket.send({
+            messageType: DnsMessageType.Query,
             queries,
-            authorities: [],
-            answers: [],
-            additionalRecords: [],
-        } as DnsMessagePartiallyPreEncoded;
-
-        const emptyDnsMessage = DnsCodec.encode(dnsMessageDataToSend);
-        let dnsMessageSize = emptyDnsMessage.length;
-
-        while (true) {
-            if (answersToSend.length > 0) {
-                const nextAnswer = answersToSend.shift();
-                if (nextAnswer === undefined) {
-                    break;
-                }
-
-                const nextAnswerEncoded = DnsCodec.encodeRecord(nextAnswer);
-                dnsMessageSize += nextAnswerEncoded.length; // Add additional record as long as size is ok
-
-                if (dnsMessageSize > MAX_MDNS_MESSAGE_SIZE) {
-                    if (dnsMessageDataToSend.answers.length === 0) {
-                        // The first answer is already too big, log at least a warning
-                        logger.warn(
-                            `MDNS Query with ${Diagnostic.json(
-                                queries,
-                            )} is too big to fit into a single MDNS message. Send anyway, but please report!`,
-                        );
-                    }
-                    // New answer do not fit anymore, send out the message
-                    await this.#multicastServer.send(DnsCodec.encode(dnsMessageDataToSend));
-
-                    // Reset the message, length counter and included answers to count for next message
-                    dnsMessageDataToSend.queries.length = 0;
-                    dnsMessageDataToSend.answers.length = 0;
-                    dnsMessageSize = emptyDnsMessage.length + nextAnswerEncoded.length;
-                }
-                dnsMessageDataToSend.answers.push(nextAnswerEncoded);
-            } else {
-                break;
-            }
-        }
-
-        await this.#multicastServer.send(
-            DnsCodec.encode({ ...dnsMessageDataToSend, messageType: DnsMessageType.Query }),
-        );
+            answers,
+        });
     }
 
     /**
@@ -540,7 +472,7 @@ export class MdnsScanner implements Scanner {
 
     #createOperationalMatterQName(operationalId: Uint8Array, nodeId: NodeId) {
         const operationalIdString = Bytes.toHex(operationalId).toUpperCase();
-        return getDeviceMatterQname(operationalIdString, NodeId.toHexString(nodeId));
+        return getOperationalDeviceQname(operationalIdString, NodeId.toHexString(nodeId));
     }
 
     /**
@@ -643,7 +575,7 @@ export class MdnsScanner implements Scanner {
      */
     #buildCommissionableQueryIdentifier(identifier: CommissionableDeviceIdentifiers) {
         if ("instanceId" in identifier) {
-            return getDeviceInstanceQname(identifier.instanceId);
+            return getCommissionableDeviceQname(identifier.instanceId);
         }
 
         if ("longDiscriminator" in identifier) {
@@ -752,7 +684,7 @@ export class MdnsScanner implements Scanner {
         names.push(MATTER_COMMISSION_SERVICE_QNAME);
 
         if ("instanceId" in identifier) {
-            names.push(getDeviceInstanceQname(identifier.instanceId));
+            names.push(getCommissionableDeviceQname(identifier.instanceId));
         } else if ("longDiscriminator" in identifier) {
             names.push(getLongDiscriminatorQname(identifier.longDiscriminator));
         } else if ("shortDiscriminator" in identifier) {
@@ -868,7 +800,6 @@ export class MdnsScanner implements Scanner {
         this.#observers.close();
         this.#periodicTimer.stop();
         this.#queryTimer?.stop();
-        await this.#multicastServer.close();
         // Resolve all pending promises where logic waits for the response (aka: has a timer)
         [...this.#recordWaiters.keys()].forEach(queryId =>
             this.#finishWaiter(queryId, !!this.#recordWaiters.get(queryId)?.timer),
@@ -904,7 +835,7 @@ export class MdnsScanner implements Scanner {
                         discoveredAt,
                         ...answer,
                     });
-                } else if (this.#enableIpv4 && recordType === DnsRecordType.A) {
+                } else if (this.#socket.supportsIpv4 && recordType === DnsRecordType.A) {
                     structuredAnswers.addressesV4 = structuredAnswers.addressesV4 ?? {};
                     structuredAnswers.addressesV4[name] = structuredAnswers.addressesV4[name] ?? new Map();
                     structuredAnswers.addressesV4[name].set(answer.value, {
@@ -986,7 +917,7 @@ export class MdnsScanner implements Scanner {
                     });
                 }
             }
-            if (this.#enableIpv4 && answers.addressesV4) {
+            if (this.#socket.supportsIpv4 && answers.addressesV4) {
                 combinedAnswers.addressesV4 = combinedAnswers.addressesV4 ?? {};
                 for (const [name, records] of Object.entries(answers.addressesV4) as unknown as [
                     string,
@@ -1027,7 +958,7 @@ export class MdnsScanner implements Scanner {
         if (combinedAnswers.addressesV6) {
             result.addressesV6 = combinedAnswers.addressesV6;
         }
-        if (this.#enableIpv4 && combinedAnswers.addressesV4) {
+        if (this.#socket.supportsIpv4 && combinedAnswers.addressesV4) {
             result.addressesV4 = combinedAnswers.addressesV4;
         }
 
@@ -1038,23 +969,23 @@ export class MdnsScanner implements Scanner {
      * Main method to handle all incoming DNS messages.
      * It will parse the message and check if it contains relevant discovery records.
      */
-    #handleDnsMessage(messageBytes: Uint8Array, _remoteIp: string, netInterface: string) {
+    #handleMessage(message: MdnsSocket.Message) {
         if (this.#closing) return;
-        const message = DnsCodec.decode(messageBytes);
+
         if (message === undefined) return; // The message cannot be parsed
         if (message.messageType !== DnsMessageType.Response && message.messageType !== DnsMessageType.TruncatedResponse)
             return;
 
         const answers = this.#structureAnswers([...message.answers, ...message.additionalRecords]);
 
-        const formerAnswers = this.#getActiveQueryEarlierAnswers(netInterface);
+        const formerAnswers = this.#getActiveQueryEarlierAnswers(message.sourceIntf);
         // Check if we got operational discovery records and handle them
-        this.#handleOperationalRecords(answers, formerAnswers, netInterface);
+        this.#handleOperationalRecords(answers, formerAnswers, message.sourceIntf);
 
         // Else check if we got commissionable discovery records and handle them
-        this.#handleCommissionableRecords(answers, formerAnswers, netInterface);
+        this.#handleCommissionableRecords(answers, formerAnswers, message.sourceIntf);
 
-        this.#updateIpRecords(answers, netInterface);
+        this.#updateIpRecords(answers, message.sourceIntf);
     }
 
     /**
@@ -1080,7 +1011,7 @@ export class MdnsScanner implements Scanner {
                 }
             }
         }
-        if (this.#enableIpv4 && answers.addressesV4) {
+        if (this.#socket.supportsIpv4 && answers.addressesV4) {
             for (const [target, ipAddresses] of Object.entries(answers.addressesV4)) {
                 if (interfaceRecords.addressesV4?.[target] !== undefined) {
                     for (const [ip, record] of Object.entries(ipAddresses)) {
@@ -1111,7 +1042,7 @@ export class MdnsScanner implements Scanner {
                 interfaceRecords.addressesV6 = interfaceRecords.addressesV6 ?? {};
                 interfaceRecords.addressesV6[name] = interfaceRecords.addressesV6[name] ?? new Map();
                 interfaceRecords.addressesV6[name].set(ip, record);
-            } else if (this.#enableIpv4 && recordType === DnsRecordType.A) {
+            } else if (this.#socket.supportsIpv4 && recordType === DnsRecordType.A) {
                 interfaceRecords.addressesV4 = interfaceRecords.addressesV4 ?? {};
                 interfaceRecords.addressesV4[name] = interfaceRecords.addressesV4[name] ?? new Map();
                 interfaceRecords.addressesV4[name].set(ip, record);
@@ -1130,7 +1061,7 @@ export class MdnsScanner implements Scanner {
             if (answer.addressesV6?.[target]) {
                 ipRecords.push(...answer.addressesV6[target].values());
             }
-            if (this.#enableIpv4 && answer.addressesV4?.[target]) {
+            if (this.#socket.supportsIpv4 && answer.addressesV4?.[target]) {
                 ipRecords.push(...answer.addressesV4[target].values());
             }
         });
@@ -1226,7 +1157,7 @@ export class MdnsScanner implements Scanner {
         } else {
             logger.debug(
                 `Adding operational device ${matterName} in cache (interface ${netInterface}, ttl=${ttl}) with TXT data:`,
-                MdnsScanner.discoveryDataDiagnostics(txtData),
+                MdnsClient.discoveryDataDiagnostics(txtData),
             );
             device = {
                 deviceIdentifier: matterName,
@@ -1300,7 +1231,7 @@ export class MdnsScanner implements Scanner {
             if (ipsInitiallyEmpty) {
                 logger.debug(
                     `Added ${addresses.size} IPs for operational device ${matterName} to cache (interface ${netInterface}):`,
-                    ...MdnsScanner.deviceAddressDiagnostics(addresses),
+                    ...MdnsClient.deviceAddressDiagnostics(addresses),
                 );
             }
             this.#operationalDeviceRecords.set(matterName, device);
@@ -1309,7 +1240,7 @@ export class MdnsScanner implements Scanner {
         if (addresses.size === 0 && this.#hasWaiter(matterName)) {
             // We have no or no more (because expired) IPs, and we are interested in this particular service name, request them
             const queries = [{ name: target, recordClass: DnsRecordClass.IN, recordType: DnsRecordType.AAAA }];
-            if (this.#enableIpv4) {
+            if (this.#socket.supportsIpv4) {
                 queries.push({ name: target, recordClass: DnsRecordClass.IN, recordType: DnsRecordType.A });
             }
             logger.debug(`Requesting IP addresses for operational device ${matterName} (interface ${netInterface}).`);
@@ -1376,7 +1307,7 @@ export class MdnsScanner implements Scanner {
 
                 logger.debug(
                     `Found commissionable device ${name} with data:`,
-                    MdnsScanner.discoveryDataDiagnostics(parsedRecord),
+                    MdnsClient.discoveryDataDiagnostics(parsedRecord),
                 );
             } else {
                 parsedRecord.addresses = storedRecord.addresses;
@@ -1427,7 +1358,7 @@ export class MdnsScanner implements Scanner {
                 if (queryId === undefined) continue;
                 // We have no or no more (because expired) IPs and we are interested in such a service name, request them
                 const queries = [{ name: target, recordClass: DnsRecordClass.IN, recordType: DnsRecordType.AAAA }];
-                if (this.#enableIpv4) {
+                if (this.#socket.supportsIpv4) {
                     queries.push({ name: target, recordClass: DnsRecordClass.IN, recordType: DnsRecordType.A });
                 }
                 logger.debug(
@@ -1437,7 +1368,7 @@ export class MdnsScanner implements Scanner {
             } else if (!recordAddressesKnown) {
                 logger.debug(
                     `Added ${storedRecord.addresses.size} IPs for commissionable device ${record.name} to cache (interface ${netInterface}):`,
-                    ...MdnsScanner.deviceAddressDiagnostics(storedRecord.addresses),
+                    ...MdnsClient.deviceAddressDiagnostics(storedRecord.addresses),
                 );
             }
             if (storedRecord.addresses.size === 0) continue;

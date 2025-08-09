@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { SupportedTransportsBitmap } from "#common/Scanner.js";
+import { SupportedTransportsBitmap } from "#common/SupportedTransportsBitmap.js";
 import { CRYPTO_HASH_LEN_BYTES, CRYPTO_PUBLIC_KEY_SIZE_BYTES } from "#general";
 import {
     TlvBitmap,

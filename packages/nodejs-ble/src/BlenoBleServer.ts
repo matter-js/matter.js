@@ -331,7 +331,9 @@ export class BlenoBleServer extends BleChannel<Uint8Array> {
         }
     }
 
-    async advertise(advertiseData: Uint8Array, additionalAdvertisementData?: Uint8Array) {
+    async advertise(advertiseData: Uint8Array, additionalAdvertisementData?: Uint8Array, intervalMs = 100) {
+        process.env["BLENO_ADVERTISING_INTERVAL"] = intervalMs.toString();
+
         this.advertisingData = Buffer.from(advertiseData.buffer);
 
         if (additionalAdvertisementData) {

@@ -4,12 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Environment, NetInterface, TransportInterface } from "#general";
-import { Ble, InstanceBroadcaster, Scanner } from "#protocol";
-import { BleBroadcaster } from "./BleBroadcaster.js";
-import { BlePeripheralInterface } from "./BlePeripheralInterface.js";
-import { BleScanner } from "./BleScanner.js";
+import { Environment, NetInterface } from "#general";
+import { Ble, Scanner } from "#protocol";
 import { BlenoBleServer } from "./BlenoBleServer.js";
+import { BlenoPeripheralInterface } from "./BlenoPeripheralInterface.js";
+import { BleScanner } from "./BleScanner.js";
 import { NobleBleCentralInterface } from "./NobleBleChannel.js";
 import { NobleBleClient } from "./NobleBleClient.js";
 
@@ -23,9 +22,8 @@ export class NodeJsBle extends Ble {
     #blePeripheralInstance?: BlenoBleServer;
     #bleCentralInstance?: NobleBleClient;
     #bleScanner?: BleScanner;
-    #bleBroadcaster?: BleBroadcaster;
     #bleCentralInterface?: NobleBleCentralInterface;
-    #blePeripheralInterface?: BlePeripheralInterface;
+    #blePeripheralInterface?: BlenoPeripheralInterface;
 
     constructor(options?: BleOptions) {
         super();
@@ -46,28 +44,21 @@ export class NodeJsBle extends Ble {
         return this.#bleCentralInstance;
     }
 
-    getBlePeripheralInterface(): TransportInterface {
+    get peripheralInterface(): BlenoPeripheralInterface {
         if (this.#blePeripheralInterface === undefined) {
-            this.#blePeripheralInterface = new BlePeripheralInterface(this.#blePeripheralServer);
+            this.#blePeripheralInterface = new BlenoPeripheralInterface(this.#blePeripheralServer);
         }
         return this.#blePeripheralInterface;
     }
 
-    getBleCentralInterface(): NetInterface {
+    get centralInterface(): NetInterface {
         if (this.#bleCentralInterface === undefined) {
-            this.#bleCentralInterface = new NobleBleCentralInterface(this.getBleScanner() as BleScanner);
+            this.#bleCentralInterface = new NobleBleCentralInterface(this.scanner as BleScanner);
         }
         return this.#bleCentralInterface;
     }
 
-    getBleBroadcaster(additionalAdvertisementData?: Uint8Array): InstanceBroadcaster {
-        if (this.#bleBroadcaster === undefined) {
-            this.#bleBroadcaster = new BleBroadcaster(this.#blePeripheralServer, additionalAdvertisementData);
-        }
-        return this.#bleBroadcaster;
-    }
-
-    getBleScanner(): Scanner {
+    get scanner(): Scanner {
         if (this.#bleScanner === undefined) {
             this.#bleScanner = new BleScanner(this.#bleCentralClient);
         }

@@ -4,29 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { SupportedTransportsBitmap } from "#common/SupportedTransportsBitmap.js";
 import { AsyncObservable, DataWriter, Endian, InternalError, Time } from "#general";
 import { NodeId, TypeFromPartialBitSchema } from "#types";
 import { DecodedMessage, DecodedPacket, Message, Packet, SessionType } from "../codec/MessageCodec.js";
-import { SupportedTransportsBitmap } from "../common/Scanner.js";
 import { Fabric } from "../fabric/Fabric.js";
 import { MessageCounter } from "../protocol/MessageCounter.js";
 import { MessageReceptionState } from "../protocol/MessageReceptionState.js";
+import { SessionIntervals } from "./SessionIntervals.js";
 import { type SessionManager } from "./SessionManager.js";
-
-/**
- * Minimum amount of time between sender retries when the destination node is Active. This SHALL be greater than or
- * equal to the maximum amount of time a node may be non-responsive to incoming messages when Active.
- */
-export const SESSION_ACTIVE_INTERVAL_MS = 300;
-
-/**
- * Minimum amount of time between sender retries when the destination node is Idle. This SHALL be greater than or equal
- * to the maximum amount of time a node may be non-responsive to incoming messages when Idle.
- */
-export const SESSION_IDLE_INTERVAL_MS = 500;
-
-/** Minimum amount of time the node SHOULD stay active after network activity. */
-export const SESSION_ACTIVE_THRESHOLD_MS = 4000;
 
 /** Fallback value for Data Model Revision when not provided in Session parameters. We use Matter 1.2 as assumption. */
 export const FALLBACK_DATAMODEL_REVISION = 17;
@@ -48,29 +34,7 @@ export const FALLBACK_MAX_PATHS_PER_INVOKE = 1;
 
 export const FALLBACK_MAX_TCP_MESSAGE_SIZE = 64000;
 
-export interface SessionParameters {
-    /**
-     * Minimum amount of time between sender retries when the destination node is Idle.
-     * This SHALL be greater than or equal to the maximum amount of time a node may be
-     * non-responsive to incoming messages when Idle.
-     * Default: 500ms
-     */
-    idleIntervalMs: number;
-
-    /**
-     * Minimum amount of time between sender retries when the destination node is Active.
-     * This SHALL be greater than or equal to the maximum amount of time a node may be
-     * non-responsive to incoming messages when Active.
-     * Default: 300ms
-     */
-    activeIntervalMs: number;
-
-    /**
-     * Minimum amount of time the node SHOULD stay active after network activity.
-     * Default: 4000ms
-     */
-    activeThresholdMs: number;
-
+export interface SessionParameters extends SessionIntervals {
     /** Version of Data Model for the Session parameters side where it appears. */
     dataModelRevision: number;
 
@@ -136,9 +100,9 @@ export abstract class Session {
             messageCounter,
             messageReceptionState,
             sessionParameters: {
-                idleIntervalMs = SESSION_IDLE_INTERVAL_MS,
-                activeIntervalMs = SESSION_ACTIVE_INTERVAL_MS,
-                activeThresholdMs = SESSION_ACTIVE_THRESHOLD_MS,
+                idleIntervalMs = SessionIntervals.defaults.idleIntervalMs,
+                activeIntervalMs = SessionIntervals.defaults.activeIntervalMs,
+                activeThresholdMs = SessionIntervals.defaults.activeThresholdMs,
                 dataModelRevision = FALLBACK_DATAMODEL_REVISION,
                 interactionModelRevision = FALLBACK_INTERACTIONMODEL_REVISION,
                 specificationVersion = FALLBACK_SPECIFICATION_VERSION,

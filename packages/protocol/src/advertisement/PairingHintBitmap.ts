@@ -4,8 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BitFlag, BitmapSchema, ProductDescription, TypeFromPartialBitSchema, VendorId } from "#types";
-import { Fabric } from "../fabric/Fabric.js";
+import { BitFlag, BitmapSchema } from "@matter/types";
 
 export const PairingHintBitmap = {
     /**
@@ -128,93 +127,3 @@ export const PairingHintBitmap = {
 };
 
 export const PairingHintBitmapSchema = BitmapSchema(PairingHintBitmap);
-
-export interface CommissioningModeInstanceData extends ProductDescription {
-    /** Device discriminator for commissionable announcements. */
-    discriminator: number;
-
-    /** Session Idle Interval of the device for commissionable announcements. */
-    sessionIdleInterval?: number;
-
-    /** Session Active Interval of the device for commissionable announcements. */
-    sessionActiveInterval?: number;
-
-    /** Duration of time the node should stay active after the last network activity. **/
-    sessionActiveThreshold?: number;
-
-    /** Pairing hint of the device for commissionable announcements. */
-    pairingHint?: TypeFromPartialBitSchema<typeof PairingHintBitmap>;
-
-    /** Pairing instruction of the device for commissionable announcements. */
-    pairingInstructions?: string;
-}
-
-export type CommissionerInstanceData = {
-    /** Device name for commissionable announcements. */
-    deviceName: string;
-
-    /** Device type for commissionable announcements. */
-    vendorId: VendorId;
-
-    /** Vendor ID for commissionable announcements. */
-    productId: number;
-
-    /** Device type for commissionable announcements. */
-    deviceType?: number;
-
-    /** Session Idle Interval of the device for commissionable announcements. */
-    sessionIdleInterval?: number;
-
-    /** Session Active Interval of the device for commissionable announcements. */
-    sessionActiveInterval?: number;
-
-    /** This key defines the duration of time the node stays Active after the last network activity. **/
-    sessionActiveThreshold?: number;
-};
-
-export type OperationalInstanceData = {
-    /** Session Idle Interval of the device for operational announcements. */
-    sessionIdleInterval?: number;
-
-    /** Session Active Interval of the device for operational announcements. */
-    sessionActiveInterval?: number;
-
-    /** This key defines the duration of time the node stays Active after the last network activity. **/
-    sessionActiveThreshold?: number;
-};
-
-export enum CommissioningMode {
-    NotCommissioning = 0,
-    Basic = 1,
-    Enhanced = 2,
-}
-
-/** Interface for classes that allow to announce one Matter instance. */
-export interface InstanceBroadcaster {
-    /** Set a commissionable mode and details to announce a commissionable device. */
-    setCommissionMode(mode: CommissioningMode, deviceData: CommissioningModeInstanceData): Promise<void>;
-
-    /**
-     * Set operational details to Announce an operational device which is already commissioned.
-     * Use expireCommissioningAnnouncements = true when Fabrics are changed after a n commissioning process.
-     */
-    setFabrics(fabrics: Fabric[], expireCommissioningAnnouncements?: boolean): Promise<void>;
-
-    /** Set commissioner details to announce a commissioner service for User directed commissioning (UDC). */
-    setCommissionerInfo(commissionerData: CommissionerInstanceData): Promise<void>;
-
-    /** Send out announcements for this instance. */
-    announce(): Promise<void>;
-
-    /** Expire the announcement for this operative instance. */
-    expireFabricAnnouncement(): Promise<void>;
-
-    /** Expire the announcement for this commissioning instance. */
-    expireCommissioningAnnouncement(): Promise<void>;
-
-    /** Expire all announcements. */
-    expireAllAnnouncements(): Promise<void>;
-
-    /** Destroy the instance */
-    close(): Promise<void>;
-}

@@ -49,5 +49,12 @@ export namespace CommissioningOptions {
          * Vendor-specific BLE advertisement data.
          */
         readonly additionalBleAdvertisementData?: Uint8Array;
+
+        /**
+         * Maximum time to advdertise.  Must be > 3 minutes and < 48 hours.
+         *
+         * Defaults to 15 minutes.
+         */
+        readonly advertisementWindowS?: number;
     }
 }

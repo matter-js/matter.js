@@ -6,7 +6,6 @@
 
 import {
     Construction,
-    Crypto,
     Diagnostic,
     Environment,
     Environmental,
@@ -16,14 +15,16 @@ import {
     Network,
     VariableService,
 } from "#general";
-import { MdnsBroadcaster } from "../mdns/MdnsBroadcaster.js";
-import { MdnsScanner } from "../mdns/MdnsScanner.js";
+import { MdnsServer } from "../mdns/MdnsServer.js";
+import { MdnsClient } from "./MdnsClient.js";
+import { MdnsSocket } from "./MdnsSocket.js";
 
 const logger = Logger.get("MDNS");
 
 export class MdnsService {
-    #broadcaster?: MdnsBroadcaster;
-    #scanner?: MdnsScanner;
+    #socket?: MdnsSocket;
+    #server?: MdnsServer;
+    #client?: MdnsClient;
     #env: Environment;
     readonly #construction: Construction<MdnsService>;
     readonly #enableIpv4: boolean;
@@ -35,6 +36,7 @@ export class MdnsService {
 
     constructor(environment: Environment, options?: MdnsService.Options) {
         this.#env = environment;
+        const network = environment.get(Network);
         const rootEnvironment = environment.root;
         rootEnvironment.set(MdnsService, this);
         rootEnvironment.runtime.add(this);
@@ -44,18 +46,13 @@ export class MdnsService {
         this.limitedToNetInterface = vars.get("mdns.networkInterface", options?.networkInterface);
 
         this.#construction = Construction(this, async () => {
-            const crypto = environment.get(Crypto);
-            const network = environment.get(Network);
-
-            this.#broadcaster = await MdnsBroadcaster.create(crypto, network, {
-                enableIpv4: this.enableIpv4,
-                multicastInterface: this.limitedToNetInterface,
-            });
-
-            this.#scanner = await MdnsScanner.create(network, {
+            this.#socket = await MdnsSocket.create(network, {
                 enableIpv4: this.enableIpv4,
                 netInterface: this.limitedToNetInterface,
             });
+
+            this.#server = new MdnsServer(this.#socket);
+            this.#client = new MdnsClient(this.#socket);
         });
     }
 
@@ -63,16 +60,12 @@ export class MdnsService {
         return new this(environment);
     }
 
-    createInstanceBroadcaster(port: number) {
-        return this.broadcaster.createInstanceBroadcaster(port);
+    get server() {
+        return this.#construction.assert("MDNS service", this.#server);
     }
 
-    get broadcaster() {
-        return this.#construction.assert("MDNS service", this.#broadcaster);
-    }
-
-    get scanner() {
-        return this.#construction.assert("MDNS service", this.#scanner);
+    get client() {
+        return this.#construction.assert("MDNS service", this.#client);
     }
 
     get [Diagnostic.value]() {
@@ -87,12 +80,12 @@ export class MdnsService {
         this.#env.delete(MdnsService, this);
 
         await this.#construction.close(async () => {
-            const broadcasterDisposal = MaybePromise.then(this.#broadcaster?.close(), undefined, e =>
-                logger.error("Error disposing of MDNS broadcaster", e),
+            const broadcasterDisposal = MaybePromise.then(this.#server?.close(), undefined, e =>
+                logger.error("Error disposing of MDNS server", e),
             );
 
-            const scannerDisposal = MaybePromise.then(this.#scanner?.close(), undefined, e =>
-                logger.error("Error disposing of MDNS scanner", e),
+            const scannerDisposal = MaybePromise.then(this.#client?.close(), undefined, e =>
+                logger.error("Error disposing of MDNS client", e),
             );
 
             await MatterAggregateError.allSettled(
@@ -100,7 +93,11 @@ export class MdnsService {
                 "Error disposing MDNS services",
             ).catch(error => logger.error(error));
 
-            this.#broadcaster = this.#scanner = undefined;
+            if (this.#socket) {
+                await this.#socket?.close();
+            }
+
+            this.#server = this.#client = undefined;
         });
     }
 }

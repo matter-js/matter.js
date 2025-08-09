@@ -4,6 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export * from "./BleBroadcaster.js";
+export * from "../../protocol/src/advertisement/ble/BleAdvertiser.js";
 export * from "./BleScanner.js";
 export * from "./NodeJsBle.js";

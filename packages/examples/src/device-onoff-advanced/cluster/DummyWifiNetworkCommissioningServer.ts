@@ -130,7 +130,7 @@ export class DummyWifiNetworkCommissioningServer extends NetworkCommissioningBeh
         this.state.lastConnectErrorValue = null;
 
         // Announce operational in IP network
-        await this.env.get(DeviceAdvertiser).startAdvertising();
+        this.env.get(DeviceAdvertiser).restartAdvertisement();
 
         return {
             networkingStatus,
