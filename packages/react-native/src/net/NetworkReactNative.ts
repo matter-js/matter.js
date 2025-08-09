@@ -8,21 +8,14 @@ import dgram from "react-native-udp";
 // @ts-expect-error globalThis is no index structure
 global.dgram = dgram;
 
-// @ts-expect-error globalThis is no index structure
+// @ts-expect-error globalThis is no index structure, no bind needed because static method
 const rnDGramCreateSocket = dgram.createSocket;
 // @ts-expect-error globalThis is no index structure
 // Work around because React-Native UDP lib is not providing the setMulticastInterface method
 dgram.createSocket = (...args: any[]) => {
     const socket = rnDGramCreateSocket(...args);
-    socket.setMulticastInterface = () => {}; // Stub for now
+    socket.setMulticastInterface = () => {}; // Stub for now, suppress warning logs
 
-    const originalSend = socket.send;
-    socket.send = (
-        buffer: Uint8Array,
-        port: number,
-        address: string,
-        callback: (error: Error | null, bytes: number) => void,
-    ) => originalSend(buffer, 0, buffer.length, port, address, callback);
     return socket;
 };
 

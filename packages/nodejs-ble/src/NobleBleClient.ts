@@ -5,7 +5,7 @@
  */
 
 import { Diagnostic, Logger } from "#general";
-import { BLE_MATTER_SERVICE_UUID } from "#protocol";
+import { BLE_MATTER_SERVICE_UUID_SHORT } from "#protocol";
 import { require } from "@matter/nodejs-ble/require";
 import type { Noble, Peripheral } from "@stoprocent/noble";
 import { platform } from "node:process";
@@ -90,7 +90,7 @@ export class NobleBleClient {
         this.shouldScan = true;
         if (this.nobleState === "poweredOn") {
             logger.debug("Start BLE scanning for Matter Services ...");
-            await noble.startScanningAsync([BLE_MATTER_SERVICE_UUID], true);
+            await noble.startScanningAsync([BLE_MATTER_SERVICE_UUID_SHORT], true);
         } else {
             logger.debug("noble state is not poweredOn ... delay scanning till poweredOn");
         }
@@ -114,7 +114,7 @@ export class NobleBleClient {
         //  see https://github.com/stoprocent/noble/issues/20
         if (
             process.platform === "win32" &&
-            !peripheral.advertisement.serviceData.some(({ uuid }) => uuid === BLE_MATTER_SERVICE_UUID)
+            !peripheral.advertisement.serviceData.some(({ uuid }) => uuid === BLE_MATTER_SERVICE_UUID_SHORT)
         ) {
             return;
         }
@@ -131,7 +131,7 @@ export class NobleBleClient {
             return;
         }
         const matterServiceData = peripheral.advertisement.serviceData.find(
-            ({ uuid }) => uuid === BLE_MATTER_SERVICE_UUID,
+            ({ uuid }) => uuid === BLE_MATTER_SERVICE_UUID_SHORT,
         );
         if (matterServiceData === undefined || matterServiceData.data.length !== 8) {
             logger.info(`Peripheral ${address} does not advertise Matter Service ... ignoring`);

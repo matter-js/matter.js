@@ -23,7 +23,7 @@ import {
     BLE_MATTER_C1_CHARACTERISTIC_UUID,
     BLE_MATTER_C2_CHARACTERISTIC_UUID,
     BLE_MATTER_C3_CHARACTERISTIC_UUID,
-    BLE_MATTER_SERVICE_UUID,
+    BLE_MATTER_SERVICE_UUID_SHORT,
     BLE_MAXIMUM_BTP_MTU,
     BTP_CONN_RSP_TIMEOUT_MS,
     BTP_MAXIMUM_WINDOW_SIZE,
@@ -241,7 +241,7 @@ export class NobleBleCentralInterface implements NetInterface {
 
                 try {
                     connectionGuard.interviewTimeout.start();
-                    const services = await peripheral.discoverServicesAsync([BLE_MATTER_SERVICE_UUID]);
+                    const services = await peripheral.discoverServicesAsync([BLE_MATTER_SERVICE_UUID_SHORT]);
                     if (!this.#connectionGuards.has(connectionGuard)) {
                         // Seems that the response was delayed and this process was cancelled in the meantime
                         return;
@@ -252,7 +252,7 @@ export class NobleBleCentralInterface implements NetInterface {
 
                     for (const service of services) {
                         logger.debug(`Peripheral ${peripheralAddress}: Handle service: ${service.uuid}`);
-                        if (service.uuid !== BLE_MATTER_SERVICE_UUID) continue;
+                        if (service.uuid !== BLE_MATTER_SERVICE_UUID_SHORT) continue;
 
                         // It's Matter, discover its characteristics.
                         const characteristics = await service.discoverCharacteristicsAsync();

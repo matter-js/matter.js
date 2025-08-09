@@ -69,6 +69,7 @@ export class ReactNativeBleCentralInterface implements NetInterface {
         let device: Device;
         try {
             device = await peripheral.connect();
+            await device.requestMTU(BLE_MAXIMUM_BTP_MTU);
         } catch (error) {
             if (error instanceof ReactNativeBleError && error.errorCode === BleErrorCode.DeviceAlreadyConnected) {
                 device = peripheral;
@@ -85,7 +86,7 @@ export class ReactNativeBleCentralInterface implements NetInterface {
 
         for (const service of services) {
             logger.debug(`found service: ${service.uuid}`);
-            if (service.uuid !== BLE_MATTER_SERVICE_UUID) continue;
+            if (service.uuid.toUpperCase() !== BLE_MATTER_SERVICE_UUID) continue;
 
             // So, discover its characteristics.
             const characteristics = await device.characteristicsForService(service.uuid);
@@ -98,7 +99,7 @@ export class ReactNativeBleCentralInterface implements NetInterface {
                 // Loop through each characteristic and match them to the UUIDs that we know about.
                 logger.debug("found characteristic:", characteristic.uuid);
 
-                switch (characteristic.uuid) {
+                switch (characteristic.uuid.toUpperCase()) {
                     case BLE_MATTER_C1_CHARACTERISTIC_UUID:
                         logger.debug("found C1 characteristic");
                         characteristicC1ForWrite = characteristic;

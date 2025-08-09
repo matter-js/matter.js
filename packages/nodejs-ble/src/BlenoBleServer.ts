@@ -9,7 +9,7 @@ import {
     BLE_MATTER_C1_CHARACTERISTIC_UUID,
     BLE_MATTER_C2_CHARACTERISTIC_UUID,
     BLE_MATTER_C3_CHARACTERISTIC_UUID,
-    BLE_MATTER_SERVICE_UUID,
+    BLE_MATTER_SERVICE_UUID_SHORT,
     BTP_CONN_RSP_TIMEOUT_MS,
     BleChannel,
     BleError,
@@ -114,7 +114,7 @@ function initializeBleno(server: BlenoBleServer, hciId?: number) {
     class BtpService extends Bleno.PrimaryService {
         constructor() {
             super({
-                uuid: BLE_MATTER_SERVICE_UUID,
+                uuid: BLE_MATTER_SERVICE_UUID_SHORT,
                 characteristics: [
                     new BtpWriteCharacteristicC1(),
                     new BtpIndicateCharacteristicC2(),
