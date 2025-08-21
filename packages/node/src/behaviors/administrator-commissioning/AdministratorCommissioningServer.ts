@@ -7,7 +7,14 @@
 import { AdministratorCommissioning } from "#clusters/administrator-commissioning";
 import { Duration, InternalError, Logger, Seconds, Time, Timer } from "#general";
 import { AccessLevel } from "#model";
-import { DeviceCommissioner, FailsafeContext, PaseServer, SessionManager } from "#protocol";
+import {
+    assertRemoteActor,
+    DeviceCommissioner,
+    FailsafeContext,
+    hasRemoteActor,
+    PaseServer,
+    SessionManager,
+} from "#protocol";
 import {
     Command,
     MINIMUM_COMMISSIONING_TIMEOUT,
@@ -155,16 +162,17 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
             // Should never happen, but let's make sure
             throw new InternalError("Commissioning window already initialized.");
         }
-        logger.debug(
-            `Commissioning window timer started for ${commissioningTimeout} seconds for ${this.context.session?.name}.`,
-        );
+        const actor = hasRemoteActor(this.context) ? this.context.session.name : "local actor";
+        logger.debug(`Commissioning window timer started for ${commissioningTimeout} seconds for ${actor}.`);
         this.internal.commissioningWindowTimeout = Time.getTimer(
             "Commissioning timeout",
             commissioningTimeout,
             this.callback(this.#commissioningTimeout),
         ).start();
 
-        const adminFabric = this.session.associatedFabric;
+        assertRemoteActor(this.context);
+
+        const adminFabric = this.context.session.associatedFabric;
 
         this.state.windowStatus = windowStatus;
         this.state.adminFabricIndex = adminFabric.fabricIndex;
@@ -176,7 +184,7 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
             adminFabric.deleteRemoveCallback(removeCallback);
         };
 
-        this.session.associatedFabric.addRemoveCallback(removeCallback);
+        this.context.session.associatedFabric.addRemoveCallback(removeCallback);
     }
 
     /**

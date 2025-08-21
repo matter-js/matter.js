@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { OnlineContext } from "#behavior/context/server/OnlineContext.js";
+import { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Agent } from "#endpoint/Agent.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
@@ -20,6 +20,7 @@ import {
     StorageBackendMemory,
     StorageService,
 } from "#general";
+import { AccessLevel } from "#model";
 import { Node } from "#node/Node.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { ExchangeManager, FabricManager, MessageExchange, SessionManager, TestFabric } from "#protocol";
@@ -79,21 +80,19 @@ export class MockServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootE
      * Perform fake online activity
      */
     online<R>(
-        options: Partial<OnlineContext.Options>,
+        options: Partial<RemoteActorContext.Options> & { accessLevel?: AccessLevel },
         actor: (agent: Agent.Instance<T>) => MaybePromise<R>,
     ): MaybePromise<R> {
         if (!options.exchange) {
-            if (!options.fabric) {
-                options.fabric = FabricIndex.NO_FABRIC;
-            }
-            if (!options.subject) {
-                options.subject = NodeId(0);
-            }
+            options.exchange = new MockExchange(
+                { fabricIndex: FabricIndex.NO_FABRIC, nodeId: NodeId(0) },
+                { accessLevel: options.accessLevel ?? AccessLevel.Operate },
+            );
         }
         if (!options.node) {
             options.node = this;
         }
-        return OnlineContext(options as OnlineContext.Options).act(context => actor(this.agentFor(context)));
+        return RemoteActorContext(options as RemoteActorContext.Options).act(context => actor(this.agentFor(context)));
     }
 
     static async createOnline<T extends ServerNode.RootEndpoint = ServerNode.RootEndpoint>(
@@ -133,7 +132,7 @@ export class MockServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootE
         await node.start();
 
         node.env.get(ExchangeManager).initiateExchange = address => {
-            const exchange = new MockExchange(address, node.env.get(SessionManager).getSession(1));
+            const exchange = new MockExchange(address, { session: node.env.get(SessionManager).getSession(1) });
 
             node.#newExchanges.push(exchange);
 

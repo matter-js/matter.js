@@ -23,7 +23,7 @@ import {
 } from "#general";
 import { Behavior } from "./Behavior.js";
 import { ClusterEvents } from "./cluster/ClusterEvents.js";
-import { OfflineContext } from "./context/server/OfflineContext.js";
+import { LocalActorContext } from "./context/server/LocalActorContext.js";
 import { Events } from "./Events.js";
 import { BehaviorBacking } from "./internal/BehaviorBacking.js";
 
@@ -227,7 +227,7 @@ export class Transitions<B extends Behavior> {
 
         const previousRemainingTime = this.#prevPublishedRemainingTime;
         this.#prevPublishedRemainingTime = newRemainingTime;
-        this.#config.remainingTimeEvent?.emit(newRemainingTime, previousRemainingTime, OfflineContext.ReadOnly);
+        this.#config.remainingTimeEvent?.emit(newRemainingTime, previousRemainingTime, LocalActorContext.ReadOnly);
     }
 
     /**

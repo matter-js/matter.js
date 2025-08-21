@@ -15,9 +15,9 @@ import { SubscribeResult } from "./response/SubscribeResult.js";
 import { WriteResult } from "./response/WriteResult.js";
 import { AccessControl } from "./server/AccessControl.js";
 
-export interface InteractionSession extends AccessControl.Session {
+export type InteractionSession = AccessControl.Session & {
     transaction?: Transaction;
-}
+};
 
 /**
  * Objects implementing this interface can participate in Matter interactions.

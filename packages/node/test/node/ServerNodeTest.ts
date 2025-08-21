@@ -33,7 +33,7 @@ import {
     StorageManager,
     StorageService,
 } from "#general";
-import { OfflineContext } from "#index.js";
+import { LocalActorContext } from "#index.js";
 import { AccessLevel, BasicInformation, ElementTag, FeatureMap } from "#model";
 import { ServerEnvironment } from "#node/server/ServerEnvironment.js";
 import { ServerNode } from "#node/ServerNode.js";
@@ -628,13 +628,13 @@ describe("ServerNode", () => {
             expect(fm.limits.writable).equals(false);
             expect(fm.limits.readLevel).equals(AccessLevel.View);
 
-            const readState = bi.readState(OfflineContext.ReadOnly);
+            const readState = bi.readState(LocalActorContext.ReadOnly);
             expect((readState as Val.Struct).vendorName).equals("Matter.js Test Vendor");
             expect((readState as Val.Struct)[BasicInformationCluster.attributes.vendorName.id]).equals(
                 "Matter.js Test Vendor",
             );
 
-            await expect(bi.openForWrite(OfflineContext.ReadOnly)).rejectedWith("This view is read-only");
+            await expect(bi.openForWrite(LocalActorContext.ReadOnly)).rejectedWith("This view is read-only");
 
             await node.close();
 

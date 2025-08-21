@@ -9,14 +9,12 @@ import {
     AsyncObservable,
     EventEmitter,
     GeneratedClass,
-    ImplementationError,
     MaybePromise,
     NotImplementedError,
     Observable,
     Transaction,
 } from "#general";
 import { Schema } from "#model";
-import { SecureSession } from "#protocol";
 import type { ClusterType } from "#types";
 import { Reactor } from "./Reactor.js";
 import type { BehaviorBacking } from "./internal/BehaviorBacking.js";
@@ -104,45 +102,6 @@ export abstract class Behavior {
      */
     get env() {
         return this.endpoint.env;
-    }
-
-    /**
-     * The session in which the behavior has been invoked.
-     */
-    get session() {
-        const session = this.#agent.context.session;
-        if (session === undefined) {
-            throw new ImplementationError(`Illegal operation outside session context`);
-        }
-
-        // TODO - would a behavior ever need access to an insecure session?
-        SecureSession.assert(session);
-
-        return session;
-    }
-
-    /**
-     * Execute logic with elevated privileges.
-     *
-     * The provided function executes with privileges escalated to offline mode.  This is not commonly necessary.
-     *
-     * Elevated logic effectively ignores ACLs so should be used with care.
-     *
-     * Note that interactions with the behavior will remain elevated until the synchronous completion of this call.
-     * You should only elevate privileges for synchronous logic.
-     *
-     * @param fn the elevated logic
-     */
-    asAdmin(fn: () => void) {
-        const context = this.context;
-
-        const offline = context.offline;
-        try {
-            context.offline = true;
-            fn();
-        } finally {
-            context.offline = offline;
-        }
     }
 
     /**

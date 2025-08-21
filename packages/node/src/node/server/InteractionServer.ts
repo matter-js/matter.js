@@ -5,7 +5,7 @@
  */
 
 import { NodeActivity } from "#behavior/context/NodeActivity.js";
-import { OnlineContext } from "#behavior/context/server/OnlineContext.js";
+import { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
 import { AccessControlServer } from "#behaviors/access-control";
 import {
     Crypto,
@@ -219,7 +219,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         message: Message,
         fabricFiltered?: boolean,
         timed = false,
-    ): OnlineContext.Options {
+    ): RemoteActorContext.Options {
         return {
             activity: (exchange as NodeActivity.WithActivity)[NodeActivity.activityKey],
             fabricFiltered,

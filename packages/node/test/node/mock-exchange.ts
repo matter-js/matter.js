@@ -5,8 +5,16 @@
  */
 
 import { DataReadQueue } from "#general";
-import { Specification } from "#model";
-import { Message, MessageExchange, MessageExchangeContext, MessageType, PeerAddress, Session } from "#protocol";
+import { AccessLevel, Specification } from "#model";
+import {
+    Message,
+    MessageExchange,
+    MessageExchangeContext,
+    MessageType,
+    PeerAddress,
+    Session,
+    Subject,
+} from "#protocol";
 import { NodeId, SECURE_CHANNEL_PROTOCOL_ID, StatusCode, TlvStatusResponse } from "#types";
 
 /**
@@ -24,7 +32,16 @@ export class MockExchange extends MessageExchange {
 
     address: PeerAddress;
 
-    constructor(address: PeerAddress, session?: Session) {
+    constructor(address: PeerAddress, { session, accessLevel = AccessLevel.Operate }: MockExchange.Options = {}) {
+        const fabric: Record<string, unknown> = {
+            fabricIndex: address.fabricIndex,
+            accessControl: {
+                accessLevelsFor() {
+                    return [AccessLevel.View, accessLevel];
+                },
+            },
+        };
+
         const context = {
             channel: {
                 name: "test",
@@ -37,6 +54,12 @@ export class MockExchange extends MessageExchange {
                         return 1;
                     },
                     parameters: {},
+                    isSecure: true,
+                    subjectFor() {
+                        return Subject.Node({ id: address.nodeId });
+                    },
+                    fabric,
+                    associatedFabric: fabric,
                 },
             },
             retry(_number: number) {},
@@ -82,4 +105,11 @@ export class MockExchange extends MessageExchange {
     }
 
     override async close() {}
+}
+
+export namespace MockExchange {
+    export interface Options {
+        session?: Session;
+        accessLevel?: AccessLevel;
+    }
 }

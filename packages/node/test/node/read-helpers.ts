@@ -1,4 +1,4 @@
-import { Specification } from "#model";
+import { AccessLevel, Specification } from "#model";
 import { AttributeReadResponse, Read, ReadResult } from "#protocol";
 import { ClusterId, EndpointNumber } from "#types";
 import { MockServerNode } from "./mock-server-node.js";
@@ -21,7 +21,7 @@ export async function readAttrRaw(node: MockServerNode, data: Partial<Read.Attri
     if (!Read.containsAttribute(request)) {
         throw new Error("Expected an attribute request");
     }
-    return node.online({}, ({ context }) => {
+    return node.online({ accessLevel: AccessLevel.Administer }, ({ context }) => {
         const response = new AttributeReadResponse(node.protocol, context);
         const data = [...response.process(request)];
         data.forEach(chunks => {

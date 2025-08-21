@@ -15,6 +15,8 @@ import {
     AclList,
     Fabric,
     FabricManager,
+    hasLocalActor,
+    hasRemoteActor,
     IncomingSubjectDescriptor,
     MessageExchange,
     NodeSession,
@@ -91,8 +93,8 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
                     ". This should only happen once after upgrading to matter.js 0.9.1",
                 );
             }
-            fabric.acl.aclList = fabricAcls;
-            fabric.acl.extensionEntryAccessCheck = this.extensionEntryAccessCheck.bind(this);
+            fabric.accessControl.aclList = fabricAcls;
+            fabric.accessControl.extensionEntryAccessCheck = this.extensionEntryAccessCheck.bind(this);
         }
 
         // TODO handle delete fabric more generically later to remove fabric scoped data
@@ -134,11 +136,14 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
     #validateAccessControlListChanges(
         value: AccessControlTypes.AccessControlEntry[],
         _oldValue: AccessControlTypes.AccessControlEntry[],
-        context?: ActionContext,
     ) {
-        // TODO: This might be not really correct for local ACL changes because there the session fabric could be
-        //  different which would lead to missing validation of the relevant entries
-        const relevantFabricIndex = this.context.session?.associatedFabric.fabricIndex;
+        const { context } = this;
+
+        if (!hasRemoteActor(context)) {
+            return;
+        }
+
+        const relevantFabricIndex = context.session.associatedFabric.fabricIndex;
 
         if (relevantFabricIndex === undefined) {
             return;
@@ -276,7 +281,8 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
         if (!this.internal.initialized) {
             return; // Too early to send events
         }
-        const { session } = this.context;
+
+        const session = hasRemoteActor(this.context) ? this.context.session : undefined;
 
         // TODO: This might be not really correct for local ACL changes because there the session fabric could be
         //  different which would lead to missing events
@@ -327,13 +333,11 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
     }
 
     #validateAccessControlExtensionChanges(value: AccessControlTypes.AccessControlExtension[]) {
-        // TODO: This might be not really correct for local ACL changes because there the session fabric could be
-        //  different which would lead to missing validation of the relevant entries
-        const relevantFabricIndex = this.context.session?.associatedFabric.fabricIndex;
-
-        if (relevantFabricIndex === undefined) {
+        if (!hasRemoteActor(this.context)) {
             return;
         }
+
+        const relevantFabricIndex = this.context.session.associatedFabric.fabricIndex;
 
         const fabricExtensions = value.filter(entry => entry.fabricIndex === relevantFabricIndex);
 
@@ -355,7 +359,8 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
         if (!this.internal.initialized) {
             return; // Too early to send events
         }
-        const { session } = this.context;
+
+        const session = hasRemoteActor(this.context) ? this.context.session : undefined;
 
         // TODO: This might be not really correct for local ACL changes because there the session fabric could be
         //  different which would lead to missing events of the relevant entries
@@ -437,7 +442,7 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
     /** A fabric was added or updated, so we need to initialize the ACL for this fabric */
     #updateFabricAcls(fabric: Fabric) {
         const fabricIndex = fabric.fabricIndex;
-        fabric.acl.aclList = deepCopy(this.state.acl).filter(entry => entry.fabricIndex === fabricIndex);
+        fabric.accessControl.aclList = deepCopy(this.state.acl).filter(entry => entry.fabricIndex === fabricIndex);
     }
 
     /**
@@ -445,7 +450,7 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
      * fabric index. If ACL data are really changed later, the exchange gets added then.
      */
     #handleInteractionBegin(session?: AccessControl.Session) {
-        if (session !== undefined && !session.offline && session.fabric !== undefined) {
+        if (hasRemoteActor(session)) {
             this.#prepareAclUpdateFor(session.fabric);
         }
     }
@@ -456,7 +461,7 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
      * not changing the ACL.
      */
     #handleInteractionEnd(session?: AccessControl.Session) {
-        if (session !== undefined && !session.offline && session.fabric !== undefined) {
+        if (hasRemoteActor(session)) {
             if (this.internal.aclUpdateDelayed.get(session.fabric) !== undefined) {
                 this.#applyDelayedAclUpdateFor(session.fabric);
             }
@@ -469,7 +474,7 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
         _oldAcl: AccessControlTypes.AccessControlEntry[],
         context?: ActionContext,
     ) {
-        if (context === undefined || context.offline) {
+        if (hasLocalActor(context)) {
             // local or offline ACL change, so we update all fabrics because we do not know better
             this.#updateAllFabricsAcls();
         } else {
@@ -498,7 +503,7 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
             // No interaction registered, so we apply directly because local/offline change
             logger.debug("ACL attribute updated, applying update to ACL manager", fabricIndex);
 
-            fabric.acl.aclList = deepCopy(acl).filter(entry => entry.fabricIndex === fabricIndex);
+            fabric.accessControl.aclList = deepCopy(acl).filter(entry => entry.fabricIndex === fabricIndex);
         }
     }
 
@@ -522,7 +527,7 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
         const fabrics = this.env.get(FabricManager);
         for (const fabric of fabrics) {
             // Update all Fabrics and set the ACL list for each fabric, empty ACLs when none are present
-            fabric.acl.aclList = aclsForFabric.get(fabric.fabricIndex) ?? [];
+            fabric.accessControl.aclList = aclsForFabric.get(fabric.fabricIndex) ?? [];
         }
     }
 
@@ -564,7 +569,7 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
         this.internal.delayedAclData.delete(fabricIndex);
         this.internal.aclUpdateDelayed.delete(fabricIndex);
         if (updateDelayed && delayedData !== undefined) {
-            this.env.get(FabricManager).for(fabricIndex).acl.aclList = delayedData;
+            this.env.get(FabricManager).for(fabricIndex).accessControl.aclList = delayedData;
         }
     }
 }

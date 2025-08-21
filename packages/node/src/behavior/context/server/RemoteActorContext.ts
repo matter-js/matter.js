@@ -4,57 +4,73 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AsyncObservable, Diagnostic, ImplementationError, InternalError, MaybePromise, Transaction } from "#general";
+import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
+import { AsyncObservable, Diagnostic, InternalError, MaybePromise, Transaction } from "#general";
 import { AccessLevel } from "#model";
 import type { Node } from "#node/Node.js";
 import type { Message, NodeProtocol } from "#protocol";
-import {
-    AccessControl,
-    AclEndpointContext,
-    FabricAccessControl,
-    MessageExchange,
-    SecureSession,
-    Subject,
-} from "#protocol";
-import { FabricIndex, NodeId } from "#types";
-import { ActionContext } from "../ActionContext.js";
+import { AccessControl, AclEndpointContext, FabricAccessControl, MessageExchange, SecureSession } from "#protocol";
+import { FabricIndex, Priority } from "#types";
 import { Contextual } from "../Contextual.js";
 import { NodeActivity } from "../NodeActivity.js";
+
+export interface RemoteActorContext extends ValueSupervisor.RemoteActorSession {
+    /**
+     * Override for {@link ValueSupervisor.RemoteActorSession} to specialize the context.
+     */
+    interactionComplete?: AsyncObservable<[context?: RemoteActorContext]>;
+
+    /**
+     * The Matter session in which an interaction occurs.
+     */
+    session: SecureSession;
+
+    /**
+     * The Matter exchange in which an interaction occurs.
+     */
+    exchange: MessageExchange;
+
+    /**
+     * The wire message that initiated invocation.
+     */
+    message?: Message;
+
+    /**
+     * Activity tracking information.  If present, activity frames are inserted at key points for diagnostic
+     * purposes.
+     */
+    activity?: NodeActivity.Activity;
+
+    /**
+     * The priority of actions in this context.
+     */
+    priority?: Priority;
+}
 
 /**
  * Caches completion events per exchange. Uses if multiple OnlineContext instances are created for an exchange.
  * Entries will be cleaned up when the exchange is closed.
  */
-const exchangeCompleteEvents = new WeakMap<MessageExchange, AsyncObservable<[session?: ActionContext | undefined]>>();
+const exchangeCompleteEvents = new WeakMap<
+    MessageExchange,
+    AsyncObservable<[session?: RemoteActorContext | undefined]>
+>();
 
 /**
- * Operate in online context.  Public Matter API interactions happen in online context.
+ * The context for operations triggered by an authenticated peer.  Public Matter interactions use this context.
  */
-export function OnlineContext(options: OnlineContext.Options) {
-    let fabric: FabricIndex | undefined;
-    let subject: Subject;
+export function RemoteActorContext(options: RemoteActorContext.Options) {
     let nodeProtocol: NodeProtocol | undefined;
     let accessLevelCache: Map<AccessControl.Location, number[]> | undefined;
-    let aclManager: FabricAccessControl;
 
     const { exchange, message } = options;
-    const session = exchange?.session;
+    const session = exchange.session;
 
-    if (session) {
-        SecureSession.assert(session);
-        fabric = session.fabric?.fabricIndex;
-        subject = session.subjectFor(message);
-        // Without a fabric, we assume default PASE based access controls and use a fresh FabricAccessControlManager instance
-        aclManager = session?.fabric?.acl ?? new FabricAccessControl();
-    } else {
-        fabric = options.fabric;
-        if (options.subject !== undefined) {
-            subject = Subject.Node({ id: options.subject });
-        } else {
-            throw new ImplementationError("OnlineContext requires an authorized subject");
-        }
-        aclManager = options.aclManager ?? new FabricAccessControl();
-    }
+    SecureSession.assert(session);
+    const fabric = session.fabric;
+    const subject = session.subjectFor(message);
+    // Without a fabric, we assume default PASE based access controls and use a fresh FabricAccessControlManager instance
+    const accessControl = fabric?.accessControl ?? new FabricAccessControl();
 
     // If we have subjects, the first is the main one, used for diagnostics
     const via = Diagnostic.via(
@@ -63,11 +79,11 @@ export function OnlineContext(options: OnlineContext.Options) {
 
     return {
         /**
-         * Run an actor with a read/write context.
+         * Operate on behalf of a remote actor.
          *
          * If the actor changes state, this may return a promise even if {@link actor} does not return a promise.
          */
-        act<T>(actor: (context: ActionContext) => MaybePromise<T>): MaybePromise<T> {
+        act<T>(actor: (context: RemoteActorContext) => MaybePromise<T>): MaybePromise<T> {
             const context = this.open();
 
             let result;
@@ -86,7 +102,7 @@ export function OnlineContext(options: OnlineContext.Options) {
          * This context operates with a {@link Transaction} created via {@link Transaction.open} and the same rules
          * apply for lifecycle management using {@link Transaction.Finalization}.
          */
-        open(): ActionContext & Transaction.Finalization {
+        open(): RemoteActorContext & Transaction.Finalization {
             let close;
             let tx;
             try {
@@ -101,7 +117,7 @@ export function OnlineContext(options: OnlineContext.Options) {
             return createContext(tx, {
                 resolve: tx.resolve.bind(tx),
                 reject: tx.reject.bind(tx),
-            }) as ActionContext & Transaction.Finalization;
+            });
         },
 
         /**
@@ -115,7 +131,7 @@ export function OnlineContext(options: OnlineContext.Options) {
 
             return createContext(Transaction.open(via, "snapshot"), {
                 [Symbol.dispose]: close,
-            }) as OnlineContext.ReadOnly;
+            }) as RemoteActorContext.ReadOnly;
         },
 
         [Symbol.toStringTag]: "OnlineContext",
@@ -142,11 +158,11 @@ export function OnlineContext(options: OnlineContext.Options) {
     /**
      * Initialization stage two - create context object after obtaining transaction
      */
-    function createContext(transaction: Transaction, methods: {}) {
+    function createContext<T extends {}>(transaction: Transaction, methods: T) {
         if (session) {
             SecureSession.assert(session);
         }
-        let interactionComplete: AsyncObservable<[session?: ActionContext | undefined]> | undefined;
+        let interactionComplete: AsyncObservable<[session?: RemoteActorContext | undefined]> | undefined;
         if (exchange !== undefined) {
             interactionComplete = exchangeCompleteEvents.get(exchange);
             if (interactionComplete === undefined) {
@@ -163,13 +179,13 @@ export function OnlineContext(options: OnlineContext.Options) {
             };
             exchange.closing.on(notifyInteractionComplete);
         }
-        const context: ActionContext = {
+        const context: RemoteActorContext & T = {
             ...options,
             session,
             exchange,
             subject,
 
-            fabric,
+            fabric: fabric?.fabricIndex ?? FabricIndex.NO_FABRIC,
             transaction,
 
             interactionComplete,
@@ -194,7 +210,7 @@ export function OnlineContext(options: OnlineContext.Options) {
                     throw new InternalError("OnlineContext initialized without node");
                 }
 
-                const accessLevels = aclManager.accessLevelsFor(context, location, aclEndpointContextFor(location));
+                const accessLevels = accessControl.accessLevelsFor(context, location, aclEndpointContextFor(location));
 
                 if (accessLevelCache === undefined) {
                     accessLevelCache = new Map();
@@ -206,7 +222,7 @@ export function OnlineContext(options: OnlineContext.Options) {
                     : AccessControl.Authority.Unauthorized;
             },
 
-            get [Contextual.context](): ActionContext {
+            get [Contextual.context](): RemoteActorContext {
                 return this;
             },
         };
@@ -247,21 +263,18 @@ export function OnlineContext(options: OnlineContext.Options) {
     }
 }
 
-export namespace OnlineContext {
+export namespace RemoteActorContext {
     export type Options = {
         node: Node;
+        exchange: MessageExchange;
         activity?: NodeActivity.Activity;
         command?: boolean;
         timed?: boolean;
         fabricFiltered?: boolean;
         message?: Message;
-        aclManager?: FabricAccessControl;
-    } & (
-        | { exchange: MessageExchange; fabric?: undefined; subject?: undefined }
-        | { exchange?: undefined; fabric: FabricIndex; subject: NodeId }
-    );
+    };
 
-    export interface ReadOnly extends ActionContext {
+    export interface ReadOnly extends RemoteActorContext {
         [Symbol.dispose](): void;
     }
 }

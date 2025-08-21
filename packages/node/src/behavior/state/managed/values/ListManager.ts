@@ -7,7 +7,16 @@
 import { isObject, serialize } from "#general";
 import type { Schema } from "#model";
 import { Access, DataModelPath, ValueModel } from "#model";
-import { AccessControl, ExpiredReferenceError, ReadError, SchemaImplementationError, Val, WriteError } from "#protocol";
+import {
+    AccessControl,
+    ExpiredReferenceError,
+    hasLocalActor,
+    hasRemoteActor,
+    ReadError,
+    SchemaImplementationError,
+    Val,
+    WriteError,
+} from "#protocol";
 import { StatusCode } from "#types";
 import type { RootSupervisor } from "../../../supervision/RootSupervisor.js";
 import type { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
@@ -206,7 +215,7 @@ function createProxy(config: ListConfig, reference: Val.Reference<Val.List>, ses
                 }
 
                 // If there's no fabric index or it's a match, consider "in scope"
-                if (session.offline || !entry.fabricIndex || entry.fabricIndex === session.fabric) {
+                if (hasLocalActor(session) || !entry.fabricIndex || entry.fabricIndex === session.fabric) {
                     if (nextPos === index) {
                         // Found our target
                         return i;
@@ -229,7 +238,7 @@ function createProxy(config: ListConfig, reference: Val.Reference<Val.List>, ses
             throw new WriteError(reference.location, `Index ${index} would leave gaps in fabric-filtered list`);
         }
 
-        if (session.fabricFiltered || config.fabricSensitive) {
+        if (hasRemoteActor(session) && (session.fabricFiltered || config.fabricSensitive)) {
             const nextReadEntry = readEntry;
 
             hasEntry = (index: number) => {
@@ -262,10 +271,7 @@ function createProxy(config: ListConfig, reference: Val.Reference<Val.List>, ses
                 let length = 0;
                 for (let i = 0; i < readVal().length; i++) {
                     const entry = readVal()[i] as undefined | { fabricIndex?: number };
-                    if (
-                        isObject(entry) &&
-                        (session.offline || !entry.fabricIndex || entry.fabricIndex === session.fabric)
-                    ) {
+                    if (isObject(entry) && (!entry.fabricIndex || entry.fabricIndex === session.fabric)) {
                         length++;
                     }
                 }
@@ -278,10 +284,7 @@ function createProxy(config: ListConfig, reference: Val.Reference<Val.List>, ses
                 reference.change(() => {
                     for (let i = formerLength - 1; i >= length; i--) {
                         const entry = writeVal()[mapScopedToActual(i, true)] as undefined | { fabricIndex?: number };
-                        if (
-                            isObject(entry) &&
-                            (session.offline || !entry.fabricIndex || entry.fabricIndex === session.fabric)
-                        ) {
+                        if (isObject(entry) && (!entry.fabricIndex || entry.fabricIndex === session.fabric)) {
                             writeVal().splice(mapScopedToActual(i, false), 1);
                         } else if (entry !== undefined) {
                             throw new WriteError(

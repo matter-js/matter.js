@@ -8,7 +8,7 @@ import { Behavior } from "#behavior/Behavior.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { NodeActivity } from "#behavior/context/NodeActivity.js";
 import { ContextAgents } from "#behavior/context/server/ContextAgents.js";
-import { OfflineContext } from "#behavior/context/server/OfflineContext.js";
+import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import {
     Construction,
     Diagnostic,
@@ -609,7 +609,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             this.#activity = this.env.get(NodeActivity);
         }
 
-        return OfflineContext.act(
+        return LocalActorContext.act(
             purpose,
             context => {
                 return actor(this.agentFor(context));

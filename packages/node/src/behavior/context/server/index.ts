@@ -4,5 +4,5 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export * from "./OfflineContext.js";
-export * from "./OnlineContext.js";
+export * from "./LocalActorContext.js";
+export * from "./RemoteActorContext.js";

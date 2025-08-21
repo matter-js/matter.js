@@ -12,6 +12,8 @@ import { NodeActivity } from "#behavior/context/NodeActivity.js";
 import { BehaviorBacking } from "#behavior/internal/BehaviorBacking.js";
 import { Reactors } from "#behavior/internal/Reactors.js";
 import { Environment, MaybePromise, Observable } from "#general";
+import { hasLocalActor, Subject } from "#protocol";
+import { NodeId } from "#types";
 
 class MockAgent {
     behavior: Behavior;
@@ -27,8 +29,6 @@ class MockAgent {
 
 function MockContext(offline = true) {
     const context = {
-        offline,
-
         get [Contextual.context]() {
             return this;
         },
@@ -36,9 +36,13 @@ function MockContext(offline = true) {
         get context() {
             return this;
         },
-    } as unknown as ActionContext;
+    } as Record<string, unknown>;
 
-    return context;
+    if (!offline) {
+        context.subject = Subject.Node({ id: NodeId(1) });
+    }
+
+    return context as unknown as ActionContext;
 }
 
 class MockEndpoint {
@@ -248,7 +252,7 @@ describe("Reactors", () => {
         let reacted = 0;
 
         let reactionText: string | undefined;
-        let offline: boolean | undefined;
+        let localActor: boolean | undefined;
         let reactionContext: ActionContext | undefined;
         let reactionThis: Behavior | undefined;
 
@@ -256,7 +260,7 @@ describe("Reactors", () => {
             reacted++;
 
             reactionText = text;
-            offline = this.context.offline;
+            localActor = hasLocalActor(this.context);
             reactionContext = this.context;
             reactionThis = this;
         });
@@ -264,7 +268,7 @@ describe("Reactors", () => {
         void endpoint.emit("foo", context);
 
         expect(reactionText).equals("foo");
-        expect(offline).false;
+        expect(localActor).false;
         expect(reactionContext).equals(context);
         expect(reactionThis).equals(endpoint.agentFor(context).get());
 
@@ -277,19 +281,19 @@ describe("Reactors", () => {
         let reacted = 0;
 
         let reactionText: string | undefined;
-        let offline: boolean | undefined;
+        let localActor: boolean | undefined;
 
         endpoint.reactTo(endpoint.event, function (this: Behavior, text: string) {
             reacted++;
 
             reactionText = text;
-            offline = this.context.offline;
+            localActor = hasLocalActor(this.context);
         });
 
         void endpoint.emit("foo");
 
         expect(reactionText).equals("foo");
-        expect(offline).equals(true);
+        expect(localActor).equals(true);
 
         expect(reacted).equals(1);
     });
@@ -301,7 +305,7 @@ describe("Reactors", () => {
         let reacted = 0;
 
         let reactionText: string | undefined;
-        let offline: boolean | undefined;
+        let localActor: boolean | undefined;
         let reactionContext: ActionContext | undefined;
 
         endpoint.reactTo(
@@ -310,7 +314,7 @@ describe("Reactors", () => {
                 reacted++;
 
                 reactionText = text;
-                offline = this.context.offline;
+                localActor = hasLocalActor(this.context);
                 reactionContext = this.context;
             },
             { offline: true },
@@ -319,7 +323,7 @@ describe("Reactors", () => {
         void endpoint.emit("foo", context);
 
         expect(reactionText).equals("foo");
-        expect(offline).equals(true);
+        expect(localActor).equals(true);
         expect(reactionContext).not.undefined;
         expect(reactionContext).not.equals(context);
 

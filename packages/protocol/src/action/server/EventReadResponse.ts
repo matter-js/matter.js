@@ -8,7 +8,7 @@ import { InteractionSession } from "#action/Interactable.js";
 import { ClusterProtocol, EndpointProtocol, EventTypeProtocol, NodeProtocol } from "#action/protocols.js";
 import { Read } from "#action/request/Read.js";
 import { ReadResult } from "#action/response/ReadResult.js";
-import { AccessControl } from "#action/server/AccessControl.js";
+import { AccessControl, hasRemoteActor } from "#action/server/AccessControl.js";
 import { DataResponse, FallbackLimits } from "#action/server/DataResponse.js";
 import { NumberedOccurrence } from "#events/Occurrence.js";
 import { InternalError, isObject, Logger } from "#general";
@@ -63,7 +63,7 @@ export class EventReadResponse<
         eventRequests,
         isFabricFiltered,
     }: Read.Events): AsyncGenerator<ReadResult.Chunk, void, void> {
-        const nodeId = this.session.fabric === undefined ? NodeId.UNSPECIFIED_NODE_ID : this.nodeId;
+        const nodeId = !this.session.fabric ? NodeId.UNSPECIFIED_NODE_ID : this.nodeId;
 
         if (eventFilters !== undefined) {
             for (const { nodeId: filterNodeId, eventMin } of eventFilters) {
@@ -187,28 +187,31 @@ export class EventReadResponse<
 
         // Validate access.  Order here prescribed by 1.4 core spec 8.4.3.2
         // We need some fallback location if cluster is not defined
-        const location = {
-            ...(cluster?.location ?? {
-                path: DataModelPath.none,
-                endpoint: endpointId,
-                cluster: clusterId,
-            }),
-            owningFabric: this.session.fabric,
-        };
-        const permission = this.session.authorityAt(limits.readLevel, location);
-        switch (permission) {
-            case AccessControl.Authority.Granted:
-                break;
+        if (hasRemoteActor(this.session)) {
+            const location = {
+                ...(cluster?.location ?? {
+                    path: DataModelPath.none,
+                    endpoint: endpointId,
+                    cluster: clusterId,
+                }),
+                owningFabric: this.session.fabric,
+            };
+            const permission = this.session.authorityAt(limits.readLevel, location);
+            switch (permission) {
+                case AccessControl.Authority.Granted:
+                    break;
 
-            case AccessControl.Authority.Unauthorized:
-                return this.#asStatus(path, Status.UnsupportedAccess);
+                case AccessControl.Authority.Unauthorized:
+                    return this.#asStatus(path, Status.UnsupportedAccess);
 
-            case AccessControl.Authority.Restricted:
-                return this.#asStatus(path, Status.AccessRestricted);
+                case AccessControl.Authority.Restricted:
+                    return this.#asStatus(path, Status.AccessRestricted);
 
-            default:
-                throw new InternalError(`Unsupported authorization state ${permission}`);
+                default:
+                    throw new InternalError(`Unsupported authorization state ${permission}`);
+            }
         }
+
         if (endpoint === undefined) {
             return this.#asStatus(path, Status.UnsupportedEndpoint);
         }
@@ -298,8 +301,9 @@ export class EventReadResponse<
             return; // EVent is not active, so ignore
         }
         if (
+            hasRemoteActor(this.session) &&
             this.session.authorityAt(event.limits.readLevel, this.#guardedCurrentCluster.location) !==
-            AccessControl.Authority.Granted
+                AccessControl.Authority.Granted
         ) {
             return;
         }
