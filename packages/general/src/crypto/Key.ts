@@ -610,6 +610,8 @@ export namespace Key {
      * We provide this for platforms without a native implementation.
      */
     export function sharedSecretFor(key: PrivateKey, peerKey: PublicKey): Bytes {
-        return Bytes.of(getSharedSecret(Bytes.of(key.privateBits), Bytes.of(peerKey.publicBits)));
+        // We need to cut the first byte because response is 33bytes, and we need 32bytes
+        // https://github.com/paulmillr/noble-curves/discussions/114#discussioncomment-8609063
+        return Bytes.of(getSharedSecret(Bytes.of(key.privateBits), Bytes.of(peerKey.publicBits))).slice(1, 33);
     }
 }

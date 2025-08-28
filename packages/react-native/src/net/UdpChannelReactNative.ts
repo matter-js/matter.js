@@ -131,7 +131,9 @@ export class UdpChannelReactNative implements UdpChannel {
                     throw new NoAddressAvailableError(`No IPv4 addresses on interface "${netInterface}"`);
                 }
             } else {
-                multicastInterface = `::%${netInterfaceZone}`;
+                // announce ignoring the multicast interface, so selected by the OS
+                // originally was: `::%${netInterfaceZone}`
+                multicastInterface = "::";
             }
             logger.debug(
                 "Initialize multicast",

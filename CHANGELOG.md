@@ -34,6 +34,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: MDNS and BLE advertising schedules are now configurable and conform to Matter and DNS-SD specifications
     - Enhancement: MDNS client and server efficiency is improved with a shared socket and message parser
     - Fix: Controller networking was previously throwing the incorrect error after a communication timeout
+    - Fix: Ensures to only include the MaxTcpMessageSize in Session parameters when TCP is enabled
 
 -   @matter/node
     - Breaking: `Endpoint` and `Node` initialization values now require the correct type for some time values and IDs.  So for example, `VendorId(1234)` instead of just `1234`

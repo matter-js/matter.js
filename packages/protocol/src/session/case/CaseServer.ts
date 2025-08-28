@@ -139,14 +139,15 @@ export class CaseServer implements ProtocolHandler {
         const resumeKey = await crypto.createHkdfKey(sharedSecret, resumeSalt, KDFSR2_KEY_INFO);
         const resumeMic = crypto.encrypt(resumeKey, new Uint8Array(0), RESUME2_MIC_NONCE);
         try {
+            const responderSessionParams = this.#sessions.sessionParameters;
             await cx.messenger.sendSigma2Resume({
                 resumptionId: cx.localResumptionId,
                 resumeMic,
                 responderSessionId,
-                responderSessionParams: this.#sessions.sessionParameters, // responder session parameters
+                responderSessionParams,
             });
         } catch (error) {
-            // If we fail to send the resume, we destroy the session
+            // If we fail to send the resume message, we destroy the session
             await secureSession.destroy(false);
             throw error;
         }

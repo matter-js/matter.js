@@ -143,7 +143,7 @@ export class CaseClient {
                 responderSessionParams,
             } = sigma2;
             // We use the Fallbacks for the session parameters overridden by what was sent by the device in Sigma2
-            const sessionParameters = {
+            const peerSessionParameters = {
                 ...exchange.session.parameters,
                 ...(responderSessionParams ?? {}),
             };
@@ -235,7 +235,7 @@ export class CaseClient {
                 salt: secureSessionSalt,
                 isInitiator: true,
                 isResumption: false,
-                peerSessionParameters: sessionParameters,
+                peerSessionParameters,
                 caseAuthenticatedTags,
             });
             this.#logNewSession("New", secureSession, messenger, fabric, peerNodeId);

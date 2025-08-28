@@ -186,7 +186,14 @@ export class SessionManager {
      * different parameters.
      */
     get sessionParameters(): SessionParameters {
-        return this.#sessionParameters;
+        const { supportedTransports, maxTcpMessageSize } = this.#sessionParameters;
+        const tcpSupported = supportedTransports.tcpClient || supportedTransports.tcpServer;
+        return {
+            ...this.#sessionParameters,
+            // The MAX_TCP_MESSAGE_SIZE field SHALL only be present if the SUPPORTED_TRANSPORTS field
+            // indicates that TCP is supported.
+            maxTcpMessageSize: tcpSupported ? maxTcpMessageSize : undefined,
+        };
     }
 
     /**

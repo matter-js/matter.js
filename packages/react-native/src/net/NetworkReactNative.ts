@@ -53,6 +53,7 @@ async function networkInterfaces() {
         const ipAddress = "ipAddress" in details ? (details.ipAddress as string | null) : undefined;
         const subnet = "subnet" in details ? (details.subnet as string | null) : undefined;
         if (!ipAddress || !subnet) return;
+        // Important: "type" ("wifi"/"ethernet") does not match with the real networking interface names, but no way to get them
         networkInterfaces[type] = [
             {
                 address: ipAddress,

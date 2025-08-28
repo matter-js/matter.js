@@ -193,7 +193,12 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
         const { promise: handshakeResponseReceivedPromise, resolver } = createPromise<Bytes>();
 
         let handshakeReceived = false;
-        const handshakeSubscription = characteristicC2ForSubscribe.monitor((error, characteristic) => {
+        // ignore the response because it seems when we remove a subscription the whole connection is closed
+        characteristicC2ForSubscribe.monitor((error, characteristic) => {
+            if (handshakeReceived) {
+                // Make sure data potentially submitted here after handshake was received are ignored
+                return;
+            }
             if (error !== null || characteristic === null) {
                 if (error instanceof ReactNativeBleError && error.errorCode === 2 && handshakeReceived) {
                     // Subscription got removed after handshake was received, all good
@@ -220,7 +225,6 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
 
         const handshakeResponse = await handshakeResponseReceivedPromise;
         handshakeReceived = true;
-        handshakeSubscription.remove();
 
         let connectionCloseExpected = false;
         const btpSession = await BtpSessionHandler.createAsCentral(
@@ -232,7 +236,6 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
             // callback to disconnect the BLE connection
             async () => {
                 connectionCloseExpected = true;
-                dataSubscription.remove();
                 await peripheral.cancelConnection();
                 logger.debug("disconnected from peripheral");
             },
@@ -246,7 +249,8 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
             },
         );
 
-        const dataSubscription = characteristicC2ForSubscribe.monitor((error, characteristic) => {
+        // ignore the response because it seems when we remove a subscription the whole connection is closed
+        characteristicC2ForSubscribe.monitor((error, characteristic) => {
             if (error !== null || characteristic === null) {
                 if (error instanceof ReactNativeBleError && error.errorCode === 2 && connectionCloseExpected) {
                     // Subscription got removed and received, all good

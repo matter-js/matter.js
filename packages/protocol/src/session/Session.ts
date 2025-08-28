@@ -65,7 +65,7 @@ export interface SessionParameters extends SessionIntervals {
      * field, that the node is capable of receiving from its peer.
      * Default: 64000 bytes
      */
-    maxTcpMessageSize: number; // matter message and protocol overhead and such
+    maxTcpMessageSize?: number;
 }
 
 export type SessionParameterOptions = Partial<SessionParameters>;

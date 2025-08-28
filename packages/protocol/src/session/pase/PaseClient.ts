@@ -40,42 +40,33 @@ export class PaseClient {
         return crypto.randomUint16 % 4096;
     }
 
-    async pair(sessionParameters: SessionParameters, exchange: MessageExchange, setupPin: number) {
+    async pair(initiatorSessionParams: SessionParameters, exchange: MessageExchange, setupPin: number) {
         const messenger = new PaseClientMessenger(exchange);
         const { crypto } = this.#sessions;
         const initiatorRandom = crypto.randomBytes(32);
         const initiatorSessionId = await this.#sessions.getNextAvailableSessionId(); // Initiator Session Id
 
         // Send pbkdfRequest and Read pbkdfResponse
-        const tcpSupported =
-            sessionParameters.supportedTransports?.tcpClient ||
-            sessionParameters.supportedTransports?.tcpServer ||
-            false;
         const requestPayload = await messenger.sendPbkdfParamRequest({
             initiatorRandom,
             initiatorSessionId,
             passcodeId: DEFAULT_PASSCODE_ID,
             hasPbkdfParameters: false,
-            initiatorSessionParams: {
-                ...sessionParameters,
-                // The MAX_TCP_MESSAGE_SIZE field SHALL only be present if the SUPPORTED_TRANSPORTS field
-                // indicates that TCP is supported.
-                maxTcpMessageSize: tcpSupported ? sessionParameters.maxTcpMessageSize : undefined,
-            },
+            initiatorSessionParams,
         });
         const {
             responsePayload,
             response: { pbkdfParameters, responderSessionId, responderSessionParams },
         } = await messenger.readPbkdfParamResponse();
         if (pbkdfParameters === undefined) {
-            // Sending this error is not defined in the specs and should normally never happen, but better inform device
+            // Sending this error is not defined in the specs and should normally never happen, but better inform the device
             // that we cancel the pairing
             await messenger.sendError(SecureChannelStatusCode.InvalidParam);
             throw new UnexpectedDataError("Missing requested PbkdfParameters in the response. Commissioning failed.");
         }
 
         // This includes the Fallbacks for the session parameters overridden by what was sent by the device in PbkdfResponse
-        sessionParameters = {
+        const peerSessionParameters = {
             ...exchange.session.parameters,
             ...(responderSessionParams ?? {}),
         };
@@ -112,7 +103,7 @@ export class PaseClient {
             salt: new Uint8Array(0),
             isInitiator: true,
             isResumption: false,
-            peerSessionParameters: sessionParameters,
+            peerSessionParameters,
         });
         await messenger.close();
         logger.info(`Pase client: Paired successfully with ${messenger.channelName}.`);
