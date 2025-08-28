@@ -41,7 +41,7 @@ export class ReactNativeCrypto extends StandardCrypto {
     override implementationName = "ReactNativeCrypto";
 
     static override provider() {
-        return new ReactNativeCrypto();
+        return new ReactNativeCrypto(crypto as unknown as WebCrypto);
     }
 
     /**
