@@ -57,9 +57,9 @@ This project heavily uses code generation:
 - Use `@behavior` decorator for registration
 - File pattern: `src/behaviors/[cluster-name]/[ClusterName]Behavior.ts`
 
-### Environment and ServerNode (New API 0.8+)
-- `Environment` replaces the legacy `MatterServer` concept
-- Use `Environment.default` for the default Node.js environment
+### Environment and ServerNode
+- `Environment` provides platform-specific runtime services registered by each platform (Node.js, React Native, etc.)
+- Access the default environment for your platform using `Environment.default`
 - Create `ServerNode` instances for Matter devices:
   ```typescript
   const server = await ServerNode.create({
@@ -70,7 +70,9 @@ This project heavily uses code generation:
   });
   ```
 - Add endpoints to nodes: `await server.add(endpoint);`
-- Run with: `await server.run();`
+- Start the server non-blocking: `await server.start();` (resolves when online)
+- Run the server blocking: `await server.run();` (resolves when server shuts down)
+- See `packages/examples/src/device-onoff-advanced/DeviceNodeFull.ts` for comprehensive examples
 
 ### Models
 - Use `ClusterModel`, `DeviceTypeModel`, `AttributeModel` etc. from `@matter/model`
@@ -79,7 +81,7 @@ This project heavily uses code generation:
 
 ### Type Safety
 - Extensive use of TypeScript generics and conditional types
-- **IMPORTANT**: New API requires at least `"strictNullChecks": true` or preferably `"strict": true`
+- **IMPORTANT**: Requires at least `"strictNullChecks": true` or preferably `"strict": true`
 - Base TypeScript configuration in `packages/tools/tsc/tsconfig.base.json` uses `"strict": true`
 - `MutableCluster` for runtime cluster composition
 - Schema validation with `Schema` classes
@@ -114,7 +116,7 @@ matter-run packages/examples/src/controller/ControllerNode.ts
 ## TypeScript Configuration
 
 ### Required Settings
-- **Minimum required**: `"strictNullChecks": true` for new API (0.8+)
+- **Minimum required**: `"strictNullChecks": true`
 - **Recommended**: `"strict": true` for best type safety
 - **Module settings**: `"module": "node16"`, `"moduleResolution": "node16"`
 - **Target**: `"es2022"` minimum
@@ -179,7 +181,37 @@ matter-run support/codegen/src/generate-vscode.ts      # Generate VS Code config
 - Test files: `*.test.ts` alongside source files
 - Run tests with `npm run test` or `matter-test -w`
 - Mock external dependencies, especially platform-specific code
-- Tests are run for both ESM and CJS module formats
+- Tests are run for ESM, CJS, and web (when Playwright is installed) module formats
+
+#### Available CLI Options for `matter-test`:
+```bash
+matter-test [options] [command]
+
+Commands:
+  esm      # Run tests on Node.js (ES6 modules)
+  cjs      # Run tests on Node.js (CommonJS modules)  
+  web      # Run tests in web browser
+  report   # Display details about tests
+  manual   # Start web test server for manual testing
+
+Options:
+  -p, --prefix <dir>        # Directory of package to test (default: ".")
+  -w, --web                 # Enable web tests in default test mode
+  --spec <paths>            # One or more test paths (default: "./test/**/*{.test,Test}.ts")
+  --all-logs                # Emit log messages in real time
+  --debug                   # Enable Mocha debugging
+  -e, --environment <name>  # Select named test environment
+  -f, --fgrep <string>      # Only run tests matching this string
+  --force-exit              # Force Node to exit after tests complete
+  -g, --grep <regexp>       # Only run tests matching this regexp
+  -i, --invert              # Inverts --grep and --fgrep matches
+  --profile                 # Write profiling data to build/profiles (Node only)
+  --wtf                     # Enlist wtfnode to detect test leaks
+  --trace-unhandled         # Detail unhandled rejections with trace-unhandled
+  --clear                   # Clear terminal before testing
+  --report                  # Display test summary after testing
+  --pull                    # Update containers before testing (default: true)
+```
 
 ### Integration Tests
 - Device commissioning and interaction tests in `support/tests`
@@ -209,10 +241,14 @@ matter-test <package>  # Run tests for specific package
 
 ### Import Patterns
 ```typescript
-// Prefer specific imports
-import { ClusterModel } from "@matter/model";
+// Prefer specific imports with package aliases (when available in package)
+import { ClusterModel } from "#model";
 
-// Use type-only imports when possible
+// Use type-only imports when possible with package aliases
+import type { Cluster } from "#types";
+
+// External package imports
+import { ClusterModel } from "@matter/model";
 import type { Cluster } from "@matter/types";
 
 // Internal imports use relative paths with .js extension
@@ -249,22 +285,6 @@ export * from "@matter/node/behaviors";
 - Use TLV (Tag-Length-Value) encoding for Matter data
 - Implement proper schema validation
 - Support fabric-scoped data handling
-
-## Migration and API Versions
-
-### New API (0.8+) vs Legacy API
-- **Current**: New API based on code generation for all Matter 1.1+ device types
-- **Legacy**: Pre-0.8 API still functional but deprecated  
-- **Migration**: See `docs/MIGRATION_GUIDE_08.md` for detailed migration guide
-- **Examples**: Both new and legacy examples available (`*Legacy.ts` files)
-- **TypeScript requirement**: New API requires `"strictNullChecks": true` minimum
-
-### Key Differences
-- `Environment` replaces `MatterServer`
-- `ServerNode` and `Endpoint` replace legacy device classes
-- Generated device types (e.g., `OnOffLightDevice`, `OnOffPlugInUnitDevice`) 
-- Behavior-based cluster implementations
-- Enhanced type safety and cluster feature composition
 
 ## Documentation
 
