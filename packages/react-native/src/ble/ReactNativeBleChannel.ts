@@ -129,9 +129,9 @@ export class ReactNativeBleCentralInterface implements NetInterface {
                 continue;
             }
 
-            this.openChannels.set(address, peripheral);
+            this.openChannels.set(address, device);
             return await ReactNativeBleChannel.create(
-                peripheral,
+                device,
                 characteristicC1ForWrite,
                 characteristicC2ForSubscribe,
                 this.onMatterMessageListener,
@@ -139,7 +139,7 @@ export class ReactNativeBleCentralInterface implements NetInterface {
             );
         }
 
-        throw new BleError(`No Matter service found on peripheral ${peripheral.id}`);
+        throw new BleError(`No Matter service found on peripheral ${device.id}`);
     }
 
     onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): TransportInterface.Listener {
