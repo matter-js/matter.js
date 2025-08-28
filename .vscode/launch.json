@@ -102,7 +102,7 @@
                 "${workspaceFolder}/support/*/build/esm/**/*.js"
             ],
             "name": "Run shell",
-            "cwd": "${workspaceFolder}/support/codegen/packages/nodejs-shell",
+            "cwd": "${workspaceFolder}/packages/nodejs-shell",
             "args": [
                 "--clear",
                 "dist/cjs/app.js"
@@ -131,7 +131,7 @@
                 "${workspaceFolder}/support/*/build/esm/**/*.js"
             ],
             "name": "Run CLI tool",
-            "cwd": "${workspaceFolder}/support/codegen/packages/cli-tool",
+            "cwd": "${workspaceFolder}/packages/cli-tool",
             "args": [
                 "--clear",
                 "bin/matter.js"
@@ -520,6 +520,34 @@
             "program": "${workspaceFolder}/node_modules/.bin/matter-test",
             "presentation": {
                 "group": "03chip"
+            }
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "runtimeArgs": [
+                "--enable-source-maps"
+            ],
+            "outFiles": [
+                "${workspaceFolder}/packages/*/dist/esm/**/*.js",
+                "${workspaceFolder}/packages/*/build/esm/**/*.js",
+                "${workspaceFolder}/support/*/dist/esm/**/*.js",
+                "${workspaceFolder}/support/*/build/esm/**/*.js"
+            ],
+            "name": "Run OnOffController",
+            "args": [
+                "--clear",
+                "packages/examples/src/control-onoff/OnOffController.ts"
+            ],
+            "group": "example",
+            "program": "${workspaceFolder}/node_modules/.bin/matter-run",
+            "presentation": {
+                "group": "04example"
             }
         },
         {
