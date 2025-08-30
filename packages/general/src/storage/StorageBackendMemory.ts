@@ -98,6 +98,11 @@ export class StorageBackendMemory extends Storage implements CloneableStorage {
             this.#setKey(contexts, key, combined);
         } catch (error: any) {
             throw new StorageError(`Error reading stream: ${error.message}`);
+        } finally {
+            if (stream.locked) {
+                reader.releaseLock(); // Release the reader lock
+            }
+            await stream.cancel();
         }
     }
 
