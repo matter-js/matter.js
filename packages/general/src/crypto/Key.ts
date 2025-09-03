@@ -10,10 +10,11 @@ import { MatterError, NotImplementedError } from "../MatterError.js";
 import { Bytes } from "../util/Bytes.js";
 import { ec } from "./Crypto.js";
 import { KeyInputError } from "./CryptoError.js";
+import { p256 } from "@noble/curves/nist.js";
 
 const {
     numberToBytesBE,
-    p256: { Point, getSharedSecret },
+    bytesToHex,
 } = ec;
 
 const JWK_KEYS = [
@@ -540,7 +541,8 @@ export function Key(properties: Partial<Key>) {
         }
 
         // Compute
-        const ecKey = Point.fromPrivateKey(Bytes.of(that.privateKey));
+        const pubKeyBytes = p256.getPublicKey(Bytes.of(that.privateKey));
+        const ecKey = p256.Point.fromHex(bytesToHex(pubKeyBytes));
 
         // Install
         that.xBits = numberToBytesBE(ecKey.x, keyLength);
@@ -612,6 +614,6 @@ export namespace Key {
     export function sharedSecretFor(key: PrivateKey, peerKey: PublicKey): Bytes {
         // We need to cut the first byte because response is 33bytes, and we need 32bytes
         // https://github.com/paulmillr/noble-curves/discussions/114#discussioncomment-8609063
-        return Bytes.of(getSharedSecret(Bytes.of(key.privateBits), Bytes.of(peerKey.publicBits))).slice(1, 33);
+        return Bytes.of(p256.getSharedSecret(Bytes.of(key.privateBits), Bytes.of(peerKey.publicBits))).slice(1, 33);
     }
 }
