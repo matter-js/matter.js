@@ -10,9 +10,9 @@ import { MatterError, NotImplementedError } from "../MatterError.js";
 import { Bytes } from "../util/Bytes.js";
 import { ec } from "./Crypto.js";
 import { KeyInputError } from "./CryptoError.js";
-import { p256 } from "@noble/curves/nist.js";
 
 const {
+    p256,
     numberToBytesBE,
     bytesToHex,
 } = ec;

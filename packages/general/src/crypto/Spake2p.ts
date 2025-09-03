@@ -41,8 +41,9 @@ export class Spake2p {
         const ws = Bytes.of(
             await crypto.createPbkdf2Key(pinWriter.toByteArray(), salt, iterations, CRYPTO_W_SIZE_BYTES * 2),
         );
-        const w0 = mod(bytesToNumberBE(ws.slice(0, 40)), Point.CURVE().n);
-        const w1 = mod(bytesToNumberBE(ws.slice(40, 80)), Point.CURVE().n);
+        const curve = Point.CURVE();
+        const w0 = mod(bytesToNumberBE(ws.slice(0, 40)), curve.n);
+        const w1 = mod(bytesToNumberBE(ws.slice(40, 80)), curve.n);
         return { w0, w1 };
     }
 
@@ -53,7 +54,8 @@ export class Spake2p {
     }
 
     static create(crypto: Crypto, context: Bytes, w0: bigint) {
-        const random = crypto.randomBigInt(32, Point.CURVE().p);
+        const curve = Point.CURVE();
+        const random = crypto.randomBigInt(32, curve.p);
         return new Spake2p(crypto, context, random, w0);
     }
 
