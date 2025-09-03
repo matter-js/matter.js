@@ -31,6 +31,11 @@ import { CaseClientMessenger } from "./CaseMessenger.js";
 
 const logger = Logger.get("CaseClient");
 
+export interface CaseClientPairOptions {
+    expectedProcessingTime?: Duration;
+    caseAuthenticatedTags?: CaseAuthenticatedTag[];
+}
+
 export class CaseClient {
     #sessions: SessionManager;
 
@@ -38,7 +43,8 @@ export class CaseClient {
         this.#sessions = sessions;
     }
 
-    async pair(exchange: MessageExchange, fabric: Fabric, peerNodeId: NodeId, expectedProcessingTime?: Duration, caseAuthenticatedTags?: CaseAuthenticatedTag[]) {
+    async pair(exchange: MessageExchange, fabric: Fabric, peerNodeId: NodeId, options?: CaseClientPairOptions) {
+        const { expectedProcessingTime, caseAuthenticatedTags } = options ?? {};
         const messenger = new CaseClientMessenger(exchange, expectedProcessingTime);
 
         try {

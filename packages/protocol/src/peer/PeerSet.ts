@@ -750,8 +750,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
                 exchange,
                 fabric,
                 address.nodeId,
-                expectedProcessingTime,
-                caseAuthenticatedTags,
+                { expectedProcessingTime, caseAuthenticatedTags },
             );
 
             if (!resumed) {
