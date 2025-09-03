@@ -46,6 +46,8 @@ This project heavily uses code generation:
 ### Forward Exports
 - Re-export generation in `support/codegen/src/forwards/`
 - Creates proxy modules for clean package boundaries
+- Generated files include header: `/*** THIS FILE IS GENERATED, DO NOT EDIT ***/`
+- Pattern for main package forwards: `packages/main/src/forwards/[category]/[name].ts`
 
 ## Development Patterns
 
@@ -55,6 +57,23 @@ This project heavily uses code generation:
 - Use `@behavior` decorator for registration
 - File pattern: `src/behaviors/[cluster-name]/[ClusterName]Behavior.ts`
 
+### Environment and ServerNode
+- `Environment` provides platform-specific runtime services registered by each platform (Node.js, React Native, etc.)
+- Access the default environment for your platform using `Environment.default`
+- Create `ServerNode` instances for Matter devices:
+  ```typescript
+  const server = await ServerNode.create({
+    id: "unique-device-id",
+    network: { port: 5540 },
+    commissioning: { passcode: 20202021, discriminator: 3840 },
+    // ... other config
+  });
+  ```
+- Add endpoints to nodes: `await server.add(endpoint);`
+- Start the server non-blocking: `await server.start();` (resolves when online)
+- Run the server blocking: `await server.run();` (resolves when server shuts down)
+- See `packages/examples/src/device-onoff-advanced/DeviceNodeFull.ts` for comprehensive examples
+
 ### Models
 - Use `ClusterModel`, `DeviceTypeModel`, `AttributeModel` etc. from `@matter/model`
 - Models represent Matter specification elements
@@ -62,43 +81,150 @@ This project heavily uses code generation:
 
 ### Type Safety
 - Extensive use of TypeScript generics and conditional types
+- **IMPORTANT**: Requires at least `"strictNullChecks": true` or preferably `"strict": true`
+- Base TypeScript configuration in `packages/tools/tsc/tsconfig.base.json` uses `"strict": true`
 - `MutableCluster` for runtime cluster composition
 - Schema validation with `Schema` classes
+
+## CLI Tools and Examples
+
+### Available CLI Tools
+- `matter-build` - Build packages and documentation
+- `matter-run` - Execute TypeScript files with automatic transpilation and source maps  
+- `matter-test` - Run tests across workspace packages
+- `matter-create` - Scaffolding tool for new Matter.js projects
+- `matter-version` - Version management tool
+
+### Example Applications  
+The repository includes ready-to-run example applications:
+```bash
+npm run matter-device       # Simple on/off device
+npm run matter-bridge       # Bridge with multiple devices
+npm run matter-composeddevice # Composed device example
+npm run matter-multidevice  # Multiple device example
+npm run matter-controller   # Controller example
+npm run shell              # Interactive Matter shell
+```
+
+### Running Examples
+Use `matter-run` to execute any TypeScript example directly:
+```bash
+matter-run packages/examples/src/device-onoff/DeviceNode.ts
+matter-run packages/examples/src/controller/ControllerNode.ts
+```
+
+## TypeScript Configuration
+
+### Required Settings
+- **Minimum required**: `"strictNullChecks": true`
+- **Recommended**: `"strict": true` for best type safety
+- **Module settings**: `"module": "node16"`, `"moduleResolution": "node16"`
+- **Target**: `"es2022"` minimum
+- **Key settings from base config**:
+  ```json
+  {
+    "compilerOptions": {
+      "strict": true,
+      "target": "es2022", 
+      "module": "node16",
+      "moduleResolution": "node16",
+      "composite": true,
+      "esModuleInterop": true,
+      "noImplicitAny": true,
+      "noImplicitOverride": true,
+      "isolatedModules": true
+    }
+  }
+  ```
+
+### Project References
+- All packages use TypeScript project references
+- Managed automatically by build tools in `packages/tools/src/building/tsconfig.ts`
+- Incremental compilation via `"composite": true`
+- Separate configs for lib, app, and test builds
 
 ## Build System
 
 ### Project Structure
 - Monorepo managed with custom build tools in `packages/tools`
-- Use `matter-build` command for building packages
+- Use `matter-build` command for building packages (via node_modules/.bin/)
+- Custom `matter-run` for executing TypeScript files with source maps
+- Custom `matter-test` for running tests across packages
 - Support for ESM and CommonJS outputs
 - TypeScript project references for incremental builds
 
 ### Key Build Commands
 ```bash
 npm run build          # Build all packages
-npm run build:clean    # Clean build
-matter-build docs      # Generate documentation
-matter-build graph     # Show dependency graph
+npm run build-clean    # Clean build and rebuild all packages
+npm run build-doc      # Generate documentation
+npm run clean          # Clean all build outputs
+matter-build           # Direct build tool (via node_modules/.bin/matter-build)
 ```
 
 ### Code Generation Commands
+Code generation is handled through TypeScript files in `support/codegen/src/`:
 ```bash
-npm run codegen:spec   # Generate from Matter spec
-npm run codegen:chip   # Generate from CHIP XML
-npm run codegen:clusters # Generate cluster definitions
+# Run code generation scripts with matter-run
+matter-run support/codegen/src/generate-spec.ts        # Generate from Matter spec
+matter-run support/codegen/src/generate-clusters.ts    # Generate cluster definitions  
+matter-run support/codegen/src/generate-endpoints.ts   # Generate endpoint definitions
+matter-run support/codegen/src/generate-forwards.ts    # Generate forward exports
+matter-run support/codegen/src/generate-model.ts       # Generate data models
+matter-run support/codegen/src/generate-vscode.ts      # Generate VS Code configuration
 ```
 
 ## Testing Patterns
 
 ### Unit Tests
-- Use Jest framework
-- Test files: `*.test.ts` alongside source
+- Use custom `matter-test` framework (not Jest directly)
+- Test files: `*.test.ts` alongside source files
+- Run tests with `npm run test` or `matter-test -w`
 - Mock external dependencies, especially platform-specific code
+- Tests are run for ESM, CJS, and web (when Playwright is installed) module formats
+
+#### Available CLI Options for `matter-test`:
+```bash
+matter-test [options] [command]
+
+Commands:
+  esm      # Run tests on Node.js (ES6 modules)
+  cjs      # Run tests on Node.js (CommonJS modules)  
+  web      # Run tests in web browser
+  report   # Display details about tests
+  manual   # Start web test server for manual testing
+
+Options:
+  -p, --prefix <dir>        # Directory of package to test (default: ".")
+  -w, --web                 # Enable web tests in default test mode
+  --spec <paths>            # One or more test paths (default: "./test/**/*{.test,Test}.ts")
+  --all-logs                # Emit log messages in real time
+  --debug                   # Enable Mocha debugging
+  -e, --environment <name>  # Select named test environment
+  -f, --fgrep <string>      # Only run tests matching this string
+  --force-exit              # Force Node to exit after tests complete
+  -g, --grep <regexp>       # Only run tests matching this regexp
+  -i, --invert              # Inverts --grep and --fgrep matches
+  --profile                 # Write profiling data to build/profiles (Node only)
+  --wtf                     # Enlist wtfnode to detect test leaks
+  --trace-unhandled         # Detail unhandled rejections with trace-unhandled
+  --clear                   # Clear terminal before testing
+  --report                  # Display test summary after testing
+  --pull                    # Update containers before testing (default: true)
+```
 
 ### Integration Tests
-- Device commissioning and interaction tests
-- Use `@matter/examples` for test scenarios
-- CHIP tool integration for interoperability
+- Device commissioning and interaction tests in `support/tests`
+- Use `@matter/examples` for test scenarios  
+- CHIP tool integration for interoperability testing
+- Located in `support/chip-testing` package
+
+### Running Tests
+```bash
+npm run test           # Run all tests in workspace
+matter-test -w         # Run tests with workspace scanning
+matter-test <package>  # Run tests for specific package
+```
 
 ## Coding Guidelines
 
@@ -115,14 +241,22 @@ npm run codegen:clusters # Generate cluster definitions
 
 ### Import Patterns
 ```typescript
-// Prefer specific imports
-import { ClusterModel } from "@matter/model";
+// Prefer specific imports with package aliases (when available in package)
+import { ClusterModel } from "#model";
 
-// Use type-only imports when possible
+// Use type-only imports when possible with package aliases
+import type { Cluster } from "#types";
+
+// External package imports
+import { ClusterModel } from "@matter/model";
 import type { Cluster } from "@matter/types";
 
-// Internal imports use relative paths
+// Internal imports use relative paths with .js extension
 import { someUtility } from "./utils.js";
+
+// Platform imports
+import "@matter/main/platform";  // Must be imported first for platform setup
+export * from "@matter/node/behaviors";
 ```
 
 ### Error Handling
