@@ -293,7 +293,11 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
     /**
      * Obtain an exchange provider for the designated peer.
      */
-    async exchangeProviderFor(addressOrChannel: PeerAddress | MessageChannel, discoveryOptions?: DiscoveryOptions) {
+    async exchangeProviderFor(
+        addressOrChannel: PeerAddress | MessageChannel, 
+        discoveryOptions?: DiscoveryOptions,
+        caseAuthenticatedTags?: CaseAuthenticatedTag[]
+    ) {
         if (addressOrChannel instanceof MessageChannel) {
             return new DedicatedChannelExchangeProvider(this.#exchanges, addressOrChannel);
         }
@@ -311,7 +315,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
                 // We got an uninitialized node, so do the first connection as usual
                 await this.ensureConnection(address, {
                     discoveryOptions: { discoveryType: NodeDiscoveryType.None },
-                    caseAuthenticatedTags: undefined,
+                    caseAuthenticatedTags,
                 });
                 initiallyConnected = true; // We only do this connection once, rest is handled in following code
                 if (this.#channels.hasChannel(address)) {
