@@ -45,7 +45,7 @@ import { CaseClient } from "#session/case/CaseClient.js";
 import { SecureSession } from "#session/SecureSession.js";
 import { Session } from "#session/Session.js";
 import { SessionManager } from "#session/SessionManager.js";
-import { GroupId, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "#types";
+import { CaseAuthenticatedTag, GroupId, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "#types";
 import { ControllerDiscovery, DiscoveryError, PairRetransmissionLimitReachedError } from "./ControllerDiscovery.js";
 import { InteractionQueue } from "./InteractionQueue.js";
 import { OperationalPeer } from "./OperationalPeer.js";
@@ -251,12 +251,13 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
             discoveryOptions: DiscoveryOptions;
             allowUnknownPeer?: boolean;
             operationalAddress?: ServerAddressIp;
+            caseAuthenticatedTags?: CaseAuthenticatedTag[];
         },
     ) {
         address = PeerAddress(address);
 
         const isGroupNode = PeerAddress.isGroup(address);
-        const { discoveryOptions, allowUnknownPeer, operationalAddress } = options;
+        const { discoveryOptions, allowUnknownPeer, operationalAddress, caseAuthenticatedTags } = options;
         if (!this.#peersByAddress.has(address) && !allowUnknownPeer && !isGroupNode) {
             throw new UnknownNodeError(`Cannot connect to unknown device ${PeerAddress(address)}`);
         }
@@ -275,7 +276,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
             const { promise, resolver, rejecter } = createPromise<MessageChannel>();
             this.#runningPeerReconnections.set(address, { promise, rejecter });
 
-            this.#resume(address, discoveryOptions, operationalAddress)
+            this.#resume(address, discoveryOptions, operationalAddress, caseAuthenticatedTags)
                 .then(channel => {
                     this.#runningPeerReconnections.delete(address);
                     resolver(channel);
@@ -310,6 +311,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
                 // We got an uninitialized node, so do the first connection as usual
                 await this.ensureConnection(address, {
                     discoveryOptions: { discoveryType: NodeDiscoveryType.None },
+                    caseAuthenticatedTags: undefined,
                 });
                 initiallyConnected = true; // We only do this connection once, rest is handled in following code
                 if (this.#channels.hasChannel(address)) {
@@ -337,7 +339,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
                 throw new RetransmissionLimitReachedError(`No operational address found for ${PeerAddress(address)}`);
             }
             if (
-                (await this.#reconnectKnownAddress(address, operationalAddress, discoveryData, Seconds(2))) ===
+                (await this.#reconnectKnownAddress(address, operationalAddress, discoveryData, Seconds(2), undefined)) ===
                 undefined
             ) {
                 throw new RetransmissionLimitReachedError(`${PeerAddress(address)} is not reachable.`);
@@ -411,7 +413,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
      * device is discovered again using its operational instance details.
      * It returns the operational MessageChannel on success.
      */
-    async #resume(address: PeerAddress, discoveryOptions?: DiscoveryOptions, tryOperationalAddress?: ServerAddressIp) {
+    async #resume(address: PeerAddress, discoveryOptions?: DiscoveryOptions, tryOperationalAddress?: ServerAddressIp, caseAuthenticatedTags?: CaseAuthenticatedTag[]) {
         const { discoveryType } = discoveryOptions ?? {};
 
         const operationalAddress =
@@ -421,7 +423,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
                 : this.#knownOperationalAddressFor(address));
 
         try {
-            return await this.#connectOrDiscoverNode(address, operationalAddress, discoveryOptions);
+            return await this.#connectOrDiscoverNode(address, operationalAddress, discoveryOptions, caseAuthenticatedTags);
         } catch (error) {
             if (
                 (error instanceof DiscoveryError || error instanceof NoResponseTimeoutError) &&
@@ -440,6 +442,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
         address: PeerAddress,
         operationalAddress?: ServerAddressIp,
         discoveryOptions: DiscoveryOptions = {},
+        caseAuthenticatedTags?: CaseAuthenticatedTag[],
     ) {
         address = PeerAddress(address);
         const {
@@ -487,6 +490,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
                 discoveryData,
                 // When we use a timeout for discovery also use this for reconnecting to the node
                 timeout,
+                caseAuthenticatedTags,
             );
             if (directReconnection !== undefined) {
                 return directReconnection;
@@ -533,6 +537,8 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
                                 address,
                                 lastOperationalAddress,
                                 discoveryData,
+                                undefined,
+                                caseAuthenticatedTags,
                             );
                             if (result !== undefined && reconnectionPollingTimer?.isRunning) {
                                 reconnectionPollingTimer?.stop();
@@ -589,7 +595,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
                     return device !== undefined ? [device] : [];
                 },
                 async (operationalAddress, peer) => {
-                    const result = await this.#pair(address, operationalAddress, peer);
+                    const result = await this.#pair(address, operationalAddress, peer, undefined, caseAuthenticatedTags);
                     await this.#addOrUpdatePeer(address, operationalAddress, {
                         ...discoveryData,
                         ...peer,
@@ -618,6 +624,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
         operationalAddress: ServerAddressIp,
         discoveryData?: DiscoveryData,
         expectedProcessingTime?: Duration,
+        caseAuthenticatedTags?: CaseAuthenticatedTag[],
     ): Promise<MessageChannel | undefined> {
         address = PeerAddress(address);
 
@@ -631,7 +638,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
                         : ""
                 }`,
             );
-            const channel = await this.#pair(address, operationalAddress, discoveryData, expectedProcessingTime);
+            const channel = await this.#pair(address, operationalAddress, discoveryData, expectedProcessingTime, caseAuthenticatedTags);
             await this.#addOrUpdatePeer(address, operationalAddress);
             return channel;
         } catch (error) {
@@ -676,6 +683,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
         operationalServerAddress: ServerAddressIp,
         discoveryData?: DiscoveryData,
         expectedProcessingTime?: Duration,
+        caseAuthenticatedTags?: CaseAuthenticatedTag[],
     ) {
         logger.debug(`Pair with ${address} at ${ServerAddress.urlFor(operationalServerAddress)}`);
         const { ip, port } = operationalServerAddress;
@@ -711,6 +719,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
                 new MessageChannel(operationalChannel, unsecureSession),
                 address,
                 expectedProcessingTime,
+                caseAuthenticatedTags,
             );
 
             const channel = new MessageChannel(operationalChannel, operationalSecureSession);
@@ -730,6 +739,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
         unsecureMessageChannel: MessageChannel,
         address: PeerAddress,
         expectedProcessingTime?: Duration,
+        caseAuthenticatedTags?: CaseAuthenticatedTag[],
     ): Promise<SecureSession> {
         const fabric = this.#sessions.fabricFor(address);
         let exchange: MessageExchange | undefined;
@@ -741,6 +751,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
                 fabric,
                 address.nodeId,
                 expectedProcessingTime,
+                caseAuthenticatedTags,
             );
 
             if (!resumed) {
@@ -761,7 +772,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
                         `Case client: Resumption record seems outdated for Fabric ${NodeId.toHexString(fabric.nodeId)} (index ${fabric.fabricIndex}) and PeerNode ${NodeId.toHexString(address.nodeId)}. Retrying pairing without resumption...`,
                     );
                     // An endless loop should not happen here, as the resumption record is deleted in the next step
-                    return await this.#doCasePair(unsecureMessageChannel, address, expectedProcessingTime);
+                    return await this.#doCasePair(unsecureMessageChannel, address, expectedProcessingTime, caseAuthenticatedTags);
                 }
             }
             throw error;

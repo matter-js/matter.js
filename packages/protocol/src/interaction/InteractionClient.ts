@@ -29,6 +29,7 @@ import {
     Attribute,
     AttributeId,
     AttributeJsType,
+    CaseAuthenticatedTag,
     ClusterId,
     Command,
     EndpointNumber,
@@ -111,6 +112,7 @@ export class InteractionClientProvider {
             discoveryOptions: DiscoveryOptions;
             allowUnknownPeer?: boolean;
             operationalAddress?: ServerAddressIp;
+            caseAuthenticatedTags?: CaseAuthenticatedTag[];
         },
     ): Promise<InteractionClient> {
         await this.#peers.ensureConnection(address, options);

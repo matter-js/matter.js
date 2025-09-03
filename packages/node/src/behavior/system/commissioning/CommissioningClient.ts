@@ -33,6 +33,7 @@ import {
     Subscribe,
 } from "#protocol";
 import {
+    CaseAuthenticatedTag,
     DeviceTypeId,
     DiscoveryCapabilitiesBitmap,
     ManualPairingCodeCodec,
@@ -133,6 +134,7 @@ export class CommissioningClient extends Behavior {
             nodeId: address.nodeId,
             passcode,
             discoveryData: this.descriptor,
+            caseAuthenticatedTags: opts.caseAuthenticatedTags,
         };
 
         if (this.finalizeCommissioning !== CommissioningClient.prototype.finalizeCommissioning) {
@@ -433,6 +435,12 @@ export namespace CommissioningClient {
          * read omits them then the node will only be partially functional once initialized.
          */
         startupSubscription?: Subscribe | null;
+
+        /**
+         * Optional Case Authenticated Tags (CATs) to be used when establishing CASE sessions with the node.
+         * These tags provide additional authentication context for the operational session.
+         */
+        caseAuthenticatedTags?: CaseAuthenticatedTag[];
     }
 
     export interface PasscodeOptions extends BaseCommissioningOptions {
