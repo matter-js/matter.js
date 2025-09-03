@@ -323,3 +323,17 @@ export * from "@matter/node/behaviors";
 - Validate all input data with schemas
 - Implement proper access control for cluster operations
 - Follow Matter security requirements for commissioning
+
+## PR Verification Requirements
+
+**MANDATORY**: All PRs must be verified by running the following commands to prove the changes work correctly:
+
+1. **Build verification**: `npm run build` - Must complete successfully without errors
+2. **Lint verification**: `npm run lint` - Must pass with no linting issues  
+3. **Test verification**: `npm run test` - Must pass all relevant tests (ESM/CJS tests required, web tests optional if Playwright setup unavailable)
+
+Alternative test commands if web tests fail due to missing browser setup:
+- `node packages/testing/bin/test.js esm` - Run ESM tests only
+- `node packages/testing/bin/test.js cjs` - Run CJS tests only
+
+Document verification results in the PR comment to demonstrate that all changes have been properly tested.
