@@ -339,7 +339,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
                 throw new RetransmissionLimitReachedError(`No operational address found for ${PeerAddress(address)}`);
             }
             if (
-                (await this.#reconnectKnownAddress(address, operationalAddress, discoveryData, Seconds(2), undefined)) ===
+                (await this.#reconnectKnownAddress(address, operationalAddress, discoveryData, { expectedProcessingTime: Seconds(2) })) ===
                 undefined
             ) {
                 throw new RetransmissionLimitReachedError(`${PeerAddress(address)} is not reachable.`);
@@ -489,8 +489,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
                 operationalAddress,
                 discoveryData,
                 // When we use a timeout for discovery also use this for reconnecting to the node
-                timeout,
-                caseAuthenticatedTags,
+                { expectedProcessingTime: timeout, caseAuthenticatedTags },
             );
             if (directReconnection !== undefined) {
                 return directReconnection;
@@ -537,8 +536,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
                                 address,
                                 lastOperationalAddress,
                                 discoveryData,
-                                undefined,
-                                caseAuthenticatedTags,
+                                { caseAuthenticatedTags },
                             );
                             if (result !== undefined && reconnectionPollingTimer?.isRunning) {
                                 reconnectionPollingTimer?.stop();
@@ -595,7 +593,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
                     return device !== undefined ? [device] : [];
                 },
                 async (operationalAddress, peer) => {
-                    const result = await this.#pair(address, operationalAddress, peer, undefined, caseAuthenticatedTags);
+                    const result = await this.#pair(address, operationalAddress, peer, { caseAuthenticatedTags });
                     await this.#addOrUpdatePeer(address, operationalAddress, {
                         ...discoveryData,
                         ...peer,
@@ -623,8 +621,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
         address: PeerAddress,
         operationalAddress: ServerAddressIp,
         discoveryData?: DiscoveryData,
-        expectedProcessingTime?: Duration,
-        caseAuthenticatedTags?: CaseAuthenticatedTag[],
+        options?: CaseClient.PairOptions,
     ): Promise<MessageChannel | undefined> {
         address = PeerAddress(address);
 
@@ -633,12 +630,12 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
         try {
             logger.debug(
                 `Resuming connection to ${PeerAddress(address)} at ${ip}:${port}${
-                    expectedProcessingTime !== undefined
-                        ? ` with expected processing time of ${Duration.format(expectedProcessingTime)}`
+                    options?.expectedProcessingTime !== undefined
+                        ? ` with expected processing time of ${Duration.format(options.expectedProcessingTime)}`
                         : ""
                 }`,
             );
-            const channel = await this.#pair(address, operationalAddress, discoveryData, expectedProcessingTime, caseAuthenticatedTags);
+            const channel = await this.#pair(address, operationalAddress, discoveryData, options);
             await this.#addOrUpdatePeer(address, operationalAddress);
             return channel;
         } catch (error) {
@@ -682,8 +679,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
         address: PeerAddress,
         operationalServerAddress: ServerAddressIp,
         discoveryData?: DiscoveryData,
-        expectedProcessingTime?: Duration,
-        caseAuthenticatedTags?: CaseAuthenticatedTag[],
+        options?: CaseClient.PairOptions,
     ) {
         logger.debug(`Pair with ${address} at ${ServerAddress.urlFor(operationalServerAddress)}`);
         const { ip, port } = operationalServerAddress;
@@ -718,8 +714,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
             const operationalSecureSession = await this.#doCasePair(
                 new MessageChannel(operationalChannel, unsecureSession),
                 address,
-                expectedProcessingTime,
-                caseAuthenticatedTags,
+                options,
             );
 
             const channel = new MessageChannel(operationalChannel, operationalSecureSession);
@@ -738,8 +733,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
     async #doCasePair(
         unsecureMessageChannel: MessageChannel,
         address: PeerAddress,
-        expectedProcessingTime?: Duration,
-        caseAuthenticatedTags?: CaseAuthenticatedTag[],
+        options?: CaseClient.PairOptions,
     ): Promise<SecureSession> {
         const fabric = this.#sessions.fabricFor(address);
         let exchange: MessageExchange | undefined;
@@ -750,7 +744,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
                 exchange,
                 fabric,
                 address.nodeId,
-                { expectedProcessingTime, caseAuthenticatedTags },
+                options,
             );
 
             if (!resumed) {
@@ -771,7 +765,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
                         `Case client: Resumption record seems outdated for Fabric ${NodeId.toHexString(fabric.nodeId)} (index ${fabric.fabricIndex}) and PeerNode ${NodeId.toHexString(address.nodeId)}. Retrying pairing without resumption...`,
                     );
                     // An endless loop should not happen here, as the resumption record is deleted in the next step
-                    return await this.#doCasePair(unsecureMessageChannel, address, expectedProcessingTime, caseAuthenticatedTags);
+                    return await this.#doCasePair(unsecureMessageChannel, address, options);
                 }
             }
             throw error;

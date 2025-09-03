@@ -31,11 +31,6 @@ import { CaseClientMessenger } from "./CaseMessenger.js";
 
 const logger = Logger.get("CaseClient");
 
-export interface CaseClientPairOptions {
-    expectedProcessingTime?: Duration;
-    caseAuthenticatedTags?: CaseAuthenticatedTag[];
-}
-
 export class CaseClient {
     #sessions: SessionManager;
 
@@ -43,7 +38,7 @@ export class CaseClient {
         this.#sessions = sessions;
     }
 
-    async pair(exchange: MessageExchange, fabric: Fabric, peerNodeId: NodeId, options?: CaseClientPairOptions) {
+    async pair(exchange: MessageExchange, fabric: Fabric, peerNodeId: NodeId, options?: CaseClient.PairOptions) {
         const { expectedProcessingTime, caseAuthenticatedTags } = options ?? {};
         const messenger = new CaseClientMessenger(exchange, expectedProcessingTime);
 
@@ -278,5 +273,12 @@ export class CaseClient {
                 ...session.parameterDiagnostics,
             }),
         );
+    }
+}
+
+export namespace CaseClient {
+    export interface PairOptions {
+        expectedProcessingTime?: Duration;
+        caseAuthenticatedTags?: CaseAuthenticatedTag[];
     }
 }
