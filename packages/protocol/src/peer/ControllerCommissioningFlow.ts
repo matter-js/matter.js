@@ -29,7 +29,6 @@ import {
     UnexpectedDataError,
 } from "#general";
 import {
-    CaseAuthenticatedTag,
     ClusterId,
     ClusterType,
     EndpointNumber,
@@ -83,12 +82,6 @@ export type ControllerCommissioningFlowOptions = {
         networkName: string;
         operationalDataset: string;
     };
-
-    /**
-     * Optional Case Authenticated Tags (CATs) to be used when establishing CASE sessions with the node.
-     * These tags provide additional authentication context for the operational session.
-     */
-    caseAuthenticatedTags?: CaseAuthenticatedTag[];
 };
 
 /** Types representation of a general commissioning response. */

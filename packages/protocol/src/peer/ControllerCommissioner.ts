@@ -412,7 +412,6 @@ export class ControllerCommissioner {
             fabric,
             finalizeCommissioning: performCaseCommissioning,
             commissioningFlowImpl = ControllerCommissioningFlow,
-            caseAuthenticatedTags,
         } = options;
 
         const commissioningOptions = {
@@ -486,7 +485,6 @@ export class ControllerCommissioner {
                         discoveryData,
                     },
                     allowUnknownPeer: true,
-                    caseAuthenticatedTags,
                 }); // Wait maximum 120s to find the operational device for commissioning process
             },
         );

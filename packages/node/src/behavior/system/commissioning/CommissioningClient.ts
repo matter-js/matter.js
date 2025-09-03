@@ -134,7 +134,6 @@ export class CommissioningClient extends Behavior {
             nodeId: address.nodeId,
             passcode,
             discoveryData: this.descriptor,
-            caseAuthenticatedTags: opts.caseAuthenticatedTags,
         };
 
         if (this.finalizeCommissioning !== CommissioningClient.prototype.finalizeCommissioning) {
