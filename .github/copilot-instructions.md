@@ -316,6 +316,7 @@ export * from "@matter/node/behaviors";
 - Cache cluster definitions and models
 - Minimize memory allocations in hot paths
 - Use efficient data structures for large datasets
+- Destructure variables from data objects when used more than once to optimize object key lookups
 
 ## Security Considerations
 
