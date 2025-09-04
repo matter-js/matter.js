@@ -57,6 +57,7 @@ export class CommissioningClient extends Behavior {
     static override readonly early = true;
 
     static override readonly id = "commissioning";
+
     override initialize(options: { descriptor?: RemoteDescriptor }) {
         const descriptor = options?.descriptor;
         if (descriptor) {
@@ -143,7 +144,9 @@ export class CommissioningClient extends Behavior {
         try {
             await commissioner.commission(commissioningOptions);
             this.state.peerAddress = address;
-            this.state.caseAuthenticatedTags = opts.caseAuthenticatedTags;
+            if (opts.caseAuthenticatedTags !== undefined) {
+                this.state.caseAuthenticatedTags = opts.caseAuthenticatedTags;
+            }
         } catch (e) {
             identityService.releaseNodeAddress(address);
             throw e;
