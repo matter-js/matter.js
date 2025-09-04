@@ -336,4 +336,6 @@ Alternative test commands if web tests fail due to missing browser setup:
 - `node packages/testing/bin/test.js esm` - Run ESM tests only
 - `node packages/testing/bin/test.js cjs` - Run CJS tests only
 
+Note: Web tests may still fail if Playwright browsers cannot be installed due to firewall or download issues. The core ESM and CJS tests provide sufficient verification of functionality.
+
 Document verification results in the PR comment to demonstrate that all changes have been properly tested.
