@@ -14,7 +14,6 @@ const {
     p256: { Point },
     numberToBytesBE,
     bytesToNumberBE,
-    bytesToHex,
     mod,
 } = ec;
 
@@ -77,7 +76,7 @@ export class Spake2p {
     }
 
     async computeSecretAndVerifiersFromY(w1: bigint, X: Bytes, Y: Bytes) {
-        const YPoint = Point.fromHex(bytesToHex(Bytes.of(Y)));
+        const YPoint = Point.fromBytes(Bytes.of(Y));
         try {
             YPoint.assertValidity();
         } catch (error) {
@@ -90,8 +89,8 @@ export class Spake2p {
     }
 
     async computeSecretAndVerifiersFromX(L: Bytes, X: Bytes, Y: Bytes) {
-        const XPoint = Point.fromHex(bytesToHex(Bytes.of(X)));
-        const LPoint = Point.fromHex(bytesToHex(Bytes.of(L)));
+        const XPoint = Point.fromBytes(Bytes.of(X));
+        const LPoint = Point.fromBytes(Bytes.of(L));
         try {
             XPoint.assertValidity();
         } catch (error) {
