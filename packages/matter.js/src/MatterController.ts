@@ -548,8 +548,17 @@ export class MatterController {
      * Connect to the device by opening a channel and creating a new CASE session if necessary.
      * Returns a InteractionClient on success.
      */
-    async connect(peerNodeId: NodeId, discoveryOptions: DiscoveryOptions, allowUnknownPeer?: boolean, caseAuthenticatedTags?: CaseAuthenticatedTag[]) {
-        return this.clients.connect(this.fabric.addressOf(peerNodeId), { discoveryOptions, allowUnknownPeer, caseAuthenticatedTags });
+    async connect(
+        peerNodeId: NodeId,
+        discoveryOptions: DiscoveryOptions,
+        allowUnknownPeer?: boolean,
+        caseAuthenticatedTags?: CaseAuthenticatedTag[],
+    ) {
+        return this.clients.connect(this.fabric.addressOf(peerNodeId), {
+            discoveryOptions,
+            allowUnknownPeer,
+            caseAuthenticatedTags,
+        });
     }
 
     createInteractionClient(peerNodeIdOrChannel: NodeId | MessageChannel, discoveryOptions: DiscoveryOptions) {

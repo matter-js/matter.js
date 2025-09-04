@@ -7,6 +7,7 @@
 import { DatatypeModel, FieldElement } from "#model";
 import { Node } from "#node/Node.js";
 import { DEFAULT_MIN_INTERVAL_FLOOR, Subscribe } from "#protocol";
+import { CaseAuthenticatedTag } from "#types";
 import { ClientNetworkRuntime } from "./ClientNetworkRuntime.js";
 import { NetworkBehavior } from "./NetworkBehavior.js";
 
@@ -62,6 +63,18 @@ export class NetworkClient extends NetworkBehavior {
                 type: "bool",
                 quality: "N",
             }),
+
+            FieldElement({
+                name: "caseAuthenticatedTags",
+                type: "list",
+                quality: "N",
+                children: [
+                    FieldElement({
+                        name: "entry",
+                        type: "case-authenticated-tag",
+                    }),
+                ],
+            }),
         ],
     });
 }
@@ -86,5 +99,14 @@ export namespace NetworkClient {
          * If true, the matter.js will not perform network communication with the node.
          */
         isDisabled = false;
+
+        /**
+         * Case Authenticated Tags (CATs) to use for operational CASE sessions with this node.
+         *
+         * CATs provide additional authentication context for Matter operational sessions. They are only used
+         * for operational CASE connections after commissioning is complete, not during the initial PASE
+         * commissioning process.
+         */
+        caseAuthenticatedTags?: CaseAuthenticatedTag[];
     }
 }

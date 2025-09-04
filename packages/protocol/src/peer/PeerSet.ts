@@ -294,9 +294,9 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
      * Obtain an exchange provider for the designated peer.
      */
     async exchangeProviderFor(
-        addressOrChannel: PeerAddress | MessageChannel, 
+        addressOrChannel: PeerAddress | MessageChannel,
         discoveryOptions?: DiscoveryOptions,
-        caseAuthenticatedTags?: CaseAuthenticatedTag[]
+        caseAuthenticatedTags?: CaseAuthenticatedTag[],
     ) {
         if (addressOrChannel instanceof MessageChannel) {
             return new DedicatedChannelExchangeProvider(this.#exchanges, addressOrChannel);
@@ -343,8 +343,9 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
                 throw new RetransmissionLimitReachedError(`No operational address found for ${PeerAddress(address)}`);
             }
             if (
-                (await this.#reconnectKnownAddress(address, operationalAddress, discoveryData, { expectedProcessingTime: Seconds(2) })) ===
-                undefined
+                (await this.#reconnectKnownAddress(address, operationalAddress, discoveryData, {
+                    expectedProcessingTime: Seconds(2),
+                })) === undefined
             ) {
                 throw new RetransmissionLimitReachedError(`${PeerAddress(address)} is not reachable.`);
             }
@@ -417,7 +418,12 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
      * device is discovered again using its operational instance details.
      * It returns the operational MessageChannel on success.
      */
-    async #resume(address: PeerAddress, discoveryOptions?: DiscoveryOptions, tryOperationalAddress?: ServerAddressIp, caseAuthenticatedTags?: CaseAuthenticatedTag[]) {
+    async #resume(
+        address: PeerAddress,
+        discoveryOptions?: DiscoveryOptions,
+        tryOperationalAddress?: ServerAddressIp,
+        caseAuthenticatedTags?: CaseAuthenticatedTag[],
+    ) {
         const { discoveryType } = discoveryOptions ?? {};
 
         const operationalAddress =
@@ -427,7 +433,12 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
                 : this.#knownOperationalAddressFor(address));
 
         try {
-            return await this.#connectOrDiscoverNode(address, operationalAddress, discoveryOptions, caseAuthenticatedTags);
+            return await this.#connectOrDiscoverNode(
+                address,
+                operationalAddress,
+                discoveryOptions,
+                caseAuthenticatedTags,
+            );
         } catch (error) {
             if (
                 (error instanceof DiscoveryError || error instanceof NoResponseTimeoutError) &&
@@ -744,12 +755,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
         try {
             exchange = this.#exchanges.initiateExchangeWithChannel(unsecureMessageChannel, SECURE_CHANNEL_PROTOCOL_ID);
 
-            const { session, resumed } = await this.#caseClient.pair(
-                exchange,
-                fabric,
-                address.nodeId,
-                options,
-            );
+            const { session, resumed } = await this.#caseClient.pair(exchange, fabric, address.nodeId, options);
 
             if (!resumed) {
                 // When the session was not resumed then most likely the device firmware got updated, so we clear the cache

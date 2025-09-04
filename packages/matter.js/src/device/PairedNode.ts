@@ -264,7 +264,11 @@ export class PairedNode {
     #currentSubscriptionHandler?: SubscriptionHandlerCallbacks;
     readonly #commissioningController: CommissioningController;
     #options: CommissioningControllerNodeOptions;
-    readonly #reconnectFunc: (discoveryType?: NodeDiscoveryType, noForcedConnection?: boolean, currentOptions?: CommissioningControllerNodeOptions) => Promise<void>;
+    readonly #reconnectFunc: (
+        discoveryType?: NodeDiscoveryType,
+        noForcedConnection?: boolean,
+        currentOptions?: CommissioningControllerNodeOptions,
+    ) => Promise<void>;
     #currentSubscriptionIntervalS?: number;
     #crypto: Crypto;
 
@@ -309,7 +313,11 @@ export class PairedNode {
         options: CommissioningControllerNodeOptions = {},
         knownNodeDetails: DeviceInformationData,
         interactionClient: InteractionClient,
-        reconnectFunc: (discoveryType?: NodeDiscoveryType, noForcedConnection?: boolean, currentOptions?: CommissioningControllerNodeOptions) => Promise<void>,
+        reconnectFunc: (
+            discoveryType?: NodeDiscoveryType,
+            noForcedConnection?: boolean,
+            currentOptions?: CommissioningControllerNodeOptions,
+        ) => Promise<void>,
         assignDisconnectedHandler: (handler: () => Promise<void>) => void,
         sessions: BasicSet<NodeSession>,
         crypto: Crypto,
@@ -337,7 +345,11 @@ export class PairedNode {
         options: CommissioningControllerNodeOptions = {},
         knownNodeDetails: DeviceInformationData,
         interactionClient: InteractionClient,
-        reconnectFunc: (discoveryType?: NodeDiscoveryType, noForcedConnection?: boolean, currentOptions?: CommissioningControllerNodeOptions) => Promise<void>,
+        reconnectFunc: (
+            discoveryType?: NodeDiscoveryType,
+            noForcedConnection?: boolean,
+            currentOptions?: CommissioningControllerNodeOptions,
+        ) => Promise<void>,
         assignDisconnectedHandler: (handler: () => Promise<void>) => void,
         sessions: BasicSet<NodeSession, NodeSession>,
         crypto: Crypto,

@@ -52,7 +52,13 @@ export class CaseClient {
         }
     }
 
-    async #doPair(messenger: CaseClientMessenger, exchange: MessageExchange, fabric: Fabric, peerNodeId: NodeId, caseAuthenticatedTags?: CaseAuthenticatedTag[]) {
+    async #doPair(
+        messenger: CaseClientMessenger,
+        exchange: MessageExchange,
+        fabric: Fabric,
+        peerNodeId: NodeId,
+        caseAuthenticatedTags?: CaseAuthenticatedTag[],
+    ) {
         const { crypto } = fabric;
 
         // Generate pairing info

@@ -132,7 +132,11 @@ export class InteractionClientProvider {
         );
     }
 
-    async getInteractionClient(address: PeerAddress, discoveryOptions: DiscoveryOptions, caseAuthenticatedTags?: CaseAuthenticatedTag[]) {
+    async getInteractionClient(
+        address: PeerAddress,
+        discoveryOptions: DiscoveryOptions,
+        caseAuthenticatedTags?: CaseAuthenticatedTag[],
+    ) {
         let client = this.#clients.get(address);
         if (client !== undefined) {
             return client;
@@ -142,7 +146,11 @@ export class InteractionClientProvider {
         const nodeStore = isGroupAddress ? undefined : this.#peers.get(address)?.dataStore;
         await nodeStore?.construction; // Lazy initialize the data if not already done
 
-        const exchangeProvider = await this.#peers.exchangeProviderFor(address, discoveryOptions, caseAuthenticatedTags);
+        const exchangeProvider = await this.#peers.exchangeProviderFor(
+            address,
+            discoveryOptions,
+            caseAuthenticatedTags,
+        );
 
         client = new InteractionClient(
             exchangeProvider,
