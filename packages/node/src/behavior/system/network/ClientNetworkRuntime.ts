@@ -58,7 +58,7 @@ export class ClientNetworkRuntime extends NetworkRuntime {
             {
                 discoveryData: RemoteDescriptor.fromLongForm(commissioningState),
             },
-            networkState.caseAuthenticatedTags ? [...networkState.caseAuthenticatedTags] : undefined,
+            networkState.caseAuthenticatedTags?.slice(),
         );
         env.set(ExchangeProvider, exchangeProvider);
 

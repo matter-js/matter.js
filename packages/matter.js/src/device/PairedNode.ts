@@ -266,8 +266,8 @@ export class PairedNode {
     #options: CommissioningControllerNodeOptions;
     readonly #reconnectFunc: (
         discoveryType?: NodeDiscoveryType,
-        noForcedConnection?: boolean,
         currentOptions?: CommissioningControllerNodeOptions,
+        noForcedConnection?: boolean,
     ) => Promise<void>;
     #currentSubscriptionIntervalS?: number;
     #crypto: Crypto;
@@ -315,8 +315,8 @@ export class PairedNode {
         interactionClient: InteractionClient,
         reconnectFunc: (
             discoveryType?: NodeDiscoveryType,
-            noForcedConnection?: boolean,
             currentOptions?: CommissioningControllerNodeOptions,
+            noForcedConnection?: boolean,
         ) => Promise<void>,
         assignDisconnectedHandler: (handler: () => Promise<void>) => void,
         sessions: BasicSet<NodeSession>,
@@ -347,8 +347,8 @@ export class PairedNode {
         interactionClient: InteractionClient,
         reconnectFunc: (
             discoveryType?: NodeDiscoveryType,
-            noForcedConnection?: boolean,
             currentOptions?: CommissioningControllerNodeOptions,
+            noForcedConnection?: boolean,
         ) => Promise<void>,
         assignDisconnectedHandler: (handler: () => Promise<void>) => void,
         sessions: BasicSet<NodeSession, NodeSession>,
@@ -504,7 +504,7 @@ export class PairedNode {
 
         this.#clientReconnectInProgress = true;
         try {
-            await this.#reconnectFunc(discoveryType, undefined, this.#options);
+            await this.#reconnectFunc(discoveryType, this.#options, undefined);
         } finally {
             this.#clientReconnectInProgress = false;
         }

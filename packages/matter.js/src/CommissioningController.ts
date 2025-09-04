@@ -431,15 +431,14 @@ export class CommissioningController {
             await this.createInteractionClient(nodeId, NodeDiscoveryType.None, { forcedConnection: false }), // First connect without discovery to last known address
             async (
                 discoveryType?: NodeDiscoveryType,
-                _noForcedConnection?: boolean,
                 currentOptions?: CommissioningControllerNodeOptions,
+                _noForcedConnection?: boolean,
             ) =>
-                void (await controller.connect(
-                    nodeId,
-                    { discoveryType },
-                    false,
-                    currentOptions?.caseAuthenticatedTags,
-                )),
+                void (await controller.connect(nodeId, {
+                    discoveryOptions: { discoveryType },
+                    allowUnknownPeer: false,
+                    caseAuthenticatedTags: currentOptions?.caseAuthenticatedTags,
+                })),
             handler => this.#sessionDisconnectedHandler.set(nodeId, handler),
             controller.sessions,
             this.#crypto,
@@ -528,7 +527,10 @@ export class CommissioningController {
         if (nodeIdOrChannel instanceof MessageChannel || !forcedConnection) {
             return controller.createInteractionClient(nodeIdOrChannel, { discoveryType });
         }
-        return controller.connect(nodeIdOrChannel, { discoveryType }, forcedConnection);
+        return controller.connect(nodeIdOrChannel, {
+            discoveryOptions: { discoveryType },
+            allowUnknownPeer: forcedConnection,
+        });
     }
 
     /**

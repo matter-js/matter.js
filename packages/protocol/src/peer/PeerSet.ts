@@ -641,12 +641,13 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
         address = PeerAddress(address);
 
         const { ip, port } = operationalAddress;
+        const { expectedProcessingTime } = options ?? {};
         const startTime = Time.nowMs;
         try {
             logger.debug(
                 `Resuming connection to ${PeerAddress(address)} at ${ip}:${port}${
-                    options?.expectedProcessingTime !== undefined
-                        ? ` with expected processing time of ${Duration.format(options.expectedProcessingTime)}`
+                    expectedProcessingTime !== undefined
+                        ? ` with expected processing time of ${Duration.format(expectedProcessingTime)}`
                         : ""
                 }`,
             );

@@ -97,6 +97,12 @@ type CommissionedPeer = OperationalPeer & { deviceData?: DeviceInformationData }
 // Backward-compatible persistence record for nodes
 type StoredOperationalPeer = [NodeId, CommissionedNodeDetails];
 
+export interface ConnectOptions {
+    discoveryOptions: DiscoveryOptions;
+    allowUnknownPeer?: boolean;
+    caseAuthenticatedTags?: CaseAuthenticatedTag[];
+}
+
 export class MatterController {
     public static async create(options: {
         controllerStore: ControllerStoreInterface;
@@ -474,15 +480,14 @@ export class MatterController {
      */
     async completeCommissioning(peerNodeId: NodeId, discoveryData?: DiscoveryData) {
         // Look for the device broadcast over MDNS and do CASE pairing
-        const interactionClient = await this.connect(
-            peerNodeId,
-            {
+        const interactionClient = await this.connect(peerNodeId, {
+            discoveryOptions: {
                 discoveryType: NodeDiscoveryType.TimedDiscovery,
                 timeout: Minutes(2),
                 discoveryData,
             },
-            true,
-        ); // Wait maximum 120s to find the operational device for commissioning process
+            allowUnknownPeer: true,
+        }); // Wait maximum 120s to find the operational device for commissioning process
         const generalCommissioningClusterClient = ClusterClient(
             GeneralCommissioning.Cluster,
             EndpointNumber(0),
@@ -548,17 +553,8 @@ export class MatterController {
      * Connect to the device by opening a channel and creating a new CASE session if necessary.
      * Returns a InteractionClient on success.
      */
-    async connect(
-        peerNodeId: NodeId,
-        discoveryOptions: DiscoveryOptions,
-        allowUnknownPeer?: boolean,
-        caseAuthenticatedTags?: CaseAuthenticatedTag[],
-    ) {
-        return this.clients.connect(this.fabric.addressOf(peerNodeId), {
-            discoveryOptions,
-            allowUnknownPeer,
-            caseAuthenticatedTags,
-        });
+    async connect(peerNodeId: NodeId, options: ConnectOptions) {
+        return this.clients.connect(this.fabric.addressOf(peerNodeId), options);
     }
 
     createInteractionClient(peerNodeIdOrChannel: NodeId | MessageChannel, discoveryOptions: DiscoveryOptions) {

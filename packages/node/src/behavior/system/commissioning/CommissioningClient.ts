@@ -443,6 +443,9 @@ export namespace CommissioningClient {
          * CATs provide additional authentication context for Matter operational sessions. They are only used
          * for operational CASE connections after commissioning is complete, not during the initial PASE
          * commissioning process.
+         *
+         * Note: CATs only make sense when additional ACLs (Access Control Lists) are also configured on
+         * the target device to grant specific permissions based on these tags.
          */
         caseAuthenticatedTags?: CaseAuthenticatedTag[];
     }

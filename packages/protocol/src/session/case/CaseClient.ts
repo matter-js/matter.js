@@ -228,7 +228,8 @@ export class CaseClient {
             await messenger.waitForSuccess("Sigma3-Success");
 
             // All good! Create secure session
-            const sessionCaseAuthenticatedTags = caseAuthenticatedTags ?? resumptionRecord?.caseAuthenticatedTags; // Use provided CATs or reuse from resumption record
+            // Configured CATs take precedence over resumption record ones
+            const sessionCaseAuthenticatedTags = caseAuthenticatedTags ?? resumptionRecord?.caseAuthenticatedTags;
             const secureSessionSalt = Bytes.concat(
                 operationalIdentityProtectionKey,
                 await crypto.computeSha256([sigma1Bytes, sigma2Bytes, sigma3Bytes]),
