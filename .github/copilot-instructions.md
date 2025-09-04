@@ -330,7 +330,8 @@ export * from "@matter/node/behaviors";
 
 1. **Build verification**: `npm run build` - Must complete successfully without errors
 2. **Lint verification**: `npm run lint` - Must pass with no linting issues  
-3. **Test verification**: `npm run test` - Must pass all relevant tests (ESM/CJS tests required, web tests optional if Playwright setup unavailable)
+3. **Format verification**: `npm run format-verify` - Must pass with no formatting issues (run `npm run format` to fix any issues)
+4. **Test verification**: `npm run test` - Must pass all relevant tests (ESM/CJS tests required, web tests optional if Playwright setup unavailable)
 
 Alternative test commands if web tests fail due to missing browser setup:
 - `node packages/testing/bin/test.js esm` - Run ESM tests only
