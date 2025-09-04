@@ -275,7 +275,6 @@ const PEER1_STATE = {
         sessionParameters: { idleInterval: 500, activeInterval: 300, activeThreshold: 4000 },
         tcpSupport: 0,
         longIdleOperatingMode: undefined,
-        caseAuthenticatedTags: undefined,
     },
     network: { isDisabled: false, port: 0x15a4, operationalPort: -1, startupSubscription: undefined },
     basicInformation: {

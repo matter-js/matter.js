@@ -33,7 +33,6 @@ import {
     Subscribe,
 } from "#protocol";
 import {
-    CaseAuthenticatedTag,
     DeviceTypeId,
     DiscoveryCapabilitiesBitmap,
     ManualPairingCodeCodec,
@@ -144,9 +143,6 @@ export class CommissioningClient extends Behavior {
         try {
             await commissioner.commission(commissioningOptions);
             this.state.peerAddress = address;
-            if (opts.caseAuthenticatedTags !== undefined) {
-                this.state.caseAuthenticatedTags = opts.caseAuthenticatedTags;
-            }
         } catch (e) {
             identityService.releaseNodeAddress(address);
             throw e;
@@ -382,12 +378,6 @@ export namespace CommissioningClient {
          * Indicates whether node is ICD with a slow (15 s+) polling interval.
          */
         longIdleTimeOperatingMode?: boolean;
-
-        /**
-         * Optional Case Authenticated Tags (CATs) to be used when establishing CASE sessions with the node.
-         * These tags provide additional authentication context for the operational session.
-         */
-        caseAuthenticatedTags?: CaseAuthenticatedTag[];
     }
 
     export class Events extends BaseEvents {
@@ -444,12 +434,6 @@ export namespace CommissioningClient {
          * read omits them then the node will only be partially functional once initialized.
          */
         startupSubscription?: Subscribe | null;
-
-        /**
-         * Optional Case Authenticated Tags (CATs) to be used when establishing CASE sessions with the node.
-         * These tags provide additional authentication context for the operational session.
-         */
-        caseAuthenticatedTags?: CaseAuthenticatedTag[];
     }
 
     export interface PasscodeOptions extends BaseCommissioningOptions {
