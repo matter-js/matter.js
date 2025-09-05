@@ -85,8 +85,18 @@ export interface DiscoveryOptions {
     discoveryData?: DiscoveryData;
 }
 
+export namespace PeerSet {
+    /**
+     * Extended discovery options that include case authenticated tags for peer connections.
+     */
+    export interface ConnectionOptions extends DiscoveryOptions {
+        caseAuthenticatedTags?: CaseAuthenticatedTag[];
+    }
+}
+
 /**
  * Extended discovery options that include case authenticated tags for peer connections.
+ * @deprecated Use PeerSet.ConnectionOptions instead
  */
 export interface PeerConnectionOptions extends DiscoveryOptions {
     caseAuthenticatedTags?: CaseAuthenticatedTag[];
@@ -300,8 +310,8 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
     /**
      * Obtain an exchange provider for the designated peer.
      */
-    async exchangeProviderFor(addressOrChannel: PeerAddress | MessageChannel, options?: PeerConnectionOptions) {
-        const { caseAuthenticatedTags, ...discoveryOptions } = options ?? {};
+    async exchangeProviderFor(addressOrChannel: PeerAddress | MessageChannel, options: PeerSet.ConnectionOptions = {}) {
+        const { caseAuthenticatedTags, ...discoveryOptions } = options;
 
         if (addressOrChannel instanceof MessageChannel) {
             return new DedicatedChannelExchangeProvider(this.#exchanges, addressOrChannel);
@@ -423,9 +433,12 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
      * device is discovered again using its operational instance details.
      * It returns the operational MessageChannel on success.
      */
-    async #resume(address: PeerAddress, options?: PeerConnectionOptions, tryOperationalAddress?: ServerAddressIp) {
-        const { caseAuthenticatedTags, ...discoveryOptions } = options ?? {};
-        const { discoveryType } = discoveryOptions;
+    async #resume(
+        address: PeerAddress,
+        options: PeerSet.ConnectionOptions = {},
+        tryOperationalAddress?: ServerAddressIp,
+    ) {
+        const { discoveryType } = options;
 
         const operationalAddress =
             tryOperationalAddress ??
@@ -452,9 +465,9 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
     async #connectOrDiscoverNode(
         address: PeerAddress,
         operationalAddress?: ServerAddressIp,
-        options?: PeerConnectionOptions,
+        options: PeerSet.ConnectionOptions = {},
     ) {
-        const { caseAuthenticatedTags, ...discoveryOptions } = options ?? {};
+        const { caseAuthenticatedTags, ...discoveryOptions } = options;
         address = PeerAddress(address);
         const {
             discoveryType: requestedDiscoveryType = NodeDiscoveryType.FullDiscovery,

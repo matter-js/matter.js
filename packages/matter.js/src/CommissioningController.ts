@@ -429,11 +429,7 @@ export class CommissioningController {
             connectOptions,
             nodeIsCommissioned ? (this.#controllerInstance?.getCommissionedNodeDetails(nodeId)?.deviceData ?? {}) : {},
             await this.createInteractionClient(nodeId, NodeDiscoveryType.None, { forcedConnection: false }), // First connect without discovery to last known address
-            async (
-                discoveryType?: NodeDiscoveryType,
-                currentOptions?: CommissioningControllerNodeOptions,
-                _noForcedConnection?: boolean,
-            ) =>
+            async (discoveryType?: NodeDiscoveryType, currentOptions?: CommissioningControllerNodeOptions) =>
                 void (await controller.connect(nodeId, {
                     discoveryOptions: { discoveryType },
                     allowUnknownPeer: false,

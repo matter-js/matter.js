@@ -267,7 +267,6 @@ export class PairedNode {
     readonly #reconnectFunc: (
         discoveryType?: NodeDiscoveryType,
         currentOptions?: CommissioningControllerNodeOptions,
-        noForcedConnection?: boolean,
     ) => Promise<void>;
     #currentSubscriptionIntervalS?: number;
     #crypto: Crypto;
@@ -316,7 +315,6 @@ export class PairedNode {
         reconnectFunc: (
             discoveryType?: NodeDiscoveryType,
             currentOptions?: CommissioningControllerNodeOptions,
-            noForcedConnection?: boolean,
         ) => Promise<void>,
         assignDisconnectedHandler: (handler: () => Promise<void>) => void,
         sessions: BasicSet<NodeSession>,
@@ -348,7 +346,6 @@ export class PairedNode {
         reconnectFunc: (
             discoveryType?: NodeDiscoveryType,
             currentOptions?: CommissioningControllerNodeOptions,
-            noForcedConnection?: boolean,
         ) => Promise<void>,
         assignDisconnectedHandler: (handler: () => Promise<void>) => void,
         sessions: BasicSet<NodeSession, NodeSession>,

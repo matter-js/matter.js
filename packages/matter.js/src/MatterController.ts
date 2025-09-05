@@ -551,11 +551,11 @@ export class MatterController {
         return this.clients.connect(this.fabric.addressOf(peerNodeId), options);
     }
 
-    createInteractionClient(peerNodeIdOrChannel: NodeId | MessageChannel, discoveryOptions: DiscoveryOptions) {
+    createInteractionClient(peerNodeIdOrChannel: NodeId | MessageChannel, options: PeerSet.ConnectionOptions = {}) {
         if (peerNodeIdOrChannel instanceof MessageChannel) {
             return this.clients.getInteractionClientForChannel(peerNodeIdOrChannel);
         }
-        return this.clients.getInteractionClient(this.fabric.addressOf(peerNodeIdOrChannel), discoveryOptions);
+        return this.clients.getInteractionClient(this.fabric.addressOf(peerNodeIdOrChannel), options);
     }
 
     async getNextAvailableSessionId() {

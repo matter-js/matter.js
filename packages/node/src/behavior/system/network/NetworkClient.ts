@@ -68,10 +68,11 @@ export class NetworkClient extends NetworkBehavior {
                 name: "caseAuthenticatedTags",
                 type: "list",
                 quality: "N",
+                conformance: "O",
                 children: [
                     FieldElement({
                         name: "entry",
-                        type: "case-authenticated-tag",
+                        type: "uint32",
                     }),
                 ],
             }),
