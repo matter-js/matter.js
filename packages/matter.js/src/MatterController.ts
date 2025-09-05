@@ -97,12 +97,6 @@ type CommissionedPeer = OperationalPeer & { deviceData?: DeviceInformationData }
 // Backward-compatible persistence record for nodes
 type StoredOperationalPeer = [NodeId, CommissionedNodeDetails];
 
-export interface ConnectOptions {
-    discoveryOptions: DiscoveryOptions;
-    allowUnknownPeer?: boolean;
-    caseAuthenticatedTags?: CaseAuthenticatedTag[];
-}
-
 export class MatterController {
     public static async create(options: {
         controllerStore: ControllerStoreInterface;
@@ -553,7 +547,7 @@ export class MatterController {
      * Connect to the device by opening a channel and creating a new CASE session if necessary.
      * Returns a InteractionClient on success.
      */
-    async connect(peerNodeId: NodeId, options: ConnectOptions) {
+    async connect(peerNodeId: NodeId, options: MatterController.ConnectOptions) {
         return this.clients.connect(this.fabric.addressOf(peerNodeId), options);
     }
 
@@ -626,6 +620,14 @@ export class MatterController {
 
     async updateFabricLabel(label: string) {
         await this.fabric.setLabel(label);
+    }
+}
+
+export namespace MatterController {
+    export interface ConnectOptions {
+        discoveryOptions: DiscoveryOptions;
+        allowUnknownPeer?: boolean;
+        caseAuthenticatedTags?: CaseAuthenticatedTag[];
     }
 }
 
