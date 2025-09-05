@@ -53,13 +53,12 @@ export class ClientNetworkRuntime extends NetworkRuntime {
         const commissioningState = this.owner.stateOf(CommissioningClient);
         const networkState = this.owner.state.network;
 
-        const exchangeProvider = await peers.exchangeProviderFor(
-            address,
-            {
-                discoveryData: RemoteDescriptor.fromLongForm(commissioningState),
-            },
-            networkState.caseAuthenticatedTags?.slice(),
-        );
+        const exchangeProvider = await peers.exchangeProviderFor(address, {
+            discoveryData: RemoteDescriptor.fromLongForm(commissioningState),
+            caseAuthenticatedTags: networkState.caseAuthenticatedTags
+                ? [...networkState.caseAuthenticatedTags]
+                : undefined,
+        });
         env.set(ExchangeProvider, exchangeProvider);
 
         // Monitor sessions to maintain online state.  We consider the node "online" if there is an active session.  If

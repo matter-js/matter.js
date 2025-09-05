@@ -146,11 +146,10 @@ export class InteractionClientProvider {
         const nodeStore = isGroupAddress ? undefined : this.#peers.get(address)?.dataStore;
         await nodeStore?.construction; // Lazy initialize the data if not already done
 
-        const exchangeProvider = await this.#peers.exchangeProviderFor(
-            address,
-            discoveryOptions,
+        const exchangeProvider = await this.#peers.exchangeProviderFor(address, {
+            ...discoveryOptions,
             caseAuthenticatedTags,
-        );
+        });
 
         client = new InteractionClient(
             exchangeProvider,

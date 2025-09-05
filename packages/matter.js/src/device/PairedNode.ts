@@ -504,7 +504,7 @@ export class PairedNode {
 
         this.#clientReconnectInProgress = true;
         try {
-            await this.#reconnectFunc(discoveryType, this.#options, undefined);
+            await this.#reconnectFunc(discoveryType, this.#options);
         } finally {
             this.#clientReconnectInProgress = false;
         }
