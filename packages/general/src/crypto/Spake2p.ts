@@ -85,7 +85,7 @@ export class Spake2p {
         const yNwo = YPoint.add(N.multiply(this.#w0).negate());
         const Z = yNwo.multiply(this.#random);
         const V = yNwo.multiply(w1);
-        return this.computeSecretAndVerifiers(X, Y, Bytes.of(Z.toBytes(false)), Bytes.of(V.toBytes(false)));
+        return this.computeSecretAndVerifiers(X, Y, Z.toBytes(false), V.toBytes(false));
     }
 
     async computeSecretAndVerifiersFromX(L: Bytes, X: Bytes, Y: Bytes) {
@@ -98,7 +98,7 @@ export class Spake2p {
         }
         const Z = XPoint.add(M.multiply(this.#w0).negate()).multiply(this.#random);
         const V = LPoint.multiply(this.#random);
-        return this.computeSecretAndVerifiers(X, Y, Bytes.of(Z.toBytes(false)), Bytes.of(V.toBytes(false)));
+        return this.computeSecretAndVerifiers(X, Y, Z.toBytes(false), V.toBytes(false));
     }
 
     private async computeSecretAndVerifiers(X: Bytes, Y: Bytes, Z: Bytes, V: Bytes) {
@@ -123,8 +123,8 @@ export class Spake2p {
         this.addToContext(TTwriter, this.#context);
         this.addToContext(TTwriter, Bytes.fromString(""));
         this.addToContext(TTwriter, Bytes.fromString(""));
-        this.addToContext(TTwriter, Bytes.of(M.toBytes(false)));
-        this.addToContext(TTwriter, Bytes.of(N.toBytes(false)));
+        this.addToContext(TTwriter, M.toBytes(false));
+        this.addToContext(TTwriter, N.toBytes(false));
         this.addToContext(TTwriter, X);
         this.addToContext(TTwriter, Y);
         this.addToContext(TTwriter, Z);
