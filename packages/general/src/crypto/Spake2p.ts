@@ -76,7 +76,7 @@ export class Spake2p {
     }
 
     async computeSecretAndVerifiersFromY(w1: bigint, X: Bytes, Y: Bytes) {
-        const YPoint = Point.fromBytes(Bytes.of(Y));
+        const YPoint = Point.fromBytes(Y as Uint8Array);
         try {
             YPoint.assertValidity();
         } catch (error) {
@@ -89,8 +89,8 @@ export class Spake2p {
     }
 
     async computeSecretAndVerifiersFromX(L: Bytes, X: Bytes, Y: Bytes) {
-        const XPoint = Point.fromBytes(Bytes.of(X));
-        const LPoint = Point.fromBytes(Bytes.of(L));
+        const XPoint = Point.fromBytes(X as Uint8Array);
+        const LPoint = Point.fromBytes(L as Uint8Array);
         try {
             XPoint.assertValidity();
         } catch (error) {
