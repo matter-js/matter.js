@@ -9,9 +9,9 @@ import { Diagnostic } from "#log/Diagnostic.js";
 import { Logger } from "#log/Logger.js";
 import { Bytes } from "#util/Bytes.js";
 import { MaybePromise } from "#util/Promises.js";
-import * as mod from "@noble/curves/abstract/modular";
-import * as utils from "@noble/curves/abstract/utils";
-import { p256 } from "@noble/curves/p256";
+import * as mod from "@noble/curves/abstract/modular.js";
+import { p256 } from "@noble/curves/nist.js";
+import * as utils from "@noble/curves/utils.js";
 import { PrivateKey, PublicKey } from "./Key.js";
 
 export const ec = {

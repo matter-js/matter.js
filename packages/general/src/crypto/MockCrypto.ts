@@ -82,7 +82,7 @@ export function MockCrypto(index: number = 0x80, implementation: new () => Crypt
 
         // Ensure EC key generation uses our own "entropy" source rather than the platform's
         crypto.createKeyPair = function getRandomDataNONENTROPIC() {
-            const privateBits = ec.mapHashToField(Bytes.of(crypto.randomBytes(48)), ec.p256.CURVE.n);
+            const privateBits = ec.mapHashToField(Bytes.of(crypto.randomBytes(48)), ec.p256.Point.CURVE().n);
             return Key({
                 kty: KeyType.EC,
                 crv: CurveType.p256,

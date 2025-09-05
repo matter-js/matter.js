@@ -11,15 +11,15 @@ import { Crypto, ec } from "./Crypto.js";
 import { CRYPTO_GROUP_SIZE_BYTES } from "./CryptoConstants.js";
 
 const {
-    p256: { ProjectivePoint, CURVE: P256_CURVE },
+    p256: { Point },
     numberToBytesBE,
     bytesToNumberBE,
     mod,
 } = ec;
 
 // M and N constants from https://datatracker.ietf.org/doc/html/draft-bar-cfrg-spake2plus-01
-const M = ProjectivePoint.fromHex("02886e2f97ace46e55ba9dd7242579f2993b64e16ef3dcab95afd497333d8fa12f");
-const N = ProjectivePoint.fromHex("03d8bbd6c639c62937b04d997f38c3770719c629d7014d49a24b4f98baa1292b49");
+const M = Point.fromHex("02886e2f97ace46e55ba9dd7242579f2993b64e16ef3dcab95afd497333d8fa12f");
+const N = Point.fromHex("03d8bbd6c639c62937b04d997f38c3770719c629d7014d49a24b4f98baa1292b49");
 
 const CRYPTO_W_SIZE_BYTES = CRYPTO_GROUP_SIZE_BYTES + 8;
 
@@ -40,19 +40,21 @@ export class Spake2p {
         const ws = Bytes.of(
             await crypto.createPbkdf2Key(pinWriter.toByteArray(), salt, iterations, CRYPTO_W_SIZE_BYTES * 2),
         );
-        const w0 = mod(bytesToNumberBE(ws.slice(0, 40)), P256_CURVE.n);
-        const w1 = mod(bytesToNumberBE(ws.slice(40, 80)), P256_CURVE.n);
+        const curve = Point.CURVE();
+        const w0 = mod(bytesToNumberBE(ws.slice(0, 40)), curve.n);
+        const w1 = mod(bytesToNumberBE(ws.slice(40, 80)), curve.n);
         return { w0, w1 };
     }
 
     static async computeW0L(crypto: Crypto, pbkdfParameters: PbkdfParameters, pin: number) {
         const { w0, w1 } = await this.computeW0W1(crypto, pbkdfParameters, pin);
-        const L = ProjectivePoint.BASE.multiply(w1).toRawBytes(false);
+        const L = Point.BASE.multiply(w1).toBytes(false);
         return { w0, L };
     }
 
     static create(crypto: Crypto, context: Bytes, w0: bigint) {
-        const random = crypto.randomBigInt(32, P256_CURVE.Fp.ORDER);
+        const curve = Point.CURVE();
+        const random = crypto.randomBigInt(32, curve.p);
         return new Spake2p(crypto, context, random, w0);
     }
 
@@ -64,17 +66,17 @@ export class Spake2p {
     }
 
     computeX(): Bytes {
-        const X = ProjectivePoint.BASE.multiply(this.#random).add(M.multiply(this.#w0));
-        return X.toRawBytes(false);
+        const X = Point.BASE.multiply(this.#random).add(M.multiply(this.#w0));
+        return X.toBytes(false);
     }
 
     computeY(): Bytes {
-        const Y = ProjectivePoint.BASE.multiply(this.#random).add(N.multiply(this.#w0));
-        return Y.toRawBytes(false);
+        const Y = Point.BASE.multiply(this.#random).add(N.multiply(this.#w0));
+        return Y.toBytes(false);
     }
 
     async computeSecretAndVerifiersFromY(w1: bigint, X: Bytes, Y: Bytes) {
-        const YPoint = ProjectivePoint.fromHex(Bytes.of(Y));
+        const YPoint = Point.fromBytes(Bytes.of(Y));
         try {
             YPoint.assertValidity();
         } catch (error) {
@@ -83,12 +85,12 @@ export class Spake2p {
         const yNwo = YPoint.add(N.multiply(this.#w0).negate());
         const Z = yNwo.multiply(this.#random);
         const V = yNwo.multiply(w1);
-        return this.computeSecretAndVerifiers(X, Y, Bytes.of(Z.toRawBytes(false)), Bytes.of(V.toRawBytes(false)));
+        return this.computeSecretAndVerifiers(X, Y, Z.toBytes(false), V.toBytes(false));
     }
 
     async computeSecretAndVerifiersFromX(L: Bytes, X: Bytes, Y: Bytes) {
-        const XPoint = ProjectivePoint.fromHex(Bytes.of(X));
-        const LPoint = ProjectivePoint.fromHex(Bytes.of(L));
+        const XPoint = Point.fromBytes(Bytes.of(X));
+        const LPoint = Point.fromBytes(Bytes.of(L));
         try {
             XPoint.assertValidity();
         } catch (error) {
@@ -96,7 +98,7 @@ export class Spake2p {
         }
         const Z = XPoint.add(M.multiply(this.#w0).negate()).multiply(this.#random);
         const V = LPoint.multiply(this.#random);
-        return this.computeSecretAndVerifiers(X, Y, Bytes.of(Z.toRawBytes(false)), Bytes.of(V.toRawBytes(false)));
+        return this.computeSecretAndVerifiers(X, Y, Z.toBytes(false), V.toBytes(false));
     }
 
     private async computeSecretAndVerifiers(X: Bytes, Y: Bytes, Z: Bytes, V: Bytes) {
@@ -121,8 +123,8 @@ export class Spake2p {
         this.addToContext(TTwriter, this.#context);
         this.addToContext(TTwriter, Bytes.fromString(""));
         this.addToContext(TTwriter, Bytes.fromString(""));
-        this.addToContext(TTwriter, Bytes.of(M.toRawBytes(false)));
-        this.addToContext(TTwriter, Bytes.of(N.toRawBytes(false)));
+        this.addToContext(TTwriter, M.toBytes(false));
+        this.addToContext(TTwriter, N.toBytes(false));
         this.addToContext(TTwriter, X);
         this.addToContext(TTwriter, Y);
         this.addToContext(TTwriter, Z);
