@@ -13,7 +13,7 @@ import { MessageExchange, RetransmissionLimitReachedError } from "#protocol/Mess
 import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { SessionManager } from "#session/SessionManager.js";
-import { NodeId, SecureChannelStatusCode } from "#types";
+import { CaseAuthenticatedTag, NodeId, SecureChannelStatusCode } from "#types";
 import {
     KDFSR1_KEY_INFO,
     KDFSR2_INFO,
@@ -38,11 +38,12 @@ export class CaseClient {
         this.#sessions = sessions;
     }
 
-    async pair(exchange: MessageExchange, fabric: Fabric, peerNodeId: NodeId, expectedProcessingTime?: Duration) {
+    async pair(exchange: MessageExchange, fabric: Fabric, peerNodeId: NodeId, options?: CaseClient.PairOptions) {
+        const { expectedProcessingTime, caseAuthenticatedTags } = options ?? {};
         const messenger = new CaseClientMessenger(exchange, expectedProcessingTime);
 
         try {
-            return await this.#doPair(messenger, exchange, fabric, peerNodeId);
+            return await this.#doPair(messenger, exchange, fabric, peerNodeId, caseAuthenticatedTags);
         } catch (error) {
             if (!(error instanceof ChannelStatusResponseError || error instanceof RetransmissionLimitReachedError)) {
                 await messenger.sendError(SecureChannelStatusCode.InvalidParam);
@@ -51,7 +52,13 @@ export class CaseClient {
         }
     }
 
-    async #doPair(messenger: CaseClientMessenger, exchange: MessageExchange, fabric: Fabric, peerNodeId: NodeId) {
+    async #doPair(
+        messenger: CaseClientMessenger,
+        exchange: MessageExchange,
+        fabric: Fabric,
+        peerNodeId: NodeId,
+        caseAuthenticatedTags?: CaseAuthenticatedTag[],
+    ) {
         const { crypto } = fabric;
 
         // Generate pairing info
@@ -221,7 +228,8 @@ export class CaseClient {
             await messenger.waitForSuccess("Sigma3-Success");
 
             // All good! Create secure session
-            const { caseAuthenticatedTags } = resumptionRecord ?? {}; // Even if resumption does not work try to reuse the caseAuthenticatedTags
+            // Configured CATs take precedence over resumption record ones
+            const sessionCaseAuthenticatedTags = caseAuthenticatedTags ?? resumptionRecord?.caseAuthenticatedTags;
             const secureSessionSalt = Bytes.concat(
                 operationalIdentityProtectionKey,
                 await crypto.computeSha256([sigma1Bytes, sigma2Bytes, sigma3Bytes]),
@@ -236,7 +244,7 @@ export class CaseClient {
                 isInitiator: true,
                 isResumption: false,
                 peerSessionParameters,
-                caseAuthenticatedTags,
+                caseAuthenticatedTags: sessionCaseAuthenticatedTags,
             });
             this.#logNewSession("New", secureSession, messenger, fabric, peerNodeId);
             resumptionRecord = {
@@ -245,7 +253,7 @@ export class CaseClient {
                 sharedSecret,
                 resumptionId: peerResumptionId,
                 sessionParameters: secureSession.parameters,
-                caseAuthenticatedTags,
+                caseAuthenticatedTags: sessionCaseAuthenticatedTags,
             };
         }
 
@@ -272,5 +280,12 @@ export class CaseClient {
                 ...session.parameterDiagnostics,
             }),
         );
+    }
+}
+
+export namespace CaseClient {
+    export interface PairOptions {
+        expectedProcessingTime?: Duration;
+        caseAuthenticatedTags?: CaseAuthenticatedTag[];
     }
 }
