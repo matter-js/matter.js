@@ -193,9 +193,10 @@ export class StorageBackendDisk extends Storage {
         writer.on("finish", resolver);
         writer.on("error", rejecter);
 
+        let reader: ReadableStreamDefaultReader<Bytes> | undefined;
         try {
             if (isStream) {
-                const reader = valueOrStream.getReader();
+                reader = valueOrStream.getReader();
                 while (true) {
                     const { value: chunk, done } = await reader.read();
                     if (chunk) {
@@ -215,6 +216,12 @@ export class StorageBackendDisk extends Storage {
 
             await writePromise;
         } finally {
+            if (isStream && reader) {
+                if (valueOrStream.locked) {
+                    reader.releaseLock(); // release the reader lock
+                }
+                await valueOrStream.cancel();
+            }
             await handle.close();
         }
 
