@@ -16,9 +16,8 @@ import {
     Observable,
     Transaction,
 } from "#general";
-import { AccessLevel } from "#model";
 import type { Val } from "#protocol";
-import { AccessControl, ExpiredReferenceError } from "#protocol";
+import { AccessControl, ExpiredReferenceError, hasRemoteActor } from "#protocol";
 import { RootSupervisor } from "../../supervision/RootSupervisor.js";
 import { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
 import { StateType } from "../StateType.js";
@@ -125,12 +124,6 @@ export function Datasource<const T extends StateType = StateType>(options: Datas
         get view() {
             if (!readOnlyView) {
                 const session: ValueSupervisor.Session = {
-                    offline: true,
-                    authorityAt(desiredAccessLevel: AccessLevel) {
-                        return desiredAccessLevel === AccessLevel.View
-                            ? AccessControl.Authority.Granted
-                            : AccessControl.Authority.Unauthorized;
-                    },
                     transaction: viewTx,
                 };
                 readOnlyView = createReference(this, internals, session).managed as InstanceType<T>;
@@ -281,7 +274,7 @@ interface Internals extends Datasource.Options {
     primaryKey: "name" | "id";
     sessions?: Map<ValueSupervisor.Session, SessionContext>;
     featuresKey?: string;
-    interactionObserver(session?: AccessControl.Session): MaybePromise<void>;
+    interactionObserver(session?: ValueSupervisor.Session): MaybePromise<void>;
     events: Datasource.InternalEvents;
     changedEventFor(key: string): undefined | Datasource.Events[any];
     persistentFields: Set<string>;
@@ -635,6 +628,7 @@ function createReference(resource: Transaction.Resource, internals: Internals, s
         transaction.beginSync();
 
         if (
+            hasRemoteActor(session) &&
             !session.interactionStarted &&
             session.interactionComplete &&
             !session.interactionComplete.isObservedBy(internals.interactionObserver)

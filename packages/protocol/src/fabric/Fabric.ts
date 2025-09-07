@@ -63,7 +63,7 @@ export class Fabric {
     readonly #keyPair: Key;
     readonly #sessions = new Set<Session>();
     readonly #groups: FabricGroups;
-    readonly #aclManager: FabricAccessControl;
+    readonly #accessControl: FabricAccessControl;
     #label: string;
     #removeCallbacks = new Array<() => MaybePromise<void>>();
     #persistCallback: ((isUpdate?: boolean) => MaybePromise<void>) | undefined;
@@ -85,7 +85,7 @@ export class Fabric {
         this.operationalCert = config.operationalCert;
         this.#label = config.label;
         this.#keyPair = PrivateKey(config.keyPair);
-        this.#aclManager = new FabricAccessControl(this);
+        this.#accessControl = new FabricAccessControl(this);
         this.#groups = new FabricGroups(this);
     }
 
@@ -140,8 +140,8 @@ export class Fabric {
         return this.#groups;
     }
 
-    get acl() {
-        return this.#aclManager;
+    get accessControl() {
+        return this.#accessControl;
     }
 
     get publicKey() {

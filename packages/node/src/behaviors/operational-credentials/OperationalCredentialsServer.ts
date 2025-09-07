@@ -14,6 +14,7 @@ import { Crypto, CryptoVerifyError, Logger, MatterFlowError, MaybePromise, Unexp
 import { AccessLevel } from "#model";
 import type { Node } from "#node/Node.js";
 import {
+    assertRemoteActor,
     CertificateError,
     DeviceCertification,
     DeviceCommissioner,
@@ -94,13 +95,15 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
     }
 
     override async attestationRequest({ attestationNonce }: OperationalCredentials.AttestationRequest) {
+        assertRemoteActor(this.context);
+
         if (attestationNonce.byteLength !== 32) {
             throw new StatusResponseError("Invalid attestation nonce length", StatusCode.InvalidCommand);
         }
 
         const certification = await this.getCertification();
 
-        const session = this.session;
+        const session = this.context.session;
         NodeSession.assert(session);
 
         const attestationElements = TlvAttestation.encode({
@@ -115,11 +118,13 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
     }
 
     override async csrRequest({ csrNonce, isForUpdateNoc }: OperationalCredentials.CsrRequest) {
+        assertRemoteActor(this.context);
+
         if (csrNonce.byteLength !== 32) {
             throw new StatusResponseError("Invalid csr nonce length", StatusCode.InvalidCommand);
         }
 
-        const session = this.session;
+        const session = this.context.session;
         NodeSession.assert(session);
         if (isForUpdateNoc && session.isPase) {
             throw new StatusResponseError(
@@ -139,9 +144,10 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
 
         const certification = await this.getCertification();
 
+        assertRemoteActor(this.context);
         const certSigningRequest = await failsafeContext.createCertificateSigningRequest(
             isForUpdateNoc ?? false,
-            this.session.id,
+            this.context.session.id,
         );
         const nocsrElements = TlvCertSigningRequest.encode({ certSigningRequest, csrNonce });
         return { nocsrElements, attestationSignature: await certification.sign(session, nocsrElements) };
@@ -205,6 +211,8 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
         caseAdminSubject,
         adminVendorId,
     }: OperationalCredentials.AddNocRequest) {
+        assertRemoteActor(this.context);
+
         const failsafeContext = this.#failsafeContext;
 
         if (failsafeContext.fabricIndex !== undefined) {
@@ -221,7 +229,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
             };
         }
 
-        if (failsafeContext.csrSessionId !== this.session.id) {
+        if (failsafeContext.csrSessionId !== this.context.session.id) {
             return {
                 statusCode: OperationalCredentials.NodeOperationalCertStatus.MissingCsr,
                 debugText: "CSR not found in failsafe context",
@@ -261,7 +269,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
         // subsequent Administer access to an Administrator member of the new Fabric.
         await this.endpoint.act(agent => agent.get(AccessControlServer).addDefaultCaseAcl(fabric, [caseAdminSubject]));
 
-        const session = this.session;
+        const session = this.context.session;
         NodeSession.assert(session);
 
         await failsafeContext.addFabric(fabric);
@@ -302,7 +310,8 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
     }
 
     override async updateNoc({ nocValue, icacValue }: OperationalCredentials.UpdateNocRequest) {
-        NodeSession.assert(this.session);
+        assertRemoteActor(this.context);
+        NodeSession.assert(this.context.session);
 
         const timedOp = this.#failsafeContext;
 
@@ -338,7 +347,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
             };
         }
 
-        if (this.session.associatedFabric.fabricIndex !== timedOp.associatedFabric?.fabricIndex) {
+        if (this.context.session.associatedFabric.fabricIndex !== timedOp.associatedFabric?.fabricIndex) {
             throw new StatusResponseError(
                 "Fabric of this session and the failsafe context do not match",
                 StatusCode.ConstraintError,
@@ -363,7 +372,8 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
     }
 
     override async updateFabricLabel({ label }: OperationalCredentials.UpdateFabricLabelRequest) {
-        const fabric = this.session.associatedFabric;
+        assertRemoteActor(this.context);
+        const fabric = this.context.session.associatedFabric;
 
         const currentFabricIndex = fabric.fabricIndex;
         const fabrics = this.env.get(FabricManager);
@@ -381,6 +391,8 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
     }
 
     override async removeFabric({ fabricIndex }: OperationalCredentials.RemoveFabricRequest) {
+        assertRemoteActor(this.context);
+
         const fabric = this.env.get(FabricManager).findByIndex(fabricIndex);
 
         if (fabric === undefined) {
@@ -390,7 +402,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
             };
         }
 
-        await fabric.remove(this.session.id);
+        await fabric.remove(this.context.session.id);
         // The state is updated on removal via commissionedFabricChanged event, see constructor
 
         return {

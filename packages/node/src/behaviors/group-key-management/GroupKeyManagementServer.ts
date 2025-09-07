@@ -9,7 +9,7 @@ import { GroupKeyManagement } from "#clusters/group-key-management";
 import { deepCopy, ImplementationError, Logger, MaybePromise } from "#general";
 import { DatatypeModel, FieldElement } from "#model";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
-import { Fabric, FabricManager, SecureSession } from "#protocol";
+import { assertRemoteActor, Fabric, FabricManager, hasRemoteActor } from "#protocol";
 import { EndpointNumber, FabricIndex, GroupId, StatusCode, StatusResponseError } from "#types";
 import { GroupKeyManagementBehavior } from "./GroupKeyManagementBehavior.js";
 
@@ -217,7 +217,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
         _oldMap?: GroupKeyManagement.GroupKeyMap[],
         context?: ActionContext,
     ) {
-        if (context !== undefined && !context?.offline) {
+        if (context !== undefined && hasRemoteActor(context)) {
             const fabric = context.session?.associatedFabric;
             const fabricIndex = fabric?.fabricIndex;
 
@@ -252,7 +252,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
     }
 
     override async keySetWrite({ groupKeySet }: GroupKeyManagement.KeySetWriteRequest) {
-        SecureSession.assert(this.session);
+        assertRemoteActor(this.context);
 
         const {
             groupKeySetId,
@@ -324,7 +324,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
             throw new StatusResponseError("GroupKeyMulticastPolicy must be PerGroupId", StatusCode.InvalidCommand);
         }
 
-        const fabric = this.session.associatedFabric;
+        const fabric = this.context.session.associatedFabric;
         const fabricIndex = fabric.fabricIndex;
 
         // Replace or add the group key set to the internal persisted state
@@ -356,7 +356,9 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
     override keySetRead({
         groupKeySetId,
     }: GroupKeyManagement.KeySetReadRequest): GroupKeyManagement.KeySetReadResponse {
-        const fabric = this.session.associatedFabric;
+        assertRemoteActor(this.context);
+
+        const fabric = this.context.session.associatedFabric;
 
         // We use the fabric group manager to retrieve the group key set because he also has the id 0 and is synced anyway
         const groupKeySet = fabric.groups.keySets.asGroupKeySet(groupKeySetId);
@@ -379,7 +381,9 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
             throw new StatusResponseError(`GroupKeySet ${groupKeySetId} cannot be removed`, StatusCode.InvalidCommand);
         }
 
-        const fabric = this.session.associatedFabric;
+        assertRemoteActor(this.context);
+
+        const fabric = this.context.session.associatedFabric;
         const fabricIndex = fabric.fabricIndex;
 
         // Replace or add the group key set to the internal persisted state
@@ -402,7 +406,9 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
     }
 
     override keySetReadAllIndices(): GroupKeyManagement.KeySetReadAllIndicesResponse {
-        const fabric = this.session.associatedFabric;
+        assertRemoteActor(this.context);
+
+        const fabric = this.context.session.associatedFabric;
         const fabricIndex = fabric.fabricIndex;
 
         const groupKeySetIDs = this.state.groupKeySets

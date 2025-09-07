@@ -8,7 +8,7 @@ import { InteractionSession } from "#action/Interactable.js";
 import { AttributeTypeProtocol, ClusterProtocol, EndpointProtocol, NodeProtocol } from "#action/protocols.js";
 import { Read } from "#action/request/Read.js";
 import { ReadResult } from "#action/response/ReadResult.js";
-import { AccessControl } from "#action/server/AccessControl.js";
+import { AccessControl, hasLocalActor, hasRemoteActor } from "#action/server/AccessControl.js";
 import { DataResponse, FallbackLimits, WildcardPathFlagsCodec } from "#action/server/DataResponse.js";
 import { Val } from "#action/Val.js";
 import { Diagnostic, InternalError, Logger } from "#general";
@@ -64,7 +64,7 @@ export class AttributeReadResponse<
     }
 
     *process({ dataVersionFilters, attributeRequests }: Read.Attributes): Generator<ReadResult.Chunk, void, void> {
-        const nodeId = this.session.fabric === undefined ? NodeId.UNSPECIFIED_NODE_ID : this.nodeId;
+        const nodeId = hasLocalActor(this.session) ? NodeId.UNSPECIFIED_NODE_ID : this.nodeId;
 
         // Index versions
         if (dataVersionFilters?.length) {
@@ -204,32 +204,37 @@ export class AttributeReadResponse<
             limits = attribute.limits;
         }
 
-        // Validate access.  Order here prescribed by 1.4 core spec 8.4.3.2
-        // We need some fallback location if cluster is not defined
-        const location = {
-            ...(cluster?.location ?? {
-                path: DataModelPath.none,
-                endpoint: endpointId,
-                cluster: clusterId,
-            }),
-            owningFabric: this.session.fabric,
-        };
-        const permission = this.session.authorityAt(limits.readLevel, location);
-        switch (permission) {
-            case AccessControl.Authority.Granted:
-                break;
+        if (hasRemoteActor(this.session)) {
+            // Validate access.  Order here prescribed by 1.4 core spec 8.4.3.2
+            // We need some fallback location if cluster is not defined
+            const location: AccessControl.Location = {
+                ...(cluster?.location ?? {
+                    path: DataModelPath.none,
+                    endpoint: endpointId,
+                    cluster: clusterId,
+                }),
+                owningFabric: this.session.fabric,
+            };
 
-            case AccessControl.Authority.Unauthorized:
-                this.addStatus(path, Status.UnsupportedAccess);
-                return;
+            const permission = this.session.authorityAt(limits.readLevel, location);
 
-            case AccessControl.Authority.Restricted:
-                this.addStatus(path, Status.AccessRestricted);
-                return;
+            switch (permission) {
+                case AccessControl.Authority.Granted:
+                    break;
 
-            default:
-                throw new InternalError(`Unsupported authorization state ${permission}`);
+                case AccessControl.Authority.Unauthorized:
+                    this.addStatus(path, Status.UnsupportedAccess);
+                    return;
+
+                case AccessControl.Authority.Restricted:
+                    this.addStatus(path, Status.AccessRestricted);
+                    return;
+
+                default:
+                    throw new InternalError(`Unsupported authorization state ${permission}`);
+            }
         }
+
         if (endpoint === undefined) {
             this.addStatus(path, Status.UnsupportedEndpoint);
             return;
@@ -380,8 +385,9 @@ export class AttributeReadResponse<
 
         if (
             !attribute.limits.readable ||
-            this.session.authorityAt(attribute.limits.readLevel, this.#guardedCurrentCluster.location) !==
-                AccessControl.Authority.Granted
+            (hasRemoteActor(this.session) &&
+                this.session.authorityAt(attribute.limits.readLevel, this.#guardedCurrentCluster.location) !==
+                    AccessControl.Authority.Granted)
         ) {
             return;
         }

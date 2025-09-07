@@ -7,11 +7,12 @@
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import type { Observable, Observer, Transaction } from "#general";
 import { asError, ImplementationError, InternalError, Logger, MatterAggregateError, MaybePromise } from "#general";
+import { hasRemoteActor } from "#protocol";
 import type { Reactor } from "../Reactor.js";
-import type { ActionContext } from "../context/ActionContext.js";
+import { ActionContext } from "../context/ActionContext.js";
 import { Contextual } from "../context/Contextual.js";
 import { NodeActivity } from "../context/NodeActivity.js";
-import { OfflineContext } from "../context/server/OfflineContext.js";
+import { LocalActorContext } from "../context/server/LocalActorContext.js";
 import type { BehaviorBacking } from "./BehaviorBacking.js";
 
 const logger = Logger.get("Reactors");
@@ -301,7 +302,7 @@ class ReactorBacking<T extends any[], R> {
         }
 
         // Otherwise run in independent context and errors do not interfere with emitter
-        const command = originalContext?.command;
+        const command = hasRemoteActor(originalContext) && originalContext.command;
         try {
             const reactor = (context: ActionContext) => {
                 return this.#reactWithContext(context, this.#owner.backing, args);
@@ -311,7 +312,7 @@ class ReactorBacking<T extends any[], R> {
             // construction and destruction
             //
             // Also, do not inject activity here.  No reason to have both the reactor and the context registered
-            let result: MaybePromise<Awaited<R> | undefined> = OfflineContext.act(this.toString(), reactor, {
+            let result: MaybePromise<Awaited<R> | undefined> = LocalActorContext.act(this.toString(), reactor, {
                 command,
             });
 

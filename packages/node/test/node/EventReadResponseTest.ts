@@ -7,7 +7,7 @@
 import { BasicInformationCluster } from "#clusters/basic-information";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/index.js";
-import { Specification } from "#model";
+import { AccessLevel, Specification } from "#model";
 import { EventReadResponse, Read, ReadResult } from "#protocol";
 import { ClusterId, EndpointNumber, EventId, StatusCode } from "#types";
 import { MockServerNode } from "./mock-server-node.js";
@@ -196,7 +196,7 @@ export async function readEvRaw(node: MockServerNode, data: Partial<Read.Events>
     if (!Read.containsEvent(request)) {
         throw new Error("Expected an event request");
     }
-    return node.online({}, async ({ context }) => {
+    return node.online({ accessLevel: AccessLevel.Administer }, async ({ context }) => {
         const response = new EventReadResponse(node.protocol, context);
         const responseChunks = [];
         for await (const chunks of response.process(request)) {

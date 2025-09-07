@@ -5,7 +5,7 @@
  */
 
 import { NodeActivity } from "#behavior/context/NodeActivity.js";
-import { OnlineContext } from "#behavior/context/server/OnlineContext.js";
+import { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
 import {
     Duration,
     Hours,
@@ -456,7 +456,7 @@ export class ServerSubscription extends Subscription {
     /**
      * Returns an iterator that yields the data reports and events data for the given read request.
      */
-    async *#processAttributesAndEventsReport(context: OnlineContext.Options, suppressStatusReports = false) {
+    async *#processAttributesAndEventsReport(context: RemoteActorContext.Options, suppressStatusReports = false) {
         const request = {
             ...this.criteria,
             interactionModelRevision: Specification.INTERACTION_MODEL_REVISION, // irrelevant here, set to our version
@@ -467,7 +467,7 @@ export class ServerSubscription extends Subscription {
         let validAttributes = 0;
         let validEvents = 0;
 
-        const session = OnlineContext(context).beginReadOnly();
+        const session = RemoteActorContext(context).beginReadOnly();
 
         try {
             if (Read.containsAttribute(request)) {
@@ -553,7 +553,7 @@ export class ServerSubscription extends Subscription {
 
     async sendInitialReport(
         messenger: InteractionServerMessenger,
-        readContext: OnlineContext.Options,
+        readContext: RemoteActorContext.Options,
         suppressStatusReports?: boolean,
     ) {
         this.#updateTimer.stop();
@@ -635,7 +635,7 @@ export class ServerSubscription extends Subscription {
             interactionModelRevision: Specification.INTERACTION_MODEL_REVISION, // irrelevant here, set to our version
         };
 
-        const session = OnlineContext({
+        const session = RemoteActorContext({
             activity: (exchange as NodeActivity.WithActivity)[NodeActivity.activityKey],
             fabricFiltered: request.isFabricFiltered,
             message: {} as Message,

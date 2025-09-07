@@ -100,7 +100,7 @@ export namespace GeneralCommissioning {
         ValueOutsideRange = 1,
 
         /**
-         * Executed CommissioningComplet e outside CASE session.
+         * Executed CommissioningComplete outside CASE session.
          */
         InvalidAuthentication = 2,
 

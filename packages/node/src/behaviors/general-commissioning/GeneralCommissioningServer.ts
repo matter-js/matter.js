@@ -10,7 +10,15 @@ import { AdministratorCommissioning } from "#clusters/administrator-commissionin
 import { GeneralCommissioning } from "#clusters/general-commissioning";
 import { Bytes, Diagnostic, Logger, MatterFlowError, MaybePromise, Seconds } from "#general";
 import type { ServerNode } from "#node/ServerNode.js";
-import { DeviceCommissioner, FabricManager, GroupSession, NodeSession, SecureSession, SessionManager } from "#protocol";
+import {
+    assertRemoteActor,
+    DeviceCommissioner,
+    FabricManager,
+    GroupSession,
+    NodeSession,
+    SecureSession,
+    SessionManager,
+} from "#protocol";
 import { GeneralCommissioningBehavior } from "./GeneralCommissioningBehavior.js";
 import { ServerNodeFailsafeContext } from "./ServerNodeFailsafeContext.js";
 
@@ -121,7 +129,8 @@ export class GeneralCommissioningServer extends GeneralCommissioningBehavior {
     }
 
     override armFailSafe(request: GeneralCommissioning.ArmFailSafeRequest) {
-        return this.#armFailSafe(request, this.session);
+        assertRemoteActor(this.context);
+        return this.#armFailSafe(request, this.context.session);
     }
 
     override async setRegulatoryConfig({
@@ -191,10 +200,7 @@ export class GeneralCommissioningServer extends GeneralCommissioningBehavior {
             };
         }
 
-        // Regulatory config is not fabric-writable so requires elevated privileges
-        this.asAdmin(() => {
-            this.state.regulatoryConfig = newRegulatoryConfig;
-        });
+        this.state.regulatoryConfig = newRegulatoryConfig;
 
         this.state.breadcrumb = breadcrumb;
 
@@ -202,7 +208,8 @@ export class GeneralCommissioningServer extends GeneralCommissioningBehavior {
     }
 
     override async commissioningComplete() {
-        const session = this.session;
+        assertRemoteActor(this.context);
+        const { session } = this.context;
         if ((NodeSession.is(session) && session.isPase) || GroupSession.is(session)) {
             return {
                 errorCode: GeneralCommissioning.CommissioningError.InvalidAuthentication,
@@ -210,7 +217,7 @@ export class GeneralCommissioningServer extends GeneralCommissioningBehavior {
             };
         }
 
-        const fabric = this.session.associatedFabric;
+        const fabric = session.associatedFabric;
 
         const commissioner = this.env.get(DeviceCommissioner);
 

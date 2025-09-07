@@ -8,7 +8,7 @@ import { InteractionSession } from "#action/Interactable.js";
 import { AttributeTypeProtocol, ClusterProtocol, EndpointProtocol, NodeProtocol } from "#action/protocols.js";
 import { Write } from "#action/request/Write.js";
 import { WriteResult } from "#action/response/WriteResult.js";
-import { AccessControl } from "#action/server/AccessControl.js";
+import { AccessControl, hasRemoteActor } from "#action/server/AccessControl.js";
 import { DataResponse, FallbackLimits } from "#action/server/DataResponse.js";
 import { Diagnostic, InternalError, Logger } from "#general";
 import { AttributeModel, DataModelPath, ElementTag, FabricIndex as FabricIndexField } from "#model";
@@ -190,30 +190,32 @@ export class AttributeWriteResponse<
             limits = attribute.limits;
         }
 
-        // Validate access.  Order here prescribed by 1.4 core spec 8.4.3.2
-        // We need some fallback location if cluster is not defined
-        const location = {
-            ...(cluster?.location ?? {
-                path: DataModelPath.none,
-                endpoint: endpointId,
-                cluster: clusterId,
-            }),
-            owningFabric: this.session.fabric,
-        };
+        if (hasRemoteActor(this.session)) {
+            // Validate access.  Order here prescribed by 1.4 core spec 8.4.3.2
+            // We need some fallback location if cluster is not defined
+            const location = {
+                ...(cluster?.location ?? {
+                    path: DataModelPath.none,
+                    endpoint: endpointId,
+                    cluster: clusterId,
+                }),
+                owningFabric: this.session.fabric,
+            };
 
-        const permission = this.session.authorityAt(limits.writeLevel, location);
-        switch (permission) {
-            case AccessControl.Authority.Granted:
-                break;
+            const permission = this.session.authorityAt(limits.writeLevel, location);
+            switch (permission) {
+                case AccessControl.Authority.Granted:
+                    break;
 
-            case AccessControl.Authority.Unauthorized:
-                return this.#asStatus(path, Status.UnsupportedAccess);
+                case AccessControl.Authority.Unauthorized:
+                    return this.#asStatus(path, Status.UnsupportedAccess);
 
-            case AccessControl.Authority.Restricted:
-                return this.#asStatus(path, Status.AccessRestricted);
+                case AccessControl.Authority.Restricted:
+                    return this.#asStatus(path, Status.AccessRestricted);
 
-            default:
-                throw new InternalError(`Unsupported authorization state ${permission}`);
+                default:
+                    throw new InternalError(`Unsupported authorization state ${permission}`);
+            }
         }
 
         if (endpoint === undefined) {
@@ -235,13 +237,15 @@ export class AttributeWriteResponse<
         // see https://github.com/project-chip/connectedhomeip/issues/33735
         // We have patched our tests for now
 
-        if (limits.timed && !this.session.timed) {
-            this.#errorCount++;
-            return this.#asStatus(path, Status.NeedsTimedInteraction);
-        }
-        if (limits.fabricScoped && this.session.fabric === undefined) {
-            this.#errorCount++;
-            return this.#asStatus(path, Status.UnsupportedAccess);
+        if (hasRemoteActor(this.session)) {
+            if (limits.timed && !this.session.timed) {
+                this.#errorCount++;
+                return this.#asStatus(path, Status.NeedsTimedInteraction);
+            }
+            if (limits.fabricScoped && !this.session.fabric) {
+                this.#errorCount++;
+                return this.#asStatus(path, Status.UnsupportedAccess);
+            }
         }
 
         if (version !== undefined && version !== cluster.version) {
@@ -321,13 +325,21 @@ export class AttributeWriteResponse<
             return;
         }
 
-        if (
-            !attribute.limits.writable ||
-            this.session.authorityAt(attribute.limits.readLevel, this.#guardedCurrentCluster.location) !==
-                AccessControl.Authority.Granted ||
-            (attribute.limits.timed && !this.session.timed)
-        ) {
+        if (!attribute.limits.writable) {
             return;
+        }
+
+        if (hasRemoteActor(this.session)) {
+            if (
+                this.session.authorityAt(attribute.limits.readLevel, this.#guardedCurrentCluster.location) !==
+                AccessControl.Authority.Granted
+            ) {
+                return;
+            }
+
+            if (attribute.limits.timed && !this.session.timed) {
+                return;
+            }
         }
 
         return this.writeValue(

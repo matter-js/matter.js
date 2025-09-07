@@ -4,12 +4,42 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ImplementationError } from "#general";
 import { Access, AccessLevel, DataModelPath, ElementTag, Schema, ValueModel } from "#model";
-import { ClusterId, EndpointNumber, FabricIndex, StatusCode, SubjectId } from "#types";
+import { ClusterId, EndpointNumber, FabricIndex, Status } from "#types";
 import { InvokeError, ReadError, SchemaImplementationError, WriteError } from "../errors.js";
 import { Subject } from "./Subject.js";
 
 const cache = new WeakMap<Schema, AccessControl>();
+
+/**
+ * Confirm that an access control session (or some variante thereof) is a {@link AccessControl.RemoteActorSession}.
+ */
+export function hasRemoteActor<T extends undefined | AccessControl.Session>(
+    session: T,
+): session is Exclude<T, undefined | { subject?: undefined }> {
+    return session?.subject !== undefined;
+}
+
+/**
+ * Throws if a session is not a {@link AccessControl.RemoteActorSession}.
+ */
+export function assertRemoteActor<T extends undefined | AccessControl.Session>(
+    session: T,
+): asserts session is Exclude<T, undefined | { subject?: undefined }> {
+    if (!hasRemoteActor(session)) {
+        throw new ImplementationError("This operation requires an authenticated remote session");
+    }
+}
+
+/**
+ * Confirm that an access control session (or some variante thereof) is a {@link AccessControl.LocalActorSession}.
+ */
+export function hasLocalActor<T extends undefined | AccessControl.Session>(
+    session: T,
+): session is Exclude<T, { subject: Subject }> {
+    return session?.subject === undefined;
+}
 
 /**
  * Enforces access control for a specific schema.
@@ -86,13 +116,17 @@ export namespace AccessControl {
 
     /**
      * A function that asserts access control requirements are met.
+     *
+     * If {@link session} is undefined the function does not enforce access controls.
      */
-    export type Assertion = (session: Session, location: Location) => void;
+    export type Assertion = (session: Session | undefined, location: Location) => void;
 
     /**
      * A function that returns true if access control requirements are met.
+     *
+     * If {@link session} is undefined the function does not enforce access controls.
      */
-    export type Verification = (session: Session, location: Location) => boolean;
+    export type Verification = (session: Session | undefined, location: Location) => boolean;
 
     /**
      * Metadata that varies with position in the data model.
@@ -121,9 +155,9 @@ export namespace AccessControl {
     }
 
     /**
-     * Authorization metadata that varies with session.
+     * Authorization metadata that varies by remote actor.
      */
-    export interface Session {
+    export interface RemoteActorSession {
         /**
          * Determine whether authorized client has authority at a specific location.
          */
@@ -131,14 +165,16 @@ export namespace AccessControl {
 
         /**
          * The fabric of the authorized client.
+         *
+         * For PASE sessions this will be {@link FabricIndex.NO_FABRIC}.
          */
-        readonly fabric?: FabricIndex;
+        readonly fabric: FabricIndex;
 
         /**
-         * The authenticated {@link SubjectId}s for online sessions. This includes the relevant Node Id, Group ID and
-         * also potential relevant Case Authenticated Tags.
+         * The authenticated remote actor. This includes the relevant Node Id, Group ID and also potential relevant Case
+         * Authenticated Tags.
          */
-        readonly subject?: Subject;
+        readonly subject: Subject;
 
         /**
          * If this is true, fabric-scoped lists are filtered to the accessing fabric.
@@ -155,15 +191,20 @@ export namespace AccessControl {
          * active.
          */
         readonly command?: boolean;
-
-        /**
-         * If this is true then access levels are not enforced and all values are read/write.  Datatypes are still
-         * enforced.
-         *
-         * Tracks "offline" rather than "online" because this makes the safer mode (full enforcement) the default.
-         */
-        offline?: boolean;
     }
+
+    /**
+     * A local actor session has no authenticated subject and access controls are bypassed.
+     */
+    export type LocalActorSession = {
+        fabric?: undefined;
+        subject?: undefined;
+    };
+
+    /**
+     * The accessing session.
+     */
+    export type Session = LocalActorSession | RemoteActorSession;
 
     /**
      * Authority status.
@@ -200,7 +241,7 @@ function dataEnforcerFor(schema: Schema): AccessControl {
     const limits = limitsFor(schema);
 
     let mayRead: AccessControl.Verification = (session, location) => {
-        if (session.offline || session.command) {
+        if (hasLocalActor(session) || session.command) {
             return true;
         }
 
@@ -208,7 +249,7 @@ function dataEnforcerFor(schema: Schema): AccessControl {
     };
 
     let mayWrite: AccessControl.Verification = (session, location) => {
-        if (session.offline || session.command) {
+        if (hasLocalActor(session) || session.command) {
             return true;
         }
 
@@ -216,7 +257,7 @@ function dataEnforcerFor(schema: Schema): AccessControl {
     };
 
     let authorizeRead: AccessControl.Assertion = (session, location) => {
-        if (session.offline || session.command) {
+        if (hasLocalActor(session) || session.command) {
             return;
         }
 
@@ -224,11 +265,11 @@ function dataEnforcerFor(schema: Schema): AccessControl {
             return;
         }
 
-        throw new ReadError(location, "Permission denied", StatusCode.UnsupportedAccess);
+        throw new ReadError(location, "Permission denied", Status.UnsupportedAccess);
     };
 
     let authorizeWrite: AccessControl.Assertion = (session, location) => {
-        if (session.offline || session.command) {
+        if (hasLocalActor(session) || session.command) {
             return;
         }
 
@@ -236,7 +277,7 @@ function dataEnforcerFor(schema: Schema): AccessControl {
             return;
         }
 
-        throw new WriteError(location, "Permission denied", StatusCode.UnsupportedAccess);
+        throw new WriteError(location, "Permission denied", Status.UnsupportedAccess);
     };
 
     if (limits.timed) {
@@ -244,18 +285,18 @@ function dataEnforcerFor(schema: Schema): AccessControl {
         const wrappedMayWrite = mayWrite;
 
         authorizeWrite = (session, location) => {
-            if (!session.offline && !session.timed) {
+            if (hasRemoteActor(session) && !session.timed) {
                 throw new WriteError(
                     location,
                     "Permission denied because interaction is not timed",
-                    StatusCode.NeedsTimedInteraction,
+                    Status.NeedsTimedInteraction,
                 );
             }
             wrappedAuthorizeWrite?.(session, location);
         };
 
         mayWrite = (session, location) => {
-            if (!session.offline && !session.timed) {
+            if (hasRemoteActor(session) && !session.timed) {
                 return false;
             }
 
@@ -270,24 +311,20 @@ function dataEnforcerFor(schema: Schema): AccessControl {
         const wrappedMayWrite = mayWrite;
 
         authorizeRead = (session, location) => {
-            if (session.offline || session.command) {
+            if (hasLocalActor(session) || session.command) {
                 return;
             }
 
             if (session.fabricFiltered) {
-                if (session.fabric === undefined) {
-                    throw new ReadError(
-                        location,
-                        "Permission denied: No accessing fabric",
-                        StatusCode.UnsupportedAccess,
-                    );
+                if (!session.fabric) {
+                    throw new ReadError(location, "Permission denied: No accessing fabric", Status.UnsupportedAccess);
                 }
 
                 if (location?.owningFabric !== undefined && location.owningFabric !== session.fabric) {
                     throw new ReadError(
                         location,
                         "Permission denied: Owning/accessing fabric mismatch",
-                        StatusCode.UnsupportedAccess,
+                        Status.UnsupportedAccess,
                     );
                 }
             }
@@ -296,11 +333,11 @@ function dataEnforcerFor(schema: Schema): AccessControl {
         };
 
         mayRead = (session, location) => {
-            if (session.offline || session.command) {
+            if (hasLocalActor(session) || session.command) {
                 return true;
             }
 
-            if (session.fabric === undefined) {
+            if (!session.fabric) {
                 return false;
             }
 
@@ -312,12 +349,12 @@ function dataEnforcerFor(schema: Schema): AccessControl {
         };
 
         authorizeWrite = (session, location) => {
-            if (session.offline || session.command) {
+            if (hasLocalActor(session) || session.command) {
                 return;
             }
 
-            if (session.fabric === undefined) {
-                throw new WriteError(location, "Permission denied: No accessing fabric", StatusCode.UnsupportedAccess);
+            if (!session.fabric) {
+                throw new WriteError(location, "Permission denied: No accessing fabric", Status.UnsupportedAccess);
             }
 
             if (location?.owningFabric !== undefined && location.owningFabric !== session.fabric) {
@@ -328,11 +365,11 @@ function dataEnforcerFor(schema: Schema): AccessControl {
         };
 
         mayWrite = (session, location) => {
-            if (session.offline || session.command) {
+            if (hasLocalActor(session) || session.command) {
                 return true;
             }
 
-            if (session.fabric === undefined) {
+            if (!session.fabric) {
                 return false;
             }
 
@@ -346,7 +383,7 @@ function dataEnforcerFor(schema: Schema): AccessControl {
 
     if (!limits.readable) {
         authorizeRead = (session, location) => {
-            if (session.offline || session.command) {
+            if (hasLocalActor(session) || session.command) {
                 return;
             }
 
@@ -354,20 +391,20 @@ function dataEnforcerFor(schema: Schema): AccessControl {
         };
 
         mayRead = session => {
-            return !!session.offline || !!session.command;
+            return hasLocalActor(session) || !!session.command;
         };
     }
 
     if (!limits.writable) {
         authorizeWrite = (session, location) => {
-            if (session.offline || session.command) {
+            if (hasLocalActor(session) || session.command) {
                 return;
             }
             throw new WriteError(location, "Permission denied: Value is read-only");
         };
 
         mayWrite = session => {
-            return !!session.offline || !!session.command;
+            return hasLocalActor(session) || !!session.command;
         };
     }
 
@@ -378,7 +415,7 @@ function dataEnforcerFor(schema: Schema): AccessControl {
         authorizeWrite,
         mayWrite,
 
-        authorizeInvoke(_session: AccessControl.Session, location: AccessControl.Location) {
+        authorizeInvoke(_session: undefined | AccessControl.Session, location: AccessControl.Location) {
             throw new SchemaImplementationError(location, "Permission denied: Invoke request but non-command schema");
         },
 
@@ -413,7 +450,7 @@ function commandEnforcerFor(schema: Schema): AccessControl {
         },
 
         authorizeInvoke(session, location) {
-            if (session.offline) {
+            if (hasLocalActor(session)) {
                 return;
             }
 
@@ -425,23 +462,23 @@ function commandEnforcerFor(schema: Schema): AccessControl {
                 throw new InvokeError(
                     location,
                     "Invoke attempt without required timed context",
-                    StatusCode.TimedRequestMismatch,
+                    Status.TimedRequestMismatch,
                 );
             }
 
-            if (fabric && session.fabric === undefined) {
-                throw new WriteError(location, "Permission denied: No accessing fabric", StatusCode.UnsupportedAccess);
+            if (fabric && !session.fabric) {
+                throw new WriteError(location, "Permission denied: No accessing fabric", Status.UnsupportedAccess);
             }
 
             if (session.authorityAt(limits.writeLevel, location) === AccessControl.Authority.Granted) {
                 return;
             }
 
-            throw new InvokeError(location, "Permission denied", StatusCode.UnsupportedAccess);
+            throw new InvokeError(location, "Permission denied", Status.UnsupportedAccess);
         },
 
         mayInvoke(session, location) {
-            if (session.offline) {
+            if (hasLocalActor(session)) {
                 return true;
             }
 
@@ -453,7 +490,7 @@ function commandEnforcerFor(schema: Schema): AccessControl {
                 return false;
             }
 
-            if (fabric && session.fabric === undefined) {
+            if (fabric && !session.fabric) {
                 return false;
             }
 

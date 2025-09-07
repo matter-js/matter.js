@@ -62,7 +62,8 @@ export class AccessDeniedError extends StatusResponseError {
 }
 
 /**
- * Implements Access Control Logic For one fabric as per Matter Specification @see {@link MatterSpecification.v12.Core} § 6.6.5.2.
+ * Implements Access Control Logic For one fabric as per Matter Specification @see {@link MatterSpecification.v12.Core}
+ * § 6.6.5.2.
  */
 export class FabricAccessControl {
     #fabricIndex: FabricIndex;
@@ -83,13 +84,6 @@ export class FabricAccessControl {
         } else {
             this.#fabricIndex = fabric.fabricIndex;
         }
-    }
-
-    set fabricIndex(fabricIndex: FabricIndex) {
-        if (this.#fabricIndex === undefined || this.#fabricIndex === FabricIndex.NO_FABRIC) {
-            this.#fabricIndex = fabricIndex;
-        }
-        throw new InternalError("Can not overwrite FabricIndex");
     }
 
     /**

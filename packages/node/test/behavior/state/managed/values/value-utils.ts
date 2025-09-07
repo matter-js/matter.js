@@ -5,7 +5,7 @@
  */
 
 import { ActionContext } from "#behavior/context/ActionContext.js";
-import { OnlineContext } from "#behavior/context/server/OnlineContext.js";
+import { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
@@ -13,8 +13,7 @@ import { camelize, Identity, MaybePromise, MockCrypto, Observable } from "#gener
 import { DataModelPath, FieldElement, FieldModel } from "#model";
 import type { Node } from "#node/Node.js";
 import { Val } from "#protocol";
-import { EndpointNumber } from "#types";
-import { FabricAccessControl } from "@matter/protocol";
+import { ClusterId, EndpointNumber } from "#types";
 
 /**
  * Create schema for a single field.
@@ -87,6 +86,7 @@ export function TestStruct(fields: Record<string, string | Partial<FieldElement>
         crypto: MockCrypto(),
         location: {
             endpoint: EndpointNumber(1),
+            cluster: ClusterId(1),
             path: DataModelPath("TestStruct"),
         },
         type: TestState,
@@ -105,11 +105,15 @@ export function TestStruct(fields: Record<string, string | Partial<FieldElement>
             expect(this.fields).deep.equals(expected);
         },
 
-        online(cx: OnlineContext.Options, actor: (ref: Val.Struct, cx: ActionContext) => MaybePromise) {
-            return OnlineContext(cx).act(cx => actor(this.reference(cx), cx));
+        online(cx: RemoteActorContext.Options, actor: (ref: Val.Struct, cx: ActionContext) => MaybePromise) {
+            return RemoteActorContext(cx).act(cx => actor(this.reference(cx), cx));
         },
 
-        online2(cx1: OnlineContext.Options, cx2: OnlineContext.Options, actor: (online: Online2) => MaybePromise) {
+        online2(
+            cx1: RemoteActorContext.Options,
+            cx2: RemoteActorContext.Options,
+            actor: (online: Online2) => MaybePromise,
+        ) {
             return this.online(cx1, (ref1, cx1) => this.online(cx2, (ref2, cx2) => actor({ cx1, cx2, ref1, ref2 })));
         },
 
@@ -129,14 +133,4 @@ export function aclEndpoint() {
             },
         },
     } as unknown as Node;
-}
-
-export class MockFabricAccessControl extends FabricAccessControl {
-    constructor(protected acls: number[]) {
-        super();
-    }
-
-    override accessLevelsFor() {
-        return this.acls;
-    }
 }

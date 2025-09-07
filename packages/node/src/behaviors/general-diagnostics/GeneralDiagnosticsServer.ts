@@ -28,7 +28,7 @@ import {
 } from "#general";
 import { FieldElement, Specification } from "#model";
 import type { NodeLifecycle } from "#node/NodeLifecycle.js";
-import { MdnsService, Val } from "#protocol";
+import { assertRemoteActor, MdnsService, Val } from "#protocol";
 import { CommandId, StatusCode, StatusResponseError, TlvInvokeResponse } from "#types";
 import { GeneralDiagnosticsBehavior } from "./GeneralDiagnosticsBehavior.js";
 
@@ -173,10 +173,8 @@ export class GeneralDiagnosticsServer extends Base {
             ],
         }).byteLength;
 
-        const exchange = this.context.exchange;
-        if (exchange === undefined) {
-            throw new ImplementationError(`Illegal operation outside exchange context`);
-        }
+        assertRemoteActor(this.context);
+        const { exchange } = this.context;
 
         if (responseSize > exchange.maxPayloadSize) {
             throw new StatusResponseError("Response too large", StatusCode.ResourceExhausted);

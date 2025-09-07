@@ -7,7 +7,8 @@
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { MaybePromise } from "#general";
 import { FabricIndex, NodeId } from "#types";
-import { MockFabricAccessControl, TestStruct, aclEndpoint, listOf, structOf } from "./value-utils.js";
+import { MockExchange } from "../../../../node/mock-exchange.js";
+import { TestStruct, aclEndpoint, listOf, structOf } from "./value-utils.js";
 
 export type ValueList = { value: number }[];
 export type ValueSubList = { value: number[] }[];
@@ -47,18 +48,14 @@ export async function testFabricScoped(actor: (struct: TestStruct, lists: TwoLis
 
     const cx1 = {
         fabricFiltered: true,
-        fabric: FabricIndex(1),
-        subject: NodeId(1),
+        exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
         node: aclEndpoint(),
-        aclManager: new MockFabricAccessControl([1, 3]),
     };
 
     const cx2 = {
         fabricFiltered: true,
-        fabric: FabricIndex(2),
-        subject: NodeId(2),
+        exchange: new MockExchange({ fabricIndex: FabricIndex(2), nodeId: NodeId(2) }),
         node: aclEndpoint(),
-        aclManager: new MockFabricAccessControl([1, 3]),
     };
 
     return struct.online2(cx1, cx2, async ({ cx1, cx2, ref1, ref2 }) => {
@@ -91,10 +88,8 @@ describe("ListManager", () => {
 
         await struct.online(
             {
-                subject: NodeId(1),
-                fabric: FabricIndex(1),
+                exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
                 node: aclEndpoint(),
-                aclManager: new MockFabricAccessControl([1, 3]),
             },
             async ref => {
                 const list = ref.list as string[];
@@ -117,10 +112,8 @@ describe("ListManager", () => {
 
         await struct.online(
             {
-                subject: NodeId(1),
-                fabric: FabricIndex(1),
+                exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
                 node: aclEndpoint(),
-                aclManager: new MockFabricAccessControl([1, 3]),
             },
             async (ref, cx) => {
                 const list = ref.list as string[];
@@ -153,10 +146,8 @@ describe("ListManager", () => {
 
         await struct.online(
             {
-                subject: NodeId(1),
-                fabric: FabricIndex(1),
+                exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
                 node: aclEndpoint(),
-                aclManager: new MockFabricAccessControl([1, 3]),
             },
             async ref => {
                 const list = ref.list as string[];

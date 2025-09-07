@@ -4,26 +4,29 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import type { Agent } from "#endpoint/Agent.js";
 import { Diagnostic, InternalError, MaybePromise, Transaction } from "#general";
 import { AccessLevel } from "#model";
 import { AccessControl } from "#protocol";
-import type { ActionContext } from "../ActionContext.js";
 import { Contextual } from "../Contextual.js";
 import type { NodeActivity } from "../NodeActivity.js";
-
 export let nextInternalId = 1;
 
-let ReadOnly: ActionContext | undefined;
+let ReadOnly: LocalActorContext | undefined;
+
+export interface LocalActorContext extends ValueSupervisor.LocalActorSession {}
 
 /**
- * {@link OfflineContext.act} gives you access to the {@link Agent} API outside of user interaction.
+ * The context for operations triggered locally, either for in-process node implementations or remote nodes that are
+ * peers of a local node.
  *
- * You can also use {@link OfflineContext.ReadOnly} for read-only {@link Agent} access.
+ * You can also use {@link LocalActorContext.ReadOnly} for read-only {@link Agent} access.
  */
-export const OfflineContext = {
+export const LocalActorContext = {
     /**
-     * Operate in offline context.  Interactions with private Matter.js APIs happen in an offline context.
+     * Operate on behalf of a local actor.  This is the context for operations on nodes initiated locally, without
+     * authentication.
      *
      * {@link act} provides an {@link ActionContext} you can use to access agents for a {@link Endpoint}.
      * State changes and change events occur once {@link actor} returns.
@@ -36,8 +39,8 @@ export const OfflineContext = {
      */
     act<T>(
         purpose: string,
-        actor: (context: ActionContext) => MaybePromise<T>,
-        options?: OfflineContext.Options,
+        actor: (context: LocalActorContext) => MaybePromise<T>,
+        options?: LocalActorContext.Options,
     ): MaybePromise<T> {
         const context = this.open(purpose, options);
 
@@ -57,7 +60,7 @@ export const OfflineContext = {
      * This context operates with a {@link Transaction} created via {@link Transaction.open} and the same rules
      * apply for lifecycle management using {@link Transaction.Finalization}.
      */
-    open(purpose: string, options?: OfflineContext.Options): ActionContext & Transaction.Finalization {
+    open(purpose: string, options?: LocalActorContext.Options): LocalActorContext & Transaction.Finalization {
         const id = nextInternalId;
         nextInternalId = (nextInternalId + 1) % 65535;
         const via = Diagnostic.via(`${purpose}#${id.toString(16)}`);
@@ -115,7 +118,7 @@ export const OfflineContext = {
     },
 
     /**
-     * Normally you need to use {@link OfflineContext.act} to work with behaviors, and you can only interact with the
+     * Normally you need to use {@link LocalActorContext.act} to work with behaviors, and you can only interact with the
      * behaviors in the actor function.  This {@link ActionContext} allows you to create offline agents that remain
      * functional for the lifespan of the node.
      *
@@ -123,7 +126,7 @@ export const OfflineContext = {
      */
     get ReadOnly() {
         if (ReadOnly === undefined) {
-            ReadOnly = OfflineContext.open("read-only", { isolation: "ro" });
+            ReadOnly = LocalActorContext.open("read-only", { isolation: "ro" });
         }
         return ReadOnly;
     },
@@ -131,9 +134,9 @@ export const OfflineContext = {
     [Symbol.toStringTag]: "OfflineContext",
 };
 
-export namespace OfflineContext {
+export namespace LocalActorContext {
     /**
-     * {@link OfflineContext} configuration options.
+     * {@link LocalActorContext} configuration options.
      */
     export interface Options {
         command?: boolean;

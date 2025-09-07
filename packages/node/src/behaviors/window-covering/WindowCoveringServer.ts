@@ -187,7 +187,7 @@ export class WindowCoveringBaseServer extends WindowCoveringBase {
             !mode.maintenanceMode || (mode.calibrationMode && !this.internal.supportsCalibration);
         configStatus.liftMovementReversed = !!mode.motorDirectionReversed;
         if (isDeepEqual(configStatus, this.state.configStatus)) {
-            this.asAdmin(() => {
+            this.agent.asLocalActor(() => {
                 this.state.configStatus = configStatus;
             });
         }
