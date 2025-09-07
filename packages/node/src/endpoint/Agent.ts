@@ -7,7 +7,7 @@
 import type { Behavior } from "#behavior/Behavior.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { GeneratedClass, MaybePromise } from "#general";
-import { hasRemoteActor } from "#protocol";
+import { hasRemoteActor, Val } from "#protocol";
 import { DescriptorBehavior } from "../behaviors/descriptor/DescriptorBehavior.js";
 import type { Endpoint } from "./Endpoint.js";
 import type { SupportedBehaviors } from "./properties/SupportedBehaviors.js";
@@ -166,21 +166,22 @@ export class Agent {
      * @param fn the elevated logic
      */
     asLocalActor(fn: () => void) {
-        const originalContext = this.context;
-        let context = this.context;
-        if (hasRemoteActor(context)) {
-            context = {
-                transaction: this.context.transaction,
-                protocol: this.context.protocol,
-                acceptInvalid: this.context.acceptInvalid,
-            };
-        }
+        const { context } = this;
+        let restoreContext: undefined | (() => void);
 
         try {
-            this.#context = context;
+            if (hasRemoteActor(context)) {
+                const { fabric, subject } = context;
+                restoreContext = () => {
+                    Object.assign(context, { fabric, subject });
+                };
+                delete (context as unknown as Val.Struct).fabric;
+                delete (context as unknown as Val.Struct).subject;
+                Object.assign(context, { fabric: undefined, subject: undefined });
+            }
             fn();
         } finally {
-            this.#context = originalContext;
+            restoreContext?.();
         }
     }
 

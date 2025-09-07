@@ -200,10 +200,7 @@ export class GeneralCommissioningServer extends GeneralCommissioningBehavior {
             };
         }
 
-        // Regulatory config is not fabric-writable so requires elevated privileges
-        this.agent.asLocalActor(() => {
-            this.state.regulatoryConfig = newRegulatoryConfig;
-        });
+        this.state.regulatoryConfig = newRegulatoryConfig;
 
         this.state.breadcrumb = breadcrumb;
 
