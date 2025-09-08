@@ -406,7 +406,7 @@ jobs:
 
       # Remove once https://github.com/project-chip/connectedhomeip/pull/38788 got merged + 1 day
       - name: Patch Test runner backchannel waiting times
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           result-encoding: string
           script: |
@@ -418,7 +418,7 @@ jobs:
 
       # remove once https://github.com/project-chip/connectedhomeip/issues/33735 is clarified
       - name: Patch ACE 2.2 testcase
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           result-encoding: string
           script: |
