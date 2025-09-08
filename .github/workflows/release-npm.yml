@@ -36,7 +36,7 @@ jobs:
         os: [ macos-latest, windows-latest ]
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         # needed as long as we test Node.js 16 and npm <10.2.2 is used for Node.js 18/20
         with:
           python-version: '3.11'
