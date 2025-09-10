@@ -156,6 +156,14 @@ export enum NodeStateInformation {
     Decommissioned = 5,
 }
 
+/**
+ * Callback function type for node reconnection operations.
+ */
+export type ReconnectionCallback = (
+    discoveryType?: NodeDiscoveryType,
+    currentOptions?: CommissioningControllerNodeOptions,
+) => Promise<void>;
+
 export type CommissioningControllerNodeOptions = {
     /**
      * Unless set to false the node will be automatically connected when initialized. When set to false use
@@ -264,10 +272,7 @@ export class PairedNode {
     #currentSubscriptionHandler?: SubscriptionHandlerCallbacks;
     readonly #commissioningController: CommissioningController;
     #options: CommissioningControllerNodeOptions;
-    readonly #reconnectFunc: (
-        discoveryType?: NodeDiscoveryType,
-        currentOptions?: CommissioningControllerNodeOptions,
-    ) => Promise<void>;
+    readonly #reconnectFunc: ReconnectionCallback;
     #currentSubscriptionIntervalS?: number;
     #crypto: Crypto;
 
@@ -312,10 +317,7 @@ export class PairedNode {
         options: CommissioningControllerNodeOptions = {},
         knownNodeDetails: DeviceInformationData,
         interactionClient: InteractionClient,
-        reconnectFunc: (
-            discoveryType?: NodeDiscoveryType,
-            currentOptions?: CommissioningControllerNodeOptions,
-        ) => Promise<void>,
+        reconnectFunc: ReconnectionCallback,
         assignDisconnectedHandler: (handler: () => Promise<void>) => void,
         sessions: BasicSet<NodeSession>,
         crypto: Crypto,
@@ -343,10 +345,7 @@ export class PairedNode {
         options: CommissioningControllerNodeOptions = {},
         knownNodeDetails: DeviceInformationData,
         interactionClient: InteractionClient,
-        reconnectFunc: (
-            discoveryType?: NodeDiscoveryType,
-            currentOptions?: CommissioningControllerNodeOptions,
-        ) => Promise<void>,
+        reconnectFunc: ReconnectionCallback,
         assignDisconnectedHandler: (handler: () => Promise<void>) => void,
         sessions: BasicSet<NodeSession, NodeSession>,
         crypto: Crypto,
