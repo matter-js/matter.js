@@ -6,7 +6,7 @@
 
 import type { Behavior } from "#behavior/Behavior.js";
 import type { ActionContext } from "#behavior/context/ActionContext.js";
-import { OfflineContext } from "#behavior/context/server/OfflineContext.js";
+import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import type { EndpointType } from "#endpoint/type/EndpointType.js";
 import { NotImplementedError } from "#general";
@@ -58,7 +58,7 @@ function Implementation(endpoint: Endpoint, type: Behavior.Type, name: string): 
             }
 
             // Invoke with a dedicated context
-            const context2 = OfflineContext.open(`invoke-${name}`);
+            const context2 = LocalActorContext.open(`invoke-${name}`);
             try {
                 return Promise.resolve(context2.resolve(invokerFor(context2)(input, context)));
             } catch (e) {

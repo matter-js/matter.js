@@ -5,7 +5,7 @@
  */
 
 import { ActionContext } from "#behavior/context/ActionContext.js";
-import { OfflineContext } from "#behavior/context/server/OfflineContext.js";
+import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { StateType } from "#behavior/state/StateType.js";
 import { BehaviorSupervisor } from "#behavior/supervision/BehaviorSupervisor.js";
@@ -66,7 +66,7 @@ async function withReference<R, const T extends StateType>(
     datasource: Datasource<T>,
     actor: (params: { context: ActionContext; state: InstanceType<T> }) => MaybePromise<R>,
 ) {
-    return OfflineContext.act("test-datasource", context =>
+    return LocalActorContext.act("test-datasource", context =>
         actor({
             context,
             state: datasource.reference(context),

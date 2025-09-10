@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { OfflineContext } from "#behavior/context/server/OfflineContext.js";
+import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { IndexBehavior } from "#behavior/system/index/IndexBehavior.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { ImplementationError, InternalError } from "#general";
@@ -44,7 +44,7 @@ export class IdentityService {
             other = this.#node;
         } else {
             if (this.#partsById === undefined) {
-                this.#partsById = this.#node.agentFor(OfflineContext.ReadOnly).get(IndexBehavior).partsById;
+                this.#partsById = this.#node.agentFor(LocalActorContext.ReadOnly).get(IndexBehavior).partsById;
             }
             other = this.#partsById?.[number];
         }

@@ -33,13 +33,13 @@
     "homepage": "https://github.com/matter-js/matter.js#readme",
     "devDependencies": {
         "@matter/tools": "0.0.0-git",
-        "@types/node": "^24.3.0",
+        "@types/node": "^24.3.1",
         "@types/tar-stream": "^3.1.4"
     },
     "publishConfig": {
         "access": "public"
     },
     "engines": {
-        "node": ">=20.0.0"
+        "node": ">=20.19.0 <22.0.0 || >=22.13.0"
     }
 }

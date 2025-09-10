@@ -7,6 +7,7 @@
 import type { Behavior } from "#behavior/Behavior.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { GeneratedClass, MaybePromise } from "#general";
+import { hasRemoteActor, Val } from "#protocol";
 import { DescriptorBehavior } from "../behaviors/descriptor/DescriptorBehavior.js";
 import type { Endpoint } from "./Endpoint.js";
 import type { SupportedBehaviors } from "./properties/SupportedBehaviors.js";
@@ -149,6 +150,39 @@ export class Agent {
             base: Agent,
             instanceDescriptors: props,
         }) as Agent.Type<T>;
+    }
+
+    /**
+     * Execute logic with elevated privileges.
+     *
+     * Temporarily modifies {@link context} to be a {@link LocalActorContext}.  This bypasses checks associated with the
+     * remote subject.
+     *
+     * Elevated logic effectively ignores ACLs so should be used with care.
+     *
+     * Note that interactions with the agent will remain elevated until the synchronous completion of this call. You
+     * should only elevate privileges for synchronous logic.
+     *
+     * @param fn the elevated logic
+     */
+    asLocalActor(fn: () => void) {
+        const { context } = this;
+        let restoreContext: undefined | (() => void);
+
+        try {
+            if (hasRemoteActor(context)) {
+                const { fabric, subject } = context;
+                restoreContext = () => {
+                    Object.assign(context, { fabric, subject });
+                };
+                delete (context as unknown as Val.Struct).fabric;
+                delete (context as unknown as Val.Struct).subject;
+                Object.assign(context, { fabric: undefined, subject: undefined });
+            }
+            fn();
+        } finally {
+            restoreContext?.();
+        }
     }
 
     [INSTALL_BEHAVIOR](behavior: Behavior) {

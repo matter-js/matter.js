@@ -11,6 +11,7 @@ import { Endpoint } from "#endpoint/Endpoint.js";
 import { RootEndpoint } from "#endpoints/root";
 import { InternalError, Logger } from "#general";
 import { AccessLevel } from "#model";
+import { assertRemoteActor, Fabric } from "#protocol";
 import {
     Command,
     StatusCode,
@@ -75,16 +76,20 @@ export class GroupsServer extends GroupsBase {
         return rootEndpoint;
     }
 
-    async #actOnGroupKeyManagement<T>(act: (groupKeyManagement: GroupKeyManagementServer) => T): Promise<T> {
+    async #actOnGroupKeyManagement<T>(
+        act: (fabric: Fabric, groupKeyManagement: GroupKeyManagementServer) => T,
+    ): Promise<T> {
+        assertRemoteActor(this.context);
         const agent = this.#rootEndpoint.agentFor(this.context);
         const gkm = agent.get(GroupKeyManagementServer);
         await agent.context.transaction.addResources(gkm);
         await agent.context.transaction.begin();
-        return act(gkm);
+        return act(this.context.session.associatedFabric, gkm);
     }
 
     override async addGroup({ groupId, groupName }: Groups.AddGroupRequest): Promise<Groups.AddGroupResponse> {
-        const fabric = this.session.associatedFabric;
+        assertRemoteActor(this.context);
+        const fabric = this.context.session.associatedFabric;
 
         if (groupId < 1) {
             return { status: StatusCode.ConstraintError, groupId };
@@ -100,7 +105,7 @@ export class GroupsServer extends GroupsBase {
         const endpointNumber = this.endpoint.number;
 
         try {
-            await this.#actOnGroupKeyManagement(gkm =>
+            await this.#actOnGroupKeyManagement((fabric, gkm) =>
                 gkm.addEndpointForGroup(fabric, groupId, endpointNumber, groupName),
             );
         } catch (error) {
@@ -113,7 +118,8 @@ export class GroupsServer extends GroupsBase {
     }
 
     override viewGroup({ groupId }: Groups.ViewGroupRequest): Groups.ViewGroupResponse {
-        const fabric = this.session.associatedFabric;
+        assertRemoteActor(this.context);
+        const fabric = this.context.session.associatedFabric;
 
         if (groupId < 1) {
             return { status: StatusCode.ConstraintError, groupId, groupName: "" };
@@ -133,7 +139,8 @@ export class GroupsServer extends GroupsBase {
     override async getGroupMembership({
         groupList,
     }: Groups.GetGroupMembershipRequest): Promise<Groups.GetGroupMembershipResponse> {
-        const fabric = this.session.associatedFabric;
+        assertRemoteActor(this.context);
+        const fabric = this.context.session.associatedFabric;
         const fabricIndex = fabric.fabricIndex;
         const endpointNumber = this.endpoint.number;
 
@@ -158,8 +165,8 @@ export class GroupsServer extends GroupsBase {
 
         try {
             if (
-                await this.#actOnGroupKeyManagement(gkm =>
-                    gkm.removeEndpoint(this.session.associatedFabric, this.endpoint.number, groupId),
+                await this.#actOnGroupKeyManagement((fabric, gkm) =>
+                    gkm.removeEndpoint(fabric, this.endpoint.number, groupId),
                 )
             ) {
                 return { status: StatusCode.Success, groupId };
@@ -174,9 +181,7 @@ export class GroupsServer extends GroupsBase {
     // TODO ScenesManagement cluster is also affected by this command
     override async removeAllGroups() {
         try {
-            await this.#actOnGroupKeyManagement(gkm =>
-                gkm.removeEndpoint(this.session.associatedFabric, this.endpoint.number),
-            );
+            await this.#actOnGroupKeyManagement((fabric, gkm) => gkm.removeEndpoint(fabric, this.endpoint.number));
         } catch (error) {
             StatusResponseError.accept(error);
             throw error;

@@ -39,6 +39,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: `Endpoint` and `Node` initialization values now require the correct type for some time values and IDs.  So for example, `VendorId(1234)` instead of just `1234`
     - Breaking: `SubscriptionBehavior` is renamed to `SubscriptionsServer` with corresponding ID change to "subscriptions".  This means in part that matter.js will ignore saved subscriptions but devices will recreate them automatically
     - Breaking: The `agentFor` method of `ActionContext` has moved to `Endpoint`.  You likely do not use this directly but if you do you must change `context.agentFor(endpoint)` to `endpoint.agentFor(context)`
+    - Breaking: We have refactored the `ActionContext` class to better delineate fields that apply to operations triggered locally vs those triggered by authenticated peers.  `ActionContext` may be a `RemoteActorContext` or `LocalActorContext`.  You can determine the actor type and access relevant fields using new type guards `isRemoteContext` or `isLocalContext` and new type assertion `assertRemoteContext`.  These replace the former `offline` field of `ActionContext`.
     - Fix: (rsulzenbacher) Adjusted OnOffServer default implementation for offWaitTime to be fully compliant to 1.4.1 spec
 
 -   @matter/nodejs

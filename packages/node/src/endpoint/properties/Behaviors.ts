@@ -9,7 +9,7 @@ import type { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { limitEndpointAttributeDataToAllowedFabrics } from "#behavior/cluster/FabricScopedDataHandler.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { NodeActivity } from "#behavior/context/NodeActivity.js";
-import { OfflineContext } from "#behavior/context/server/OfflineContext.js";
+import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { Events } from "#behavior/Events.js";
 import { BehaviorBacking } from "#behavior/internal/BehaviorBacking.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
@@ -233,7 +233,7 @@ export class Behaviors {
         const activity = this.#endpoint.env.get(NodeActivity);
 
         // Perform initialization
-        let promise = OfflineContext.act(`initialize<${this.#endpoint}>`, initializeBehaviors, { activity });
+        let promise = LocalActorContext.act(`initialize<${this.#endpoint}>`, initializeBehaviors, { activity });
 
         // Once behaviors are ready the endpoint we consider the endpoint "ready"
         const onReady = () => {
@@ -414,7 +414,7 @@ export class Behaviors {
             }
         };
 
-        await OfflineContext.act(
+        await LocalActorContext.act(
             `close<${this.#endpoint}>`,
             dispose,
 
@@ -562,7 +562,7 @@ export class Behaviors {
     }
 
     #activateLate(type: Behavior.Type) {
-        const result = OfflineContext.act(
+        const result = LocalActorContext.act(
             "behavior-late-activation",
             context => {
                 this.activate(type, this.#endpoint.agentFor(context));

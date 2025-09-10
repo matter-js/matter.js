@@ -8,7 +8,7 @@ import { InteractionSession } from "#action/Interactable.js";
 import { CommandInvokeHandler, CommandTypeProtocol, EndpointProtocol, NodeProtocol } from "#action/protocols.js";
 import { Invoke } from "#action/request/Invoke.js";
 import { InvokeResult } from "#action/response/InvokeResult.js";
-import { AccessControl } from "#action/server/AccessControl.js";
+import { AccessControl, hasRemoteActor } from "#action/server/AccessControl.js";
 import { DataResponse, FallbackLimits } from "#action/server/DataResponse.js";
 import { Diagnostic, InternalError, Logger } from "#general";
 import { CommandModel, DataModelPath, ElementTag, FabricIndex as FabricIndexField } from "#model";
@@ -228,19 +228,21 @@ export class CommandInvokeResponse<
             owningFabric: this.session.fabric,
         };
 
-        const permission = this.session.authorityAt(limits.writeLevel, location);
-        switch (permission) {
-            case AccessControl.Authority.Granted:
-                break;
+        if (hasRemoteActor(this.session)) {
+            const permission = this.session.authorityAt(limits.writeLevel, location);
+            switch (permission) {
+                case AccessControl.Authority.Granted:
+                    break;
 
-            case AccessControl.Authority.Unauthorized:
-                return this.#addStatus(path, commandRef, Status.UnsupportedAccess);
+                case AccessControl.Authority.Unauthorized:
+                    return this.#addStatus(path, commandRef, Status.UnsupportedAccess);
 
-            case AccessControl.Authority.Restricted:
-                return this.#addStatus(path, commandRef, Status.AccessRestricted);
+                case AccessControl.Authority.Restricted:
+                    return this.#addStatus(path, commandRef, Status.AccessRestricted);
 
-            default:
-                throw new InternalError(`Unsupported authorization state ${permission}`);
+                default:
+                    throw new InternalError(`Unsupported authorization state ${permission}`);
+            }
         }
 
         if (endpoint === undefined) {
@@ -253,14 +255,16 @@ export class CommandInvokeResponse<
             return this.#addStatus(path, commandRef, Status.UnsupportedCommand);
         }
 
-        if (limits.fabricScoped && this.session.fabric === undefined) {
-            this.#errorCount++;
-            return this.#addStatus(path, commandRef, Status.UnsupportedAccess);
-        }
+        if (hasRemoteActor(this.session)) {
+            if (limits.fabricScoped && !this.session.fabric) {
+                this.#errorCount++;
+                return this.#addStatus(path, commandRef, Status.UnsupportedAccess);
+            }
 
-        if (limits.timed && !this.session.timed) {
-            this.#errorCount++;
-            return this.#addStatus(path, commandRef, Status.NeedsTimedInteraction);
+            if (limits.timed && !this.session.timed) {
+                this.#errorCount++;
+                return this.#addStatus(path, commandRef, Status.NeedsTimedInteraction);
+            }
         }
 
         // This path contributes an command value
@@ -308,12 +312,17 @@ export class CommandInvokeResponse<
 
             const command = cluster.type.commands[commandId];
             if (command !== undefined) {
-                if (
-                    this.session.authorityAt(command.limits.writeLevel, cluster.location) !==
-                        AccessControl.Authority.Granted ||
-                    (command.limits.timed && !this.session.timed)
-                ) {
-                    return;
+                if (hasRemoteActor(this.session)) {
+                    if (
+                        this.session.authorityAt(command.limits.writeLevel, cluster.location) !==
+                        AccessControl.Authority.Granted
+                    ) {
+                        return;
+                    }
+
+                    if (command.limits.timed && !this.session.timed) {
+                        return;
+                    }
                 }
 
                 await this.#invokeCommand(

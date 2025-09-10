@@ -13,7 +13,7 @@ import { KeyInputError } from "./CryptoError.js";
 
 const {
     numberToBytesBE,
-    p256: { Point, getSharedSecret },
+    p256: { getPublicKey, Point, getSharedSecret },
 } = ec;
 
 const JWK_KEYS = [
@@ -540,7 +540,8 @@ export function Key(properties: Partial<Key>) {
         }
 
         // Compute
-        const ecKey = Point.fromPrivateKey(Bytes.of(that.privateKey));
+        const pubKeyBytes = getPublicKey(Bytes.of(that.privateKey));
+        const ecKey = Point.fromBytes(pubKeyBytes);
 
         // Install
         that.xBits = numberToBytesBE(ecKey.x, keyLength);

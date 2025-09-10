@@ -74,7 +74,7 @@
     "devDependencies": {
         "@types/madge": "^5.0.3",
         "@types/minimatch": "^6.0.0",
-        "@types/node": "^24.3.0",
+        "@types/node": "^24.3.1",
         "detective-typescript": "^14.0.0"
     },
     "publishConfig": {

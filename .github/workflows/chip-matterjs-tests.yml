@@ -78,7 +78,7 @@ jobs:
           rebuild-chip-tool: 'false'
 
       - name: Patch Test runner interface-id
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           result-encoding: string
           script: |

@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ActionContext } from "#behavior/context/ActionContext.js";
 import type { AsyncObservable, Transaction } from "#general";
 import { DataModelPath, Schema } from "#model";
 import type { AccessControl, Val } from "#protocol";
@@ -67,9 +66,9 @@ export interface ValueSupervisor {
 
 export namespace ValueSupervisor {
     /**
-     * Session information required for value management.
+     * {@link Session} values that control supervision.
      */
-    export interface Session extends AccessControl.Session {
+    export interface SupervisionSettings {
         /**
          * The transaction used for isolating state changes associated with this session.
          */
@@ -82,21 +81,30 @@ export namespace ValueSupervisor {
         acceptInvalid?: boolean;
 
         /**
-         * If present the session is associated with an online interaction.  Emits when the interaction ends.
-         */
-        interactionComplete?: AsyncObservable<[session?: ActionContext]>;
-
-        /**
-         * Set to true when the interaction has started and the interactionBegin event was emitted for this session
-         */
-        interactionStarted?: boolean;
-
-        /**
          * If true, structs initialize without named properties which are more expensive to install.  This is useful
          * when implementing the Matter protocol where ID is the only value necessary.
          */
         protocol?: boolean;
     }
+
+    /**
+     * {@link Session} information that enforces stricter controls based on an authenticated remote subject.
+     */
+    export interface RemoteActorSession extends AccessControl.RemoteActorSession, SupervisionSettings {
+        /**
+         * If present the session is associated with an online interaction.  Emits when the interaction ends.
+         */
+        interactionComplete?: AsyncObservable<[session?: RemoteActorSession]>;
+
+        /**
+         * Set to true when the interaction has started and the interactionBegin event was emitted for this session
+         */
+        interactionStarted?: boolean;
+    }
+
+    export interface LocalActorSession extends AccessControl.LocalActorSession, SupervisionSettings {}
+
+    export type Session = LocalActorSession | RemoteActorSession;
 
     export type Validate = (value: Val, session: Session, location: ValidationLocation) => void;
 

@@ -37,7 +37,7 @@ import type {
     InteractionSession,
     NodeProtocol,
 } from "#protocol";
-import { EventTypeProtocol, FabricManager, OccurrenceManager, Val } from "#protocol";
+import { EventTypeProtocol, FabricManager, hasRemoteActor, OccurrenceManager, Val } from "#protocol";
 import {
     AttributeId,
     AttributePath,
@@ -610,7 +610,7 @@ function invokeCommand(
     let result: unknown;
     const { name } = command;
     try {
-        activity = context.activity?.frame(`invoke ${name}`);
+        activity = hasRemoteActor(context) ? context.activity?.frame(`invoke ${name}`) : undefined;
 
         const invoke = (behavior as unknown as Record<string, (arg: unknown) => unknown>)[camelize(name)].bind(
             behavior,

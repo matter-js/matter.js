@@ -5,14 +5,15 @@
  */
 
 import { ActionContext } from "#behavior/context/ActionContext.js";
-import { OfflineContext } from "#behavior/context/server/OfflineContext.js";
+import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { MaybePromise, MockCrypto } from "#general";
 import { ClusterModel, DataModelPath, FeatureMap, FeatureSet, FieldElement } from "#model";
 import { ConstraintError, Val } from "#protocol";
 import { EndpointNumber, FabricIndex, NodeId } from "#types";
-import { aclEndpoint, MockFabricAccessControl, TestStruct } from "./value-utils.js";
+import { MockExchange } from "../../../../node/mock-exchange.js";
+import { aclEndpoint, TestStruct } from "./value-utils.js";
 
 export type Nested = {
     substruct: {
@@ -21,10 +22,8 @@ export type Nested = {
 };
 
 const TestContext = {
-    fabric: FabricIndex(1),
-    subject: NodeId(1),
+    exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
     node: aclEndpoint(),
-    aclManager: new MockFabricAccessControl([1, 3]),
 };
 
 function testNested(
@@ -84,7 +83,7 @@ async function testDuality(life: boolean, actor: (struct: { alive?: boolean }) =
         location: { endpoint: EndpointNumber(1), path: DataModelPath(0) },
     });
 
-    await OfflineContext.act("test", cx => {
+    await LocalActorContext.act("test", cx => {
         actor(datasource.reference(cx));
     });
 }
