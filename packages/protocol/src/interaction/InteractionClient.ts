@@ -23,13 +23,12 @@ import {
 import { Specification } from "#model";
 import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
 import { PeerDataStore } from "#peer/PeerAddressStore.js";
-import { DiscoveryOptions, PeerSet } from "#peer/PeerSet.js";
+import { PeerConnectionOptions, PeerSet } from "#peer/PeerSet.js";
 import {
     ArraySchema,
     Attribute,
     AttributeId,
     AttributeJsType,
-    CaseAuthenticatedTag,
     ClusterId,
     Command,
     EndpointNumber,
@@ -108,11 +107,9 @@ export class InteractionClientProvider {
 
     async connect(
         address: PeerAddress,
-        options: {
-            discoveryOptions: DiscoveryOptions;
+        options: PeerConnectionOptions & {
             allowUnknownPeer?: boolean;
             operationalAddress?: ServerAddressIp;
-            caseAuthenticatedTags?: CaseAuthenticatedTag[];
         },
     ): Promise<InteractionClient> {
         await this.#peers.ensureConnection(address, options);
@@ -131,7 +128,7 @@ export class InteractionClientProvider {
         );
     }
 
-    async getInteractionClient(address: PeerAddress, options: PeerSet.ConnectionOptions = {}) {
+    async getInteractionClient(address: PeerAddress, options: PeerConnectionOptions = {}) {
         let client = this.#clients.get(address);
         if (client !== undefined) {
             return client;

@@ -46,7 +46,6 @@ import {
     DeviceAdvertiser,
     DiscoveryAndCommissioningOptions,
     DiscoveryData,
-    DiscoveryOptions,
     ExchangeManager,
     Fabric,
     FabricBuilder,
@@ -56,6 +55,7 @@ import {
     OperationalPeer,
     PeerAddress,
     PeerAddressStore,
+    PeerConnectionOptions,
     PeerSet,
     ResumptionRecord,
     RetransmissionLimitReachedError,
@@ -551,7 +551,7 @@ export class MatterController {
         return this.clients.connect(this.fabric.addressOf(peerNodeId), options);
     }
 
-    createInteractionClient(peerNodeIdOrChannel: NodeId | MessageChannel, options: PeerSet.ConnectionOptions = {}) {
+    createInteractionClient(peerNodeIdOrChannel: NodeId | MessageChannel, options: PeerConnectionOptions = {}) {
         if (peerNodeIdOrChannel instanceof MessageChannel) {
             return this.clients.getInteractionClientForChannel(peerNodeIdOrChannel);
         }
@@ -624,8 +624,7 @@ export class MatterController {
 }
 
 export namespace MatterController {
-    export interface ConnectOptions {
-        discoveryOptions: DiscoveryOptions;
+    export interface ConnectOptions extends PeerConnectionOptions {
         allowUnknownPeer?: boolean;
         caseAuthenticatedTags?: CaseAuthenticatedTag[];
     }

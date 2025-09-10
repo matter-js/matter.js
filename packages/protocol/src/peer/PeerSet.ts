@@ -85,20 +85,11 @@ export interface DiscoveryOptions {
     discoveryData?: DiscoveryData;
 }
 
-export namespace PeerSet {
-    /**
-     * Extended discovery options that include case authenticated tags for peer connections.
-     */
-    export interface ConnectionOptions extends DiscoveryOptions {
-        caseAuthenticatedTags?: CaseAuthenticatedTag[];
-    }
-}
-
 /**
  * Extended discovery options that include case authenticated tags for peer connections.
- * @deprecated Use PeerSet.ConnectionOptions instead
  */
-export interface PeerConnectionOptions extends DiscoveryOptions {
+export interface PeerConnectionOptions {
+    discoveryOptions?: DiscoveryOptions;
     caseAuthenticatedTags?: CaseAuthenticatedTag[];
 }
 
@@ -264,17 +255,15 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
      */
     async ensureConnection(
         address: PeerAddress,
-        options: {
-            discoveryOptions: DiscoveryOptions;
+        options: PeerConnectionOptions & {
             allowUnknownPeer?: boolean;
             operationalAddress?: ServerAddressIp;
-            caseAuthenticatedTags?: CaseAuthenticatedTag[];
         },
     ) {
         address = PeerAddress(address);
 
         const isGroupNode = PeerAddress.isGroup(address);
-        const { discoveryOptions, allowUnknownPeer, operationalAddress, caseAuthenticatedTags } = options;
+        const { allowUnknownPeer, operationalAddress } = options;
         if (!this.#peersByAddress.has(address) && !allowUnknownPeer && !isGroupNode) {
             throw new UnknownNodeError(`Cannot connect to unknown device ${PeerAddress(address)}`);
         }
@@ -293,7 +282,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
             const { promise, resolver, rejecter } = createPromise<MessageChannel>();
             this.#runningPeerReconnections.set(address, { promise, rejecter });
 
-            this.#resume(address, { ...discoveryOptions, caseAuthenticatedTags }, operationalAddress)
+            this.#resume(address, options, operationalAddress)
                 .then(channel => {
                     this.#runningPeerReconnections.delete(address);
                     resolver(channel);
@@ -310,9 +299,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
     /**
      * Obtain an exchange provider for the designated peer.
      */
-    async exchangeProviderFor(addressOrChannel: PeerAddress | MessageChannel, options: PeerSet.ConnectionOptions = {}) {
-        const { caseAuthenticatedTags, ...discoveryOptions } = options;
-
+    async exchangeProviderFor(addressOrChannel: PeerAddress | MessageChannel, options: PeerConnectionOptions = {}) {
         if (addressOrChannel instanceof MessageChannel) {
             return new DedicatedChannelExchangeProvider(this.#exchanges, addressOrChannel);
         }
@@ -326,6 +313,8 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
         }
         let initiallyConnected = this.#channels.hasChannel(address);
         return new ReconnectableExchangeProvider(this.#exchanges, this.#channels, address, async () => {
+            const { caseAuthenticatedTags, discoveryOptions } = options;
+
             if (!initiallyConnected && !this.#channels.hasChannel(address)) {
                 // We got an uninitialized node, so do the first connection as usual
                 await this.ensureConnection(address, {
@@ -433,12 +422,8 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
      * device is discovered again using its operational instance details.
      * It returns the operational MessageChannel on success.
      */
-    async #resume(
-        address: PeerAddress,
-        options: PeerSet.ConnectionOptions = {},
-        tryOperationalAddress?: ServerAddressIp,
-    ) {
-        const { discoveryType } = options;
+    async #resume(address: PeerAddress, options: PeerConnectionOptions, tryOperationalAddress?: ServerAddressIp) {
+        const { discoveryOptions: { discoveryType } = {} } = options;
 
         const operationalAddress =
             tryOperationalAddress ??
@@ -465,15 +450,17 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
     async #connectOrDiscoverNode(
         address: PeerAddress,
         operationalAddress?: ServerAddressIp,
-        options: PeerSet.ConnectionOptions = {},
+        options?: PeerConnectionOptions,
     ) {
-        const { caseAuthenticatedTags, ...discoveryOptions } = options;
         address = PeerAddress(address);
         const {
-            discoveryType: requestedDiscoveryType = NodeDiscoveryType.FullDiscovery,
-            timeout,
-            discoveryData = this.#peersByAddress.get(address)?.discoveryData,
-        } = discoveryOptions;
+            discoveryOptions: {
+                discoveryType: requestedDiscoveryType = NodeDiscoveryType.FullDiscovery,
+                timeout,
+                discoveryData = this.#peersByAddress.get(address)?.discoveryData,
+            } = {},
+            caseAuthenticatedTags,
+        } = options ?? {};
         if (timeout !== undefined && requestedDiscoveryType !== NodeDiscoveryType.TimedDiscovery) {
             throw new ImplementationError("Cannot set timeout without timed discovery.");
         }
