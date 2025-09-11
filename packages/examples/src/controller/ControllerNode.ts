@@ -267,13 +267,14 @@ class ControllerNode {
                 //    console.log("Subscribe-All Data:", Diagnostic.json(data));
                 //});
 
+                // Example using legacy ClusterClient approach
                 const onOff: ClusterClientObj<OnOff.Complete> | undefined = devices[0].getClusterClient(OnOff.Complete);
                 if (onOff !== undefined) {
                     let onOffStatus = await onOff.getOnOffAttribute();
-                    console.log("initial onOffStatus", onOffStatus);
+                    console.log("initial onOffStatus (legacy approach)", onOffStatus);
 
                     onOff.addOnOffAttributeListener(value => {
-                        console.log("subscription onOffStatus", value);
+                        console.log("subscription onOffStatus (legacy approach)", value);
                         onOffStatus = value;
                     });
                     // read data every minute to keep up the connection to show the subscription is working
@@ -282,10 +283,41 @@ class ControllerNode {
                             .toggle()
                             .then(() => {
                                 onOffStatus = !onOffStatus;
-                                console.log("onOffStatus", onOffStatus);
+                                console.log("onOffStatus (legacy approach)", onOffStatus);
                             })
                             .catch(error => logger.error(error));
                     }, 60000);
+                }
+
+                // Example using new ClientNode style state and command access
+                // This demonstrates the new endpoint.state and endpoint.commandsOf() methods
+                console.log("\n--- Demonstrating new ClientNode style access ---");
+                
+                // Access state using the new proxy approach
+                try {
+                    // Access OnOff state via endpoint.state proxy
+                    const onOffState = devices[0].state.onOff?.onOff;
+                    console.log("OnOff state via proxy:", onOffState);
+                    
+                    // Access state using typed stateOf method
+                    const typedOnOffState = devices[0].stateOf(OnOff.Complete);
+                    console.log("OnOff state via stateOf():", typedOnOffState.onOff);
+                    
+                    // Access commands using typed commandsOf method
+                    const onOffCommands = devices[0].commandsOf(OnOff.Complete);
+                    console.log("Available OnOff commands:", Object.keys(onOffCommands));
+                    
+                    // Toggle using the new command access approach
+                    if (onOffCommands.toggle) {
+                        console.log("Toggling OnOff using new commandsOf approach...");
+                        await onOffCommands.toggle();
+                        
+                        // Check state after toggle
+                        const newState = devices[0].state.onOff?.onOff;
+                        console.log("OnOff state after toggle:", newState);
+                    }
+                } catch (error) {
+                    console.log("Note: OnOff cluster may not be available on this device:", error.message);
                 }
             }
         } finally {

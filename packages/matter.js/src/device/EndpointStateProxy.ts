@@ -9,56 +9,35 @@ import { ClusterClientObj } from "#protocol";
 import { ClusterId, ClusterType } from "#types";
 
 /**
- * Provides proxy-based access to cached cluster state values and commands for legacy Endpoint.
- * This class enables ClientNode-style state and command access patterns.
+ * Factory for creating proxy-based access to cached cluster state values for legacy Endpoint.
+ * This enables ClientNode-style state access patterns.
  */
 export class EndpointStateProxy {
-    #clusterClients: Map<ClusterId, ClusterClientObj>;
-    #endpointNumber: number | undefined;
-    #stateProxy?: any;
-
-    constructor(clusterClients: Map<ClusterId, ClusterClientObj>, endpointNumber: number | undefined) {
-        this.#clusterClients = clusterClients;
-        this.#endpointNumber = endpointNumber;
-    }
-
     /**
-     * Get the main state proxy that allows access via cluster names/IDs
+     * Create a state proxy that allows access via cluster names/IDs
      */
-    get state() {
-        if (!this.#stateProxy) {
-            this.#stateProxy = this.#createStateProxy();
-        }
-        return this.#stateProxy;
+    static create(clusterClients: Map<ClusterId, ClusterClientObj>, endpointNumber: number | undefined): any {
+        return this.#createStateProxy(clusterClients, endpointNumber);
     }
 
     /**
      * Get typed state access for a specific cluster
      */
-    stateOf<const T extends ClusterType>(cluster: T): Immutable<Record<string, any>> {
-        const clusterClient = this.#clusterClients.get(cluster.id) as ClusterClientObj<T>;
+    static stateOf<const T extends ClusterType>(
+        clusterClients: Map<ClusterId, ClusterClientObj>,
+        endpointNumber: number | undefined,
+        cluster: T,
+    ): Immutable<Record<string, any>> {
+        const clusterClient = clusterClients.get(cluster.id) as ClusterClientObj<T>;
         if (!clusterClient) {
             throw new ImplementationError(
-                `Cluster ${cluster.name} (0x${cluster.id.toString(16)}) is not present on endpoint ${this.#endpointNumber}`,
+                `Cluster ${cluster.name} (0x${cluster.id.toString(16)}) is not present on endpoint ${endpointNumber}`,
             );
         }
         return this.#createClusterStateProxy(clusterClient);
     }
 
-    /**
-     * Get typed command access for a specific cluster
-     */
-    commandsOf<const T extends ClusterType>(cluster: T): Record<string, (...args: any[]) => any> {
-        const clusterClient = this.#clusterClients.get(cluster.id) as ClusterClientObj<T>;
-        if (!clusterClient) {
-            throw new ImplementationError(
-                `Cluster ${cluster.name} (0x${cluster.id.toString(16)}) is not present on endpoint ${this.#endpointNumber}`,
-            );
-        }
-        return clusterClient.commands;
-    }
-
-    #createStateProxy(): any {
+    static #createStateProxy(clusterClients: Map<ClusterId, ClusterClientObj>, endpointNumber: number | undefined): any {
         return new Proxy(
             {},
             {
@@ -68,10 +47,10 @@ export class EndpointStateProxy {
                     }
 
                     // Try to find cluster by name first
-                    let clusterClient = this.#findClusterClientByName(prop);
+                    let clusterClient = this.#findClusterClientByName(clusterClients, prop);
                     if (!clusterClient) {
                         // Try to find by ID (numeric string or hex string)
-                        clusterClient = this.#findClusterClientById(prop);
+                        clusterClient = this.#findClusterClientById(clusterClients, prop);
                     }
 
                     if (!clusterClient) {
@@ -84,7 +63,7 @@ export class EndpointStateProxy {
         );
     }
 
-    #createClusterStateProxy(clusterClient: ClusterClientObj): Immutable<Record<string, any>> {
+    static #createClusterStateProxy(clusterClient: ClusterClientObj): Immutable<Record<string, any>> {
         return new Proxy(
             {},
             {
@@ -117,8 +96,8 @@ export class EndpointStateProxy {
         ) as Immutable<Record<string, any>>;
     }
 
-    #findClusterClientByName(name: string): ClusterClientObj | undefined {
-        for (const clusterClient of this.#clusterClients.values()) {
+    static #findClusterClientByName(clusterClients: Map<ClusterId, ClusterClientObj>, name: string): ClusterClientObj | undefined {
+        for (const clusterClient of clusterClients.values()) {
             if (clusterClient.name.toLowerCase() === name.toLowerCase()) {
                 return clusterClient;
             }
@@ -126,15 +105,15 @@ export class EndpointStateProxy {
         return undefined;
     }
 
-    #findClusterClientById(idStr: string): ClusterClientObj | undefined {
+    static #findClusterClientById(clusterClients: Map<ClusterId, ClusterClientObj>, idStr: string): ClusterClientObj | undefined {
         const id = this.#parseId(idStr);
         if (id !== undefined) {
-            return this.#clusterClients.get(id as ClusterId);
+            return clusterClients.get(id as ClusterId);
         }
         return undefined;
     }
 
-    #parseId(idStr: string): number | undefined {
+    static #parseId(idStr: string): number | undefined {
         // Try decimal first
         const decimal = parseInt(idStr, 10);
         if (!isNaN(decimal) && decimal.toString() === idStr) {

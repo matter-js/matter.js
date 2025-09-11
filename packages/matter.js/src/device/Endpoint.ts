@@ -45,7 +45,7 @@ export class Endpoint {
     private structureChangedCallback: () => void = () => {
         /** noop until officially set **/
     };
-    #stateProxy?: EndpointStateProxy;
+    #stateProxy?: any;
 
     /**
      * Create a new Endpoint instance.
@@ -73,29 +73,29 @@ export class Endpoint {
      */
     get state() {
         if (!this.#stateProxy) {
-            this.#stateProxy = new EndpointStateProxy(this.clusterClients, this.number);
+            this.#stateProxy = EndpointStateProxy.create(this.clusterClients, this.number);
         }
-        return this.#stateProxy.state;
+        return this.#stateProxy;
     }
 
     /**
      * Access to typed cached cluster state values
      */
     stateOf<const T extends ClusterType>(cluster: T): Immutable<Record<string, any>> {
-        if (!this.#stateProxy) {
-            this.#stateProxy = new EndpointStateProxy(this.clusterClients, this.number);
-        }
-        return this.#stateProxy.stateOf(cluster);
+        return EndpointStateProxy.stateOf(this.clusterClients, this.number, cluster);
     }
 
     /**
      * Access to typed cluster commands
      */
     commandsOf<const T extends ClusterType>(cluster: T): Record<string, (...args: any[]) => any> {
-        if (!this.#stateProxy) {
-            this.#stateProxy = new EndpointStateProxy(this.clusterClients, this.number);
+        const clusterClient = this.clusterClients.get(cluster.id) as ClusterClientObj<T>;
+        if (!clusterClient) {
+            throw new ImplementationError(
+                `Cluster ${cluster.name} (0x${cluster.id.toString(16)}) is not present on endpoint ${this.number}`,
+            );
         }
-        return this.#stateProxy.commandsOf(cluster);
+        return clusterClient.commands;
     }
 
     get deviceType(): DeviceTypeId {
