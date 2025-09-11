@@ -355,6 +355,34 @@
                 "${workspaceFolder}/support/*/dist/esm/**/*.js",
                 "${workspaceFolder}/support/*/build/esm/**/*.js"
             ],
+            "name": "Test @matter/nodejs-ws",
+            "cwd": "${workspaceFolder}/packages/nodejs-ws",
+            "group": "test",
+            "args": [
+                "--clear"
+            ],
+            "program": "${workspaceFolder}/node_modules/.bin/matter-test",
+            "presentation": {
+                "group": "02test"
+            }
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "runtimeArgs": [
+                "--enable-source-maps"
+            ],
+            "outFiles": [
+                "${workspaceFolder}/packages/*/dist/esm/**/*.js",
+                "${workspaceFolder}/packages/*/build/esm/**/*.js",
+                "${workspaceFolder}/support/*/dist/esm/**/*.js",
+                "${workspaceFolder}/support/*/build/esm/**/*.js"
+            ],
             "name": "Test @matter/chip-testing",
             "cwd": "${workspaceFolder}/support/chip-testing",
             "group": "test",
@@ -935,6 +963,62 @@
             "args": [
                 "--clear",
                 "packages/examples/src/device-smoke-co-alarm/SmokeCOAlarmDeviceNode.ts"
+            ],
+            "group": "example",
+            "program": "${workspaceFolder}/node_modules/.bin/matter-run",
+            "presentation": {
+                "group": "04example"
+            }
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "runtimeArgs": [
+                "--enable-source-maps"
+            ],
+            "outFiles": [
+                "${workspaceFolder}/packages/*/dist/esm/**/*.js",
+                "${workspaceFolder}/packages/*/build/esm/**/*.js",
+                "${workspaceFolder}/support/*/dist/esm/**/*.js",
+                "${workspaceFolder}/support/*/build/esm/**/*.js"
+            ],
+            "name": "Run MqttDevice",
+            "args": [
+                "--clear",
+                "packages/examples/src/mqtt-device/MqttDevice.ts"
+            ],
+            "group": "example",
+            "program": "${workspaceFolder}/node_modules/.bin/matter-run",
+            "presentation": {
+                "group": "04example"
+            }
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "runtimeArgs": [
+                "--enable-source-maps"
+            ],
+            "outFiles": [
+                "${workspaceFolder}/packages/*/dist/esm/**/*.js",
+                "${workspaceFolder}/packages/*/build/esm/**/*.js",
+                "${workspaceFolder}/support/*/dist/esm/**/*.js",
+                "${workspaceFolder}/support/*/build/esm/**/*.js"
+            ],
+            "name": "Run WebSocketDevice",
+            "args": [
+                "--clear",
+                "packages/examples/src/web-socket-device/WebSocketDevice.ts"
             ],
             "group": "example",
             "program": "${workspaceFolder}/node_modules/.bin/matter-run",

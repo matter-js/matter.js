@@ -13,7 +13,13 @@
             "path": "../../matter.js/src"
         },
         {
+            "path": "../../mqtt/src"
+        },
+        {
             "path": "../../nodejs-ble/src"
+        },
+        {
+            "path": "../../nodejs-ws/src"
         },
         {
             "path": "../../nodejs/src"
