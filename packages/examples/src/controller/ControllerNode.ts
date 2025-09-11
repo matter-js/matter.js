@@ -245,7 +245,7 @@ class ControllerNode {
                 console.log("No Descriptor Cluster found. This should never happen!");
             }
 
-            // Alternatively you can access concrete fields as API methods by creating a CLusterClient and
+            // Alternatively you can access concrete fields as API methods by creating a ClusterClient and
             // reading the data from the device or local cache
             const descriptor = node.getRootClusterClient(Descriptor.Complete);
             if (descriptor !== undefined) {
