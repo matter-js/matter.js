@@ -96,7 +96,7 @@ export class Endpoint {
      * Returns immutable cached attribute values from cluster clients
      */
     stateOf<T extends Behavior.Type>(type: T) {
-        this.#clusterClientForBehaviorType(type); // just use to very the existence of the cluster
+        this.#clusterClientForBehaviorType(type); // just use to verify the existence of the cluster
 
         return this.state[type.name] as Immutable<Behavior.StateOf<T>>;
     }
