@@ -77,7 +77,7 @@ export class Endpoint {
         if (this.#stateProxy === undefined) {
             this.#stateProxy = EndpointPropertiesProxy.state(this.clusterClients);
         }
-        return this.#stateProxy!;
+        return this.#stateProxy;
     }
 
     /**
@@ -88,7 +88,7 @@ export class Endpoint {
         if (this.#commandsProxy === undefined) {
             this.#commandsProxy = EndpointPropertiesProxy.commands(this.clusterClients);
         }
-        return this.#commandsProxy!;
+        return this.#commandsProxy;
     }
 
     /**
