@@ -235,7 +235,7 @@ interface SubscriptionHandlerCallbacks {
  * the CommissioningController on commissioning or when connecting.
  */
 export class PairedNode {
-    readonly #endpoints = new Map<EndpointNumber, Endpoint>();
+    readonly #endpoints = new Map<number, Endpoint>();
     #interactionClient: InteractionClient;
     #reconnectDelayTimer?: Timer;
     #newChannelReconnectDelayTimer = Time.getTimer(
@@ -988,7 +988,7 @@ export class PairedNode {
 
         if (updateStructure) {
             // Find out what we need to remove or retain
-            const endpointsToRemove = new Set<EndpointNumber>(this.#endpoints.keys());
+            const endpointsToRemove = new Set<number>(this.#endpoints.keys());
             for (const [endpointId] of Object.entries(allData)) {
                 const endpointIdNumber = EndpointNumber(parseInt(endpointId));
                 if (this.#endpoints.has(endpointIdNumber)) {
@@ -1196,6 +1196,10 @@ export class PairedNode {
                 return new PairedDevice(deviceTypes as AtLeastOne<DeviceTypeDefinition>, endpointClusters, endpointId);
             }
         }
+    }
+
+    get parts() {
+        return this.#endpoints;
     }
 
     /** Returns the functional devices/endpoints (the "childs" of the Root Endpoint) known for this node. */

@@ -11,6 +11,7 @@ import {
     UserLabelCluster,
 } from "#clusters";
 import { AtLeastOne, Diagnostic, Immutable, ImplementationError, InternalError, NotImplementedError } from "#general";
+import { Behavior, Commands as BehaviorCommands } from "#node";
 import { ClusterClientObj, SupportedAttributeClient, UnknownSupportedAttributeClient } from "#protocol";
 import {
     Attributes,
@@ -28,7 +29,7 @@ import {
 import { ClusterServer } from "../cluster/server/ClusterServer.js";
 import { ClusterServerObj, asClusterServerInternal } from "../cluster/server/ClusterServerTypes.js";
 import { DeviceTypeDefinition } from "./DeviceTypes.js";
-import { EndpointStateProxy } from "./EndpointStateProxy.js";
+import { EndpointPropertiesProxy } from "./EndpointPropertiesProxy.js";
 
 export interface EndpointOptions {
     endpointId?: EndpointNumber;
@@ -45,7 +46,8 @@ export class Endpoint {
     private structureChangedCallback: () => void = () => {
         /** noop until officially set **/
     };
-    #stateProxy?: any;
+    #stateProxy?: EndpointPropertiesProxy.State;
+    #commandsProxy?: EndpointPropertiesProxy.Commands;
 
     /**
      * Create a new Endpoint instance.
@@ -72,30 +74,53 @@ export class Endpoint {
      * Returns immutable cached attribute values from cluster clients
      */
     get state() {
-        if (!this.#stateProxy) {
-            this.#stateProxy = EndpointStateProxy.create(this.clusterClients, this.number);
+        if (this.#stateProxy === undefined) {
+            this.#stateProxy = EndpointPropertiesProxy.state(this.clusterClients);
         }
-        return this.#stateProxy;
+        return this.#stateProxy!;
+    }
+
+    /**
+     * Access to cluster commands using endpoint.commands.clusterNameOrId.commandName
+     * Returns async functions that can be called to invoke commands on cluster clients
+     */
+    get commands() {
+        if (this.#commandsProxy === undefined) {
+            this.#commandsProxy = EndpointPropertiesProxy.commands(this.clusterClients);
+        }
+        return this.#commandsProxy!;
     }
 
     /**
      * Access to typed cached cluster state values
+     * Returns immutable cached attribute values from cluster clients
      */
-    stateOf<const T extends ClusterType>(cluster: T): Immutable<Record<string, any>> {
-        return EndpointStateProxy.stateOf(this.clusterClients, this.number, cluster);
+    stateOf<T extends Behavior.Type>(type: T) {
+        this.#clusterClientForBehaviorType(type); // just use to very the existence of the cluster
+
+        return this.state[type.name] as Immutable<Behavior.StateOf<T>>;
     }
 
     /**
      * Access to typed cluster commands
+     * Returns async functions that can be called to invoke commands on cluster clients
      */
-    commandsOf<const T extends ClusterType>(cluster: T): Record<string, (...args: any[]) => any> {
-        const clusterClient = this.clusterClients.get(cluster.id) as ClusterClientObj<T>;
+    commandsOf<T extends Behavior.Type>(type: T) {
+        return this.#clusterClientForBehaviorType(type).commands as BehaviorCommands.OfBehavior<T>;
+    }
+
+    #clusterClientForBehaviorType<T extends Behavior.Type>(type: T): ClusterClientObj {
+        const clusterId = type.schema?.tag === "cluster" ? (type.schema.id as ClusterId) : undefined;
+        if (clusterId === undefined) {
+            throw new ImplementationError(`Behavior ${type.id} is not backed by a cluster`);
+        }
+        const clusterClient = this.clusterClients.get(clusterId);
         if (!clusterClient) {
             throw new ImplementationError(
-                `Cluster ${cluster.name} (0x${cluster.id.toString(16)}) is not present on endpoint ${this.number}`,
+                `Cluster ${type.id} (0x${clusterId.toString(16)}) is not present on endpoint ${this.number}`,
             );
         }
-        return clusterClient.commands;
+        return clusterClient;
     }
 
     get deviceType(): DeviceTypeId {

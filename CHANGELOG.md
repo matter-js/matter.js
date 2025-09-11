@@ -49,6 +49,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 -   @matter/react-native
     - Fix: (Luxni) Update UDP, BLE and Crypto usage to work with React Native
 
+-   @project-chip/matter.js
+    - Enhancement: Added more convenient accessors for endpoint cached read-only state: `Endpoint.state` property for attributes for all clusters in generic way and `Endpoint.stateOf()` for a typed access for a defined Client behavior
+    - Enhancement: Added more convenient accessors for endpoint commands: `Endpoint.commands` property for commands for all clusters in generic way and `Endpoint.commandsOf()` for a types access for a defined Client behavior
+    - Enhancement: Added `Node.parts.get()` property to access all endpoints of a node
+
 -   Other
     - Feature: For developers working with the matter.js repository on Macs and Windows, we now offer a devcontainer to facilitate native Linux development
 
