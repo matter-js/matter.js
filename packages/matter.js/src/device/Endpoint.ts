@@ -28,6 +28,7 @@ import {
 import { ClusterServer } from "../cluster/server/ClusterServer.js";
 import { ClusterServerObj, asClusterServerInternal } from "../cluster/server/ClusterServerTypes.js";
 import { DeviceTypeDefinition } from "./DeviceTypes.js";
+import { EndpointStateProxy } from "./EndpointStateProxy.js";
 
 export interface EndpointOptions {
     endpointId?: EndpointNumber;
@@ -44,7 +45,7 @@ export class Endpoint {
     private structureChangedCallback: () => void = () => {
         /** noop until officially set **/
     };
-    private _state?: any;
+    #stateProxy?: EndpointStateProxy;
 
     /**
      * Create a new Endpoint instance.
@@ -71,135 +72,30 @@ export class Endpoint {
      * Returns immutable cached attribute values from cluster clients
      */
     get state() {
-        if (!this._state) {
-            this._state = this.createStateProxy();
+        if (!this.#stateProxy) {
+            this.#stateProxy = new EndpointStateProxy(this.clusterClients, this.number);
         }
-        return this._state;
+        return this.#stateProxy.state;
     }
 
     /**
      * Access to typed cached cluster state values
      */
     stateOf<const T extends ClusterType>(cluster: T): Immutable<Record<string, any>> {
-        const clusterClient = this.getClusterClient(cluster);
-        if (!clusterClient) {
-            throw new ImplementationError(
-                `Cluster ${cluster.name} (0x${cluster.id.toString(16)}) is not present on endpoint ${this.number}`,
-            );
+        if (!this.#stateProxy) {
+            this.#stateProxy = new EndpointStateProxy(this.clusterClients, this.number);
         }
-        return this.createClusterStateProxy(clusterClient);
+        return this.#stateProxy.stateOf(cluster);
     }
 
     /**
      * Access to typed cluster commands
      */
     commandsOf<const T extends ClusterType>(cluster: T): Record<string, (...args: any[]) => any> {
-        const clusterClient = this.getClusterClient(cluster);
-        if (!clusterClient) {
-            throw new ImplementationError(
-                `Cluster ${cluster.name} (0x${cluster.id.toString(16)}) is not present on endpoint ${this.number}`,
-            );
+        if (!this.#stateProxy) {
+            this.#stateProxy = new EndpointStateProxy(this.clusterClients, this.number);
         }
-        return clusterClient.commands;
-    }
-
-    private createStateProxy(): any {
-        return new Proxy(
-            {},
-            {
-                get: (_target, prop) => {
-                    if (typeof prop !== "string") {
-                        return undefined;
-                    }
-
-                    // Try to find cluster by name first
-                    let clusterClient = this.findClusterClientByName(prop);
-                    if (!clusterClient) {
-                        // Try to find by ID (numeric string or hex string)
-                        clusterClient = this.findClusterClientById(prop);
-                    }
-
-                    if (!clusterClient) {
-                        return undefined;
-                    }
-
-                    return this.createClusterStateProxy(clusterClient);
-                },
-            },
-        );
-    }
-
-    private createClusterStateProxy(clusterClient: ClusterClientObj): Immutable<Record<string, any>> {
-        return new Proxy(
-            {},
-            {
-                get: (_target, prop) => {
-                    if (typeof prop !== "string") {
-                        return undefined;
-                    }
-
-                    // Try to find attribute by name first
-                    const attributeClient = clusterClient.attributes[prop];
-                    if (attributeClient) {
-                        const value = attributeClient.getLocal();
-                        return value;
-                    }
-
-                    // Try to find by ID (numeric string or hex string)
-                    const numericId = this.parseId(prop);
-                    if (numericId !== undefined) {
-                        for (const [, attrClient] of Object.entries(clusterClient.attributes)) {
-                            if ((attrClient as any).id === numericId) {
-                                const value = (attrClient as any).getLocal();
-                                return value;
-                            }
-                        }
-                    }
-
-                    return undefined;
-                },
-            },
-        ) as Immutable<Record<string, any>>;
-    }
-
-    private findClusterClientByName(name: string): ClusterClientObj | undefined {
-        for (const clusterClient of this.clusterClients.values()) {
-            if (clusterClient.name.toLowerCase() === name.toLowerCase()) {
-                return clusterClient;
-            }
-        }
-        return undefined;
-    }
-
-    private findClusterClientById(idStr: string): ClusterClientObj | undefined {
-        const id = this.parseId(idStr);
-        if (id !== undefined) {
-            return this.clusterClients.get(id as ClusterId);
-        }
-        return undefined;
-    }
-
-    private parseId(idStr: string): number | undefined {
-        // Try decimal first
-        const decimal = parseInt(idStr, 10);
-        if (!isNaN(decimal) && decimal.toString() === idStr) {
-            return decimal;
-        }
-
-        // Try hex (with or without 0x prefix)
-        if (idStr.startsWith("0x")) {
-            const hex = parseInt(idStr.slice(2), 16);
-            if (!isNaN(hex)) {
-                return hex;
-            }
-        } else {
-            const hex = parseInt(idStr, 16);
-            if (!isNaN(hex) && /^[0-9a-f]+$/i.test(idStr)) {
-                return hex;
-            }
-        }
-
-        return undefined;
+        return this.#stateProxy.commandsOf(cluster);
     }
 
     get deviceType(): DeviceTypeId {
