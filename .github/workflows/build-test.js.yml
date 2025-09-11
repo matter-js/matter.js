@@ -43,7 +43,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         if: ${{ needs.check-and-lint.outputs.package-changes == 'true' }}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         if: ${{ needs.check-and-lint.outputs.package-changes == 'true' }}
         # needed as long as we test Node.js 16 and npm <10.2.2 is used for Node.js 18/20
         with:

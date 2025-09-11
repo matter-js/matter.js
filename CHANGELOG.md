@@ -30,6 +30,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: Low-level advertising APIs have changed significantly; in particular, `MdnsBroadcaster`, `MdnsInstanceBroadcaster` and `MdnsScanner` are replaced by `MdnsServer`, `MdnsAdvertisement` and `MdnsClient`
     - Feature: Adds support for advertising of TCP and ICD services (but matter.js does not yet implement those features otherwise)
     - Feature: Adds support for extended advertisement
+    - Feature: Added support for Case Authenticated Tags (CATs) in operational CASE sessions for enhanced access control
     - Enhancement: MDNS broadcasts more aggressively until a connection is established
     - Enhancement: MDNS and BLE advertising schedules are now configurable and conform to Matter and DNS-SD specifications
     - Enhancement: MDNS client and server efficiency is improved with a shared socket and message parser

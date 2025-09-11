@@ -75,7 +75,7 @@ jobs:
 
       - name: Determine the version bump
         id: version
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         env:
           VERSION_BUMP: ${{ inputs.versionBump }}
         with:
@@ -94,7 +94,7 @@ jobs:
       - name: Prepare changelog
         env:
           VERSION: ${{ steps.version.outputs.result }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');

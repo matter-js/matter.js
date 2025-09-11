@@ -46,7 +46,6 @@ import {
     DeviceAdvertiser,
     DiscoveryAndCommissioningOptions,
     DiscoveryData,
-    DiscoveryOptions,
     ExchangeManager,
     Fabric,
     FabricBuilder,
@@ -56,6 +55,7 @@ import {
     OperationalPeer,
     PeerAddress,
     PeerAddressStore,
+    PeerConnectionOptions,
     PeerSet,
     ResumptionRecord,
     RetransmissionLimitReachedError,
@@ -474,15 +474,14 @@ export class MatterController {
      */
     async completeCommissioning(peerNodeId: NodeId, discoveryData?: DiscoveryData) {
         // Look for the device broadcast over MDNS and do CASE pairing
-        const interactionClient = await this.connect(
-            peerNodeId,
-            {
+        const interactionClient = await this.connect(peerNodeId, {
+            discoveryOptions: {
                 discoveryType: NodeDiscoveryType.TimedDiscovery,
                 timeout: Minutes(2),
                 discoveryData,
             },
-            true,
-        ); // Wait maximum 120s to find the operational device for commissioning process
+            allowUnknownPeer: true,
+        }); // Wait maximum 120s to find the operational device for commissioning process
         const generalCommissioningClusterClient = ClusterClient(
             GeneralCommissioning.Cluster,
             EndpointNumber(0),
@@ -548,15 +547,15 @@ export class MatterController {
      * Connect to the device by opening a channel and creating a new CASE session if necessary.
      * Returns a InteractionClient on success.
      */
-    async connect(peerNodeId: NodeId, discoveryOptions: DiscoveryOptions, allowUnknownPeer?: boolean) {
-        return this.clients.connect(this.fabric.addressOf(peerNodeId), { discoveryOptions, allowUnknownPeer });
+    async connect(peerNodeId: NodeId, options: MatterController.ConnectOptions) {
+        return this.clients.connect(this.fabric.addressOf(peerNodeId), options);
     }
 
-    createInteractionClient(peerNodeIdOrChannel: NodeId | MessageChannel, discoveryOptions: DiscoveryOptions) {
+    createInteractionClient(peerNodeIdOrChannel: NodeId | MessageChannel, options: PeerConnectionOptions = {}) {
         if (peerNodeIdOrChannel instanceof MessageChannel) {
             return this.clients.getInteractionClientForChannel(peerNodeIdOrChannel);
         }
-        return this.clients.getInteractionClient(this.fabric.addressOf(peerNodeIdOrChannel), discoveryOptions);
+        return this.clients.getInteractionClient(this.fabric.addressOf(peerNodeIdOrChannel), options);
     }
 
     async getNextAvailableSessionId() {
@@ -621,6 +620,13 @@ export class MatterController {
 
     async updateFabricLabel(label: string) {
         await this.fabric.setLabel(label);
+    }
+}
+
+export namespace MatterController {
+    export interface ConnectOptions extends PeerConnectionOptions {
+        allowUnknownPeer?: boolean;
+        caseAuthenticatedTags?: CaseAuthenticatedTag[];
     }
 }
 

@@ -36,7 +36,7 @@ jobs:
         os: [ macos-latest, windows-latest ]
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         # needed as long as we test Node.js 16 and npm <10.2.2 is used for Node.js 18/20
         with:
           python-version: '3.11'
@@ -93,7 +93,7 @@ jobs:
 
       - name: Use Node.js 20.x
         if: steps.automerge.outputs.mergeResult == 'merged'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 20.x
 
@@ -104,7 +104,7 @@ jobs:
       - name: Determine version
         if: steps.automerge.outputs.mergeResult == 'merged'
         id: version
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           result-encoding: string
           script: |

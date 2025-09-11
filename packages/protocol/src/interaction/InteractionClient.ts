@@ -23,7 +23,7 @@ import {
 import { Specification } from "#model";
 import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
 import { PeerDataStore } from "#peer/PeerAddressStore.js";
-import { DiscoveryOptions, PeerSet } from "#peer/PeerSet.js";
+import { PeerConnectionOptions, PeerSet } from "#peer/PeerSet.js";
 import {
     ArraySchema,
     Attribute,
@@ -107,16 +107,14 @@ export class InteractionClientProvider {
 
     async connect(
         address: PeerAddress,
-        options: {
-            discoveryOptions: DiscoveryOptions;
+        options: PeerConnectionOptions & {
             allowUnknownPeer?: boolean;
             operationalAddress?: ServerAddressIp;
         },
     ): Promise<InteractionClient> {
         await this.#peers.ensureConnection(address, options);
 
-        const { discoveryOptions } = options;
-        return this.getInteractionClient(address, discoveryOptions);
+        return this.getInteractionClient(address, options);
     }
 
     async getInteractionClientForChannel(channel: MessageChannel): Promise<InteractionClient> {
@@ -130,7 +128,7 @@ export class InteractionClientProvider {
         );
     }
 
-    async getInteractionClient(address: PeerAddress, discoveryOptions: DiscoveryOptions) {
+    async getInteractionClient(address: PeerAddress, options: PeerConnectionOptions = {}) {
         let client = this.#clients.get(address);
         if (client !== undefined) {
             return client;
@@ -140,7 +138,7 @@ export class InteractionClientProvider {
         const nodeStore = isGroupAddress ? undefined : this.#peers.get(address)?.dataStore;
         await nodeStore?.construction; // Lazy initialize the data if not already done
 
-        const exchangeProvider = await this.#peers.exchangeProviderFor(address, discoveryOptions);
+        const exchangeProvider = await this.#peers.exchangeProviderFor(address, options);
 
         client = new InteractionClient(
             exchangeProvider,

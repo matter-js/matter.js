@@ -51,9 +51,13 @@ export class ClientNetworkRuntime extends NetworkRuntime {
         const { env, lifecycle } = this.owner;
         const peers = env.get(PeerSet);
         const commissioningState = this.owner.stateOf(CommissioningClient);
+        const networkState = this.owner.state.network;
 
         const exchangeProvider = await peers.exchangeProviderFor(address, {
-            discoveryData: RemoteDescriptor.fromLongForm(commissioningState),
+            discoveryOptions: { discoveryData: RemoteDescriptor.fromLongForm(commissioningState) },
+            caseAuthenticatedTags: networkState.caseAuthenticatedTags
+                ? [...networkState.caseAuthenticatedTags] // needed because the tags are readonly
+                : undefined,
         });
         env.set(ExchangeProvider, exchangeProvider);
 

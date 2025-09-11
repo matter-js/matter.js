@@ -33,6 +33,7 @@ import {
     Subscribe,
 } from "#protocol";
 import {
+    CaseAuthenticatedTag,
     DeviceTypeId,
     DiscoveryCapabilitiesBitmap,
     ManualPairingCodeCodec,
@@ -56,6 +57,7 @@ export class CommissioningClient extends Behavior {
     static override readonly early = true;
 
     static override readonly id = "commissioning";
+
     override initialize(options: { descriptor?: RemoteDescriptor }) {
         const descriptor = options?.descriptor;
         if (descriptor) {
@@ -151,6 +153,7 @@ export class CommissioningClient extends Behavior {
 
         const network = this.agent.get(NetworkClient);
         network.state.startupSubscription = opts.startupSubscription;
+        network.state.caseAuthenticatedTags = opts.caseAuthenticatedTags;
 
         node.lifecycle.commissioned.emit(this.context);
 
@@ -433,6 +436,18 @@ export namespace CommissioningClient {
          * read omits them then the node will only be partially functional once initialized.
          */
         startupSubscription?: Subscribe | null;
+
+        /**
+         * Case Authenticated Tags (CATs) to use for operational CASE sessions with this node.
+         *
+         * CATs provide additional authentication context for Matter operational sessions. They are only used
+         * for operational CASE connections after commissioning is complete, not during the initial PASE
+         * commissioning process.
+         *
+         * Note: CATs only make sense when additional ACLs (Access Control Lists) are also configured on
+         * the target device to grant specific permissions based on these tags.
+         */
+        caseAuthenticatedTags?: CaseAuthenticatedTag[];
     }
 
     export interface PasscodeOptions extends BaseCommissioningOptions {
