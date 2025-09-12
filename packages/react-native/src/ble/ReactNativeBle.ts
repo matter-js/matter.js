@@ -10,7 +10,7 @@ import { BleScanner } from "./BleScanner.js";
 import { ReactNativeBleCentralInterface } from "./ReactNativeBleChannel.js";
 import { ReactNativeBleClient } from "./ReactNativeBleClient.js";
 
-export class BleReactNative extends Ble {
+export class ReactNativeBle extends Ble {
     private bleCentral: ReactNativeBleClient | undefined;
 
     constructor() {
@@ -21,7 +21,7 @@ export class BleReactNative extends Ble {
         if (this.bleCentral === undefined) {
             this.bleCentral = new ReactNativeBleClient();
         }
-        return new ReactNativeBleCentralInterface();
+        return new ReactNativeBleCentralInterface(this);
     }
 
     get scanner(): Scanner {

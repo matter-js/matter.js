@@ -28,6 +28,15 @@ export class NodeJsBle extends Ble {
     constructor(options?: BleOptions) {
         super();
         this.#options = options;
+        if (options?.environment && options.hciId === undefined) {
+            const hciId = options.environment.vars.number("ble.hci.id");
+            if (hciId !== undefined) {
+                this.#options = {
+                    ...options,
+                    hciId,
+                };
+            }
+        }
     }
 
     get #blePeripheralServer() {

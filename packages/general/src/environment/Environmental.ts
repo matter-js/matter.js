@@ -34,15 +34,20 @@ export namespace Environmental {
     }
 
     /**
-     * A factory for a {@link Service}.  Any constructor may be a service factory.
+     * A factory for a {@link Service}.
+     *
+     * A "factory" is just a class with a static {@link create} method that performs instantiation.
      */
-    export interface Factory<T extends Service> {
+    export interface Factory<T extends Service = Service> {
         new (...args: any[]): T;
 
         /**
-         * The environment will create the service automatically if the factory supports {@link create}.
+         * Method the environment uses to instantiate the service.
+         *
+         * We use this rather than invoking the constructor directly so the service can perform configuration via
+         * {@link Environment} regardless of the arguments its constructor takes.
          */
-        [create]?: (environment: Environment) => T;
+        [create]: (environment: Environment) => T;
     }
 
     /**

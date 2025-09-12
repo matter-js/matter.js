@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export * from "./BleReactNative.js";
 export * from "./BleScanner.js";
+export * from "./ReactNativeBle.js";
 export * from "./ReactNativeBleChannel.js";
 export * from "./ReactNativeBleClient.js";

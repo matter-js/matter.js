@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ReactNativeBle } from "#ble/ReactNativeBle.js";
 import { Environment, Network, StorageService, VariableService } from "#general";
+import { Ble } from "#protocol";
 import { NetworkReactNative } from "../net/NetworkReactNative.js";
 import { StorageBackendAsyncStorage } from "../storage/StorageBackendAsyncStorage.js";
 
@@ -19,6 +21,7 @@ export function ReactNativeEnvironment() {
     loadVariables(env);
     configureStorage(env);
     configureNetwork(env);
+    configureBle(env);
 
     return env;
 }
@@ -42,6 +45,10 @@ function configureStorage(env: Environment) {
 
 function configureNetwork(env: Environment) {
     env.set(Network, new NetworkReactNative());
+}
+
+function configureBle(env: Environment) {
+    env.set(Ble, new ReactNativeBle());
 }
 
 export function getDefaults(vars: VariableService) {

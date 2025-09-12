@@ -35,7 +35,7 @@ The following parameters are available and used to initially commission a device
     * --longDiscriminator: the discriminator to use for pairing (default: 3840, value between 0 and 4095)
     * --passcode: the passcode to use for pairing (default: 20202021)
 * When the device to commission is not already in the IP network and also not an Ethernet device commission can be done via ble. In this case the following parameters are used:
-    * --ble: enable BLE support (default: false) If this is enabled the controller will try to connect via BLE first (15s timeout) and then via IP if not commissioned yet!
+    * --ble-enable: enable BLE support (default: false) If this is enabled the controller will try to connect via BLE first (15s timeout) and then via IP if not commissioned yet!
     * --ble-hci-id: Optionally, HCI ID to use (Linux only, default 0)
     * --ble-wifi-ssid: SSID/Name of the Wifi network to connect to - The device will scan especially for this network and commissioning will fail if not found
     * --ble-wifi-credentials: Credentials for the Wifi network to connect to

@@ -17,7 +17,6 @@ import {
     NetInterfaceSet,
     Network,
     NoAddressAvailableError,
-    NoProviderError,
     StorageContext,
     UdpInterface,
     UnexpectedDataError,
@@ -256,7 +255,8 @@ export class CommissioningController {
             : new LegacyControllerStore(storage!);
 
         const { netInterfaces, scanners, port } = await configureNetwork({
-            network: environment?.has(Network) ? environment.get(Network) : Environment.default.get(Network),
+            network: environment?.maybeGet(Network) ?? Environment.default.get(Network),
+            ble: environment?.maybeGet(Ble) ?? Environment.default.maybeGet(Ble),
             ipv4Disabled: this.#ipv4Disabled,
             mdnsClient,
             localPort,
@@ -804,13 +804,14 @@ export class CommissioningController {
 
 export async function configureNetwork(options: {
     network: Network;
+    ble?: Ble;
     ipv4Disabled?: boolean;
     mdnsClient?: MdnsClient;
     localPort?: number;
     listeningAddressIpv6?: string;
     listeningAddressIpv4?: string;
 }) {
-    const { network, ipv4Disabled, mdnsClient, localPort, listeningAddressIpv6, listeningAddressIpv4 } = options;
+    const { network, ble, ipv4Disabled, mdnsClient, localPort, listeningAddressIpv6, listeningAddressIpv4 } = options;
 
     const netInterfaces = new NetInterfaceSet();
     const scanners = new ScannerSet();
@@ -838,14 +839,13 @@ export async function configureNetwork(options: {
         scanners.add(mdnsClient);
     }
 
-    try {
-        const ble = Ble.get();
-        netInterfaces.add(ble.centralInterface);
-        scanners.add(ble.scanner);
-    } catch (e) {
-        if (e instanceof NoProviderError) {
-            logger.warn("BLE is not supported on this platform");
-        } else {
+    if (ble === undefined) {
+        logger.warn("BLE is not supported on this platform");
+    } else {
+        try {
+            netInterfaces.add(ble.centralInterface);
+            scanners.add(ble.scanner);
+        } catch (e) {
             logger.error("Disabling BLE due to initialization error:", e);
         }
     }

@@ -117,7 +117,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
      */
     protected get bleAdvertiser() {
         if (this.#bleAdvertiser === undefined) {
-            const { peripheralInterface } = Ble.get();
+            const { peripheralInterface } = this.owner.env.get(Ble);
             const options = this.owner.state.commissioning.ble;
             this.#bleAdvertiser = new BleAdvertiser(peripheralInterface, options);
         }
@@ -129,7 +129,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
      */
     protected get bleTransport() {
         if (this.#bleTransport === undefined) {
-            this.#bleTransport = Ble.get().peripheralInterface;
+            this.#bleTransport = this.owner.env.get(Ble).peripheralInterface;
         }
         return this.#bleTransport;
     }

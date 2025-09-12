@@ -32,7 +32,6 @@ import {
     StorageService,
     Time,
     VendorId,
-    singleton,
 } from "@matter/main";
 import { OnOffServer } from "@matter/main/behaviors";
 import { GeneralDiagnostics, NetworkCommissioning, OnOff } from "@matter/main/clusters";
@@ -41,7 +40,6 @@ import { RootRequirements } from "@matter/main/endpoints";
 import { Ble, FabricAction } from "@matter/main/protocol";
 import { QrCode } from "@matter/main/types";
 import { createFileLogger } from "@matter/nodejs";
-import { NodeJsBle } from "@matter/nodejs-ble";
 import { execSync } from "node:child_process";
 import { DummyThreadNetworkCommissioningServer } from "./cluster/DummyThreadNetworkCommissioningServer.js";
 import { DummyWifiNetworkCommissioningServer } from "./cluster/DummyWifiNetworkCommissioningServer.js";
@@ -50,6 +48,13 @@ import {
     MyFancyCommandResponse,
     MyFancyOwnFunctionalityBehavior,
 } from "./cluster/MyFancyOwnFunctionality.js";
+
+// This installs BLE support if:
+//
+// - The environment.vars value "ble.enable" is true
+// - The command line flag "--ble-enable" is set
+// - The system environment variable "BLE_ENABLE" is set
+import "@matter/nodejs-ble";
 
 const logger = Logger.get("DeviceNodeFull");
 
@@ -67,19 +72,6 @@ const logger = Logger.get("DeviceNodeFull");
 //   Allowed values are: Format.PLAIN, Format.HTML, Format.ANSI,
 
 const environment = Environment.default;
-
-// Alternatively "--ble-enable" or environment variable "BLE_ENABLED"
-// Alternatively "--ble-hciId" or environment variable "BLE_HCIID"
-if (environment.vars.get("ble.enable")) {
-    // Initialize Ble
-    Ble.get = singleton(
-        () =>
-            new NodeJsBle({
-                environment,
-                hciId: environment.vars.number("ble.hciId"),
-            }),
-    );
-}
 
 function executeCommand(scriptParamName: string) {
     const script = environment.vars.string(scriptParamName);
@@ -261,7 +253,7 @@ const server = await ServerNode.create(RootEndpoint, {
 });
 
 const networkId = new Uint8Array(32);
-if (Ble.enabled) {
+if (environment.has(Ble)) {
     // matter.js will create an Ethernet-only device by default when it comes to Network Commissioning Features.
     // To offer e.g. a "Wi-Fi only device" (or any other combination) we need to override the Network Commissioning
     // cluster and implement all the need handling here. This is a "static implementation" for pure demonstration

@@ -11,30 +11,21 @@
  * because you need to adjust the code in any way depending on your use case.
  */
 
-import { Diagnostic, Environment, Logger, singleton, StorageService, Time } from "@matter/main";
+import { Diagnostic, Environment, Logger, StorageService, Time } from "@matter/main";
 import { DescriptorClient } from "@matter/main/behaviors/descriptor";
 import { OnOffClient } from "@matter/main/behaviors/on-off";
 import { BasicInformationCluster, Descriptor, GeneralCommissioning } from "@matter/main/clusters";
-import { Ble } from "@matter/main/protocol";
+import { ClusterClientObj } from "@matter/main/protocol";
 import { ManualPairingCodeCodec, NodeId } from "@matter/main/types";
-import { NodeJsBle } from "@matter/nodejs-ble";
 import { CommissioningController, NodeCommissioningOptions } from "@project-chip/matter.js";
 import { NodeStates } from "@project-chip/matter.js/device";
+
+// This installs BLE support if configuration variable "ble.enable" is true
+import "@matter/nodejs-ble";
 
 const logger = Logger.get("Controller");
 
 const environment = Environment.default;
-
-if (environment.vars.get("ble")) {
-    // Initialize Ble
-    Ble.get = singleton(
-        () =>
-            new NodeJsBle({
-                environment,
-                hciId: environment.vars.number("ble.hci.id"),
-            }),
-    );
-}
 
 const storageService = environment.get(StorageService);
 
