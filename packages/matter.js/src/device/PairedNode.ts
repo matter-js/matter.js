@@ -24,6 +24,7 @@ import {
     Time,
     Timer,
 } from "#general";
+import { Behavior, Commands } from "#node";
 import {
     AttributeClientValues,
     ChannelStatusResponseError,
@@ -70,6 +71,7 @@ import {
     getDeviceTypeDefinitionFromModelByCode,
 } from "./DeviceTypes.js";
 import { Endpoint } from "./Endpoint.js";
+import { EndpointPropertiesProxy } from "./EndpointPropertiesProxy.js";
 import { asClusterClientInternal, isClusterClient } from "./TypeHelpers.js";
 
 const logger = Logger.get("PairedNode");
@@ -235,7 +237,7 @@ interface SubscriptionHandlerCallbacks {
  * the CommissioningController on commissioning or when connecting.
  */
 export class PairedNode {
-    readonly #endpoints = new Map<EndpointNumber, Endpoint>();
+    readonly #endpoints = new Map<number, Endpoint>();
     #interactionClient: InteractionClient;
     #reconnectDelayTimer?: Timer;
     #newChannelReconnectDelayTimer = Time.getTimer(
@@ -395,7 +397,7 @@ export class PairedNode {
             if (
                 session.isInitiator || // If we initiated the session we do not need to react on it
                 session.peerNodeId !== this.nodeId || // no session for this node
-                this.state !== NodeStates.WaitingForDeviceDiscovery
+                this.connectionState !== NodeStates.WaitingForDeviceDiscovery
             ) {
                 return;
             }
@@ -412,7 +414,7 @@ export class PairedNode {
                 // This kicks of the remote initialization and automatic reconnection handling if it can not be connected
                 this.#initialize().catch(error => {
                     logger.info(`Node ${nodeId}: Error during remote initialization`, error);
-                    if (this.state !== NodeStates.Disconnected) {
+                    if (this.connectionState !== NodeStates.Disconnected) {
                         this.#setConnectionState(NodeStates.WaitingForDeviceDiscovery);
                         this.#scheduleReconnect();
                     }
@@ -430,7 +432,7 @@ export class PairedNode {
     }
 
     /** Returns the Node connection state. */
-    get state() {
+    get connectionState() {
         return this.#connectionState;
     }
 
@@ -955,7 +957,7 @@ export class PairedNode {
     }
 
     #scheduleReconnect(delay?: Duration) {
-        if (this.state !== NodeStates.WaitingForDeviceDiscovery) {
+        if (this.connectionState !== NodeStates.WaitingForDeviceDiscovery) {
             this.#setConnectionState(NodeStates.Reconnecting);
         }
 
@@ -988,7 +990,7 @@ export class PairedNode {
 
         if (updateStructure) {
             // Find out what we need to remove or retain
-            const endpointsToRemove = new Set<EndpointNumber>(this.#endpoints.keys());
+            const endpointsToRemove = new Set<number>(this.#endpoints.keys());
             for (const [endpointId] of Object.entries(allData)) {
                 const endpointIdNumber = EndpointNumber(parseInt(endpointId));
                 if (this.#endpoints.has(endpointIdNumber)) {
@@ -1196,6 +1198,11 @@ export class PairedNode {
                 return new PairedDevice(deviceTypes as AtLeastOne<DeviceTypeDefinition>, endpointClusters, endpointId);
             }
         }
+    }
+
+    /** Returns all parts (endpoints) known for the Root Endpoint of this node. */
+    get parts() {
+        return this.getRootEndpoint()?.parts ?? new Map<number, Endpoint>();
     }
 
     /** Returns the functional devices/endpoints (the "childs" of the Root Endpoint) known for this node. */
@@ -1431,5 +1438,45 @@ export class PairedNode {
                 root ? Diagnostic.list([root]) : "Unknown",
             ],
         });
+    }
+
+    /**
+     * Access to cached cluster state values of the root endpoint using node.state.clusterNameOrId.attributeNameOrId
+     * Returns immutable cached attribute values from cluster clients
+     */
+    get state() {
+        return this.getRootEndpoint()?.state ?? ({} as EndpointPropertiesProxy.State);
+    }
+
+    /**
+     * Access to cluster commands of the root endpoint using node.commands.clusterNameOrId.commandName
+     * Returns async functions that can be called to invoke commands on cluster clients
+     */
+    get commands() {
+        return this.getRootEndpoint()?.commands ?? ({} as EndpointPropertiesProxy.Commands);
+    }
+
+    /**
+     * Access to typed cached cluster state values of the root endpoint
+     * Returns immutable cached attribute values from cluster clients
+     */
+    stateOf<T extends Behavior.Type>(type: T) {
+        const root = this.getRootEndpoint();
+        if (root === undefined) {
+            throw new ImplementationError(`Root endpoint for node ${this.nodeId} not found.`);
+        }
+        return root.stateOf(type);
+    }
+
+    /**
+     * Access to typed cluster commands of the root endpoint
+     * Returns async functions that can be called to invoke commands on cluster clients
+     */
+    commandsOf<T extends Behavior.Type>(type: T): Commands.OfBehavior<T> {
+        const root = this.getRootEndpoint();
+        if (root === undefined) {
+            throw new ImplementationError(`Root endpoint for node ${this.nodeId} not found.`);
+        }
+        return root.commandsOf(type);
     }
 }

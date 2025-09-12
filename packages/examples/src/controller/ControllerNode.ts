@@ -11,28 +11,20 @@
  * because you need to adjust the code in any way depending on your use case.
  */
 
-import { Diagnostic, Environment, Logger, singleton, StorageService, Time } from "@matter/main";
-import { BasicInformationCluster, DescriptorCluster, GeneralCommissioning, OnOff } from "@matter/main/clusters";
-import { Ble, ClusterClientObj } from "@matter/main/protocol";
+import { Diagnostic, Environment, Logger, StorageService, Time } from "@matter/main";
+import { DescriptorClient } from "@matter/main/behaviors/descriptor";
+import { OnOffClient } from "@matter/main/behaviors/on-off";
+import { BasicInformationCluster, Descriptor, GeneralCommissioning } from "@matter/main/clusters";
 import { ManualPairingCodeCodec, NodeId } from "@matter/main/types";
-import { NodeJsBle } from "@matter/nodejs-ble";
 import { CommissioningController, NodeCommissioningOptions } from "@project-chip/matter.js";
 import { NodeStates } from "@project-chip/matter.js/device";
+
+// This installs BLE support if configuration variable "ble.enable" is true
+import "@matter/nodejs-ble";
 
 const logger = Logger.get("Controller");
 
 const environment = Environment.default;
-
-if (environment.vars.get("ble")) {
-    // Initialize Ble
-    Ble.get = singleton(
-        () =>
-            new NodeJsBle({
-                environment,
-                hciId: environment.vars.number("ble.hci.id"),
-            }),
-    );
-}
 
 const storageService = environment.get(StorageService);
 
@@ -229,16 +221,28 @@ class ControllerNode {
 
             node.logStructure();
 
-            // Example to initialize a ClusterClient and access concrete fields as API methods
-            const descriptor = node.getRootClusterClient(DescriptorCluster);
-            if (descriptor !== undefined) {
-                console.log(await descriptor.attributes.deviceTypeList.get()); // you can call that way
-                console.log(await descriptor.getServerListAttribute()); // or more convenient that way
+            // Example to conveniently access cluster states in a typed manner and read the data from the local cache
+            // This is the new preferred way to access the latest known cluster data
+            const descriptorState = node.stateOf(DescriptorClient);
+            if (descriptorState !== undefined) {
+                console.log("deviceTypeList", descriptorState.deviceTypeList); // you can access the state that way
             } else {
                 console.log("No Descriptor Cluster found. This should never happen!");
             }
 
-            // Example to subscribe to a field and get the value
+            // Alternatively you can access concrete fields as API methods by creating a ClusterClient and
+            // reading the data from the device or local cache
+            const descriptor = node.getRootClusterClient(Descriptor.Complete);
+            if (descriptor !== undefined) {
+                console.log(descriptor.getTagListAttributeFromCache()); // Convenient that way from local cache
+                console.log(await descriptor.getServerListAttribute()); // Convenient that way (async!)
+                console.log(await descriptor.attributes.clientList.get()); // or more low level that way (async!)
+            } else {
+                console.log("No Descriptor Cluster found. This should never happen!");
+            }
+
+            // Example to subscribe to a field and get the value, normally this is not needed because by default
+            // all attributes are subscribed automatically!
             const info = node.getRootClusterClient(BasicInformationCluster);
             if (info !== undefined) {
                 console.log(await info.getProductNameAttribute()); // This call is executed remotely
@@ -260,25 +264,23 @@ class ControllerNode {
             //const attributesBasicInformation = await interactionClient.getMultipleAttributes([{ endpointId: 0, clusterId: BasicInformationCluster.id} ]);
             //console.log("Attributes-BasicInformation:", JSON.stringify(attributesBasicInformation, null, 2));
 
-            const devices = node.getDevices();
-            if (devices[0] && devices[0].number === 1) {
+            const endpointOne = node.parts.get(1);
+            if (endpointOne) {
                 // Example to subscribe to all Attributes of endpoint 1 of the commissioned node: */*/*
                 //await interactionClient.subscribeMultipleAttributes([{ endpointId: 1, /* subscribe anything from endpoint 1 */ }], 0, 180, data => {
                 //    console.log("Subscribe-All Data:", Diagnostic.json(data));
                 //});
 
-                const onOff: ClusterClientObj<OnOff.Complete> | undefined = devices[0].getClusterClient(OnOff.Complete);
-                if (onOff !== undefined) {
-                    let onOffStatus = await onOff.getOnOffAttribute();
+                // Example using the new convenient typed access to state and commands of the OnOff cluster
+                const onOffState = endpointOne.stateOf(OnOffClient);
+                if (onOffState !== undefined) {
+                    let onOffStatus = onOffState.onOff;
                     console.log("initial onOffStatus", onOffStatus);
 
-                    onOff.addOnOffAttributeListener(value => {
-                        console.log("subscription onOffStatus", value);
-                        onOffStatus = value;
-                    });
+                    const onOffCommands = endpointOne.commandsOf(OnOffClient);
                     // read data every minute to keep up the connection to show the subscription is working
                     setInterval(() => {
-                        onOff
+                        onOffCommands
                             .toggle()
                             .then(() => {
                                 onOffStatus = !onOffStatus;

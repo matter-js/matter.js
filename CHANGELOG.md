@@ -28,6 +28,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 -   @matter/protocol
     - Breaking: The platform-specific BLE abstraction has changed so that higher-level logic may be shared across platforms
     - Breaking: Low-level advertising APIs have changed significantly; in particular, `MdnsBroadcaster`, `MdnsInstanceBroadcaster` and `MdnsScanner` are replaced by `MdnsServer`, `MdnsAdvertisement` and `MdnsClient`
+    - Breaking: The `Ble.get()` singleton is removed; components now instead retrieve the `Ble` service from the environment
     - Feature: Adds support for advertising of TCP and ICD services (but matter.js does not yet implement those features otherwise)
     - Feature: Adds support for extended advertisement
     - Feature: Added support for Case Authenticated Tags (CATs) in operational CASE sessions for enhanced access control
@@ -50,6 +51,13 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 -   @matter/react-native
     - Fix: (Luxni) Update UDP, BLE and Crypto usage to work with React Native
+
+-   @project-chip/matter.js
+    - BREAKING: `PairedNode.state` got renamed to `PairedNode.connectionState`!
+    - Enhancement: Added more convenient accessors for endpoint cached read-only state: `Endpoint.state` property for attributes for all clusters in generic way and `Endpoint.stateOf()` for a typed access for a defined Client behavior
+    - Enhancement: Added more convenient accessors for endpoint commands: `Endpoint.commands` property for commands for all clusters in generic way and `Endpoint.commandsOf()` for a types access for a defined Client behavior
+    - Enhancement: Added `PairedNode.parts` and `Endpoint.parts` as Map property to access all endpoints of a node
+    - Enhancement: Added `PairedNode.state`, `PairedNode.stateOf()`, `PairedNode.commands` and `PairedNode.commandsOf()` to access all endpoints of te root endpoint in a more convenient way
 
 -   Other
     - Feature: For developers working with the matter.js repository on Macs and Windows, we now offer a devcontainer to facilitate native Linux development

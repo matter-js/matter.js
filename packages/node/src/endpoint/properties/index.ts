@@ -5,6 +5,7 @@
  */
 
 export * from "./Behaviors.js";
+export * from "./Commands.js";
 export * from "./EndpointContainer.js";
 export * from "./EndpointInitializer.js";
 export * from "./EndpointLifecycle.js";

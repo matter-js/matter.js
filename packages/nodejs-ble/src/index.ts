@@ -6,3 +6,5 @@
 
 export * from "./BleScanner.js";
 export * from "./NodeJsBle.js";
+
+import "./install.js";

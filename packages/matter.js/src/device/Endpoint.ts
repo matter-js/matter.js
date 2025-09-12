@@ -10,7 +10,8 @@ import {
     FixedLabelCluster,
     UserLabelCluster,
 } from "#clusters";
-import { AtLeastOne, Diagnostic, ImplementationError, InternalError, NotImplementedError } from "#general";
+import { AtLeastOne, Diagnostic, Immutable, ImplementationError, InternalError, NotImplementedError } from "#general";
+import { Behavior, Commands as BehaviorCommands } from "#node";
 import { ClusterClientObj, SupportedAttributeClient, UnknownSupportedAttributeClient } from "#protocol";
 import {
     Attributes,
@@ -28,6 +29,7 @@ import {
 import { ClusterServer } from "../cluster/server/ClusterServer.js";
 import { ClusterServerObj, asClusterServerInternal } from "../cluster/server/ClusterServerTypes.js";
 import { DeviceTypeDefinition } from "./DeviceTypes.js";
+import { EndpointPropertiesProxy } from "./EndpointPropertiesProxy.js";
 
 export interface EndpointOptions {
     endpointId?: EndpointNumber;
@@ -37,13 +39,15 @@ export interface EndpointOptions {
 export class Endpoint {
     private readonly clusterServers = new Map<ClusterId, ClusterServerObj>();
     private readonly clusterClients = new Map<ClusterId, ClusterClientObj>();
-    private readonly childEndpoints: Endpoint[] = [];
+    private readonly childEndpoints = new Map<number, Endpoint>();
     number: EndpointNumber | undefined;
     uniqueStorageKey: string | undefined;
     name = "";
     private structureChangedCallback: () => void = () => {
         /** noop until officially set **/
     };
+    #stateProxy?: EndpointPropertiesProxy.State;
+    #commandsProxy?: EndpointPropertiesProxy.Commands;
 
     /**
      * Create a new Endpoint instance.
@@ -65,13 +69,74 @@ export class Endpoint {
         }
     }
 
+    /**
+     * Access to cached cluster state values using endpoint.state.clusterNameOrId.attributeNameOrId
+     * Returns immutable cached attribute values from cluster clients
+     */
+    get state() {
+        if (this.#stateProxy === undefined) {
+            this.#stateProxy = EndpointPropertiesProxy.state(this.clusterClients);
+        }
+        return this.#stateProxy;
+    }
+
+    /**
+     * Access to cluster commands using endpoint.commands.clusterNameOrId.commandName
+     * Returns async functions that can be called to invoke commands on cluster clients
+     */
+    get commands() {
+        if (this.#commandsProxy === undefined) {
+            this.#commandsProxy = EndpointPropertiesProxy.commands(this.clusterClients);
+        }
+        return this.#commandsProxy;
+    }
+
+    /**
+     * Access to typed cached cluster state values
+     * Returns immutable cached attribute values from cluster clients
+     */
+    stateOf<T extends Behavior.Type>(type: T) {
+        this.#clusterClientForBehaviorType(type); // just use to verify the existence of the cluster
+
+        return this.state[type.name] as Immutable<Behavior.StateOf<T>>;
+    }
+
+    /**
+     * Access to typed cluster commands
+     * Returns async functions that can be called to invoke commands on cluster clients
+     */
+    commandsOf<T extends Behavior.Type>(type: T) {
+        return this.#clusterClientForBehaviorType(type).commands as BehaviorCommands.OfBehavior<T>;
+    }
+
+    #clusterClientForBehaviorType<T extends Behavior.Type>(type: T): ClusterClientObj {
+        const clusterId = type.schema?.tag === "cluster" ? (type.schema.id as ClusterId) : undefined;
+        if (clusterId === undefined) {
+            throw new ImplementationError(`Behavior ${type.id} is not backed by a cluster`);
+        }
+        const clusterClient = this.clusterClients.get(clusterId);
+        if (!clusterClient) {
+            throw new ImplementationError(
+                `Cluster ${type.id} (0x${clusterId.toString(16)}) is not present on endpoint ${this.number}`,
+            );
+        }
+        return clusterClient;
+    }
+
+    /** Get all child endpoints aka parts */
+    get parts() {
+        return this.childEndpoints;
+    }
+
     get deviceType(): DeviceTypeId {
         return this.deviceTypes[0].code;
     }
 
     setStructureChangedCallback(callback: () => void) {
         this.structureChangedCallback = callback;
-        this.childEndpoints.forEach(endpoint => endpoint.setStructureChangedCallback(callback));
+        for (const endpoint of this.childEndpoints.values()) {
+            endpoint.setStructureChangedCallback(callback);
+        }
     }
 
     removeFromStructure() {
@@ -79,7 +144,9 @@ export class Endpoint {
         this.structureChangedCallback = () => {
             /** noop **/
         };
-        this.childEndpoints.forEach(endpoint => endpoint.removeFromStructure());
+        for (const endpoint of this.childEndpoints.values()) {
+            endpoint.removeFromStructure();
+        }
     }
 
     close() {
@@ -217,34 +284,34 @@ export class Endpoint {
 
     addChildEndpoint(endpoint: Endpoint): void {
         if (!(endpoint instanceof Endpoint)) {
-            throw new Error("Only supported EndpointInterface implementation is Endpoint");
+            throw new InternalError("Only supported EndpointInterface implementation is Endpoint");
+        }
+        const id = endpoint.getNumber();
+
+        if (this.childEndpoints.has(id)) {
+            throw new ImplementationError(`Endpoint with id ${id} already exists as child from ${this.number}.`);
         }
 
-        if (endpoint.number !== undefined && this.getChildEndpoint(endpoint.number) !== undefined) {
-            throw new ImplementationError(
-                `Endpoint with id ${endpoint.number} already exists as child from ${this.number}.`,
-            );
-        }
-
-        this.childEndpoints.push(endpoint);
+        this.childEndpoints.set(id, endpoint);
         endpoint.setStructureChangedCallback(this.structureChangedCallback);
         this.structureChangedCallback(); // Inform parent about structure change
     }
 
     getChildEndpoint(id: EndpointNumber): Endpoint | undefined {
-        return this.childEndpoints.find(endpoint => endpoint.number === id);
+        return this.childEndpoints.get(id);
     }
 
     getChildEndpoints(): Endpoint[] {
-        return this.childEndpoints;
+        return Array.from(this.childEndpoints.values());
     }
 
     protected removeChildEndpoint(endpoint: Endpoint): void {
-        const index = this.childEndpoints.indexOf(endpoint);
-        if (index === -1) {
+        const id = endpoint.getNumber();
+        const knownEndpoint = this.childEndpoints.get(id);
+        if (knownEndpoint === undefined) {
             throw new ImplementationError(`Provided endpoint for deletion does not exist as child endpoint.`);
         }
-        this.childEndpoints.splice(index, 1);
+        this.childEndpoints.delete(id);
         endpoint.removeFromStructure();
         this.structureChangedCallback(); // Inform parent about structure change
     }

@@ -4,9 +4,9 @@
 
 Matter BLE support using bleno for Peripheral/Device side and noble (not implemented yet) for Central/Controller side.
 
-> This package supports all Node.js LTS versions starting with 18.x
+> This package supports all Node.js LTS versions starting with 20.x
 
-This package contains the specific Platform implementations for Bluetooth LE with Node.js. It is designed to be used in addition to the @matter/nodejs package to enable BLE specific functionality.
+This package contains the specific Platform implementations for Bluetooth LE with Node.js. It is designed to be used in addition to the `@matter/nodejs` package to enable BLE specific functionality.
 
 ## Prerequisites and Limitations
 
@@ -25,28 +25,33 @@ The used packages have some limitations and prerequisites. Please check the Read
 > [TIP] For Linux: The :`make` and `g++` packages must be installed.
 
 ## How to use this package
-This package is designed to be used in addition to matter.ja and matter-node.js to enable BLE support. It is not intended to be used standalone.
+This package adds BLE support to matter.js on Node.js. It is not intended to be used standalone.
 
 Add this package to your package dependencies and make sure it is exactly the same version as matter.js and matter-node.js.
 
-In your code you register the BLE instance by using:
-```javascript
-import { BleNode } from "@matter/nodejs-ble";
-import { Ble } from "@matter/main";
+In your code you register the BLE instance by importing the package:
 
-Ble.get = singleton(
-    () =>
-        new BleNode({
-          // hciId: 1, // If you need to change it from default 0 on linux systems
-        }),
-);
+```ts
+import "@matter/nodejs-ble";
+```
+
+In addition to importing the module, you also need to explicitly enable BLE:
+
+```ts
+Environment.default.vars.set("ble.enable", true);
+```
+
+If you need to modify the HCI ID you can do so using a configuration variable:
+
+```ts
+Environment.default.vars.set("ble.hci.id", 1);
 ```
 
 The relevant classes in matter.js will detect the registration and use the BLE instance for BLE operations if needed.
 
 ## How to choose the HCI device (Linux)
 
-You can optionally set an options object when instantiating BleNode. this object can have the following properties:
+You can optionally set an options object when instantiating NodejsBle.  This object can have the following properties:
 * hciId: HCI ID (number) of the HCI device to use. If not set, ID 0 is used
 
 ## Building

@@ -61,7 +61,7 @@ export class ControllerBehavior extends Behavior {
             this.state.ble = (await this.agent.load(NetworkServer)).state.ble;
         }
         if (this.state.ble !== false) {
-            this.env.get(ScannerSet).add(Ble.get().scanner);
+            this.env.get(ScannerSet).add(this.env.get(Ble).scanner);
         }
 
         // Configure management of controlled fabrics
@@ -118,7 +118,7 @@ export class ControllerBehavior extends Behavior {
             }
         }
         if (this.state.ble) {
-            netInterfaces.add(Ble.get().centralInterface);
+            netInterfaces.add(this.env.get(Ble).centralInterface);
         }
 
         // Install handler to receive data reports for subscriptions

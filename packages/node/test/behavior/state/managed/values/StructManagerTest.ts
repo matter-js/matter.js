@@ -21,10 +21,12 @@ export type Nested = {
     };
 };
 
-const TestContext = {
-    exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
-    node: aclEndpoint(),
-};
+function TestContext() {
+    return {
+        exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
+        node: aclEndpoint(),
+    };
+}
 
 function testNested(
     actor: (vars: { struct: TestStruct; cx: ActionContext; ref: Nested }) => MaybePromise,
@@ -44,7 +46,7 @@ function testNested(
         },
     );
 
-    return struct.online(TestContext, (ref, cx) => {
+    return struct.online(TestContext(), (ref, cx) => {
         return actor({ struct, cx, ref: ref as Nested });
     });
 }
@@ -140,7 +142,7 @@ describe("StructManager", () => {
             },
         });
 
-        await struct.online(TestContext, ref => {
+        await struct.online(TestContext(), ref => {
             ref.array = [1, 2, 3];
 
             const array = ref.array as number[];
@@ -173,7 +175,7 @@ describe("StructManager", () => {
             },
         });
 
-        await struct.online(TestContext, ref => {
+        await struct.online(TestContext(), ref => {
             const input = [
                 { num: 1, str: "foo" },
                 { num: 2, str: "bar" },
