@@ -45,22 +45,27 @@ import { BleScanner } from "./BleScanner.js";
 const logger = Logger.get("BleChannel");
 
 export class ReactNativeBleCentralInterface implements NetInterface {
-    private openChannels: Map<ServerAddress, Device> = new Map();
-    private onMatterMessageListener: ((socket: Channel<Bytes>, data: Bytes) => void) | undefined;
+    #ble: Ble;
+    #openChannels: Map<ServerAddress, Device> = new Map();
+    #onMatterMessageListener: ((socket: Channel<Bytes>, data: Bytes) => void) | undefined;
+
+    constructor(ble: Ble) {
+        this.#ble = ble;
+    }
 
     async openChannel(address: ServerAddress): Promise<Channel<Bytes>> {
         if (address.type !== "ble") {
             throw new InternalError(`Unsupported address type ${address.type}.`);
         }
-        if (this.onMatterMessageListener === undefined) {
+        if (this.#onMatterMessageListener === undefined) {
             throw new InternalError(`Network Interface was not added to the system yet.`);
         }
 
         // Get the peripheral by address and connect to it.
-        const { peripheral, hasAdditionalAdvertisementData } = (Ble.get().scanner as BleScanner).getDiscoveredDevice(
+        const { peripheral, hasAdditionalAdvertisementData } = (this.#ble.scanner as BleScanner).getDiscoveredDevice(
             address.peripheralAddress,
         );
-        if (this.openChannels.has(address)) {
+        if (this.#openChannels.has(address)) {
             throw new BleError(
                 `Peripheral ${address.peripheralAddress} is already connected. Only one connection supported right now.`,
             );
@@ -129,12 +134,12 @@ export class ReactNativeBleCentralInterface implements NetInterface {
                 continue;
             }
 
-            this.openChannels.set(address, device);
+            this.#openChannels.set(address, device);
             return await ReactNativeBleChannel.create(
                 device,
                 characteristicC1ForWrite,
                 characteristicC2ForSubscribe,
-                this.onMatterMessageListener,
+                this.#onMatterMessageListener,
                 additionalCommissioningRelatedData,
             );
         }
@@ -143,14 +148,14 @@ export class ReactNativeBleCentralInterface implements NetInterface {
     }
 
     onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): TransportInterface.Listener {
-        this.onMatterMessageListener = listener;
+        this.#onMatterMessageListener = listener;
         return {
             close: async () => await this.close(),
         };
     }
 
     async close() {
-        for (const peripheral of this.openChannels.values()) {
+        for (const peripheral of this.#openChannels.values()) {
             await peripheral.cancelConnection();
         }
     }

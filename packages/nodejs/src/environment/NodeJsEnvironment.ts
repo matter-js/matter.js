@@ -15,6 +15,7 @@ import {
     LogFormat,
     Logger,
     Network,
+    ServiceBundle,
     StorageService,
     VariableService,
 } from "#general";
@@ -80,6 +81,8 @@ export function NodeJsEnvironment() {
     if (!env.vars.has("logger.format") && Logger.format === LogFormat.PLAIN && process.stdin?.isTTY) {
         env.vars.set("logger.format", LogFormat.ANSI);
     }
+
+    ServiceBundle.default.deploy(env);
 
     config.isInitialized = true;
 

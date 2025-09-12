@@ -4,33 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-    Bytes,
-    Channel,
-    ChannelType,
-    Duration,
-    MatterError,
-    NetInterface,
-    NoProviderError,
-    TransportInterface,
-} from "#general";
+import { Bytes, Channel, ChannelType, Duration, MatterError, NetInterface, TransportInterface } from "#general";
 import { Scanner } from "../common/Scanner.js";
 import { BLE_MAX_MATTER_PAYLOAD_SIZE } from "./BleConsts.js";
 
 export class BleError extends MatterError {}
 
-function BleDisabled(): Ble {
-    throw new NoProviderError("No provider configured");
-}
-
 // TODO - need to factor out the general platform BLE from Matter/BTP so this can move into matter.js-general
 export abstract class Ble {
-    static get = BleDisabled;
-
-    static get enabled() {
-        return this.get !== BleDisabled;
-    }
-
     abstract get peripheralInterface(): BlePeripheralInterface;
     abstract get centralInterface(): NetInterface;
     abstract get scanner(): Scanner;
