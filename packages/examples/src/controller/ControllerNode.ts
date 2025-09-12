@@ -15,7 +15,6 @@ import { Diagnostic, Environment, Logger, StorageService, Time } from "@matter/m
 import { DescriptorClient } from "@matter/main/behaviors/descriptor";
 import { OnOffClient } from "@matter/main/behaviors/on-off";
 import { BasicInformationCluster, Descriptor, GeneralCommissioning } from "@matter/main/clusters";
-import { ClusterClientObj } from "@matter/main/protocol";
 import { ManualPairingCodeCodec, NodeId } from "@matter/main/types";
 import { CommissioningController, NodeCommissioningOptions } from "@project-chip/matter.js";
 import { NodeStates } from "@project-chip/matter.js/device";
