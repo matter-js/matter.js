@@ -26,7 +26,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 -   @matter/protocol
     - Breaking: The platform-specific BLE abstraction has changed so that higher-level logic may be shared across platforms
     - Breaking: Low-level advertising APIs have changed significantly; in particular, `MdnsBroadcaster`, `MdnsInstanceBroadcaster` and `MdnsScanner` are replaced by `MdnsServer`, `MdnsAdvertisement` and `MdnsClient`
-    - Breaking: The `Ble.get()` singleton is removed; components now instead retrieve the `Ble` service form the environment
+    - Breaking: The `Ble.get()` singleton is removed; components now instead retrieve the `Ble` service from the environment
     - Feature: Adds support for advertising of TCP and ICD services (but matter.js does not yet implement those features otherwise)
     - Feature: Adds support for extended advertisement
     - Feature: Added support for Case Authenticated Tags (CATs) in operational CASE sessions for enhanced access control

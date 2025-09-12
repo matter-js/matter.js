@@ -25,7 +25,7 @@ The used packages have some limitations and prerequisites. Please check the Read
 > [TIP] For Linux: The :`make` and `g++` packages must be installed.
 
 ## How to use this package
-This package is adds BLE support to matter.js on Node.js. It is not intended to be used standalone.
+This package adds BLE support to matter.js on Node.js. It is not intended to be used standalone.
 
 Add this package to your package dependencies and make sure it is exactly the same version as matter.js and matter-node.js.
 
@@ -33,6 +33,12 @@ In your code you register the BLE instance by importing the package:
 
 ```ts
 import "@matter/nodejs-ble";
+```
+
+In addition to importing the module, you also need to explicitly enable BLE:
+
+```ts
+Environment.default.vars.set("ble.enable", true);
 ```
 
 If you need to modify the HCI ID you can do so using a configuration variable:

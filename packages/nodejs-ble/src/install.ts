@@ -9,12 +9,25 @@ import { Ble } from "#protocol";
 import { NodeJsBle } from "./NodeJsBle.js";
 
 function nodejsBle(env: Environment) {
-    if (env.vars.boolean("ble.enable") !== true) {
-        return;
-    }
+    let installed = false;
+    let instance = undefined as undefined | Ble;
 
-    const instance = new NodeJsBle({ environment: env });
-    env.set(Ble, instance);
+    env.vars.use(() => {
+        const shouldInstall = env.vars.boolean("ble.enable");
+        if (shouldInstall === installed) {
+            return;
+        }
+
+        if (shouldInstall) {
+            instance = new NodeJsBle({ environment: env });
+            env.set(Ble, instance);
+        } else {
+            env.delete(Ble, instance);
+            instance = undefined;
+        }
+
+        installed = shouldInstall;
+    });
 }
 
 ServiceBundle.default.add(nodejsBle);

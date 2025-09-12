@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Environment, LogDestination, LogFormat, Logger, LogLevel, ServiceBundle } from "#general";
+import { Environment, LogDestination, LogFormat, Logger, LogLevel } from "#general";
 import { createFileLogger } from "#nodejs";
 import "@matter/nodejs-ble";
 import yargs from "yargs/yargs";
@@ -154,8 +154,6 @@ async function main() {
                 if (ble) {
                     Environment.default.vars.set("ble.enable", true);
                 }
-
-                ServiceBundle.default.deploy(Environment.default);
 
                 console.log(`Started Node #${nodeNum} (Type: ${nodeType}) ${ble ? "with" : "without"} BLE`);
                 if (!webSocketInterface) {
