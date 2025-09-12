@@ -39,7 +39,7 @@ export interface EndpointOptions {
 export class Endpoint {
     private readonly clusterServers = new Map<ClusterId, ClusterServerObj>();
     private readonly clusterClients = new Map<ClusterId, ClusterClientObj>();
-    private readonly childEndpoints: Endpoint[] = [];
+    private readonly childEndpoints = new Map<number, Endpoint>();
     number: EndpointNumber | undefined;
     uniqueStorageKey: string | undefined;
     name = "";
@@ -123,13 +123,20 @@ export class Endpoint {
         return clusterClient;
     }
 
+    /** Get all child endpoints aka parts */
+    get parts() {
+        return this.childEndpoints;
+    }
+
     get deviceType(): DeviceTypeId {
         return this.deviceTypes[0].code;
     }
 
     setStructureChangedCallback(callback: () => void) {
         this.structureChangedCallback = callback;
-        this.childEndpoints.forEach(endpoint => endpoint.setStructureChangedCallback(callback));
+        for (const endpoint of this.childEndpoints.values()) {
+            endpoint.setStructureChangedCallback(callback);
+        }
     }
 
     removeFromStructure() {
@@ -137,7 +144,9 @@ export class Endpoint {
         this.structureChangedCallback = () => {
             /** noop **/
         };
-        this.childEndpoints.forEach(endpoint => endpoint.removeFromStructure());
+        for (const endpoint of this.childEndpoints.values()) {
+            endpoint.removeFromStructure();
+        }
     }
 
     close() {
@@ -275,34 +284,34 @@ export class Endpoint {
 
     addChildEndpoint(endpoint: Endpoint): void {
         if (!(endpoint instanceof Endpoint)) {
-            throw new Error("Only supported EndpointInterface implementation is Endpoint");
+            throw new InternalError("Only supported EndpointInterface implementation is Endpoint");
+        }
+        const id = endpoint.getNumber();
+
+        if (this.childEndpoints.has(id)) {
+            throw new ImplementationError(`Endpoint with id ${id} already exists as child from ${this.number}.`);
         }
 
-        if (endpoint.number !== undefined && this.getChildEndpoint(endpoint.number) !== undefined) {
-            throw new ImplementationError(
-                `Endpoint with id ${endpoint.number} already exists as child from ${this.number}.`,
-            );
-        }
-
-        this.childEndpoints.push(endpoint);
+        this.childEndpoints.set(id, endpoint);
         endpoint.setStructureChangedCallback(this.structureChangedCallback);
         this.structureChangedCallback(); // Inform parent about structure change
     }
 
     getChildEndpoint(id: EndpointNumber): Endpoint | undefined {
-        return this.childEndpoints.find(endpoint => endpoint.number === id);
+        return this.childEndpoints.get(id);
     }
 
     getChildEndpoints(): Endpoint[] {
-        return this.childEndpoints;
+        return Array.from(this.childEndpoints.values());
     }
 
     protected removeChildEndpoint(endpoint: Endpoint): void {
-        const index = this.childEndpoints.indexOf(endpoint);
-        if (index === -1) {
+        const id = endpoint.getNumber();
+        const knownEndpoint = this.childEndpoints.get(id);
+        if (knownEndpoint === undefined) {
             throw new ImplementationError(`Provided endpoint for deletion does not exist as child endpoint.`);
         }
-        this.childEndpoints.splice(index, 1);
+        this.childEndpoints.delete(id);
         endpoint.removeFromStructure();
         this.structureChangedCallback(); // Inform parent about structure change
     }

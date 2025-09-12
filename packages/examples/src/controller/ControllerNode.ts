@@ -231,14 +231,9 @@ class ControllerNode {
 
             node.logStructure();
 
-            const rootEndpoint = node.parts.get(0);
-            if (rootEndpoint === undefined) {
-                throw new Error("Root endpoint 0 not found, this should never happen!");
-            }
-
             // Example to conveniently access cluster states in a typed manner and read the data from the local cache
             // This is the new preferred way to access the latest known cluster data
-            const descriptorState = rootEndpoint.stateOf(DescriptorClient);
+            const descriptorState = node.stateOf(DescriptorClient);
             if (descriptorState !== undefined) {
                 console.log("deviceTypeList", descriptorState.deviceTypeList); // you can access the state that way
             } else {
