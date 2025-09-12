@@ -24,7 +24,7 @@ import {
     Time,
     Timer,
 } from "#general";
-import { Behavior } from "#node";
+import { Behavior, Commands } from "#node";
 import {
     AttributeClientValues,
     ChannelStatusResponseError,
@@ -1472,7 +1472,7 @@ export class PairedNode {
      * Access to typed cluster commands of the root endpoint
      * Returns async functions that can be called to invoke commands on cluster clients
      */
-    commandsOf<T extends Behavior.Type>(type: T) {
+    commandsOf<T extends Behavior.Type>(type: T): Commands.OfBehavior<T> {
         const root = this.getRootEndpoint();
         if (root === undefined) {
             throw new ImplementationError(`Root endpoint for node ${this.nodeId} not found.`);
