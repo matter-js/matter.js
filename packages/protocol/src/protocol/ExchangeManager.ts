@@ -242,6 +242,7 @@ export class ExchangeManager {
                 );
                 await exchange.send(SecureMessageType.StandaloneAck, new Uint8Array(0), {
                     includeAcknowledgeMessageId: message.packetHeader.messageId,
+                    protocolId: SECURE_CHANNEL_PROTOCOL_ID,
                 });
                 await exchange.close();
                 return;
@@ -294,6 +295,7 @@ export class ExchangeManager {
                 this.#addExchange(exchangeIndex, exchange);
                 await exchange.send(SecureMessageType.StandaloneAck, new Uint8Array(0), {
                     includeAcknowledgeMessageId: message.packetHeader.messageId,
+                    protocolId: SECURE_CHANNEL_PROTOCOL_ID,
                 });
                 await exchange.close();
                 logger.debug(
