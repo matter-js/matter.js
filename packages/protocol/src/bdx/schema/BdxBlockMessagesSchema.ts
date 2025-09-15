@@ -7,31 +7,31 @@
 import { Bytes, DataReader, DataWriter, Endian } from "#general";
 import { Schema } from "#types";
 
-type BdxCounterOnly = {
+interface BdxCounterOnly {
     blockCounter: number;
-};
+}
 
 /** @see {@link MatterSpecification.v141.Core}, section 11.22.6.2 */
-export type BdxBlockQuery = BdxCounterOnly;
+export interface BdxBlockQuery extends BdxCounterOnly {}
 
 /** @see {@link MatterSpecification.v141.Core}, section 11.22.6.6 */
-export type BdxBlockAck = BdxCounterOnly;
+export interface BdxBlockAck extends BdxCounterOnly {}
 
 /** @see {@link MatterSpecification.v141.Core}, section 11.22.6.7 */
-export type BdxBlockAckEof = BdxCounterOnly;
+export interface BdxBlockAckEof extends BdxCounterOnly {}
 
 /** @see {@link MatterSpecification.v141.Core}, section 11.22.6.3 */
-export type BdxBlockQueryWithSkip = BdxCounterOnly & {
+export interface BdxBlockQueryWithSkip extends BdxCounterOnly {
     bytesToSkip: number | bigint;
-};
+}
 
 /** @see {@link MatterSpecification.v141.Core}, section 11.22.6.4 */
-export type BdxBlock = BdxCounterOnly & {
+export interface BdxBlock extends BdxCounterOnly {
     data: Bytes;
-};
+}
 
 /** @see {@link MatterSpecification.v141.Core}, section 11.22.6.5 */
-export type BdxBlockEof = BdxBlock;
+export interface BdxBlockEof extends BdxBlock {}
 
 /** Schema for BDX messages that only contain a block counter: BlockQuery, BlockAck, BlockAckEof. */
 export class BdxCounterOnlyMessageSchema extends Schema<BdxCounterOnly, Bytes> {

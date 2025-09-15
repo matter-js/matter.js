@@ -7,4 +7,5 @@
 export * from "./BdxAcceptMessagesSchema.js";
 export * from "./BdxBlockMessagesSchema.js";
 export * from "./BdxInitMessagesSchema.js";
+export * from "./BdxMessage.js";
 export * from "./BdxStatusMessageSchema.js";

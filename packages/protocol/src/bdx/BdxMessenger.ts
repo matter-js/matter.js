@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { BdxMessage } from "#bdx/schema/index.js";
 import { Message } from "#codec/MessageCodec.js";
-import { Diagnostic, Duration, InternalError, Logger, Minutes, UnexpectedDataError } from "#general";
+import { Bytes, Diagnostic, Duration, InternalError, Logger, Minutes, UnexpectedDataError } from "#general";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { BdxMessageTypes, BdxStatusCode, GeneralStatusCode, SecureMessageType } from "#types";
 import { ImplementationError } from "@matter/general";
@@ -76,102 +77,169 @@ export class BdxMessenger {
      * A List of allowed expected message types can be provided.
      * If the message type is not in the list, an error will be thrown.
      */
-    async nextMessage(expectedMessageTypes: number[], timeout = this.#messageTimeout, expectedMessageInfo?: string) {
+    async nextMessage(
+        expectedMessageTypes: number[],
+        timeout = this.#messageTimeout,
+        expectedMessageInfo?: string,
+    ): Promise<BdxMessageWithType<BdxMessage>> {
+        logger.debug(`Waiting for Bdx ${expectedMessageTypes.join("/")} message with timeout ${timeout}ms`);
+
         const message = await this.exchange.nextMessage({ timeout });
         const messageType = message.payloadHeader.messageType;
-        if (expectedMessageTypes !== undefined && expectedMessageInfo === undefined) {
+        if (expectedMessageInfo === undefined) {
             expectedMessageInfo = expectedMessageTypes.map(t => `${t} (${BdxMessageTypes[t]})`).join(",");
         }
         this.throwIfErrorStatusReport(message, expectedMessageInfo);
-        if (expectedMessageTypes !== undefined && !expectedMessageTypes.includes(messageType))
+        if (!expectedMessageTypes.includes(messageType))
             throw new UnexpectedDataError(
                 `Received unexpected message type: ${messageType}, expected: ${expectedMessageInfo}`,
             );
-        return message;
+
+        logger.debug(
+            `Received Bdx ${BdxMessageTypes[messageType]}${message.payload.byteLength > 0 ? ` with ${message.payload.byteLength}bytes` : ""}`,
+            message,
+        );
+        let decodedMessage: BdxMessage;
+        switch (messageType) {
+            case BdxMessageTypes.SendAccept:
+                decodedMessage = BdxSendAcceptMessage.decode(message.payload);
+                break;
+            case BdxMessageTypes.ReceiveAccept:
+                decodedMessage = BdxReceiveAcceptMessage.decode(message.payload);
+                break;
+            case BdxMessageTypes.Block:
+                decodedMessage = BdxBlockMessage.decode(message.payload);
+                break;
+            case BdxMessageTypes.BlockQuery:
+                decodedMessage = BdxBlockQueryMessage.decode(message.payload);
+                break;
+            case BdxMessageTypes.BlockQueryWithSkip:
+                decodedMessage = BdxBlockQueryWithSkipMessage.decode(message.payload);
+                break;
+            case BdxMessageTypes.BlockEof:
+                decodedMessage = BdxBlockEofMessage.decode(message.payload);
+                break;
+            case BdxMessageTypes.BlockAck:
+                decodedMessage = BdxBlockAckMessage.decode(message.payload);
+                break;
+            case BdxMessageTypes.BlockAckEof:
+                decodedMessage = BdxBlockAckEofMessage.decode(message.payload);
+                break;
+            default:
+                // Should not happen because of the check above
+                throw new ImplementationError(`Unsupported Bdx message type: ${messageType}`);
+        }
+        return { ...decodedMessage, messageType };
+    }
+
+    async send(messageType: BdxMessageTypes, message: BdxMessage) {
+        logger.debug(
+            `Sending Bdx ${BdxMessageTypes[messageType]}${"data" in message && Bytes.isBytes(message.data) ? ` with ${message.data.byteLength}bytes` : ""}`,
+            message,
+        );
+        let payload: Bytes;
+        switch (messageType) {
+            case BdxMessageTypes.SendInit:
+            case BdxMessageTypes.ReceiveInit:
+                payload = new BdxInitMessageSchema().encode(message as BdxInit);
+                break;
+            case BdxMessageTypes.SendAccept:
+                payload = BdxSendAcceptMessage.encode(message as BdxSendAccept);
+                break;
+            case BdxMessageTypes.ReceiveAccept:
+                payload = BdxReceiveAcceptMessage.encode(message as BdxReceiveAccept);
+                break;
+            case BdxMessageTypes.Block:
+                payload = BdxBlockMessage.encode(message as BdxBlock);
+                break;
+            case BdxMessageTypes.BlockQuery:
+                payload = BdxBlockQueryMessage.encode(message as BdxBlockQuery);
+                break;
+            case BdxMessageTypes.BlockQueryWithSkip:
+                payload = BdxBlockQueryWithSkipMessage.encode(message as BdxBlockQueryWithSkip);
+                break;
+            case BdxMessageTypes.BlockEof:
+                payload = BdxBlockEofMessage.encode(message as BdxBlockEof);
+                break;
+            case BdxMessageTypes.BlockAck:
+                payload = BdxBlockAckMessage.encode(message as BdxBlockAck);
+                break;
+            case BdxMessageTypes.BlockAckEof:
+                payload = BdxBlockAckEofMessage.encode(message as BdxBlockAckEof);
+                break;
+            default:
+                throw new ImplementationError(`Unsupported Bdx message type: ${messageType}`);
+        }
+        await this.exchange.send(messageType, payload);
     }
 
     /** Sends a Bdx SendInit message and waits for the SendAccept message as a response and returns it decoded. */
     async sendSendInit(message: BdxInit) {
-        logger.debug(`Sending Bdx SendInit`, message);
-        await this.exchange.send(BdxMessageTypes.SendInit, new BdxInitMessageSchema().encode(message));
+        await this.send(BdxMessageTypes.SendInit, message);
 
-        const acceptMessage = await this.nextMessage([BdxMessageTypes.SendAccept]);
-        const result = BdxSendAcceptMessage.decode(acceptMessage.payload);
-        logger.debug(`Received Bdx SendAccept`, result);
-        return result;
+        return (await this.nextMessage([BdxMessageTypes.SendAccept])) as unknown as BdxMessageWithType<BdxSendAccept>;
     }
 
     /** Sends a ReceiveInit message and waits for the ReceiveAccept message as a response and returns it decoded. */
     async sendReceiveInit(message: BdxInit) {
-        logger.debug("Sending Bdx ReceiveInit", message);
-        await this.exchange.send(BdxMessageTypes.ReceiveInit, new BdxInitMessageSchema().encode(message));
+        await this.send(BdxMessageTypes.ReceiveInit, message);
 
-        const acceptMessage = await this.nextMessage([BdxMessageTypes.ReceiveAccept]);
-        const result = BdxReceiveAcceptMessage.decode(acceptMessage.payload);
-        logger.debug("Received Bdx ReceiveAccept", result);
-        return result;
+        return (await this.nextMessage([
+            BdxMessageTypes.ReceiveAccept,
+        ])) as unknown as BdxMessageWithType<BdxReceiveAccept>;
     }
 
     /** Encodes and sends a Bdx SendAccept message. */
     async sendSendAccept(message: BdxSendAccept) {
-        logger.debug("Sending Bdx SendAccept", message);
-        await this.exchange.send(BdxMessageTypes.SendAccept, BdxSendAcceptMessage.encode(message));
+        await this.send(BdxMessageTypes.SendAccept, message);
     }
 
     /** Encodes and sends a Bdx ReceiveAccept message. */
     async sendReceiveAccept(message: BdxReceiveAccept) {
-        logger.debug("Sending Bdx ReceiveAccept", message);
-        await this.exchange.send(BdxMessageTypes.ReceiveAccept, BdxReceiveAcceptMessage.encode(message));
+        await this.send(BdxMessageTypes.ReceiveAccept, message);
     }
 
     /** Encodes and sends a Bdx Block message. */
     async sendBlock(message: BdxBlock) {
-        logger.debug(`Sending Bdx Block with ${message.data.byteLength}bytes`, message);
-        await this.exchange.send(BdxMessageTypes.Block, BdxBlockMessage.encode(message));
+        await this.send(BdxMessageTypes.Block, message);
     }
 
     /** Encodes and sends a Bdx BlockQuery message. */
     async sendBlockQuery(message: BdxBlockQuery) {
-        logger.debug("Sending Bdx BlockQuery", message);
-        await this.exchange.send(BdxMessageTypes.BlockQuery, BdxBlockQueryMessage.encode(message));
+        await this.send(BdxMessageTypes.BlockQuery, message);
     }
 
     /** Encodes and sends a Bdx BlockQueryWithSkip message. */
     async sendBlockQueryWithSkip(message: BdxBlockQueryWithSkip) {
-        logger.debug("Sending Bdx BlockQueryWithSkip", message);
-        await this.exchange.send(BdxMessageTypes.BlockQueryWithSkip, BdxBlockQueryWithSkipMessage.encode(message));
+        await this.send(BdxMessageTypes.BlockQueryWithSkip, message);
     }
 
     /** Encodes and sends a Bdx BlockEof message. */
     async sendBlockEof(message: BdxBlockEof) {
-        logger.debug(`Sending Bdx BlockEof with ${message.data.byteLength}bytes`, message);
-        await this.exchange.send(BdxMessageTypes.BlockEof, BdxBlockEofMessage.encode(message));
+        await this.send(BdxMessageTypes.BlockEof, message);
     }
 
     /** Encodes and sends a Bdx BlockAck message. */
     async sendBlockAck(message: BdxBlockAck) {
-        logger.debug("Sending Bdx BlockAck", message);
-        await this.exchange.send(BdxMessageTypes.BlockAck, BdxBlockAckMessage.encode(message));
+        await this.send(BdxMessageTypes.BlockAck, message);
     }
 
     /** Encodes and sends a Bdx BlockAckEof message */
     async sendBlockAckEof(message: BdxBlockAckEof) {
-        logger.debug("Sending Bdx BlockAckEof", message);
-        await this.exchange.send(BdxMessageTypes.BlockAckEof, BdxBlockAckEofMessage.encode(message));
+        await this.send(BdxMessageTypes.BlockAckEof, message);
     }
 
     /** Read the next Block message, accepts Block and BlockEof messages. Returns the decoded message and it's type. */
     async readBlock(): Promise<BdxMessageWithType<BdxBlock>> {
-        logger.debug("Waiting for Bdx Block");
-        const message = await this.nextMessage([BdxMessageTypes.Block, BdxMessageTypes.BlockEof]);
-        const messageType = message.payloadHeader.messageType;
-        const block = BdxBlockMessage.decode(message.payload);
-        if (messageType !== BdxMessageTypes.BlockEof && block.data.byteLength === 0) {
+        const block = (await this.nextMessage([
+            BdxMessageTypes.Block,
+            BdxMessageTypes.BlockEof,
+        ])) as unknown as BdxMessageWithType<BdxBlock | BdxBlockEof>;
+        if (block.messageType !== BdxMessageTypes.BlockEof && block.data.byteLength === 0) {
             // empty block only allowed in BlockAckEof
             throw new BdxError("Received empty data in Block message", BdxStatusCode.BadMessageContent);
         }
-        logger.debug(`Received Bdx Block with ${block.data.byteLength}bytes`, block);
-        return { ...block, messageType };
+        return block;
     }
 
     /**
@@ -180,54 +248,39 @@ export class BdxMessenger {
      * Returns the decoded message and it's type.
      */
     async readBlockQuery(): Promise<BdxMessageWithType<BdxBlockQuery | BdxBlockQueryWithSkip>> {
-        logger.debug("Waiting for Bdx BlockQuery");
-        let message = await this.nextMessage([
+        let message = (await this.nextMessage([
             BdxMessageTypes.BlockQuery,
             BdxMessageTypes.BlockQueryWithSkip,
             BdxMessageTypes.BlockAck,
-        ]);
+        ])) as unknown as BdxMessageWithType<BdxBlockQuery | BdxBlockQueryWithSkip | BdxBlockAck>;
         let expectedBlockMessageCounter: number | undefined = undefined;
-        if (message.payloadHeader.messageType === BdxMessageTypes.BlockAck) {
-            const ack = BdxBlockAckMessage.decode(message.payload);
-            expectedBlockMessageCounter = (ack.blockCounter + 1) % 0x100000000; // wrap around at 2^32
-            message = await this.nextMessage([BdxMessageTypes.BlockQuery, BdxMessageTypes.BlockQueryWithSkip]);
+        if (message.messageType === BdxMessageTypes.BlockAck) {
+            expectedBlockMessageCounter = (message.blockCounter + 1) % 0x100000000; // wrap around at 2^32
+            message = (await this.nextMessage([
+                BdxMessageTypes.BlockQuery,
+                BdxMessageTypes.BlockQueryWithSkip,
+            ])) as unknown as BdxMessageWithType<BdxBlockQuery | BdxBlockQueryWithSkip>;
         }
-        const messageType = message.payloadHeader.messageType;
-        const query =
-            messageType === BdxMessageTypes.BlockQuery
-                ? BdxBlockQueryMessage.decode(message.payload)
-                : BdxBlockQueryWithSkipMessage.decode(message.payload);
 
         // Ensure that if we got an Ack Message that the blockCounter is as expected because this cannot be done outside
-        if (expectedBlockMessageCounter !== undefined && query.blockCounter !== expectedBlockMessageCounter) {
+        if (expectedBlockMessageCounter !== undefined && message.blockCounter !== expectedBlockMessageCounter) {
             throw new BdxError(
-                `Received BlockQuery with unexpected block counter: ${query.blockCounter}, expected: ${expectedBlockMessageCounter}`,
+                `Received BlockQuery with unexpected block counter: ${message.blockCounter}, expected: ${expectedBlockMessageCounter}`,
                 BdxStatusCode.BadBlockCounter,
             );
         }
-        logger.debug(
-            `Received Bdx BlockQuery${messageType === BdxMessageTypes.BlockQueryWithSkip ? "WithSkip" : ""}`,
-            query,
-        );
-        return { ...query, messageType };
+
+        return message;
     }
 
     /** Reads the next BlockAckEof message and returns the decoded message. */
     async readBlockAckEof() {
-        logger.debug("Waiting for Bdx BlockAckEof");
-        const message = await this.nextMessage([BdxMessageTypes.BlockAckEof]);
-        const result = BdxBlockAckEofMessage.decode(message.payload);
-        logger.debug("Received Bdx BlockAckEof", result);
-        return result;
+        return (await this.nextMessage([BdxMessageTypes.BlockAckEof])) as unknown as BdxMessageWithType<BdxBlockAckEof>;
     }
 
     /** Reads the next BlockAck message and returns the decoded message. */
     async readBlockAck() {
-        logger.debug("Waiting for Bdx BlockAck");
-        const message = await this.nextMessage([BdxMessageTypes.BlockAck]);
-        const result = BdxBlockAckMessage.decode(message.payload);
-        logger.debug("Received Bdx BlockAck", result);
-        return result;
+        return (await this.nextMessage([BdxMessageTypes.BlockAck])) as unknown as BdxMessageWithType<BdxBlockAck>;
     }
 
     /** Sends a Bdx Error StatusReport message with the given protocol status. */
