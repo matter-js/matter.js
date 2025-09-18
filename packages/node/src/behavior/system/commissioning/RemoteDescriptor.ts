@@ -176,7 +176,7 @@ export namespace RemoteDescriptor {
             const [vendor, product] = VP.split("+").map(Number.parseInt);
 
             long.vendorId = Number.isFinite(vendor) ? VendorId(vendor) : undefined;
-            long.productId = Number.isFinite(product) ? VendorId(vendor) : undefined;
+            long.productId = Number.isFinite(product) ? product : undefined;
         }
 
         let sessionParameters: Partial<SessionParameters> | undefined;
