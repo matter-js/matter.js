@@ -13,10 +13,9 @@ import {
     BdxTransferControlBitmap,
     BdxTransferControlSchema,
 } from "./BdxInitMessagesSchema.js";
-import { BdxMessage } from "./BdxMessage.js";
 
 /** @see {@link MatterSpecification.v141.Core}, section 11.22.5.2 */
-export interface BdxSendAccept extends BdxMessage {
+export interface BdxSendAccept {
     /**
      * Transfer control details
      * TC

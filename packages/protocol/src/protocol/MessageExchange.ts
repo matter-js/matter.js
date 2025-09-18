@@ -89,6 +89,8 @@ export type ExchangeSendOptions = {
     /** Additional context information for logging to be included at the beginning of the Message log. */
     logContext?: ExchangeLogContext;
 
+    // TODO Restructure exchange logic to not be protocol bound like now. The Protocol binding should move to the
+    //  messages itself
     /** Allows to override the protocol ID of the message, mainly used for standalone acks. */
     protocolId?: number;
 };

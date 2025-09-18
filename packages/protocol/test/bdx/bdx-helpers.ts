@@ -1,28 +1,13 @@
-import {
-    BdxBlockAckEofMessage,
-    BdxBlockAckMessage,
-    BdxBlockEofMessage,
-    BdxBlockMessage,
-    BdxBlockQueryMessage,
-    BdxBlockQueryWithSkipMessage,
-    BdxClient,
-    BdxMessenger,
-    BdxProtocol,
-    BdxReceiveAcceptMessage,
-    BdxReceiveInitMessage,
-    BdxSendAcceptMessage,
-    BdxSendInitMessage,
-    BdxSession,
-    BdxStatusMessage,
-} from "#bdx/index.js";
+import { BdxSessionConfiguration } from "#bdx/BdxSessionConfiguration.js";
+import { BdxClient, BdxMessage, BdxMessenger, BdxProtocol, BdxStatusMessage } from "#bdx/index.js";
 import { Message } from "#codec/MessageCodec.js";
 import { MaybePromise, StorageBackendMemory, StorageManager } from "#general";
 import { PeerAddress } from "#peer/PeerAddress.js";
-import { BdxMessageTypes, FabricIndex, NodeId, SecureMessageType } from "#types";
+import { BdxMessageType, FabricIndex, NodeId, SecureMessageType } from "#types";
 import { createPromise, StorageContext } from "@matter/general";
 import { createSession, MockExchange } from "./bdx-mock-exchange.js";
 
-type MessageRecords = { type: BdxMessageTypes | SecureMessageType.StatusReport; data: any };
+type MessageRecords = { type: BdxMessageType | SecureMessageType.StatusReport; data: any };
 
 export async function bdxTransfer(params: {
     prepare: (
@@ -31,8 +16,8 @@ export async function bdxTransfer(params: {
         messenger: BdxMessenger,
     ) => MaybePromise<{
         bdxClient: BdxClient;
-        expectedInitialMessageType: BdxMessageTypes;
-        serverLimits?: BdxSession.Config;
+        expectedInitialMessageType: BdxMessageType;
+        serverLimits?: BdxSessionConfiguration.Config;
     }>;
     validate: (
         clientStorage: StorageContext,
@@ -129,62 +114,12 @@ export async function bdxTransfer(params: {
 }
 
 function parseMessage(message: Message): MessageRecords {
-    switch (message.payloadHeader.messageType) {
-        case BdxMessageTypes.SendInit:
-            return {
-                type: BdxMessageTypes.SendInit,
-                data: BdxSendInitMessage.decode(message.payload),
-            };
-        case BdxMessageTypes.ReceiveInit:
-            return {
-                type: BdxMessageTypes.ReceiveInit,
-                data: BdxReceiveInitMessage.decode(message.payload),
-            };
-        case BdxMessageTypes.SendAccept:
-            return {
-                type: BdxMessageTypes.SendAccept,
-                data: BdxSendAcceptMessage.decode(message.payload),
-            };
-        case BdxMessageTypes.ReceiveAccept:
-            return {
-                type: BdxMessageTypes.ReceiveAccept,
-                data: BdxReceiveAcceptMessage.decode(message.payload),
-            };
-        case BdxMessageTypes.BlockQuery:
-            return {
-                type: BdxMessageTypes.BlockQuery,
-                data: BdxBlockQueryMessage.decode(message.payload),
-            };
-        case BdxMessageTypes.Block:
-            return {
-                type: BdxMessageTypes.Block,
-                data: BdxBlockMessage.decode(message.payload),
-            };
-        case BdxMessageTypes.BlockEof:
-            return {
-                type: BdxMessageTypes.BlockEof,
-                data: BdxBlockEofMessage.decode(message.payload),
-            };
-        case BdxMessageTypes.BlockAck:
-            return {
-                type: BdxMessageTypes.BlockAck,
-                data: BdxBlockAckMessage.decode(message.payload),
-            };
-        case BdxMessageTypes.BlockAckEof:
-            return {
-                type: BdxMessageTypes.BlockAckEof,
-                data: BdxBlockAckEofMessage.decode(message.payload),
-            };
-        case BdxMessageTypes.BlockQueryWithSkip:
-            return {
-                type: BdxMessageTypes.BlockQueryWithSkip,
-                data: BdxBlockQueryWithSkipMessage.decode(message.payload),
-            };
-        case SecureMessageType.StatusReport:
-            return {
-                type: SecureMessageType.StatusReport,
-                data: BdxStatusMessage.decode(message.payload),
-            };
+    if (message.payloadHeader.messageType === SecureMessageType.StatusReport) {
+        return {
+            type: SecureMessageType.StatusReport,
+            data: BdxStatusMessage.decode(message.payload),
+        };
     }
-    throw new Error(`Unknown message type: ${message.payloadHeader.messageType}`);
+    const { kind: type, message: data } = BdxMessage.decode(message.payloadHeader.messageType, message.payload);
+    return { type, data };
 }

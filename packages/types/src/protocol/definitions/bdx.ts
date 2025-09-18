@@ -6,7 +6,7 @@
 
 export const BDX_PROTOCOL_ID = 2;
 
-export enum BdxMessageTypes {
+export enum BdxMessageType {
     SendInit = 0x01,
     SendAccept = 0x02,
     ReceiveInit = 0x04,

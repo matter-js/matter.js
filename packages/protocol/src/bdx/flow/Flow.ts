@@ -4,22 +4,28 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BdxError, BdxMessenger } from "#bdx/index.js";
+import { InternalError } from "#general";
 import { BdxStatusCode } from "#types";
+import { BdxError } from "../BdxError.js";
+import { BdxMessenger } from "../BdxMessenger.js";
+import { PersistedFileDesignator } from "../PersistedFileDesignator.js";
 
 /** Base class for BDX transfer flows. */
-export abstract class BdxTransferFlow {
-    readonly #transferParameters: BdxTransferFlow.TransferOptions;
+export abstract class Flow {
+    readonly #transferParameters: Flow.TransferOptions;
     readonly #messenger: BdxMessenger;
     #isClosed = false;
     #blockCounter = 0;
+    #bytesLeft?: number;
+    #finalBlockCounter?: number;
 
-    constructor(messenger: BdxMessenger, transferParameters: BdxTransferFlow.TransferOptions) {
+    constructor(messenger: BdxMessenger, transferParameters: Flow.TransferOptions) {
         this.#messenger = messenger;
         this.#transferParameters = transferParameters;
+        this.#bytesLeft = transferParameters.dataLength;
     }
 
-    protected get transferParameters(): BdxTransferFlow.TransferOptions {
+    protected get transferParameters(): Flow.TransferOptions {
         return this.#transferParameters;
     }
 
@@ -29,6 +35,28 @@ export abstract class BdxTransferFlow {
 
     protected get messenger() {
         return this.#messenger;
+    }
+
+    protected get bytesLeft(): number | undefined {
+        return this.#bytesLeft;
+    }
+
+    protected set bytesLeft(value: number) {
+        this.#bytesLeft = value;
+    }
+
+    protected set finalBlockCounter(blockCounter: number) {
+        if (this.#finalBlockCounter !== undefined) {
+            throw new InternalError("Transfer already finalized. finalizeTransfer() should only be called once.");
+        }
+        this.#finalBlockCounter = blockCounter;
+    }
+
+    protected get finalBlockCounter() {
+        if (this.#finalBlockCounter === undefined) {
+            throw new InternalError("Transfer not finalized. Call finalizeTransfer() after completing the transfer.");
+        }
+        return this.#finalBlockCounter;
     }
 
     /** Determines the next message counter to use for the next message, also handles wrapping around at 2^32. */
@@ -56,16 +84,33 @@ export abstract class BdxTransferFlow {
      * Main logic method to execute the flow.
      * The promise resolves when the flow is complete, or rejects on any error or unexpected conditions.
      */
-    abstract processTransfer(): Promise<void>;
+    async processTransfer() {
+        await this.initTransfer();
+
+        // Continue to transfer chunks until done or closed
+        while (!this.isClosed && !(await this.transferNextChunk())) {}
+
+        if (!this.isClosed) {
+            await this.finalizeTransfer();
+        }
+    }
+
+    protected abstract initTransfer(): Promise<void>;
+
+    protected abstract transferNextChunk(): Promise<boolean>;
+
+    protected abstract finalizeTransfer(): Promise<void>;
 }
 
-export namespace BdxTransferFlow {
+export namespace Flow {
     export interface TransferOptions {
         transferMode: DriverMode;
         asynchronousTransfer: false; // Not supported currently, so always false
         dataLength?: number;
         startOffset: number;
         blockSize: number;
+        isDriver: boolean;
+        fileDesignator: PersistedFileDesignator;
     }
 
     export enum DriverMode {

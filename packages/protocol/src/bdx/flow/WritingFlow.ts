@@ -4,33 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, StorageContext } from "#general";
-import { BdxMessageTypes, BdxStatusCode } from "#types";
+import { Bytes, InternalError, MaybePromise } from "#general";
+import { BdxMessageType, BdxStatusCode } from "#types";
 import { BdxError } from "../BdxError.js";
-import { BdxMessenger } from "../BdxMessenger.js";
-import { BdxTransferFlow } from "./BdxTransferFlow.js";
+import { Flow } from "./Flow.js";
 
 /** Base class for BDX transfer flows that write data to a Blob. */
-export abstract class BdxWritingTransferFlow extends BdxTransferFlow {
-    #storage: StorageContext;
-    #blobName: string;
+export abstract class WritingFlow extends Flow {
     #closeStreams?: (error?: unknown) => Promise<void>;
-
-    constructor(
-        storage: StorageContext,
-        blobName: string,
-        messenger: BdxMessenger,
-        transferParameters: BdxTransferFlow.TransferOptions,
-    ) {
-        super(messenger, transferParameters);
-        this.#storage = storage;
-        this.#blobName = blobName;
-    }
+    #writeController?: ReadableStreamDefaultController<Bytes>;
+    #writePromise?: MaybePromise<void>;
 
     /**
      * Returns initialized streams for the transfer and initializes the #closeStream class function
      */
-    protected get writeStream() {
+    protected async initTransfer() {
         // Create a ReadableStream that we can write to and start to write the data into the blob
         let writeController!: ReadableStreamDefaultController<Bytes>; // variable is set on creation of the ReadableStream
         const stream = new ReadableStream<Bytes>({
@@ -38,7 +26,8 @@ export abstract class BdxWritingTransferFlow extends BdxTransferFlow {
                 writeController = controller;
             },
         });
-        const writePromise = this.#storage.writeBlobFromStream(this.#blobName, stream);
+        const { fileDesignator } = this.transferParameters;
+        const writePromise = fileDesignator.writeFromStream(stream);
 
         // Method to be used by main close() method to make sure all streams are correctly closed or cancelled
         this.#closeStreams = async (error?: unknown) => {
@@ -59,29 +48,43 @@ export abstract class BdxWritingTransferFlow extends BdxTransferFlow {
             }
         };
 
-        return { writeController, writePromise };
+        this.#writeController = writeController;
+        this.#writePromise = writePromise;
+    }
+
+    protected get stream() {
+        if (!this.#writeController || !this.#writePromise) {
+            throw new InternalError("Transfer not initialized. Call initTransfer() before starting the transfer.");
+        }
+        return { writeController: this.#writeController, writePromise: this.#writePromise };
+    }
+
+    protected async finalizeTransfer() {
+        const { writePromise } = this.stream;
+        const blockCounter = this.finalBlockCounter;
+        await writePromise;
+        await this.messenger.sendBlockAckEof({ blockCounter });
     }
 
     protected writeDataChunk(
         writeController: ReadableStreamDefaultController<Bytes>,
         data: Bytes,
-        messageType: BdxMessageTypes,
-        bytesLeft: number | undefined,
+        messageType: BdxMessageType,
     ) {
         // Enqueue the received data chunk into the writing stream
         writeController.enqueue(data);
-        if (bytesLeft !== undefined) {
-            bytesLeft -= data.byteLength;
+        if (this.bytesLeft !== undefined) {
+            this.bytesLeft -= data.byteLength;
         }
 
         let done = false;
 
         // Last block received
-        if (messageType === BdxMessageTypes.BlockEof) {
-            if (bytesLeft !== undefined && bytesLeft !== 0) {
+        if (messageType === BdxMessageType.BlockEof) {
+            if (this.bytesLeft !== undefined && this.bytesLeft !== 0) {
                 throw new BdxError(
-                    `Received BlockEof with ${bytesLeft}bytes left, but no more data available`,
-                    bytesLeft > 0 ? BdxStatusCode.LengthTooShort : BdxStatusCode.LengthTooLarge,
+                    `Received BlockEof with ${this.bytesLeft}bytes left, but no more data available`,
+                    this.bytesLeft > 0 ? BdxStatusCode.LengthTooShort : BdxStatusCode.LengthTooLarge,
                 );
             }
 
@@ -89,7 +92,7 @@ export abstract class BdxWritingTransferFlow extends BdxTransferFlow {
             writeController.close();
         }
 
-        return { done, bytesLeft };
+        return done;
     }
 
     override async close(error?: unknown) {

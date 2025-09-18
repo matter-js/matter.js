@@ -1,4 +1,3 @@
-import { FileDesignator } from "#bdx/FileDesignator.js";
 import {
     BdxBlockEofMessage,
     BdxBlockQueryMessage,
@@ -8,10 +7,11 @@ import {
     BdxError,
     BdxReceiveInitMessage,
     BdxStatusResponseError,
-    BdxTransferFlow,
+    Flow,
 } from "#bdx/index.js";
+import { PersistedFileDesignator } from "#bdx/PersistedFileDesignator.js";
 import { Bytes, StandardCrypto } from "#general";
-import { BdxMessageTypes, BdxStatusCode, GeneralStatusCode, SecureMessageType } from "#types";
+import { BdxMessageType, BdxStatusCode, GeneralStatusCode, SecureMessageType } from "#types";
 import { bdxTransfer } from "./bdx-helpers.js";
 
 describe("BdxTest", () => {
@@ -21,21 +21,22 @@ describe("BdxTest", () => {
         describe("2048bytes (3 packages)", () => {
             it("Using SendInit as Sender-Driver (no limits)", async () => {
                 const data = crypto.randomBytes(2048);
-                const fd = new FileDesignator("data");
 
+                let fd: PersistedFileDesignator;
                 await bdxTransfer({
                     prepare: (clientStorage, _serverStorage, messenger) => {
+                        fd = new PersistedFileDesignator("data", clientStorage);
                         clientStorage.set(fd.text, data);
 
                         return {
-                            bdxClient: BdxClient.asSender(clientStorage, messenger, fd),
-                            expectedInitialMessageType: BdxMessageTypes.SendInit,
+                            bdxClient: BdxClient.asSender(messenger, { fileDesignator: fd }),
+                            expectedInitialMessageType: BdxMessageType.SendInit,
                         };
                     },
                     validate: async (_clientStorage, serverStorage, { clientExchangeData, serverExchangeData }) => {
                         expect(clientExchangeData.length).equals(4);
                         expect(serverExchangeData.length).equals(4);
-                        expect(clientExchangeData[0].type).equals(BdxMessageTypes.SendInit);
+                        expect(clientExchangeData[0].type).equals(BdxMessageType.SendInit);
                         expect(clientExchangeData[0].data).deep.equals({
                             transferProtocol: {
                                 version: 0,
@@ -49,7 +50,7 @@ describe("BdxTest", () => {
                             metaData: undefined,
                             startOffset: undefined,
                         });
-                        expect(serverExchangeData[0].type).equals(BdxMessageTypes.SendAccept);
+                        expect(serverExchangeData[0].type).equals(BdxMessageType.SendAccept);
                         expect(serverExchangeData[0].data).deep.equals({
                             transferControl: {
                                 version: 0,
@@ -61,25 +62,25 @@ describe("BdxTest", () => {
                             metaData: undefined,
                         });
 
-                        expect(clientExchangeData[1].type).equals(BdxMessageTypes.Block);
+                        expect(clientExchangeData[1].type).equals(BdxMessageType.Block);
                         expect(clientExchangeData[1].data.blockCounter).equals(1);
                         expect(clientExchangeData[1].data.data.length).equals(966);
 
-                        expect(serverExchangeData[1].type).equals(BdxMessageTypes.BlockAck);
+                        expect(serverExchangeData[1].type).equals(BdxMessageType.BlockAck);
                         expect(serverExchangeData[1].data.blockCounter).equals(1);
 
-                        expect(clientExchangeData[2].type).equals(BdxMessageTypes.Block);
+                        expect(clientExchangeData[2].type).equals(BdxMessageType.Block);
                         expect(clientExchangeData[2].data.blockCounter).equals(2);
                         expect(clientExchangeData[2].data.data.length).equals(966);
 
-                        expect(serverExchangeData[2].type).equals(BdxMessageTypes.BlockAck);
+                        expect(serverExchangeData[2].type).equals(BdxMessageType.BlockAck);
                         expect(serverExchangeData[2].data.blockCounter).equals(2);
 
-                        expect(clientExchangeData[3].type).equals(BdxMessageTypes.BlockEof);
+                        expect(clientExchangeData[3].type).equals(BdxMessageType.BlockEof);
                         expect(clientExchangeData[3].data.blockCounter).equals(3);
                         expect(clientExchangeData[3].data.data.length).equals(116);
 
-                        expect(serverExchangeData[3].type).equals(BdxMessageTypes.BlockAckEof);
+                        expect(serverExchangeData[3].type).equals(BdxMessageType.BlockAckEof);
                         expect(serverExchangeData[3].data.blockCounter).equals(3);
 
                         const receivedData = await serverStorage.get(fd.text);
@@ -90,24 +91,26 @@ describe("BdxTest", () => {
 
             it("Using SendInit as Receiver-Driver (by Initiator)", async () => {
                 const data = crypto.randomBytes(2048);
-                const fd = new FileDesignator("data");
 
+                let fd: PersistedFileDesignator;
                 await bdxTransfer({
                     prepare: (clientStorage, _serverStorage, messenger) => {
+                        fd = new PersistedFileDesignator("data", clientStorage);
                         clientStorage.set(fd.text, data);
 
                         return {
-                            bdxClient: BdxClient.asSender(clientStorage, messenger, fd, {
-                                preferredDriverModes: [BdxTransferFlow.DriverMode.ReceiverDrive],
+                            bdxClient: BdxClient.asSender(messenger, {
+                                fileDesignator: fd,
+                                preferredDriverModes: [Flow.DriverMode.ReceiverDrive],
                             }),
-                            expectedInitialMessageType: BdxMessageTypes.SendInit,
+                            expectedInitialMessageType: BdxMessageType.SendInit,
                         };
                     },
                     validate: async (_clientStorage, serverStorage, { clientExchangeData, serverExchangeData }) => {
                         expect(clientExchangeData.length).equals(4);
                         expect(serverExchangeData.length).equals(5);
 
-                        expect(clientExchangeData[0].type).equals(BdxMessageTypes.SendInit);
+                        expect(clientExchangeData[0].type).equals(BdxMessageType.SendInit);
                         expect(clientExchangeData[0].data).deep.equals({
                             transferProtocol: {
                                 version: 0,
@@ -122,7 +125,7 @@ describe("BdxTest", () => {
                             startOffset: undefined,
                         });
 
-                        expect(serverExchangeData[0].type).equals(BdxMessageTypes.SendAccept);
+                        expect(serverExchangeData[0].type).equals(BdxMessageType.SendAccept);
                         expect(serverExchangeData[0].data).deep.equals({
                             transferControl: {
                                 version: 0,
@@ -134,28 +137,28 @@ describe("BdxTest", () => {
                             metaData: undefined,
                         });
 
-                        expect(serverExchangeData[1].type).equals(BdxMessageTypes.BlockQuery);
+                        expect(serverExchangeData[1].type).equals(BdxMessageType.BlockQuery);
                         expect(serverExchangeData[1].data.blockCounter).equals(1);
 
-                        expect(clientExchangeData[1].type).equals(BdxMessageTypes.Block);
+                        expect(clientExchangeData[1].type).equals(BdxMessageType.Block);
                         expect(clientExchangeData[1].data.blockCounter).equals(1);
                         expect(clientExchangeData[1].data.data.length).equals(966);
 
-                        expect(serverExchangeData[2].type).equals(BdxMessageTypes.BlockQuery);
+                        expect(serverExchangeData[2].type).equals(BdxMessageType.BlockQuery);
                         expect(serverExchangeData[2].data.blockCounter).equals(2);
 
-                        expect(clientExchangeData[2].type).equals(BdxMessageTypes.Block);
+                        expect(clientExchangeData[2].type).equals(BdxMessageType.Block);
                         expect(clientExchangeData[2].data.blockCounter).equals(2);
                         expect(clientExchangeData[2].data.data.length).equals(966);
 
-                        expect(serverExchangeData[3].type).equals(BdxMessageTypes.BlockQuery);
+                        expect(serverExchangeData[3].type).equals(BdxMessageType.BlockQuery);
                         expect(serverExchangeData[3].data.blockCounter).equals(3);
 
-                        expect(clientExchangeData[3].type).equals(BdxMessageTypes.BlockEof);
+                        expect(clientExchangeData[3].type).equals(BdxMessageType.BlockEof);
                         expect(clientExchangeData[3].data.blockCounter).equals(3);
                         expect(clientExchangeData[3].data.data.length).equals(116);
 
-                        expect(serverExchangeData[4].type).equals(BdxMessageTypes.BlockAckEof);
+                        expect(serverExchangeData[4].type).equals(BdxMessageType.BlockAckEof);
                         expect(serverExchangeData[4].data.blockCounter).equals(3);
 
                         const receivedData = await serverStorage.get(fd.text);
@@ -166,17 +169,18 @@ describe("BdxTest", () => {
 
             it("Using SendInit as Receiver-Driver (by Responder)", async () => {
                 const data = crypto.randomBytes(2048);
-                const fd = new FileDesignator("data");
 
+                let fd: PersistedFileDesignator;
                 await bdxTransfer({
                     prepare: (clientStorage, _serverStorage, messenger) => {
+                        fd = new PersistedFileDesignator("data", clientStorage);
                         clientStorage.set(fd.text, data);
 
                         return {
-                            bdxClient: BdxClient.asSender(clientStorage, messenger, fd),
-                            expectedInitialMessageType: BdxMessageTypes.SendInit,
+                            bdxClient: BdxClient.asSender(messenger, { fileDesignator: fd }),
+                            expectedInitialMessageType: BdxMessageType.SendInit,
                             serverLimits: {
-                                preferredDriverModes: [BdxTransferFlow.DriverMode.ReceiverDrive],
+                                preferredDriverModes: [Flow.DriverMode.ReceiverDrive],
                             },
                         };
                     },
@@ -184,7 +188,7 @@ describe("BdxTest", () => {
                         expect(clientExchangeData.length).equals(4);
                         expect(serverExchangeData.length).equals(5);
 
-                        expect(clientExchangeData[0].type).equals(BdxMessageTypes.SendInit);
+                        expect(clientExchangeData[0].type).equals(BdxMessageType.SendInit);
                         expect(clientExchangeData[0].data).deep.equals({
                             transferProtocol: {
                                 version: 0,
@@ -199,7 +203,7 @@ describe("BdxTest", () => {
                             startOffset: undefined,
                         });
 
-                        expect(serverExchangeData[0].type).equals(BdxMessageTypes.SendAccept);
+                        expect(serverExchangeData[0].type).equals(BdxMessageType.SendAccept);
                         expect(serverExchangeData[0].data).deep.equals({
                             transferControl: {
                                 version: 0,
@@ -221,22 +225,23 @@ describe("BdxTest", () => {
 
             it("Using ReceiveInit as Sender-Driver (no limits)", async () => {
                 const data = crypto.randomBytes(2048);
-                const fd = new FileDesignator("data");
 
+                let fd: PersistedFileDesignator;
                 await bdxTransfer({
                     prepare: (clientStorage, serverStorage, messenger) => {
+                        fd = new PersistedFileDesignator("data", clientStorage);
                         serverStorage.set(fd.text, data);
 
                         return {
-                            bdxClient: BdxClient.asReceiver(clientStorage, messenger, fd),
-                            expectedInitialMessageType: BdxMessageTypes.ReceiveInit,
+                            bdxClient: BdxClient.asReceiver(messenger, { fileDesignator: fd }),
+                            expectedInitialMessageType: BdxMessageType.ReceiveInit,
                         };
                     },
                     validate: async (clientStorage, _serverStorage, { clientExchangeData, serverExchangeData }) => {
                         expect(clientExchangeData.length).equals(4);
                         expect(serverExchangeData.length).equals(4);
 
-                        expect(clientExchangeData[0].type).equals(BdxMessageTypes.ReceiveInit);
+                        expect(clientExchangeData[0].type).equals(BdxMessageType.ReceiveInit);
                         expect(clientExchangeData[0].data).deep.equals({
                             transferProtocol: {
                                 version: 0,
@@ -251,7 +256,7 @@ describe("BdxTest", () => {
                             startOffset: undefined,
                         });
 
-                        expect(serverExchangeData[0].type).equals(BdxMessageTypes.ReceiveAccept);
+                        expect(serverExchangeData[0].type).equals(BdxMessageType.ReceiveAccept);
                         expect(serverExchangeData[0].data).deep.equals({
                             transferControl: {
                                 version: 0,
@@ -264,25 +269,25 @@ describe("BdxTest", () => {
                             length: undefined,
                         });
 
-                        expect(serverExchangeData[1].type).equals(BdxMessageTypes.Block);
+                        expect(serverExchangeData[1].type).equals(BdxMessageType.Block);
                         expect(serverExchangeData[1].data.blockCounter).equals(1);
                         expect(serverExchangeData[1].data.data.length).equals(966);
 
-                        expect(clientExchangeData[1].type).equals(BdxMessageTypes.BlockAck);
+                        expect(clientExchangeData[1].type).equals(BdxMessageType.BlockAck);
                         expect(clientExchangeData[1].data.blockCounter).equals(1);
 
-                        expect(serverExchangeData[2].type).equals(BdxMessageTypes.Block);
+                        expect(serverExchangeData[2].type).equals(BdxMessageType.Block);
                         expect(serverExchangeData[2].data.blockCounter).equals(2);
                         expect(serverExchangeData[2].data.data.length).equals(966);
 
-                        expect(clientExchangeData[2].type).equals(BdxMessageTypes.BlockAck);
+                        expect(clientExchangeData[2].type).equals(BdxMessageType.BlockAck);
                         expect(clientExchangeData[2].data.blockCounter).equals(2);
 
-                        expect(serverExchangeData[3].type).equals(BdxMessageTypes.BlockEof);
+                        expect(serverExchangeData[3].type).equals(BdxMessageType.BlockEof);
                         expect(serverExchangeData[3].data.blockCounter).equals(3);
                         expect(serverExchangeData[3].data.data.length).equals(116);
 
-                        expect(clientExchangeData[3].type).equals(BdxMessageTypes.BlockAckEof);
+                        expect(clientExchangeData[3].type).equals(BdxMessageType.BlockAckEof);
                         expect(clientExchangeData[3].data.blockCounter).equals(3);
 
                         const receivedData = await clientStorage.get(fd.text);
@@ -293,24 +298,26 @@ describe("BdxTest", () => {
 
             it("Using ReceiveInit as Receiver-Driver (by Initiator)", async () => {
                 const data = crypto.randomBytes(2048);
-                const fd = new FileDesignator("data");
 
+                let fd: PersistedFileDesignator;
                 await bdxTransfer({
                     prepare: (clientStorage, serverStorage, messenger) => {
+                        fd = new PersistedFileDesignator("data", clientStorage);
                         serverStorage.set(fd.text, data);
 
                         return {
-                            bdxClient: BdxClient.asReceiver(clientStorage, messenger, fd, {
-                                preferredDriverModes: [BdxTransferFlow.DriverMode.ReceiverDrive],
+                            bdxClient: BdxClient.asReceiver(messenger, {
+                                fileDesignator: fd,
+                                preferredDriverModes: [Flow.DriverMode.ReceiverDrive],
                             }),
-                            expectedInitialMessageType: BdxMessageTypes.ReceiveInit,
+                            expectedInitialMessageType: BdxMessageType.ReceiveInit,
                         };
                     },
                     validate: async (clientStorage, _serverStorage, { clientExchangeData, serverExchangeData }) => {
                         expect(clientExchangeData.length).equals(5);
                         expect(serverExchangeData.length).equals(4);
 
-                        expect(clientExchangeData[0].type).equals(BdxMessageTypes.ReceiveInit);
+                        expect(clientExchangeData[0].type).equals(BdxMessageType.ReceiveInit);
                         expect(clientExchangeData[0].data).deep.equals({
                             transferProtocol: {
                                 version: 0,
@@ -325,7 +332,7 @@ describe("BdxTest", () => {
                             startOffset: undefined,
                         });
 
-                        expect(serverExchangeData[0].type).equals(BdxMessageTypes.ReceiveAccept);
+                        expect(serverExchangeData[0].type).equals(BdxMessageType.ReceiveAccept);
                         expect(serverExchangeData[0].data).deep.equals({
                             transferControl: {
                                 version: 0,
@@ -338,28 +345,28 @@ describe("BdxTest", () => {
                             length: undefined,
                         });
 
-                        expect(clientExchangeData[1].type).equals(BdxMessageTypes.BlockQuery);
+                        expect(clientExchangeData[1].type).equals(BdxMessageType.BlockQuery);
                         expect(clientExchangeData[1].data.blockCounter).equals(1);
 
-                        expect(serverExchangeData[1].type).equals(BdxMessageTypes.Block);
+                        expect(serverExchangeData[1].type).equals(BdxMessageType.Block);
                         expect(serverExchangeData[1].data.blockCounter).equals(1);
                         expect(serverExchangeData[1].data.data.length).equals(966);
 
-                        expect(clientExchangeData[2].type).equals(BdxMessageTypes.BlockQuery);
+                        expect(clientExchangeData[2].type).equals(BdxMessageType.BlockQuery);
                         expect(clientExchangeData[2].data.blockCounter).equals(2);
 
-                        expect(serverExchangeData[2].type).equals(BdxMessageTypes.Block);
+                        expect(serverExchangeData[2].type).equals(BdxMessageType.Block);
                         expect(serverExchangeData[2].data.blockCounter).equals(2);
                         expect(serverExchangeData[2].data.data.length).equals(966);
 
-                        expect(clientExchangeData[3].type).equals(BdxMessageTypes.BlockQuery);
+                        expect(clientExchangeData[3].type).equals(BdxMessageType.BlockQuery);
                         expect(clientExchangeData[3].data.blockCounter).equals(3);
 
-                        expect(serverExchangeData[3].type).equals(BdxMessageTypes.BlockEof);
+                        expect(serverExchangeData[3].type).equals(BdxMessageType.BlockEof);
                         expect(serverExchangeData[3].data.blockCounter).equals(3);
                         expect(serverExchangeData[3].data.data.length).equals(116);
 
-                        expect(clientExchangeData[4].type).equals(BdxMessageTypes.BlockAckEof);
+                        expect(clientExchangeData[4].type).equals(BdxMessageType.BlockAckEof);
                         expect(clientExchangeData[4].data.blockCounter).equals(3);
 
                         const receivedData = await clientStorage.get(fd.text);
@@ -370,17 +377,18 @@ describe("BdxTest", () => {
 
             it("Using ReceiveInit as Receiver-Driver (by Responder)", async () => {
                 const data = crypto.randomBytes(2048);
-                const fd = new FileDesignator("data");
 
+                let fd: PersistedFileDesignator;
                 await bdxTransfer({
                     prepare: (clientStorage, serverStorage, messenger) => {
+                        fd = new PersistedFileDesignator("data", clientStorage);
                         serverStorage.set(fd.text, data);
 
                         return {
-                            bdxClient: BdxClient.asReceiver(clientStorage, messenger, fd),
-                            expectedInitialMessageType: BdxMessageTypes.ReceiveInit,
+                            bdxClient: BdxClient.asReceiver(messenger, { fileDesignator: fd }),
+                            expectedInitialMessageType: BdxMessageType.ReceiveInit,
                             serverLimits: {
-                                preferredDriverModes: [BdxTransferFlow.DriverMode.ReceiverDrive],
+                                preferredDriverModes: [Flow.DriverMode.ReceiverDrive],
                             },
                         };
                     },
@@ -388,7 +396,7 @@ describe("BdxTest", () => {
                         expect(clientExchangeData.length).equals(5);
                         expect(serverExchangeData.length).equals(4);
 
-                        expect(clientExchangeData[0].type).equals(BdxMessageTypes.ReceiveInit);
+                        expect(clientExchangeData[0].type).equals(BdxMessageType.ReceiveInit);
                         expect(clientExchangeData[0].data).deep.equals({
                             transferProtocol: {
                                 version: 0,
@@ -403,7 +411,7 @@ describe("BdxTest", () => {
                             startOffset: undefined,
                         });
 
-                        expect(serverExchangeData[0].type).equals(BdxMessageTypes.ReceiveAccept);
+                        expect(serverExchangeData[0].type).equals(BdxMessageType.ReceiveAccept);
                         expect(serverExchangeData[0].data).deep.equals({
                             transferControl: {
                                 version: 0,
@@ -428,21 +436,22 @@ describe("BdxTest", () => {
         describe("1932bytes (exactly 2 packages)", () => {
             it("Using SendInit as Sender-Driver (no limits)", async () => {
                 const data = crypto.randomBytes(1932);
-                const fd = new FileDesignator("data");
 
+                let fd: PersistedFileDesignator;
                 await bdxTransfer({
                     prepare: (clientStorage, _serverStorage, messenger) => {
+                        fd = new PersistedFileDesignator("data", clientStorage);
                         clientStorage.set(fd.text, data);
 
                         return {
-                            bdxClient: BdxClient.asSender(clientStorage, messenger, fd),
-                            expectedInitialMessageType: BdxMessageTypes.SendInit,
+                            bdxClient: BdxClient.asSender(messenger, { fileDesignator: fd }),
+                            expectedInitialMessageType: BdxMessageType.SendInit,
                         };
                     },
                     validate: async (_clientStorage, serverStorage, { clientExchangeData, serverExchangeData }) => {
                         expect(clientExchangeData.length).equals(3);
                         expect(serverExchangeData.length).equals(3);
-                        expect(clientExchangeData[0].type).equals(BdxMessageTypes.SendInit);
+                        expect(clientExchangeData[0].type).equals(BdxMessageType.SendInit);
                         expect(clientExchangeData[0].data).deep.equals({
                             transferProtocol: {
                                 version: 0,
@@ -456,7 +465,7 @@ describe("BdxTest", () => {
                             metaData: undefined,
                             startOffset: undefined,
                         });
-                        expect(serverExchangeData[0].type).equals(BdxMessageTypes.SendAccept);
+                        expect(serverExchangeData[0].type).equals(BdxMessageType.SendAccept);
                         expect(serverExchangeData[0].data).deep.equals({
                             transferControl: {
                                 version: 0,
@@ -467,18 +476,18 @@ describe("BdxTest", () => {
                             maxBlockSize: 966,
                             metaData: undefined,
                         });
-                        expect(clientExchangeData[1].type).equals(BdxMessageTypes.Block);
+                        expect(clientExchangeData[1].type).equals(BdxMessageType.Block);
                         expect(clientExchangeData[1].data.blockCounter).equals(1);
                         expect(clientExchangeData[1].data.data.length).equals(966);
 
-                        expect(serverExchangeData[1].type).equals(BdxMessageTypes.BlockAck);
+                        expect(serverExchangeData[1].type).equals(BdxMessageType.BlockAck);
                         expect(serverExchangeData[1].data.blockCounter).equals(1);
 
-                        expect(clientExchangeData[2].type).equals(BdxMessageTypes.BlockEof);
+                        expect(clientExchangeData[2].type).equals(BdxMessageType.BlockEof);
                         expect(clientExchangeData[2].data.blockCounter).equals(2);
                         expect(clientExchangeData[2].data.data.length).equals(966);
 
-                        expect(serverExchangeData[2].type).equals(BdxMessageTypes.BlockAckEof);
+                        expect(serverExchangeData[2].type).equals(BdxMessageType.BlockAckEof);
                         expect(serverExchangeData[2].data.blockCounter).equals(2);
 
                         const receivedData = await serverStorage.get(fd.text);
@@ -489,24 +498,26 @@ describe("BdxTest", () => {
 
             it("Using SendInit as Receiver-Driver (by Initiator)", async () => {
                 const data = crypto.randomBytes(1932);
-                const fd = new FileDesignator("data");
 
+                let fd: PersistedFileDesignator;
                 await bdxTransfer({
                     prepare: (clientStorage, _serverStorage, messenger) => {
+                        fd = new PersistedFileDesignator("data", clientStorage);
                         clientStorage.set(fd.text, data);
 
                         return {
-                            bdxClient: BdxClient.asSender(clientStorage, messenger, fd, {
-                                preferredDriverModes: [BdxTransferFlow.DriverMode.ReceiverDrive],
+                            bdxClient: BdxClient.asSender(messenger, {
+                                fileDesignator: fd,
+                                preferredDriverModes: [Flow.DriverMode.ReceiverDrive],
                             }),
-                            expectedInitialMessageType: BdxMessageTypes.SendInit,
+                            expectedInitialMessageType: BdxMessageType.SendInit,
                         };
                     },
                     validate: async (_clientStorage, serverStorage, { clientExchangeData, serverExchangeData }) => {
                         expect(clientExchangeData.length).equals(3);
                         expect(serverExchangeData.length).equals(4);
 
-                        expect(clientExchangeData[0].type).equals(BdxMessageTypes.SendInit);
+                        expect(clientExchangeData[0].type).equals(BdxMessageType.SendInit);
                         expect(clientExchangeData[0].data).deep.equals({
                             transferProtocol: {
                                 version: 0,
@@ -521,7 +532,7 @@ describe("BdxTest", () => {
                             startOffset: undefined,
                         });
 
-                        expect(serverExchangeData[0].type).equals(BdxMessageTypes.SendAccept);
+                        expect(serverExchangeData[0].type).equals(BdxMessageType.SendAccept);
                         expect(serverExchangeData[0].data).deep.equals({
                             transferControl: {
                                 version: 0,
@@ -533,21 +544,21 @@ describe("BdxTest", () => {
                             metaData: undefined,
                         });
 
-                        expect(serverExchangeData[1].type).equals(BdxMessageTypes.BlockQuery);
+                        expect(serverExchangeData[1].type).equals(BdxMessageType.BlockQuery);
                         expect(serverExchangeData[1].data.blockCounter).equals(1);
 
-                        expect(clientExchangeData[1].type).equals(BdxMessageTypes.Block);
+                        expect(clientExchangeData[1].type).equals(BdxMessageType.Block);
                         expect(clientExchangeData[1].data.blockCounter).equals(1);
                         expect(clientExchangeData[1].data.data.length).equals(966);
 
-                        expect(serverExchangeData[2].type).equals(BdxMessageTypes.BlockQuery);
+                        expect(serverExchangeData[2].type).equals(BdxMessageType.BlockQuery);
                         expect(serverExchangeData[2].data.blockCounter).equals(2);
 
-                        expect(clientExchangeData[2].type).equals(BdxMessageTypes.BlockEof);
+                        expect(clientExchangeData[2].type).equals(BdxMessageType.BlockEof);
                         expect(clientExchangeData[2].data.blockCounter).equals(2);
                         expect(clientExchangeData[2].data.data.length).equals(966);
 
-                        expect(serverExchangeData[3].type).equals(BdxMessageTypes.BlockAckEof);
+                        expect(serverExchangeData[3].type).equals(BdxMessageType.BlockAckEof);
                         expect(serverExchangeData[3].data.blockCounter).equals(2);
 
                         const receivedData = await serverStorage.get(fd.text);
@@ -558,22 +569,23 @@ describe("BdxTest", () => {
 
             it("Using ReceiveInit as Sender-Driver (no limits)", async () => {
                 const data = crypto.randomBytes(1932);
-                const fd = new FileDesignator("data");
 
+                let fd: PersistedFileDesignator;
                 await bdxTransfer({
                     prepare: (clientStorage, serverStorage, messenger) => {
+                        fd = new PersistedFileDesignator("data", clientStorage);
                         serverStorage.set(fd.text, data);
 
                         return {
-                            bdxClient: BdxClient.asReceiver(clientStorage, messenger, fd),
-                            expectedInitialMessageType: BdxMessageTypes.ReceiveInit,
+                            bdxClient: BdxClient.asReceiver(messenger, { fileDesignator: fd }),
+                            expectedInitialMessageType: BdxMessageType.ReceiveInit,
                         };
                     },
                     validate: async (clientStorage, _serverStorage, { clientExchangeData, serverExchangeData }) => {
                         expect(clientExchangeData.length).equals(4);
                         expect(serverExchangeData.length).equals(4);
 
-                        expect(clientExchangeData[0].type).equals(BdxMessageTypes.ReceiveInit);
+                        expect(clientExchangeData[0].type).equals(BdxMessageType.ReceiveInit);
                         expect(clientExchangeData[0].data).deep.equals({
                             transferProtocol: {
                                 version: 0,
@@ -588,7 +600,7 @@ describe("BdxTest", () => {
                             startOffset: undefined,
                         });
 
-                        expect(serverExchangeData[0].type).equals(BdxMessageTypes.ReceiveAccept);
+                        expect(serverExchangeData[0].type).equals(BdxMessageType.ReceiveAccept);
                         expect(serverExchangeData[0].data).deep.equals({
                             transferControl: {
                                 version: 0,
@@ -601,25 +613,25 @@ describe("BdxTest", () => {
                             length: undefined,
                         });
 
-                        expect(serverExchangeData[1].type).equals(BdxMessageTypes.Block);
+                        expect(serverExchangeData[1].type).equals(BdxMessageType.Block);
                         expect(serverExchangeData[1].data.blockCounter).equals(1);
                         expect(serverExchangeData[1].data.data.length).equals(966);
 
-                        expect(clientExchangeData[1].type).equals(BdxMessageTypes.BlockAck);
+                        expect(clientExchangeData[1].type).equals(BdxMessageType.BlockAck);
                         expect(clientExchangeData[1].data.blockCounter).equals(1);
 
-                        expect(serverExchangeData[2].type).equals(BdxMessageTypes.Block);
+                        expect(serverExchangeData[2].type).equals(BdxMessageType.Block);
                         expect(serverExchangeData[2].data.blockCounter).equals(2);
                         expect(serverExchangeData[2].data.data.length).equals(966);
 
-                        expect(clientExchangeData[2].type).equals(BdxMessageTypes.BlockAck);
+                        expect(clientExchangeData[2].type).equals(BdxMessageType.BlockAck);
                         expect(clientExchangeData[2].data.blockCounter).equals(2);
 
-                        expect(serverExchangeData[3].type).equals(BdxMessageTypes.BlockEof);
+                        expect(serverExchangeData[3].type).equals(BdxMessageType.BlockEof);
                         expect(serverExchangeData[3].data.blockCounter).equals(3);
                         expect(serverExchangeData[3].data.data.length).equals(0);
 
-                        expect(clientExchangeData[3].type).equals(BdxMessageTypes.BlockAckEof);
+                        expect(clientExchangeData[3].type).equals(BdxMessageType.BlockAckEof);
                         expect(clientExchangeData[3].data.blockCounter).equals(3);
 
                         const receivedData = await clientStorage.get(fd.text);
@@ -630,24 +642,26 @@ describe("BdxTest", () => {
 
             it("Using ReceiveInit as Receiver-Driver (by Initiator)", async () => {
                 const data = crypto.randomBytes(1932);
-                const fd = new FileDesignator("data");
 
+                let fd: PersistedFileDesignator;
                 await bdxTransfer({
                     prepare: (clientStorage, serverStorage, messenger) => {
+                        fd = new PersistedFileDesignator("data", clientStorage);
                         serverStorage.set(fd.text, data);
 
                         return {
-                            bdxClient: BdxClient.asReceiver(clientStorage, messenger, fd, {
-                                preferredDriverModes: [BdxTransferFlow.DriverMode.ReceiverDrive],
+                            bdxClient: BdxClient.asReceiver(messenger, {
+                                fileDesignator: fd,
+                                preferredDriverModes: [Flow.DriverMode.ReceiverDrive],
                             }),
-                            expectedInitialMessageType: BdxMessageTypes.ReceiveInit,
+                            expectedInitialMessageType: BdxMessageType.ReceiveInit,
                         };
                     },
                     validate: async (clientStorage, _serverStorage, { clientExchangeData, serverExchangeData }) => {
                         expect(clientExchangeData.length).equals(5);
                         expect(serverExchangeData.length).equals(4);
 
-                        expect(clientExchangeData[0].type).equals(BdxMessageTypes.ReceiveInit);
+                        expect(clientExchangeData[0].type).equals(BdxMessageType.ReceiveInit);
                         expect(clientExchangeData[0].data).deep.equals({
                             transferProtocol: {
                                 version: 0,
@@ -662,7 +676,7 @@ describe("BdxTest", () => {
                             startOffset: undefined,
                         });
 
-                        expect(serverExchangeData[0].type).equals(BdxMessageTypes.ReceiveAccept);
+                        expect(serverExchangeData[0].type).equals(BdxMessageType.ReceiveAccept);
                         expect(serverExchangeData[0].data).deep.equals({
                             transferControl: {
                                 version: 0,
@@ -675,28 +689,28 @@ describe("BdxTest", () => {
                             length: undefined,
                         });
 
-                        expect(clientExchangeData[1].type).equals(BdxMessageTypes.BlockQuery);
+                        expect(clientExchangeData[1].type).equals(BdxMessageType.BlockQuery);
                         expect(clientExchangeData[1].data.blockCounter).equals(1);
 
-                        expect(serverExchangeData[1].type).equals(BdxMessageTypes.Block);
+                        expect(serverExchangeData[1].type).equals(BdxMessageType.Block);
                         expect(serverExchangeData[1].data.blockCounter).equals(1);
                         expect(serverExchangeData[1].data.data.length).equals(966);
 
-                        expect(clientExchangeData[2].type).equals(BdxMessageTypes.BlockQuery);
+                        expect(clientExchangeData[2].type).equals(BdxMessageType.BlockQuery);
                         expect(clientExchangeData[2].data.blockCounter).equals(2);
 
-                        expect(serverExchangeData[2].type).equals(BdxMessageTypes.Block);
+                        expect(serverExchangeData[2].type).equals(BdxMessageType.Block);
                         expect(serverExchangeData[2].data.blockCounter).equals(2);
                         expect(serverExchangeData[2].data.data.length).equals(966);
 
-                        expect(clientExchangeData[3].type).equals(BdxMessageTypes.BlockQuery);
+                        expect(clientExchangeData[3].type).equals(BdxMessageType.BlockQuery);
                         expect(clientExchangeData[3].data.blockCounter).equals(3);
 
-                        expect(serverExchangeData[3].type).equals(BdxMessageTypes.BlockEof);
+                        expect(serverExchangeData[3].type).equals(BdxMessageType.BlockEof);
                         expect(serverExchangeData[3].data.blockCounter).equals(3);
                         expect(serverExchangeData[3].data.data.length).equals(0);
 
-                        expect(clientExchangeData[4].type).equals(BdxMessageTypes.BlockAckEof);
+                        expect(clientExchangeData[4].type).equals(BdxMessageType.BlockAckEof);
                         expect(clientExchangeData[4].data.blockCounter).equals(3);
 
                         const receivedData = await clientStorage.get(fd.text);
@@ -709,21 +723,22 @@ describe("BdxTest", () => {
         describe("256bytes (1 package)", () => {
             it("Using SendInit as Sender-Driver (no limits)", async () => {
                 const data = crypto.randomBytes(256);
-                const fd = new FileDesignator("data");
 
+                let fd: PersistedFileDesignator;
                 await bdxTransfer({
                     prepare: (clientStorage, _serverStorage, messenger) => {
+                        fd = new PersistedFileDesignator("data", clientStorage);
                         clientStorage.set(fd.text, data);
 
                         return {
-                            bdxClient: BdxClient.asSender(clientStorage, messenger, fd),
-                            expectedInitialMessageType: BdxMessageTypes.SendInit,
+                            bdxClient: BdxClient.asSender(messenger, { fileDesignator: fd }),
+                            expectedInitialMessageType: BdxMessageType.SendInit,
                         };
                     },
                     validate: async (_clientStorage, serverStorage, { clientExchangeData, serverExchangeData }) => {
                         expect(clientExchangeData.length).equals(2);
                         expect(serverExchangeData.length).equals(2);
-                        expect(clientExchangeData[0].type).equals(BdxMessageTypes.SendInit);
+                        expect(clientExchangeData[0].type).equals(BdxMessageType.SendInit);
                         expect(clientExchangeData[0].data).deep.equals({
                             transferProtocol: {
                                 version: 0,
@@ -737,7 +752,7 @@ describe("BdxTest", () => {
                             metaData: undefined,
                             startOffset: undefined,
                         });
-                        expect(serverExchangeData[0].type).equals(BdxMessageTypes.SendAccept);
+                        expect(serverExchangeData[0].type).equals(BdxMessageType.SendAccept);
                         expect(serverExchangeData[0].data).deep.equals({
                             transferControl: {
                                 version: 0,
@@ -748,11 +763,11 @@ describe("BdxTest", () => {
                             maxBlockSize: 966,
                             metaData: undefined,
                         });
-                        expect(clientExchangeData[1].type).equals(BdxMessageTypes.BlockEof);
+                        expect(clientExchangeData[1].type).equals(BdxMessageType.BlockEof);
                         expect(clientExchangeData[1].data.blockCounter).equals(1);
                         expect(clientExchangeData[1].data.data.length).equals(256);
 
-                        expect(serverExchangeData[1].type).equals(BdxMessageTypes.BlockAckEof);
+                        expect(serverExchangeData[1].type).equals(BdxMessageType.BlockAckEof);
                         expect(serverExchangeData[1].data.blockCounter).equals(1);
 
                         const receivedData = await serverStorage.get(fd.text);
@@ -763,24 +778,26 @@ describe("BdxTest", () => {
 
             it("Using SendInit as Receiver-Driver (by Initiator)", async () => {
                 const data = crypto.randomBytes(256);
-                const fd = new FileDesignator("data");
 
+                let fd: PersistedFileDesignator;
                 await bdxTransfer({
                     prepare: (clientStorage, _serverStorage, messenger) => {
+                        fd = new PersistedFileDesignator("data", clientStorage);
                         clientStorage.set(fd.text, data);
 
                         return {
-                            bdxClient: BdxClient.asSender(clientStorage, messenger, fd, {
-                                preferredDriverModes: [BdxTransferFlow.DriverMode.ReceiverDrive],
+                            bdxClient: BdxClient.asSender(messenger, {
+                                fileDesignator: fd,
+                                preferredDriverModes: [Flow.DriverMode.ReceiverDrive],
                             }),
-                            expectedInitialMessageType: BdxMessageTypes.SendInit,
+                            expectedInitialMessageType: BdxMessageType.SendInit,
                         };
                     },
                     validate: async (_clientStorage, serverStorage, { clientExchangeData, serverExchangeData }) => {
                         expect(clientExchangeData.length).equals(2);
                         expect(serverExchangeData.length).equals(3);
 
-                        expect(clientExchangeData[0].type).equals(BdxMessageTypes.SendInit);
+                        expect(clientExchangeData[0].type).equals(BdxMessageType.SendInit);
                         expect(clientExchangeData[0].data).deep.equals({
                             transferProtocol: {
                                 version: 0,
@@ -795,7 +812,7 @@ describe("BdxTest", () => {
                             startOffset: undefined,
                         });
 
-                        expect(serverExchangeData[0].type).equals(BdxMessageTypes.SendAccept);
+                        expect(serverExchangeData[0].type).equals(BdxMessageType.SendAccept);
                         expect(serverExchangeData[0].data).deep.equals({
                             transferControl: {
                                 version: 0,
@@ -807,14 +824,14 @@ describe("BdxTest", () => {
                             metaData: undefined,
                         });
 
-                        expect(serverExchangeData[1].type).equals(BdxMessageTypes.BlockQuery);
+                        expect(serverExchangeData[1].type).equals(BdxMessageType.BlockQuery);
                         expect(serverExchangeData[1].data.blockCounter).equals(1);
 
-                        expect(clientExchangeData[1].type).equals(BdxMessageTypes.BlockEof);
+                        expect(clientExchangeData[1].type).equals(BdxMessageType.BlockEof);
                         expect(clientExchangeData[1].data.blockCounter).equals(1);
                         expect(clientExchangeData[1].data.data.length).equals(256);
 
-                        expect(serverExchangeData[2].type).equals(BdxMessageTypes.BlockAckEof);
+                        expect(serverExchangeData[2].type).equals(BdxMessageType.BlockAckEof);
                         expect(serverExchangeData[2].data.blockCounter).equals(1);
 
                         const receivedData = await serverStorage.get(fd.text);
@@ -825,22 +842,23 @@ describe("BdxTest", () => {
 
             it("Using ReceiveInit as Sender-Driver (no limits)", async () => {
                 const data = crypto.randomBytes(256);
-                const fd = new FileDesignator("data");
 
+                let fd: PersistedFileDesignator;
                 await bdxTransfer({
                     prepare: (clientStorage, serverStorage, messenger) => {
+                        fd = new PersistedFileDesignator("data", clientStorage);
                         serverStorage.set(fd.text, data);
 
                         return {
-                            bdxClient: BdxClient.asReceiver(clientStorage, messenger, fd),
-                            expectedInitialMessageType: BdxMessageTypes.ReceiveInit,
+                            bdxClient: BdxClient.asReceiver(messenger, { fileDesignator: fd }),
+                            expectedInitialMessageType: BdxMessageType.ReceiveInit,
                         };
                     },
                     validate: async (clientStorage, _serverStorage, { clientExchangeData, serverExchangeData }) => {
                         expect(clientExchangeData.length).equals(2);
                         expect(serverExchangeData.length).equals(2);
 
-                        expect(clientExchangeData[0].type).equals(BdxMessageTypes.ReceiveInit);
+                        expect(clientExchangeData[0].type).equals(BdxMessageType.ReceiveInit);
                         expect(clientExchangeData[0].data).deep.equals({
                             transferProtocol: {
                                 version: 0,
@@ -855,7 +873,7 @@ describe("BdxTest", () => {
                             startOffset: undefined,
                         });
 
-                        expect(serverExchangeData[0].type).equals(BdxMessageTypes.ReceiveAccept);
+                        expect(serverExchangeData[0].type).equals(BdxMessageType.ReceiveAccept);
                         expect(serverExchangeData[0].data).deep.equals({
                             transferControl: {
                                 version: 0,
@@ -868,11 +886,11 @@ describe("BdxTest", () => {
                             length: undefined,
                         });
 
-                        expect(serverExchangeData[1].type).equals(BdxMessageTypes.BlockEof);
+                        expect(serverExchangeData[1].type).equals(BdxMessageType.BlockEof);
                         expect(serverExchangeData[1].data.blockCounter).equals(1);
                         expect(serverExchangeData[1].data.data.length).equals(256);
 
-                        expect(clientExchangeData[1].type).equals(BdxMessageTypes.BlockAckEof);
+                        expect(clientExchangeData[1].type).equals(BdxMessageType.BlockAckEof);
                         expect(clientExchangeData[1].data.blockCounter).equals(1);
 
                         const receivedData = await clientStorage.get(fd.text);
@@ -883,24 +901,26 @@ describe("BdxTest", () => {
 
             it("Using ReceiveInit as Receiver-Driver (by Initiator)", async () => {
                 const data = crypto.randomBytes(256);
-                const fd = new FileDesignator("data");
 
+                let fd: PersistedFileDesignator;
                 await bdxTransfer({
                     prepare: (clientStorage, serverStorage, messenger) => {
+                        fd = new PersistedFileDesignator("data", clientStorage);
                         serverStorage.set(fd.text, data);
 
                         return {
-                            bdxClient: BdxClient.asReceiver(clientStorage, messenger, fd, {
-                                preferredDriverModes: [BdxTransferFlow.DriverMode.ReceiverDrive],
+                            bdxClient: BdxClient.asReceiver(messenger, {
+                                fileDesignator: fd,
+                                preferredDriverModes: [Flow.DriverMode.ReceiverDrive],
                             }),
-                            expectedInitialMessageType: BdxMessageTypes.ReceiveInit,
+                            expectedInitialMessageType: BdxMessageType.ReceiveInit,
                         };
                     },
                     validate: async (clientStorage, _serverStorage, { clientExchangeData, serverExchangeData }) => {
                         expect(clientExchangeData.length).equals(3);
                         expect(serverExchangeData.length).equals(2);
 
-                        expect(clientExchangeData[0].type).equals(BdxMessageTypes.ReceiveInit);
+                        expect(clientExchangeData[0].type).equals(BdxMessageType.ReceiveInit);
                         expect(clientExchangeData[0].data).deep.equals({
                             transferProtocol: {
                                 version: 0,
@@ -915,7 +935,7 @@ describe("BdxTest", () => {
                             startOffset: undefined,
                         });
 
-                        expect(serverExchangeData[0].type).equals(BdxMessageTypes.ReceiveAccept);
+                        expect(serverExchangeData[0].type).equals(BdxMessageType.ReceiveAccept);
                         expect(serverExchangeData[0].data).deep.equals({
                             transferControl: {
                                 version: 0,
@@ -928,14 +948,14 @@ describe("BdxTest", () => {
                             length: undefined,
                         });
 
-                        expect(clientExchangeData[1].type).equals(BdxMessageTypes.BlockQuery);
+                        expect(clientExchangeData[1].type).equals(BdxMessageType.BlockQuery);
                         expect(clientExchangeData[1].data.blockCounter).equals(1);
 
-                        expect(serverExchangeData[1].type).equals(BdxMessageTypes.BlockEof);
+                        expect(serverExchangeData[1].type).equals(BdxMessageType.BlockEof);
                         expect(serverExchangeData[1].data.blockCounter).equals(1);
                         expect(serverExchangeData[1].data.data.length).equals(256);
 
-                        expect(clientExchangeData[2].type).equals(BdxMessageTypes.BlockAckEof);
+                        expect(clientExchangeData[2].type).equals(BdxMessageType.BlockAckEof);
                         expect(clientExchangeData[2].data.blockCounter).equals(1);
 
                         const receivedData = await clientStorage.get(fd.text);
@@ -948,23 +968,22 @@ describe("BdxTest", () => {
         describe("partial transfers", () => {
             it("Send first 100 bytes as sender drive", async () => {
                 const data = crypto.randomBytes(256);
-                const fd = new FileDesignator("data");
 
+                let fd: PersistedFileDesignator;
                 await bdxTransfer({
                     prepare: (clientStorage, _serverStorage, messenger) => {
+                        fd = new PersistedFileDesignator("data", clientStorage);
                         clientStorage.set(fd.text, data);
 
                         return {
-                            bdxClient: BdxClient.asSender(clientStorage, messenger, fd, {
-                                senderMaxLength: 100,
-                            }),
-                            expectedInitialMessageType: BdxMessageTypes.SendInit,
+                            bdxClient: BdxClient.asSender(messenger, { fileDesignator: fd, senderMaxLength: 100 }),
+                            expectedInitialMessageType: BdxMessageType.SendInit,
                         };
                     },
                     validate: async (_clientStorage, serverStorage, { clientExchangeData, serverExchangeData }) => {
                         expect(clientExchangeData.length).equals(2);
                         expect(serverExchangeData.length).equals(2);
-                        expect(clientExchangeData[0].type).equals(BdxMessageTypes.SendInit);
+                        expect(clientExchangeData[0].type).equals(BdxMessageType.SendInit);
                         expect(clientExchangeData[0].data).deep.equals({
                             transferProtocol: {
                                 version: 0,
@@ -978,7 +997,7 @@ describe("BdxTest", () => {
                             metaData: undefined,
                             startOffset: undefined,
                         });
-                        expect(clientExchangeData[1].type).equals(BdxMessageTypes.BlockEof);
+                        expect(clientExchangeData[1].type).equals(BdxMessageType.BlockEof);
                         expect(clientExchangeData[1].data.blockCounter).equals(1);
                         expect(clientExchangeData[1].data.data.length).equals(100);
 
@@ -990,25 +1009,27 @@ describe("BdxTest", () => {
 
             it("Send first 100 bytes as Receiver-Driver", async () => {
                 const data = crypto.randomBytes(256);
-                const fd = new FileDesignator("data");
 
+                let fd: PersistedFileDesignator;
                 await bdxTransfer({
                     prepare: (clientStorage, _serverStorage, messenger) => {
+                        fd = new PersistedFileDesignator("data", clientStorage);
                         clientStorage.set(fd.text, data);
 
                         return {
-                            bdxClient: BdxClient.asSender(clientStorage, messenger, fd, {
-                                preferredDriverModes: [BdxTransferFlow.DriverMode.ReceiverDrive],
+                            bdxClient: BdxClient.asSender(messenger, {
+                                fileDesignator: fd,
+                                preferredDriverModes: [Flow.DriverMode.ReceiverDrive],
                                 senderMaxLength: 100,
                             }),
-                            expectedInitialMessageType: BdxMessageTypes.SendInit,
+                            expectedInitialMessageType: BdxMessageType.SendInit,
                         };
                     },
                     validate: async (_clientStorage, serverStorage, { clientExchangeData, serverExchangeData }) => {
                         expect(clientExchangeData.length).equals(2);
                         expect(serverExchangeData.length).equals(3);
 
-                        expect(clientExchangeData[0].type).equals(BdxMessageTypes.SendInit);
+                        expect(clientExchangeData[0].type).equals(BdxMessageType.SendInit);
                         expect(clientExchangeData[0].data).deep.equals({
                             transferProtocol: {
                                 version: 0,
@@ -1023,7 +1044,7 @@ describe("BdxTest", () => {
                             startOffset: undefined,
                         });
 
-                        expect(serverExchangeData[0].type).equals(BdxMessageTypes.SendAccept);
+                        expect(serverExchangeData[0].type).equals(BdxMessageType.SendAccept);
                         expect(serverExchangeData[0].data).deep.equals({
                             transferControl: {
                                 version: 0,
@@ -1035,14 +1056,14 @@ describe("BdxTest", () => {
                             metaData: undefined,
                         });
 
-                        expect(serverExchangeData[1].type).equals(BdxMessageTypes.BlockQuery);
+                        expect(serverExchangeData[1].type).equals(BdxMessageType.BlockQuery);
                         expect(serverExchangeData[1].data.blockCounter).equals(1);
 
-                        expect(clientExchangeData[1].type).equals(BdxMessageTypes.BlockEof);
+                        expect(clientExchangeData[1].type).equals(BdxMessageType.BlockEof);
                         expect(clientExchangeData[1].data.blockCounter).equals(1);
                         expect(clientExchangeData[1].data.data.length).equals(100);
 
-                        expect(serverExchangeData[2].type).equals(BdxMessageTypes.BlockAckEof);
+                        expect(serverExchangeData[2].type).equals(BdxMessageType.BlockAckEof);
                         expect(serverExchangeData[2].data.blockCounter).equals(1);
 
                         const receivedData = await serverStorage.get(fd.text);
@@ -1053,24 +1074,26 @@ describe("BdxTest", () => {
 
             it("Send 100 bytes with startOffset 50 as sender drive", async () => {
                 const data = crypto.randomBytes(256);
-                const fd = new FileDesignator("data");
 
+                let fd: PersistedFileDesignator;
                 await bdxTransfer({
                     prepare: (clientStorage, _serverStorage, messenger) => {
+                        fd = new PersistedFileDesignator("data", clientStorage);
                         clientStorage.set(fd.text, data);
 
                         return {
-                            bdxClient: BdxClient.asSender(clientStorage, messenger, fd, {
+                            bdxClient: BdxClient.asSender(messenger, {
+                                fileDesignator: fd,
                                 senderMaxLength: 100,
                                 senderStartOffset: 50,
                             }),
-                            expectedInitialMessageType: BdxMessageTypes.SendInit,
+                            expectedInitialMessageType: BdxMessageType.SendInit,
                         };
                     },
                     validate: async (_clientStorage, serverStorage, { clientExchangeData, serverExchangeData }) => {
                         expect(clientExchangeData.length).equals(2);
                         expect(serverExchangeData.length).equals(2);
-                        expect(clientExchangeData[0].type).equals(BdxMessageTypes.SendInit);
+                        expect(clientExchangeData[0].type).equals(BdxMessageType.SendInit);
                         expect(clientExchangeData[0].data).deep.equals({
                             transferProtocol: {
                                 version: 0,
@@ -1084,7 +1107,7 @@ describe("BdxTest", () => {
                             metaData: undefined,
                             startOffset: 50,
                         });
-                        expect(clientExchangeData[1].type).equals(BdxMessageTypes.BlockEof);
+                        expect(clientExchangeData[1].type).equals(BdxMessageType.BlockEof);
                         expect(clientExchangeData[1].data.blockCounter).equals(1);
                         expect(clientExchangeData[1].data.data.length).equals(100);
 
@@ -1096,26 +1119,28 @@ describe("BdxTest", () => {
 
             it("Send first 100 bytes with startOffset 50 as Receiver-Driver", async () => {
                 const data = crypto.randomBytes(256);
-                const fd = new FileDesignator("data");
 
+                let fd: PersistedFileDesignator;
                 await bdxTransfer({
                     prepare: (clientStorage, _serverStorage, messenger) => {
+                        fd = new PersistedFileDesignator("data", clientStorage);
                         clientStorage.set(fd.text, data);
 
                         return {
-                            bdxClient: BdxClient.asSender(clientStorage, messenger, fd, {
-                                preferredDriverModes: [BdxTransferFlow.DriverMode.ReceiverDrive],
+                            bdxClient: BdxClient.asSender(messenger, {
+                                fileDesignator: fd,
+                                preferredDriverModes: [Flow.DriverMode.ReceiverDrive],
                                 senderMaxLength: 100,
                                 senderStartOffset: 50,
                             }),
-                            expectedInitialMessageType: BdxMessageTypes.SendInit,
+                            expectedInitialMessageType: BdxMessageType.SendInit,
                         };
                     },
                     validate: async (_clientStorage, serverStorage, { clientExchangeData, serverExchangeData }) => {
                         expect(clientExchangeData.length).equals(2);
                         expect(serverExchangeData.length).equals(3);
 
-                        expect(clientExchangeData[0].type).equals(BdxMessageTypes.SendInit);
+                        expect(clientExchangeData[0].type).equals(BdxMessageType.SendInit);
                         expect(clientExchangeData[0].data).deep.equals({
                             transferProtocol: {
                                 version: 0,
@@ -1130,7 +1155,7 @@ describe("BdxTest", () => {
                             startOffset: 50,
                         });
 
-                        expect(serverExchangeData[0].type).equals(BdxMessageTypes.SendAccept);
+                        expect(serverExchangeData[0].type).equals(BdxMessageType.SendAccept);
                         expect(serverExchangeData[0].data).deep.equals({
                             transferControl: {
                                 version: 0,
@@ -1142,14 +1167,14 @@ describe("BdxTest", () => {
                             metaData: undefined,
                         });
 
-                        expect(serverExchangeData[1].type).equals(BdxMessageTypes.BlockQuery);
+                        expect(serverExchangeData[1].type).equals(BdxMessageType.BlockQuery);
                         expect(serverExchangeData[1].data.blockCounter).equals(1);
 
-                        expect(clientExchangeData[1].type).equals(BdxMessageTypes.BlockEof);
+                        expect(clientExchangeData[1].type).equals(BdxMessageType.BlockEof);
                         expect(clientExchangeData[1].data.blockCounter).equals(1);
                         expect(clientExchangeData[1].data.data.length).equals(100);
 
-                        expect(serverExchangeData[2].type).equals(BdxMessageTypes.BlockAckEof);
+                        expect(serverExchangeData[2].type).equals(BdxMessageType.BlockAckEof);
                         expect(serverExchangeData[2].data.blockCounter).equals(1);
 
                         const receivedData = await serverStorage.get(fd.text);
@@ -1163,19 +1188,21 @@ describe("BdxTest", () => {
     describe("Error cases", () => {
         it("No matching driver modes", async () => {
             const data = crypto.randomBytes(256);
-            const fd = new FileDesignator("data");
 
+            let fd: PersistedFileDesignator;
             await bdxTransfer({
                 prepare: (clientStorage, _serverStorage, messenger) => {
+                    fd = new PersistedFileDesignator("data", clientStorage);
                     clientStorage.set(fd.text, data);
 
                     return {
-                        bdxClient: BdxClient.asSender(clientStorage, messenger, fd, {
-                            preferredDriverModes: [BdxTransferFlow.DriverMode.SenderDrive],
+                        bdxClient: BdxClient.asSender(messenger, {
+                            fileDesignator: fd,
+                            preferredDriverModes: [Flow.DriverMode.SenderDrive],
                         }),
-                        expectedInitialMessageType: BdxMessageTypes.SendInit,
+                        expectedInitialMessageType: BdxMessageType.SendInit,
                         serverLimits: {
-                            preferredDriverModes: [BdxTransferFlow.DriverMode.ReceiverDrive],
+                            preferredDriverModes: [Flow.DriverMode.ReceiverDrive],
                         },
                     };
                 },
@@ -1193,13 +1220,13 @@ describe("BdxTest", () => {
         });
 
         it("Unknown FileDesignator", async () => {
-            const fd = new FileDesignator("data");
-
+            let fd: PersistedFileDesignator;
             await bdxTransfer({
                 prepare: (clientStorage, _serverStorage, messenger) => {
+                    fd = new PersistedFileDesignator("data", clientStorage);
                     return {
-                        bdxClient: BdxClient.asReceiver(clientStorage, messenger, fd),
-                        expectedInitialMessageType: BdxMessageTypes.ReceiveInit,
+                        bdxClient: BdxClient.asReceiver(messenger, { fileDesignator: fd }),
+                        expectedInitialMessageType: BdxMessageType.ReceiveInit,
                     };
                 },
                 validate: async (_clientStorage, _serverStorage, { serverExchangeData, clientError }) => {
@@ -1215,19 +1242,20 @@ describe("BdxTest", () => {
 
         it("Request a file from peer that is larger than the data", async () => {
             const data = crypto.randomBytes(100);
-            const fd = new FileDesignator("data");
 
+            let fd: PersistedFileDesignator;
             await bdxTransfer({
                 prepare: (clientStorage, serverStorage, messenger) => {
+                    fd = new PersistedFileDesignator("data", clientStorage);
                     serverStorage.set(fd.text, data);
 
                     return {
-                        bdxClient: BdxClient.asReceiver(clientStorage, messenger, fd),
-                        expectedInitialMessageType: BdxMessageTypes.ReceiveInit,
+                        bdxClient: BdxClient.asReceiver(messenger, { fileDesignator: fd }),
+                        expectedInitialMessageType: BdxMessageType.ReceiveInit,
                     };
                 },
                 clientExchangeManipulator: message => {
-                    if (message.payloadHeader.messageType === BdxMessageTypes.ReceiveInit) {
+                    if (message.payloadHeader.messageType === BdxMessageType.ReceiveInit) {
                         const data = BdxReceiveInitMessage.decode(message.payload);
                         data.maxLength = 300;
                         message.payload = BdxReceiveInitMessage.encode(data);
@@ -1245,19 +1273,20 @@ describe("BdxTest", () => {
 
         it("Request a file from peer that is larger than the data using startOffset", async () => {
             const data = crypto.randomBytes(100);
-            const fd = new FileDesignator("data");
 
+            let fd: PersistedFileDesignator;
             await bdxTransfer({
                 prepare: (clientStorage, serverStorage, messenger) => {
+                    fd = new PersistedFileDesignator("data", clientStorage);
                     serverStorage.set(fd.text, data);
 
                     return {
-                        bdxClient: BdxClient.asReceiver(clientStorage, messenger, fd),
-                        expectedInitialMessageType: BdxMessageTypes.ReceiveInit,
+                        bdxClient: BdxClient.asReceiver(messenger, { fileDesignator: fd }),
+                        expectedInitialMessageType: BdxMessageType.ReceiveInit,
                     };
                 },
                 clientExchangeManipulator: message => {
-                    if (message.payloadHeader.messageType === BdxMessageTypes.ReceiveInit) {
+                    if (message.payloadHeader.messageType === BdxMessageType.ReceiveInit) {
                         const data = BdxReceiveInitMessage.decode(message.payload);
                         data.maxLength = 100;
                         data.startOffset = 50;
@@ -1276,19 +1305,20 @@ describe("BdxTest", () => {
 
         it("Unexpected Blockcounter in request with SenderDriver", async () => {
             const data = crypto.randomBytes(256);
-            const fd = new FileDesignator("data");
 
+            let fd: PersistedFileDesignator;
             await bdxTransfer({
                 prepare: (clientStorage, _serverStorage, messenger) => {
+                    fd = new PersistedFileDesignator("data", clientStorage);
                     clientStorage.set(fd.text, data);
 
                     return {
-                        bdxClient: BdxClient.asSender(clientStorage, messenger, fd),
-                        expectedInitialMessageType: BdxMessageTypes.SendInit,
+                        bdxClient: BdxClient.asSender(messenger, { fileDesignator: fd }),
+                        expectedInitialMessageType: BdxMessageType.SendInit,
                     };
                 },
                 clientExchangeManipulator: message => {
-                    if (message.payloadHeader.messageType === BdxMessageTypes.BlockEof) {
+                    if (message.payloadHeader.messageType === BdxMessageType.BlockEof) {
                         const data = BdxBlockEofMessage.decode(message.payload);
                         data.blockCounter++;
                         message.payload = BdxBlockEofMessage.encode(data);
@@ -1310,21 +1340,23 @@ describe("BdxTest", () => {
 
         it("BlockQueryWithSkip skipping bytes but end errors because of too less data", async () => {
             const data = crypto.randomBytes(2048);
-            const fd = new FileDesignator("data");
 
+            let fd: PersistedFileDesignator;
             await bdxTransfer({
                 prepare: (clientStorage, _serverStorage, messenger) => {
+                    fd = new PersistedFileDesignator("data", clientStorage);
                     clientStorage.set(fd.text, data);
 
                     return {
-                        bdxClient: BdxClient.asSender(clientStorage, messenger, fd, {
-                            preferredDriverModes: [BdxTransferFlow.DriverMode.ReceiverDrive],
+                        bdxClient: BdxClient.asSender(messenger, {
+                            fileDesignator: fd,
+                            preferredDriverModes: [Flow.DriverMode.ReceiverDrive],
                         }),
-                        expectedInitialMessageType: BdxMessageTypes.SendInit,
+                        expectedInitialMessageType: BdxMessageType.SendInit,
                     };
                 },
                 serverExchangeManipulator: message => {
-                    if (message.payloadHeader.messageType === BdxMessageTypes.BlockQuery) {
+                    if (message.payloadHeader.messageType === BdxMessageType.BlockQuery) {
                         const data = BdxBlockQueryMessage.decode(message.payload);
                         // Manipulate the second BlockQuery to also Skip over bytes
                         if (data.blockCounter === 2) {
@@ -1333,7 +1365,7 @@ describe("BdxTest", () => {
                                 bytesToSkip: 100,
                             };
                             message.payload = BdxBlockQueryWithSkipMessage.encode(skipQuery);
-                            message.payloadHeader.messageType = BdxMessageTypes.BlockQueryWithSkip;
+                            message.payloadHeader.messageType = BdxMessageType.BlockQueryWithSkip;
                         }
                     }
                     return message;
@@ -1350,7 +1382,7 @@ describe("BdxTest", () => {
                     expect(clientExchangeData.length).equals(4);
                     expect(serverExchangeData.length).equals(4);
 
-                    expect(clientExchangeData[0].type).equals(BdxMessageTypes.SendInit);
+                    expect(clientExchangeData[0].type).equals(BdxMessageType.SendInit);
                     expect(clientExchangeData[0].data).deep.equals({
                         transferProtocol: {
                             version: 0,
@@ -1365,7 +1397,7 @@ describe("BdxTest", () => {
                         startOffset: undefined,
                     });
 
-                    expect(serverExchangeData[0].type).equals(BdxMessageTypes.SendAccept);
+                    expect(serverExchangeData[0].type).equals(BdxMessageType.SendAccept);
                     expect(serverExchangeData[0].data).deep.equals({
                         transferControl: {
                             version: 0,
@@ -1377,23 +1409,23 @@ describe("BdxTest", () => {
                         metaData: undefined,
                     });
 
-                    expect(serverExchangeData[1].type).equals(BdxMessageTypes.BlockQuery);
+                    expect(serverExchangeData[1].type).equals(BdxMessageType.BlockQuery);
                     expect(serverExchangeData[1].data.blockCounter).equals(1);
 
-                    expect(clientExchangeData[1].type).equals(BdxMessageTypes.Block);
+                    expect(clientExchangeData[1].type).equals(BdxMessageType.Block);
                     expect(clientExchangeData[1].data.blockCounter).equals(1);
                     expect(clientExchangeData[1].data.data.length).equals(966);
                     expect(clientExchangeData[1].data.data).deep.equals(Bytes.of(data).slice(0, 966));
 
-                    expect(serverExchangeData[2].type).equals(BdxMessageTypes.BlockQuery); // Original is stored, so not manipulated type
+                    expect(serverExchangeData[2].type).equals(BdxMessageType.BlockQuery); // Original is stored, so not manipulated type
                     expect(serverExchangeData[2].data.blockCounter).equals(2);
 
-                    expect(clientExchangeData[2].type).equals(BdxMessageTypes.Block);
+                    expect(clientExchangeData[2].type).equals(BdxMessageType.Block);
                     expect(clientExchangeData[2].data.blockCounter).equals(2);
                     expect(clientExchangeData[2].data.data.length).equals(966);
                     expect(clientExchangeData[2].data.data).deep.equals(Bytes.of(data).slice(1066, 1066 + 966));
 
-                    expect(serverExchangeData[3].type).equals(BdxMessageTypes.BlockQuery);
+                    expect(serverExchangeData[3].type).equals(BdxMessageType.BlockQuery);
                     expect(serverExchangeData[3].data.blockCounter).equals(3);
 
                     expect(clientExchangeData[3].type).equals(SecureMessageType.StatusReport);

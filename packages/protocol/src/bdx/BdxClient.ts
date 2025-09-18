@@ -4,10 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { StorageContext } from "#general";
 import { BdxMessenger } from "./BdxMessenger.js";
 import { BdxSession } from "./BdxSession.js";
-import { FileDesignator } from "./FileDesignator.js";
+import { BdxSessionConfiguration } from "./BdxSessionConfiguration.js";
 
 /**
  * BDX Client to initiate a BDX transfer.
@@ -21,26 +20,16 @@ export class BdxClient {
      * Create a BDX client to initiate a BDX transfer as sender.
      * A file designator needs to be provided and needs to exist in the storage context.
      */
-    static asSender(
-        storage: StorageContext,
-        messenger: BdxMessenger,
-        fileDesignator: FileDesignator,
-        options?: Omit<BdxSession.SenderInitiatorOptions, "fileDesignator">,
-    ) {
-        return new BdxClient(BdxSession.asSender(storage, messenger, { fileDesignator, ...options }));
+    static asSender(messenger: BdxMessenger, options: BdxSessionConfiguration.SenderInitiatorOptions) {
+        return new BdxClient(BdxSession.asSender(messenger, options));
     }
 
     /**
      * Create a BDX client to initiate a BDX transfer as receiver.
      * A file designator needs to be provided. The content will be written to the storage context.
      */
-    static asReceiver(
-        storage: StorageContext,
-        messenger: BdxMessenger,
-        fileDesignator: FileDesignator,
-        options?: Omit<BdxSession.InitiatorOptions, "fileDesignator">,
-    ) {
-        return new BdxClient(BdxSession.asReceiver(storage, messenger, { fileDesignator, ...options }));
+    static asReceiver(messenger: BdxMessenger, options: BdxSessionConfiguration.InitiatorOptions) {
+        return new BdxClient(BdxSession.asReceiver(messenger, options));
     }
 
     constructor(bdxSession: BdxSession) {
@@ -50,5 +39,9 @@ export class BdxClient {
     /** This is the main entry point to initiate and process the BDX transfer. */
     processTransfer() {
         return this.#session.processTransfer();
+    }
+
+    close() {
+        return this.#session.close();
     }
 }

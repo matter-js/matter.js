@@ -29,3 +29,6 @@ export abstract class Schema<T, E> {
         // Do nothing by default
     }
 }
+
+export type SchemaType<S> = S extends Schema<infer T, any> ? T : never;
+export type SchemaEncodedType<S> = S extends Schema<any, infer E> ? E : never;

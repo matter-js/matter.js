@@ -4,37 +4,40 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { BytesStreamReader, InternalError } from "#general";
 import { BdxStatusCode } from "#types";
-import { BytesStreamReader } from "@matter/general";
 import { BdxError } from "../BdxError.js";
-import { BdxMessenger } from "../BdxMessenger.js";
-import { BdxTransferFlow } from "./BdxTransferFlow.js";
+import { Flow } from "./Flow.js";
 
 /**
  * Base class for BDX transfer flows that read data from a Blob.
  */
-export abstract class BdxReadingTransferFlow extends BdxTransferFlow {
-    #blob: Blob;
+export abstract class ReadingFlow extends Flow {
     #closeStreams?: (error?: unknown) => Promise<void>;
+    #iterator?: AsyncGenerator<Uint8Array<ArrayBufferLike>, void, unknown>;
+    #streamReader?: BytesStreamReader;
 
-    constructor(blob: Blob, messenger: BdxMessenger, transferParameters: BdxTransferFlow.TransferOptions) {
-        super(messenger, transferParameters);
-        this.#blob = blob;
+    protected get stream() {
+        if (this.#iterator === undefined || this.#streamReader === undefined) {
+            throw new InternalError("Read stream not initialized");
+        }
+        return { iterator: this.#iterator, streamReader: this.#streamReader };
     }
 
     /**
      * Returns initialized streams for the transfer and initializes the #closeStream class function
      */
-    protected get readStream() {
+    protected async initTransfer() {
         const { blockSize } = this.transferParameters;
 
+        const blob = await this.transferParameters.fileDesignator.openBlob();
+        const blobSize = blob.size;
+
         // Get the full or relevant part of the stream by startOffset and length
-        const { startOffset = 0, dataLength = this.#blob.size } = this.transferParameters;
+        const { startOffset = 0, dataLength = blobSize } = this.transferParameters;
 
         const dataBlob =
-            startOffset > 0 || dataLength !== this.#blob.size
-                ? this.#blob.slice(startOffset, startOffset + dataLength)
-                : this.#blob;
+            startOffset > 0 || dataLength !== blobSize ? blob.slice(startOffset, startOffset + dataLength) : blob;
 
         const stream = dataBlob.stream();
 
@@ -56,18 +59,15 @@ export abstract class BdxReadingTransferFlow extends BdxTransferFlow {
         };
 
         const streamReader = new BytesStreamReader(reader);
-        return { iterator: streamReader.read(blockSize), streamReader };
+        this.#iterator = streamReader.read(blockSize);
+        this.#streamReader = streamReader;
     }
 
     /**
      * Reads one data chunk from the reader and does some basic checks.
      */
-    protected async readDataChunk(
-        reader: AsyncGenerator<Uint8Array<ArrayBufferLike>, void, unknown>,
-        blockSize: number,
-        bytesLeft: number | undefined,
-        dataLength: number | undefined,
-    ) {
+    protected async readDataChunk(reader: AsyncGenerator<Uint8Array<ArrayBufferLike>, void, unknown>) {
+        const { blockSize, dataLength } = this.transferParameters;
         let { value, done = false } = await reader.next();
         if (value === undefined) {
             // Done needs to be true when value is undefined or there is something broken
@@ -79,7 +79,7 @@ export abstract class BdxReadingTransferFlow extends BdxTransferFlow {
             }
             value = new Uint8Array(); // Simulate an empty value when we reached the end of the stream
         } else if (value.byteLength < blockSize) {
-            // When we git less data than blocksize it is the last block, so validate that
+            // When we get less data than blocksize it is the last block, so validate that
             ({ done = false } = await reader.next());
             if (!done) {
                 throw new BdxError(
@@ -89,26 +89,32 @@ export abstract class BdxReadingTransferFlow extends BdxTransferFlow {
             }
         }
 
-        if (bytesLeft !== undefined && dataLength !== undefined) {
-            bytesLeft -= value.byteLength;
-            if (bytesLeft < 0) {
+        if (this.bytesLeft !== undefined && dataLength !== undefined) {
+            this.bytesLeft -= value.byteLength;
+            if (this.bytesLeft < 0) {
                 throw new BdxError(
-                    `Data length exceeded, expected ${dataLength}bytes, but got ${-bytesLeft}bytes more`,
+                    `Data length exceeded, expected ${dataLength}bytes, but got ${-this.bytesLeft}bytes more`,
                     BdxStatusCode.LengthTooLarge,
                 );
             }
-            if (done && bytesLeft > 0) {
+            if (done && this.bytesLeft > 0) {
                 throw new BdxError(
-                    `Data length too short, expected ${dataLength}bytes, but got ${bytesLeft}bytes less`,
+                    `Data length too short, expected ${dataLength}bytes, but got ${this.bytesLeft}bytes less`,
                     BdxStatusCode.LengthTooShort,
                 );
             }
-            if (bytesLeft === 0) {
+            if (this.bytesLeft === 0) {
                 done = true;
             }
         }
 
-        return { data: value, done, bytesLeft };
+        return { data: value, done };
+    }
+
+    protected async finalizeTransfer() {
+        const blockCounter = this.finalBlockCounter;
+        const { blockCounter: ackedBlockCounter } = await this.messenger.readBlockAckEof();
+        this.validateCounter(ackedBlockCounter, blockCounter);
     }
 
     override async close(error?: unknown) {

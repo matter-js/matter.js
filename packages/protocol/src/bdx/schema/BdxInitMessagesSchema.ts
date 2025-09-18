@@ -7,7 +7,6 @@
 import { Bytes, DataReader, DataWriter, Endian } from "#general";
 import { BdxStatusCode, BitField, BitFlag, BitmapSchema, Schema, TypeFromPartialBitSchema } from "#types";
 import { BdxError } from "../BdxError.js";
-import { BdxMessage } from "./BdxMessage.js";
 
 export const BDX_VERSION = 0;
 
@@ -57,7 +56,7 @@ export const BdxRangeControlBitmap = {
 export const BdxRangeControlSchema = BitmapSchema(BdxRangeControlBitmap);
 
 /** @see {@link MatterSpecification.v141.Core}, section 11.22.5.1 */
-export interface BdxInit extends BdxMessage {
+export type BdxInit = {
     /**
      * Transfer protocol details
      * PTC
@@ -102,7 +101,7 @@ export interface BdxInit extends BdxMessage {
      * MD, Variable length, TLV
      */
     metaData?: Bytes;
-}
+};
 
 /** Schema for BDX SendInit and ReceiveInit messages. */
 export class BdxInitMessageSchema extends Schema<BdxInit, Bytes> {

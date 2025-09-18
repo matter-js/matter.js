@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2022-2025 Matter.js Authors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { Bytes } from "#general";
 
 /**
@@ -37,7 +43,7 @@ export class FileDesignator {
         if (isValidName) {
             return fileDesignatorData.reduce((name, byte) => name + String.fromCharCode(byte), "");
         } else {
-            return Bytes.toHex(fileDesignatorData);
+            return `__hex__${Bytes.toHex(fileDesignatorData)}`;
         }
     }
 }
