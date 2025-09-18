@@ -30,8 +30,8 @@ export function Duration<T extends Duration | string>(source: T): Duration {
     }
 
     if (typeof source === "number") {
-        if (Number.isNaN(source)) {
-            throw new DurationFormatError(`A duration may not be NaN`);
+        if (!Number.isFinite(source)) {
+            throw new DurationFormatError(`A duration must be a finite number`);
         }
         return source;
     }
@@ -73,7 +73,7 @@ export namespace Duration {
     ): T extends undefined ? string | undefined : string {
         let ms = duration as number;
 
-        if (typeof ms !== "number" || Number.isNaN(ms)) {
+        if (typeof ms !== "number" || !Number.isFinite(ms)) {
             return "invalid";
         }
 
@@ -137,7 +137,7 @@ export namespace Duration {
             }
 
             const value = Number(text.slice(text.length - suffix.length));
-            if (Number.isNaN(value)) {
+            if (!Number.isFinite(value)) {
                 throw new DurationFormatError(`Interval component "${part}" contains no numeric component`);
             }
 

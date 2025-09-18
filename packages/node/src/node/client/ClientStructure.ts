@@ -49,7 +49,7 @@ export class ClientStructure {
 
             // Client storage uses the endpoint number as the key for the endpoint
             const number = Number.parseInt(id);
-            if (Number.isNaN(number)) {
+            if (!Number.isFinite(number)) {
                 continue;
             }
 
@@ -58,7 +58,7 @@ export class ClientStructure {
             // Load state for each behavior
             for (const idStr of store.knownBehaviors) {
                 const id = Number.parseInt(idStr) as ClusterId;
-                if (Number.isNaN(id)) {
+                if (!Number.isFinite(id)) {
                     continue;
                 }
 

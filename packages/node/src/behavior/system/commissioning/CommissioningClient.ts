@@ -92,9 +92,9 @@ export class CommissioningClient extends Behavior {
 
         // Validate passcode
         let { passcode } = opts;
-        if (typeof passcode !== "number" || Number.isNaN(passcode)) {
+        if (typeof passcode !== "number" || !Number.isFinite(passcode)) {
             passcode = Number.parseInt(passcode as unknown as string);
-            if (Number.isNaN(passcode)) {
+            if (!Number.isFinite(passcode)) {
                 throw new ImplementationError(`You must provide the numeric passcode to commission a node`);
             }
         }
@@ -485,9 +485,9 @@ export namespace CommissioningClient {
         }
 
         let { passcode } = opts;
-        if (typeof passcode !== "number" || Number.isNaN(passcode)) {
+        if (typeof passcode !== "number" || !Number.isFinite(passcode)) {
             passcode = Number.parseInt(passcode as unknown as string);
-            if (Number.isNaN(passcode)) {
+            if (!Number.isFinite(passcode)) {
                 throw new ImplementationError("You must provide a pairing code or passcode to pair a node");
             }
         }

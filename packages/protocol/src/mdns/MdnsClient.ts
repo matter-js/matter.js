@@ -1402,13 +1402,13 @@ export class MdnsClient implements Scanner {
                 if (key === undefined || value === undefined) continue;
                 if (["T", "D", "CM", "DT", "PH", "ICD"].includes(key)) {
                     const intValue = parseInt(value);
-                    if (isNaN(intValue)) continue;
+                    if (!Number.isFinite(intValue)) continue;
                     result[key] = intValue;
                 } else if (["VP", "DN", "RI", "PI"].includes(key)) {
                     result[key] = value;
                 } else if (["SII", "SAI", "SAT"].includes(key)) {
                     const intValue = parseInt(value);
-                    if (isNaN(intValue)) continue;
+                    if (!Number.isFinite(intValue)) continue;
                     result[key] = intValue;
                     result[key] = Millis(intValue);
                 }

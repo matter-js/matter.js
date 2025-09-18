@@ -39,7 +39,7 @@ export class ClientNodeStores {
             }
 
             const num = Number.parseInt(id.slice(CLIENT_ID_PREFIX.length));
-            if (!Number.isNaN(num)) {
+            if (Number.isFinite(num)) {
                 if (this.#nextAutomaticId <= num) {
                     this.#nextAutomaticId = num + 1;
                 }

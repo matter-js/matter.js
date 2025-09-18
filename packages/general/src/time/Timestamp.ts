@@ -29,11 +29,11 @@ export function Timestamp<T extends undefined | Timestamp.Definition>(
 
     if (typeof source === "string") {
         const date = Date.parse(source);
-        if (Number.isNaN(date.valueOf())) {
+        if (!Number.isFinite(date.valueOf())) {
             throw new TimestampFormatError("Invalid timestamp format");
         }
     } else if (typeof source === "object" && source !== null && source instanceof Date) {
-        if (Number.isNaN(source.valueOf())) {
+        if (!Number.isFinite(source.valueOf())) {
             throw new TimestampFormatError("Cannot convert date to timestamp because it is invalid");
         }
         source = source.getTime() as T;
@@ -42,8 +42,8 @@ export function Timestamp<T extends undefined | Timestamp.Definition>(
     }
 
     if (typeof source === "number") {
-        if (Number.isNaN(source)) {
-            throw new TimestampFormatError("A timestamp may not be NaN");
+        if (!Number.isFinite(source)) {
+            throw new TimestampFormatError("A timestamp must be a finite number");
         }
     } else {
         throw new TimestampFormatError(`Timestamp is not a number (received ${typeof source})`);

@@ -534,7 +534,7 @@ function ParsedAst(conformance: Conformance, definition: string) {
             num = 1;
         } else if (text.length > 1) {
             num = Number.parseInt(text[1]);
-            if (Number.isNaN(num) || num < 0 || num > 9) {
+            if (!Number.isFinite(num) || num < 0 || num > 9) {
                 conformance.error("INVALID_CHOICE", "Choice indicator may only be a single lowercase letter");
                 name = "?";
                 num = 1;

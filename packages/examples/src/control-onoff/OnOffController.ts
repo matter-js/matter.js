@@ -38,7 +38,7 @@ switch (command) {
         {
             // Validation
             const endpointNo = Number.parseInt(args[0]);
-            if (args.length !== 1 || Number.isNaN(endpointNo)) {
+            if (args.length !== 1 || !Number.isFinite(endpointNo)) {
                 die(`Usage: ${process.argv[0]} toggle <endpoint number>`);
             }
             const node = controller.nodes.get("device");

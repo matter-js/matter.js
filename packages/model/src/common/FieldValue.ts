@@ -322,7 +322,7 @@ export namespace FieldValue {
                 }
 
                 const id = Number(value);
-                if (Number.isNaN(id)) {
+                if (!Number.isFinite(id)) {
                     if (typeof value === "string") {
                         // Key name
                         return value;
@@ -344,7 +344,7 @@ export namespace FieldValue {
                     }
                     if (type) {
                         value = Number.parseInt(value);
-                        if (Number.isNaN(value)) {
+                        if (!Number.isFinite(value)) {
                             return FieldValue.Invalid;
                         }
                         return { type, value };
@@ -386,7 +386,7 @@ export namespace FieldValue {
 
             case "float":
                 const float = Number(value);
-                if (Number.isNaN(float)) {
+                if (!Number.isFinite(float)) {
                     return FieldValue.Invalid;
                 }
                 return float.valueOf();
@@ -399,7 +399,7 @@ export namespace FieldValue {
                     return FieldValue.Invalid;
                 }
                 value = new Date(value);
-                if (Number.isNaN(value.valueOf())) {
+                if (!Number.isFinite(value.valueOf())) {
                     return FieldValue.Invalid;
                 }
                 return value;

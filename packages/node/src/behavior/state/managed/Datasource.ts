@@ -371,7 +371,7 @@ function configure(options: Datasource.Options): Internals {
 
             const id = Number.parseInt(key);
             let event;
-            if (Number.isNaN(id)) {
+            if (!Number.isFinite(id)) {
                 event = events[`${key}$Changed`];
             } else {
                 const field = options.supervisor.schema.member(id);
