@@ -88,7 +88,11 @@ export abstract class Flow {
         await this.initTransfer();
 
         // Continue to transfer chunks until done or closed
-        while (!this.isClosed && !(await this.transferNextChunk())) {}
+        while (!this.isClosed) {
+            if (await this.transferNextChunk()) {
+                break;
+            }
+        }
 
         if (!this.isClosed) {
             await this.finalizeTransfer();
