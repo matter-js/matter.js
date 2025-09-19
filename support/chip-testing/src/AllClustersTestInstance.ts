@@ -850,6 +850,12 @@ export class AllClustersTestInstance extends NodeTestInstance {
                     availableEndpoints: [EndpointNumber(1)],
                     activeEndpoints: [EndpointNumber(1)],
                 },
+                pressureMeasurement: {
+                    measuredValue: 1,
+                    minMeasuredValue: 0,
+                    maxMeasuredValue: 100,
+                    tolerance: 0,
+                },
                 pumpConfigurationAndControl: {
                     effectiveOperationMode: PumpConfigurationAndControl.OperationMode.Normal,
                     effectiveControlMode: PumpConfigurationAndControl.ControlMode.ConstantPressure,
