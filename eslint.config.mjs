@@ -75,6 +75,7 @@ export default [
             "@typescript-eslint/no-unsafe-call": "off",
             "@typescript-eslint/restrict-template-expressions": "off",
             "@typescript-eslint/no-base-to-string": "off",
+            "@typescript-eslint/await-thenable": "off",
 
             "no-constant-condition": [
                 "error",
