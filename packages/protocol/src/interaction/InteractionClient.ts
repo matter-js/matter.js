@@ -1446,6 +1446,7 @@ export class InteractionClient {
         if (attributeReports.length === 0) {
             return;
         }
+
         const changedAttributes = new Array<DecodedAttributeReportValue<any>>();
         let {
             path: { endpointId: currentEndpoint, clusterId: currentCluster },
@@ -1480,6 +1481,10 @@ export class InteractionClient {
                     changedAttributes.push(data);
                 }
             }
+        }
+
+        if (changedAttributes.length > 0) {
+            await this.#nodeStore?.persistAttributes(changedAttributes);
         }
     }
 
