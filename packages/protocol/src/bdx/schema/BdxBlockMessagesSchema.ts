@@ -34,7 +34,7 @@ export interface BdxBlock extends BdxCounterOnly {
 export interface BdxBlockEof extends BdxBlock {}
 
 /** Schema for BDX messages that only contain a block counter: BlockQuery, BlockAck, BlockAckEof. */
-export class BdxCounterOnlyMessageSchema extends Schema<BdxCounterOnly, Bytes> {
+export class BdxCounterOnlyMessageSchema extends Schema<BdxCounterOnly> {
     encodeInternal(message: BdxCounterOnly) {
         const { blockCounter } = message;
 
@@ -56,7 +56,7 @@ export const BdxBlockAckMessage = BdxCounterOnlyMessage;
 export const BdxBlockAckEofMessage = BdxCounterOnlyMessage;
 
 /** Schema for BDX BlockQueryWithSkip message. */
-export class BdxBlockQueryWithSkipMessageSchema extends Schema<BdxBlockQueryWithSkip, Bytes> {
+export class BdxBlockQueryWithSkipMessageSchema extends Schema<BdxBlockQueryWithSkip> {
     encodeInternal(message: BdxBlockQueryWithSkip) {
         const { blockCounter, bytesToSkip } = message;
 
@@ -77,7 +77,7 @@ export class BdxBlockQueryWithSkipMessageSchema extends Schema<BdxBlockQueryWith
 export const BdxBlockQueryWithSkipMessage = new BdxBlockQueryWithSkipMessageSchema();
 
 /** Schema for BDX Block and BlockEof message that contain Block data. */
-export class BdxBlockMessageSchema extends Schema<BdxBlock, Bytes> {
+export class BdxBlockMessageSchema extends Schema<BdxBlock> {
     encodeInternal(message: BdxBlock) {
         const { blockCounter, data } = message;
 

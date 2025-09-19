@@ -56,7 +56,7 @@ export async function bdxSessionInitiator(messenger: BdxMessenger, config: BdxSe
 
         let { startOffset } = initMessage;
         if (startOffset !== undefined) {
-            startOffset = messenger.asSafeNumber(startOffset, "Start offset", BdxStatusCode.StartOffsetNotSupported);
+            startOffset = BdxMessenger.asSafeNumber(startOffset, "Start offset", BdxStatusCode.StartOffsetNotSupported);
         }
 
         const acceptMessage = await determineAcceptParameters(initMessage);
@@ -181,7 +181,7 @@ export async function bdxSessionInitiator(messenger: BdxMessenger, config: BdxSe
             maxBlockSize = requestedMaxBlockSize;
         }
 
-        const maxLength = messenger.asSafeNumber(initMaxLength, "Max length", BdxStatusCode.LengthTooLarge);
+        const maxLength = BdxMessenger.asSafeNumber(initMaxLength, "Max length", BdxStatusCode.LengthTooLarge);
         // TODO: How to handle custom metadata?
 
         const transferControl: TypeFromPartialBitSchema<typeof BdxTransferControlBitmap> = {
@@ -219,7 +219,7 @@ export async function bdxSessionInitiator(messenger: BdxMessenger, config: BdxSe
 
         const dataLength =
             "length" in acceptMessage && acceptMessage.length !== undefined
-                ? messenger.asSafeNumber(
+                ? BdxMessenger.asSafeNumber(
                       acceptMessage.length,
                       "Accept message length field",
                       BdxStatusCode.LengthTooLarge,

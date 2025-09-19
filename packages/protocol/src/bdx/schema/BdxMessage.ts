@@ -53,7 +53,7 @@ export namespace BdxMessage {
         }
     }
 
-    export const Kinds: { [key: number]: Schema<any, Bytes> } = {
+    export const Kinds: { [key: number]: Schema<any> } = {
         [BdxMessageType.SendInit]: BdxSendInitMessage,
         [BdxMessageType.ReceiveInit]: BdxReceiveInitMessage,
         [BdxMessageType.SendAccept]: BdxSendAcceptMessage,

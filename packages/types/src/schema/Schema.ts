@@ -4,8 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Bytes } from "#general";
+
 /** Define a schema to encode / decode convert type T to type E. */
-export abstract class Schema<T, E> {
+export abstract class Schema<T, E = Bytes> {
     /** Encodes the value using the schema. */
     encode(value: T): E {
         this.validate(value);

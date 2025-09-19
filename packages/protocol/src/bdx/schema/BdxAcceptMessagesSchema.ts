@@ -47,7 +47,7 @@ export interface BdxReceiveAccept extends BdxSendAccept {
 }
 
 /** Schema for BDX SendAccept message */
-export class BdxSendAcceptMessageSchema<M extends BdxSendAccept> extends Schema<M, Bytes> {
+export class BdxSendAcceptMessageSchema<M extends BdxSendAccept> extends Schema<M> {
     encodeInternal(message: M) {
         this.validate(message);
         const { transferControl, maxBlockSize, metaData } = message;

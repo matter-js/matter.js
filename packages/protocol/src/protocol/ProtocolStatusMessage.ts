@@ -15,7 +15,7 @@ export type ProtocolStatusMessage<T> = {
     protocolData?: Bytes;
 };
 
-export abstract class ProtocolStatusMessageSchema<T extends ProtocolStatusMessage<any>> extends Schema<T, Bytes> {
+export abstract class ProtocolStatusMessageSchema<T extends ProtocolStatusMessage<any>> extends Schema<T> {
     #protocolId: number;
     #vendorId: number;
     #protocolSpecificDataAllowed: boolean;

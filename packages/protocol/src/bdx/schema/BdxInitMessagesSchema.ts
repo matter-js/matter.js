@@ -104,7 +104,7 @@ export type BdxInit = {
 };
 
 /** Schema for BDX SendInit and ReceiveInit messages. */
-export class BdxInitMessageSchema extends Schema<BdxInit, Bytes> {
+export class BdxInitMessageSchema extends Schema<BdxInit> {
     encodeInternal(message: BdxInit) {
         this.validate(message);
         const { transferProtocol, maxBlockSize, startOffset, maxLength, fileDesignator, metaData } = message;

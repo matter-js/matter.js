@@ -271,11 +271,15 @@ export class BdxMessenger {
     }
 
     /**
-     * Ensure that the value is a safe number and that it is not too large. Matter spec allows also 64bit values, but they
-     * make little sense for now, so make sure we handle them as too large. MAX_SAFE_INTEGER is 2^53-1 and is
-     * enough for now.
+     * Ensure that the value is a safe JavaScript "number" type and that it is not too large. Matter spec allows also
+     * 64bit values, but they make little sense for now, so make sure we handle them as too large. MAX_SAFE_INTEGER is
+     * 2^53-1 and is enough for now.
      */
-    asSafeNumber(value: number | bigint | undefined, context = "", bdxErrorCode = BdxStatusCode.Unknown): number {
+    static asSafeNumber(
+        value: number | bigint | undefined,
+        context = "",
+        bdxErrorCode = BdxStatusCode.Unknown,
+    ): number {
         if (typeof value !== "number" && typeof value !== "bigint") {
             throw new InternalError(`${context} ${value} is not a number`); // Should not happen
         }

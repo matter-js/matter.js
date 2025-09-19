@@ -6,6 +6,7 @@
 
 import { Logger } from "#general";
 import { BdxMessageType, BdxStatusCode } from "#types";
+import { BdxMessenger } from "../BdxMessenger.js";
 import { BdxMessage } from "../schema/BdxMessage.js";
 import { OutboundFlow } from "./OutboundFlow.js";
 
@@ -23,7 +24,7 @@ export class FollowingReceivingFlow extends OutboundFlow {
         // Read the data query from the peer
         const blockQuery = await this.messenger.readBlockQuery();
         const bytesToSkip = BdxMessage.is(blockQuery, BdxMessageType.BlockQueryWithSkip)
-            ? this.messenger.asSafeNumber(
+            ? BdxMessenger.asSafeNumber(
                   blockQuery.message.bytesToSkip,
                   "BytesToSkip",
                   BdxStatusCode.TransferFailedUnknownError,

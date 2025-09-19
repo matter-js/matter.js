@@ -22,7 +22,7 @@ export type TlvEncodingOptions = {
     allowMissingFieldsForNonFabricFilteredRead?: boolean;
 };
 
-export abstract class TlvSchema<T> extends Schema<T, Bytes> implements TlvSchema<T> {
+export abstract class TlvSchema<T> extends Schema<T> implements TlvSchema<T> {
     override decodeInternal(encoded: Bytes): T {
         return this.decodeTlvInternal(new TlvByteArrayReader(encoded)).value;
     }
