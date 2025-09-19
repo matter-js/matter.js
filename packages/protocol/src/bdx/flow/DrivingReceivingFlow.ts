@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { WritingFlow } from "./WritingFlow.js";
+import { InboundFlow } from "./InboundFlow.js";
 
 /**
  * BDX Transport flow logic for a "BDX Driving Receiver":
  * - Requests the next Blow using BlockQuery and then reads the Block
  * - Last message is confirmed with an AckEof
  */
-export class DrivingReceivingFlow extends WritingFlow {
+export class DrivingReceivingFlow extends InboundFlow {
     async transferNextChunk() {
         const { writeController } = this.stream;
 

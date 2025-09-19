@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ReadingFlow } from "./ReadingFlow.js";
+import { OutboundFlow } from "./OutboundFlow.js";
 
 /**
  * BDX Transport flow logic for a "BDX Driving Sender":
  * - Send out the Block and wait for Ack (if synchronous transfer is used)
  * - Last message is sent with BlockEof and expects AckEof
  */
-export class DrivenSendingFlow extends ReadingFlow {
+export class DrivenSendingFlow extends OutboundFlow {
     protected async transferNextChunk() {
         const { asynchronousTransfer } = this.transferParameters;
         const { iterator } = this.stream;

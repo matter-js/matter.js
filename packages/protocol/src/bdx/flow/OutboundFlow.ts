@@ -10,9 +10,9 @@ import { BdxError } from "../BdxError.js";
 import { Flow } from "./Flow.js";
 
 /**
- * Base class for BDX transfer flows that read data from a Blob.
+ * Base class for outbound BDX transfer flows where data is read from our node and sent to the peer.
  */
-export abstract class ReadingFlow extends Flow {
+export abstract class OutboundFlow extends Flow {
     #closeStreams?: (error?: unknown) => Promise<void>;
     #iterator?: AsyncGenerator<Uint8Array<ArrayBufferLike>, void, unknown>;
     #streamReader?: BytesStreamReader;

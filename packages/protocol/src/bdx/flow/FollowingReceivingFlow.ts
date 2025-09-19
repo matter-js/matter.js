@@ -7,7 +7,7 @@
 import { Logger } from "#general";
 import { BdxMessageType, BdxStatusCode } from "#types";
 import { BdxMessage } from "../schema/BdxMessage.js";
-import { ReadingFlow } from "./ReadingFlow.js";
+import { OutboundFlow } from "./OutboundFlow.js";
 
 const logger = Logger.get("BdxFollowingReceivingFlow");
 /**
@@ -16,7 +16,7 @@ const logger = Logger.get("BdxFollowingReceivingFlow");
  *   Data are skipped over when requested by the peer.
  * - After the last block is send it expects an AckEof
  */
-export class FollowingReceivingFlow extends ReadingFlow {
+export class FollowingReceivingFlow extends OutboundFlow {
     protected async transferNextChunk() {
         const { iterator, streamReader } = this.stream;
 

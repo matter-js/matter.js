@@ -9,8 +9,10 @@ import { BdxMessageType, BdxStatusCode } from "#types";
 import { BdxError } from "../BdxError.js";
 import { Flow } from "./Flow.js";
 
-/** Base class for BDX transfer flows that write data to a Blob. */
-export abstract class WritingFlow extends Flow {
+/**
+ * Base class for inbound BDX transfer flows where data is received from the peer and written to our node.
+ */
+export abstract class InboundFlow extends Flow {
     #closeStreams?: (error?: unknown) => Promise<void>;
     #writeController?: ReadableStreamDefaultController<Bytes>;
     #writePromise?: MaybePromise<void>;

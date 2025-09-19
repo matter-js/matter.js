@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { WritingFlow } from "./WritingFlow.js";
+import { InboundFlow } from "./InboundFlow.js";
 
 /**
  * BDX Transport flow logic for a "BDX Following Sender":
  * - Reads the Block and sends an Ack (if synchronous transfer is used)
  * - Last message is confirmed with an AckEof
  */
-export class FollowingSendingFlow extends WritingFlow {
+export class FollowingSendingFlow extends InboundFlow {
     protected async transferNextChunk() {
         const { asynchronousTransfer } = this.transferParameters;
         const { writeController } = this.stream;
