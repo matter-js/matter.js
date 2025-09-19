@@ -1093,29 +1093,7 @@ export class InteractionClient {
             }
 
             if (attributeReports !== undefined) {
-                for (const data of attributeReports) {
-                    const {
-                        path: { endpointId, clusterId, attributeId },
-                        value,
-                        version,
-                    } = data;
-                    logger.debug(
-                        `Received attribute update: ${resolveAttributeName({
-                            endpointId,
-                            clusterId,
-                            attributeId,
-                        })} = ${Diagnostic.json(value)} (version=${version})`,
-                    );
-                    if (value === undefined) throw new MatterFlowError("Received empty subscription result value.");
-                    const { value: oldValue } =
-                        this.#nodeStore?.retrieveAttribute(endpointId, clusterId, attributeId) ?? {};
-                    const changed = oldValue !== undefined ? !isDeepEqual(oldValue, value) : undefined;
-                    if (changed !== false) {
-                        await this.#nodeStore?.persistAttributes([data]);
-                    }
-
-                    attributeListener?.(data, changed, oldValue);
-                }
+                await this.processAttributeUpdates(attributeReports, attributeListener);
             }
             updateReceived?.();
         };
@@ -1143,6 +1121,39 @@ export class InteractionClient {
             ...seedReport,
             maxInterval,
         };
+    }
+
+    /**
+     * Process changed attributes, detect changes and persist them to the node store
+     */
+    async processAttributeUpdates(
+        attributeReports: DecodedAttributeReportValue<any>[],
+        attributeListener?: (data: DecodedAttributeReportValue<any>, valueChanged?: boolean, oldValue?: any) => void,
+    ) {
+        for (const data of attributeReports) {
+            const {
+                path: { endpointId, clusterId, attributeId },
+                value,
+                version,
+            } = data;
+
+            if (value === undefined) throw new MatterFlowError("Received empty subscription result value.");
+            const { value: oldValue, version: oldVersion } =
+                this.#nodeStore?.retrieveAttribute(endpointId, clusterId, attributeId) ?? {};
+            const changed = oldValue !== undefined ? !isDeepEqual(oldValue, value) : undefined;
+            if (changed !== false || version !== oldVersion) {
+                await this.#nodeStore?.persistAttributes([data]);
+            }
+            logger.debug(
+                `Received attribute update${changed ? "(value changed)" : ""}: ${resolveAttributeName({
+                    endpointId,
+                    clusterId,
+                    attributeId,
+                })} = ${Diagnostic.json(value)} (version=${version})`,
+            );
+
+            attributeListener?.(data, changed, oldValue);
+        }
     }
 
     async invoke<C extends Command<any, any, any>>(options: {
@@ -1436,55 +1447,6 @@ export class InteractionClient {
                 );
                 attributeReports.push(...clusterValues);
             }
-        }
-    }
-
-    /**
-     * Allows to add the data received by e.g. a Read request to the cache
-     */
-    async addAttributesToCache(attributeReports: DecodedAttributeReportValue<any>[]) {
-        if (attributeReports.length === 0) {
-            return;
-        }
-
-        const changedAttributes = new Array<DecodedAttributeReportValue<any>>();
-        let {
-            path: { endpointId: currentEndpoint, clusterId: currentCluster },
-        } = attributeReports[0];
-        for (const data of attributeReports) {
-            const {
-                path: { endpointId, clusterId, attributeId },
-                value,
-                version,
-            } = data;
-
-            if ((endpointId !== currentEndpoint || clusterId !== currentCluster) && changedAttributes.length > 0) {
-                // We persist the attributes cluster wise to not mix up the cluster version from multiple attributes
-                await this.#nodeStore?.persistAttributes(changedAttributes);
-                changedAttributes.length = 0;
-            }
-            currentEndpoint = endpointId;
-            currentCluster = clusterId;
-
-            if (value === undefined) {
-                continue; // Should not happen
-            }
-
-            if (changedAttributes.length > 0) {
-                // If we already have changes for this cluster usually the version was different,
-                //  so the easiest way is to just add all other attributes from the same cluster as well
-                changedAttributes.push(data);
-            } else {
-                const { value: oldValue, version: oldVersion } =
-                    this.#nodeStore?.retrieveAttribute(endpointId, clusterId, attributeId) ?? {};
-                if (oldVersion !== version || oldValue === undefined || !isDeepEqual(oldValue, value)) {
-                    changedAttributes.push(data);
-                }
-            }
-        }
-
-        if (changedAttributes.length > 0) {
-            await this.#nodeStore?.persistAttributes(changedAttributes);
         }
     }
 

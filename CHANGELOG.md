@@ -36,6 +36,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Controller networking was previously throwing the incorrect error after a communication timeout
     - Fix: Ensures to only include the MaxTcpMessageSize in Session parameters when TCP is enabled
     - Fix: Fixes an issue that prevented cached attribute data to be updated correctly
+    - Fix: Allow to also trigger attribute updates when initial read before subscription had updated attributes
 
 -   @matter/node
     - Breaking: `Endpoint` and `Node` initialization values now require the correct type for some time values and IDs.  So for example, `VendorId(1234)` instead of just `1234`

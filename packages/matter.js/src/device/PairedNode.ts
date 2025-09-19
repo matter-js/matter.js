@@ -876,7 +876,7 @@ export class PairedNode {
             dataVersionFilters: this.#interactionClient.getCachedClusterDataVersions(),
             executeQueued: !!threadConnected, // We queue subscriptions for thread devices
         });
-        await this.#interactionClient.addAttributesToCache(attributeData);
+        await this.#interactionClient.processAttributeUpdates(attributeData, subscriptionHandler.attributeListener);
         attributeData.length = 0; // Clear the array to save memory
 
         // If we subscribe anything we use these data to create the endpoint structure, so we do not need to fetch again
@@ -889,8 +889,7 @@ export class PairedNode {
             enrichCachedAttributeData: true,
             eventFilters: maxKnownEventNumber !== undefined ? [{ eventMin: maxKnownEventNumber + 1n }] : undefined,
             executeQueued: !!threadConnected, // We queue subscriptions for thread devices
-            attributeListener: (data, changed, oldValue) =>
-                subscriptionHandler.attributeListener(data, changed, oldValue),
+            attributeListener: subscriptionHandler.attributeListener,
             eventListener: data => subscriptionHandler.eventListener(data),
             updateTimeoutHandler: () => subscriptionHandler.updateTimeoutHandler(),
             updateReceived: () => subscriptionHandler.subscriptionAlive(),
