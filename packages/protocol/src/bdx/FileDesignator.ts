@@ -43,7 +43,7 @@ export class FileDesignator {
         if (isValidName) {
             return fileDesignatorData.reduce((name, byte) => name + String.fromCharCode(byte), "");
         } else {
-            return `__hex__${Bytes.toHex(fileDesignatorData)}`;
+            return `0x${Bytes.toHex(fileDesignatorData)}`;
         }
     }
 }
