@@ -13,13 +13,13 @@ import { Flow } from "./flow/Flow.js";
 import { BdxReceiveAccept, BdxSendAccept } from "./schema/BdxAcceptMessagesSchema.js";
 import { BDX_VERSION, BdxInit, BdxTransferControlBitmap } from "./schema/BdxInitMessagesSchema.js";
 
-const logger = Logger.get("BdxSessionInitiator");
+const logger = Logger.get("bdxSessionInitiator");
 
 /**
  * Handles the initiation of a BDX session by exchanging *Init and *Accept messages and negotiating the transfer
  * parameters.
  */
-export async function BdxSessionInitiator(messenger: BdxMessenger, config: BdxSessionConfiguration) {
+export async function bdxSessionInitiator(messenger: BdxMessenger, config: BdxSessionConfiguration) {
     if (config.isInitiator) {
         if (config.isSender) {
             // We are Sender and Initiator

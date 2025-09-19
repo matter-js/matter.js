@@ -6,10 +6,10 @@
 
 import { AsyncObservable, ClassExtends, Diagnostic, Logger, StorageContext } from "#general";
 import { BdxMessageType, BdxStatusCode } from "#types";
+import { bdxSessionInitiator } from "./bdx-session-initiator.js";
 import { BdxError } from "./BdxError.js";
 import { BdxMessenger } from "./BdxMessenger.js";
 import { BdxSessionConfiguration } from "./BdxSessionConfiguration.js";
-import { BdxSessionInitiator } from "./BdxSessionInitiator.js";
 import { DrivenSendingFlow } from "./flow/DrivenSendingFlow.js";
 import { DrivingReceivingFlow } from "./flow/DrivingReceivingFlow.js";
 import { Flow } from "./flow/Flow.js";
@@ -111,7 +111,7 @@ export class BdxSession {
 
         this.#started = true;
         try {
-            this.#transferFlow = this.#initializeFlow(await BdxSessionInitiator(this.#messenger, this.#config));
+            this.#transferFlow = this.#initializeFlow(await bdxSessionInitiator(this.#messenger, this.#config));
 
             await this.#transferFlow.processTransfer();
 
