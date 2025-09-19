@@ -55,8 +55,9 @@ export class DataReadQueue<T> implements Stream<T> {
         if (this.#closed) throw new EndOfStreamError();
         if (this.#pendingRead !== undefined) {
             this.#pendingRead.timeoutTimer?.stop();
-            this.#pendingRead.resolver(data);
+            const pendingRead = this.#pendingRead;
             this.#pendingRead = undefined;
+            pendingRead.resolver(data);
             return;
         }
         this.#queue.push(data);

@@ -106,7 +106,7 @@ export class BitmapSchemaInternal<T extends BitSchema> extends Schema<TypeFromBi
     }
 }
 
-export class ByteArrayBitmapSchemaInternal<T extends BitSchema> extends Schema<TypeFromBitSchema<T>, Bytes> {
+export class ByteArrayBitmapSchemaInternal<T extends BitSchema> extends Schema<TypeFromBitSchema<T>> {
     private readonly byteArrayLength: number;
     private readonly maskOffset: MaskOffsetFromBitSchema<T>;
 

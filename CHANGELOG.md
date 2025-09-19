@@ -19,6 +19,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: SyncStorage interface got removed
     - Breaking: MaybeAsyncStorage got renamed to Storage because it is the only interface from now on
     - Feature: Adds Blob support to the Storage interface
+    - Feature: Add BDX (Bulk Data eXchange) protocol support according to Matter specification
+    - Fix: Ensures that StandaloneAck messages are always considering the corresponding Secure channel protocol ID 
 
 -   @matter/types
     - Enhancement: The duplicate event priority definition `EventPriority` is deprecated; use the generated `Priority` enum instead

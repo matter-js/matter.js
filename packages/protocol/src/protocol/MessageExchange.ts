@@ -88,6 +88,11 @@ export type ExchangeSendOptions = {
 
     /** Additional context information for logging to be included at the beginning of the Message log. */
     logContext?: ExchangeLogContext;
+
+    // TODO Restructure exchange logic to not be protocol bound like now. The Protocol binding should move to the
+    //  messages itself
+    /** Allows to override the protocol ID of the message, mainly used for standalone acks. */
+    protocolId?: number;
 };
 
 /**
@@ -264,7 +269,10 @@ export class MessageExchange {
         } = message;
         if (!requiresAck || !this.channel.usesMrp) return;
 
-        await this.send(SecureMessageType.StandaloneAck, new Uint8Array(0), { includeAcknowledgeMessageId: messageId });
+        await this.send(SecureMessageType.StandaloneAck, new Uint8Array(0), {
+            includeAcknowledgeMessageId: messageId,
+            protocolId: SECURE_CHANNEL_PROTOCOL_ID,
+        });
     }
 
     async onMessageReceived(message: Message, duplicate = false) {
@@ -360,11 +368,14 @@ export class MessageExchange {
             requiresAck,
             includeAcknowledgeMessageId,
             logContext,
+            protocolId = this.#protocolId,
         } = options ?? {};
         if (!this.channel.usesMrp && includeAcknowledgeMessageId !== undefined) {
             throw new InternalError("Cannot include an acknowledge message ID when MRP is not used");
         }
-        if (messageType === SecureMessageType.StandaloneAck) {
+        const isStandaloneAck = SecureMessageType.isStandaloneAck(protocolId, messageType);
+
+        if (isStandaloneAck) {
             if (!this.channel.usesMrp) {
                 return;
             }
@@ -372,8 +383,9 @@ export class MessageExchange {
                 throw new MatterFlowError("A standalone ack may not require acknowledgement.");
             }
         }
-        if (this.#sentMessageToAck !== undefined && messageType !== SecureMessageType.StandaloneAck)
+        if (this.#sentMessageToAck !== undefined && !isStandaloneAck) {
             throw new MatterFlowError("The previous message has not been acked yet, cannot send a new message.");
+        }
 
         this.#used = true;
         this.session.notifyActivity(false);
@@ -426,11 +438,10 @@ export class MessageExchange {
             packetHeader,
             payloadHeader: {
                 exchangeId: this.#exchangeId,
-                protocolId:
-                    messageType === SecureMessageType.StandaloneAck ? SECURE_CHANNEL_PROTOCOL_ID : this.#protocolId,
+                protocolId,
                 messageType,
                 isInitiatorMessage: this.isInitiator,
-                requiresAck: requiresAck ?? (this.channel.usesMrp && messageType !== SecureMessageType.StandaloneAck),
+                requiresAck: requiresAck ?? (this.channel.usesMrp && !isStandaloneAck),
                 ackedMessageId,
                 hasSecuredExtension: false,
             },
