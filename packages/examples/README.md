@@ -6,6 +6,9 @@ This project provides a set of reference implementations to show several types o
 
 > This package supports all Node.js LTS versions starting with 18.x
 
+> [!IMPORTANT]
+> matter.js as library, along with all related tools (such as the Shell app) and examples, is not certified by the Connectivity Standards Alliance (CSA). They are provided solely to demonstrate the capabilities of our solution and to support testing and development.  Using matter.js does not certify your product — Connectivity Standards Alliance membership and product certification are required to release official Matter devices. For more details, see [A note on certification](https://github.com/matter-js/matter.js/blob/main/README.md#a-note-on-certification) for more details.
+
 To better show how to use the library we provide some reference implementations in the examples directory. They are usable as CLI scripts without changes in the first place but are very simple. They are meant to be used as a starting point for your own implementation, or to experiment with Matter at all in a first place.
 
 For BLE usage please also see the [@matter/node-ble README.md](../nodejs-ble/README.md)  for prerequisites and limitations!

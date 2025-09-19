@@ -3,6 +3,9 @@
 > [!IMPORTANT]
 > This package is only needed if you plan to build a Controller for the time being! To build devices or bridges please use the [@matter/main](https://www.npmjs.com/package/@matter/main) package. More details below...
 
+> [!IMPORTANT]
+> matter.js as library, along with all related tools (such as the Shell app) and examples, is not certified by the Connectivity Standards Alliance (CSA). They are provided solely to demonstrate the capabilities of our solution and to support testing and development.  Using matter.js does not certify your product — Connectivity Standards Alliance membership and product certification are required to release official Matter devices. For more details, see [A note on certification](https://github.com/matter-js/matter.js/blob/main/README.md#a-note-on-certification) for more details.
+
 **With matter.js 0.11.0 the package structure was adjusted. This package is exposing the current API for Controller implementations (a new API will follow soon) and the Legacy Device building Node API and mainly contains compatibility re-exports. Please adjust your code to just use the relevant exports from here and switch for all other matter.js general packages to the [@matter/main](https://www.npmjs.com/package/@matter/main) package.**
 
 Implementation of Matter protocol in typescript with no native dependencies (and very limited dependencies).

@@ -14,6 +14,9 @@ matter.js is a TypeScript/JavaScript implementation of the complete Matter proto
 
 Our main goal is to create a robust and compliant library that enables the seamless implementation of Matter-compatible devices, bridges, controllers, and a shell application. This effort is dedicated to improving Matter's accessibility for testers, smart home enthusiasts, and developers of OS-based IoT products. Fostering a second implementation of the Matter standard, aligned with the same specifications, not only expands the ecosystem but also contributes to the validation and increased robustness of the standard itself.
 
+> [!IMPORTANT]
+> matter.js as library, along with all related tools (such as the Shell app) and examples, is not certified by the Connectivity Standards Alliance (CSA). They are provided solely to demonstrate the capabilities of our solution and to support testing and development.  Using matter.js does not certify your product — Connectivity Standards Alliance membership and product certification are required to release official Matter devices. For more details, see [A note on certification](#a-note-on-certification) for more details.
+
 matter.js consists of a set of pure JavaScript base packages without any native dependencies, implementing the Matter protocol and required interfaces in JavaScript, along with extensive typings for The Matter standard and the matter.js APIs.
 Further [packages with Node.js based native dependencies](./packages/nodejs) utilize the base package to implement platform-specific parts using Node.js for networking and other necessary native features or add [BLE support](./packages/nodejs-ble). [Node.js example scripts](./packages/examples) implement example CLI scripts for devices, bridges or controllers. A [Matter Shell](./packages/nodejs-shell) allows interaction with Matter devices as a controller via a CLI interface.
 
@@ -37,9 +40,15 @@ Explore the versatile capabilities of matter.js and adapt it to your specific us
 
 ### A note on certification
 
-If you plan to officially certify a device, bridge or controller based on matter.js please contact us via E-Mail or Discord to get the latest information on the certification status of matter.js, supported and not yet supported features and consulting on the certification process.
+**To release a Matter product (device, bridge, or controller), you must be a member of the Connectivity Standards Alliance (CSA) and obtain certification for your product. This requirement is independent of the implementation you use and is what also allows you to use the Matter name and logo on your product and in marketing.**
 
-matter.js has successfully passed certification already, but there are still things to consider and to discuss when you plan to certify.
+**matter.js itself is not certified by the Connectivity Standards Alliance, and using matter.js does not automatically certify your product.** While we ensure that the protocol and default cluster implementations we provide align with the Matter Specification, certification of your final product remains your responsibility.
+
+Please refer to the Certification sections on the [Matter Handbook](https://handbook.buildwithmatter.com/certification/) and the [Connectivity Standards Alliance Homepage](https://csa-iot.org/certification/why-certify/) for more details on the certification process and benefits.
+
+If you plan to officially certify a device, bridge, or controller based on matter.js, please contact us via email or Discord to get the latest information on matter.js compliance status, supported and pending features, and guidance on the certification process. We can also support you during certification if needed.
+
+matter.js has already been successfully used in certified products, but there are still important considerations and discussions required when planning certification.
 
 ## JavaScript/Node.js compatibility
 * At least ES2022 needs to be used as build target for your project!
