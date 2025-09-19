@@ -10,7 +10,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 -->
 
 ### __WORK IN PROGRESS__
--   Breaking: matter.js now requires node.js 20+
+-   Breaking: matter.js now requires node.js 20.19+ or 22.13+ or 24.0+ (LTS versions).  Node.js 18.x is no longer supported.
 -   Breaking: Because of the upgrade to TypeScript 5.9 all usages of Uint8Array were changed to use a more convenient own type alias Bytes
 
 -   @matter/general
@@ -35,6 +35,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: MDNS client and server efficiency is improved with a shared socket and message parser
     - Fix: Controller networking was previously throwing the incorrect error after a communication timeout
     - Fix: Ensures to only include the MaxTcpMessageSize in Session parameters when TCP is enabled
+    - Fix: Fixes an issue that prevented cached attribute data to be updated correctly
 
 -   @matter/node
     - Breaking: `Endpoint` and `Node` initialization values now require the correct type for some time values and IDs.  So for example, `VendorId(1234)` instead of just `1234`
