@@ -142,7 +142,7 @@ export function* tokenize(text: string): Producer {
                         kind: "ansi",
                         sequence: text.slice(escapeStart, pos),
                     };
-                    if (newColumn !== undefined && !Number.isNaN(newColumn)) {
+                    if (newColumn !== undefined && Number.isFinite(newColumn)) {
                         token.newColumn = newColumn;
                     }
                     yield token;

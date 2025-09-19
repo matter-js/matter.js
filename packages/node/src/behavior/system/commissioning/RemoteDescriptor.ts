@@ -175,8 +175,8 @@ export namespace RemoteDescriptor {
         if (VP !== undefined) {
             const [vendor, product] = VP.split("+").map(Number.parseInt);
 
-            long.vendorId = Number.isNaN(vendor) ? undefined : VendorId(vendor);
-            long.productId = Number.isNaN(product) ? undefined : VendorId(vendor);
+            long.vendorId = Number.isFinite(vendor) ? VendorId(vendor) : undefined;
+            long.productId = Number.isFinite(product) ? product : undefined;
         }
 
         let sessionParameters: Partial<SessionParameters> | undefined;

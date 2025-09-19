@@ -176,7 +176,7 @@ export class VariableService {
         }
         if (typeof value === "string") {
             value = Number.parseFloat(value);
-            if (Number.isNaN(value)) {
+            if (!Number.isFinite(value)) {
                 return;
             }
             return value;

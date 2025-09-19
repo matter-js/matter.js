@@ -217,7 +217,7 @@ export function xyToRgb(x: number, y: number): [number, number, number] {
     }
 
     // This fixes situation when due to computational errors value get slightly below 0, or NaN in case of zero-division.
-    rgb = rgb.map(x => (isNaN(x) || x < 0 ? 0 : x));
+    rgb = rgb.map(x => (!isFinite(x) || x < 0 ? 0 : x));
 
     return [rgb[0], rgb[1], rgb[2]];
 }

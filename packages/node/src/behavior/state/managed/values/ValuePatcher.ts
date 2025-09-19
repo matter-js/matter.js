@@ -184,7 +184,7 @@ function ListPatcher(schema: ValueModel, supervisor: RootSupervisor): ValueSuper
         for (const indexStr in changes) {
             const index = Number.parseInt(indexStr);
 
-            if (index < 0 || Number.isNaN(index)) {
+            if (index < 0 || !Number.isFinite(index)) {
                 throw new WriteError(path, `key ${index} is not a valid array index`);
             }
 

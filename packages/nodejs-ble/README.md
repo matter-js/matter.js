@@ -2,7 +2,7 @@
 
 [![license](https://img.shields.io/badge/license-Apache2-green.svg?style=flat)](https://raw.githubusercontent.com/mfucci/node-matter/master/LICENSE) 
 
-Matter BLE support using bleno for Peripheral/Device side and noble (not implemented yet) for Central/Controller side.
+Matter BLE support using bleno for Peripheral/Device side and noble for Central/Controller side.
 
 > This package supports all Node.js LTS versions starting with 20.x
 

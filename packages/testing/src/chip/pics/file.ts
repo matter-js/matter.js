@@ -121,12 +121,12 @@ function parseLine(line: string, values: PicsValues): boolean {
     const rangeFrom = base.slice(rangePrefix.length);
 
     const rangeFromNum = Number.parseInt(rangeFrom, 16);
-    if (Number.isNaN(rangeFromNum)) {
+    if (!Number.isFinite(rangeFromNum)) {
         throw new Error(`Invalid PICS: Range start in ${key} is invalid`);
     }
 
     const rangeToNum = Number.parseInt(rangeTo, 16);
-    if (Number.isNaN(rangeToNum)) {
+    if (!Number.isFinite(rangeToNum)) {
         throw new Error(`Invalid PICS: Range end in ${key} is invalid`);
     }
 

@@ -109,7 +109,7 @@ export namespace Style {
 
         // Note we must use parseInt so trailing parameters are stripped
         const opcode = Number.parseInt(code);
-        if (Number.isNaN(opcode)) {
+        if (!Number.isFinite(opcode)) {
             return undefined;
         }
 

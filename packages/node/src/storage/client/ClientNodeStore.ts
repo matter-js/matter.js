@@ -75,7 +75,7 @@ export class ClientNodeStore extends NodeStore {
         this.#storage = this.storageFactory.createContext("endpoints");
         for (const id of await this.#storage.contexts()) {
             const number = Number.parseInt(id) as EndpointNumber;
-            if (Number.isNaN(number)) {
+            if (!Number.isFinite(number)) {
                 continue;
             }
 

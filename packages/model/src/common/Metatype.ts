@@ -187,7 +187,7 @@ export namespace Metatype {
             }
         }
 
-        if (typeof value === "number" && !Number.isNaN(value) && Number.isFinite(value)) {
+        if (typeof value === "number" && Number.isFinite(value)) {
             return value;
         }
 
@@ -242,7 +242,7 @@ export namespace Metatype {
         }
 
         const number = Number(value);
-        if (!Number.isNaN(number) && Number.isFinite(value)) {
+        if (Number.isFinite(value)) {
             return number;
         }
 
@@ -336,7 +336,7 @@ export namespace Metatype {
 
         if (typeof value === "number" || typeof value === "string") {
             const date = new Date(value);
-            if (!Number.isNaN(date.getTime())) {
+            if (Number.isFinite(date.getTime())) {
                 return date;
             }
         }
