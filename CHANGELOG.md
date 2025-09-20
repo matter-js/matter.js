@@ -9,7 +9,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
-## __WORK IN PROGRESS__
+## 0.15.4 (2025-09-20)
 
 -   @matter/general
     - Fix: Fixes an issue that prevented cached attribute data to be updated correctly
