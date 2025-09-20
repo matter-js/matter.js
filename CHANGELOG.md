@@ -14,6 +14,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 -   @matter/general
     - Fix: Fixes an issue that prevented cached attribute data to be updated correctly
 
+-   @matter/node
+    - Fix: (rsulzenbacher) Adjusted OnOffServer default implementation for offWaitTime to be fully compliant to 1.4.1 spec
+
 ## 0.15.3 (2025-08-01)
 
 -   @matter/protocol
