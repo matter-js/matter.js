@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   check-and-lint:
-    if: github.repository == 'matter-js/matter' && contains(github.event.pull_request.labels.*.name, 'automated-npm-release')
+    if: github.repository == 'matter-js/matter.js' && contains(github.event.pull_request.labels.*.name, 'automated-npm-release')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +27,7 @@ jobs:
       - run: npm run lint
 
   build-non-linux:
-    if: github.repository == 'matter-js/matter' && contains(github.event.pull_request.labels.*.name, 'automated-npm-release')
+    if: github.repository == 'matter-js/matter.js' && contains(github.event.pull_request.labels.*.name, 'automated-npm-release')
     needs: [ check-and-lint ]
     runs-on: ${{ matrix.os }}
     strategy:
@@ -47,7 +47,7 @@ jobs:
           os: ${{ matrix.os }}
 
   test:
-    if: github.repository == 'matter-js/matter' && contains(github.event.pull_request.labels.*.name, 'automated-npm-release')
+    if: github.repository == 'matter-js/matter.js' && contains(github.event.pull_request.labels.*.name, 'automated-npm-release')
     needs: [ check-and-lint ]
     runs-on: ubuntu-latest
     strategy:
@@ -68,7 +68,7 @@ jobs:
     if: |
       always() &&
       github.event_name == 'pull_request' &&
-      github.repository == 'matter-js/matter' &&
+      github.repository == 'matter-js/matter.js' &&
       contains(github.event.pull_request.labels.*.name, 'automated-npm-release')
     needs: [ test, build-non-linux, check-and-lint ]
     runs-on: ubuntu-latest
