@@ -3,9 +3,9 @@ name: Build and test
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "0.15.x" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "0.15.x" ]
   merge_group:
 
 # Cancel previous PR/branch runs when a new commit is pushed
