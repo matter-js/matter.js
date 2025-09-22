@@ -166,14 +166,27 @@ jobs:
             './scripts/tests/run_test_suite.py \
               --runner chip_tool_python \
               --chip-tool ../bin/chip-tool \
-              --log-level info \
-              --target-glob "{Test_TC_ACE_*,Test_TC_ACL_*,Test_AddNewFabricFromExistingFabric,Test_TC_BINFO_*,Test_TC_BRBINFO_*,Test_TC_CADMIN_*,Test_TC_CGEN_*,Test_TC_CNET_*,Test_TC_DGGEN_*,Test_TC_OPCREDS_*,TestAccessControlC*,TestArmFailSafe,TestCASERecovery,TestCommandsById,TestCommissionerNodeId,TestCommissioningWindow,TestFabricRemovalWhileSubscribed,TestGeneralCommissioning,TestMultiAdmin,TestOperationalCredentialsCluster,TestSelfFabricRemoval,TestSubscribe_*,TestDiscovery}" \
+              --log-level debug \
+              --target-glob "{TestSelfFabricRemoval}" \
               run \
               --iterations 1 \
               --all-clusters-app ../support/chip-testing/dist/esm/AllClustersTestApp.js \
               --bridge-app ../support/chip-testing/dist/esm/BridgeTestApp.js \
               --tv-app ../support/chip-testing/dist/esm/TvTestApp.js \
             '
+          ./scripts/run_in_build_env.sh  \
+            './scripts/tests/run_test_suite.py \
+              --runner chip_tool_python \
+              --chip-tool ../bin/chip-tool \
+              --log-level info \
+              --target-glob "{Test_TC_ACE_*,Test_TC_ACL_*,Test_AddNewFabricFromExistingFabric,Test_TC_BINFO_*,Test_TC_BRBINFO_*,Test_TC_CADMIN_*,Test_TC_CGEN_*,Test_TC_CNET_*,Test_TC_DGGEN_*,Test_TC_OPCREDS_*,TestAccessControlC*,TestArmFailSafe,TestCASERecovery,TestCommandsById,TestCommissionerNodeId,TestCommissioningWindow,TestFabricRemovalWhileSubscribed,TestGeneralCommissioning,TestMultiAdmin,TestOperationalCredentialsCluster,TestSubscribe_*,TestDiscovery}" \
+              run \
+              --iterations 1 \
+              --all-clusters-app ../support/chip-testing/dist/esm/AllClustersTestApp.js \
+              --bridge-app ../support/chip-testing/dist/esm/BridgeTestApp.js \
+              --tv-app ../support/chip-testing/dist/esm/TvTestApp.js \
+            '
+
 
   matterjs-tests-core:
     needs: [prepare-chip-build, chip-tests-needed]
