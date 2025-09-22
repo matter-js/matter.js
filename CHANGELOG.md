@@ -11,8 +11,14 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+-   @matter/general
+    - Fix: Adds safeguard check to prevent a crash seen when handling DNS messages
+
 -   @matter/nodejs
     - Fix: Corrects network interface selection logic for windows
+
+-   @project-chip/matter.js
+    - Fix: Fixes safeguards in CommissioningController when resetting storage
 
 ## 0.15.4 (2025-09-20)
 
