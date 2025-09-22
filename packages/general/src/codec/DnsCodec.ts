@@ -4,11 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Diagnostic } from "#log/Diagnostic.js";
+import { Logger } from "#log/Logger.js";
 import { InternalError, NotImplementedError, UnexpectedDataError } from "../MatterError.js";
 import { Bytes, Endian } from "../util/Bytes.js";
 import { DataReader } from "../util/DataReader.js";
 import { DataWriter } from "../util/DataWriter.js";
 import { ipv4BytesToString, ipv4ToBytes, ipv6BytesToString, ipv6ToBytes, isIPv4, isIPv6 } from "../util/Ip.js";
+
+const logger = Logger.get("DnsCodec");
 
 /**
  * The maximum MDNS message size to usually fit into one UDP network MTU packet. Data are split into multiple messages
@@ -310,6 +314,11 @@ export class DnsCodec {
 
     static encodeRecord(record: DnsRecord<any>): Uint8Array {
         const { name, recordType, recordClass, ttl, value, flushCache = false } = record;
+
+        if (recordType === undefined || value === undefined) {
+            logger.warn("Skipping record encoding due to missing type or value.", Diagnostic.dict(record));
+            return new Uint8Array(0);
+        }
 
         const writer = new DataWriter();
         writer.writeByteArray(this.encodeQName(name));
