@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Immutable } from "#general";
+import { decamelize, Immutable } from "#general";
 import { ClusterClientObj } from "#protocol";
 import { AttributeId, ClusterId, CommandId } from "#types";
 
@@ -19,7 +19,7 @@ enum EndpointPropertiesProxyType {
  */
 export class EndpointPropertiesProxy {
     #clusterClients: Map<ClusterId, ClusterClientObj>;
-    #nameIdMap?: Map<string, ClusterId>;
+    #nameIdMapData?: Map<string, ClusterId>;
 
     /**
      * Create a state proxy that allows access via cluster names/IDs
@@ -52,12 +52,7 @@ export class EndpointPropertiesProxy {
                         return undefined;
                     }
 
-                    // Try to find cluster by name first, then by id
-                    let clusterId = this.#clusterIdForName(prop);
-                    if (clusterId === undefined) {
-                        const id = parseInt(prop, 10);
-                        clusterId = Number.isFinite(id) ? ClusterId(id) : undefined;
-                    }
+                    const clusterId = this.#clusterIdFromProp(prop);
                     if (clusterId !== undefined) {
                         const clusterClient = this.#clusterClients.get(clusterId);
 
@@ -71,6 +66,20 @@ export class EndpointPropertiesProxy {
                         }
                     }
                     return undefined;
+                },
+
+                has: (_target, prop) => {
+                    if (typeof prop !== "string") {
+                        return false;
+                    }
+
+                    const clusterId = this.#clusterIdFromProp(prop);
+
+                    return clusterId !== undefined && this.#clusterClients.has(clusterId);
+                },
+
+                ownKeys: () => {
+                    return Array.from(this.#nameIdMap.entries()).flatMap(([name, id]) => [name, id.toString()]);
                 },
             },
         );
@@ -87,19 +96,41 @@ export class EndpointPropertiesProxy {
 
                     return clusterClient.attributes[prop]?.getLocal();
                 },
+
+                has: (_target, prop) => {
+                    if (typeof prop !== "string") {
+                        return false;
+                    }
+                    return prop in clusterClient.attributes;
+                },
+
+                ownKeys: () => {
+                    return Object.keys(clusterClient.attributes);
+                },
             },
         ) as Immutable<Record<string | AttributeId, any>>;
     }
 
-    #clusterIdForName(name: string): ClusterId | undefined {
+    get #nameIdMap() {
         // Initialize map if not done yet or cluster structure changed
-        if (this.#nameIdMap === undefined || this.#nameIdMap.size !== this.#clusterClients.size) {
-            this.#nameIdMap = new Map<string, ClusterId>();
+        if (this.#nameIdMapData === undefined || this.#nameIdMapData.size !== this.#clusterClients.size) {
+            this.#nameIdMapData = new Map<string, ClusterId>();
             for (const [id, client] of this.#clusterClients) {
-                this.#nameIdMap.set(client.name.toLowerCase(), id);
+                this.#nameIdMapData.set(decamelize(client.name), id);
             }
         }
-        return this.#nameIdMap.get(name.toLowerCase());
+        return this.#nameIdMapData;
+    }
+
+    #clusterIdFromProp(prop: string): ClusterId | undefined {
+        // Try to find cluster by name first, then by id
+        let clusterId = this.#nameIdMap.get(prop);
+        if (clusterId === undefined) {
+            const id = parseInt(prop, 10);
+            clusterId = Number.isFinite(id) ? ClusterId(id) : undefined;
+        }
+
+        return clusterId;
     }
 }
 

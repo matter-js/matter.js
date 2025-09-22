@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Diagnostic } from "#log/Diagnostic.js";
+import { Logger } from "#log/Logger.js";
 import { Duration } from "#time/Duration.js";
 import { Seconds } from "#time/TimeUnit.js";
 import { InternalError, NotImplementedError, UnexpectedDataError } from "../MatterError.js";
@@ -11,6 +13,8 @@ import { Bytes, Endian } from "../util/Bytes.js";
 import { DataReader } from "../util/DataReader.js";
 import { DataWriter } from "../util/DataWriter.js";
 import { ipv4BytesToString, ipv4ToBytes, ipv6BytesToString, ipv6ToBytes, isIPv4, isIPv6 } from "../util/Ip.js";
+
+const logger = Logger.get("DnsCodec");
 
 export const DEFAULT_MDNS_TTL = Seconds(120);
 
@@ -312,6 +316,11 @@ export class DnsCodec {
 
     static encodeRecord(record: DnsRecord<any>): Bytes {
         const { name, recordType, recordClass, ttl, value, flushCache = false } = record;
+
+        if (recordType === undefined || value === undefined) {
+            logger.warn("Skipping record encoding due to missing type or value.", Diagnostic.dict(record));
+            return new Uint8Array(0);
+        }
 
         const writer = new DataWriter();
         writer.writeByteArray(this.encodeQName(name));
