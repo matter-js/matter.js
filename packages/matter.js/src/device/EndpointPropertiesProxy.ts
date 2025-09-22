@@ -113,7 +113,7 @@ export class EndpointPropertiesProxy {
 
     get #nameIdMap() {
         // Initialize map if not done yet or cluster structure changed
-        if (this.#nameIdMapData === undefined || this.#nameIdMapData.size === this.#clusterClients.size) {
+        if (this.#nameIdMapData === undefined || this.#nameIdMapData.size !== this.#clusterClients.size) {
             this.#nameIdMapData = new Map<string, ClusterId>();
             for (const [id, client] of this.#clusterClients) {
                 this.#nameIdMapData.set(decamelize(client.name), id);
