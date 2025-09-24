@@ -303,6 +303,9 @@ export namespace Advertisement {
          * resolving.
          */
         sleep(name: string, duration: Duration): Promise<void>;
+
+        /** True if the activity has been canceled. */
+        cancelled: boolean;
     }
 }
 
@@ -354,5 +357,9 @@ class ActivityContext extends CancelablePromise implements Advertisement.Activit
         if (this.#sleep) {
             this.#sleep.cancel(reason);
         }
+    }
+
+    get cancelled() {
+        return this.#cancelReason !== undefined;
     }
 }
