@@ -38,9 +38,10 @@ const logger = Logger.get("GeneralDiagnosticsServer");
 const Base = GeneralDiagnosticsBehavior.with(GeneralDiagnostics.Feature.DataModelTest);
 
 // Enhance the Schema to store the real operational hours counter we internally use and persist this
-const schema = Base.schema!.extend({
-    children: [FieldElement({ name: "totalOperationalHoursCounter", type: "uint64", quality: "N" })],
-});
+const schema = Base.schema!.extend(
+    {},
+    FieldElement({ name: "totalOperationalHoursCounter", type: "uint64", quality: "N", conformance: "M" }),
+);
 
 /**
  * This is the default server implementation of GeneralDiagnosticsBehavior.
@@ -61,7 +62,7 @@ const schema = Base.schema!.extend({
 export class GeneralDiagnosticsServer extends Base {
     declare protected internal: GeneralDiagnosticsServer.Internal;
     declare state: GeneralDiagnosticsServer.State;
-    schema = schema;
+    static override readonly schema = schema;
 
     override initialize(): MaybePromise {
         if (this.state.testEventTriggersEnabled === undefined) {

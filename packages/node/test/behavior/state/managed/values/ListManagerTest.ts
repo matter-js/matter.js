@@ -83,7 +83,7 @@ export async function testFabricScoped(actor: (struct: TestStruct, lists: TwoLis
 }
 
 describe("ListManager", () => {
-    it("basic get/set", async () => {
+    it("basic get/set with primitive datatype", async () => {
         const struct = TestStruct({ list: listOf("string") }, { list: [] });
 
         await struct.online(
@@ -105,6 +105,39 @@ describe("ListManager", () => {
         );
 
         struct.expect({ list: ["HI", "there"] });
+        expect(struct.notifies).deep.equals([{ index: "list", oldValue: [], newValue: ["HI", "there"] }]);
+    });
+
+    it("basic get/set with struct", async () => {
+        const struct = TestStruct(
+            {
+                list: listOf(
+                    structOf({
+                        value1: "string",
+                        value2: "uint8",
+                    }),
+                ),
+            },
+            { list: [] },
+        );
+
+        await struct.online(
+            {
+                exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
+                node: aclEndpoint(),
+            },
+            async ref => {
+                const list = ref.list as { value1: string; value2: number }[];
+
+                list.push({ value1: "hi", value2: 1 });
+
+                expect(list[0]).deep.equals({ value1: "hi", value2: 1 });
+                expect(list.length).equals(1);
+            },
+        );
+
+        struct.expect({ list: [{ value1: "hi", value2: 1 }] });
+        expect(struct.notifies).deep.equals([{ index: "list", oldValue: [], newValue: [{ value1: "hi", value2: 1 }] }]);
     });
 
     it("basic array functions", async () => {
@@ -139,6 +172,10 @@ describe("ListManager", () => {
         );
 
         struct.expect({ list: ["HI"] });
+        expect(struct.notifies).deep.equals([
+            { index: "list", oldValue: [], newValue: ["hey", "HI", "there"] },
+            { index: "list", oldValue: ["hey", "HI", "there"], newValue: ["HI"] },
+        ]);
     });
 
     it("basic array iteration", async () => {

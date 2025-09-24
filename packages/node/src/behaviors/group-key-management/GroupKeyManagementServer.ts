@@ -19,32 +19,37 @@ const MAX_64BIT_TIME = BigInt("0xffffffffffffffff");
 
 // Enhance the schema by a fabric scoped structure for the GroupKeySetStruct to enable persistence
 const groupKeySetStruct = GroupKeyManagementBehavior.schema!.get(DatatypeModel, "GroupKeySetStruct")!;
-const groupKeySetStructFS = groupKeySetStruct.extend({
-    name: "GroupKeySetStructFS",
-    children: [FieldElement({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })],
-});
-const schema = GroupKeyManagementBehavior.schema!.extend({
-    children: [
-        groupKeySetStructFS,
-        FieldElement({ name: "groupKeySets", type: "GroupKeySetStructFS", quality: "N", access: "RW VM F" }),
-    ],
-});
+const groupKeySetStructFS = groupKeySetStruct.extend(
+    {
+        name: "GroupKeySetStructFS",
+    },
+    FieldElement({ name: "FabricIndex", id: 0xfe, type: "FabricIndex", conformance: "M" }),
+);
+const schema = GroupKeyManagementBehavior.schema!.extend(
+    {},
+    groupKeySetStructFS,
+    FieldElement(
+        {
+            name: "groupKeySets",
+            type: "list",
+            quality: "N",
+            access: "RW VM F",
+            conformance: "M",
+        },
+        FieldElement({ name: "entry", type: "GroupKeySetStructFS" }),
+    ),
+);
 
 /**
  * This is the default server implementation of {@link GroupKeyManagementBehavior}.
  */
 export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
     declare state: GroupKeyManagementServer.State;
-    schema = schema;
+    static override readonly schema = schema;
 
     override initialize(): MaybePromise {
         if (this.features.cacheAndSync) {
             throw new ImplementationError("The CacheAndSync feature is provisional. Do not use it.");
-        }
-
-        // Initialize if not persisted to enable persistence
-        if (this.state.groupKeySets === undefined) {
-            this.state.groupKeySets = [];
         }
 
         // Validate the state

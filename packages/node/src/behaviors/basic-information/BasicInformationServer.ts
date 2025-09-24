@@ -97,7 +97,7 @@ export class BasicInformationServer extends Base {
         }
     }
 
-    static override schema = this.enableUniqueIdPersistence(Base.schema);
+    static override readonly schema = this.enableUniqueIdPersistence(Base.schema);
 
     static enableUniqueIdPersistence(schema?: Schema): Schema {
         if (schema === undefined) {

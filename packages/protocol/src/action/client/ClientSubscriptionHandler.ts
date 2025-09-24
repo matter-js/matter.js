@@ -5,13 +5,13 @@
  */
 
 import { ReadResult } from "#action/response/ReadResult.js";
+import { Diagnostic, InternalError, Logger } from "#general";
 import { DecodedDataReport } from "#interaction/DecodedDataReport.js";
 import { IncomingInteractionClientMessenger } from "#interaction/InteractionMessenger.js";
 import { SubscriptionId } from "#interaction/Subscription.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { ProtocolHandler } from "#protocol/ProtocolHandler.js";
 import { DataReport, INTERACTION_PROTOCOL_ID, Status } from "#types";
-import { Diagnostic, InternalError, Logger } from "@matter/general";
 import { ClientSubscriptions } from "./ClientSubscriptions.js";
 import { InputChunk } from "./InputChunk.js";
 

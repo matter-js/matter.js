@@ -38,7 +38,7 @@ export class BridgedDeviceBasicInformationServer extends BridgedDeviceBasicInfor
         }
     }
 
-    static override schema = BasicInformationServer.enableUniqueIdPersistence(
+    static override readonly schema = BasicInformationServer.enableUniqueIdPersistence(
         BridgedDeviceBasicInformationBehavior.schema,
     );
 

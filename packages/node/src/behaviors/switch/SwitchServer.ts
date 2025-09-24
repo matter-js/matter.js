@@ -60,7 +60,7 @@ export class SwitchBaseServer extends SwitchServerBase {
     declare protected internal: SwitchBaseServer.Internal;
     declare state: SwitchBaseServer.State;
     declare events: SwitchBaseServer.Events;
-    schema = schema;
+    static override readonly schema = schema;
 
     override initialize(): MaybePromise {
         this.state.rawPosition = this.state.currentPosition;
