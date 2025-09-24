@@ -28,9 +28,21 @@ const SwitchServerBase = SwitchBehavior.for(Switch.Complete).with(
 // Enhance Schema to define conformance for some of the additional state attributes
 const schema = SwitchServerBase.schema!.extend({
     children: [
-        FieldElement({ name: "longPressDelay", type: "uint32", quality: "M", conformance: "MSL" }),
-        FieldElement({ name: "multiPressDelay", type: "uint32", quality: "M", conformance: "MSM" }),
-        FieldElement({ name: "momentaryNeutralPosition", type: "uint8", quality: "O", conformance: "MS" }),
+        FieldElement({
+            name: "longPressDelay",
+            type: "epoch-s",
+            quality: "M",
+            conformance: "MSL",
+            default: DEFAULT_LONG_PRESS_DELAY,
+        }),
+        FieldElement({
+            name: "multiPressDelay",
+            type: "epoch-s",
+            quality: "M",
+            conformance: "MSM",
+            default: DEFAULT_MULTIPRESS_DELAY,
+        }),
+        FieldElement({ name: "momentaryNeutralPosition", type: "uint8", quality: "O", conformance: "MS", default: 0 }),
     ],
 });
 
@@ -319,7 +331,7 @@ export namespace SwitchBaseServer {
 
         /**
          * Debounce Delay to wait until a newly reported raw position is considered stable and written to the
-         * currentPosition attribue.
+         * currentPosition attribute.
          */
         debounceDelay?: Duration;
 
