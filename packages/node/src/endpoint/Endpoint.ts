@@ -536,7 +536,14 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      * Is this a parent Endpoint?
      */
     get hasParts() {
-        return !!this.#parts?.size;
+        // This doesn't work, apparent TS bug
+        //return !!this.#parts?.size;
+
+        if (this.#parts?.size) {
+            return true;
+        }
+
+        return false;
     }
 
     /**

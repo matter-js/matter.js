@@ -10,6 +10,7 @@ import { Timestamp } from "#time/Timestamp.js";
 import { Millis } from "#time/TimeUnit.js";
 import { Bytes } from "#util/Bytes.js";
 import type { Lifecycle } from "../util/Lifecycle.js";
+import { DiagnosticPresentation } from "./DiagnosticPresentation.js";
 import { LogLevel } from "./LogLevel.js";
 
 let errorCollector: undefined | ((error: {}) => boolean);
@@ -20,10 +21,10 @@ let errorCollector: undefined | ((error: {}) => boolean);
  * You can use the utility functions such as {@link Diagnostic.dict} to create
  * Diagnostics from common value types.
  */
-export interface Diagnostic {
+export type Diagnostic = {
     readonly [Diagnostic.presentation]?: Diagnostic.Presentation | Lifecycle.Status;
     readonly [Diagnostic.value]?: unknown;
-}
+};
 
 /**
  * Create a diagnostic giving a value a specific presentation.
@@ -51,64 +52,18 @@ export interface DiagnosticError extends Error {
 }
 
 export namespace Diagnostic {
-    export enum Presentation {
-        /**
-         * Render an object as a log message.
-         */
-        Message = "message",
+    export type Presentation = `${DiagnosticPresentation}`;
+    export const Presentation = DiagnosticPresentation;
 
-        /**
-         * By default iterables render as a single line with spaces separating.  The "list" presentation treats elements
-         * instead as separate entities which typically means presentation on different lines.
-         *
-         * Within an iterable, a list also serves to present contained items as subordinate to the previous item.
-         */
-        List = "list",
+    export const presentation = DiagnosticPresentation.presentation;
+    export const value = DiagnosticPresentation.value;
 
-        /**
-         * Render iterables without intervening spaces.
-         */
-        Squash = "squash",
+    export function presentationOf(diagnostic: unknown) {
+        return (diagnostic as Diagnostic)?.[Diagnostic.presentation];
+    }
 
-        /**
-         * An emphasized diagnostic.  Rendered to draw attention.
-         */
-        Strong = "strong",
-
-        /**
-         * A deemphasized diagnostic.  Rendered to draw less attention than default rendering.
-         */
-        Weak = "weak",
-
-        /**
-         * A keylike diagnostic to list flags.  The key gets suppressed and the value is rendered as a key.
-         */
-        Flag = "flag",
-
-        /**
-         * An error message diagnostic.
-         */
-        Error = "error",
-
-        /**
-         * A key/value diagnostic.  Rendered as a group of key/value pairs.
-         */
-        Dictionary = "dictionary",
-
-        /**
-         * Path, resource or session identifier.
-         */
-        Via = "via",
-
-        /**
-         * Resource that was added.
-         */
-        Added = "added",
-
-        /**
-         * Resource that was removed.
-         */
-        Deleted = "deleted",
+    export function valueOf(diagnostic: unknown) {
+        return (diagnostic as Diagnostic)?.[Diagnostic.value];
     }
 
     export interface Context {
@@ -162,11 +117,8 @@ export namespace Diagnostic {
         };
     }
 
-    export const presentation = Symbol("presentation");
-    export const value = Symbol("value");
-
     export interface Message {
-        [presentation]?: Presentation.Message;
+        [presentation]?: "message";
         now: Date;
         level: LogLevel;
         facility: string;
@@ -194,28 +146,28 @@ export namespace Diagnostic {
      * Create a value presented emphatically.
      */
     export function strong(value: unknown) {
-        return Diagnostic(Diagnostic.Presentation.Strong, value);
+        return Diagnostic("strong", value);
     }
 
     /**
      * Create a value presented less emphatically than the default.
      */
     export function weak(value: unknown) {
-        return Diagnostic(Diagnostic.Presentation.Weak, value);
+        return Diagnostic("weak", value);
     }
 
     /**
      * Create a value presented as key
      */
     export function flag(value: string) {
-        return Diagnostic(Diagnostic.Presentation.Flag, value);
+        return Diagnostic("flag", value);
     }
 
     /**
      * Create a value identifying the source of a diagnostic event.
      */
     export function via(value: string) {
-        if ((value as Diagnostic)[presentation]) {
+        if (Diagnostic.presentationOf(value)) {
             return value;
         }
         const via = new String(value);
@@ -227,14 +179,14 @@ export namespace Diagnostic {
      * Create a value identifying a resource that was added.
      */
     export function added(value: unknown) {
-        return Diagnostic(Diagnostic.Presentation.Added, value);
+        return Diagnostic("added", value);
     }
 
     /**
      * Create a value identifying a resource that was removed.
      */
     export function deleted(value: unknown) {
-        return Diagnostic(Diagnostic.Presentation.Deleted, value);
+        return Diagnostic("deleted", value);
     }
 
     /**
@@ -256,14 +208,14 @@ export namespace Diagnostic {
      * Create a value presenting as a list of separate lines.
      */
     export function list(value: Iterable<unknown>) {
-        return Diagnostic(Diagnostic.Presentation.List, value);
+        return Diagnostic("list", value);
     }
 
     /**
      * Create a value presenting as segments of the same string without intervening spaces.
      */
     export function squash(...values: unknown[]) {
-        return Diagnostic(Diagnostic.Presentation.Squash, values);
+        return Diagnostic("squash", values);
     }
 
     /**
@@ -272,7 +224,7 @@ export namespace Diagnostic {
     export function dict(entries: object, suppressUndefinedValues = true): Record<string, unknown> & Diagnostic {
         const result: any = {
             ...entries,
-            [presentation]: Diagnostic.Presentation.Dictionary,
+            [presentation]: "dictionary",
         };
         if (suppressUndefinedValues) {
             for (const key in result) {
@@ -535,7 +487,7 @@ export namespace Diagnostic {
     }
 }
 
-function formatError(error: unknown, options: { messagePrefix?: string; parentStack?: string[] } = {}) {
+function formatError(error: unknown, options: { messagePrefix?: string; parentStack?: string[] } = {}): unknown {
     const { messagePrefix, parentStack } = options;
 
     const messageAndStack = Diagnostic.messageAndStackFor(error, parentStack);
@@ -556,10 +508,7 @@ function formatError(error: unknown, options: { messagePrefix?: string; parentSt
     }
     messageDiagnostic.push(message);
 
-    message = Diagnostic.upgrade(
-        message,
-        Diagnostic(Diagnostic.Presentation.Error, Diagnostic.squash(...messageDiagnostic)),
-    );
+    message = Diagnostic.upgrade(message, Diagnostic("error", Diagnostic.squash(...messageDiagnostic)));
 
     let cause, errors, secondary;
     if (typeof error === "object" && error !== null) {
@@ -579,20 +528,20 @@ function formatError(error: unknown, options: { messagePrefix?: string; parentSt
         return message;
     }
 
-    const list: Array<string | Diagnostic> = [message];
+    const list: Array<unknown> = [message];
     if (stack === undefined) {
         // Ensure line break in case of no stack
-        list.push(Diagnostic(Diagnostic.Presentation.List, []));
+        list.push(Diagnostic("list", []));
     } else {
-        list.push(Diagnostic(Diagnostic.Presentation.List, stack));
+        list.push(Diagnostic("list", stack));
     }
 
     // We render chained causes at the same level as the parent.  They are displayed atomically and there can be
     // only one so this is not ambiguous.  If we did not do this we would end up with a lot of indent levels
     for (; typeof cause === "object" && cause !== null; cause = (cause as Error).cause) {
         let formatted = formatError(cause, { messagePrefix: "Caused by:", parentStack: stackLines });
-        if ((formatted as Diagnostic)[Diagnostic.presentation] === Diagnostic.Presentation.List) {
-            formatted = (formatted as Diagnostic)[Diagnostic.value] ?? formatted;
+        if (Diagnostic.presentationOf(formatted) === "list") {
+            formatted = (Diagnostic.valueOf(formatted) ?? formatted) as string | Diagnostic;
         }
 
         if (Array.isArray(formatted)) {
@@ -619,5 +568,5 @@ function formatError(error: unknown, options: { messagePrefix?: string; parentSt
         list.push(Diagnostic.list([formatError(secondary, { messagePrefix: "Secondary error during disposal:" })]));
     }
 
-    return list as Diagnostic;
+    return list;
 }

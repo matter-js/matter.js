@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic } from "./Diagnostic.js";
+// Note we cannot import diagnostic directly as it causes circular reference
+import type { Diagnostic } from "./Diagnostic.js";
+import { DiagnosticPresentation } from "./DiagnosticPresentation.js";
 
 const sources = new Set<Diagnostic>();
 
@@ -20,11 +22,11 @@ export const DiagnosticSource = {
         sources.delete(source);
     },
 
-    get [Diagnostic.presentation]() {
-        return Diagnostic.Presentation.List;
+    get [DiagnosticPresentation.presentation]() {
+        return DiagnosticPresentation.List;
     },
 
-    get [Diagnostic.value]() {
+    get [DiagnosticPresentation.value]() {
         return sources;
     },
 };

@@ -92,7 +92,7 @@ export class BdxMessenger {
 
         logger.debug(
             `Received Bdx ${BdxMessageType[messageType]}${message.payload.byteLength > 0 ? ` with ${message.payload.byteLength}bytes` : ""}`,
-            message,
+            Diagnostic.dict(message),
         );
         return BdxMessage.decode(messageType, message.payload);
     }

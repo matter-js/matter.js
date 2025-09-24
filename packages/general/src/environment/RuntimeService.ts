@@ -203,7 +203,7 @@ export class RuntimeService implements Multiplex {
                 let diagnostic: unknown = worker[RuntimeService.label];
 
                 if (diagnostic === undefined) {
-                    diagnostic = worker[Diagnostic.value];
+                    diagnostic = Diagnostic.valueOf(worker);
 
                     if (diagnostic === undefined) {
                         diagnostic = worker.toString();
@@ -302,10 +302,5 @@ export namespace RuntimeService {
          * If label is present, it will be presented in diagnostics.  This takes precedence over [Diagnostic.value].
          */
         [label]?: unknown;
-
-        /**
-         * In diagnostics workers render using toString() unless they provide explicit diagnostics.
-         */
-        [Diagnostic.value]?: unknown;
     }
 }

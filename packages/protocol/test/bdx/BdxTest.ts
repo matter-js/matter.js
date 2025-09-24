@@ -1375,7 +1375,6 @@ describe("BdxTest", () => {
                     serverStorage,
                     { clientExchangeData, serverExchangeData, clientError },
                 ) => {
-                    console.log(clientError);
                     expect(clientError instanceof BdxError).equals(true);
                     expect(clientError.code).equals(BdxStatusCode.LengthTooShort);
 

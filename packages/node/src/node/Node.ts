@@ -199,7 +199,7 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
         return ["Runtime for", Diagnostic.strong(this.toString())];
     }
 
-    override get [Diagnostic.value](): unknown {
+    get [Diagnostic.value](): unknown {
         const nodeActivity = this.#environment.get(NodeActivity);
         using _activity = nodeActivity.begin("diagnostics");
         return Diagnostic.node("🧩", this.id, {

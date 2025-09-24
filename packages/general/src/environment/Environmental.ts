@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic } from "../log/Diagnostic.js";
 import { Observable } from "../util/Observable.js";
 import type { Environment } from "./Environment.js";
 
@@ -21,16 +20,6 @@ export namespace Environmental {
          * Asynchronous construction, respected by {@link Environment.load}.
          */
         construction?: Promise<any>;
-
-        /**
-         * Standard diagnostic presentation.
-         */
-        [Diagnostic.presentation]?: Diagnostic.Presentation;
-
-        /**
-         * Standard diagnostic value.
-         */
-        [Diagnostic.value]?: unknown;
     }
 
     /**
@@ -38,7 +27,7 @@ export namespace Environmental {
      *
      * A "factory" is just a class with a static {@link create} method that performs instantiation.
      */
-    export interface Factory<T extends Service = Service> {
+    export interface Factory<T extends object> {
         new (...args: any[]): T;
 
         /**

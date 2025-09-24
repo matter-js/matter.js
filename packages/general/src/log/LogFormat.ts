@@ -535,7 +535,7 @@ function renderDictionary(value: object, formatter: Formatter) {
         if (parts.length) {
             parts.push(" ");
         }
-        const suppressKey = isObject(v) && (v as Diagnostic)[Diagnostic.presentation] === Diagnostic.Presentation.Flag;
+        const suppressKey = isObject(v) && Diagnostic.presentationOf(v) === "flag";
         if (!suppressKey) {
             parts.push(formatter.key(k));
         }
@@ -558,7 +558,7 @@ function valueFor(value: unknown) {
         return value;
     }
     if (Diagnostic.value in value) {
-        const proxied = (value as Diagnostic)[Diagnostic.value];
+        const proxied = Diagnostic.valueOf(value);
         if (proxied === value) {
             throw new InternalError("Diagnostic value proxies to itself");
         }
@@ -571,10 +571,10 @@ function presentationFor(value: unknown) {
     if (typeof value !== "object" || value === null) {
         return;
     }
-    if (Diagnostic.presentation in (value as Diagnostic)) {
-        return (value as Diagnostic)[Diagnostic.presentation];
+    if (Diagnostic.presentation in value) {
+        return Diagnostic.presentationOf(value);
     }
-    const proxied = (value as Diagnostic)[Diagnostic.value];
+    const proxied = Diagnostic.valueOf(value);
     if (proxied && proxied !== value) {
         if (proxied === value) {
             throw new InternalError("Diagnostic value proxies to itself");
@@ -602,43 +602,43 @@ function renderDiagnostic(value: unknown, formatter: Formatter, ignorePresentati
         case undefined:
             return renderValue(value, formatter, false);
 
-        case Diagnostic.Presentation.Message:
+        case "message":
             if (value === undefined || value === null) {
                 throw new ImplementationError("Diagnostic message is not an object");
             }
             return formatter.message(Diagnostic.message(value));
 
-        case Diagnostic.Presentation.List:
+        case "list":
             if (typeof (value as Iterable<unknown>)?.[Symbol.iterator] !== "function") {
                 throw new ImplementationError("Diagnostic list is not iterable");
             }
             return renderIndentedList(value as Iterable<unknown>, formatter);
 
-        case Diagnostic.Presentation.Squash:
+        case "squash":
             return renderValue(value, formatter, true);
 
-        case Diagnostic.Presentation.Strong:
+        case "strong":
             return formatter.strong(() => renderDiagnostic(value, formatter, ignorePresentation));
 
-        case Diagnostic.Presentation.Weak:
+        case "weak":
             return formatter.weak(() => renderDiagnostic(value, formatter, ignorePresentation));
 
-        case Diagnostic.Presentation.Added:
+        case "added":
             return formatter.added(() => renderDiagnostic(value, formatter, ignorePresentation));
 
-        case Diagnostic.Presentation.Deleted:
+        case "deleted":
             return formatter.deleted(() => renderDiagnostic(value, formatter, ignorePresentation));
 
-        case Diagnostic.Presentation.Flag:
+        case "flag":
             return (value as string).length ? formatter.keylike(value as string) : "";
 
-        case Diagnostic.Presentation.Error:
+        case "error":
             return formatter.error(() => renderDiagnostic(value, formatter, ignorePresentation));
 
-        case Diagnostic.Presentation.Via:
+        case "via":
             return formatter.via(`${value}`);
 
-        case Diagnostic.Presentation.Dictionary:
+        case "dictionary":
             if (typeof value !== "object") {
                 throw new ImplementationError("Diagnostic dictionary is not an object");
             }
@@ -665,7 +665,7 @@ function sequenceToList(sequence: Iterable<unknown>) {
     let group: unknown[] | undefined;
     const list = Array<unknown[]>();
     for (const value of sequence) {
-        if (presentationFor(value) === Diagnostic.Presentation.List) {
+        if (presentationFor(value) === "list") {
             group = undefined;
             list.push(value as unknown[]);
             continue;

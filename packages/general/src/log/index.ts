@@ -5,6 +5,7 @@
  */
 
 export * from "./Diagnostic.js";
+export * from "./DiagnosticPresentation.js";
 export * from "./DiagnosticSource.js";
 export * from "./LogDestination.js";
 export * from "./LogFormat.js";
