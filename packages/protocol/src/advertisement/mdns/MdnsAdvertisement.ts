@@ -70,6 +70,9 @@ export abstract class MdnsAdvertisement<T extends ServiceDescription = ServiceDe
             logger.debug("Broadcast", this.dict({ number, next: Duration.format(retryInterval) }));
             await this.broadcast();
             await context.sleep("MDNS repeat", retryInterval);
+            if (context.cancelled) {
+                break;
+            }
         }
     }
 
