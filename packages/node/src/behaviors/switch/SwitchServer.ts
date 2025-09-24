@@ -31,18 +31,21 @@ const schema = SwitchServerBase.schema!.extend({
         FieldElement({
             name: "longPressDelay",
             type: "epoch-s",
-            quality: "M",
             conformance: "MSL",
             default: DEFAULT_LONG_PRESS_DELAY,
         }),
         FieldElement({
             name: "multiPressDelay",
             type: "epoch-s",
-            quality: "M",
             conformance: "MSM",
             default: DEFAULT_MULTIPRESS_DELAY,
         }),
-        FieldElement({ name: "momentaryNeutralPosition", type: "uint8", quality: "O", conformance: "MS", default: 0 }),
+        FieldElement({
+            name: "momentaryNeutralPosition",
+            type: "uint8",
+            conformance: "[MS]",
+            default: 0,
+        }),
     ],
 });
 
@@ -185,7 +188,7 @@ export class SwitchBaseServer extends SwitchServerBase {
                 this.internal.currentLongPressPosition = newPosition;
                 this.internal.longPressTimer = Time.getTimer(
                     "longPress",
-                    this.state.longPressDelay ?? DEFAULT_LONG_PRESS_DELAY,
+                    this.state.longPressDelay,
                     this.callback(this.#handleLongPress, { lock: true }),
                 ).start();
             }
@@ -241,7 +244,7 @@ export class SwitchBaseServer extends SwitchServerBase {
             if (!pressSequenceFinished) {
                 this.internal.multiPressTimer = Time.getTimer(
                     "multiPress",
-                    this.state.multiPressDelay ?? DEFAULT_MULTIPRESS_DELAY,
+                    this.state.multiPressDelay,
                     this.callback(this.#handleMultiPressComplete, { lock: true }),
                 ).start();
             }
@@ -336,10 +339,10 @@ export namespace SwitchBaseServer {
         debounceDelay?: Duration;
 
         /** Time to wait until a value is considered "long" pressed */
-        longPressDelay?: Duration;
+        longPressDelay: Duration = DEFAULT_LONG_PRESS_DELAY;
 
         /** Timeframe starting with a stable release to detect multi-presses. */
-        multiPressDelay?: Duration;
+        multiPressDelay: Duration = DEFAULT_MULTIPRESS_DELAY;
 
         /** Number of the position considered as the neutral position for the momentary switch. */
         momentaryNeutralPosition: number = 0;
