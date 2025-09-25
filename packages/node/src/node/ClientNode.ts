@@ -156,7 +156,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     async prepareRuntimeShutdown() {}
 
     protected override get container() {
-        return this.owner?.nodes;
+        return this.owner?.peers;
     }
 
     override act<R>(

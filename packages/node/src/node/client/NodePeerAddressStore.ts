@@ -52,7 +52,7 @@ export class NodePeerAddressStore extends PeerAddressStore {
 
     loadPeers(): OperationalPeer[] {
         this.#assignedAddresses = new PeerAddressMap();
-        return [...this.#owner.nodes]
+        return [...this.#owner.peers]
             .map(node => {
                 const commissioning = node.state.commissioning;
                 if (!commissioning.peerAddress) {
@@ -73,7 +73,7 @@ export class NodePeerAddressStore extends PeerAddressStore {
     }
 
     async updatePeer(peer: OperationalPeer) {
-        const node = this.#owner.nodes.get(peer.address);
+        const node = this.#owner.peers.get(peer.address);
         if (!node) {
             return;
         }

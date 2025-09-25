@@ -28,7 +28,7 @@ const EXPIRATION_INTERVAL = Minutes.one;
  *
  * Remote nodes are either peers (commissioned into a fabric we share) or commissionable.
  */
-export class ClientNodes extends EndpointContainer<ClientNode> {
+export class Peers extends EndpointContainer<ClientNode> {
     #expirationInterval?: CancelablePromise;
     #expirationWorker?: Promise<void>;
     #closed = false;
@@ -211,9 +211,9 @@ export class ClientNodes extends EndpointContainer<ClientNode> {
 }
 
 class Factory extends ClientNodeFactory {
-    #owner: ClientNodes;
+    #owner: Peers;
 
-    constructor(owner: ClientNodes) {
+    constructor(owner: Peers) {
         super();
         this.#owner = owner;
     }

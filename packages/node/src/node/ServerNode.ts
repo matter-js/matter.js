@@ -20,7 +20,7 @@ import { FabricManager, Interactable, OccurrenceManager, ServerInteraction, Sess
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { RootEndpoint as BaseRootEndpoint } from "../endpoints/root.js";
 import { Node } from "./Node.js";
-import { ClientNodes } from "./client/ClientNodes.js";
+import { Peers } from "./client/Peers.js";
 import { ServerEnvironment } from "./server/ServerEnvironment.js";
 
 /**
@@ -39,7 +39,7 @@ class FactoryResetError extends MatterError {
  * The Matter specification often refers to server-side nodes as "devices".
  */
 export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpoint> extends Node<T> {
-    #nodes?: ClientNodes;
+    #peers?: Peers;
     #interaction?: Interactable<ActionContext>;
 
     /**
@@ -158,13 +158,13 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
     /**
      * Access other nodes on the fabric.
      */
-    get nodes() {
-        if (!this.#nodes) {
-            this.#nodes = new ClientNodes(this);
-            this.#nodes.initialize();
+    get peers() {
+        if (!this.#peers) {
+            this.#peers = new Peers(this);
+            this.#peers.initialize();
         }
 
-        return this.#nodes;
+        return this.#peers;
     }
 
     get interaction() {

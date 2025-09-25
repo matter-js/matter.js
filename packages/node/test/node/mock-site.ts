@@ -109,7 +109,7 @@ export class MockSite {
         controllerCrypto.entropic = deviceCrypto.entropic = true;
 
         const { passcode, discriminator } = device.state.commissioning;
-        await MockTime.resolve(controller.nodes.commission({ passcode, discriminator, timeout: Seconds(90) }), {
+        await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
             macrotasks: true,
         });
 

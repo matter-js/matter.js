@@ -5,5 +5,5 @@
  */
 
 export * from "./ClientEndpointInitializer.js";
-export * from "./ClientNodes.js";
 export * from "./NodePeerAddressStore.js";
+export * from "./Peers.js";

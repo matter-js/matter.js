@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ClientNodes, ServerNode } from "#node";
+import type { Peers, ServerNode } from "#node";
 import { Endpoint } from "#node";
 import { Directory, Stat } from "#stat.js";
 
@@ -25,7 +25,7 @@ Stat.provide(endpoint => {
                 return (endpoint as unknown as Record<string, unknown>)[path];
             }
 
-            const nodes = (endpoint as ServerNode).nodes as ClientNodes | undefined;
+            const nodes = (endpoint as ServerNode).peers as Peers | undefined;
 
             if (path.startsWith(BEHAVIOR_PREFIX)) {
                 const id = path.slice(BEHAVIOR_PREFIX.length);
@@ -104,7 +104,7 @@ function listPaths(endpoint: Endpoint) {
         paths.add(basename);
     }
 
-    const nodes = (endpoint as ServerNode).nodes;
+    const nodes = (endpoint as ServerNode).peers;
     if (nodes !== undefined) {
         for (const node of nodes) {
             let basename = node.id;

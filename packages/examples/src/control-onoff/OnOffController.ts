@@ -21,7 +21,7 @@ const [, , command, ...args] = process.argv.slice(2);
 switch (command) {
     case "commission":
         // Validation
-        if (controller.nodes.get("device")) {
+        if (controller.peers.get("device")) {
             die("There is already a device commissioned");
         }
         if (args.length !== 1) {
@@ -30,7 +30,7 @@ switch (command) {
         const [pairingCode] = args;
 
         // This is the actual commissioning
-        await controller.nodes.commission({ id: "device", pairingCode });
+        await controller.peers.commission({ id: "device", pairingCode });
 
         break;
 
@@ -41,7 +41,7 @@ switch (command) {
             if (args.length !== 1 || !Number.isFinite(endpointNo)) {
                 die(`Usage: ${process.argv[0]} toggle <endpoint number>`);
             }
-            const node = controller.nodes.get("device");
+            const node = controller.peers.get("device");
             if (node === undefined) {
                 die("Cannot toggle because there is no commissioned device");
             }
@@ -59,7 +59,7 @@ switch (command) {
     case "decommission":
         {
             // Validation
-            const node = controller.nodes.get("device");
+            const node = controller.peers.get("device");
             if (node === undefined) {
                 die("Cannot decommission because there is no commissioned device");
             }

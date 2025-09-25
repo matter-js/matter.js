@@ -26,7 +26,7 @@ describe("ClientNode", () => {
         const controller = await site.addNode(undefined, { online: false, device: undefined });
         await MockTime.resolve(
             expect(
-                controller.nodes.commission({ passcode: 12341234, discriminator: 1234, timeout: Seconds(90) }),
+                controller.peers.commission({ passcode: 12341234, discriminator: 1234, timeout: Seconds(90) }),
             ).rejectedWith(DiscoveryError),
         );
     });
@@ -36,7 +36,7 @@ describe("ClientNode", () => {
 
         const controller = await site.addNode(undefined, { online: false, device: undefined });
         const discovered = await MockTime.resolve(
-            controller.nodes.discover({ longDiscriminator: 1234, timeout: Seconds(90) }),
+            controller.peers.discover({ longDiscriminator: 1234, timeout: Seconds(90) }),
         );
 
         expect(discovered.length).equals(0);
@@ -48,7 +48,7 @@ describe("ClientNode", () => {
 
         const { discriminator } = device.state.commissioning;
         const discovered = await MockTime.resolve(
-            controller.nodes.discover({ longDiscriminator: discriminator, timeout: Seconds(90) }),
+            controller.peers.discover({ longDiscriminator: discriminator, timeout: Seconds(90) }),
             { macrotasks: true },
         );
 
@@ -63,12 +63,12 @@ describe("ClientNode", () => {
         const { controller, device } = await site.addCommissionedPair();
 
         expect(device.state.commissioning.commissioned).equals(true);
-        expect(controller.nodes.size).equals(1);
+        expect(controller.peers.size).equals(1);
 
         // *** INITIAL STATE ***
 
         // Obtain client view of the device
-        const peer1 = controller.nodes.get("peer1")!;
+        const peer1 = controller.peers.get("peer1")!;
         expect(peer1).not.undefined;
 
         // Validate the root endpoint
@@ -96,7 +96,7 @@ describe("ClientNode", () => {
         const controllerB = await site.addNode(undefined, { index: 1 });
 
         // Retrieve the client view of the device that should have been recreated from cache
-        const peer1b = controllerB.nodes.get("peer1")!;
+        const peer1b = controllerB.peers.get("peer1")!;
         expect(peer1b).not.undefined;
 
         // Client nodes should fully initialize on initial load.  We could initialize asynchronously during ServerNode
@@ -120,7 +120,7 @@ describe("ClientNode", () => {
         await using site = new MockSite();
         const { controller } = await site.addCommissionedPair();
 
-        const peer1 = controller.nodes.get("peer1")!;
+        const peer1 = controller.peers.get("peer1")!;
         expect(peer1).not.undefined;
 
         const ep1 = peer1.parts.get("ep1")!;
@@ -143,14 +143,14 @@ describe("ClientNode", () => {
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair();
 
-        expect(controller.nodes.size).equals(1);
+        expect(controller.peers.size).equals(1);
         expect(device.lifecycle.isCommissioned).is.true;
 
         // *** DECOMMISSION ***
 
-        await Promise.resolve(controller.nodes.get("peer1")!.delete());
+        await Promise.resolve(controller.peers.get("peer1")!.delete());
 
-        expect(controller.nodes.size).equals(0);
+        expect(controller.peers.size).equals(0);
         expect(device.lifecycle.isCommissioned).is.false;
     });
 
@@ -162,7 +162,7 @@ describe("ClientNode", () => {
 
         // *** WRITE ***
 
-        const peer1 = controller.nodes.get("peer1")!;
+        const peer1 = controller.peers.get("peer1")!;
         const ep1Client = peer1.parts.get("ep1")!;
         await ep1Client.act(agent => {
             agent.get(OnOffClient).state.onTime = 20;
@@ -181,7 +181,7 @@ describe("ClientNode", () => {
 
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair();
-        const peer1 = controller.nodes.get("peer1")!;
+        const peer1 = controller.peers.get("peer1")!;
         const ep1 = peer1.parts.get("ep1")!;
         await MockTime.resolve(device.close());
 
@@ -195,7 +195,7 @@ describe("ClientNode", () => {
 
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair();
-        const peer1 = controller.nodes.get("peer1")!;
+        const peer1 = controller.peers.get("peer1")!;
         const ep1 = peer1.parts.get("ep1")!;
         await MockTime.resolve(device.cancel());
 
@@ -218,7 +218,7 @@ describe("ClientNode", () => {
 
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair();
-        const peer1 = controller.nodes.get("peer1")!;
+        const peer1 = controller.peers.get("peer1")!;
 
         // *** TEST ***
 
