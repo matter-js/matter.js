@@ -18,7 +18,6 @@ const logger = new Logger("ServiceBundle");
  */
 export class ServiceBundle extends BasicSet<ServiceBundle.Factory> {
     static #default = new ServiceBundle();
-    #factories = new Set<(env: Environment) => void>();
     #environments = new Set<WeakRef<Environment>>();
 
     constructor() {
@@ -65,7 +64,7 @@ export class ServiceBundle extends BasicSet<ServiceBundle.Factory> {
      * as well.
      */
     deploy(env: Environment) {
-        for (const factory of this.#factories) {
+        for (const factory of this) {
             this.#deployFactory(factory, env);
         }
         this.#environments.add(new WeakRef(env));
