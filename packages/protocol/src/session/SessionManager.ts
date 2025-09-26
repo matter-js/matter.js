@@ -410,6 +410,15 @@ export class SessionManager {
         ) as NodeSession;
     }
 
+    forFabric(fabric: Fabric) {
+        this.#construction.assert();
+
+        return [...this.#sessions].filter(
+            session =>
+                NodeSession.is(session) && session.isSecure && session.fabric?.fabricIndex === fabric.fabricIndex,
+        );
+    }
+
     getSessionForNode(address: PeerAddress) {
         this.#construction.assert();
 
