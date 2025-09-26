@@ -9,9 +9,11 @@ import { Advertiser } from "#advertisement/Advertiser.js";
 import { ServiceDescription } from "#advertisement/ServiceDescription.js";
 import { Fabric } from "#fabric/Fabric.js";
 import { FabricManager } from "#fabric/FabricManager.js";
-import { Environment, Environmental, MatterAggregateError, ObserverGroup } from "#general";
+import { Environment, Environmental, Logger, MatterAggregateError, ObserverGroup } from "#general";
 import { SecureSession } from "#session/SecureSession.js";
 import { SessionManager } from "#session/SessionManager.js";
+
+const logger = Logger.get("DeviceAdvertiser");
 
 /**
  * Interfaces the {@link DeviceAdvertiser} with other components.
@@ -100,6 +102,13 @@ export class DeviceAdvertiser {
 
             // Each time we retry a transmission, also trigger retry broadcast for associated fabric
             this.#advertiseFabric(session.associatedFabric, "retransmit");
+        });
+
+        this.#observers.on(this.#context.sessions.subscriptionsChanged, (session, subscription) => {
+            if (this.#isOperational && subscription.isCanceledByPeer && session.fabric !== undefined) {
+                logger.debug(`Subscription canceled by peer, re-announce`);
+                this.#advertiseFabric(session.fabric, "reconnect");
+            }
         });
     }
 
@@ -241,6 +250,14 @@ export class DeviceAdvertiser {
         }
 
         for (const advertiser of this.#advertisers) {
+            if (event === "startup") {
+                // For a startup events where we have active subscriptions somewhere on the fabric, we just convert
+                // into "retransmit" to send out one ping for client convenience
+                if (this.#context.sessions.forFabric(fabric).some(session => session.subscriptions.size > 0)) {
+                    event = "retransmit";
+                }
+            }
+
             advertiser.advertise(ServiceDescription.Operational({ fabric }), event);
         }
     }

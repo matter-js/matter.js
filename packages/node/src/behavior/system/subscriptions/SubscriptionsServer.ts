@@ -49,7 +49,7 @@ export class SubscriptionsBehavior extends Behavior {
         this.reactTo(sessions.events.subscriptionAdded, this.#addSubscription, { lock: true });
     }
 
-    static override schema = new DatatypeModel(
+    static override readonly schema = new DatatypeModel(
         {
             name: "SubscriptionState",
             type: "struct",
@@ -59,6 +59,8 @@ export class SubscriptionsBehavior extends Behavior {
                 name: "subscriptions",
                 type: "list",
                 quality: "N",
+                conformance: "M",
+                default: [],
             },
             FieldElement(
                 {
@@ -197,13 +199,14 @@ export class SubscriptionsBehavior extends Behavior {
         await this.context.transaction.commit();
     }
 
-    async reestablishFormerSubscriptions(interactionServer: InteractionServer) {
+    async reestablishFormerSubscriptions() {
         if (this.state.persistenceEnabled === false) return;
 
         // get and clear former subscriptions
         const { formerSubscriptions } = this.internal;
 
         if (!formerSubscriptions.length) {
+            logger.info("No former subscriptions to re-establish");
             return;
         } else {
             this.internal.formerSubscriptions = [];
@@ -211,6 +214,7 @@ export class SubscriptionsBehavior extends Behavior {
         }
         const peers = this.env.get(PeerSet);
         const sessions = this.env.get(SessionManager);
+        const interactionServer = this.env.get(InteractionServer);
 
         const peerStopList = new PeerAddressSet();
 
@@ -291,7 +295,7 @@ export namespace SubscriptionsBehavior {
          * List of subscriptions. This list is collected automatically.
          * The state value should not be initialized by the developer.
          */
-        subscriptions!: PeerSubscription[];
+        subscriptions: PeerSubscription[] = [];
     }
 
     export class Internal {
