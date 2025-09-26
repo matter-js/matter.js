@@ -4,9 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { SubscriptionsBehavior } from "#behavior/system/subscriptions/SubscriptionsServer.js";
 import {
-    Construction,
     Crypto,
     InterfaceType,
     Logger,
@@ -65,7 +63,6 @@ export class ServerNetworkRuntime extends NetworkRuntime {
     #bleTransport?: TransportInterface;
     #ipv6UdpInterface?: UdpInterface;
     #observers = new ObserverGroup(this);
-    #formerSubscriptionsHandled = false;
     #groupNetworking?: ServerGroupNetworking;
 
     override get owner() {
@@ -205,7 +202,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
     /**
      * When the first Fabric gets added we need to enable MDNS broadcasting.
      */
-    enableMdnsAdvertising() {
+    ensureMdnsAdvertiser() {
         const device = this.owner.env.get(DeviceAdvertiser);
         const mdnsAdvertiser = this.mdnsAdvertiser;
         if (!device.hasAdvertiser(mdnsAdvertiser)) {
@@ -222,7 +219,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
     endUncommissionedMode() {
         // Ensure MDNS broadcasting are active when the first fabric is added.  It might not be active initially if the
         // node was not on an IP network prior to commissioning
-        this.enableMdnsAdvertising();
+        this.ensureMdnsAdvertiser();
 
         if (this.#bleAdvertiser) {
             this.owner.env.runtime.add(this.#deleteAdvertiser(this.#bleAdvertiser));
@@ -254,14 +251,16 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         const { owner } = this;
         const { env } = owner;
 
-        // Ensure MdnsService is fully constructed
-        await env.load(MdnsService);
-
-        const advertiser = env.get(DeviceAdvertiser);
         // Configure network
         const interfaces = env.get(TransportInterfaceSet);
         await this.addTransports(interfaces);
         env.set(NetInterfaceSet, interfaces);
+
+        // Initialize MDNS
+        const mdns = await owner.env.load(MdnsService);
+
+        const advertiser = env.get(DeviceAdvertiser);
+
         await this.addBroadcasters(advertiser);
 
         await owner.act("start-network", agent => agent.load(ProductDescriptionServer));
@@ -291,29 +290,16 @@ export class ServerNetworkRuntime extends NetworkRuntime {
 
         // Enable MDNS broadcasting if there are fabrics present
         if (this.owner.stateOf(CommissioningServer).commissioned) {
-            this.enableMdnsAdvertising();
+            this.ensureMdnsAdvertiser();
         }
-
-        await this.owner.act(agent => this.owner.lifecycle.online.emit(agent.context));
-    }
-
-    override async [Construction.construct]() {
-        await super[Construction.construct]();
-
-        // Initialize MDNS
-        const mdns = await this.owner.env.load(MdnsService);
 
         // Initialize ScannerSet
         this.owner.env.get(ScannerSet).add(mdns.client);
-        this.owner.env.set(PeerAddressStore, new NodePeerAddressStore(this.owner));
-        await this.owner.env.load(PeerSet);
 
-        // Restore previous subscriptions
-        //
-        // TODO - move to SubscriptionsBehavior, and rename to SubscriptionsServer?
-        if (!this.#formerSubscriptionsHandled) {
-            await this.#reestablishFormerSubscriptions();
-        }
+        env.set(PeerAddressStore, new NodePeerAddressStore(owner));
+        await env.load(PeerSet);
+
+        await this.owner.act(agent => this.owner.lifecycle.online.emit(agent.context));
     }
 
     protected override async stop() {
@@ -347,18 +333,6 @@ export class ServerNetworkRuntime extends NetworkRuntime {
 
     protected override blockNewActivity() {
         this.owner.env.maybeGet(InteractionServer)?.blockNewActivity();
-    }
-
-    async #reestablishFormerSubscriptions() {
-        const { env } = this.owner;
-        if (!env.has(InteractionServer)) {
-            return;
-        }
-        this.#formerSubscriptionsHandled = true;
-
-        await this.owner.act(agent =>
-            agent.get(SubscriptionsBehavior).reestablishFormerSubscriptions(env.get(InteractionServer)),
-        );
     }
 
     async #initializeGroupNetworking() {

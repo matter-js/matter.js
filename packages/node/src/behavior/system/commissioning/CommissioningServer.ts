@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { SubscriptionsBehavior } from "#behavior/system/subscriptions/SubscriptionsServer.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import {
     AsyncObservable,
@@ -204,6 +205,9 @@ export class CommissioningServer extends Behavior {
     async #enterOnlineMode() {
         // If already commissioned, trigger operational announcement
         if ((this.endpoint.lifecycle as NodeLifecycle).isCommissioned) {
+            // Restore subscriptions if we have some persisted
+            await this.endpoint.act(agent => agent.get(SubscriptionsBehavior).reestablishFormerSubscriptions());
+
             this.enterOperationalMode();
             return;
         }
