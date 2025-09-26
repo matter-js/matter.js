@@ -416,7 +416,7 @@ export class SessionManager {
         return [...this.#sessions].filter(
             session =>
                 NodeSession.is(session) && session.isSecure && session.fabric?.fabricIndex === fabric.fabricIndex,
-        ) as NodeSession[];
+        );
     }
 
     getSessionForNode(address: PeerAddress) {
