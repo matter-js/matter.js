@@ -70,7 +70,8 @@ export class PaseServer implements ProtocolHandler {
             // successfully established a session, the Commissionee SHALL NOT accept any more requests for new PASE
             // sessions until session establishment fails or the successfully established PASE session is terminated on
             // the commissioning channel.
-            if (this.sessions.getPaseSession()) {
+            const paseSession = this.sessions.getPaseSession();
+            if (paseSession !== undefined && !paseSession.isClosing) {
                 logger.info("Pase server: Pairing already in progress (PASE session exists), ignoring new exchange.");
             } else if (this.#pairingTimer?.isRunning) {
                 logger.info(
