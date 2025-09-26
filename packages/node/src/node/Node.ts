@@ -38,6 +38,7 @@ const logger = Logger.get("Node");
 export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEndpoint> extends Endpoint<T> {
     #environment: Environment;
     #runtime?: NetworkRuntime;
+    #targetState: "online" | "offline" = "offline";
 
     constructor(config: Node.Configuration<T>) {
         const parentEnvironment = config.environment ?? config.owner?.env ?? Environment.default;
@@ -79,6 +80,10 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
         return this.#environment;
     }
 
+    protected get targetState() {
+        return this.#targetState;
+    }
+
     /**
      * The optimized view that supports local Matter protocol implementation.
      */
@@ -97,6 +102,7 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
         if (this.lifecycle.isOnline) {
             return;
         }
+        this.#targetState = "online";
 
         await this.lifecycle.mutex.produce(this.startWithMutex.bind(this));
     }
@@ -145,6 +151,7 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
      * Once the node is offline you may use {@link start} to bring the node online again.
      */
     async cancel() {
+        this.#targetState = "offline";
         await this.lifecycle.mutex.produce(this.cancelWithMutex.bind(this));
     }
 
@@ -162,6 +169,7 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
     }
 
     override async close() {
+        this.#targetState = "offline";
         await this.lifecycle.mutex.produce(this.closeWithMutex.bind(this));
     }
 
