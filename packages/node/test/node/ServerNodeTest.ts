@@ -345,6 +345,10 @@ describe("ServerNode", () => {
         await testFactoryReset("offline");
     });
 
+    it("handles factory resets when online but in parallel offline is called correctly", async () => {
+        await testFactoryReset("offline-during-reset");
+    });
+
     it("commissions twice", async () => {
         const { node } = await commissioning.commission();
 

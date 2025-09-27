@@ -143,8 +143,8 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
             // Reset reverts node to inactive state; now reinitialize
             this.construction.start();
 
-            // Go back online if we were online at time of reset, otherwise just await reinitialization
-            if (isOnline) {
+            // Go back online if we were online at time of reset and should still be online, otherwise just await reinitialization
+            if (isOnline && this.targetState === "online") {
                 await this.startWithMutex();
             } else {
                 await this.construction.ready;
