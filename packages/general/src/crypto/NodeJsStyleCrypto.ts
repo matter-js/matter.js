@@ -4,8 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ImplementationError } from "#MatterError.js";
 import { Bytes } from "#util/Bytes.js";
 import { asError } from "#util/Error.js";
+import { MaybePromise } from "#util/Promises.js";
 import { Identity } from "#util/Type.js";
 import {
     Crypto,
@@ -104,12 +106,32 @@ export class NodeJsStyleCrypto extends Crypto {
         };
     }
 
-    computeSha256(data: Bytes | Bytes[]): Bytes {
+    async #hashAsyncIteratorData(hasher: NodeJsCryptoApi.Hash, iteratorFunc: () => Promise<IteratorResult<Bytes>>) {
+        while (true) {
+            const { value, done } = await iteratorFunc();
+            if (value === undefined || done) break;
+            hasher.update(Bytes.of(value));
+        }
+    }
+
+    computeSha256(
+        data: Bytes | Bytes[] | ReadableStreamDefaultReader<Bytes> | AsyncIterator<Bytes>,
+    ): MaybePromise<Bytes> {
         const hasher = this.#crypto.createHash(CRYPTO_HASH_ALGORITHM);
         if (Array.isArray(data)) {
             data.forEach(chunk => hasher.update(Bytes.of(chunk)));
-        } else {
+        } else if (Bytes.isBytes(data)) {
             hasher.update(Bytes.of(data));
+        } else {
+            let iteratorFunc: () => Promise<IteratorResult<Bytes>>;
+            if ("read" in data && typeof data.read === "function") {
+                iteratorFunc = data.read.bind(data);
+            } else if ("next" in data && typeof data.next === "function") {
+                iteratorFunc = data.next.bind(data);
+            } else {
+                throw new ImplementationError("Invalid data type for computeSha256");
+            }
+            return this.#hashAsyncIteratorData(hasher, iteratorFunc).then(() => Bytes.of(hasher.digest()));
         }
         return Bytes.of(hasher.digest());
     }

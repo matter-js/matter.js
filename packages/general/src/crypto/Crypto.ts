@@ -65,7 +65,9 @@ export abstract class Crypto {
     /**
      * Compute the SHA-256 hash of a buffer.
      */
-    abstract computeSha256(data: Bytes | Bytes[]): MaybePromise<Bytes>;
+    abstract computeSha256(
+        data: Bytes | Bytes[] | ReadableStreamDefaultReader<Bytes> | AsyncIterator<Bytes>,
+    ): MaybePromise<Bytes>;
 
     /**
      * Create a key from a secret using PBKDF2.

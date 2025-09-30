@@ -96,9 +96,12 @@ export class StandardCrypto extends Crypto {
         });
     }
 
-    computeSha256(buffer: Bytes | Bytes[]) {
+    computeSha256(buffer: Bytes | Bytes[] | ReadableStreamDefaultReader<Bytes> | AsyncIterator<Bytes>) {
         if (Array.isArray(buffer)) {
             buffer = Bytes.concat(...buffer);
+        }
+        if (!Bytes.isBytes(buffer)) {
+            throw new ImplementationError("Streamed SHA-256 computation is not supported in StandardCrypto");
         }
         return this.#subtle.digest("SHA-256", Bytes.exclusive(buffer));
     }
