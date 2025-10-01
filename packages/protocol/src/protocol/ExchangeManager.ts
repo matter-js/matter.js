@@ -416,7 +416,11 @@ export class ExchangeManager {
         channel: MessageChannel,
         expectedProcessingTime = DEFAULT_EXPECTED_PROCESSING_TIME,
     ) {
-        return channel.calculateMaximumPeerResponseTime(this.#sessionManager.sessionParameters, expectedProcessingTime);
+        return channel.calculateMaximumPeerResponseTime(
+            channel.session.parameters,
+            this.#sessionManager.sessionParameters,
+            expectedProcessingTime,
+        );
     }
 
     #messageExchangeContextFor(channel: MessageChannel): MessageExchangeContext {
