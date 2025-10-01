@@ -61,13 +61,18 @@ export class Environment {
      * Access an environmental service.
      */
     get<T extends object>(type: abstract new (...args: any[]) => T): T {
-        let instance = this.#services?.get(type) ?? this.#parent?.maybeGet(type);
+        const mine = this.#services?.get(type);
 
-        if (instance !== undefined && instance !== null) {
-            return instance as T;
+        if (mine !== undefined && mine !== null) {
+            return mine as T;
         }
 
-        if (instance !== null) {
+        if (mine !== null) {
+            let instance = this.#parent?.maybeGet(type);
+            if (instance !== undefined && instance !== null) {
+                return instance;
+            }
+
             if ((type as Environmental.Factory<T>)[Environmental.create]) {
                 this.set(type, (instance = (type as any)[Environmental.create](this)));
                 return instance as T;
@@ -113,8 +118,17 @@ export class Environment {
      * @param type the class of the service to block
      */
     block(type: abstract new (...args: any[]) => any) {
-        if (this.has(type)) {
-            this.delete(type);
+        const instance = this.#services?.get(type);
+
+        if (instance !== undefined && instance !== null) {
+            this.#services?.delete(type);
+
+            this.#deleted.emit(type, instance);
+
+            const serviceEvents = this.#serviceEvents.get(type);
+            if (serviceEvents) {
+                serviceEvents.deleted.emit(instance);
+            }
         }
 
         this.#services?.set(type, null);
