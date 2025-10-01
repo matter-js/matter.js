@@ -6,6 +6,7 @@
 
 import { SupportedTransportsBitmap } from "#common/SupportedTransportsBitmap.js";
 import { CRYPTO_HASH_LEN_BYTES, CRYPTO_PUBLIC_KEY_SIZE_BYTES } from "#general";
+import { SessionIntervals } from "#session/SessionIntervals.js";
 import {
     TlvBitmap,
     TlvBoolean,
@@ -15,18 +16,19 @@ import {
     TlvOptionalField,
     TlvUInt16,
     TlvUInt32,
+    TypeFromSchema,
 } from "#types";
 
 /** @see {@link MatterSpecification.v13.Core} § 4.12.8 */
 export const TlvSessionParameters = TlvObject({
     /** Maximum sleep interval of node when in idle mode. */
-    idleIntervalMs: TlvOptionalField(1, TlvUInt32) /* default: SESSION_IDLE_INTERVAL */,
+    idleInterval: TlvOptionalField(1, TlvUInt32) /* default: SESSION_IDLE_INTERVAL */,
 
     /** Maximum sleep interval of node when in active mode. */
-    activeIntervalMs: TlvOptionalField(2, TlvUInt32) /* default: SESSION_ACTIVE_INTERVAL */,
+    activeInterval: TlvOptionalField(2, TlvUInt32) /* default: SESSION_ACTIVE_INTERVAL */,
 
     /** Minimum amount of time the node SHOULD stay active after network activity. */
-    activeThresholdMs: TlvOptionalField(3, TlvUInt16) /* default: SESSION_ACTIVE_THRESHOLD */,
+    activeThreshold: TlvOptionalField(3, TlvUInt16) /* default: SESSION_ACTIVE_THRESHOLD */,
 
     /** Data model revision. */
     dataModelRevision: TlvOptionalField(4, TlvUInt16) /* default: 16 OR 17, we choose 17 aka Matter 1.2 */,
@@ -47,6 +49,17 @@ export const TlvSessionParameters = TlvObject({
     maxTcpMessageSize: TlvOptionalField(9, TlvUInt32) /* default: 64000 */,
 });
 
+// Replace the interval fields with Duration-typed fields in the exported type
+export type SessionParametersWithDurations = Omit<
+    TypeFromSchema<typeof TlvSessionParameters>,
+    "activeThreshold" | "activeInterval" | "idleInterval"
+> &
+    Partial<SessionIntervals>;
+
+export type WithDurationSessionParameters<T, K extends keyof T> = Omit<T, K> & {
+    [P in K]?: SessionParametersWithDurations;
+};
+
 /** @see {@link MatterSpecification.v13.Core} § 4.14.1.2 */
 export const TlvPbkdfParamRequest = TlvObject({
     initiatorRandom: TlvField(1, TlvByteString.bound({ length: 32 })),
@@ -55,6 +68,10 @@ export const TlvPbkdfParamRequest = TlvObject({
     hasPbkdfParameters: TlvField(4, TlvBoolean),
     initiatorSessionParams: TlvOptionalField(5, TlvSessionParameters),
 });
+export type PbkdfParamRequest = WithDurationSessionParameters<
+    TypeFromSchema<typeof TlvPbkdfParamRequest>,
+    "initiatorSessionParams"
+>;
 
 /** @see {@link MatterSpecification.v13.Core} § 4.14.1.2 */
 export const TlvPbkdfParamResponse = TlvObject({
@@ -70,19 +87,26 @@ export const TlvPbkdfParamResponse = TlvObject({
     ),
     responderSessionParams: TlvOptionalField(5, TlvSessionParameters),
 });
+export type PbkdfParamResponse = WithDurationSessionParameters<
+    TypeFromSchema<typeof TlvPbkdfParamResponse>,
+    "responderSessionParams"
+>;
 
 /** @see {@link MatterSpecification.v13.Core} § 4.14.1.2 */
 export const TlvPasePake1 = TlvObject({
     x: TlvField(1, TlvByteString.bound({ length: CRYPTO_PUBLIC_KEY_SIZE_BYTES })), // pA
 });
+export type PasePake1 = TypeFromSchema<typeof TlvPasePake1>;
 
 /** @see {@link MatterSpecification.v13.Core} § 4.14.1.2 */
 export const TlvPasePake2 = TlvObject({
     y: TlvField(1, TlvByteString.bound({ length: CRYPTO_PUBLIC_KEY_SIZE_BYTES })), // pB
     verifier: TlvField(2, TlvByteString.bound({ length: CRYPTO_HASH_LEN_BYTES })), // cB
 });
+export type PasePake2 = TypeFromSchema<typeof TlvPasePake2>;
 
 /** @see {@link MatterSpecification.v13.Core} § 4.14.1.2 */
 export const TlvPasePake3 = TlvObject({
     verifier: TlvField(1, TlvByteString.bound({ length: CRYPTO_HASH_LEN_BYTES })), // cA
 });
+export type PasePake3 = TypeFromSchema<typeof TlvPasePake3>;
