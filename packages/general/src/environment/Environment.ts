@@ -67,12 +67,15 @@ export class Environment {
             return mine as T;
         }
 
-        if (mine !== null) {
+        // When null then we do not have it and also do not want to inherit from parent
+        if (mine === undefined) {
             let instance = this.#parent?.maybeGet(type);
             if (instance !== undefined && instance !== null) {
+                // Parent has it, use it
                 return instance;
             }
 
+            // ... otherwise try to create it
             if ((type as Environmental.Factory<T>)[Environmental.create]) {
                 this.set(type, (instance = (type as any)[Environmental.create](this)));
                 return instance as T;
