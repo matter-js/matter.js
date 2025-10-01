@@ -177,5 +177,9 @@ export namespace Duration {
 }
 
 function toPrecision(number: number, precision: number) {
-    return number.toPrecision(precision).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1");
+    // Remove trailing zeros after a non-zero decimal digit, then remove any trailing '.0'
+    return number
+        .toPrecision(precision)
+        .replace(/(\.\d*?[1-9])0+$/, "$1")
+        .replace(/\.0+$/, "");
 }
