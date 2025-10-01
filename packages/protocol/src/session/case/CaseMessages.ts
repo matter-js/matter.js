@@ -53,7 +53,10 @@ export const TlvCaseSigma2Resume = TlvObject({
     responderSessionId: TlvField(3, TlvUInt16),
     responderSessionParams: TlvOptionalField(4, TlvSessionParameters),
 });
-export type CaseSigma2Resume = TypeFromSchema<typeof TlvCaseSigma2Resume>;
+export type CaseSigma2Resume = WithDurationSessionParameters<
+    TypeFromSchema<typeof TlvCaseSigma2Resume>,
+    "responderSessionParams"
+>;
 
 /** @see {@link MatterSpecification.v13.Core} § 4.14.2.3 */
 export const TlvCaseSigma3 = TlvObject({

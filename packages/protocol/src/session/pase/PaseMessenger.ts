@@ -36,7 +36,7 @@ export class PaseServerMessenger extends SecureChannelMessenger {
     }
 
     readPasePake1() {
-        return this.nextMessageDecoded(SecureMessageType.PasePake1, TlvPasePake1) as Promise<PasePake1>;
+        return this.nextMessageDecoded(SecureMessageType.PasePake1, TlvPasePake1);
     }
 
     sendPasePake2(pasePake2: PasePake2) {
