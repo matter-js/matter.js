@@ -14,6 +14,7 @@ export interface ImmutableSet<T> {
     [Symbol.iterator]: () => Iterator<T, undefined>;
     has(item: T): boolean;
     get size(): number;
+    map<R>(mapper: (item: T) => R): R[];
     find(predicate: (item: T) => boolean | undefined): T | undefined;
     filter(predicate: (item: T) => boolean | undefined): T[];
 }

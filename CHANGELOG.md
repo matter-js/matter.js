@@ -20,6 +20,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: MaybeAsyncStorage got renamed to Storage because it is the only interface from now on
     - Feature: Adds Blob support to the Storage interface
     - Feature: Add BDX (Bulk Data eXchange) protocol support according to Matter specification
+    - Enhancement: Allows SHA 256 generation using async iterator or readable stream reader as input
     - Fix: Ensures that StandaloneAck messages are always considering the corresponding Secure channel protocol ID 
 
 -   @matter/types
