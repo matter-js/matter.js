@@ -177,5 +177,5 @@ export namespace Duration {
 }
 
 function toPrecision(number: number, precision: number) {
-    return number.toPrecision(precision).replace(/\.?0+/, "");
+    return number.toPrecision(precision).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1");
 }
