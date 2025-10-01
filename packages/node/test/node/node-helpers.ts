@@ -74,8 +74,7 @@ export async function testFactoryReset(
         // Wait a tick to ensure erase has started
         await MockTime.yield();
         offlinePromise = node.cancel();
-        // @ts-expect-error We access a protected member for testing
-        expect(node.targetState).equals("offline");
+        expect(node.lifecycle.shouldBeOffline).equals(true);
     } else if (mode !== "offline-after-commission" && mode !== "offline") {
         expectedChanges.push("online");
     }
