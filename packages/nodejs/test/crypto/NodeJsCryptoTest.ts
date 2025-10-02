@@ -26,6 +26,10 @@ const PUBLIC_KEY = b$`0462e2b6e1baff8d74a6fd8216c4cb67a3363a31e691492792e61aee61
 
 const SEC1_KEY = b$`30770201010420aef3484116e9481ec57be0472df41bf499064e5024ad869eca5e889802d48075a00a06082a8648ce3d030107a144034200043c398922452b55caf389c25bd1bca4656952ccb90e8869249ad8474653014cbf95d687965e036b521c51037e6b8cedefca1eb44046694fa08882eed6519decba`;
 
+const HASH_TEST_DATA = b$`047e708746f3d9fb3265a73f0c69ad18cdd48860d7956731eb72873f3d09c17b667c13737017574bf3f826239ff27cdb52fb3e69ff4a06ffd2cbccfdc695ff6096`;
+
+const HASH_TEST_SHA256 = "582418375f09bff6b3bbb2421206ad6aec3c79ff2602f95a68d3e4d23bebe36f";
+
 const cryptoNode = new NodeJsCrypto();
 
 describe("NodeJsCrypto", () => {
@@ -138,5 +142,44 @@ describe("NodeJsCrypto", () => {
 
         expect(secret1).deep.equal(secret2);
         expect(secret1.byteLength).equals(32);
+    });
+
+    describe("computeSha256", () => {
+        it("hash with single chunk", async () => {
+            const hash = await cryptoNode.computeSha256(HASH_TEST_DATA);
+            expect(Bytes.toHex(hash)).equals(HASH_TEST_SHA256);
+        });
+
+        it("hash with multiple chunks", async () => {
+            const baseData = Bytes.of(HASH_TEST_DATA);
+            const data = [Bytes.of(baseData).slice(0, 30), Bytes.of(baseData).slice(30)];
+            const hash = await cryptoNode.computeSha256(data);
+            expect(Bytes.toHex(hash)).equals(HASH_TEST_SHA256);
+        });
+
+        it("hash with async iterator", async () => {
+            const baseData = Bytes.of(HASH_TEST_DATA);
+            async function* data() {
+                yield Bytes.of(baseData).slice(0, 20);
+                yield Bytes.of(baseData).slice(20, 40);
+                yield Bytes.of(baseData).slice(40);
+            }
+            const hash = await cryptoNode.computeSha256(data());
+            expect(Bytes.toHex(hash)).equals(HASH_TEST_SHA256);
+        });
+
+        it("Has with ReadableStream", async () => {
+            const baseData = Bytes.of(HASH_TEST_DATA);
+            const stream = new ReadableStream<Bytes>({
+                start(controller) {
+                    controller.enqueue(Bytes.of(baseData).slice(0, 20));
+                    controller.enqueue(Bytes.of(baseData).slice(20, 40));
+                    controller.enqueue(Bytes.of(baseData).slice(40));
+                    controller.close();
+                },
+            });
+            const hash = await cryptoNode.computeSha256(stream.getReader());
+            expect(Bytes.toHex(hash)).equals(HASH_TEST_SHA256);
+        });
     });
 });

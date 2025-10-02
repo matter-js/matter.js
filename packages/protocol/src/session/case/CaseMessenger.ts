@@ -7,12 +7,20 @@
 import { MatterFlowError } from "#general";
 import { SecureMessageType, TypeFromSchema } from "#types";
 import { SecureChannelMessenger } from "../../securechannel/SecureChannelMessenger.js";
-import { TlvCaseSigma1, TlvCaseSigma2, TlvCaseSigma2Resume, TlvCaseSigma3 } from "./CaseMessages.js";
+import {
+    CaseSigma1,
+    CaseSigma2,
+    CaseSigma2Resume,
+    TlvCaseSigma1,
+    TlvCaseSigma2,
+    TlvCaseSigma2Resume,
+    TlvCaseSigma3,
+} from "./CaseMessages.js";
 
 export class CaseServerMessenger extends SecureChannelMessenger {
     async readSigma1() {
         const { payload } = await this.nextMessage(SecureMessageType.Sigma1);
-        return { sigma1Bytes: payload, sigma1: TlvCaseSigma1.decode(payload) };
+        return { sigma1Bytes: payload, sigma1: TlvCaseSigma1.decode(payload) as CaseSigma1 };
     }
 
     sendSigma2(sigma2: TypeFromSchema<typeof TlvCaseSigma2>) {
@@ -41,9 +49,9 @@ export class CaseClientMessenger extends SecureChannelMessenger {
         } = await this.anyNextMessage("Sigma2(Resume)");
         switch (messageType) {
             case SecureMessageType.Sigma2:
-                return { sigma2Bytes: payload, sigma2: TlvCaseSigma2.decode(payload) };
+                return { sigma2Bytes: payload, sigma2: TlvCaseSigma2.decode(payload) as CaseSigma2 };
             case SecureMessageType.Sigma2Resume:
-                return { sigma2Resume: TlvCaseSigma2Resume.decode(payload) };
+                return { sigma2Resume: TlvCaseSigma2Resume.decode(payload) as CaseSigma2Resume };
             default:
                 throw new MatterFlowError(
                     `Received unexpected message type while expecting CASE Sigma2(Resume): ${messageType}, expected: ${SecureMessageType.Sigma2} or ${SecureMessageType.Sigma2Resume}`,

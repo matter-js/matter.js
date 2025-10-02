@@ -7,7 +7,7 @@
 
 import { DerBigUint, DerCodec, DerError } from "#codec/DerCodec.js";
 import { Environment } from "#environment/Environment.js";
-import { ImplementationError } from "#MatterError.js";
+import { ImplementationError, NotImplementedError } from "#MatterError.js";
 import { Bytes } from "#util/Bytes.js";
 import { MaybePromise } from "#util/Promises.js";
 import { describeList } from "#util/String.js";
@@ -96,9 +96,12 @@ export class StandardCrypto extends Crypto {
         });
     }
 
-    computeSha256(buffer: Bytes | Bytes[]) {
+    computeSha256(buffer: Bytes | Bytes[] | ReadableStreamDefaultReader<Bytes> | AsyncIterator<Bytes>) {
         if (Array.isArray(buffer)) {
             buffer = Bytes.concat(...buffer);
+        }
+        if (!Bytes.isBytes(buffer)) {
+            throw new NotImplementedError("Streamed SHA-256 computation is not supported in StandardCrypto");
         }
         return this.#subtle.digest("SHA-256", Bytes.exclusive(buffer));
     }

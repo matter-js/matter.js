@@ -71,6 +71,9 @@ export namespace Duration {
     export function format<T extends Duration | undefined>(
         duration: T,
     ): T extends undefined ? string | undefined : string {
+        if (duration === undefined) {
+            return undefined as T extends undefined ? string | undefined : string;
+        }
         let ms = duration as number;
 
         if (typeof ms !== "number" || !Number.isFinite(ms)) {
@@ -177,5 +180,9 @@ export namespace Duration {
 }
 
 function toPrecision(number: number, precision: number) {
-    return number.toPrecision(precision).replace(/\.?0+/, "");
+    // Remove trailing zeros after a non-zero decimal digit, then remove any trailing '.0'
+    return number
+        .toPrecision(precision)
+        .replace(/(\.\d*?[1-9])0+$/, "$1")
+        .replace(/\.0+$/, "");
 }

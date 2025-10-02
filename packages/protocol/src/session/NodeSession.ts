@@ -13,6 +13,7 @@ import {
     CRYPTO_SYMMETRIC_KEY_LENGTH,
     Crypto,
     Diagnostic,
+    Duration,
     Logger,
     MatterError,
     MatterFlowError,
@@ -176,9 +177,9 @@ export class NodeSession extends SecureSession {
     get parameterDiagnostics() {
         return Diagnostic.dict(
             {
-                SII: this.idleInterval,
-                SAI: this.activeInterval,
-                SAT: this.activeThreshold,
+                SII: Duration.format(this.idleInterval),
+                SAI: Duration.format(this.activeInterval),
+                SAT: Duration.format(this.activeThreshold),
                 DMRev: this.dataModelRevision,
                 IMRev: this.interactionModelRevision,
                 spec: Diagnostic.hex(this.specificationVersion),
