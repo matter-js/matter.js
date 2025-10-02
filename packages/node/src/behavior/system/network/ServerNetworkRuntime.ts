@@ -5,17 +5,16 @@
  */
 
 import {
+    ConnectionlessTransport,
+    ConnectionlessTransportSet,
     Crypto,
     InterfaceType,
     Logger,
-    NetInterfaceSet,
     Network,
     NetworkInterface,
     NetworkInterfaceDetailed,
     NoAddressAvailableError,
     ObserverGroup,
-    TransportInterface,
-    TransportInterfaceSet,
     UdpInterface,
 } from "#general";
 import type { ServerNode } from "#node/ServerNode.js";
@@ -60,7 +59,7 @@ function convertNetworkEnvironmentType(type: string | number) {
 export class ServerNetworkRuntime extends NetworkRuntime {
     #mdnsAdvertiser?: MdnsAdvertiser;
     #bleAdvertiser?: BleAdvertiser;
-    #bleTransport?: TransportInterface;
+    #bleTransport?: ConnectionlessTransport;
     #ipv6UdpInterface?: UdpInterface;
     #observers = new ObserverGroup(this);
     #groupNetworking?: ServerGroupNetworking;
@@ -132,9 +131,9 @@ export class ServerNetworkRuntime extends NetworkRuntime {
     }
 
     /**
-     * Add transports to the {@link TransportInterfaceSet}.
+     * Add transports to the {@link ConnectionlessTransportSet}.
      */
-    protected async addTransports(interfaces: TransportInterfaceSet) {
+    protected async addTransports(interfaces: ConnectionlessTransportSet) {
         const netconf = this.owner.state.network;
 
         const port = this.owner.state.network.port;
@@ -237,9 +236,9 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         await device.deleteAdvertiser(advertiser);
     }
 
-    async #deleteTransport(transport: TransportInterface) {
-        const transportInterfaces = this.owner.env.get(TransportInterfaceSet);
-        transportInterfaces.delete(transport);
+    async #deleteTransport(transport: ConnectionlessTransport) {
+        const netInterfaces = this.owner.env.get(ConnectionlessTransportSet);
+        netInterfaces.delete(transport);
         await transport.close();
     }
 
@@ -252,9 +251,8 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         const { env } = owner;
 
         // Configure network
-        const interfaces = env.get(TransportInterfaceSet);
+        const interfaces = env.get(ConnectionlessTransportSet);
         await this.addTransports(interfaces);
-        env.set(NetInterfaceSet, interfaces);
 
         // Initialize MDNS
         const mdns = await owner.env.load(MdnsService);
@@ -327,7 +325,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
 
         await env.close(ExchangeManager);
         await env.close(SecureChannelProtocol);
-        await env.close(TransportInterfaceSet);
+        await env.close(ConnectionlessTransportSet);
         await env.close(InteractionServer);
     }
 

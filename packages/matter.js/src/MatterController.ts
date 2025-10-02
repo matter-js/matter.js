@@ -18,6 +18,7 @@ import { DeviceInformationData } from "#device/DeviceInformation.js";
 import {
     Bytes,
     ChannelType,
+    ConnectionlessTransportSet,
     Construction,
     Crypto,
     CRYPTO_SYMMETRIC_KEY_LENGTH,
@@ -26,7 +27,6 @@ import {
     Logger,
     MatterError,
     Minutes,
-    NetInterfaceSet,
     ServerAddress,
     ServerAddressIp,
     StorageBackendMemory,
@@ -101,7 +101,7 @@ export class MatterController {
     public static async create(options: {
         controllerStore: ControllerStoreInterface;
         scanners: ScannerSet;
-        netInterfaces: NetInterfaceSet;
+        transports: ConnectionlessTransportSet;
         sessionClosedCallback?: (peerNodeId: NodeId) => void;
         adminVendorId?: VendorId;
         adminFabricId?: FabricId;
@@ -116,7 +116,7 @@ export class MatterController {
         const {
             controllerStore,
             scanners,
-            netInterfaces,
+            transports: netInterfaces,
             sessionClosedCallback,
             adminVendorId,
             adminFabricId = FabricId(DEFAULT_FABRIC_ID),
@@ -142,7 +142,7 @@ export class MatterController {
                 controller = new MatterController({
                     controllerStore,
                     scanners,
-                    netInterfaces,
+                    transports: netInterfaces,
                     certificateManager: ca,
                     fabric,
                     adminFabricLabel,
@@ -181,7 +181,7 @@ export class MatterController {
             controller = new MatterController({
                 controllerStore,
                 scanners,
-                netInterfaces,
+                transports: netInterfaces,
                 certificateManager: ca,
                 fabric,
                 adminFabricLabel,
@@ -197,7 +197,7 @@ export class MatterController {
         rootCertificateAuthority?: CertificateAuthority;
         fabricConfig: Fabric.Config;
         scanners: ScannerSet;
-        netInterfaces: NetInterfaceSet;
+        transports: ConnectionlessTransportSet;
         adminFabricLabel: string;
         sessionClosedCallback?: (peerNodeId: NodeId) => void;
         crypto?: Crypto;
@@ -208,7 +208,7 @@ export class MatterController {
             fabricConfig,
             adminFabricLabel,
             scanners,
-            netInterfaces,
+            transports: netInterfaces,
             sessionClosedCallback,
         } = options;
 
@@ -240,7 +240,7 @@ export class MatterController {
         const controller = new MatterController({
             controllerStore: new LegacyControllerStore(storageManager.createContext("Commissioner")),
             scanners,
-            netInterfaces,
+            transports: netInterfaces,
             certificateManager,
             fabric,
             adminFabricLabel,
@@ -251,7 +251,7 @@ export class MatterController {
     }
 
     readonly sessionManager: SessionManager;
-    private readonly netInterfaces = new NetInterfaceSet();
+    private readonly transports = new ConnectionlessTransportSet();
     private readonly channelManager = new ChannelManager(CONTROLLER_CONNECTIONS_PER_FABRIC_AND_NODE);
     private readonly exchangeManager: ExchangeManager;
     private readonly peers: PeerSet;
@@ -274,7 +274,7 @@ export class MatterController {
     constructor(options: {
         controllerStore: ControllerStoreInterface;
         scanners: ScannerSet;
-        netInterfaces: NetInterfaceSet;
+        transports: ConnectionlessTransportSet;
         certificateManager: CertificateAuthority;
         fabric: Fabric;
         adminFabricLabel: string;
@@ -283,7 +283,7 @@ export class MatterController {
         const {
             controllerStore,
             scanners,
-            netInterfaces,
+            transports: netInterfaces,
             certificateManager,
             fabric,
             sessionClosedCallback,
@@ -291,7 +291,7 @@ export class MatterController {
         } = options;
         this.#store = controllerStore;
         this.scanners = scanners;
-        this.netInterfaces = netInterfaces;
+        this.transports = netInterfaces;
         this.ca = certificateManager;
         this.fabric = fabric;
         this.sessionClosedCallback = sessionClosedCallback;
@@ -320,7 +320,7 @@ export class MatterController {
             crypto: fabric.crypto,
             sessionManager: this.sessionManager,
             channelManager: this.channelManager,
-            transportInterfaces: this.netInterfaces,
+            netInterface: this.transports,
         });
         this.exchangeManager.addProtocolHandler(new SecureChannelProtocol(this.sessionManager, fabricManager));
         this.exchangeManager.addProtocolHandler(subscriptionClient);
@@ -334,7 +334,7 @@ export class MatterController {
             exchanges: this.exchangeManager,
             subscriptionClient,
             scanners: this.scanners,
-            netInterfaces: this.netInterfaces,
+            transports: this.transports,
             store: this.nodesStore,
         });
 
@@ -344,7 +344,7 @@ export class MatterController {
             peers: this.peers,
             clients: this.clients,
             scanners: this.scanners,
-            netInterfaces: this.netInterfaces,
+            transports: this.transports,
             exchanges: this.exchangeManager,
             sessions: this.sessionManager,
             ca: this.ca,
@@ -584,7 +584,7 @@ export class MatterController {
         await this.exchangeManager.close();
         await this.sessionManager.close();
         await this.channelManager.close();
-        await this.netInterfaces.close();
+        await this.transports.close();
         await this.#advertiser.close();
     }
 

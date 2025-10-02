@@ -8,13 +8,12 @@ import {
     Bytes,
     Channel,
     ChannelType,
+    ConnectionlessTransport,
     Diagnostic,
     InternalError,
     Logger,
-    NetInterface,
     ServerAddress,
     Time,
-    TransportInterface,
     createPromise,
 } from "#general";
 import {
@@ -44,7 +43,7 @@ import { BleScanner } from "./BleScanner.js";
 
 const logger = Logger.get("BleChannel");
 
-export class ReactNativeBleCentralInterface implements NetInterface {
+export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
     #ble: Ble;
     #openChannels: Map<ServerAddress, Device> = new Map();
     #onMatterMessageListener: ((socket: Channel<Bytes>, data: Bytes) => void) | undefined;
@@ -147,7 +146,7 @@ export class ReactNativeBleCentralInterface implements NetInterface {
         throw new BleError(`No Matter service found on peripheral ${device.id}`);
     }
 
-    onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): TransportInterface.Listener {
+    onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): ConnectionlessTransport.Listener {
         this.#onMatterMessageListener = listener;
         return {
             close: async () => await this.close(),

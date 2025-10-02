@@ -102,7 +102,7 @@ export class PaseCommissioner {
             certificateAuthorityConfig: rootCertificateData,
             fabricConfig: fabricConfig,
             scanners,
-            netInterfaces,
+            transports: netInterfaces,
             adminFabricLabel: this.options.fabricConfig.label,
         });
     }

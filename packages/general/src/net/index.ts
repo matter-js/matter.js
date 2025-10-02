@@ -5,12 +5,11 @@
  */
 
 export * from "./Channel.js";
+export * from "./ConnectionlessTransport.js";
 export * from "./mock/index.js";
-export * from "./NetInterface.js";
 export * from "./Network.js";
 export * from "./RetrySchedule.js";
 export * from "./ServerAddress.js";
-export * from "./TransportInterface.js";
 export * from "./UdpChannel.js";
 export * from "./UdpInterface.js";
 export * from "./UdpMulticastServer.js";
