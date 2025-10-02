@@ -28,7 +28,7 @@ import {
     MatterError,
     Minutes,
     ServerAddress,
-    ServerAddressIp,
+    ServerAddressUdp,
     StorageBackendMemory,
     StorageManager,
 } from "#general";
@@ -79,7 +79,7 @@ import { ClassExtends } from "@matter/general";
 import { ControllerCommissioningFlow, MessageChannel } from "@matter/protocol";
 
 export type CommissionedNodeDetails = {
-    operationalServerAddress?: ServerAddressIp;
+    operationalServerAddress?: ServerAddressUdp;
     discoveryData?: DiscoveryData;
     deviceData?: DeviceInformationData;
 };

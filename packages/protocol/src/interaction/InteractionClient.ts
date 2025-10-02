@@ -17,7 +17,7 @@ import {
     MaybePromise,
     PromiseQueue,
     Seconds,
-    ServerAddressIp,
+    ServerAddressUdp,
     Timer,
     UnexpectedDataError,
     isDeepEqual,
@@ -113,7 +113,7 @@ export class InteractionClientProvider {
         address: PeerAddress,
         options: PeerConnectionOptions & {
             allowUnknownPeer?: boolean;
-            operationalAddress?: ServerAddressIp;
+            operationalAddress?: ServerAddressUdp;
         },
     ): Promise<InteractionClient> {
         await this.#peers.ensureConnection(address, options);

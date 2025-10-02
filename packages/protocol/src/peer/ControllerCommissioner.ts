@@ -18,6 +18,7 @@ import {
     Duration,
     Environment,
     Environmental,
+    ImplementationError,
     isIPv6,
     Logger,
     Millis,
@@ -327,7 +328,7 @@ export class ControllerCommissioner {
                 );
             }
             paseChannel = await paseInterface.openChannel(address);
-        } else {
+        } else if (address.type === "ble") {
             const ble = this.#context.transports.interfaceFor(ChannelType.BLE);
             if (!ble) {
                 throw new PairRetransmissionLimitReachedError(
@@ -336,6 +337,8 @@ export class ControllerCommissioner {
             }
             // TODO Have a Timeout mechanism here for connections
             paseChannel = await ble.openChannel(address);
+        } else {
+            throw new ImplementationError(`Unsupported PASE address type ${address.type}`);
         }
 
         // Do PASE paring

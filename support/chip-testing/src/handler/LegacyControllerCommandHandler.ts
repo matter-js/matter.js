@@ -5,7 +5,7 @@
  */
 
 import { Bytes, Logger, Seconds } from "@matter/general";
-import { NodeId, Observable, ServerAddressIp } from "@matter/main";
+import { NodeId, Observable, ServerAddressUdp } from "@matter/main";
 import { GeneralCommissioning, GroupKeyManagement } from "@matter/main/clusters";
 import {
     CertificateAuthority,
@@ -445,7 +445,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
         let longDiscriminator: number | undefined = undefined;
         let productId: number | undefined = undefined;
         let vendorId: VendorId | undefined = undefined;
-        let knownAddress: ServerAddressIp | undefined = undefined;
+        let knownAddress: ServerAddressUdp | undefined = undefined;
 
         if ("manualCode" in data && data.manualCode.length > 0) {
             const pairingCodeCodec = ManualPairingCodeCodec.decode(data.manualCode);
@@ -590,7 +590,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
             );
             const vendorId = VP === undefined ? -1 : VP.includes("+") ? parseInt(VP.split("+")[0]) : parseInt(VP);
             const productId = VP === undefined ? -1 : VP.includes("+") ? parseInt(VP.split("+")[1]) : -1;
-            const port = addresses.length ? (addresses[0] as ServerAddressIp).port : 0;
+            const port = addresses.length ? (addresses[0] as ServerAddressUdp).port : 0;
             const numIPs = addresses.length;
             return {
                 value: {

@@ -26,7 +26,7 @@ import {
     ObserverGroup,
     Seconds,
     ServerAddress,
-    ServerAddressIp,
+    ServerAddressUdp,
     SrvRecordValue,
     Time,
     Timer,
@@ -60,7 +60,7 @@ const logger = Logger.get("MdnsClient");
 
 const MDNS_EXPIRY_GRACE_PERIOD_FACTOR = 1.05;
 
-type MatterServerRecordWithExpire = ServerAddressIp & Lifespan;
+type MatterServerRecordWithExpire = ServerAddressUdp & Lifespan;
 
 /** Type for commissionable Device records including Lifespan details. */
 type CommissionableDeviceRecordWithExpire = Omit<CommissionableDevice, "addresses"> &
@@ -354,7 +354,7 @@ export class MdnsClient implements Scanner {
                 ip,
                 port,
                 type: "udp",
-            })) as ServerAddressIp[],
+            })) as ServerAddressUdp[],
         };
     }
 
@@ -570,7 +570,7 @@ export class MdnsClient implements Scanner {
                         ip,
                         port,
                         type: "udp",
-                    })) as ServerAddressIp[],
+                    })) as ServerAddressUdp[],
                     discoveredAt: undefined,
                     ttl: undefined,
                 };
