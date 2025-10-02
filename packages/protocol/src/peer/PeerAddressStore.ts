@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Construction, MaybePromise } from "#general";
 import { ReadScope } from "#action/client/ReadScope.js";
+import { Construction, MaybePromise } from "#general";
 import { DecodedAttributeReportValue } from "#interaction/AttributeDataDecoder.js";
 import { AttributeId, ClusterId, EndpointNumber, EventNumber } from "#types";
 import { OperationalPeer } from "./OperationalPeer.js";
