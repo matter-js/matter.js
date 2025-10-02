@@ -54,6 +54,9 @@ export type DecodedAttributeValue<T> = Omit<DecodedAttributeReportValue<T>, "ver
     version?: number;
 };
 
+/** Structured representation of read attribute data as endpointId/clusterId/attributeName objects */
+export type StructuredReadAttributeData = { [key: number]: { [key: number]: { [key: string]: any } } };
+
 /**
  * Parses, normalizes (e.g. un-chunk arrays and resolve Tag compression if used) and decodes the attribute data from
  * a received DataReport.
@@ -320,7 +323,7 @@ export function decodeUnknownAttributeValue(values: TypeFromSchema<typeof TlvAtt
 
 /** Structure the data of a received DataReport into an endpointId/clusterId/attributeName object structure. */
 export function structureReadAttributeDataToClusterObject(data: DecodedAttributeReportValue<any>[]) {
-    const structure: { [key: number]: { [key: number]: { [key: string]: any } } } = {};
+    const structure: StructuredReadAttributeData = {};
     for (const {
         path: { endpointId, clusterId, attributeName },
         value,

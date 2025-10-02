@@ -17,6 +17,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 -   @matter/nodejs
     - Fix: Corrects network interface selection logic for windows
 
+-   @matter/protocol
+    - Fix: Ignoring existing Pase sessions in closing state when establishing a new PASE session
+
 -   @project-chip/matter.js
     - Fix: Fixes safeguards in CommissioningController when resetting storage
 
