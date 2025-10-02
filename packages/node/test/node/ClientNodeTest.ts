@@ -277,11 +277,12 @@ const PEER1_STATE = {
         longIdleOperatingMode: undefined,
     },
     network: {
-        isDisabled: false,
+        isEnabled: true,
         port: 0x15a4,
         operationalPort: -1,
         startupSubscription: undefined,
         caseAuthenticatedTags: undefined,
+        enabledOnStartUp: undefined,
     },
     basicInformation: {
         clusterRevision: 4,

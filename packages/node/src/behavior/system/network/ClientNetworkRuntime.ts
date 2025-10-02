@@ -37,7 +37,7 @@ export class ClientNetworkRuntime extends NetworkRuntime {
             throw new UncommissionedError(`Cannot interact with ${this.owner} because it is uncommissioned`);
         }
 
-        if (this.owner.state.network.isDisabled) {
+        if (!this.owner.state.network.isEnabled) {
             throw new UncommissionedError(`Cannot interact with ${this.owner} because it is disabled`);
         }
 

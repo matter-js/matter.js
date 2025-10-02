@@ -15,10 +15,16 @@ export class NetworkClient extends NetworkBehavior {
     declare internal: NetworkClient.Internal;
     declare state: NetworkClient.State;
 
-    override async startup() {
-        const { startupSubscription, isDisabled } = this.state;
+    override initialize() {
+        if (this.state.enabledOnStartUp !== undefined) {
+            this.state.isEnabled = this.state.enabledOnStartUp;
+        }
+    }
 
-        if (startupSubscription === null || isDisabled) {
+    override async startup() {
+        const { startupSubscription, isEnabled } = this.state;
+
+        if (startupSubscription === null || !isEnabled) {
             return;
         }
 
@@ -59,9 +65,17 @@ export class NetworkClient extends NetworkBehavior {
             }),
 
             FieldElement({
-                name: "isDisabled",
+                name: "isEnabled",
                 type: "bool",
                 quality: "N",
+                default: true,
+            }),
+
+            FieldElement({
+                name: "enabledOnStartUp",
+                type: "bool",
+                quality: "N",
+                conformance: "O",
             }),
 
             FieldElement({
@@ -97,9 +111,18 @@ export namespace NetworkClient {
         startupSubscription?: Subscribe | null;
 
         /**
-         * If true, the matter.js will not perform network communication with the node.
+         * Represents the current operational network state of the node. When true the node is enabled and operational.
+         * When false the node is disabled and not operational.
+         *
+         * This state can be changed at any time to enable or disable the node.
          */
-        isDisabled = false;
+        isEnabled = true;
+
+        /**
+         * If defined, it overrides the isEnabled state on startup.
+         * If not defined the node will start up in the state that it was last in.
+         */
+        enabledOnStartUp?: boolean;
 
         /**
          * Case Authenticated Tags (CATs) to use for operational CASE sessions with this node.
