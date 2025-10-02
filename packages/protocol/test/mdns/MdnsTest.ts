@@ -7,6 +7,7 @@
 import { Fabric } from "#fabric/Fabric.js";
 import {
     Bytes,
+    ConnectionlessTransport,
     DnsCodec,
     DnsMessage,
     DnsMessageType,
@@ -21,7 +22,6 @@ import {
     NetworkSimulator,
     Seconds,
     Time,
-    TransportInterface,
     UdpChannel,
 } from "#general";
 import {
@@ -201,7 +201,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
         }
 
         class MessageCollector extends Array<DnsMessage> {
-            #listener: TransportInterface.Listener;
+            #listener: ConnectionlessTransport.Listener;
 
             constructor(onMessage?: (message: DnsMessage) => void) {
                 super();

@@ -8,6 +8,8 @@ import { DecodedMessage, MessageCodec, SessionType } from "#codec/MessageCodec.j
 import {
     Bytes,
     Channel,
+    ConnectionlessTransport,
+    ConnectionlessTransportSet,
     Crypto,
     Diagnostic,
     Environment,
@@ -18,8 +20,6 @@ import {
     MatterError,
     MatterFlowError,
     ObserverGroup,
-    TransportInterface,
-    TransportInterfaceSet,
     UdpInterface,
     UnexpectedDataError,
 } from "#general";
@@ -49,35 +49,35 @@ const MAXIMUM_CONCURRENT_EXCHANGES_PER_SESSION = 5;
  */
 export interface ExchangeManagerContext {
     crypto: Crypto;
-    transportInterfaces: TransportInterfaceSet;
+    netInterface: ConnectionlessTransportSet;
     sessionManager: SessionManager;
     channelManager: ChannelManager;
 }
 
 export class ExchangeManager {
-    readonly #transportInterfaces: TransportInterfaceSet;
+    readonly #transports: ConnectionlessTransportSet;
     readonly #sessionManager: SessionManager;
     readonly #channelManager: ChannelManager;
     readonly #exchangeCounter: ExchangeCounter;
     readonly #exchanges = new Map<number, MessageExchange>();
     readonly #protocols = new Map<number, ProtocolHandler>();
-    readonly #listeners = new Map<TransportInterface, TransportInterface.Listener>();
+    readonly #listeners = new Map<ConnectionlessTransport, ConnectionlessTransport.Listener>();
     readonly #closers = new Set<Promise<void>>();
     readonly #observers = new ObserverGroup(this);
     #closing = false;
 
     constructor(context: ExchangeManagerContext) {
-        this.#transportInterfaces = context.transportInterfaces;
+        this.#transports = context.netInterface;
         this.#sessionManager = context.sessionManager;
         this.#channelManager = context.channelManager;
         this.#exchangeCounter = new ExchangeCounter(context.crypto);
 
-        for (const transportInterface of this.#transportInterfaces) {
-            this.#addListener(transportInterface);
+        for (const netInterface of this.#transports) {
+            this.#addListener(netInterface);
         }
 
-        this.#observers.on(this.#transportInterfaces.added, this.#addListener);
-        this.#observers.on(this.#transportInterfaces.deleted, this.#deleteListener);
+        this.#observers.on(this.#transports.added, this.#addListener);
+        this.#observers.on(this.#transports.deleted, this.#deleteListener);
 
         this.#observers.on(this.#sessionManager.sessions.deleted, session => {
             if (!session.closingAfterExchangeFinished) {
@@ -90,7 +90,7 @@ export class ExchangeManager {
     static [Environmental.create](env: Environment) {
         const instance = new ExchangeManager({
             crypto: env.get(Crypto),
-            transportInterfaces: env.get(TransportInterfaceSet),
+            netInterface: env.get(ConnectionlessTransportSet),
             sessionManager: env.get(SessionManager),
             channelManager: env.get(ChannelManager),
         });
@@ -261,7 +261,11 @@ export class ExchangeManager {
 
             // Having a "Secure Session" means it is encrypted in our internal working
             // TODO When adding Group sessions, we need to check how to adjust that handling
-            if (protocolHandler !== undefined && protocolHandler.requiresSecureSession !== session.isSecure) {
+            if (
+                protocolHandler !== undefined &&
+                protocolHandler.requiresSecureSession !== session.isSecure &&
+                !isStandaloneAck
+            ) {
                 logger.debug(
                     `Ignoring message ${messageId} for protocol ${message.payloadHeader.protocolId} and exchange id ${message.payloadHeader.exchangeId} on channel ${channel.name} because not matching the security requirements.`,
                 );
@@ -313,7 +317,7 @@ export class ExchangeManager {
                         );
                     }
                     return;
-                } else {
+                } else if (!isStandaloneAck) {
                     logger.info(
                         `Discarding unexpected message ${messageId} for protocol ${
                             message.payloadHeader.protocolId
@@ -416,7 +420,11 @@ export class ExchangeManager {
         channel: MessageChannel,
         expectedProcessingTime = DEFAULT_EXPECTED_PROCESSING_TIME,
     ) {
-        return channel.calculateMaximumPeerResponseTime(this.#sessionManager.sessionParameters, expectedProcessingTime);
+        return channel.calculateMaximumPeerResponseTime(
+            channel.session.parameters,
+            this.#sessionManager.sessionParameters,
+            expectedProcessingTime,
+        );
     }
 
     #messageExchangeContextFor(channel: MessageChannel): MessageExchangeContext {
@@ -427,11 +435,11 @@ export class ExchangeManager {
         };
     }
 
-    #addListener(transportInterface: TransportInterface) {
-        const udpInterface = transportInterface instanceof UdpInterface;
+    #addListener(netInterface: ConnectionlessTransport) {
+        const udpInterface = netInterface instanceof UdpInterface;
         this.#listeners.set(
-            transportInterface,
-            transportInterface.onData((socket, data) => {
+            netInterface,
+            netInterface.onData((socket, data) => {
                 if (udpInterface && data.byteLength > socket.maxPayloadSize) {
                     logger.warn(
                         `Ignoring UDP message on channel ${socket.name} with size ${data.byteLength} from ${socket.name}, which is larger than the maximum allowed size of ${socket.maxPayloadSize}.`,
@@ -456,12 +464,12 @@ export class ExchangeManager {
         );
     }
 
-    #deleteListener(transportInterface: TransportInterface) {
-        const listener = this.#listeners.get(transportInterface);
+    #deleteListener(netInterface: ConnectionlessTransport) {
+        const listener = this.#listeners.get(netInterface);
         if (listener === undefined) {
             return;
         }
-        this.#listeners.delete(transportInterface);
+        this.#listeners.delete(netInterface);
 
         const closer = listener
             .close()

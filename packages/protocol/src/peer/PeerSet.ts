@@ -10,6 +10,7 @@ import {
     AsyncObservable,
     BasicSet,
     ChannelType,
+    ConnectionlessTransportSet,
     Construction,
     createPromise,
     Duration,
@@ -22,7 +23,6 @@ import {
     Logger,
     MatterError,
     Minutes,
-    NetInterfaceSet,
     NoResponseTimeoutError,
     ObservableSet,
     Seconds,
@@ -109,7 +109,7 @@ export interface PeerSetContext {
     exchanges: ExchangeManager;
     subscriptionClient: SubscriptionClient;
     scanners: ScannerSet;
-    netInterfaces: NetInterfaceSet;
+    transports: ConnectionlessTransportSet;
     store: PeerAddressStore;
 }
 
@@ -122,7 +122,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
     readonly #exchanges: ExchangeManager;
     readonly #subscriptionClient: SubscriptionClient;
     readonly #scanners: ScannerSet;
-    readonly #netInterfaces: NetInterfaceSet;
+    readonly #transports: ConnectionlessTransportSet;
     readonly #caseClient: CaseClient;
     readonly #peers = new BasicSet<OperationalPeer>();
     readonly #peersByAddress = new PeerAddressMap<OperationalPeer>();
@@ -138,14 +138,22 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
     readonly #disconnected = AsyncObservable<[address: PeerAddress]>();
 
     constructor(context: PeerSetContext) {
-        const { sessions, channels, exchanges, subscriptionClient, scanners, netInterfaces, store } = context;
+        const {
+            sessions,
+            channels,
+            exchanges,
+            subscriptionClient,
+            scanners,
+            transports: netInterfaces,
+            store,
+        } = context;
 
         this.#sessions = sessions;
         this.#channels = channels;
         this.#exchanges = exchanges;
         this.#subscriptionClient = subscriptionClient;
         this.#scanners = scanners;
-        this.#netInterfaces = netInterfaces;
+        this.#transports = netInterfaces;
         this.#store = store;
         this.#caseClient = new CaseClient(this.#sessions);
 
@@ -231,7 +239,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
             exchanges: env.get(ExchangeManager),
             subscriptionClient: env.get(SubscriptionClient),
             scanners: env.get(ScannerSet),
-            netInterfaces: env.get(NetInterfaceSet),
+            transports: env.get(ConnectionlessTransportSet),
             store: env.get(PeerAddressStore),
         });
         env.set(PeerSet, instance);
@@ -670,7 +678,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
         GroupId.assertGroupId(groupId);
         const multicastAddress = this.#sessions.fabricFor(address).groups.multicastAddressFor(groupId);
 
-        const operationalInterface = this.#netInterfaces.interfaceFor(ChannelType.UDP, multicastAddress);
+        const operationalInterface = this.#transports.interfaceFor(ChannelType.UDP, multicastAddress);
         if (operationalInterface === undefined) {
             throw new PairRetransmissionLimitReachedError(`IPv6 interface not initialized`);
         }
@@ -697,10 +705,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
         const { ip, port } = operationalServerAddress;
         // Do CASE pairing
         const isIpv6Address = isIPv6(ip);
-        const operationalInterface = this.#netInterfaces.interfaceFor(
-            ChannelType.UDP,
-            isIpv6Address ? "::" : "0.0.0.0",
-        );
+        const operationalInterface = this.#transports.interfaceFor(ChannelType.UDP, isIpv6Address ? "::" : "0.0.0.0");
 
         if (operationalInterface === undefined) {
             throw new PairRetransmissionLimitReachedError(

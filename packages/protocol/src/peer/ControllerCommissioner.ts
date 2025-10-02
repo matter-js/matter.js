@@ -13,6 +13,7 @@ import {
     Channel,
     ChannelType,
     ClassExtends,
+    ConnectionlessTransportSet,
     Diagnostic,
     Duration,
     Environment,
@@ -21,7 +22,6 @@ import {
     Logger,
     Millis,
     Minutes,
-    NetInterfaceSet,
     NoResponseTimeoutError,
     Seconds,
     ServerAddress,
@@ -129,7 +129,7 @@ export interface ControllerCommissionerContext {
     peers: PeerSet;
     clients: InteractionClientProvider;
     scanners: ScannerSet;
-    netInterfaces: NetInterfaceSet;
+    transports: ConnectionlessTransportSet;
     sessions: SessionManager;
     exchanges: ExchangeManager;
     ca: CertificateAuthority;
@@ -152,7 +152,7 @@ export class ControllerCommissioner {
             peers: env.get(PeerSet),
             clients: env.get(InteractionClientProvider),
             scanners: env.get(ScannerSet),
-            netInterfaces: env.get(NetInterfaceSet),
+            transports: env.get(ConnectionlessTransportSet),
             sessions: env.get(SessionManager),
             exchanges: env.get(ExchangeManager),
             ca: env.get(CertificateAuthority),
@@ -213,7 +213,7 @@ export class ControllerCommissioner {
 
         if (
             this.#context.scanners.hasScannerFor(ChannelType.UDP) &&
-            this.#context.netInterfaces.hasInterfaceFor(ChannelType.UDP, "::") !== undefined
+            this.#context.transports.hasInterfaceFor(ChannelType.UDP, "::") !== undefined
         ) {
             discoveryCapabilities.onIpNetwork = true; // We always discover on network as defined by specs
         }
@@ -316,7 +316,7 @@ export class ControllerCommissioner {
             const { ip } = address;
 
             const isIpv6Address = isIPv6(ip);
-            const paseInterface = this.#context.netInterfaces.interfaceFor(
+            const paseInterface = this.#context.transports.interfaceFor(
                 ChannelType.UDP,
                 isIpv6Address ? "::" : "0.0.0.0",
             );
@@ -328,7 +328,7 @@ export class ControllerCommissioner {
             }
             paseChannel = await paseInterface.openChannel(address);
         } else {
-            const ble = this.#context.netInterfaces.interfaceFor(ChannelType.BLE);
+            const ble = this.#context.transports.interfaceFor(ChannelType.BLE);
             if (!ble) {
                 throw new PairRetransmissionLimitReachedError(
                     `BLE interface not initialized. Cannot use ${address.peripheralAddress} for commissioning.`,
