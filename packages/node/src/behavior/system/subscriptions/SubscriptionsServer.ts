@@ -281,7 +281,7 @@ export class SubscriptionsBehavior extends Behavior {
         interactionServer.subscriptionEstablishmentStarted.off(blockHandler);
 
         logger.info(
-            `Re-established ${successfullReEstablishments.length} ${successfullReEstablishments.length ? `(${successfullReEstablishments.join(",")})` : ""} of ${formerSubscriptions.length} former subscriptions successfully`,
+            `Re-established ${successfullReEstablishments.length}${successfullReEstablishments.length ? ` (${successfullReEstablishments.join(",")})` : ""} of ${formerSubscriptions.length} former subscriptions successfully`,
         );
     }
 }
