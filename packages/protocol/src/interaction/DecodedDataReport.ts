@@ -22,6 +22,7 @@ export interface DecodedDataReport extends DataReport {
     attributeStatus?: DecodedAttributeReportStatus[];
     eventReports: DecodedEventReportValue<any>[];
     eventStatus?: DecodedEventReportStatus[];
+    subscriptionId?: number;
 }
 
 export function DecodedDataReport(report: DataReport): DecodedDataReport {

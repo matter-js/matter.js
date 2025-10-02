@@ -61,7 +61,7 @@ import { MessageChannel } from "../protocol/MessageChannel.js";
 import { DecodedAttributeReportStatus, DecodedAttributeReportValue } from "./AttributeDataDecoder.js";
 import { DecodedDataReport } from "./DecodedDataReport.js";
 import { DecodedEventData, DecodedEventReportStatus, DecodedEventReportValue } from "./EventDataDecoder.js";
-import { DataReport, InteractionClientMessenger, ReadRequest } from "./InteractionMessenger.js";
+import { InteractionClientMessenger, ReadRequest } from "./InteractionMessenger.js";
 import { RegisteredSubscription, SubscriptionClient } from "./SubscriptionClient.js";
 
 const logger = Logger.get("InteractionClient");
@@ -403,29 +403,26 @@ export class InteractionClient {
             );
         }
 
-        const request: ReadRequest = {
-            attributeRequests,
-            dataVersionFilters: dataVersionFilters?.map(({ endpointId, clusterId, dataVersion }) => ({
-                path: { endpointId, clusterId },
-                dataVersion,
-            })),
-            eventRequests,
-            eventFilters,
-            isFabricFiltered,
-            interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
-        };
-
         const result = await this.withMessenger(async messenger => {
-            return await this.processReadRequest(messenger, request);
+            return await this.processReadRequest(
+                messenger,
+                {
+                    attributeRequests,
+                    dataVersionFilters: dataVersionFilters?.map(({ endpointId, clusterId, dataVersion }) => ({
+                        path: { endpointId, clusterId },
+                        dataVersion,
+                    })),
+                    eventRequests,
+                    eventFilters,
+                    isFabricFiltered,
+                    interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+                },
+                attributeChangeListener,
+            );
         }, executeQueued);
 
-        const { attributeReports } = result;
-        if (attributeReports !== undefined) {
-            await this.processAttributeUpdates(ReadScope(request), attributeReports, attributeChangeListener);
-        }
-
         if (dataVersionFilters !== undefined && dataVersionFilters.length > 0 && enrichCachedAttributeData) {
-            this.#enrichCachedAttributeData(attributeReports, dataVersionFilters);
+            this.#enrichCachedAttributeData(result.attributeReports, dataVersionFilters);
         }
 
         return result;
@@ -557,6 +554,11 @@ export class InteractionClient {
     private async processReadRequest(
         messenger: InteractionClientMessenger,
         request: ReadRequest,
+        attributeChangeListener?: (
+            data: DecodedAttributeReportValue<any>,
+            valueChanged?: boolean,
+            oldValue?: any,
+        ) => void,
     ): Promise<DecodedDataReport> {
         const { attributeRequests, eventRequests } = request;
         logger.debug(
@@ -566,11 +568,13 @@ export class InteractionClient {
         );
         // Send read request and combine all (potentially chunked) responses
         await messenger.sendReadRequest(request);
-        const response = await messenger.readAggregateDataReport();
+        const scope = ReadScope(request);
+        const response = await messenger.readAggregateDataReport(chunk =>
+            this.processAttributeUpdates(scope, chunk, attributeChangeListener),
+        );
 
         // Normalize and decode the response
-        const normalizedResult = DecodedDataReport(response);
-        const { attributeReports, attributeStatus, eventReports, eventStatus } = normalizedResult;
+        const { attributeReports, attributeStatus, eventReports, eventStatus } = response;
 
         const logData = Array<string>();
         if (attributeReports.length > 0) {
@@ -590,7 +594,7 @@ export class InteractionClient {
         logger.debug(
             logData.length ? `Received read response with ${logData.join(", ")}` : "Received empty read response",
         );
-        return normalizedResult;
+        return response;
     }
 
     async setAttribute<T>(options: {
@@ -822,7 +826,7 @@ export class InteractionClient {
             maximumPeerResponseTime,
         } = await this.withMessenger<{
             subscribeResponse: TypeFromSchema<typeof TlvSubscribeResponse>;
-            report: DataReport;
+            report: DecodedDataReport;
             maximumPeerResponseTime: Duration;
         }>(async messenger => {
             await messenger.sendSubscribeRequest(request);
@@ -834,14 +838,8 @@ export class InteractionClient {
             };
         }, executeQueued);
 
-        const subscriptionListener = async (dataReport: DataReport) => {
-            updateReceived?.();
-
-            if (!Array.isArray(dataReport.attributeReports) || !dataReport.attributeReports.length) {
-                return;
-            }
-
-            const { attributeReports } = DecodedDataReport(dataReport);
+        const subscriptionListener = async (dataReport: DecodedDataReport) => {
+            const { attributeReports } = dataReport;
 
             if (attributeReports.length === 0) {
                 throw new MatterFlowError("Subscription result reporting undefined/no value not specified");
@@ -856,6 +854,8 @@ export class InteractionClient {
             await this.#nodeStore?.persistAttributes(attributeReports, scope);
 
             listener?.(value, version);
+
+            updateReceived?.();
         };
 
         await this.#registerSubscription(
@@ -872,7 +872,7 @@ export class InteractionClient {
         return { maxInterval };
     }
 
-    async #registerSubscription(subscription: RegisteredSubscription, initialReport: DataReport) {
+    async #registerSubscription(subscription: RegisteredSubscription, initialReport: DecodedDataReport) {
         this.#ownSubscriptionIds.add(subscription.id);
         this.#subscriptionClient.add(subscription);
         await subscription.onData(initialReport);
@@ -923,7 +923,7 @@ export class InteractionClient {
             maximumPeerResponseTime,
         } = await this.withMessenger<{
             subscribeResponse: TypeFromSchema<typeof TlvSubscribeResponse>;
-            report: DataReport;
+            report: DecodedDataReport;
             maximumPeerResponseTime: Duration;
         }>(async messenger => {
             await messenger.sendSubscribeRequest({
@@ -943,14 +943,8 @@ export class InteractionClient {
             };
         }, executeQueued);
 
-        const subscriptionListener = (dataReport: DataReport) => {
-            updateReceived?.();
-
-            if (!Array.isArray(dataReport.eventReports) || !dataReport.eventReports.length) {
-                return;
-            }
-
-            const { eventReports } = DecodedDataReport(dataReport);
+        const subscriptionListener = (dataReport: DecodedDataReport) => {
+            const { eventReports } = dataReport;
 
             if (eventReports.length === 0) {
                 throw new MatterFlowError("Received empty subscription result value.");
@@ -963,7 +957,10 @@ export class InteractionClient {
                 throw new MatterFlowError("Subscription result reporting undefined value not specified.");
 
             events.forEach(event => listener?.(event));
+
+            updateReceived?.();
         };
+
         await this.#registerSubscription(
             {
                 id: subscriptionId,
@@ -1101,17 +1098,20 @@ export class InteractionClient {
         };
         const scope = ReadScope(request);
 
+        let processNewAttributeChangesInListener = false;
         const {
             report,
             subscribeResponse: { subscriptionId, maxInterval },
             maximumPeerResponseTime,
         } = await this.withMessenger<{
             subscribeResponse: TypeFromSchema<typeof TlvSubscribeResponse>;
-            report: DataReport;
+            report: DecodedDataReport;
             maximumPeerResponseTime: Duration;
         }>(async messenger => {
             await messenger.sendSubscribeRequest(request);
-            const { subscribeResponse, report } = await messenger.readAggregateSubscribeResponse();
+            const { subscribeResponse, report } = await messenger.readAggregateSubscribeResponse(attributeReports =>
+                this.processAttributeUpdates(scope, attributeReports, attributeListener),
+            );
             return {
                 subscribeResponse,
                 report,
@@ -1156,13 +1156,12 @@ export class InteractionClient {
                 await this.#nodeStore?.updateLastEventNumber(maxEventNumber);
             }
 
-            if (attributeReports !== undefined) {
+            // Initial Data reports during seeding are handled directly
+            if (processNewAttributeChangesInListener && attributeReports !== undefined) {
                 await this.processAttributeUpdates(scope, attributeReports, attributeListener);
             }
             updateReceived?.();
         };
-
-        const seedReport = DecodedDataReport(report);
 
         await this.#registerSubscription(
             {
@@ -1170,19 +1169,20 @@ export class InteractionClient {
                 maximumPeerResponseTime,
                 maxInterval: Seconds(maxInterval),
 
-                onData: dataReport => subscriptionListener(DecodedDataReport(dataReport)),
+                onData: dataReport => subscriptionListener(dataReport),
 
                 onTimeout: updateTimeoutHandler,
             },
-            seedReport,
+            report,
         );
+        processNewAttributeChangesInListener = true;
 
         if (dataVersionFilters !== undefined && dataVersionFilters.length > 0 && enrichCachedAttributeData) {
-            this.#enrichCachedAttributeData(seedReport.attributeReports ?? [], dataVersionFilters);
+            this.#enrichCachedAttributeData(report.attributeReports, dataVersionFilters);
         }
 
         return {
-            ...seedReport,
+            ...report,
             maxInterval,
         };
     }
