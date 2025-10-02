@@ -197,18 +197,15 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
         const { promise: handshakeResponseReceivedPromise, resolver } = createPromise<Bytes>();
 
         let handshakeReceived = false;
-        // ignore the response because it seems when we remove a subscription the whole connection is closed
-        characteristicC2ForSubscribe.monitor((error, characteristic) => {
-            if (handshakeReceived) {
-                // Make sure data potentially submitted here after handshake was received are ignored
-                return;
-            }
+        let btpSession: BtpSessionHandler | undefined = undefined;
+
+        const characteristicSubscribe = characteristicC2ForSubscribe.monitor((error, characteristic) => {
             if (error !== null || characteristic === null) {
-                if (error instanceof ReactNativeBleError && error.errorCode === 2 && handshakeReceived) {
-                    // Subscription got removed after handshake was received, all good
+                if (error instanceof ReactNativeBleError && error.errorCode === 2) {
+                    // Subscription got removed and received, all good
                     return;
                 }
-                logger.debug("Error while monitoring C2 characteristic", error);
+                logger.debug("Error while monitoring C2 characteristic.", error?.message);
                 return;
             }
             const characteristicData = characteristic.value;
@@ -216,22 +213,32 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
                 logger.debug("C2 characteristic value is null");
                 return;
             }
-            const data = Bytes.of(Bytes.fromBase64(characteristicData));
-            logger.debug(`received first data on C2: ${Bytes.toHex(data)}`);
 
-            if (data[0] === 0x65 && data[1] === 0x6c && data.length === 6) {
-                // Check if the first two bytes and length match the Matter handshake
-                logger.info(`Received Matter handshake response: ${Bytes.toHex(data)}.`);
-                btpHandshakeTimeout.stop();
-                resolver(data);
+            const data = Bytes.fromBase64(characteristicData);
+            logger.debug(`received data on C2: ${Bytes.toHex(data)}`);
+
+            if (!handshakeReceived) {
+                // 1. waiting for a successful handshake
+                const _data = Bytes.of(data);
+                if (_data[0] === 0x65 && _data[1] === 0x6c && _data.length === 6) {
+                    // Check if the first two bytes and length match the Matter handshake
+                    logger.info(`Received Matter handshake response: ${Bytes.toHex(_data)}.`);
+                    btpHandshakeTimeout.stop();
+                    handshakeReceived = true;
+                    resolver(_data);
+                }
+                return;
+            }
+
+            // 2. then handle Incoming Data - btpSession is guaranteed to be set after handshake
+            if (btpSession) {
+                btpSession.handleIncomingBleData(data).catch(() => {});
             }
         });
 
         const handshakeResponse = await handshakeResponseReceivedPromise;
-        handshakeReceived = true;
 
-        let connectionCloseExpected = false;
-        const btpSession = await BtpSessionHandler.createAsCentral(
+        btpSession = await BtpSessionHandler.createAsCentral(
             handshakeResponse,
             // callback to write data to characteristic C1
             async data => {
@@ -239,8 +246,12 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
             },
             // callback to disconnect the BLE connection
             async () => {
-                connectionCloseExpected = true;
-                await peripheral.cancelConnection();
+                // First, unsubscribe from characteristic
+                characteristicSubscribe.remove();
+                // Then, cancel the connection
+                if (await peripheral.isConnected()) {
+                    await peripheral.cancelConnection();
+                }
                 logger.debug("disconnected from peripheral");
             },
 
@@ -252,27 +263,6 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
                 onMatterMessageListener(bleChannel, data);
             },
         );
-
-        // ignore the response because it seems when we remove a subscription the whole connection is closed
-        characteristicC2ForSubscribe.monitor((error, characteristic) => {
-            if (error !== null || characteristic === null) {
-                if (error instanceof ReactNativeBleError && error.errorCode === 2 && connectionCloseExpected) {
-                    // Subscription got removed and received, all good
-                    return;
-                }
-                logger.debug("Error while monitoring C2 characteristic", error);
-                return;
-            }
-            const characteristicData = characteristic.value;
-            if (characteristicData === null) {
-                logger.debug("C2 characteristic value is null");
-                return;
-            }
-            const data = Bytes.fromBase64(characteristicData);
-            logger.debug(`received data on C2: ${Bytes.toHex(data)}`);
-
-            void btpSession.handleIncomingBleData(data);
-        });
 
         const bleChannel = new ReactNativeBleChannel(peripheral, btpSession);
         return bleChannel;
@@ -316,8 +306,9 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
     }
 
     async close() {
-        await this.btpSession.close();
+        // should unsubscribe first
         this.disconnectSubscription.remove();
-        await this.peripheral.cancelConnection();
+        // then close others
+        await this.btpSession.close();
     }
 }

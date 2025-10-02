@@ -99,6 +99,7 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
         if (this.lifecycle.isOnline) {
             return;
         }
+        this.lifecycle.targetState = "online";
 
         await this.lifecycle.mutex.produce(this.startWithMutex.bind(this));
     }
@@ -147,6 +148,7 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
      * Once the node is offline you may use {@link start} to bring the node online again.
      */
     async cancel() {
+        this.lifecycle.targetState = "offline";
         await this.lifecycle.mutex.produce(this.cancelWithMutex.bind(this));
     }
 
@@ -174,6 +176,7 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
     }
 
     override async close() {
+        this.lifecycle.targetState = "offline";
         await this.lifecycle.mutex.produce(this.closeWithMutex.bind(this));
     }
 

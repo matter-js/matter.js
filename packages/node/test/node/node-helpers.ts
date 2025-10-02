@@ -39,7 +39,9 @@ import { MockServerNode } from "./mock-server-node.js";
 
 export const FAILSAFE_LENGTH_S = 60;
 
-export async function testFactoryReset(mode: "online" | "offline-after-commission" | "offline") {
+export async function testFactoryReset(
+    mode: "online" | "offline-after-commission" | "offline" | "offline-during-reset",
+) {
     let node: MockServerNode;
     if (mode !== "offline") {
         ({ node } = await CommissioningHelper().commission());
@@ -47,8 +49,17 @@ export async function testFactoryReset(mode: "online" | "offline-after-commissio
         node = await MockServerNode.createOnline(undefined, { online: false });
     }
 
+    const changes = new Array<string>();
+    const expectedChanges = new Array<string>();
+
+    node.lifecycle.online.on(() => void changes.push("online"));
+    node.lifecycle.offline.on(() => void changes.push("offline"));
+
     if (mode === "offline-after-commission") {
         await node.cancel();
+    }
+    if (mode !== "offline") {
+        expectedChanges.push("offline");
     }
 
     // We want to confirm unique ID is reset but the ID is not random in testing.  So set to something known we can
@@ -56,7 +67,23 @@ export async function testFactoryReset(mode: "online" | "offline-after-commissio
     const oldUniqueId = "asdf";
     await node.set({ basicInformation: { uniqueId: oldUniqueId } });
 
-    await MockTime.resolve(node.erase(), { macrotasks: true });
+    const erasePromise = node.erase();
+
+    let offlinePromise: Promise<void> | undefined;
+    if (mode === "offline-during-reset") {
+        // Wait a tick to ensure erase has started
+        await MockTime.yield();
+        offlinePromise = node.cancel();
+        expect(node.lifecycle.shouldBeOffline).equals(true);
+    } else if (mode !== "offline-after-commission" && mode !== "offline") {
+        expectedChanges.push("online");
+    }
+
+    await MockTime.resolve(erasePromise, { macrotasks: true });
+
+    if (offlinePromise) {
+        await offlinePromise;
+    }
 
     // Confirm previous online state is resumed
     expect(node.lifecycle.isOnline).equals(mode === "online");
@@ -71,6 +98,8 @@ export async function testFactoryReset(mode: "online" | "offline-after-commissio
     const pairingCodes = node.stateOf(CommissioningServer).pairingCodes;
     expect(typeof pairingCodes).equals("object");
     expect(typeof pairingCodes.manualPairingCode).equals("string");
+
+    expect(changes).deep.equals(expectedChanges);
 
     await node.close();
 }

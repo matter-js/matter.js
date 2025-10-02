@@ -22,6 +22,7 @@ export class NodeLifecycle extends EndpointLifecycle {
     #onlineAt?: Date;
     #isCommissioned = false;
     #mutex: Mutex;
+    #targetState: "online" | "offline" = "offline";
 
     constructor(endpoint: Endpoint) {
         super(endpoint);
@@ -119,5 +120,17 @@ export class NodeLifecycle extends EndpointLifecycle {
      */
     get mutex() {
         return this.#mutex;
+    }
+
+    set targetState(state: "online" | "offline") {
+        this.#targetState = state;
+    }
+
+    get shouldBeOnline() {
+        return this.#targetState === "online";
+    }
+
+    get shouldBeOffline() {
+        return this.#targetState === "offline";
     }
 }
