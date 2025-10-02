@@ -258,10 +258,14 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
         return this.#interactionQueue;
     }
 
+    async connect(address: PeerAddress, options: PeerConnectionOptions & { operationalAddress?: ServerAddressIp }) {
+        await this.#ensureConnection(address, { ...options, allowUnknownPeer: true });
+    }
+
     /**
      * Ensure there is a channel to the designated peer.
      */
-    async ensureConnection(
+    async #ensureConnection(
         address: PeerAddress,
         options: PeerConnectionOptions & {
             allowUnknownPeer?: boolean;
@@ -325,7 +329,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
 
             if (!initiallyConnected && !this.#channels.hasChannel(address)) {
                 // We got an uninitialized node, so do the first connection as usual
-                await this.ensureConnection(address, {
+                await this.#ensureConnection(address, {
                     discoveryOptions: { discoveryType: NodeDiscoveryType.None },
                     caseAuthenticatedTags,
                 });
@@ -376,10 +380,13 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
 
     /**
      * Terminate any active peer connection.
+     * Also handles unknown peers
      */
     async disconnect(peer: PeerAddress | OperationalPeer, sendSessionClose = true) {
-        const address = this.get(peer)?.address;
-        if (address === undefined) {
+        let address = this.get(peer)?.address; // Check known Peers
+        if (address === undefined && "nodeId" in peer && "fabricIndex" in peer) {
+            address = peer;
+        } else {
             return;
         }
 
