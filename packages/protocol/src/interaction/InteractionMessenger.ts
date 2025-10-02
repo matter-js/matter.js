@@ -13,14 +13,20 @@ import {
     NoResponseTimeoutError,
     UnexpectedDataError,
 } from "#general";
+import { DecodedAttributeReportValue } from "#interaction/AttributeDataDecoder.js";
+import { DecodedDataReport } from "#interaction/DecodedDataReport.js";
 import { Specification } from "#model";
 import { ChannelNotConnectedError } from "#protocol/MessageChannel.js";
 import {
+    AttributeId,
+    ClusterId,
+    EndpointNumber,
     ReceivedStatusResponseError,
     Status,
     StatusCode,
     StatusResponseError,
     TlvAny,
+    TlvAttributeReport,
     TlvDataReport,
     TlvDataReportForSend,
     TlvDataVersionFilter,
@@ -796,8 +802,105 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
         return message;
     }
 
-    async readAggregateDataReport(expectedSubscriptionIds?: number[]): Promise<DataReport> {
-        let result: DataReport | undefined;
+    /**
+     * Reads data report stream and aggregates them into a single report.
+     * Additionally, a callback can be provided that is called for each cluster chunk received.
+     */
+    async readAggregateDataReport(
+        chunkListener?: (chunk: DecodedAttributeReportValue<any>[]) => Promise<void>,
+        expectedSubscriptionIds?: number[],
+    ): Promise<DecodedDataReport> {
+        let result: DecodedDataReport | undefined = undefined;
+        let currentEndpointId: EndpointNumber | undefined = undefined;
+        let currentClusterId: ClusterId | undefined = undefined;
+        const currentClusterChunk = new Array<DecodedAttributeReportValue<any>>();
+        let pendingAttributeReports: TypeFromSchema<typeof TlvAttributeReport>[] | undefined = undefined;
+
+        const handleAttributeReportEntries = (
+            attributeReports: TypeFromSchema<typeof TlvAttributeReport>[] | undefined,
+            previousPendingAttributeReports: TypeFromSchema<typeof TlvAttributeReport>[] | undefined,
+        ) => {
+            if (previousPendingAttributeReports?.length) {
+                attributeReports = attributeReports ?? [];
+                attributeReports.unshift(...previousPendingAttributeReports);
+            }
+
+            let lastAttributeDataIndex = -1;
+            if (attributeReports?.length) {
+                let lastEndpointId: EndpointNumber | undefined = undefined;
+                let lastClusterId: ClusterId | undefined = undefined;
+                let lastAttributeId: AttributeId | undefined = undefined;
+                for (let i = attributeReports.length - 1; i >= 0; i--) {
+                    const attributeReport = attributeReports[i];
+                    if (attributeReport.attributeData === undefined) {
+                        break; // No data report, so nothing more to search for
+                    }
+                    const {
+                        path: { endpointId, clusterId, attributeId },
+                    } = attributeReport.attributeData;
+                    if (lastEndpointId === undefined && lastClusterId === undefined && lastAttributeId === undefined) {
+                        // Remember path of the last attribute data entry and check if previous entries match
+                        lastEndpointId = endpointId;
+                        lastClusterId = clusterId;
+                        lastAttributeId = attributeId;
+                    }
+                    if (
+                        endpointId === lastEndpointId &&
+                        clusterId === lastClusterId &&
+                        attributeId === lastAttributeId
+                    ) {
+                        lastAttributeDataIndex = i;
+                        continue;
+                    }
+                    break; // We found an attribute that does not match the last one, so we are done
+                }
+
+                if (lastAttributeDataIndex > 0) {
+                    return attributeReports.splice(lastAttributeDataIndex);
+                }
+            }
+        };
+
+        const processDecodedReport = async (
+            decodedReport: DecodedDataReport,
+            result: DecodedDataReport | undefined,
+        ) => {
+            if (!result) {
+                result = decodedReport;
+            } else {
+                if (!result.attributeReports) {
+                    result.attributeReports = decodedReport.attributeReports;
+                } else {
+                    result.attributeReports.push(...decodedReport.attributeReports);
+                }
+                if (Array.isArray(decodedReport.eventReports)) {
+                    if (!result.eventReports) {
+                        result.eventReports = decodedReport.eventReports;
+                    } else {
+                        result.eventReports.push(...decodedReport.eventReports);
+                    }
+                }
+            }
+
+            if (chunkListener !== undefined && decodedReport.attributeReports) {
+                for (const data of decodedReport.attributeReports) {
+                    const {
+                        path: { endpointId, clusterId },
+                    } = data;
+                    if (currentEndpointId !== endpointId || currentClusterId !== clusterId) {
+                        // We switched the cluster, so we need to send the current chunk first
+                        if (currentClusterChunk.length > 0) {
+                            await chunkListener(currentClusterChunk);
+                            currentClusterChunk.length = 0;
+                        }
+                        currentEndpointId = endpointId;
+                        currentClusterId = clusterId;
+                    }
+                    currentClusterChunk.push(data);
+                }
+            }
+            return result;
+        };
 
         for await (const report of this.readDataReports()) {
             if (expectedSubscriptionIds !== undefined) {
@@ -820,24 +923,25 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
                 throw new UnexpectedDataError(`Invalid subscription ID ${report.subscriptionId} received`);
             }
 
-            if (!result) {
-                result = report;
-            } else {
-                if (Array.isArray(report.attributeReports)) {
-                    if (!result.attributeReports) {
-                        result.attributeReports = report.attributeReports;
-                    } else {
-                        result.attributeReports.push(...report.attributeReports);
-                    }
-                }
-                if (Array.isArray(report.eventReports)) {
-                    if (!result.eventReports) {
-                        result.eventReports = report.eventReports;
-                    } else {
-                        result.eventReports.push(...report.eventReports);
-                    }
-                }
-            }
+            report.attributeReports = report.attributeReports ?? [];
+            pendingAttributeReports = handleAttributeReportEntries(report.attributeReports, pendingAttributeReports);
+
+            result = await processDecodedReport(DecodedDataReport(report), result);
+        }
+
+        if (pendingAttributeReports?.length && result !== undefined) {
+            result = await processDecodedReport(
+                DecodedDataReport({
+                    interactionModelRevision: result.interactionModelRevision,
+                    attributeReports: pendingAttributeReports,
+                }),
+                result,
+            );
+        }
+
+        if (chunkListener !== undefined && currentClusterChunk.length > 0) {
+            await chunkListener(currentClusterChunk);
+            currentClusterChunk.length = 0;
         }
 
         if (result === undefined) {
@@ -1007,8 +1111,8 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
         await this.send(MessageType.SubscribeRequest, request);
     }
 
-    async readAggregateSubscribeResponse() {
-        const report = await this.readAggregateDataReport();
+    async readAggregateSubscribeResponse(chunkListener?: (chunk: DecodedAttributeReportValue<any>[]) => Promise<void>) {
+        const report = await this.readAggregateDataReport(chunkListener);
         const { subscriptionId } = report;
 
         if (subscriptionId === undefined) {
