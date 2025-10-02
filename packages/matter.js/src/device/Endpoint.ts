@@ -305,7 +305,7 @@ export class Endpoint {
         return Array.from(this.childEndpoints.values());
     }
 
-    protected removeChildEndpoint(endpoint: Endpoint): void {
+    removeChildEndpoint(endpoint: Endpoint): void {
         const id = endpoint.getNumber();
         const knownEndpoint = this.childEndpoints.get(id);
         if (knownEndpoint === undefined) {
