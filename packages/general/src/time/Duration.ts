@@ -71,6 +71,9 @@ export namespace Duration {
     export function format<T extends Duration | undefined>(
         duration: T,
     ): T extends undefined ? string | undefined : string {
+        if (duration === undefined) {
+            return undefined as T extends undefined ? string | undefined : string;
+        }
         let ms = duration as number;
 
         if (typeof ms !== "number" || !Number.isFinite(ms)) {
