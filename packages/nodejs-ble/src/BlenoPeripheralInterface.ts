@@ -4,19 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Channel, ChannelType, Duration, TransportInterface } from "#general";
+import { Bytes, Channel, ChannelType, ConnectionlessTransport, Duration, ImplementationError } from "#general";
 import { BlePeripheralInterface } from "@matter/protocol";
 import { BlenoBleServer } from "./BlenoBleServer.js";
 
 export class BlenoPeripheralInterface implements BlePeripheralInterface {
     constructor(private readonly blenoServer: BlenoBleServer) {}
 
-    // TransportInterface
-    onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): TransportInterface.Listener {
+    onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): ConnectionlessTransport.Listener {
         this.blenoServer.setMatterMessageListener(listener);
         return {
             close: async () => await this.close(),
         };
+    }
+
+    openChannel(): never {
+        throw new ImplementationError("Outbound connections are not supported on peripheral interfaces");
     }
 
     async close() {

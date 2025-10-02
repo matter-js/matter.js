@@ -6,7 +6,7 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { BasicInformationBehavior } from "#behaviors/basic-information";
-import { ImplementationError, isNetworkInterface, NetInterfaceSet, TransportInterfaceSet } from "#general";
+import { ConnectionlessTransportSet, ImplementationError } from "#general";
 import { Node } from "#node/Node.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
 import {
@@ -110,15 +110,9 @@ export class ControllerBehavior extends Behavior {
 
     #nodeOnline() {
         // Configure network connections
-        const netInterfaces = this.env.get(NetInterfaceSet);
-        const netTransports = this.env.get(TransportInterfaceSet);
-        for (const transport of netTransports) {
-            if (isNetworkInterface(transport)) {
-                netInterfaces.add(transport);
-            }
-        }
+        const netTransports = this.env.get(ConnectionlessTransportSet);
         if (this.state.ble) {
-            netInterfaces.add(this.env.get(Ble).centralInterface);
+            netTransports.add(this.env.get(Ble).centralInterface);
         }
 
         // Install handler to receive data reports for subscriptions
@@ -147,18 +141,6 @@ export class ControllerBehavior extends Behavior {
 
     async #nodeGoingOffline() {
         await this.env.close(ClientSubscriptions);
-
-        const netInterfaces = this.env.get(NetInterfaceSet);
-        const netTransports = this.env.get(TransportInterfaceSet);
-
-        // Remove "transports" from the net interface set so they are not closed twice
-        for (const intf of netInterfaces) {
-            if (netTransports.has(intf)) {
-                netInterfaces.delete(intf);
-            }
-        }
-
-        await this.env.close(NetInterfaceSet);
     }
 
     #enableScanningForFabric(fabric: Fabric) {

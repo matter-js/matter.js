@@ -8,16 +8,15 @@ import {
     Bytes,
     Channel,
     ChannelType,
+    ConnectionlessTransport,
     Diagnostic,
     InternalError,
     Logger,
     Minutes,
-    NetInterface,
     NetworkError,
     ServerAddress,
     Time,
     Timer,
-    TransportInterface,
     asError,
     createPromise,
 } from "#general";
@@ -71,7 +70,7 @@ type BleConnectionGuard = {
     disconnectTimeout: Timer;
 };
 
-export class NobleBleCentralInterface implements NetInterface {
+export class NobleBleCentralInterface implements ConnectionlessTransport {
     #bleScanner: BleScanner;
     #connectionsInProgress = new Set<ServerAddress>();
     #connectionGuards = new Set<BleConnectionGuard>();
@@ -384,7 +383,7 @@ export class NobleBleCentralInterface implements NetInterface {
         });
     }
 
-    onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): TransportInterface.Listener {
+    onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): ConnectionlessTransport.Listener {
         this.#onMatterMessageListener = listener;
         return {
             close: async () => await this.close(),

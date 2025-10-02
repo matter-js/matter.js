@@ -9,18 +9,19 @@ import { Environmental } from "#environment/Environmental.js";
 import { Bytes } from "#util/Bytes.js";
 import { BasicSet } from "#util/Set.js";
 import { Channel, ChannelType } from "./Channel.js";
+import { ServerAddress } from "./ServerAddress.js";
 
 /**
- * A TransportInterface is a generic interface for sending and receiving data on an established incoming connection.
- * It cannot open new connections.
+ * A local network endpoint associated with a specific {@link ServerAddress} for a connectionless protocol.
  */
-export interface TransportInterface {
-    onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): TransportInterface.Listener;
+export interface ConnectionlessTransport {
+    onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): ConnectionlessTransport.Listener;
     close(): Promise<void>;
     supports(type: ChannelType, address?: string): boolean;
+    openChannel(address: ServerAddress): Promise<Channel<Bytes>>;
 }
 
-export namespace TransportInterface {
+export namespace ConnectionlessTransport {
     export interface Listener {
         close(): Promise<void>;
     }
@@ -29,14 +30,16 @@ export namespace TransportInterface {
 /**
  * A collection of {@link TransportInterfaces} managed as a unit.
  */
-export class TransportInterfaceSet<T extends TransportInterface = TransportInterface> extends BasicSet<T> {
+export class ConnectionlessTransportSet<
+    T extends ConnectionlessTransport = ConnectionlessTransport,
+> extends BasicSet<T> {
     constructor(...initialInterfaces: T[]) {
         super(...initialInterfaces);
     }
 
     static [Environmental.create](env: Environment) {
-        const instance = new TransportInterfaceSet();
-        env.set(TransportInterfaceSet, instance);
+        const instance = new ConnectionlessTransportSet();
+        env.set(ConnectionlessTransportSet, instance);
         return instance;
     }
 

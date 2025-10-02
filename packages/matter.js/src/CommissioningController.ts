@@ -8,13 +8,13 @@ import { OperationalCredentials } from "#clusters";
 import { ControllerStore } from "#ControllerStore.js";
 import {
     ClassExtends,
+    ConnectionlessTransportSet,
     Crypto,
     Environment,
     ImplementationError,
     InternalError,
     Logger,
     Minutes,
-    NetInterfaceSet,
     Network,
     NoAddressAvailableError,
     StorageContext,
@@ -265,7 +265,7 @@ export class CommissioningController {
         const controller = await MatterController.create({
             controllerStore,
             scanners,
-            netInterfaces,
+            transports: netInterfaces,
             sessionClosedCallback: peerNodeId => {
                 logger.info(`Session for peer node ${peerNodeId} disconnected ...`);
                 const handler = this.#sessionDisconnectedHandler.get(peerNodeId);
@@ -808,7 +808,7 @@ export async function configureNetwork(options: {
 }) {
     const { network, ble, ipv4Disabled, mdnsClient, localPort, listeningAddressIpv6, listeningAddressIpv4 } = options;
 
-    const netInterfaces = new NetInterfaceSet();
+    const netInterfaces = new ConnectionlessTransportSet();
     const scanners = new ScannerSet();
 
     let udpInterface: UdpInterface;
