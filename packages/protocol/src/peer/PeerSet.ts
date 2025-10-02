@@ -384,10 +384,13 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
      */
     async disconnect(peer: PeerAddress | OperationalPeer, sendSessionClose = true) {
         let address = this.get(peer)?.address; // Check known Peers
-        if (address === undefined && "nodeId" in peer && "fabricIndex" in peer) {
-            address = peer;
-        } else {
-            return;
+        if (address === undefined) {
+            // We did not find a ClientNode for this peer, so check if it is a PeerAddress
+            if ("nodeId" in peer && "fabricIndex" in peer) {
+                address = peer;
+            } else {
+                return;
+            }
         }
 
         await this.#sessions.removeAllSessionsForNode(address, sendSessionClose);

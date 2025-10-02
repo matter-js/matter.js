@@ -116,7 +116,7 @@ export class InteractionClientProvider {
             operationalAddress?: ServerAddressIp;
         },
     ): Promise<InteractionClient> {
-        await this.#peers.ensureConnection(address, options);
+        await this.#peers.connect(address, options);
 
         return this.getInteractionClient(address, options);
     }
