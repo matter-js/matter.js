@@ -658,7 +658,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     }
 
     /**
-     * Erase all persisted data and destroy the node.
+     * Erase all persisted data and destroy the endpoint.
      */
     async delete() {
         await this.erase();
