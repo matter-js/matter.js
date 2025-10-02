@@ -817,15 +817,15 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
         let currentEndpointId: EndpointNumber | undefined = undefined;
         let currentClusterId: ClusterId | undefined = undefined;
         const currentClusterChunk = new Array<DecodedAttributeReportValue<any>>();
-        let storedLastAttributeEntryOfReport: TypeFromSchema<typeof TlvAttributeReport>[] | undefined = undefined;
+        let pendingAttributeReports: TypeFromSchema<typeof TlvAttributeReport>[] | undefined = undefined;
 
         const handleAttributeReportEntries = (
             attributeReports: TypeFromSchema<typeof TlvAttributeReport>[] | undefined,
-            previousStoredLastAttributeEntryOfReport: TypeFromSchema<typeof TlvAttributeReport>[] | undefined,
+            previousPendingAttributeReports: TypeFromSchema<typeof TlvAttributeReport>[] | undefined,
         ) => {
-            if (previousStoredLastAttributeEntryOfReport?.length) {
+            if (previousPendingAttributeReports?.length) {
                 attributeReports = attributeReports ?? [];
-                attributeReports.unshift(...previousStoredLastAttributeEntryOfReport);
+                attributeReports.unshift(...previousPendingAttributeReports);
             }
 
             let lastAttributeDataIndex = -1;
@@ -836,7 +836,7 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
                 for (let i = attributeReports.length - 1; i >= 0; i--) {
                     const attributeReport = attributeReports[i];
                     if (attributeReport.attributeData === undefined) {
-                        break; // No data report, so  nothing more to search for
+                        break; // No data report, so nothing more to search for
                     }
                     const {
                         path: { endpointId, clusterId, attributeId },
@@ -927,19 +927,16 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
             }
 
             report.attributeReports = report.attributeReports ?? [];
-            storedLastAttributeEntryOfReport = handleAttributeReportEntries(
-                report.attributeReports,
-                storedLastAttributeEntryOfReport,
-            );
+            pendingAttributeReports = handleAttributeReportEntries(report.attributeReports, pendingAttributeReports);
 
             result = await processDecodedReport(DecodedDataReport(report), result);
         }
 
-        if (storedLastAttributeEntryOfReport?.length && result !== undefined) {
+        if (pendingAttributeReports?.length && result !== undefined) {
             result = await processDecodedReport(
                 DecodedDataReport({
                     interactionModelRevision: result.interactionModelRevision,
-                    attributeReports: storedLastAttributeEntryOfReport,
+                    attributeReports: pendingAttributeReports,
                 }),
                 result,
             );
