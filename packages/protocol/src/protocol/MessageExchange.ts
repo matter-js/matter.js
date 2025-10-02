@@ -31,7 +31,6 @@ import {
 } from "#protocol/MessageChannel.js";
 import { GroupSession } from "#session/GroupSession.js";
 import { SessionParameters } from "#session/Session.js";
-import { SessionIntervals } from "#session/SessionIntervals.js";
 import {
     GroupId,
     NodeId,
@@ -145,9 +144,6 @@ export class MessageExchange {
         );
     }
 
-    readonly #activeInterval: Duration;
-    readonly #idleInterval: Duration;
-    readonly #activeThreshold: Duration;
     readonly #messagesQueue = new DataReadQueue<Message>();
     #receivedMessageToAck: Message | undefined;
     #receivedMessageAckTimer = Time.getTimer("Ack receipt timeout", MRP.STANDALONE_ACK_TIMEOUT, () => {
@@ -196,10 +192,7 @@ export class MessageExchange {
         this.#exchangeId = exchangeId;
         this.#protocolId = protocolId;
 
-        const { activeInterval, idleInterval, activeThreshold } = SessionIntervals(session.parameters);
-        this.#activeInterval = activeInterval;
-        this.#idleInterval = idleInterval;
-        this.#activeThreshold = activeThreshold;
+        const { activeThreshold, activeInterval, idleInterval } = this.session.parameters;
 
         this.#used = !isInitiator; // If we are the initiator then exchange was not used yet, so track it
 
@@ -211,9 +204,9 @@ export class MessageExchange {
                 exId: this.#exchangeId,
                 sess: session.name,
                 peerSess: this.#peerSessionId,
-                SAT: this.#activeThreshold,
-                SAI: this.#activeInterval,
-                SII: this.#idleInterval,
+                SAT: Duration.format(activeThreshold),
+                SAI: Duration.format(activeInterval),
+                SII: Duration.format(idleInterval),
                 maxTrans: MRP.MAX_TRANSMISSIONS,
                 exchangeFlags: Diagnostic.asFlags({
                     MRP: this.channel.usesMrp,
@@ -489,18 +482,12 @@ export class MessageExchange {
             timeout = Instant; // If we have messages in the queue, we can return them immediately
         } else {
             timeout = this.channel.calculateMaximumPeerResponseTime(
+                this.session.parameters,
                 this.context.localSessionParameters,
                 options?.expectedProcessingTime,
             );
         }
         return this.#messagesQueue.read(timeout);
-    }
-
-    calculateMaximumPeerResponseTimeMs(expectedProcessingTimeMs = DEFAULT_EXPECTED_PROCESSING_TIME) {
-        return this.channel.calculateMaximumPeerResponseTime(
-            this.context.localSessionParameters,
-            expectedProcessingTimeMs,
-        );
     }
 
     #retransmitMessage(message: Message, expectedProcessingTime?: Duration) {
@@ -512,6 +499,7 @@ export class MessageExchange {
                 // We already have waited after the last message was sent, so deduct this time from the final wait time
                 const finalWaitTime = Millis(
                     this.channel.calculateMaximumPeerResponseTime(
+                        this.session.parameters,
                         this.context.localSessionParameters,
                         expectedProcessingTime,
                     ) - (this.#retransmissionTimer?.interval ?? Instant),

@@ -49,7 +49,7 @@ export function SessionIntervals(intervals?: Partial<SessionIntervals>): Session
 }
 
 export namespace SessionIntervals {
-    export const defaults = {
+    export const defaults: SessionIntervals = {
         idleInterval: Millis(500),
         activeInterval: Millis(300),
         activeThreshold: Seconds(4),

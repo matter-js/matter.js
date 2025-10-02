@@ -5,9 +5,14 @@
  */
 
 import { Bytes } from "#general";
-import { SecureMessageType, TypeFromSchema } from "#types";
+import { SecureMessageType } from "#types";
 import { DEFAULT_NORMAL_PROCESSING_TIME, SecureChannelMessenger } from "../../securechannel/SecureChannelMessenger.js";
 import {
+    PasePake1,
+    PasePake2,
+    PasePake3,
+    PbkdfParamRequest,
+    PbkdfParamResponse,
     TlvPasePake1,
     TlvPasePake2,
     TlvPasePake3,
@@ -18,16 +23,10 @@ import {
 export const DEFAULT_PASSCODE_ID = 0;
 export const SPAKE_CONTEXT = Bytes.fromString("CHIP PAKE V1 Commissioning");
 
-type PbkdfParamRequest = TypeFromSchema<typeof TlvPbkdfParamRequest>;
-type PbkdfParamResponse = TypeFromSchema<typeof TlvPbkdfParamResponse>;
-type PasePake1 = TypeFromSchema<typeof TlvPasePake1>;
-type PasePake2 = TypeFromSchema<typeof TlvPasePake2>;
-type PasePake3 = TypeFromSchema<typeof TlvPasePake3>;
-
 export class PaseServerMessenger extends SecureChannelMessenger {
     async readPbkdfParamRequest() {
         const { payload } = await this.nextMessage(SecureMessageType.PbkdfParamRequest, DEFAULT_NORMAL_PROCESSING_TIME);
-        return { requestPayload: payload, request: TlvPbkdfParamRequest.decode(payload) };
+        return { requestPayload: payload, request: TlvPbkdfParamRequest.decode(payload) as PbkdfParamRequest };
     }
 
     async sendPbkdfParamResponse(response: PbkdfParamResponse) {
@@ -61,7 +60,7 @@ export class PaseClientMessenger extends SecureChannelMessenger {
             SecureMessageType.PbkdfParamResponse,
             DEFAULT_NORMAL_PROCESSING_TIME,
         );
-        return { responsePayload: payload, response: TlvPbkdfParamResponse.decode(payload) };
+        return { responsePayload: payload, response: TlvPbkdfParamResponse.decode(payload) as PbkdfParamResponse };
     }
 
     sendPasePake1(pasePake1: PasePake1) {

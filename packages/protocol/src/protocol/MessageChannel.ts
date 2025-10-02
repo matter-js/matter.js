@@ -114,7 +114,8 @@ export class MessageChannel implements Channel<Message> {
     }
 
     calculateMaximumPeerResponseTime(
-        sessionParameters: SessionParameters,
+        peerSessionParameters: SessionParameters,
+        localSessionParameters: SessionParameters,
         expectedProcessingTime = DEFAULT_EXPECTED_PROCESSING_TIME,
     ): Duration {
         switch (this.channel.type) {
@@ -127,8 +128,11 @@ export class MessageChannel implements Channel<Message> {
                 if (!this.usesMrp) {
                     throw new MatterFlowError("No response expected for this message exchange because UDP and no MRP.");
                 }
+                // Calculate the maximum time till the peer got our last retry and worst case for the way back
                 return Millis(
-                    this.#calculateMrpMaximumPeerResponseTime(sessionParameters, expectedProcessingTime) +
+                    this.#calculateMrpMaximumPeerResponseTime(peerSessionParameters) +
+                        this.#calculateMrpMaximumPeerResponseTime(localSessionParameters) +
+                        expectedProcessingTime +
                         PEER_RESPONSE_TIME_BUFFER,
                 );
 
@@ -153,8 +157,10 @@ export class MessageChannel implements Channel<Message> {
      */
     getMrpResubmissionBackOffTime(retransmissionCount: number, sessionParameters?: SessionParameters) {
         const { activeInterval, idleInterval } = sessionParameters ?? this.session.parameters;
-        const baseInterval =
-            sessionParameters !== undefined || this.session.isPeerActive() ? activeInterval : idleInterval;
+        // For the first message of a new exchange ... SHALL be set according to the idle state of the peer node.
+        // For all subsequent messages of the exchange, ... SHOULD be set according to the active state of the peer node
+        const peerActive = retransmissionCount > 0 && (sessionParameters !== undefined || this.session.isPeerActive());
+        const baseInterval = peerActive ? activeInterval : idleInterval;
         return Millis.floor(
             Millis(
                 baseInterval *
@@ -165,19 +171,15 @@ export class MessageChannel implements Channel<Message> {
         );
     }
 
-    #calculateMrpMaximumPeerResponseTime(
-        sessionParameters: SessionParameters,
-        expectedProcessingTime = DEFAULT_EXPECTED_PROCESSING_TIME,
-    ) {
-        // We use the expected processing time and deduct the time we already waited since last resubmission
-        let finalWaitTime = expectedProcessingTime;
+    /** Calculates the maximum time the peer might take to respond when using MRP for one direction. */
+    #calculateMrpMaximumPeerResponseTime(sessionParameters: SessionParameters) {
+        let finalWaitTime = 0;
 
         // and then add the time the other side needs for a full resubmission cycle under the assumption we are active
         for (let i = 0; i < MRP.MAX_TRANSMISSIONS; i++) {
             finalWaitTime = Millis(finalWaitTime + this.getMrpResubmissionBackOffTime(i, sessionParameters));
         }
 
-        // TODO: Also add any network latency buffer, for now lets consider it's included in the processing time already
         return finalWaitTime;
     }
 }

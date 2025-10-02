@@ -6,14 +6,15 @@
 
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Bytes, Crypto, CryptoDecryptError, Logger, PublicKey, UnexpectedDataError } from "#general";
-import { TlvSessionParameters } from "#session/pase/PaseMessages.js";
+import { SessionParametersWithDurations } from "#session/pase/PaseMessages.js";
 import { ResumptionRecord, SessionManager } from "#session/SessionManager.js";
-import { NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode, TypeFromSchema } from "#types";
+import { NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "#types";
 import { FabricManager, FabricNotFoundError } from "../../fabric/FabricManager.js";
 import { MessageExchange } from "../../protocol/MessageExchange.js";
 import { ProtocolHandler } from "../../protocol/ProtocolHandler.js";
 import { ChannelStatusResponseError } from "../../securechannel/SecureChannelMessenger.js";
 import {
+    CaseSigma1,
     KDFSR1_KEY_INFO,
     KDFSR2_INFO,
     KDFSR2_KEY_INFO,
@@ -22,7 +23,6 @@ import {
     RESUME2_MIC_NONCE,
     TBE_DATA2_NONCE,
     TBE_DATA3_NONCE,
-    TlvCaseSigma1,
     TlvEncryptedDataSigma2,
     TlvEncryptedDataSigma3,
     TlvSignedData,
@@ -313,7 +313,7 @@ class Sigma1Context {
     destinationId: Bytes;
     peerRandom: Bytes;
     peerEcdhPublicKey: Bytes;
-    peerSessionParams?: TypeFromSchema<typeof TlvSessionParameters>;
+    peerSessionParams?: SessionParametersWithDurations;
     resumptionRecord?: ResumptionRecord;
 
     #localResumptionId?: Bytes;
@@ -322,7 +322,7 @@ class Sigma1Context {
         crypto: Crypto,
         messenger: CaseServerMessenger,
         bytes: Bytes,
-        sigma1: TypeFromSchema<typeof TlvCaseSigma1>,
+        sigma1: CaseSigma1,
         resumptionRecord?: ResumptionRecord,
     ) {
         this.crypto = crypto;

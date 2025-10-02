@@ -261,7 +261,11 @@ export class ExchangeManager {
 
             // Having a "Secure Session" means it is encrypted in our internal working
             // TODO When adding Group sessions, we need to check how to adjust that handling
-            if (protocolHandler !== undefined && protocolHandler.requiresSecureSession !== session.isSecure) {
+            if (
+                protocolHandler !== undefined &&
+                protocolHandler.requiresSecureSession !== session.isSecure &&
+                !isStandaloneAck
+            ) {
                 logger.debug(
                     `Ignoring message ${messageId} for protocol ${message.payloadHeader.protocolId} and exchange id ${message.payloadHeader.exchangeId} on channel ${channel.name} because not matching the security requirements.`,
                 );
@@ -313,7 +317,7 @@ export class ExchangeManager {
                         );
                     }
                     return;
-                } else {
+                } else if (!isStandaloneAck) {
                     logger.info(
                         `Discarding unexpected message ${messageId} for protocol ${
                             message.payloadHeader.protocolId
@@ -416,7 +420,11 @@ export class ExchangeManager {
         channel: MessageChannel,
         expectedProcessingTime = DEFAULT_EXPECTED_PROCESSING_TIME,
     ) {
-        return channel.calculateMaximumPeerResponseTime(this.#sessionManager.sessionParameters, expectedProcessingTime);
+        return channel.calculateMaximumPeerResponseTime(
+            channel.session.parameters,
+            this.#sessionManager.sessionParameters,
+            expectedProcessingTime,
+        );
     }
 
     #messageExchangeContextFor(channel: MessageChannel): MessageExchangeContext {
