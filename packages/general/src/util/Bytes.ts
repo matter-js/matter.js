@@ -123,7 +123,7 @@ export namespace Bytes {
     }
 
     export function fromString(string: string | Bytes): Bytes {
-        if (typeof string !== "string") {
+        if (Bytes.isBytes(string)) {
             return string;
         }
 
@@ -131,7 +131,7 @@ export namespace Bytes {
     }
 
     export function toString(bytes: string | Bytes): string {
-        if (typeof bytes === "string") {
+        if (!Bytes.isBytes(bytes)) {
             return bytes;
         }
 
@@ -173,4 +173,6 @@ export namespace Bytes {
         }
         return result;
     }
+
+    export const empty = new Uint8Array();
 }
