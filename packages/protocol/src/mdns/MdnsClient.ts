@@ -981,8 +981,7 @@ export class MdnsClient implements Scanner {
         if (this.#closing) return;
 
         if (message === undefined) return; // The message cannot be parsed
-        if (message.messageType !== DnsMessageType.Response && message.messageType !== DnsMessageType.TruncatedResponse)
-            return;
+        if (!DnsMessageType.isResponse(message.messageType)) return;
 
         const answers = this.#structureAnswers([...message.answers, ...message.additionalRecords]);
 
