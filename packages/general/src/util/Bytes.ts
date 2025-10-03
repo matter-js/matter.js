@@ -122,8 +122,20 @@ export namespace Bytes {
         return fromHex(result);
     }
 
-    export function fromString(string: string): Bytes {
+    export function fromString(string: string | Bytes): Bytes {
+        if (typeof string !== "string") {
+            return string;
+        }
+
         return new TextEncoder().encode(string);
+    }
+
+    export function toString(bytes: string | Bytes): string {
+        if (typeof bytes === "string") {
+            return bytes;
+        }
+
+        return new TextDecoder().decode(bytes);
     }
 
     export function concat(...arrays: Bytes[]): Bytes {
