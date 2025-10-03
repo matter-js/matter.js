@@ -11,7 +11,7 @@ import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { NetworkRuntime } from "#behavior/system/network/NetworkRuntime.js";
 import { Agent } from "#endpoint/Agent.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
-import { Identity, Lifecycle, MaybePromise } from "#general";
+import { Diagnostic, Identity, Lifecycle, Logger, MaybePromise } from "#general";
 import { Interactable, OccurrenceManager, PeerAddress } from "#protocol";
 import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
 import { RemoteWriter } from "#storage/client/RemoteWriter.js";
@@ -21,6 +21,8 @@ import { ClientEndpointInitializer } from "./client/ClientEndpointInitializer.js
 import { ClientNodeInteraction } from "./client/ClientNodeInteraction.js";
 import { Node } from "./Node.js";
 import type { ServerNode } from "./ServerNode.js";
+
+const logger = Logger.get("ClientNode");
 
 /**
  * A remote Matter {@link Node}.
@@ -205,6 +207,12 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
 
         // Fall back to persistence ID
         return super.identity;
+    }
+
+    protected override statusUpdate(message: string): void {
+        // Log client node status updates as info rather than notice and change the log facility to make clear it's a
+        // client
+        logger.info(Diagnostic.strong(this.toString()), message);
     }
 }
 
