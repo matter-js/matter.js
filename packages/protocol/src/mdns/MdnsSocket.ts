@@ -72,7 +72,7 @@ export class MdnsSocket {
     }
 
     async send(message: Partial<DnsMessage> & { messageType: DnsMessageType }, intf?: string, unicastDest?: string) {
-        let { messageType } = message;
+        const { messageType } = message;
         // When we send Queries that are too long they need to have the Truncated flag set
         const truncatedMessageType = DnsMessageType.isQuery(messageType)
             ? messageType | DnsMessageTypeFlag.TC
