@@ -43,7 +43,7 @@ jobs:
   # Determine whether we should run and/or build new CHIP container
   workflow-conditions:
     runs-on: ubuntu-latest
-    if: github.repository == 'matter-js/matter' || github.repository == 'lauckhart/matter.js'
+    if: github.repository == 'matter-js/matter.js' || github.repository == 'lauckhart/matter.js'
     outputs:
       build-needed: ${{ steps.check-rebuild.outputs.build-needed }}
     steps:

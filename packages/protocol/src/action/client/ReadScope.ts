@@ -24,6 +24,11 @@ export interface ReadScope {
      * This is useful to determine if the cluster's version should be updated in response to a read.
      */
     isWildcard(endpoint: EndpointNumber, cluster: ClusterId): boolean;
+
+    /**
+     * Was the read returned data filtered by fabric?
+     */
+    isFabricFiltered: boolean;
 }
 
 interface Check {
@@ -41,6 +46,8 @@ export function ReadScope(read: Read): ReadScope {
             this.isWildcard = generateScopeTester(read, "all");
             return this.isWildcard(endpoint, cluster);
         },
+
+        isFabricFiltered: read.isFabricFiltered ?? true,
     };
 }
 

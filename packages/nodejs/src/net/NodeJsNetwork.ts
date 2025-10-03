@@ -34,23 +34,32 @@ export class NodeJsNetwork extends Network {
         return undefined;
     }
 
-    static getMembershipMulticastInterfaces(netInterface: string | undefined, ipv4: boolean): (string | undefined)[] {
+    static getMembershipMulticastInterfaces(
+        netInterfaceOrZone: string | undefined,
+        ipv4: boolean,
+    ): (string | undefined)[] {
         if (ipv4) {
             return [undefined];
         } else {
-            let networkInterfaceEntries = Object.entries(networkInterfaces());
-            if (netInterface !== undefined) {
-                networkInterfaceEntries = networkInterfaceEntries.filter(([name]) => name === netInterface);
-            }
-            const multicastInterfaces = networkInterfaceEntries.flatMap(([netInterface, netInterfaceInfo]) => {
-                if (netInterfaceInfo === undefined) return [];
-                const zone = this.getNetInterfaceZoneIpv6Internal(netInterface, netInterfaceInfo);
-                return zone === undefined ? [] : [`::%${zone}`];
+            const multicastInterfaces = Object.entries(networkInterfaces()).flatMap(([netIf, netIfInfo]) => {
+                if (netIfInfo === undefined) {
+                    return [];
+                }
+                const zone = this.getNetInterfaceZoneIpv6Internal(netIf, netIfInfo);
+                if (zone === undefined) {
+                    return [];
+                }
+                // zone is either the interface scope id (windows) or the interface name (linux, macos)
+                // The potentially provided interface follows the same logic because it was pre-processed
+                if (netInterfaceOrZone !== undefined && netInterfaceOrZone !== zone) {
+                    return [];
+                }
+                return [`::%${zone}`];
             });
             if (multicastInterfaces.length === 0) {
                 logger.warn(
                     `No IPv6 multicast interface found${
-                        netInterface !== undefined ? ` for interface ${netInterface}` : ""
+                        netInterfaceOrZone !== undefined ? ` for interface ${netInterfaceOrZone}` : ""
                     }.`,
                 );
             }

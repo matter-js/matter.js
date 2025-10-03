@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ReadScope } from "#action/client/ReadScope.js";
 import { Construction, MaybePromise } from "#general";
 import { DecodedAttributeReportValue } from "#interaction/AttributeDataDecoder.js";
 import { AttributeId, ClusterId, EndpointNumber, EventNumber } from "#types";
@@ -27,7 +28,7 @@ export abstract class PeerDataStore {
     abstract maxEventNumber: EventNumber;
     abstract updateLastEventNumber(eventNumber: EventNumber): MaybePromise<void>;
 
-    abstract persistAttributes(attributes: DecodedAttributeReportValue<any>[]): MaybePromise<void>;
+    abstract persistAttributes(attributes: DecodedAttributeReportValue<any>[], scope: ReadScope): MaybePromise<void>;
 
     // TODO: Find a maybe better way to achieve this without functions
     abstract retrieveAttribute(
@@ -41,4 +42,5 @@ export abstract class PeerDataStore {
         filterEndpointId?: EndpointNumber,
         filterClusterId?: ClusterId,
     ): { endpointId: EndpointNumber; clusterId: ClusterId; dataVersion: number }[];
+    abstract cleanupAttributeData(endpointId: EndpointNumber, clusterIds?: ClusterId[]): MaybePromise<void>;
 }

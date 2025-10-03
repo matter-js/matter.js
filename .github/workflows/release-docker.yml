@@ -15,7 +15,7 @@ jobs:
     if: |
       always() &&
       github.event_name == 'pull_request' &&
-      github.repository == 'matter-js/matter' &&
+      github.repository == 'matter-js/matter.js' &&
       contains(github.event.pull_request.labels.*.name, 'automated-docker-release')
     runs-on: ubuntu-latest
     steps:

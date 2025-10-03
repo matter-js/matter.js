@@ -39,7 +39,7 @@ jobs:
   # Find out what is needed to be done by this test workflow
   chip-tests-needed:
     needs: [head-commit-message]
-    if: github.repository == 'matter-js/matter'
+    if: github.repository == 'matter-js/matter.js'
     runs-on: ubuntu-latest
     outputs:
       chip-changes: ${{ steps.changes.outputs.src }}
@@ -130,7 +130,7 @@ jobs:
   # If we need to do anything make sure that chip binaries are build and environment can be set up
   prepare-chip-build:
     needs: [chip-tests-needed]
-    if: ${{ github.repository == 'matter-js/matter' && (needs.chip-tests-needed.outputs.chip-tool-rebuild == 'true' || needs.chip-tests-needed.outputs.chip-tests-required == 'true' || needs.chip-tests-needed.outputs.chip-changes == 'true') }}
+    if: ${{ github.repository == 'matter-js/matter.js' && (needs.chip-tests-needed.outputs.chip-tool-rebuild == 'true' || needs.chip-tests-needed.outputs.chip-tests-required == 'true' || needs.chip-tests-needed.outputs.chip-changes == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
@@ -145,7 +145,7 @@ jobs:
   # Execute the core cluster tests
   chip-tests-core:
     needs: [prepare-chip-build, chip-tests-needed]
-    if: ${{ github.repository == 'matter-js/matter' && (needs.chip-tests-needed.outputs.chip-tool-rebuild == 'true' || needs.chip-tests-needed.outputs.chip-tests-required == 'true' || needs.chip-tests-needed.outputs.chip-changes == 'true') }}
+    if: ${{ github.repository == 'matter-js/matter.js' && (needs.chip-tests-needed.outputs.chip-tool-rebuild == 'true' || needs.chip-tests-needed.outputs.chip-tests-required == 'true' || needs.chip-tests-needed.outputs.chip-changes == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
@@ -177,7 +177,7 @@ jobs:
 
   matterjs-tests-core:
     needs: [prepare-chip-build, chip-tests-needed]
-    if: ${{ github.repository == 'matter-js/matter' && (needs.chip-tests-needed.outputs.chip-tool-rebuild == 'true' || needs.chip-tests-needed.outputs.chip-tests-required == 'true' || needs.chip-tests-needed.outputs.chip-changes == 'true') }}
+    if: ${{ github.repository == 'matter-js/matter.js' && (needs.chip-tests-needed.outputs.chip-tool-rebuild == 'true' || needs.chip-tests-needed.outputs.chip-tests-required == 'true' || needs.chip-tests-needed.outputs.chip-changes == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
@@ -211,7 +211,7 @@ jobs:
   # Execute the fast application cluster tests
   chip-tests-app-fast:
     needs: [prepare-chip-build, chip-tests-needed]
-    if: ${{ github.repository == 'matter-js/matter' && (needs.chip-tests-needed.outputs.chip-tool-rebuild == 'true' || needs.chip-tests-needed.outputs.chip-tests-required == 'true' || needs.chip-tests-needed.outputs.chip-changes == 'true' || needs.chip-tests-needed.outputs.chip-app-tests-required == 'true') }}
+    if: ${{ github.repository == 'matter-js/matter.js' && (needs.chip-tests-needed.outputs.chip-tool-rebuild == 'true' || needs.chip-tests-needed.outputs.chip-tests-required == 'true' || needs.chip-tests-needed.outputs.chip-changes == 'true' || needs.chip-tests-needed.outputs.chip-app-tests-required == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
@@ -244,7 +244,7 @@ jobs:
 
   matterjs-tests-app-fast:
     needs: [prepare-chip-build, chip-tests-needed]
-    if: ${{ github.repository == 'matter-js/matter' && (needs.chip-tests-needed.outputs.chip-tool-rebuild == 'true' || needs.chip-tests-needed.outputs.chip-tests-required == 'true' || needs.chip-tests-needed.outputs.chip-changes == 'true' || needs.chip-tests-needed.outputs.chip-app-tests-required == 'true') }}
+    if: ${{ github.repository == 'matter-js/matter.js' && (needs.chip-tests-needed.outputs.chip-tool-rebuild == 'true' || needs.chip-tests-needed.outputs.chip-tests-required == 'true' || needs.chip-tests-needed.outputs.chip-changes == 'true' || needs.chip-tests-needed.outputs.chip-app-tests-required == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
@@ -280,7 +280,7 @@ jobs:
   # Execute the slower (because simulated) application cluster tests
   chip-tests-app-slow:
     needs: [prepare-chip-build, chip-tests-needed]
-    if: ${{ github.repository == 'matter-js/matter' && (needs.chip-tests-needed.outputs.chip-tool-rebuild == 'true' || needs.chip-tests-needed.outputs.chip-slowapp-tests-required == 'true' || needs.chip-tests-needed.outputs.chip-long-tests-required == 'true') }}
+    if: ${{ github.repository == 'matter-js/matter.js' && (needs.chip-tests-needed.outputs.chip-tool-rebuild == 'true' || needs.chip-tests-needed.outputs.chip-slowapp-tests-required == 'true' || needs.chip-tests-needed.outputs.chip-long-tests-required == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
@@ -314,7 +314,7 @@ jobs:
 
   chip-tests-long:
     needs: [prepare-chip-build, chip-tests-needed]
-    if: ${{ github.repository == 'matter-js/matter' && needs.chip-tests-needed.outputs.chip-long-tests-required == 'true' }}
+    if: ${{ github.repository == 'matter-js/matter.js' && needs.chip-tests-needed.outputs.chip-long-tests-required == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
@@ -344,7 +344,7 @@ jobs:
             '
   matterjs-tests-long:
     needs: [prepare-chip-build, chip-tests-needed]
-    if: ${{ github.repository == 'matter-js/matter' && needs.chip-tests-needed.outputs.chip-long-tests-required == 'true' }}
+    if: ${{ github.repository == 'matter-js/matter.js' && needs.chip-tests-needed.outputs.chip-long-tests-required == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
@@ -375,7 +375,7 @@ jobs:
 
   python-repl-tests-core:
     needs: [prepare-chip-build, chip-tests-needed]
-    if: ${{ github.repository == 'matter-js/matter' && (needs.chip-tests-needed.outputs.chip-tool-rebuild == 'true' || needs.chip-tests-needed.outputs.chip-tests-required == 'true' || needs.chip-tests-needed.outputs.chip-changes == 'true' || needs.chip-tests-needed.outputs.chip-long-tests-required == 'true') }}
+    if: ${{ github.repository == 'matter-js/matter.js' && (needs.chip-tests-needed.outputs.chip-tool-rebuild == 'true' || needs.chip-tests-needed.outputs.chip-tests-required == 'true' || needs.chip-tests-needed.outputs.chip-changes == 'true' || needs.chip-tests-needed.outputs.chip-long-tests-required == 'true') }}
     env:
       TSAN_OPTIONS: "halt_on_error=1 suppressions=scripts/tests/chiptest/tsan-linux-suppressions.txt"
     runs-on: ubuntu-latest

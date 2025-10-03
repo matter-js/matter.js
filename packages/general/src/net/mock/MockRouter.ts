@@ -13,10 +13,17 @@ export interface MockRouter extends MockRouter.Route {
     delete(route: MockRouter.Route): void;
 }
 
-export function MockRouter() {
+export function MockRouter(manipulator?: MockRouter.PacketManipulator): MockRouter {
     const routes = new Set<MockRouter.Route>();
 
     const router = function router(packet: MockRouter.Packet) {
+        if (manipulator) {
+            const manipulatedPacket = manipulator(packet);
+            if (manipulatedPacket === null) {
+                return;
+            }
+            packet = manipulatedPacket;
+        }
         for (const route of routes) {
             try {
                 route(packet);
@@ -45,4 +52,6 @@ export namespace MockRouter {
     export interface Route {
         (packet: Packet): void;
     }
+
+    export type PacketManipulator = (packet: Packet) => Packet | null;
 }
