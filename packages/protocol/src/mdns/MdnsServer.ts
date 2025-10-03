@@ -71,8 +71,8 @@ export class MdnsServer {
         if (records.size === 0) return;
 
         const { sourceIntf, sourceIp, transactionId, messageType, queries, answers: knownAnswers } = message;
-        if (messageType !== DnsMessageType.Query && messageType !== DnsMessageType.TruncatedQuery) return;
-        if (queries.length === 0) return; // No queries to answer, can happen in a TruncatedQuery, let's ignore for now
+        if (!DnsMessageType.isQuery(messageType)) return;
+        if (queries.length === 0) return; // TODO correctly handle TruncatedQueries by waiting and combining multiple queries
         for (const portRecords of records.values()) {
             let answers = queries.flatMap(query => this.#queryRecords(query, portRecords));
             if (answers.length === 0) continue;
