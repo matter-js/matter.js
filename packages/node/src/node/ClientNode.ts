@@ -4,19 +4,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { ClientNetworkRuntime } from "#behavior/system/network/ClientNetworkRuntime.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { NetworkRuntime } from "#behavior/system/network/NetworkRuntime.js";
 import { Agent } from "#endpoint/Agent.js";
+import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
-import { Identity, Lifecycle, MaybePromise } from "#general";
+import { EndpointType } from "#endpoint/type/EndpointType.js";
+import { Identity, ImplementationError, Lifecycle, MaybePromise } from "#general";
+import { FeatureBitmap, Matter, MatterModel } from "#model";
+import { ClientBehavior } from "#node/client/ClientBehavior.js";
 import { Interactable, OccurrenceManager } from "#protocol";
 import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
 import { RemoteWriter } from "#storage/client/RemoteWriter.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
-import { Matter, MatterModel } from "@matter/model";
 import { ClientEndpointInitializer } from "./client/ClientEndpointInitializer.js";
 import { ClientNodeInteraction } from "./client/ClientNodeInteraction.js";
 import { Node } from "./Node.js";
@@ -117,13 +121,13 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
      * This shuts down any active connections and prevents future connections until re-enabled.
      */
     async disable() {
-        if (this.state.network.isDisabled) {
+        if (!this.state.network.isEnabled) {
             return;
         }
 
         await this.lifecycle.mutex.produce(async () => {
             await this.cancelWithMutex();
-            await this.setStateOf(NetworkClient, { isDisabled: true });
+            await this.setStateOf(NetworkClient, { isEnabled: false });
         });
     }
 
@@ -133,12 +137,17 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
      * If the node is disabled but reachable, this brings it online.
      */
     async enable() {
-        if (!this.state.network.isDisabled) {
+        if (this.state.network.isEnabled) {
             return;
         }
 
-        await this.setStateOf(NetworkClient, { isDisabled: false });
-        await this.start();
+        await this.setStateOf(NetworkClient, { isEnabled: true });
+        try {
+            await this.start();
+        } catch (error) {
+            await this.setStateOf(NetworkClient, { isEnabled: false });
+            throw error;
+        }
     }
 
     protected async eraseWithMutex() {
@@ -187,6 +196,55 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         }
 
         return this.#interaction;
+    }
+
+    /**
+     * For nodes where the behavior/cluster structure can not be initialized automatically (e.g. by a subscription) or
+     * when the subscription data misses special clusters, you can use this method to enable a cluster on a specific
+     * endpoint.
+     * The method adds the endpoint, if not existing, and also adds the cluster behavior for the "Complete" variant
+     * (means: all features, commands and attributes) of the cluster to the endpoint, if not already present.
+     */
+    async enableCluster(endpointId: number, type: ClusterBehavior.Type) {
+        let part = this.parts.get(endpointId);
+        const partExisting = part !== undefined;
+        if (part === undefined) {
+            part = new Endpoint({
+                id: `ep${endpointId}`,
+                number: endpointId,
+                type: EndpointType({
+                    name: "ClientEndpoint",
+                    deviceType: -1,
+                    deviceRevision: -1,
+                }),
+            });
+        }
+
+        if (!part.behaviors.has(type)) {
+            const cluster = type.cluster;
+            if (cluster === undefined) {
+                throw new ImplementationError(`ClusterBehavior ${type.name} is not associated with a cluster`);
+            }
+
+            const features: FeatureBitmap = {};
+            Object.keys(cluster.features).forEach(f => (features[f] = true));
+
+            part.behaviors.require(
+                ClientBehavior({
+                    id: cluster.id,
+                    revision: cluster.revision,
+                    features,
+                    attributes: Object.values(cluster.attributes).map(a => a.id),
+                    commands: Object.values(cluster.commands).map(c => c.requestId),
+                    attributeNames: Object.keys(cluster.attributes),
+                    commandNames: Object.keys(cluster.commands),
+                }),
+            );
+        }
+
+        if (!partExisting) {
+            await this.add(part);
+        }
     }
 }
 
