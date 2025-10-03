@@ -1197,14 +1197,19 @@ export class PairedNode {
                 const childEndpointId = EndpointNumber(parseInt(childId));
                 const childEndpoint = this.#endpoints.get(childEndpointId);
                 const parentEndpoint = this.#endpoints.get(usages[0]);
+                const existingChildEndpoint = parentEndpoint?.getChildEndpoint(childEndpointId);
                 if (childEndpoint === undefined || parentEndpoint === undefined) {
                     logger.warn(
                         `Node ${this.nodeId}: Endpoint ${usages[0]} not found in the data received from the device!`,
                     );
-                } else if (parentEndpoint.getChildEndpoint(childEndpointId) === undefined) {
+                } else if (existingChildEndpoint !== childEndpoint) {
                     logger.debug(
                         `Node ${this.nodeId}: Endpoint structure: Child: ${childEndpointId} -> Parent: ${parentEndpoint.number}`,
                     );
+                    if (existingChildEndpoint !== undefined) {
+                        // Child endpoint changed, so we need to remove the old one first
+                        parentEndpoint.removeChildEndpoint(existingChildEndpoint);
+                    }
 
                     parentEndpoint.addChildEndpoint(childEndpoint);
                 }
