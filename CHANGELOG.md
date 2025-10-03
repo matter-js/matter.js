@@ -12,6 +12,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 -   @matter/general
+    - Enhancement: Accept all variants of MDNS responses, also non-authoritative ones
     - Fix: Adds safeguard check to prevent a crash seen when handling DNS messages
 
 -   @matter/nodejs
