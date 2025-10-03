@@ -24,6 +24,7 @@ import {
     NetworkSimulator,
     Seconds,
     Time,
+    TxtRecord,
     UdpChannel,
 } from "#general";
 import {
@@ -1251,6 +1252,68 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                     ),
                 ).deep.equal(undefined);
             });
+        });
+
+        it("the client queries the server record with a truncated query", async () => {
+            const sentData = new Array<Bytes>();
+            const listener = scanListener.onData((_netInterface, _peerAddress, _peerPort, data) => {
+                if (DnsMessageType.isResponse(DnsCodec.decode(data)?.messageType ?? DnsMessageType.Response)) return;
+                if (sentData.some(d => Bytes.areEqual(d, data))) return; // Sort out duplicates
+                sentData.push(data);
+            });
+
+            // Intercept the message to be sent and make it bigger to generate a truncated query
+            const DUMMY_TRX_ID = 0x1234;
+            MockTime.interceptOnce(
+                MdnsSocket.prototype,
+                "send",
+                async res => res,
+                args => {
+                    const message = args[0];
+                    if (message.messageType === DnsMessageType.Query) {
+                        message.transactionId = DUMMY_TRX_ID;
+                        message.answers = [];
+                        for (let i = 0; i < 50; i++) {
+                            message.answers.push(TxtRecord("a.b.c.d", [`A=${i}`]));
+                        }
+                    }
+                    return args;
+                },
+            );
+
+            advertise(OPERATIONAL_SERVICE);
+
+            const findPromise = client.findOperationalDevice(
+                { operationalId: OPERATIONAL_ID } as unknown as Fabric,
+                NODE_ID,
+            );
+
+            await MockTime.resolve(findPromise);
+
+            const initialQuery = DnsCodec.decode(sentData[0]);
+            expect(initialQuery?.transactionId).equal(DUMMY_TRX_ID);
+            expect(initialQuery?.queries).deep.equal([
+                {
+                    name: "0000000000000018-0000000000000001._matter._tcp.local",
+                    recordClass: 1,
+                    recordType: 33,
+                    uniCastResponse: false,
+                },
+            ]);
+            expect(initialQuery?.answers.length).equal(48);
+            expect(initialQuery?.messageType).equal(DnsMessageType.Query | DnsMessageTypeFlag.TC);
+
+            const secondQuery = DnsCodec.decode(sentData[1]);
+            expect(secondQuery?.messageType).equal(DnsMessageType.Query);
+            expect(secondQuery?.transactionId).equal(DUMMY_TRX_ID);
+            expect(secondQuery?.queries).deep.equal([]);
+            expect(secondQuery?.answers.length).equal(2);
+
+            const result = await findPromise;
+
+            expect(result?.addresses).deep.equal(IPIntegrationResultsPort1);
+            await listener.close();
+            await close();
         });
 
         describe("Operational and commissionable discovery", () => {

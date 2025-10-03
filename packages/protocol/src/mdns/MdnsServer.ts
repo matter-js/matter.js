@@ -7,6 +7,7 @@
 import {
     AsyncCache,
     DnsMessageType,
+    DnsMessageTypeFlag,
     DnsRecord,
     DnsRecordType,
     Instant,
@@ -18,6 +19,7 @@ import {
     NetworkInterfaceDetails,
     ObserverGroup,
     Time,
+    Timer,
 } from "#general";
 import { MdnsSocket } from "./MdnsSocket.js";
 
@@ -44,6 +46,7 @@ export class MdnsServer {
         Minutes(15) /* matches maximum standard commissioning window time */,
     );
     readonly #recordLastSentAsMulticastAnswer = new Map<string, number>();
+    readonly #truncatedQueryCache = new Map<string, { message: MdnsSocket.Message; timer: Timer }>();
 
     readonly #socket: MdnsSocket;
 
@@ -64,15 +67,19 @@ export class MdnsServer {
         return `${record.name}-${record.recordClass}-${record.recordType}-${netInterface}-${unicastTarget}`;
     }
 
-    async #handleMessage(message: MdnsSocket.Message) {
-        const records = await this.#records.get(message.sourceIntf);
+    async #handleMessage(incomingMessage: MdnsSocket.Message) {
+        const records = await this.#records.get(incomingMessage.sourceIntf);
 
         // Ignore if we have no records for interface
         if (records.size === 0) return;
 
-        const { sourceIntf, sourceIp, transactionId, messageType, queries, answers: knownAnswers } = message;
-        if (!DnsMessageType.isQuery(messageType)) return;
-        if (queries.length === 0) return; // TODO correctly handle TruncatedQueries by waiting and combining multiple queries
+        const message = this.#prepareMessage(incomingMessage);
+        if (message === undefined) {
+            return;
+        }
+
+        const { sourceIntf, sourceIp, transactionId, queries, answers: knownAnswers } = message;
+
         for (const portRecords of records.values()) {
             let answers = queries.flatMap(query => this.#queryRecords(query, portRecords));
             if (answers.length === 0) continue;
@@ -213,6 +220,10 @@ export class MdnsServer {
     async close() {
         this.#observers.close();
         await this.#records.close();
+        for (const { timer } of this.#truncatedQueryCache.values()) {
+            timer.stop();
+        }
+        this.#truncatedQueryCache.clear();
         this.#recordLastSentAsMulticastAnswer.clear();
     }
 
@@ -227,6 +238,65 @@ export class MdnsServer {
         } else {
             return records.filter(record => record.name === name && record.recordType === recordType);
         }
+    }
+
+    async #processTruncatedQuery(key: string) {
+        const { message, timer } = this.#truncatedQueryCache.get(key) ?? {};
+        this.#truncatedQueryCache.delete(key);
+        timer?.stop();
+        if (message) {
+            if (message.queries.length === 0) {
+                // Should not happen but ignore if it does
+                return;
+            }
+            message.messageType &= ~DnsMessageTypeFlag.TC; // Clear TC flag
+            await this.#handleMessage(message);
+        }
+    }
+
+    /**
+     * Delays processing of truncated messages to allow combining multiple parts or combines them if possible
+     */
+    #prepareMessage(newMessage: MdnsSocket.Message): MdnsSocket.Message | undefined {
+        const { messageType, transactionId, sourceIntf, sourceIp } = newMessage;
+
+        if (!DnsMessageType.isQuery(messageType)) {
+            // We are only interested in queries
+            return;
+        }
+
+        const key = `${transactionId}-${sourceIntf}-${sourceIp}`;
+        const { message: existingMessage, timer } = this.#truncatedQueryCache.get(key) ?? {};
+        this.#truncatedQueryCache.delete(key);
+        timer?.stop();
+
+        const message = existingMessage
+            ? {
+                  ...existingMessage,
+                  queries: [...existingMessage.queries, ...newMessage.queries],
+                  answers: [...existingMessage.answers, ...newMessage.answers],
+                  additionalRecords: [...existingMessage.additionalRecords, ...newMessage.additionalRecords],
+                  messageType: newMessage.messageType, // Keep TC flag as is from the latest message
+              }
+            : newMessage;
+
+        // Message was not truncated, or we have now received all details, process it
+        if ((messageType & DnsMessageTypeFlag.TC) === 0) {
+            if (message.queries.length === 0) {
+                // Should not happen but ignore if it does
+                return;
+            }
+            return message;
+        }
+
+        // We have stored a new or updated truncated message - store and wait for next part
+        // Delay should be max 400-500ms as per RFC 6762 section 7.2
+        this.#truncatedQueryCache.set(key, {
+            message,
+            timer: Time.getTimer(`Truncated MDNS message ${key}`, Millis(400 + Math.floor(Math.random() * 100)), () =>
+                this.#processTruncatedQuery(key),
+            ).start(),
+        });
     }
 }
 
