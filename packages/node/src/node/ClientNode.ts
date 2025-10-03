@@ -12,7 +12,7 @@ import { NetworkRuntime } from "#behavior/system/network/NetworkRuntime.js";
 import { Agent } from "#endpoint/Agent.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { Identity, Lifecycle, MaybePromise } from "#general";
-import { Interactable, OccurrenceManager } from "#protocol";
+import { Interactable, OccurrenceManager, PeerAddress } from "#protocol";
 import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
 import { RemoteWriter } from "#storage/client/RemoteWriter.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
@@ -187,6 +187,24 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         }
 
         return this.#interaction;
+    }
+
+    override get identity() {
+        // If commissioned, use the peer address for logging purposes
+        let address = this.behaviors.maybeStateOf("commissioning")?.peerAddress as PeerAddress | undefined;
+
+        // During early initialization commissioning state may not be loaded, so check directly in storage too
+        if (!address) {
+            address = this.env.get(ClientNodeStore).storeForEndpoint(this).peerAddress as PeerAddress | undefined;
+        }
+
+        // Use the peer address as a log identifier if present
+        if (address) {
+            return PeerAddress(address).toString();
+        }
+
+        // Fall back to persistence ID
+        return super.identity;
     }
 }
 
