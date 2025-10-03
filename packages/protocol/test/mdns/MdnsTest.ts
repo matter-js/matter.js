@@ -154,8 +154,8 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                     listeningAddress: testIpv4Enabled ? SERVER_IPv4 : SERVER_IPv6,
                     type,
                 },
-                paket => {
-                    return scannerManipulator ? scannerManipulator(paket) : paket;
+                packet => {
+                    return scannerManipulator ? scannerManipulator(packet) : packet;
                 },
             );
             (scanListener as any).foo = "scannerChannel";
@@ -170,8 +170,8 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                     listeningAddress: testIpv4Enabled ? CLIENT_IPv4 : CLIENT_IPv6,
                     type,
                 },
-                paket => {
-                    return broadcasterManipulator ? broadcasterManipulator(paket) : paket;
+                packet => {
+                    return broadcasterManipulator ? broadcasterManipulator(packet) : packet;
                 },
             );
             (broadcastListener as any).foo = "broadcasterChannel";
@@ -1192,7 +1192,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                     if (message) {
                         // If Authoritative response turn into unauthoritative answer
                         if (message.messageType === DnsMessageType.Response) {
-                            message.messageType = message.messageType & ~DnsMessageTypeFlag.AA;
+                            message.messageType &= ~DnsMessageTypeFlag.AA;
                             packet.payload = DnsCodec.encode(message);
                             packetManipulated = true;
                         }
