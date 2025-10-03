@@ -22,6 +22,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 -   @project-chip/matter.js
     - Enhancement: Adds events "nodeEndpointAdded/Removed/Changed" (in addition to structureChanged) to PairedNode to allow more detailed tracking of changes
+    - Enhancement: Update cached attribute details while reading them from the device to improve connection performance when multiple reads are needed (e.g. for bad reachable devices) to optimize reconnection performance
     - Fix: Fixes safeguards in CommissioningController when resetting storage
     - Fix: Fixes detection of endpoint removals and cluster topology changes in PairedNode
 
