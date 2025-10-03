@@ -189,6 +189,13 @@ export abstract class BehaviorBacking {
         return this.#datasource;
     }
 
+    /**
+     * Access the datasource if present.
+     */
+    get maybeDatasource() {
+        return this.#datasource;
+    }
+
     protected get datasourceOptions(): Datasource.Options {
         return {
             crypto: this.#endpoint.env.get(Crypto),

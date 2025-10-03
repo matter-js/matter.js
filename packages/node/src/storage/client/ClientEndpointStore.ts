@@ -26,6 +26,13 @@ export class ClientEndpointStore extends EndpointStore {
         return this.#number;
     }
 
+    /**
+     * Shortcut to persisted peer address so we can use in logging prior to full initialization.
+     */
+    get peerAddress() {
+        return this.initialValues.get("commissioning")?.["peerAddress"];
+    }
+
     participantFor(transaction: Transaction) {
         let participant = transaction.getParticipant(this.#owner);
         if (participant === undefined) {
