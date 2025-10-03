@@ -23,7 +23,7 @@ on:
         type: boolean
 jobs:
   publish-config:
-    if: github.repository == 'matter-js/matter'
+    if: github.repository == 'matter-js/matter.js'
     runs-on: ubuntu-latest
 
     steps:
