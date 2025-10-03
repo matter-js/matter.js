@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export * from "./Abort.js";
 export * from "./Array.js";
 export * from "./Boot.js";
 export * from "./Bytes.js";
