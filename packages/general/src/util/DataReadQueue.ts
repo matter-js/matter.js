@@ -11,9 +11,9 @@ import { Minutes } from "#time/TimeUnit.js";
 import { MatterFlowError } from "../MatterError.js";
 import { Time, Timer } from "../time/Time.js";
 import { createPromise } from "./Promises.js";
-import { EndOfStreamError, NoResponseTimeoutError, Stream } from "./Stream.js";
+import { EndOfStreamError, NoResponseTimeoutError } from "./Streams.js";
 
-export class DataReadQueue<T> implements Stream<T> {
+export class DataReadQueue<T> {
     readonly #queue = new Array<T>();
     #pendingRead?: { resolver: (data: T) => void; rejecter: (reason: any) => void; timeoutTimer?: Timer };
     #closed = false;

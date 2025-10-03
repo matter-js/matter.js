@@ -30,6 +30,6 @@ export * from "./PromiseQueue.js";
 export * from "./Promises.js";
 export * from "./Set.js";
 export * from "./Singleton.js";
-export * from "./Stream.js";
+export * from "./Streams.js";
 export * from "./String.js";
 export * from "./Type.js";
