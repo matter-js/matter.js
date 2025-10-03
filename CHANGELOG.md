@@ -21,7 +21,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ignoring existing Pase sessions in closing state when establishing a new PASE session
 
 -   @project-chip/matter.js
+    - Enhancement: Adds events "nodeEndpointAdded/Removed/Changed" (in addition to structureChanged) to PairedNode to allow more detailed tracking of changes
     - Fix: Fixes safeguards in CommissioningController when resetting storage
+    - Fix: Fixes detection of endpoint removals and cluster topology changes in PairedNode
 
 ## 0.15.4 (2025-09-20)
 

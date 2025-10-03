@@ -219,7 +219,6 @@ type DescriptorData = AttributeClientValues<typeof Descriptor.Complete.attribute
  * it uses Sets to prevent duplicate entries and ordering to cause issues if they ever happen.
  */
 function areNumberListsSame(list1: number[], list2: number[]) {
-    logger.debug("Comparing number lists", list1, "vs.", list2);
     const set1 = new Set(list1);
     const set2 = new Set(list2);
     if (set1.size !== set2.size) return false;
