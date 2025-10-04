@@ -30,6 +30,10 @@ export function Write(options: Write.Options, ...data: Write.Attribute[]): Write
 export function Write(...data: Write.Attribute[]): Write;
 
 export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: Write.Attribute[]): Write {
+    if (optionsOrData === undefined) {
+        throw new MalformedRequestError(`Write action must have options or data`);
+    }
+
     let options;
     if ("kind" in optionsOrData) {
         data = [optionsOrData, ...data];

@@ -34,6 +34,10 @@ export function Read(options: Read.Options, ...selectors: Read.Selector[]): Read
 export function Read(...selectors: Read.Selector[]): Read;
 
 export function Read(optionsOrSelector: Read.Options | Read.Selector, ...selectors: Read.Selector[]): Read {
+    if (optionsOrSelector === undefined) {
+        throw new MalformedRequestError(`Read action designates no attributes or events`);
+    }
+
     let options;
     if ("kind" in optionsOrSelector) {
         selectors = [optionsOrSelector, ...selectors];

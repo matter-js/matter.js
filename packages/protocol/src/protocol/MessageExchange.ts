@@ -507,7 +507,7 @@ export class MessageExchange {
                 if (finalWaitTime > 0) {
                     this.#retransmissionCounter--; // We will not resubmit the message again
                     logger.debug(
-                        `Message ${message.packetHeader.messageId}: Wait additional ${finalWaitTime}ms for processing time and peer resubmissions after all our resubmissions`,
+                        `Message ${message.packetHeader.messageId}: Wait additional ${Duration.format(finalWaitTime)} for processing time and peer resubmissions after all our resubmissions`,
                     );
                     this.#retransmissionTimer = Time.getTimer(
                         `Message wait time after resubmissions ${message.packetHeader.messageId}`,
@@ -537,7 +537,7 @@ export class MessageExchange {
         this.context.retry(this.#retransmissionCounter);
         const resubmissionBackoffTime = this.channel.getMrpResubmissionBackOffTime(this.#retransmissionCounter);
         logger.debug(
-            `Resubmit message ${message.packetHeader.messageId} (retransmission attempt ${this.#retransmissionCounter}, backoff time ${resubmissionBackoffTime}ms))`,
+            `Resubmit message ${message.packetHeader.messageId} (retransmission attempt ${this.#retransmissionCounter}, backoff time ${Duration.format(resubmissionBackoffTime)}))`,
         );
 
         this.channel
