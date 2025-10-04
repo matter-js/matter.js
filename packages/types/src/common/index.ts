@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export * from "./ModelBounds.js";
 export * from "./ProductDescription.js";
 export * from "./StatusCode.js";
 export * from "./StatusResponseError.js";
