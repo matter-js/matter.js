@@ -21,7 +21,6 @@ import {
     InternalError,
     Lifespan,
     Logger,
-    MaybePromise,
     Millis,
     Minutes,
     ObserverGroup,
@@ -142,7 +141,7 @@ export class MdnsClient implements Scanner {
         string,
         {
             resolver: (value: any) => void;
-            responder?: () => MaybePromise<any>;
+            responder?: () => any;
             timer?: Timer;
             resolveOnUpdatedRecords: boolean;
             cancelResolver?: (value: void) => void;
@@ -406,7 +405,7 @@ export class MdnsClient implements Scanner {
         queryId: string,
         commissionable: boolean,
         timeout: Duration | undefined,
-        responder?: () => MaybePromise<T>,
+        responder?: () => T,
         resolveOnUpdatedRecords = true,
         cancelResolver?: (value: void) => void,
     ): Promise<T> {
@@ -451,15 +450,7 @@ export class MdnsClient implements Scanner {
         logger.debug(`Finishing waiter for query ${queryId}, resolving: ${resolvePromise}`);
         timer?.stop();
         if (resolvePromise) {
-            const response = responder?.();
-            if (MaybePromise.is(response)) {
-                response.then(resolver, err => {
-                    logger.warn(`Waiter responder for query ${queryId} failed: ${err}`);
-                    resolver(undefined);
-                });
-            } else {
-                resolver(response);
-            }
+            resolver(responder?.());
         }
         this.#recordWaiters.delete(queryId);
         this.#removeQuery(queryId);
