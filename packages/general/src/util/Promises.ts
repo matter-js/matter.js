@@ -286,4 +286,117 @@ export const MaybePromise = {
     [Symbol.toStringTag]: "MaybePromise",
 };
 
+/**
+ * A recurring promise.
+ *
+ * A gate is duck-compatible with {@link Promise} and includes resolution methods on its public API.
+ *
+ * As an extension to normal promise semantics, a gate may be "opened" or "closed".  {@link open} provides multi-
+ * resolution so that future awaits return a new value.  {@link close} returns the promise to an unsettled state so that
+ * future awaits block.
+ *
+ * This is useful for basic synchronization of two tightly coupled ongoing tasks.
+ */
+export class Gate<T = void> implements Promise<T> {
+    #promise: Promise<T>;
+    #resolve: (value: T) => void;
+    #reject: (reason: any) => void;
+    #resolvedAs: unknown;
+    #isResolved = false;
+    #isRejected = false;
+
+    constructor() {
+        let resolve: (value: T) => void;
+        let reject: (reason: any) => void;
+
+        this.#promise = new Promise<T>((res, rej) => {
+            resolve = res;
+            reject = rej;
+        });
+
+        this.#resolve = resolve!;
+        this.#reject = reject!;
+    }
+
+    /**
+     * Move to resolved state with the specified value.
+     */
+    open(value: T) {
+        if (this.#isResolved) {
+            if (this.#resolvedAs === value) {
+                return;
+            }
+
+            this.#resolvedAs = value;
+            this.#promise = Promise.resolve(value);
+            return;
+        }
+
+        if (this.#isRejected) {
+            this.#resolvedAs = value;
+            this.#isResolved = true;
+            this.#isRejected = false;
+            this.#promise = Promise.resolve(value);
+            return;
+        }
+
+        this.resolve(value);
+    }
+
+    /**
+     * Move to unresolved state.
+     */
+    close() {
+        if (!this.#isResolved && !this.#isRejected) {
+            return;
+        }
+
+        this.#isResolved = this.#isRejected = false;
+        this.#promise = new Promise((resolve, reject) => {
+            this.#resolve = resolve;
+            this.#reject = reject;
+        });
+    }
+
+    /**
+     * Perform normal promise resolution.  Ignored if promise is already settled.
+     */
+    resolve(value: T) {
+        if (this.#isResolved || this.#isRejected) {
+            return;
+        }
+        this.#resolvedAs = value;
+        this.#isResolved = true;
+        this.#resolve(value);
+    }
+
+    /**
+     * Perform normal promise rejection.  Ignored if promise is already settled.
+     */
+    reject(cause: any) {
+        if (this.#isResolved || this.#isRejected) {
+            return;
+        }
+        this.#isRejected = true;
+        this.#reject(cause);
+    }
+
+    then<TResult1 = T, TResult2 = never>(
+        resolve?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
+        reject?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
+    ) {
+        return this.#promise.then(resolve, reject);
+    }
+
+    catch<TResult = never>(reject?: ((reason: any) => TResult | PromiseLike<TResult>) | null) {
+        return this.#promise.catch(reject);
+    }
+
+    finally(then?: (() => void) | null) {
+        return this.#promise.finally(then);
+    }
+
+    [Symbol.toStringTag] = Promise.prototype[Symbol.toStringTag];
+}
+
 MaybePromise.toString = () => "MaybePromise";
