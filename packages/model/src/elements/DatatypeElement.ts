@@ -43,9 +43,8 @@ export namespace DatatypeElement {
     /**
      * Convert a TypeScript enum to Matter enum values.
      *
-     * Matter enums include conformance and other metadata.  They may also have
-     * multiple definitions of the same value selectable by conformance.  So
-     * we can't use a TypeScript enum directly.
+     * Matter enums include conformance and other metadata.  They may also have multiple definitions of the same value
+     * selectable by conformance.  So we can't use a TypeScript enum directly.
      */
     export function ListValues(values: ValueMap): ListValues {
         const result = Array<FieldElement>();
@@ -67,16 +66,14 @@ export namespace DatatypeElement {
     }
 
     /**
-     * We express enum values as IntElements as this gives us conformance
-     * and other metadata.
+     * We express enum values as IntElements as this gives us conformance and other metadata.
      */
     export type ListValues = FieldElement[];
 
     /**
-     * Per the Matter specification, enums are named integers.  The following
-     * allows TypeScript enums to be supplied for translation into Matter
-     * enums.  To do so, we must accept both numeric and string values.  For
-     * generating the Matter enum we ignore the string keys.
+     * Per the Matter specification, enums are named integers.  The following allows TypeScript enums to be supplied for
+     * translation into Matter enums.  To do so, we must accept both numeric and string values.  For generating the
+     * Matter enum we ignore the string keys.
      */
     export type ValueMap = { [name: string]: number | string };
 }

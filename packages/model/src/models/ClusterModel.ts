@@ -5,6 +5,7 @@
  */
 
 import { camelize, describeList } from "#general";
+import { ModelIndex } from "#logic/ModelIndex.js";
 import { ModelTraversal } from "#logic/ModelTraversal.js";
 import { Access } from "../aspects/Access.js";
 import { Quality } from "../aspects/Quality.js";
@@ -40,19 +41,23 @@ export class ClusterModel extends ScopeModel<ClusterElement, ClusterModel.Child>
     }
 
     get attributes() {
-        return this.scope.membersOf(this, { tags: [ElementTag.Attribute] }) as AttributeModel[];
+        return this.scope.membersOf(this, { tags: [ElementTag.Attribute] }) as ModelIndex<AttributeModel>;
     }
 
     get commands() {
-        return this.scope.membersOf(this, { tags: [ElementTag.Command] }) as CommandModel[];
+        return this.scope.membersOf(this, { tags: [ElementTag.Command] }) as ModelIndex<CommandModel>;
     }
 
     get events() {
-        return this.scope.membersOf(this, { tags: [ElementTag.Event] }) as EventModel[];
+        return this.scope.membersOf(this, { tags: [ElementTag.Event] }) as ModelIndex<EventModel>;
     }
 
     get datatypes() {
-        return this.scope.membersOf(this, { tags: [ElementTag.Datatype] }) as DatatypeModel[];
+        return this.scope.membersOf(this, { tags: [ElementTag.Datatype] }) as ModelIndex<DatatypeModel>;
+    }
+
+    get conformant() {
+        return new ClusterModel.Conformant(this);
     }
 
     get classification(): ClusterElement.Classification | undefined {
@@ -79,11 +84,9 @@ export class ClusterModel extends ScopeModel<ClusterElement, ClusterModel.Child>
      * Get attributes, commands and events whether inherited or defined directly in this model.
      */
     get allAces() {
-        return this.scope.membersOf(this, { tags: [ElementTag.Attribute, ElementTag.Command, ElementTag.Event] }) as (
-            | AttributeModel
-            | CommandModel
-            | EventModel
-        )[];
+        return this.scope.membersOf(this, {
+            tags: [ElementTag.Attribute, ElementTag.Command, ElementTag.Event],
+        }) as ModelIndex<AttributeModel | CommandModel | EventModel>;
     }
 
     get revision() {
@@ -193,4 +196,74 @@ export namespace ClusterModel {
 
         // Fields are not cluster children in canonical schema but we allow them as private values in operational schema
         | FieldModel;
+
+    /**
+     * A conformant view of {@link ClusterModel} child indices properties.
+     */
+    export class Conformant {
+        #model: ClusterModel;
+
+        constructor(model: ClusterModel) {
+            this.#model = model;
+        }
+
+        /**
+         * The cluster's conformant attributes.
+         */
+        get attributes() {
+            return this.#model.scope.membersOf(this.#model, {
+                tags: [ElementTag.Attribute],
+                conformance: "conformant",
+            }) as ModelIndex<AttributeModel>;
+        }
+
+        /**
+         * The cluster's conformant properties (includes fields and attributes).
+         *
+         * This offers compatibility with the equivalent field for ValueModel.  It is useful when treating a cluster as
+         * a struct.
+         */
+        get properties() {
+            return this.#model.scope.membersOf(this.#model, {
+                tags: [ElementTag.Attribute, ElementTag.Field],
+                conformance: "conformant",
+            }) as ModelIndex<AttributeModel | FieldModel>;
+        }
+
+        /**
+         * The cluster's conformant fields.
+         *
+         * Fields are not formally allowed on clusters but we allow for extensions that should not be served via the
+         * Matter protocol.
+         *
+         * This is primarily here to allow simplified access to fields in contexts where a variable is typed as a
+         * ClusterModel or ValueModel.
+         */
+        get fields() {
+            return this.#model.scope.membersOf(this.#model, {
+                tags: [ElementTag.Field],
+                conformance: "conformant",
+            }) as ModelIndex<FieldModel>;
+        }
+
+        /**
+         * The cluster's conformant commands.
+         */
+        get commands() {
+            return this.#model.scope.membersOf(this.#model, {
+                tags: [ElementTag.Command],
+                conformance: "conformant",
+            }) as ModelIndex<CommandModel>;
+        }
+
+        /**
+         * The cluster's conformant events.
+         */
+        get events() {
+            return this.#model.scope.membersOf(this.#model, {
+                tags: [ElementTag.Event],
+                conformance: "conformant",
+            }) as ModelIndex<EventModel>;
+        }
+    }
 }

@@ -8,11 +8,11 @@ import { camelize, InternalError } from "#general";
 import {
     AttributeModel,
     ClusterModel,
-    ElementTag,
     FeatureMap,
     FeatureSet,
     Matter,
     Model,
+    ModelIndex,
     Schema,
     Scope,
     ValueModel,
@@ -59,7 +59,7 @@ export class RootSupervisor implements ValueSupervisor {
     #rootSchema: Schema;
     #root: ValueSupervisor;
     #memberNames?: Set<string>;
-    #attributeNamesToIds?: Map<string, AttributeId>; // Whenever we need more than Attributes and Fields, we need to generalize
+    #propertyNamesAndIds?: Map<string, AttributeId | undefined>;
 
     /**
      * Create a new supervisor.
@@ -86,12 +86,20 @@ export class RootSupervisor implements ValueSupervisor {
     /**
      * Obtain the supervisor for schema.  The result is cached.
      */
-    static for(schema: Schema) {
+    static for<T extends Schema | undefined>(
+        schema: T,
+    ): T extends undefined ? RootSupervisor | undefined : RootSupervisor {
+        if (!schema) {
+            return undefined as any;
+        }
+
         if (cache.has(schema)) {
             return cache.get(schema)!;
         }
+
         const supervisor = new RootSupervisor(schema);
         cache.set(schema, supervisor);
+
         return supervisor;
     }
 
@@ -168,17 +176,14 @@ export class RootSupervisor implements ValueSupervisor {
         return persistent;
     }
 
-    get attributeNamesToIds() {
-        let names = this.#attributeNamesToIds;
+    get propertyNamesAndIds() {
+        let names = this.#propertyNamesAndIds;
         if (!names) {
             names = new Map();
             for (const member of this.#members) {
-                if (member.id === undefined || member.tag !== ElementTag.Attribute) {
-                    continue;
-                }
-                names.set(camelize(member.name), AttributeId(member.id));
+                names.set(camelize(member.name), member.id as AttributeId | undefined);
             }
-            this.#attributeNamesToIds = names;
+            this.#propertyNamesAndIds = names;
         }
         return names;
     }
@@ -188,7 +193,7 @@ export class RootSupervisor implements ValueSupervisor {
      *
      * The {@link Scope.ConformanceMode} defaults to "deconflicted" if you do not override.
      */
-    membersOf<T extends Schema>(schema: T, options: Scope.MemberOptions = {}): Model.ChildOf<T>[] {
+    membersOf<T extends Schema>(schema: T, options: Scope.MemberOptions = {}): ModelIndex<Model.ChildOf<T>> {
         if (options.conformance === undefined) {
             options = { ...options, conformance: "deconflicted" };
         }

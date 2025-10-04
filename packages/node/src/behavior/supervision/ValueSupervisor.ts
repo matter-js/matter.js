@@ -54,7 +54,7 @@ export interface ValueSupervisor {
     readonly manage: ValueSupervisor.Manage;
 
     /**
-     * Apply changes.  Does not validate perform validation.
+     * Apply changes.  Does not perform validation.
      */
     readonly patch: ValueSupervisor.Patch;
 
