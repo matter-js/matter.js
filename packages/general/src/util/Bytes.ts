@@ -122,8 +122,20 @@ export namespace Bytes {
         return fromHex(result);
     }
 
-    export function fromString(string: string): Bytes {
+    export function fromString(string: string | Bytes): Bytes {
+        if (Bytes.isBytes(string)) {
+            return string;
+        }
+
         return new TextEncoder().encode(string);
+    }
+
+    export function toString(bytes: string | Bytes): string {
+        if (!Bytes.isBytes(bytes)) {
+            return bytes;
+        }
+
+        return new TextDecoder().decode(bytes);
     }
 
     export function concat(...arrays: Bytes[]): Bytes {
@@ -161,4 +173,6 @@ export namespace Bytes {
         }
         return result;
     }
+
+    export const empty = new Uint8Array();
 }

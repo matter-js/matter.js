@@ -19,6 +19,7 @@ import {
     describeList,
     Diagnostic,
     EventEmitter,
+    Immutable,
     ImplementationError,
     Lifecycle,
     Logger,
@@ -555,6 +556,14 @@ export class Behaviors {
         }
 
         return elements;
+    }
+
+    /**
+     * Access the state view of a behavior if loaded.
+     */
+    maybeStateOf(behaviorId: string): Immutable<Val.Struct> | undefined {
+        const backing = this.#backings[behaviorId];
+        return backing?.maybeDatasource?.view;
     }
 
     [Symbol.iterator]() {
