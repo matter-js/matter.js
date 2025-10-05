@@ -258,7 +258,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
         return this.#interactionQueue;
     }
 
-    async connect(address: PeerAddress, options: PeerConnectionOptions & { operationalAddress?: ServerAddressIp }) {
+    async connect(address: PeerAddress, options: PeerConnectionOptions & { operationalAddress?: ServerAddressUdp }) {
         await this.#ensureConnection(address, { ...options, allowUnknownPeer: true });
     }
 
