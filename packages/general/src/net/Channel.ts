@@ -3,7 +3,7 @@
  * Copyright 2022-2025 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { ServerAddressIp } from "#net/ServerAddress.js";
+import { ServerAddressUdp } from "#net/ServerAddress.js";
 import { isObject } from "#util/Type.js";
 
 export enum ChannelType {
@@ -32,7 +32,7 @@ export interface Channel<T> {
 }
 
 export interface IpNetworkChannel<T> extends Channel<T> {
-    networkAddress: ServerAddressIp;
+    networkAddress: ServerAddressUdp;
 }
 
 export function isIpNetworkChannel<T>(channel: Channel<T>): channel is IpNetworkChannel<T> {

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { deepCopy, isIpNetworkChannel, Logger, MatterError, MaybePromise, Seconds, ServerAddressIp } from "#general";
+import { deepCopy, isIpNetworkChannel, Logger, MatterError, MaybePromise, Seconds, ServerAddressUdp } from "#general";
 import { DatatypeModel, FieldElement } from "#model";
 import { InteractionServer, PeerSubscription } from "#node/server/InteractionServer.js";
 import { ServerSubscription } from "#node/server/ServerSubscription.js";
@@ -151,7 +151,7 @@ export class SubscriptionsBehavior extends Behavior {
         const { fabricIndex, nodeId } = peerAddress;
 
         // TODO Remove when we store peer addresses also for operational nodes
-        let operationalAddress: ServerAddressIp | undefined;
+        let operationalAddress: ServerAddressUdp | undefined;
         try {
             const channel = this.env.get(ChannelManager).getChannel(peerAddress, session).channel;
             operationalAddress = isIpNetworkChannel(channel) ? channel.networkAddress : undefined;

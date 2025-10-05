@@ -27,7 +27,7 @@ export namespace Environmental {
      *
      * A "factory" is just a class with a static {@link create} method that performs instantiation.
      */
-    export interface Factory<T extends object> {
+    export interface Factory<T extends object = object> {
         new (...args: any[]): T;
 
         /**

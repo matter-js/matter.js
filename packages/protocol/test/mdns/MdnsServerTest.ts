@@ -10,6 +10,7 @@ import {
     DnsCodec,
     DnsMessage,
     DnsMessageType,
+    DnsMessageTypeFlag,
     DnsRecord,
     DnsRecordClass,
     DnsRecordType,
@@ -71,7 +72,7 @@ describe("MdnsServer", () => {
     });
 
     describe("Server responds to standard queries for different types", () => {
-        it("server responds to an ANY query", async () => {
+        it(`server responds to an ANY query with different Query messageTypes (Query)`, async () => {
             const responses = new Array<{ message?: DnsMessage; netInterface?: string; uniCastTarget?: string }>();
             onResponse = async (message: Bytes, netInterface?: string, uniCastTarget?: string) => {
                 responses.push({ message: DnsCodec.decode(message), netInterface, uniCastTarget });
@@ -93,6 +94,52 @@ describe("MdnsServer", () => {
             );
 
             await MockTime.yield3();
+
+            expect(responses).deep.equal([
+                {
+                    message: {
+                        transactionId: 0,
+                        messageType: DnsMessageType.Response,
+                        answers: [
+                            PtrRecord(DUMMY_QNAME, "abcd"),
+                            SrvRecord(DUMMY_QNAME, { priority: 0, weight: 0, port: 1234, target: "abcd.local" }),
+                            TxtRecord(DUMMY_QNAME, [`A=1`, `B=2`]),
+                        ],
+                        additionalRecords: [ARecord("abcd.local", DUMMY_IP)],
+                        authorities: [],
+                        queries: [],
+                    },
+                    netInterface: INTERFACE_NAME,
+                    uniCastTarget: undefined,
+                },
+            ]);
+        });
+
+        it(`server responds to an ANY query with different Query messageTypes (Truncated Query)`, async () => {
+            const responses = new Array<{ message?: DnsMessage; netInterface?: string; uniCastTarget?: string }>();
+            onResponse = async (message: Bytes, netInterface?: string, uniCastTarget?: string) => {
+                responses.push({ message: DnsCodec.decode(message), netInterface, uniCastTarget });
+            };
+
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query | DnsMessageTypeFlag.TC,
+                    queries: [
+                        {
+                            name: DUMMY_QNAME,
+                            recordClass: DnsRecordClass.IN,
+                            recordType: DnsRecordType.ANY,
+                        },
+                    ],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+
+            await MockTime.yield3();
+
+            expect(responses.length).equals(0); // Not yet there
+            await MockTime.advance(500);
 
             expect(responses).deep.equal([
                 {
@@ -950,7 +997,7 @@ describe("MdnsServer", () => {
                 {
                     message: {
                         transactionId: 0,
-                        messageType: DnsMessageType.Response,
+                        messageType: DnsMessageType.Response, // No truncation bit set because not relevant for responses
                         answers: recordsAnswers.slice(recordsAnswers.length - 7),
                         additionalRecords: recordsAdditional,
                         authorities: [],

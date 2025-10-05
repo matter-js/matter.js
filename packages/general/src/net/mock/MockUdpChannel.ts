@@ -7,19 +7,24 @@
 import { ChannelType } from "#net/Channel.js";
 import { Bytes } from "#util/Bytes.js";
 import { NetworkError } from "../Network.js";
-import { MAX_UDP_MESSAGE_SIZE, UdpChannel, UdpChannelOptions } from "../UdpChannel.js";
+import { MAX_UDP_MESSAGE_SIZE, UdpChannel, UdpChannelOptions } from "../udp/UdpChannel.js";
 import { MockNetwork } from "./MockNetwork.js";
 import { MockRouter } from "./MockRouter.js";
 
 export class MockUdpChannel implements UdpChannel {
     readonly #host: MockNetwork;
-    readonly #router = MockRouter();
+    readonly #router: MockRouter;
     readonly #sendFrom: string;
     readonly #receiveFrom: Set<string>;
     readonly #listeningPort: number;
     readonly maxPayloadSize = MAX_UDP_MESSAGE_SIZE;
 
-    constructor(network: MockNetwork, { listeningAddress, listeningPort, netInterface, type }: UdpChannelOptions) {
+    constructor(
+        network: MockNetwork,
+        { listeningAddress, listeningPort, netInterface, type }: UdpChannelOptions,
+        packetManipulator?: MockRouter.PacketManipulator,
+    ) {
+        this.#router = MockRouter(packetManipulator);
         const { ipV4, ipV6 } = network.getIpMac(netInterface ?? "fake0");
         let addresses = type === "udp4" ? ipV4 : ipV6;
 

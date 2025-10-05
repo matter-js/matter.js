@@ -7,7 +7,7 @@
 import { ChannelType } from "#net/Channel.js";
 import { isIPv4 } from "../../util/Ip.js";
 import { Network, NetworkError, NetworkInterface, NetworkInterfaceDetails } from "../Network.js";
-import { UdpChannelOptions } from "../UdpChannel.js";
+import { UdpChannelOptions } from "../udp/UdpChannel.js";
 import { MockRouter } from "./MockRouter.js";
 import { MockUdpChannel } from "./MockUdpChannel.js";
 import type { NetworkSimulator } from "./NetworkSimulator.js";

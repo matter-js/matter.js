@@ -215,7 +215,9 @@ export class BasicSet<T, AddT = T> implements ImmutableSet<T>, MutableSet<T, Add
     }
 
     clear() {
-        this.#entries.clear();
+        for (const entry of [...this]) {
+            this.delete(entry);
+        }
     }
 
     get added() {
