@@ -212,9 +212,6 @@ export class CommissioningController {
         if (this.#mdnsScanner === undefined || (this.#storage === undefined && this.#environment === undefined)) {
             throw new ImplementationError("Add the node to the Matter instance before.");
         }
-        if (!this.#started) {
-            throw new ImplementationError("The node needs to be started before interacting with the controller.");
-        }
         return { mdnsScanner: this.#mdnsScanner, storage: this.#storage, environment: this.#environment };
     }
 
