@@ -253,8 +253,9 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
             }
 
             const features: FeatureBitmap = {};
-            Object.keys(cluster.features).forEach(f => (features[f] = true));
-
+            for (const f in cluster.features) {
+                features[f] = true;
+            }
             part.behaviors.require(
                 ClientBehavior({
                     id: cluster.id,
