@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Channel, ChannelType, IpNetworkChannel } from "#net/Channel.js";
+import { ConnectionlessTransport } from "#net/ConnectionlessTransport.js";
+import { Network, NetworkError } from "#net/Network.js";
 import { Bytes } from "#util/Bytes.js";
-import { Channel, ChannelType, IpNetworkChannel } from "./Channel.js";
-import { ConnectionlessTransport } from "./ConnectionlessTransport.js";
-import { Network, NetworkError } from "./Network.js";
-import { ServerAddress, ServerAddressIp } from "./ServerAddress.js";
+import { ServerAddress, ServerAddressUdp } from "../ServerAddress.js";
 import { UdpChannel } from "./UdpChannel.js";
 
 export class UdpInterface implements ConnectionlessTransport {
@@ -88,7 +88,7 @@ export class UdpConnection implements IpNetworkChannel<Bytes> {
         return `${this.type}://[${this.#peerAddress}]:${this.#peerPort}`;
     }
 
-    get networkAddress(): ServerAddressIp {
+    get networkAddress(): ServerAddressUdp {
         return { type: "udp", ip: this.#peerAddress, port: this.#peerPort };
     }
 

@@ -5,8 +5,8 @@
  */
 
 import { MatterError } from "../MatterError.js";
-import { MaybePromise } from "../util/Promises.js";
-import { UdpChannel, UdpChannelOptions } from "./UdpChannel.js";
+import type { MaybePromise } from "../util/Promises.js";
+import type { UdpChannel, UdpChannelOptions } from "./udp/UdpChannel.js";
 
 export class NetworkError extends MatterError {}
 

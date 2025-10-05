@@ -8,9 +8,11 @@ import { Behavior } from "#behavior/Behavior.js";
 import { Events as BaseEvents } from "#behavior/Events.js";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import {
+    Diagnostic,
     Duration,
     ImplementationError,
     isIpNetworkChannel,
+    Logger,
     NotImplementedError,
     Observable,
     ServerAddress,
@@ -46,6 +48,8 @@ import {
 import { ControllerBehavior } from "../controller/ControllerBehavior.js";
 import { NetworkClient } from "../network/NetworkClient.js";
 import { RemoteDescriptor } from "./RemoteDescriptor.js";
+
+const logger = Logger.get("CommissioningClient");
 
 /**
  * Client functionality related to commissioning.
@@ -157,6 +161,13 @@ export class CommissioningClient extends Behavior {
         network.state.startupSubscription = opts.startupSubscription;
         network.state.caseAuthenticatedTags = opts.caseAuthenticatedTags;
 
+        logger.notice(
+            "Commissioned",
+            Diagnostic.strong(this.endpoint.id),
+            "as",
+            Diagnostic.strong(this.endpoint.identity),
+        );
+
         node.lifecycle.commissioned.emit(this.context);
 
         await node.start();
@@ -179,11 +190,22 @@ export class CommissioningClient extends Behavior {
             throw new ImplementationError("Cannot decommission node that is not commissioned");
         }
 
+        const formerAddress = PeerAddress(peerAddress).toString();
+
         const opcreds = this.agent.get(OperationalCredentialsClient);
 
         await opcreds.removeFabric({ fabricIndex: opcreds.state.currentFabricIndex });
 
         this.state.peerAddress = undefined;
+
+        await this.context.transaction.commit();
+
+        logger.info(
+            "Decommissioned",
+            Diagnostic.strong(this.endpoint.id),
+            "formerly",
+            Diagnostic.strong(formerAddress),
+        );
     }
 
     /**

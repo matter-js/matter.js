@@ -5,8 +5,8 @@
  */
 
 import { Bytes, MaybePromise } from "#util/index.js";
-import { ChannelType } from "./Channel.js";
-import { ConnectionlessTransport } from "./ConnectionlessTransport.js";
+import { ChannelType } from "../Channel.js";
+import { ConnectionlessTransport } from "../ConnectionlessTransport.js";
 
 /** @see {@link MatterSpecification.v12.Core} § 4.4.4 */
 export const MAX_UDP_MESSAGE_SIZE = 1280 - 48; // 48 bytes IP and UDP header size for IPv6

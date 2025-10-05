@@ -50,6 +50,7 @@ export class ConnectionlessTransportSet<
         for (const transportInterface of this) {
             await transportInterface.close();
         }
+        this.clear();
     }
 
     /**

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export * from "./Abort.js";
 export * from "./Array.js";
 export * from "./Boot.js";
 export * from "./Bytes.js";
@@ -30,6 +31,6 @@ export * from "./PromiseQueue.js";
 export * from "./Promises.js";
 export * from "./Set.js";
 export * from "./Singleton.js";
-export * from "./Stream.js";
+export * from "./Streams.js";
 export * from "./String.js";
 export * from "./Type.js";

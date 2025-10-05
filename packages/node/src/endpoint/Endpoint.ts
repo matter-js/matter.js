@@ -25,6 +25,7 @@ import { DataModelPath } from "#model";
 import type { Node } from "#node/Node.js";
 import { IdentityService } from "#node/server/IdentityService.js";
 import { ProtocolService } from "#node/server/ProtocolService.js";
+import { Val } from "#protocol";
 import { EndpointNumber } from "#types";
 import { RootEndpoint } from "../endpoints/root.js";
 import { Agent } from "./Agent.js";
@@ -172,13 +173,27 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     }
 
     /**
+     * Current state for a specific behavior ID.
+     */
+    stateOf(type: string): Immutable<Val.Struct>;
+
+    /**
      * Current state for a specific behavior.
      */
-    stateOf<T extends Behavior.Type>(type: T) {
-        if (!this.behaviors.has(type)) {
-            throw new ImplementationError(`Behavior ${type.id} is not supported by ${this}`);
+    stateOf<T extends Behavior.Type>(type: T): Immutable<Behavior.StateOf<T>>;
+
+    stateOf(type: Behavior.Type | string) {
+        if (typeof type === "string") {
+            if (!(type in this.#stateView)) {
+                throw new ImplementationError(`Behavior ${type} is not supported by ${this}`);
+            }
+        } else {
+            if (!this.behaviors.has(type)) {
+                throw new ImplementationError(`Behavior ${type.id} is not supported by ${this}`);
+            }
+            type = type.id;
         }
-        return (this.#stateView as Record<string, unknown>)[type.id] as Immutable<Behavior.StateOf<T>>;
+        return (this.#stateView as Record<string, unknown>)[type];
     }
 
     /**
@@ -659,7 +674,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     }
 
     /**
-     * Erase all persisted data and destroy the node.
+     * Erase all persisted data and destroy the endpoint.
      */
     async delete() {
         await this.erase();
@@ -720,20 +735,28 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      * Path identifying the endpoint in the Matter data model.
      */
     get path(): DataModelPath {
-        let ident;
-        if (this.lifecycle?.hasId) {
-            ident = this.id;
-        } else if (this.lifecycle?.hasNumber) {
-            ident = this.number;
-        } else {
-            ident = "?";
-        }
-
         if (this.#owner) {
-            return this.#owner.path.at(ident, this.#type.name);
+            return this.#owner.path.at(this.identity, this.#type.name);
         }
 
-        return DataModelPath(ident, this.type?.name);
+        return DataModelPath(this.identity, this.type?.name);
+    }
+
+    /**
+     * Diagnostic identity.
+     *
+     * This is an unqualified path segment.
+     */
+    get identity() {
+        if (this.lifecycle?.hasId) {
+            return this.id;
+        }
+
+        if (this.lifecycle?.hasNumber) {
+            return this.number;
+        }
+
+        return "?";
     }
 
     /**

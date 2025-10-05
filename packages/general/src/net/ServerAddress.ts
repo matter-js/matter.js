@@ -9,8 +9,14 @@ import { Duration } from "#time/Duration.js";
 import { Timestamp } from "#time/Timestamp.js";
 import { Seconds } from "#time/TimeUnit.js";
 
-export type ServerAddressIp = {
+export type ServerAddressUdp = {
     type: "udp";
+    ip: string;
+    port: number;
+};
+
+export type ServerAddressTcp = {
+    type: "tcp";
     ip: string;
     port: number;
 };
@@ -28,7 +34,7 @@ export interface Lifespan {
     ttl: Duration;
 }
 
-export type ServerAddress = (ServerAddressIp | ServerAddressBle) & Partial<Lifespan>;
+export type ServerAddress = (ServerAddressUdp | ServerAddressTcp | ServerAddressBle) & Partial<Lifespan>;
 
 export function ServerAddress(definition: ServerAddress.Definition) {
     return {
@@ -40,16 +46,35 @@ export function ServerAddress(definition: ServerAddress.Definition) {
 
 export namespace ServerAddress {
     export function urlFor(address: ServerAddress): string {
-        return address.type === "udp" ? `udp://[${address.ip}]:${address.port}` : `ble://${address.peripheralAddress}`;
+        switch (address.type) {
+            case "udp":
+            case "tcp":
+                return `${address.type}://${address.ip}:${address.port}`;
+
+            case "ble":
+                return `ble://${address.peripheralAddress}`;
+
+            default:
+                return `${(address as any).type}://`;
+        }
     }
 
     export function diagnosticFor(address: ServerAddress) {
         const diagnostic = Array<unknown>();
 
-        if (address.type === "udp") {
-            diagnostic.push("udp://", Diagnostic.strong(address.ip), ":", address.port);
-        } else {
-            diagnostic.push("ble://", Diagnostic.strong(address.peripheralAddress));
+        switch (address.type) {
+            case "udp":
+            case "tcp":
+                diagnostic.push(`${address.type}://`, Diagnostic.strong(address.ip), ":", address.port);
+                break;
+
+            case "ble":
+                diagnostic.push("ble://", Diagnostic.strong(address.peripheralAddress));
+                break;
+
+            default:
+                diagnostic.push(`${(address as any).type}://`);
+                break;
         }
 
         if ("ttl" in address && typeof address.ttl === "number") {

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { asError } from "#util/Error.js";
 import { Diagnostic } from "../log/Diagnostic.js";
 import { DiagnosticSource } from "../log/DiagnosticSource.js";
 import { Logger } from "../log/Logger.js";
@@ -36,7 +37,7 @@ export class RuntimeService implements Multiplex {
     }
 
     /**
-     * Add a {@link Worker}.
+     * Add a {@link Worker}, either directly or by invoking an {@link Initiator}.
      *
      * The runtime considers itself "active" if there are one or more workers installed.
      *
@@ -46,8 +47,17 @@ export class RuntimeService implements Multiplex {
      * Once added, the {@link worker} is owned by the RuntimeService until closed, resolved or removed via
      * {@link delete}.
      */
-    add(worker: RuntimeService.Worker | void) {
+    add(worker: RuntimeService.NewWorker) {
         if (!worker) {
+            return;
+        }
+
+        if (typeof worker === "function") {
+            try {
+                this.add(worker(this.#env));
+            } catch (e) {
+                this.#crash(asError(e));
+            }
             return;
         }
 
@@ -303,4 +313,13 @@ export namespace RuntimeService {
          */
         [label]?: unknown;
     }
+
+    /**
+     * A function that initiates work.
+     */
+    export interface Initiator {
+        (env: Environment): NewWorker;
+    }
+
+    export type NewWorker = Worker | Initiator | void;
 }

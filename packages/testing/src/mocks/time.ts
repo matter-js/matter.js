@@ -292,25 +292,30 @@ export const MockTime = {
     /**
      * Hook a method and invoke a callback just before the method completes. Unhooks after completion.
      *
-     * Handles both synchronous and asynchronous methods.  The interceptor should match the async-ness of the
+     * Handles both synchronous and asynchronous methods.  The responseInterceptor should match the async-ness of the
      * intercepted method.
      *
-     * The interceptor can optionally access and/or replace the resolve/reject value.
+     * The responseInterceptor can optionally access and/or replace the resolve/reject value.
+     * The callInterceptor can be used to manipulate the call parameters of the method
      */
     interceptOnce<NameT extends string, ReturnT, ObjT extends { [N in NameT]: (...args: any) => ReturnT }>(
         obj: ObjT,
         method: NameT,
-        interceptor: (
+        responseInterceptor: (
             result: InterceptResult<ReturnT>,
         ) => void | InterceptResult<ReturnT> | Promise<void> | Promise<InterceptResult<ReturnT>>,
+        callInterceptor?: (args: Parameters<ObjT[NameT]>) => Parameters<ObjT[NameT]>,
     ) {
         const original = obj[method];
         if (!original) {
             throw new Error(`Interception method ${method} is not present`);
         }
         let result: InterceptResult<ReturnT>;
-        if (isAsync(interceptor)) {
+        if (isAsync(responseInterceptor)) {
             obj[method] = async function (this: any, ...args: any): Promise<any> {
+                if (callInterceptor) {
+                    args = callInterceptor(args);
+                }
                 try {
                     const resolve = await original.apply(this, args);
                     result = { resolve } as any;
@@ -319,7 +324,7 @@ export const MockTime = {
                 } finally {
                     obj[method] = original;
                 }
-                result = (await interceptor(result)) ?? result;
+                result = (await responseInterceptor(result)) ?? result;
                 if (result.reject) {
                     throw result.reject as Error;
                 }
@@ -327,6 +332,9 @@ export const MockTime = {
             } as any;
         } else {
             obj[method] = function (this: any, ...args: any): any {
+                if (callInterceptor) {
+                    args = callInterceptor(args);
+                }
                 try {
                     const resolve = original.apply(this, args);
                     result = { resolve } as any;
@@ -335,7 +343,7 @@ export const MockTime = {
                 } finally {
                     obj[method] = original;
                 }
-                result = (interceptor(result) as any) ?? result;
+                result = (responseInterceptor(result) as any) ?? result;
                 if (result.reject) {
                     throw result.reject as Error;
                 }

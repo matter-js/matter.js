@@ -27,7 +27,7 @@ import {
     ObservableSet,
     Seconds,
     ServerAddress,
-    ServerAddressIp,
+    ServerAddressUdp,
     STANDARD_MATTER_PORT,
     Time,
     Timer,
@@ -269,7 +269,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
         address: PeerAddress,
         options: PeerConnectionOptions & {
             allowUnknownPeer?: boolean;
-            operationalAddress?: ServerAddressIp;
+            operationalAddress?: ServerAddressUdp;
         },
     ) {
         address = PeerAddress(address);
@@ -441,7 +441,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
      * device is discovered again using its operational instance details.
      * It returns the operational MessageChannel on success.
      */
-    async #resume(address: PeerAddress, options: PeerConnectionOptions, tryOperationalAddress?: ServerAddressIp) {
+    async #resume(address: PeerAddress, options: PeerConnectionOptions, tryOperationalAddress?: ServerAddressUdp) {
         const { discoveryOptions: { discoveryType } = {} } = options;
 
         const operationalAddress =
@@ -468,7 +468,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
 
     async #connectOrDiscoverNode(
         address: PeerAddress,
-        operationalAddress?: ServerAddressIp,
+        operationalAddress?: ServerAddressUdp,
         options?: PeerConnectionOptions,
     ) {
         address = PeerAddress(address);
@@ -649,7 +649,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
 
     async #reconnectKnownAddress(
         address: PeerAddress,
-        operationalAddress: ServerAddressIp,
+        operationalAddress: ServerAddressUdp,
         discoveryData?: DiscoveryData,
         options?: CaseClient.PairOptions,
     ): Promise<MessageChannel | undefined> {
@@ -708,7 +708,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
     /** Pair with an operational device (already commissioned) and establish a CASE session. */
     async #pair(
         address: PeerAddress,
-        operationalServerAddress: ServerAddressIp,
+        operationalServerAddress: ServerAddressUdp,
         discoveryData?: DiscoveryData,
         options?: CaseClient.PairOptions,
     ) {
@@ -828,7 +828,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
 
     async #addOrUpdatePeer(
         address: PeerAddress,
-        operationalServerAddress: ServerAddressIp,
+        operationalServerAddress: ServerAddressUdp,
         discoveryData?: DiscoveryData,
     ) {
         let peer = this.#peersByAddress.get(address);

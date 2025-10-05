@@ -14,10 +14,10 @@ import { Agent } from "#endpoint/Agent.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
-import { Identity, ImplementationError, Lifecycle, MaybePromise } from "#general";
+import { Diagnostic, Identity, ImplementationError, Lifecycle, Logger, MaybePromise } from "#general";
 import { FeatureBitmap, Matter, MatterModel } from "#model";
 import { ClientBehavior } from "#node/client/ClientBehavior.js";
-import { Interactable, OccurrenceManager } from "#protocol";
+import { Interactable, OccurrenceManager, PeerAddress } from "#protocol";
 import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
 import { RemoteWriter } from "#storage/client/RemoteWriter.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
@@ -25,6 +25,8 @@ import { ClientEndpointInitializer } from "./client/ClientEndpointInitializer.js
 import { ClientNodeInteraction } from "./client/ClientNodeInteraction.js";
 import { Node } from "./Node.js";
 import type { ServerNode } from "./ServerNode.js";
+
+const logger = Logger.get("ClientNode");
 
 /**
  * A remote Matter {@link Node}.
@@ -196,6 +198,30 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         }
 
         return this.#interaction;
+    }
+
+    override get identity() {
+        // If commissioned, use the peer address for logging purposes
+        let address = this.behaviors.maybeStateOf("commissioning")?.peerAddress as PeerAddress | undefined;
+
+        // During early initialization commissioning state may not be loaded, so check directly in storage too
+        if (!address) {
+            address = this.env.get(ClientNodeStore).storeForEndpoint(this).peerAddress as PeerAddress | undefined;
+        }
+
+        // Use the peer address as a log identifier if present
+        if (address) {
+            return PeerAddress(address).toString();
+        }
+
+        // Fall back to persistence ID
+        return super.identity;
+    }
+
+    protected override statusUpdate(message: string): void {
+        // Log client node status updates as info rather than notice and change the log facility to make clear it's a
+        // client
+        logger.info(Diagnostic.strong(this.toString()), message);
     }
 
     /**

@@ -12,7 +12,7 @@ import {
     Environmental,
     Lifespan,
     ServerAddress,
-    ServerAddressIp,
+    ServerAddressUdp,
 } from "#general";
 import { DiscoveryCapabilitiesBitmap, NodeId, TypeFromPartialBitSchema, VendorId } from "#types";
 import { Fabric } from "../fabric/Fabric.js";
@@ -65,7 +65,7 @@ export type DiscoverableDevice<SA extends ServerAddress> = DiscoveryData &
 export type AddressTypeFromDevice<D extends DiscoverableDevice<any>> =
     D extends DiscoverableDevice<infer SA> ? SA : never;
 
-export type OperationalDevice = DiscoverableDevice<ServerAddressIp> & {
+export type OperationalDevice = DiscoverableDevice<ServerAddressUdp> & {
     deviceIdentifier: string;
 };
 

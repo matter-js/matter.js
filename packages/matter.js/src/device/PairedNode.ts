@@ -240,7 +240,6 @@ type DescriptorData = AttributeClientValues<typeof Descriptor.Complete.attribute
  * it uses Sets to prevent duplicate entries and ordering to cause issues if they ever happen.
  */
 function areNumberListsSame(list1: number[], list2: number[]) {
-    logger.debug("Comparing number lists", list1, "vs.", list2);
     const set1 = new Set(list1);
     const set2 = new Set(list2);
     if (set1.size !== set2.size) return false;
@@ -1216,14 +1215,19 @@ export class PairedNode {
                 const childEndpointId = EndpointNumber(parseInt(childId));
                 const childEndpoint = this.#endpoints.get(childEndpointId);
                 const parentEndpoint = this.#endpoints.get(usages[0]);
+                const existingChildEndpoint = parentEndpoint?.getChildEndpoint(childEndpointId);
                 if (childEndpoint === undefined || parentEndpoint === undefined) {
                     logger.warn(
                         `Node ${this.nodeId}: Endpoint ${usages[0]} not found in the data received from the device!`,
                     );
-                } else if (parentEndpoint.getChildEndpoint(childEndpointId) === undefined) {
+                } else if (existingChildEndpoint !== childEndpoint) {
                     logger.debug(
                         `Node ${this.nodeId}: Endpoint structure: Child: ${childEndpointId} -> Parent: ${parentEndpoint.number}`,
                     );
+                    if (existingChildEndpoint !== undefined) {
+                        // Child endpoint changed, so we need to remove the old one first
+                        parentEndpoint.removeChildEndpoint(existingChildEndpoint);
+                    }
 
                     parentEndpoint.addChildEndpoint(childEndpoint);
                 }
