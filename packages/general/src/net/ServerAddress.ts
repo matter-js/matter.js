@@ -59,6 +59,22 @@ export namespace ServerAddress {
         return Diagnostic.squash(...diagnostic);
     }
 
+    export function isEqual(a: ServerAddress, b: ServerAddress): boolean {
+        if (a.type !== b.type) {
+            return false;
+        }
+
+        if (a.type === "udp" && b.type === "udp") {
+            return a.ip === b.ip && a.port === b.port;
+        }
+
+        if (a.type === "ble" && b.type === "ble") {
+            return a.peripheralAddress === b.peripheralAddress;
+        }
+
+        return false;
+    }
+
     export function definitionOf(address: ServerAddress): Definition {
         return address;
     }

@@ -214,8 +214,8 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
                 number: endpointId,
                 type: EndpointType({
                     name: "ClientEndpoint",
-                    deviceType: -1,
-                    deviceRevision: -1,
+                    deviceType: EndpointType.UNKNOWN_DEVICE_TYPE,
+                    deviceRevision: EndpointType.UNKNOWN_DEVICE_REVISION,
                 }),
             });
         }

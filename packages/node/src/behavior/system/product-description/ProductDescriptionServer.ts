@@ -5,6 +5,7 @@
  */
 
 import { Agent } from "#endpoint/Agent.js";
+import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { AggregatorDt, BridgedNodeDt, DeviceClassification, RootNodeDt } from "#model";
 import { DeviceTypeId, ProductDescription, VendorId } from "#types";
 import { BasicInformationBehavior } from "../../../behaviors/basic-information/BasicInformationBehavior.js";
@@ -40,7 +41,7 @@ export class ProductDescriptionServer extends Behavior {
     }
 
     #setDeviceType() {
-        if (this.state.deviceType !== ProductDescriptionServer.UNKNOWN_DEVICE_TYPE) {
+        if (this.state.deviceType !== EndpointType.UNKNOWN_DEVICE_TYPE) {
             return;
         }
 
@@ -63,7 +64,8 @@ export class ProductDescriptionServer extends Behavior {
 }
 
 export namespace ProductDescriptionServer {
-    export const UNKNOWN_DEVICE_TYPE = DeviceTypeId(-1, false);
+    export const UNKNOWN_VENDOR_ID = VendorId(-1, false);
+    export const UNKNOWN_PRODUCT_ID = -1;
 
     export class State implements ProductDescription {
         /**
@@ -74,17 +76,17 @@ export namespace ProductDescriptionServer {
         /**
          * The device type for commissioning announcements.
          */
-        deviceType: DeviceTypeId = UNKNOWN_DEVICE_TYPE;
+        deviceType: DeviceTypeId = EndpointType.UNKNOWN_DEVICE_TYPE;
 
         /**
          * The vendor ID for commissioning announcements.
          */
-        vendorId = VendorId(-1, false);
+        vendorId = UNKNOWN_VENDOR_ID;
 
         /**
          * The product ID for commissioning announcements.
          */
-        productId = -1;
+        productId = UNKNOWN_PRODUCT_ID;
     }
 }
 

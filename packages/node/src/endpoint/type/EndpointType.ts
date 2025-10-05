@@ -33,6 +33,9 @@ export function EndpointType<const T extends EndpointType.Options>(options: T) {
 }
 
 export namespace EndpointType {
+    export const UNKNOWN_DEVICE_TYPE = DeviceTypeId(-1, false);
+    export const UNKNOWN_DEVICE_REVISION = -1;
+
     /**
      * An endpoint type with no behaviors or requirements.
      */

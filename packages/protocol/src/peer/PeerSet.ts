@@ -310,6 +310,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
 
     /**
      * Obtain an exchange provider for the designated peer.
+     * TODO enhance PeerConnectionOptions.discoveryOptions.discoveryData with "addresses" for known operational addresses
      */
     async exchangeProviderFor(addressOrChannel: PeerAddress | MessageChannel, options: PeerConnectionOptions = {}) {
         if (addressOrChannel instanceof MessageChannel) {

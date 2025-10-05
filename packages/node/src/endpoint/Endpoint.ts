@@ -18,6 +18,7 @@ import {
     Lifecycle,
     Logger,
     MaybePromise,
+    toHex,
     UninitializedDependencyError,
 } from "#general";
 import { DataModelPath } from "#model";
@@ -812,9 +813,14 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     }
 
     get #diagnosticProps() {
+        const type = this.type;
         return {
             "endpoint#": this.number,
-            type: `${this.type.name} (0x${this.type.deviceType.toString(16)})`,
+            type: `${type.name} (${
+                type.deviceType === EndpointType.UNKNOWN_DEVICE_TYPE
+                    ? "unknown"
+                    : `0x${toHex(type.deviceType)}${type.deviceRevision === EndpointType.UNKNOWN_DEVICE_REVISION ? "" : `, rev ${type.deviceRevision}`}`
+            })`,
         };
     }
 

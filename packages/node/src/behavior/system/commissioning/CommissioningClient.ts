@@ -10,6 +10,7 @@ import { OperationalCredentialsClient } from "#behaviors/operational-credentials
 import {
     Duration,
     ImplementationError,
+    isIpNetworkChannel,
     NotImplementedError,
     Observable,
     ServerAddress,
@@ -21,6 +22,7 @@ import type { ClientNode } from "#node/ClientNode.js";
 import type { Node } from "#node/Node.js";
 import { IdentityService } from "#node/server/IdentityService.js";
 import {
+    ChannelManager,
     CommissioningMode,
     ControllerCommissioner,
     DiscoveryData,
@@ -211,6 +213,20 @@ export class CommissioningClient extends Behavior {
         const node = this.endpoint as ClientNode;
 
         if (addr) {
+            const channels = node.env.get(ChannelManager);
+            if (channels.hasChannel(addr)) {
+                const channel = channels.getChannel(addr).channel;
+                const operationalAddress = isIpNetworkChannel(channel) ? channel.networkAddress : undefined;
+                if (operationalAddress) {
+                    if (this.state.addresses === undefined) {
+                        this.state.addresses = [];
+                    }
+                    if (!this.state.addresses.some(a => ServerAddress.isEqual(ServerAddress(a), operationalAddress))) {
+                        this.state.addresses.push(ServerAddress.definitionOf(operationalAddress));
+                    }
+                }
+            }
+
             node.lifecycle.commissioned.emit(this.context);
         } else {
             node.lifecycle.decommissioned.emit(this.context);

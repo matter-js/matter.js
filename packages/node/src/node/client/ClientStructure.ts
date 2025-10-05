@@ -336,8 +336,8 @@ export class ClientStructure {
                 number,
                 type: EndpointType({
                     name: "ClientEndpoint",
-                    deviceType: -1,
-                    deviceRevision: -1,
+                    deviceType: EndpointType.UNKNOWN_DEVICE_TYPE,
+                    deviceRevision: EndpointType.UNKNOWN_DEVICE_REVISION,
                 }),
             }),
             clusters: {},

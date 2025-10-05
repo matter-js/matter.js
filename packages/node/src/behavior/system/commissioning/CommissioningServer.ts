@@ -6,6 +6,7 @@
 
 import { SubscriptionsBehavior } from "#behavior/system/subscriptions/SubscriptionsServer.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { EndpointType } from "#endpoint/type/EndpointType.js";
 import {
     AsyncObservable,
     Bytes,
@@ -343,9 +344,7 @@ export class CommissioningServer extends Behavior {
     }
 
     get #hasAdvertisableDeviceType() {
-        return (
-            this.agent.get(ProductDescriptionServer).state.deviceType !== ProductDescriptionServer.UNKNOWN_DEVICE_TYPE
-        );
+        return this.agent.get(ProductDescriptionServer).state.deviceType !== EndpointType.UNKNOWN_DEVICE_TYPE;
     }
 }
 

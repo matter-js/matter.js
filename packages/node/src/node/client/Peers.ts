@@ -12,9 +12,7 @@ import { InstanceDiscovery } from "#behavior/system/controller/discovery/Instanc
 import { EndpointContainer } from "#endpoint/properties/EndpointContainer.js";
 import { CancelablePromise, Duration, ImplementationError, Logger, Minutes, Seconds, Time, Timestamp } from "#general";
 import { FabricManager, PeerAddress, PeerAddressStore } from "#protocol";
-import { CLIENT_ID_PREFIX } from "#storage/client/ClientNodeStores.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
-import { NodeId } from "#types";
 import { ClientNode } from "../ClientNode.js";
 import type { ServerNode } from "../ServerNode.js";
 import { ClientNodeFactory } from "./ClientNodeFactory.js";
@@ -24,11 +22,6 @@ const logger = Logger.get("ClientNodes");
 
 const DEFAULT_TTL = Minutes(15);
 const EXPIRATION_INTERVAL = Minutes.one;
-
-/**
- * Prefix for Connected peer nodes referenced by their node id in hex.
- */
-const CLIENT_NODE_PREFIX = `${CLIENT_ID_PREFIX}node`;
 
 /**
  * Manages the set of known remote nodes.
@@ -124,7 +117,7 @@ export class Peers extends EndpointContainer<ClientNode> {
      * This is mainly used to communicate to other known nodes on the fabric without having a formal commissioning
      * process.
      */
-    async forAddress(peerAddress: PeerAddress, options?: Omit<ClientNode.Options, "id" | "owner">) {
+    async forAddress(peerAddress: PeerAddress, options: Omit<ClientNode.Options, "owner"> = {}) {
         if (!this.owner.env.get(FabricManager).has(peerAddress)) {
             throw new ImplementationError("Cannot register a peer address for a fabric we do not belong to");
         }
@@ -133,10 +126,7 @@ export class Peers extends EndpointContainer<ClientNode> {
         if (!node) {
             // We do not have that node till now, also not persisted, so create it
             const factory = this.owner.env.get(ClientNodeFactory);
-            node = factory.create({
-                ...options,
-                id: `${CLIENT_NODE_PREFIX}${NodeId.toHexString(peerAddress.nodeId)}`,
-            });
+            node = factory.create(options);
             await node.construction;
             this.add(node);
 
