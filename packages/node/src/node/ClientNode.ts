@@ -21,6 +21,7 @@ import { Interactable, OccurrenceManager, PeerAddress } from "#protocol";
 import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
 import { RemoteWriter } from "#storage/client/RemoteWriter.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
+import { AttributeId, CommandId } from "#types";
 import { ClientEndpointInitializer } from "./client/ClientEndpointInitializer.js";
 import { ClientNodeInteraction } from "./client/ClientNodeInteraction.js";
 import { Node } from "./Node.js";
@@ -256,15 +257,28 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
             for (const f in cluster.features) {
                 features[f] = true;
             }
+            const attributeNames = new Array<string>();
+            const attributes = new Array<AttributeId>();
+            for (const [name, attr] of Object.entries(cluster.attributes)) {
+                attributeNames.push(name);
+                attributes.push(attr.id);
+            }
+            const commandNames = new Array<string>();
+            const commands = new Array<CommandId>();
+            for (const [name, cmd] of Object.entries(cluster.commands)) {
+                commandNames.push(name);
+                commands.push(cmd.requestId);
+            }
+
             part.behaviors.require(
                 ClientBehavior({
                     id: cluster.id,
                     revision: cluster.revision,
                     features,
-                    attributes: Object.values(cluster.attributes).map(a => a.id),
-                    commands: Object.values(cluster.commands).map(c => c.requestId),
-                    attributeNames: Object.keys(cluster.attributes),
-                    commandNames: Object.keys(cluster.commands),
+                    attributes,
+                    commands,
+                    attributeNames,
+                    commandNames,
                 }),
             );
         }
