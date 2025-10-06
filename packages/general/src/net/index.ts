@@ -9,6 +9,7 @@ export * from "./Channel.js";
 export * from "./ConnectionlessTransport.js";
 export * from "./http/index.js";
 export * from "./mock/index.js";
+export * from "./mqtt/index.js";
 export * from "./Network.js";
 export * from "./RetrySchedule.js";
 export * from "./ServerAddress.js";

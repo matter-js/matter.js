@@ -14,7 +14,7 @@ const logger = Logger.get("HttpSharedEntpoint");
  */
 export class HttpSharedEndpoint {
     #create: () => Promise<HttpEndpoint>;
-    #target?: HttpEndpoint;
+    #target?: Promise<HttpEndpoint>;
     #instances = new Set<HttpEndpoint>();
     #isTls: boolean;
 
@@ -29,8 +29,10 @@ export class HttpSharedEndpoint {
 
     async use() {
         if (this.#target === undefined) {
-            this.#target = await this.#createTarget();
+            this.#target = this.#createTarget();
         }
+
+        await this.#target;
 
         const instance: HttpEndpoint = {
             http: undefined,
@@ -40,7 +42,7 @@ export class HttpSharedEndpoint {
                 this.#instances.delete(instance);
                 if (!this.#instances.size) {
                     try {
-                        await this.#target?.close();
+                        await (await this.#target)?.close();
                     } catch (e) {
                         logger.error("Error closing HTTP endpoint", e);
                     } finally {
