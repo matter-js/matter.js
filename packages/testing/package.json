@@ -61,7 +61,7 @@
         "yargs": "^18.0.0"
     },
     "devDependencies": {
-        "typescript": "~5.9.2",
+        "typescript": "~5.9.3",
         "@types/dockerode": "^3.3.43",
         "@types/chai": "^4.3.20",
         "@types/chai-as-promised": "^7.1.8",
