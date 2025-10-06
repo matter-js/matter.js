@@ -21,6 +21,10 @@ export class StatusResponseError extends MatterError {
         super(message);
     }
 
+    get bareMessage() {
+        return this.message.replace(/ \(code .+\)$/, "");
+    }
+
     static is(error: unknown, ...codes: Status[]): error is StatusResponseError {
         return error instanceof StatusResponseError && (!codes.length || codes.includes(error.code));
     }
@@ -77,7 +81,7 @@ export const StatusResponse = Object.fromEntries(
                             codeStr = `${codeStr}; cluster code ${clusterCode}`;
                         }
 
-                        this.message = `message (${codeStr})`;
+                        this.message = `${message} (${codeStr})`;
                     }
                 },
             } as const;
