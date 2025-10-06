@@ -20,10 +20,12 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 -   @matter/protocol
     - Fix: Ignoring existing Pase sessions in closing state when establishing a new PASE session
+    - Fix: Includes FabricIndex when storing resumption records to prevent issues with NodeId collisions
 
 -   @project-chip/matter.js
     - Enhancement: Adds events "nodeEndpointAdded/Removed/Changed" (in addition to structureChanged) to PairedNode to allow more detailed tracking of changes
     - Enhancement: Update cached attribute details while reading them from the device to improve connection performance when multiple reads are needed (e.g. for bad reachable devices) to optimize reconnection performance
+    - Enhancement: Randomizes FabricId when creating a new controller to prevent Fabric ID collisions
     - Fix: Fixes safeguards in CommissioningController when resetting storage
     - Fix: Fixes detection of endpoint removals and cluster topology changes in PairedNode
 
