@@ -140,7 +140,8 @@ export class MdnsClient implements Scanner {
     readonly #recordWaiters = new Map<
         string,
         {
-            resolver: () => void;
+            resolver: (value: any) => void;
+            responder?: () => any;
             timer?: Timer;
             resolveOnUpdatedRecords: boolean;
             cancelResolver?: (value: void) => void;
@@ -400,14 +401,15 @@ export class MdnsClient implements Scanner {
      * Registers a deferred promise for a specific queryId together with a timeout and return the promise.
      * The promise will be resolved when the timer runs out latest.
      */
-    async #registerWaiterPromise(
+    async #registerWaiterPromise<T = void>(
         queryId: string,
         commissionable: boolean,
-        timeout?: Duration,
+        timeout: Duration | undefined,
+        responder?: () => T,
         resolveOnUpdatedRecords = true,
         cancelResolver?: (value: void) => void,
-    ) {
-        const { promise, resolver } = createPromise<void>();
+    ): Promise<T> {
+        const { promise, resolver } = createPromise<T>();
         const timer =
             timeout !== undefined
                 ? Time.getTimer("MDNS timeout", timeout, () => {
@@ -416,7 +418,14 @@ export class MdnsClient implements Scanner {
                   }).start()
                 : undefined;
         this.#listening = true;
-        this.#recordWaiters.set(queryId, { resolver, timer, resolveOnUpdatedRecords, cancelResolver, commissionable });
+        this.#recordWaiters.set(queryId, {
+            resolver,
+            responder,
+            timer,
+            resolveOnUpdatedRecords,
+            cancelResolver,
+            commissionable,
+        });
         this.#hasCommissionableWaiters = this.#hasCommissionableWaiters || commissionable;
         if (!commissionable) {
             this.#registerOperationalQuery(queryId);
@@ -426,7 +435,7 @@ export class MdnsClient implements Scanner {
                 timeout !== undefined ? `timeout ${timeout}` : "no timeout"
             }${resolveOnUpdatedRecords ? "" : " (not resolving on updated records)"}`,
         );
-        await promise;
+        return await promise;
     }
 
     /**
@@ -436,12 +445,12 @@ export class MdnsClient implements Scanner {
     #finishWaiter(queryId: string, resolvePromise: boolean, isUpdatedRecord = false) {
         const waiter = this.#recordWaiters.get(queryId);
         if (waiter === undefined) return;
-        const { timer, resolver, resolveOnUpdatedRecords, commissionable } = waiter;
+        const { timer, resolver, responder, resolveOnUpdatedRecords, commissionable } = waiter;
         if (isUpdatedRecord && !resolveOnUpdatedRecords) return;
         logger.debug(`Finishing waiter for query ${queryId}, resolving: ${resolvePromise}`);
         timer?.stop();
         if (resolvePromise) {
-            resolver();
+            resolver(responder?.());
         }
         this.#recordWaiters.delete(queryId);
         this.#removeQuery(queryId);
@@ -500,7 +509,9 @@ export class MdnsClient implements Scanner {
 
         let storedDevice = ignoreExistingRecords ? undefined : this.#getOperationalDeviceRecords(deviceMatterQname);
         if (storedDevice === undefined) {
-            const promise = this.#registerWaiterPromise(deviceMatterQname, false, timeout);
+            const promise = this.#registerWaiterPromise(deviceMatterQname, false, timeout, () =>
+                this.#getOperationalDeviceRecords(deviceMatterQname),
+            );
 
             this.#setQueryRecords(deviceMatterQname, [
                 {
@@ -510,8 +521,7 @@ export class MdnsClient implements Scanner {
                 },
             ]);
 
-            await promise;
-            storedDevice = this.#getOperationalDeviceRecords(deviceMatterQname);
+            storedDevice = await promise;
         }
         return storedDevice;
     }
@@ -727,12 +737,13 @@ export class MdnsClient implements Scanner {
             : this.#getCommissionableDeviceRecords(identifier).filter(({ addresses }) => addresses.length > 0);
         if (storedRecords.length === 0) {
             const queryId = this.#buildCommissionableQueryIdentifier(identifier);
-            const promise = this.#registerWaiterPromise(queryId, true, timeout);
+            const promise = this.#registerWaiterPromise(queryId, true, timeout, () =>
+                this.#getCommissionableDeviceRecords(identifier),
+            );
 
             this.#setQueryRecords(queryId, this.#getCommissionableQueryRecords(identifier));
 
-            await promise;
-            storedRecords = this.#getCommissionableDeviceRecords(identifier);
+            storedRecords = await promise;
         }
 
         return storedRecords;
@@ -791,7 +802,7 @@ export class MdnsClient implements Scanner {
                     break;
                 }
             }
-            await this.#registerWaiterPromise(queryId, true, remainingTime, false, queryResolver);
+            await this.#registerWaiterPromise(queryId, true, remainingTime, undefined, false, queryResolver);
         }
         return this.#getCommissionableDeviceRecords(identifier);
     }
@@ -981,8 +992,7 @@ export class MdnsClient implements Scanner {
         if (this.#closing) return;
 
         if (message === undefined) return; // The message cannot be parsed
-        if (message.messageType !== DnsMessageType.Response && message.messageType !== DnsMessageType.TruncatedResponse)
-            return;
+        if (!DnsMessageType.isResponse(message.messageType)) return;
 
         const answers = this.#structureAnswers([...message.answers, ...message.additionalRecords]);
 
@@ -1458,7 +1468,7 @@ export class MdnsClient implements Scanner {
                 });
             }
             if (now > expires && !addresses.size) {
-                // device expired and also has no adresses anymore
+                // device expired and also has no addresses anymore
                 this.#operationalDeviceRecords.delete(recordKey);
             }
         });

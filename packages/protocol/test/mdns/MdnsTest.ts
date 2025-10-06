@@ -11,6 +11,7 @@ import {
     DnsCodec,
     DnsMessage,
     DnsMessageType,
+    DnsMessageTypeFlag,
     DnsRecordType,
     Duration,
     Instant,
@@ -18,10 +19,12 @@ import {
     Millis,
     MockCrypto,
     MockNetwork,
+    MockRouter,
     MockUdpChannel,
     NetworkSimulator,
     Seconds,
     Time,
+    TxtRecord,
     UdpChannel,
 } from "#general";
 import {
@@ -111,6 +114,8 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
         let client: MdnsClient;
         let scanListener: UdpChannel;
         let broadcastListener: UdpChannel;
+        let scannerManipulator: MockRouter.PacketManipulator | undefined;
+        let broadcasterManipulator: MockRouter.PacketManipulator | undefined;
 
         let advertisers = {} as Record<number, MdnsAdvertiser>;
 
@@ -143,22 +148,36 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
             server = new MdnsServer(serverSocket);
 
             // Add an additional listener on the broadcaster to detect scans
-            scanListener = new MockUdpChannel(serverNetwork, {
-                listeningPort: 5353,
-                listeningAddress: testIpv4Enabled ? SERVER_IPv4 : SERVER_IPv6,
-                type,
-            });
+            scanListener = new MockUdpChannel(
+                serverNetwork,
+                {
+                    listeningPort: 5353,
+                    listeningAddress: testIpv4Enabled ? SERVER_IPv4 : SERVER_IPv6,
+                    type,
+                },
+                packet => {
+                    return scannerManipulator ? scannerManipulator(packet) : packet;
+                },
+            );
             (scanListener as any).foo = "scannerChannel";
             scanListener.addMembership(multicastIp);
+            scannerManipulator = undefined; // Reset
 
             // Add an additional listener on the scanner to detect broadcaster announcements
-            broadcastListener = new MockUdpChannel(clientNetwork, {
-                listeningPort: 5353,
-                listeningAddress: testIpv4Enabled ? CLIENT_IPv4 : CLIENT_IPv6,
-                type,
-            });
+            broadcastListener = new MockUdpChannel(
+                clientNetwork,
+                {
+                    listeningPort: 5353,
+                    listeningAddress: testIpv4Enabled ? CLIENT_IPv4 : CLIENT_IPv6,
+                    type,
+                },
+                packet => {
+                    return broadcasterManipulator ? broadcasterManipulator(packet) : packet;
+                },
+            );
             (broadcastListener as any).foo = "broadcasterChannel";
             broadcastListener.addMembership(multicastIp);
+            broadcasterManipulator = undefined; // Reset
         });
 
         afterEach(async () => {
@@ -220,8 +239,9 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
             }
         }
 
-        function waitForMessage() {
-            return waitForMessages({ count: 1 }).then(messages => messages[0]);
+        async function waitForMessage() {
+            const messages = await waitForMessages({ count: 1 });
+            return messages[0];
         }
 
         function waitForMessages(config: { count: number } | Duration) {
@@ -1161,6 +1181,139 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                     ),
                 ).deep.equal(undefined);
             });
+
+            it("the client queries the server record and also accepts unauthoritative responses", async () => {
+                const sentData = new Array<Bytes>();
+                const listener = scanListener.onData((_netInterface, _peerAddress, _peerPort, data) =>
+                    sentData.push(data),
+                );
+                let packetManipulated = false;
+                scannerManipulator = (packet: MockRouter.Packet) => {
+                    const message = DnsCodec.decode(packet.payload);
+                    if (message) {
+                        // If Authoritative response turn into unauthoritative answer
+                        if (message.messageType === DnsMessageType.Response) {
+                            message.messageType &= ~DnsMessageTypeFlag.AA;
+                            packet.payload = DnsCodec.encode(message);
+                            packetManipulated = true;
+                        }
+                    }
+                    return packet;
+                };
+
+                advertise(OPERATIONAL_SERVICE);
+
+                const findPromise = client.findOperationalDevice(
+                    { operationalId: OPERATIONAL_ID } as unknown as Fabric,
+                    NODE_ID,
+                );
+
+                await MockTime.resolve(findPromise);
+
+                expect(packetManipulated).to.equal(true);
+
+                expectMessage(DnsCodec.decode(sentData[0]), {
+                    additionalRecords: [],
+                    answers: [],
+                    authorities: [],
+                    messageType: 0,
+                    queries: [
+                        {
+                            name: "0000000000000018-0000000000000001._matter._tcp.local",
+                            recordClass: 1,
+                            recordType: 33,
+                            uniCastResponse: false,
+                        },
+                    ],
+                    transactionId: 0,
+                });
+
+                const result = await findPromise;
+
+                expect(result?.addresses).deep.equal(IPIntegrationResultsPort1);
+                await listener.close();
+
+                // Same result when we just get the records
+                expect(
+                    client.getDiscoveredOperationalDevice(
+                        { operationalId: OPERATIONAL_ID } as unknown as Fabric,
+                        NODE_ID,
+                    )?.addresses,
+                ).deep.equal(IPIntegrationResultsPort1);
+
+                // And expire the announcement
+                await close();
+
+                // And empty result after expiry
+                expect(
+                    client.getDiscoveredOperationalDevice(
+                        { operationalId: OPERATIONAL_ID } as unknown as Fabric,
+                        NODE_ID,
+                    ),
+                ).deep.equal(undefined);
+            });
+        });
+
+        it("the client queries the server record with a truncated query", async () => {
+            const sentData = new Array<Bytes>();
+            const listener = scanListener.onData((_netInterface, _peerAddress, _peerPort, data) => {
+                if (DnsMessageType.isResponse(DnsCodec.decode(data)?.messageType ?? DnsMessageType.Response)) return;
+                if (sentData.some(d => Bytes.areEqual(d, data))) return; // Sort out duplicates
+                sentData.push(data);
+            });
+
+            // Intercept the message to be sent and make it bigger to generate a truncated query
+            const DUMMY_TRX_ID = 0x1234;
+            MockTime.interceptOnce(
+                MdnsSocket.prototype,
+                "send",
+                async res => res,
+                args => {
+                    const message = args[0];
+                    if (message.messageType === DnsMessageType.Query) {
+                        message.transactionId = DUMMY_TRX_ID;
+                        message.answers = [];
+                        for (let i = 0; i < 50; i++) {
+                            message.answers.push(TxtRecord("a.b.c.d", [`A=${i}`]));
+                        }
+                    }
+                    return args;
+                },
+            );
+
+            advertise(OPERATIONAL_SERVICE);
+
+            const findPromise = client.findOperationalDevice(
+                { operationalId: OPERATIONAL_ID } as unknown as Fabric,
+                NODE_ID,
+            );
+
+            await MockTime.resolve(findPromise);
+
+            const initialQuery = DnsCodec.decode(sentData[0]);
+            expect(initialQuery?.transactionId).equal(DUMMY_TRX_ID);
+            expect(initialQuery?.queries).deep.equal([
+                {
+                    name: "0000000000000018-0000000000000001._matter._tcp.local",
+                    recordClass: 1,
+                    recordType: 33,
+                    uniCastResponse: false,
+                },
+            ]);
+            expect(initialQuery?.answers.length).equal(48);
+            expect(initialQuery?.messageType).equal(DnsMessageType.Query | DnsMessageTypeFlag.TC);
+
+            const secondQuery = DnsCodec.decode(sentData[1]);
+            expect(secondQuery?.messageType).equal(DnsMessageType.Query);
+            expect(secondQuery?.transactionId).equal(DUMMY_TRX_ID);
+            expect(secondQuery?.queries).deep.equal([]);
+            expect(secondQuery?.answers.length).equal(2);
+
+            const result = await findPromise;
+
+            expect(result?.addresses).deep.equal(IPIntegrationResultsPort1);
+            await listener.close();
+            await close();
         });
 
         describe("Operational and commissionable discovery", () => {

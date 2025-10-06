@@ -20,6 +20,7 @@ import {
 } from "#general";
 import { Node } from "#node/Node.js";
 import { ServerNode } from "#node/ServerNode.js";
+import { FabricId } from "#types";
 import type { MockServerNode } from "./mock-server-node.js";
 
 const logger = Logger.get("MockSite");
@@ -85,7 +86,11 @@ export class MockSite {
 
     async addUncommissionedPair(options?: MockSite.PairOptions) {
         options ??= {};
-
+        options.controller ??= {} as MockServerNode.Configuration<any>;
+        if (options.controller.controller?.adminFabricId === undefined) {
+            options.controller.controller ??= {};
+            options.controller.controller.adminFabricId = FabricId(1);
+        }
         const controller = await this.addNode(undefined, {
             online: false,
             ...options.controller,

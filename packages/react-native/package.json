@@ -35,13 +35,13 @@
         "#*": "./src/*"
     },
     "dependencies": {
-        "@craftzdog/react-native-buffer": "6.1.0",
+        "@craftzdog/react-native-buffer": "6.1.1",
         "@matter/general": "*",
         "@matter/nodejs": "*",
         "@matter/protocol": "*",
         "@react-native-async-storage/async-storage": "^2.2.0",
         "@react-native-community/netinfo": "^11.4.1",
-        "@types/node": "^24.4.0",
+        "@types/node": "^24.6.2",
         "react-native-ble-plx": "^3.5.0",
         "react-native-polyfill-globals": "^3.1.0",
         "react-native-quick-crypto": "^0.7.17",

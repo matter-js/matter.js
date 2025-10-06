@@ -6,7 +6,7 @@
 
 import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
 import { ImplementationError, MockCrypto } from "#general";
-import { FabricIndex, VendorId } from "#types";
+import { FabricId, FabricIndex, VendorId } from "#types";
 import { FabricAuthority } from "./FabricAuthority.js";
 import { FabricManager } from "./FabricManager.js";
 
@@ -54,6 +54,7 @@ export namespace TestFabric {
                 adminFabricLabel: `mock-fabric-${index}`,
                 adminVendorId: VendorId(0xfff1),
                 fabricIndex: FabricIndex(index),
+                fabricId: FabricId(1),
             },
             fabrics,
         });

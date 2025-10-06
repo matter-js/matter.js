@@ -14,6 +14,7 @@ import type { PropertyModel } from "./PropertyModel.js";
 
 // These are circular dependencies so just to be safe we only import the types.  We also need the class, though, at
 // runtime.  So we use the references in the Model.constructors factory pool.
+import { ModelIndex } from "#logic/ModelIndex.js";
 import type { FieldModel } from "./FieldModel.js";
 
 /**
@@ -74,7 +75,11 @@ export abstract class ValueModel<T extends ValueElement = ValueElement>
     }
 
     get fields() {
-        return Scope(this).membersOf(this, { tags: [ElementTag.Field] }) as FieldModel[];
+        return Scope(this).membersOf(this, { tags: [ElementTag.Field] }) as ModelIndex<FieldModel>;
+    }
+
+    get conformant() {
+        return new ValueModel.Conformant(this);
     }
 
     /**
@@ -165,8 +170,8 @@ export abstract class ValueModel<T extends ValueElement = ValueElement>
     /**
      * All {@link FieldModel} children in the context of the model's containing scope.
      */
-    get members(): PropertyModel[] {
-        return Scope(this).membersOf(this) as PropertyModel[];
+    get members() {
+        return Scope(this).membersOf(this) as ModelIndex<PropertyModel>;
     }
 
     /**
@@ -292,5 +297,32 @@ export abstract class ValueModel<T extends ValueElement = ValueElement>
             quality: this.#quality.valueOf(),
             ...extra,
         });
+    }
+}
+
+export namespace ValueModel {
+    export class Conformant {
+        #model: Model;
+
+        constructor(model: Model) {
+            this.#model = model;
+        }
+
+        /**
+         * The model's conformant fields.
+         */
+        get fields() {
+            return Scope(this.#model).membersOf(this.#model, {
+                tags: [ElementTag.Field],
+                conformance: "conformant",
+            }) as ModelIndex<FieldModel>;
+        }
+
+        /**
+         * An alias for {@link fields} that offers compatibility with the same field for clusters.
+         */
+        get properties() {
+            return this.fields;
+        }
     }
 }

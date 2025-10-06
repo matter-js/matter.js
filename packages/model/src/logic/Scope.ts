@@ -12,6 +12,7 @@ import { ModelTraversal } from "./ModelTraversal.js";
 
 // These must be types to avoid circular references
 import type { ClusterModel, Model, ScopeModel, ValueModel } from "#models/index.js";
+import { ModelIndex, MutableModelIndex } from "./ModelIndex.js";
 
 const DEFAULT_TAGS = new Set([ElementTag.Field, ElementTag.Attribute]);
 const GLOBAL_IDS = new Set([0xfffd, 0xfffc, 0xfffb, 0xfffa, 0xfff9, 0xfff8]);
@@ -61,7 +62,7 @@ export interface Scope {
     /**
      * Identify members (child properties) of the designated model in this scope.
      */
-    membersOf<T extends Model>(parent: T, options?: Scope.MemberOptions): Model.ChildOf<T>[];
+    membersOf<T extends Model>(parent: T, options?: Scope.MemberOptions): ModelIndex<Model.ChildOf<T>>;
 }
 
 /**
@@ -156,11 +157,14 @@ export function Scope(subject: Model, options: Scope.ScopeOptions = {}) {
         const allMembers = findAllMembers(parent, tags, result);
 
         if (parent.tag === ElementTag.Cluster && tags.has(ElementTag.Attribute)) {
-            injectGlobalAttributes(owner, allMembers);
+            injectGlobalAttributes(
+                owner as ClusterModel,
+                allMembers as unknown as MutableModelIndex<ClusterModel.Child>,
+            );
         }
 
         if (!conformanceMode || conformanceMode === "ignore") {
-            return allMembers as Model.ChildOf<T>[];
+            return allMembers;
         }
 
         const conformantOnly = conformanceMode === "conformant";
@@ -177,7 +181,7 @@ export function Scope(subject: Model, options: Scope.ScopeOptions = {}) {
             supportedFeatures,
             conformantOnly,
             conformantOnly ? deconflictedMemberCache : conformantMemberCache,
-        ) as Model.ChildOf<T>[];
+        );
     }
 
     if (useCache) {
@@ -248,8 +252,8 @@ export namespace Scope {
 /**
  * Selects all candidate members for a model.
  */
-function findAllMembers(parent: Model, tags: Set<ElementTag>, scope: Scope) {
-    const members = Array<Model>();
+function findAllMembers<T extends Model>(parent: T, tags: Set<ElementTag>, scope: Scope) {
+    const members = new MutableModelIndex<Model.ChildOf<T>>();
 
     // This is a map of identity (based on tag + id/name + discriminator) to a priority based on inheritance depth
     const defined = {} as Record<string, number | undefined>;
@@ -288,7 +292,7 @@ function findAllMembers(parent: Model, tags: Set<ElementTag>, scope: Scope) {
             defined[nameIdentity] = level;
 
             // Found a member
-            members.push(child);
+            members.push(child as Model.ChildOf<T>);
         }
     };
     traversal.visitInheritance(parent, childSearchVisitor);
@@ -300,7 +304,7 @@ function findAllMembers(parent: Model, tags: Set<ElementTag>, scope: Scope) {
  * We consider the standard set of "global" attributes members of all clusters.  This injects those members that are
  * not otherwise defined in the cluster.
  */
-function injectGlobalAttributes(scope: Model, members: Model[]) {
+function injectGlobalAttributes(scope: ClusterModel, members: ClusterModel.Child[]) {
     const missingGlobalIds = new Set(GLOBAL_IDS);
     for (const m of members) {
         if (m.tag === ElementTag.Attribute && m.id) {
@@ -342,8 +346,8 @@ function injectGlobalAttributes(scope: Model, members: Model[]) {
  * Note 2 - members may not be differentiated with conformance rules that rely on field values in this way. That will
  * probably never be necessary and would require an entirely different (more complicated) structure.
  */
-function filterWithConformance(
-    parent: Model,
+function filterWithConformance<T extends Model>(
+    parent: T,
     tags: Set<ElementTag>,
     members: Model[],
     features: FeatureSet,
@@ -352,7 +356,7 @@ function filterWithConformance(
     cache?: Map<Model, Map<ElementTag, Set<Model>>>,
 ) {
     const tagsToCollect = new Set<ElementTag>(tags);
-    const result = Array<Model>();
+    const result = new MutableModelIndex<Model.ChildOf<T>>();
     const cached = cache ? (cache.get(parent) ?? new Map()) : undefined;
 
     if (cache && cached) {
@@ -415,7 +419,7 @@ function filterWithConformance(
     }
 
     for (const tag in selectedMembers) {
-        const tagResult = Object.values(selectedMembers[tag]);
+        const tagResult = Object.values(selectedMembers[tag]) as Model.ChildOf<T>[];
         if (tagResult.length) {
             result.push(...tagResult);
             if (cached) {

@@ -104,9 +104,9 @@ function listPaths(endpoint: Endpoint) {
         paths.add(basename);
     }
 
-    const nodes = (endpoint as ServerNode).peers;
-    if (nodes !== undefined) {
-        for (const node of nodes) {
+    const peers = (endpoint as ServerNode).peers;
+    if (peers !== undefined) {
+        for (const node of peers) {
             let basename = node.id;
             if (paths.has(basename)) {
                 basename = `${NODE_PREFIX}${basename}`;

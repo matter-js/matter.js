@@ -5,7 +5,7 @@
  */
 
 import { Endpoint } from "#device/Endpoint.js";
-import { Diagnostic, ImplementationError, InternalError, Logger, MatterError, camelize, isDeepEqual } from "#general";
+import { ImplementationError, InternalError, Logger, MatterError, camelize, isDeepEqual, serialize } from "#general";
 import { AccessLevel, AttributeModel, ClusterModel, DatatypeModel, FabricIndex, MatterModel } from "#model";
 import { Fabric, Message, NoAssociatedFabricError, SecureSession, Session } from "#protocol";
 import {
@@ -162,9 +162,9 @@ export abstract class BaseAttributeServer<T> {
             this.value = initValue;
         } catch (error) {
             logger.warn(
-                `Attribute value to initialize for ${name} has an invalid value ${Diagnostic.json(
+                `Attribute value to initialize for ${name} has an invalid value ${serialize(
                     initValue,
-                )}. Restore to default ${Diagnostic.json(defaultValue)}`,
+                )}. Restore to default ${serialize(defaultValue)}`,
             );
             if (defaultValue === undefined) {
                 throw new ImplementationError(`Attribute value to initialize for ${name} cannot be undefined.`);
@@ -516,7 +516,7 @@ export class AttributeServer<T> extends FixedAttributeServer<T> {
                 newValue: value,
                 changed: !!this.delayedChangeData?.changed || valueChanged, // We combine the changed flag
             };
-            logger.info(`Delay change for attribute "${this.name}" with value ${Diagnostic.json(value)}`);
+            logger.info(`Delay change for attribute "${this.name}" with value ${serialize(value)}`);
         } else {
             this.handleVersionAndTriggerListeners(value, oldValue, valueChanged);
         }
@@ -526,7 +526,7 @@ export class AttributeServer<T> extends FixedAttributeServer<T> {
         if (this.delayedChangeData !== undefined) {
             const { oldValue, newValue, changed } = this.delayedChangeData;
             this.delayedChangeData = undefined;
-            logger.info(`Trigger delayed change for attribute "${this.name}" with value ${Diagnostic.json(newValue)}`);
+            logger.info(`Trigger delayed change for attribute "${this.name}" with value ${serialize(newValue)}`);
             this.handleVersionAndTriggerListeners(newValue, oldValue, changed);
         }
     }
@@ -810,7 +810,7 @@ export class FabricScopedAttributeServer<T> extends AttributeServer<T> {
             () => !preserveFabricIndex, // No one should send any index and if we simply SHALL ignore it,  but internally we might need it
         );
         logger.info(
-            `Set remote value for fabric scoped attribute "${this.name}" to ${Diagnostic.json(value)} (delayed=${delayChangeEvents})`,
+            `Set remote value for fabric scoped attribute "${this.name}" to ${serialize(value)} (delayed=${delayChangeEvents})`,
         );
 
         super.setRemote(value, session, message, delayChangeEvents);

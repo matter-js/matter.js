@@ -51,7 +51,6 @@ export interface FabricAuthorityContext {
 }
 
 export const DEFAULT_ADMIN_VENDOR_ID = VendorId(0xfff1);
-export const DEFAULT_FABRIC_ID = FabricId(1);
 
 /**
  * Manages fabrics controlled locally associated with a specific CA.
@@ -144,10 +143,11 @@ export class FabricAuthority {
             .setRootVendorId(this.#config.adminVendorId ?? DEFAULT_ADMIN_VENDOR_ID)
             .setLabel(this.#config.adminFabricLabel);
 
+        const fabricId = this.#config.fabricId ?? FabricId(this.#fabrics.crypto.randomBigInt(8));
         await fabricBuilder.setOperationalCert(
             await this.#ca.generateNoc(
                 fabricBuilder.publicKey,
-                this.#config.fabricId ?? DEFAULT_FABRIC_ID,
+                fabricId,
                 rootNodeId,
                 this.#config.caseAuthenticatedTags,
             ),

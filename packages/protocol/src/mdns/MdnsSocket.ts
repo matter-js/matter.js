@@ -12,6 +12,7 @@ import {
     DnsMessage,
     DnsMessagePartiallyPreEncoded,
     DnsMessageType,
+    DnsMessageTypeFlag,
     Logger,
     MatterAggregateError,
     MAX_MDNS_MESSAGE_SIZE,
@@ -71,6 +72,12 @@ export class MdnsSocket {
     }
 
     async send(message: Partial<DnsMessage> & { messageType: DnsMessageType }, intf?: string, unicastDest?: string) {
+        const { messageType } = message;
+        // When we send Queries that are too long they need to have the Truncated flag set
+        const truncatedMessageType = DnsMessageType.isQuery(messageType)
+            ? messageType | DnsMessageTypeFlag.TC
+            : messageType;
+
         const chunk: DnsMessagePartiallyPreEncoded = {
             transactionId: 0,
             queries: [],
@@ -101,7 +108,15 @@ export class MdnsSocket {
                 }
 
                 // New answer does not fit anymore, send out the message
-                await this.#send(chunk, intf, unicastDest);
+                // When sending a query, we set the Truncated flag to indicate more answers are available
+                await this.#send(
+                    {
+                        ...chunk,
+                        messageType: truncatedMessageType,
+                    },
+                    intf,
+                    unicastDest,
+                );
 
                 // Reset the message, length counter and included answers to count for next message
                 if (chunk.queries.length) {
