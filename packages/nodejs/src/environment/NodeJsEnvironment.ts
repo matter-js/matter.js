@@ -11,6 +11,7 @@ import {
     Boot,
     Crypto,
     Environment,
+    HttpEndpointFactory,
     ImplementationError,
     LogFormat,
     Logger,
@@ -19,6 +20,7 @@ import {
     StorageService,
     VariableService,
 } from "#general";
+import { NodeJsHttpEndpoint } from "#net/NodeJsHttpEndpoint.js";
 import { existsSync, readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -65,6 +67,8 @@ import { ProcessManager } from "./ProcessManager.js";
  * * `runtime.signals` - By default register SIGINT and SIGUSR2 (diag) handlers, set to false if not wanted
  * * `runtime.exitcode` - By default we set the process.exitcode to 0 (ok) or 1 (crash); set to false to disable
  * * `runtime.unhandlederrors` - By default we log unhandled errors to matter.js log; set to false to disable
+ *
+ * TODO - this should go away.  Node.js services should register with {@link ServiceBundle.default}
  */
 export function NodeJsEnvironment() {
     const env = new Environment("default");
@@ -144,9 +148,16 @@ function configureNetwork(env: Environment) {
 
     Boot.init(() => {
         if (config.installNetwork || (env.vars.boolean("nodejs.network") ?? true)) {
+            const basePathForUnixSockets = env.maybeGet(StorageService)?.location;
             env.set(Network, new NodeJsNetwork());
-        } else if (Environment.default.has(Network)) {
-            env.set(Network, Environment.default.get(Network));
+            env.set(HttpEndpointFactory, new NodeJsHttpEndpoint.Factory(basePathForUnixSockets));
+        } else {
+            if (Environment.default.has(Network)) {
+                env.set(Network, Environment.default.get(Network));
+            }
+            if (Environment.default.has(HttpEndpointFactory)) {
+                env.set(HttpEndpointFactory, Environment.default.get(HttpEndpointFactory));
+            }
         }
     });
 }
@@ -169,6 +180,8 @@ function configureStorage(env: Environment) {
 
     service.factory = namespace =>
         new StorageBackendDisk(resolve(service.location ?? ".", namespace), env.vars.get("storage.clear", false));
+
+    service.resolve = (...paths) => resolve(service.location ?? ".", ...paths);
 }
 
 export function loadConfigFile(vars: VariableService) {
