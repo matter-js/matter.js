@@ -63,7 +63,7 @@
         "commander": "^14.0.0",
         "esbuild": "^0.25.9",
         "minimatch": "^10.0.3",
-        "typescript": "~5.9.2",
+        "typescript": "~5.9.3",
         "type-fest": "^5.0.0",
         "typedoc": "^0.28.13",
         "typedoc-github-theme": "^0.3.1"
@@ -73,7 +73,7 @@
     },
     "devDependencies": {
         "@types/madge": "^5.0.3",
-        "@types/node": "^24.4.0",
+        "@types/node": "^24.6.2",
         "detective-typescript": "^14.0.0"
     },
     "publishConfig": {
