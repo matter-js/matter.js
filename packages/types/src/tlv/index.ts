@@ -12,6 +12,7 @@ export * from "./TlvNoArguments.js";
 export * from "./TlvNullable.js";
 export * from "./TlvNumber.js";
 export * from "./TlvObject.js";
+export * from "./TlvOfModel.js";
 export * from "./TlvSchema.js";
 export * from "./TlvString.js";
 export * from "./TlvVoid.js";
