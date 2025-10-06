@@ -30,6 +30,10 @@ export function Invoke(options: Invoke.Definition, ...commands: CommandData[]): 
 export function Invoke(...commands: CommandData[]): Invoke;
 
 export function Invoke(optionsOrData: Invoke.Definition | CommandData, ...commands: CommandData[]): Invoke {
+    if (optionsOrData === undefined) {
+        throw new MalformedRequestError(`Invocation requires at least one command`);
+    }
+
     let options;
     if ("commands" in optionsOrData) {
         options = optionsOrData;

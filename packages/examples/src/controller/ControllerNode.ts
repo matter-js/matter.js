@@ -11,7 +11,7 @@
  * because you need to adjust the code in any way depending on your use case.
  */
 
-import { Diagnostic, Environment, Logger, StorageService, Time } from "@matter/main";
+import { Diagnostic, Environment, Logger, serialize, StorageService, Time } from "@matter/main";
 import { DescriptorClient } from "@matter/main/behaviors/descriptor";
 import { OnOffClient } from "@matter/main/behaviors/on-off";
 import { BasicInformationCluster, Descriptor, GeneralCommissioning } from "@matter/main/clusters";
@@ -173,14 +173,14 @@ class ControllerNode {
             // Subscribe to events of the node
             node.events.attributeChanged.on(({ path: { nodeId, clusterId, endpointId, attributeName }, value }) =>
                 console.log(
-                    `attributeChangedCallback ${nodeId}: Attribute ${endpointId}/${clusterId}/${attributeName} changed to ${Diagnostic.json(
+                    `attributeChangedCallback ${nodeId}: Attribute ${endpointId}/${clusterId}/${attributeName} changed to ${serialize(
                         value,
                     )}`,
                 ),
             );
             node.events.eventTriggered.on(({ path: { nodeId, clusterId, endpointId, eventName }, events }) =>
                 console.log(
-                    `eventTriggeredCallback ${nodeId}: Event ${endpointId}/${clusterId}/${eventName} triggered with ${Diagnostic.json(
+                    `eventTriggeredCallback ${nodeId}: Event ${endpointId}/${clusterId}/${eventName} triggered with ${serialize(
                         events,
                     )}`,
                 ),
