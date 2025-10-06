@@ -50,7 +50,7 @@
         "ansi-colors": "^4.1.3",
         "chai": "^4.5.0",
         "chai-as-promised": "^7.1.2",
-        "dockerode": "^4.0.8",
+        "dockerode": "^4.0.9",
         "express": "^5.1.0",
         "mocha": "^11.7.2",
         "playwright": "^1.55.1",
