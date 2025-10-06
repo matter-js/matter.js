@@ -12,6 +12,7 @@
     "packages/matter.js",
     "packages/nodejs",
     "packages/nodejs-ble",
+    "packages/mqtt",
     "packages/main",
     "packages/nodejs-shell",
     "packages/examples",
