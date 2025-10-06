@@ -731,6 +731,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
         const unsecureSession = this.#sessions.createInsecureSession({
             // Use the session parameters from MDNS announcements when available and rest is assumed to be fallbacks
             sessionParameters: {
+                ...sessionParameters,
                 idleInterval: discoveryData?.SII ?? sessionParameters?.idleInterval,
                 activeInterval: discoveryData?.SAI ?? sessionParameters?.activeInterval,
                 activeThreshold: discoveryData?.SAT ?? sessionParameters?.activeThreshold,

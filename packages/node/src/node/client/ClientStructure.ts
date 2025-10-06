@@ -254,6 +254,7 @@ export class ClientStructure {
         const attrs = cluster.store.initialValues ?? {};
 
         // Generate a behavior if enough information is available
+        // TODO: Detect changes in revision/features/attributes/commands and update behavior if needed
         if (cluster.behavior === undefined) {
             const {
                 [ClusterRevision.id]: clusterRevision,
@@ -309,6 +310,9 @@ export class ClientStructure {
 
         const serverList = attrs[SERVER_LIST_ATTR_ID];
         if (Array.isArray(serverList)) {
+            // TODO: Remove clusters that are no longer present
+            //  Including events vis parts/endpoints on node (per endpoint and generic "changed")?
+            //  Including data cleanup
             for (const cluster of serverList) {
                 if (typeof cluster === "number") {
                     this.#clusterFor(endpoint, cluster as ClusterId);
@@ -325,6 +329,9 @@ export class ClientStructure {
 
                 const part = this.#endpointFor(partNo as EndpointNumber);
 
+                // TODO - remove endpoints/parts that are no longer present
+                //  Including events vis parts/endpoints on node (per endpoint and generic "changed")?
+                //  Including data cleanup
                 let isAlreadyDescendant = false;
                 for (let owner = part.endpoint.owner; owner; owner = owner.owner) {
                     if (owner === endpoint.endpoint) {

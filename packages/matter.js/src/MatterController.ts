@@ -42,7 +42,6 @@ import {
     ControllerCommissioner,
     DecodedAttributeReportValue,
     DEFAULT_ADMIN_VENDOR_ID,
-    DEFAULT_FABRIC_ID,
     DeviceAdvertiser,
     DiscoveryAndCommissioningOptions,
     DiscoveryData,
@@ -113,13 +112,15 @@ export class MatterController {
         rootFabric?: Fabric;
         crypto?: Crypto;
     }): Promise<MatterController> {
+        const crypto = options.crypto ?? Environment.default.get(Crypto);
+
         const {
             controllerStore,
             scanners,
             transports: netInterfaces,
             sessionClosedCallback,
             adminVendorId,
-            adminFabricId = FabricId(DEFAULT_FABRIC_ID),
+            adminFabricId = FabricId(crypto.randomBigInt(8)),
             adminFabricIndex = FabricIndex(DEFAULT_FABRIC_INDEX),
             caseAuthenticatedTags,
             adminFabricLabel,
@@ -127,8 +128,6 @@ export class MatterController {
             rootCertificateAuthority,
             rootFabric,
         } = options;
-
-        const crypto = options.crypto ?? Environment.default.get(Crypto);
 
         const ca = rootCertificateAuthority ?? (await CertificateAuthority.create(crypto, controllerStore.caStorage));
         const fabricStorage = controllerStore.fabricStorage;

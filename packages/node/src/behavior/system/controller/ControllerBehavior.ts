@@ -21,6 +21,7 @@ import {
     Scanner,
     ScannerSet,
 } from "#protocol";
+import { FabricId } from "@matter/types";
 import type { CommissioningClient } from "../commissioning/CommissioningClient.js";
 import { CommissioningServer } from "../commissioning/CommissioningServer.js";
 import { NetworkServer } from "../network/NetworkServer.js";
@@ -46,6 +47,7 @@ export class ControllerBehavior extends Behavior {
             throw new ImplementationError("adminFabricLabel must be set for ControllerBehavior.");
         }
         const adminFabricLabel = this.state.adminFabricLabel;
+        const adminFabricId = this.state.adminFabricId;
 
         // Configure discovery transports
         if (this.state.ip === undefined) {
@@ -74,6 +76,10 @@ export class ControllerBehavior extends Behavior {
 
                     override get adminFabricLabel() {
                         return adminFabricLabel;
+                    }
+
+                    get fabricId() {
+                        return adminFabricId;
                     }
                 })(),
             );
@@ -178,5 +184,12 @@ export namespace ControllerBehavior {
          * Contains the label of the admin fabric which is set for all commissioned devices
          */
         adminFabricLabel = "matter.js";
+
+        /**
+         * Contains the FabricId of the admin fabric when a defined number needs to be used because special Certificates
+         * are used.
+         * If not provided, a random FabricId will be generated.
+         */
+        adminFabricId?: FabricId = undefined;
     }
 }
