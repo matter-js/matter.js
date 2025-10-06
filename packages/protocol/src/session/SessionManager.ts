@@ -615,7 +615,7 @@ export class SessionManager {
                 );
                 if (!fabric) {
                     logger.warn(
-                        `Ignoring resumption record for fabric 0x${toHex(fabricId)} and index ${fabricIndex} because we can not find a matching fabric`,
+                        `Ignoring resumption record for fabric 0x${toHex(fabricId)} and index ${fabricIndex} because we cannot find a matching fabric`,
                     );
                     return;
                 }
