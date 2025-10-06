@@ -92,7 +92,7 @@ export class Peers extends EndpointContainer<ClientNode> {
             const address = PeerAddress(id);
             for (const node of this) {
                 const nodeAddress = node.state.commissioning.peerAddress;
-                if (nodeAddress && PeerAddress.is(nodeAddress, address)) {
+                if (nodeAddress && PeerAddress(nodeAddress) === address) {
                     return node;
                 }
             }

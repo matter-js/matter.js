@@ -143,8 +143,9 @@ export class ClientStructure {
                     case "event-value":
                         this.#emitEvent(change);
                         break;
-
-                    // we ignore attr-status and event-status for now
+                }
+                if (change.kind !== "attr-value") {
+                    continue;
                 }
             }
 
@@ -161,11 +162,6 @@ export class ClientStructure {
         scope: ReadScope,
         currentUpdates: undefined | AttributeUpdates,
     ) {
-        // We only store values that are filtered by out fabric, else we create a mixture of data
-        if (!scope.isFabricFiltered) {
-            return currentUpdates;
-        }
-
         const { endpointId, clusterId, attributeId } = change.path;
 
         // If we are building updates to a cluster and the cluster/endpoint changes, apply the current update
