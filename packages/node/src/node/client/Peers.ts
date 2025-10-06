@@ -11,8 +11,10 @@ import { Discovery } from "#behavior/system/controller/discovery/Discovery.js";
 import { InstanceDiscovery } from "#behavior/system/controller/discovery/InstanceDiscovery.js";
 import { EndpointContainer } from "#endpoint/properties/EndpointContainer.js";
 import { CancelablePromise, Duration, ImplementationError, Logger, Minutes, Seconds, Time, Timestamp } from "#general";
+import { InteractionServer } from "#node/index.js";
 import { FabricManager, PeerAddress, PeerAddressStore } from "#protocol";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
+import { ClientSubscriptionHandler, ClientSubscriptions } from "@matter/protocol";
 import { ClientNode } from "../ClientNode.js";
 import type { ServerNode } from "../ServerNode.js";
 import { ClientNodeFactory } from "./ClientNodeFactory.js";
@@ -31,6 +33,7 @@ const EXPIRATION_INTERVAL = Minutes.one;
 export class Peers extends EndpointContainer<ClientNode> {
     #expirationInterval?: CancelablePromise;
     #expirationWorker?: Promise<void>;
+    #subscriptHandler?: ClientSubscriptionHandler;
     #closed = false;
 
     constructor(owner: ServerNode) {
@@ -92,7 +95,7 @@ export class Peers extends EndpointContainer<ClientNode> {
             const address = PeerAddress(id);
             for (const node of this) {
                 const nodeAddress = node.state.commissioning.peerAddress;
-                if (nodeAddress && PeerAddress(nodeAddress) === address) {
+                if (nodeAddress && PeerAddress.is(nodeAddress, address)) {
                     return node;
                 }
             }
@@ -130,13 +133,9 @@ export class Peers extends EndpointContainer<ClientNode> {
             await node.construction;
             this.add(node);
 
-            // Pin initial settings to the node that they get persisted, Can be adjusted later
+            // Nodes we do not commission are not auto-subscribed but enabled
+            // But we add the peer address
             await node.set({
-                network: {
-                    startupSubscription: null,
-                    isEnabled: false,
-                    enabledOnStartUp: false,
-                },
                 commissioning: { peerAddress: PeerAddress(peerAddress) },
             });
         }
@@ -146,6 +145,7 @@ export class Peers extends EndpointContainer<ClientNode> {
 
     override async close() {
         this.#closed = true;
+        await this.#subscriptHandler?.close();
         this.#cancelExpiration();
         await this.#expirationWorker;
         await super.close();
@@ -159,7 +159,18 @@ export class Peers extends EndpointContainer<ClientNode> {
     }
 
     #manageExpiration() {
-        if (this.#closed || this.#expirationWorker) {
+        if (this.#closed) {
+            return;
+        }
+
+        // Install handler to receive data reports for subscriptions if we have peer nodes
+        if (this.size > 0 && this.#subscriptHandler === undefined) {
+            const subscriptions = this.owner.env.get(ClientSubscriptions);
+            const interactionServer = this.owner.env.get(InteractionServer);
+            interactionServer.clientHandler = this.#subscriptHandler = new ClientSubscriptionHandler(subscriptions);
+        }
+
+        if (this.#expirationWorker) {
             return;
         }
 

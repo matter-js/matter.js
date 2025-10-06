@@ -8,10 +8,8 @@ import { Behavior } from "#behavior/Behavior.js";
 import { BasicInformationBehavior } from "#behaviors/basic-information";
 import { ConnectionlessTransportSet, ImplementationError } from "#general";
 import { Node } from "#node/Node.js";
-import { InteractionServer } from "#node/server/InteractionServer.js";
 import {
     Ble,
-    ClientSubscriptionHandler,
     ClientSubscriptions,
     Fabric,
     FabricAuthority,
@@ -114,11 +112,6 @@ export class ControllerBehavior extends Behavior {
         if (this.state.ble) {
             netTransports.add(this.env.get(Ble).centralInterface);
         }
-
-        // Install handler to receive data reports for subscriptions
-        const subscriptions = this.env.get(ClientSubscriptions);
-        const interactionServer = this.env.get(InteractionServer);
-        interactionServer.clientHandler = new ClientSubscriptionHandler(subscriptions);
 
         // Clean up as the node goes offline
         const node = Node.forEndpoint(this.endpoint);

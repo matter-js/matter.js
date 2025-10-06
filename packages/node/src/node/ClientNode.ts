@@ -124,13 +124,13 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
      * This shuts down any active connections and prevents future connections until re-enabled.
      */
     async disable() {
-        if (!this.state.network.isEnabled) {
+        if (this.state.network.isDisabled) {
             return;
         }
 
         await this.lifecycle.mutex.produce(async () => {
             await this.cancelWithMutex();
-            await this.setStateOf(NetworkClient, { isEnabled: false });
+            await this.setStateOf(NetworkClient, { isDisabled: true });
         });
     }
 
@@ -140,17 +140,12 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
      * If the node is disabled but reachable, this brings it online.
      */
     async enable() {
-        if (this.state.network.isEnabled) {
+        if (!this.state.network.isDisabled) {
             return;
         }
 
-        await this.setStateOf(NetworkClient, { isEnabled: true });
-        try {
-            await this.start();
-        } catch (error) {
-            await this.setStateOf(NetworkClient, { isEnabled: false });
-            throw error;
-        }
+        await this.setStateOf(NetworkClient, { isDisabled: false });
+        await this.start();
     }
 
     protected async eraseWithMutex() {
@@ -286,6 +281,17 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         if (!partExisting) {
             await this.add(part);
         }
+    }
+
+    /**
+     * Use this to manually trigger the default subscription when automatic subscription is disabled.
+     */
+    async subscribe() {
+        return this.act(agent => agent.get(NetworkClient).subscribe());
+    }
+
+    get subscriptionsActivated() {
+        return this.behaviors.internalsOf(NetworkClient).subscriptionActivated;
     }
 }
 

@@ -60,6 +60,13 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
         return interaction.subscribe(intermediateRequest, context);
     }
 
+    cancelSubscription(id: number): void {
+        if (!this.#node.lifecycle.isOnline) {
+            return;
+        }
+        this.#node.env.get(ClientInteraction).cancelSubscription(id);
+    }
+
     async write<T extends Write>(request: T, context?: ActionContext): WriteResult<T> {
         return (await this.#connect()).write(request, context);
     }

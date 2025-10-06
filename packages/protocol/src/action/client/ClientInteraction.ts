@@ -194,9 +194,9 @@ export class ClientInteraction<SessionT extends InteractionSession = Interaction
             messenger = await InteractionClientMessenger.create(this.#exchanges);
 
             await messenger.sendSubscribeRequest({
-                ...request,
                 minIntervalFloorSeconds: Seconds.of(DEFAULT_MIN_INTERVAL_FLOOR),
-                maxIntervalCeilingSeconds: Seconds.of(DEFAULT_MIN_INTERVAL_FLOOR),
+                maxIntervalCeilingSeconds: Seconds.of(DEFAULT_MIN_INTERVAL_FLOOR), // TODO use better max fallback
+                ...request,
             });
 
             await this.#handleSubscriptionResponse(request, readChunks(messenger));
@@ -209,6 +209,10 @@ export class ClientInteraction<SessionT extends InteractionSession = Interaction
             await messenger?.close();
             this.#end(request);
         }
+    }
+
+    cancelSubscription(id: number) {
+        this.#subscriptions.get(id)?.close();
     }
 
     async #handleSubscriptionResponse(request: Subscribe, result: ReadResult) {

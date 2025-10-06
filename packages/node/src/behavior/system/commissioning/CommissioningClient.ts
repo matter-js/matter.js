@@ -158,7 +158,11 @@ export class CommissioningClient extends Behavior {
         await this.context.transaction.commit();
 
         const network = this.agent.get(NetworkClient);
-        network.state.startupSubscription = opts.startupSubscription;
+        network.state.defaultSubscription = opts.defaultSubscription;
+        if (opts.autoSubscribe || opts.autoSubscribe === undefined) {
+            // Nodes we commission are auto-subscribed by default, unless disabled explicitly
+            network.state.autoSubscribe = opts.autoSubscribe ?? true;
+        }
         network.state.caseAuthenticatedTags = opts.caseAuthenticatedTags;
 
         logger.notice(
@@ -452,9 +456,9 @@ export namespace CommissioningClient {
         discoveryCapabilities?: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap>;
 
         /**
-         * The initial read used to populate node data.
+         * The initial read/subscription used to populate node data.
          *
-         * By default matter.js reads all attributes on the node.  This allows us to efficiently initialize the complete
+         * By default, matter.js reads all attributes on the node.  This allows us to efficiently initialize the complete
          * node structure.
          *
          * If you only require a subset of attributes you can replace this with a more discriminative read.  For
@@ -463,7 +467,7 @@ export namespace CommissioningClient {
          *
          * ```js
          * {
-         *     startupSubscription: Read(
+         *     defaultSubscription: Read(
          *         Read.Attribute({ endpoint: 0 }),
          *         Read.Attribute({ cluster: OnOffCluster })
          *     )
@@ -471,9 +475,17 @@ export namespace CommissioningClient {
          * ```
          *
          * Note that certain clusters like Descriptor and Basic Information contain critical operational data. If your
-         * read omits them then the node will only be partially functional once initialized.
+         * read omits them then the node will only be partially functional once initialized or relevant clusters and
+         * endpoints need to be enabled manually.
          */
-        startupSubscription?: Subscribe | null;
+        defaultSubscription?: Subscribe;
+
+        /**
+         * By default, nodes we commission are automatically subscribed to using the {@link defaultSubscription} (or a
+         * full wildcard subscription if that is undefined).
+         * When set to false, the node will not be automatically subscribed.
+         */
+        autoSubscribe?: boolean;
 
         /**
          * Case Authenticated Tags (CATs) to use for operational CASE sessions with this node.

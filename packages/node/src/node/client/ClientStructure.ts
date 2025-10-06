@@ -30,8 +30,11 @@ export class ClientStructure {
     #nodeStore: ClientNodeStore;
     #endpoints: Record<EndpointNumber, EndpointStructure> = {};
     #emitEvent: ClientEventEmitter;
+    #node: ClientNode;
+    #subscribedFabricFiltered?: boolean;
 
     constructor(node: ClientNode) {
+        this.#node = node;
         this.#nodeStore = node.env.get(ClientNodeStore);
         this.#endpoints[node.number] = {
             endpoint: node,
@@ -143,9 +146,8 @@ export class ClientStructure {
                     case "event-value":
                         this.#emitEvent(change);
                         break;
-                }
-                if (change.kind !== "attr-value") {
-                    continue;
+
+                    // we ignore attr-status and event-status for now
                 }
             }
 
@@ -157,11 +159,27 @@ export class ClientStructure {
         }
     }
 
+    /** Reference to the default subscription used when the node was started. */
+    protected get subscribedFabricFiltered() {
+        if (this.#subscribedFabricFiltered === undefined) {
+            this.#subscribedFabricFiltered = this.#node.state.network.defaultSubscription?.isFabricFiltered ?? true;
+            this.#node.events.network.defaultSubscription$Changed.on(newSubscription => {
+                this.#subscribedFabricFiltered = newSubscription?.isFabricFiltered ?? true;
+            });
+        }
+        return this.#subscribedFabricFiltered;
+    }
+
     async #mutateAttribute(
         change: ReadResult.AttributeValue,
         scope: ReadScope,
         currentUpdates: undefined | AttributeUpdates,
     ) {
+        // We only store values when an initial subscription is defined and the fabric filter matches
+        if (this.subscribedFabricFiltered !== scope.isFabricFiltered) {
+            return currentUpdates;
+        }
+
         const { endpointId, clusterId, attributeId } = change.path;
 
         // If we are building updates to a cluster and the cluster/endpoint changes, apply the current update

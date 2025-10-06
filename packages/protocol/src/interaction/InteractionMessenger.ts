@@ -301,7 +301,7 @@ export class InteractionServerMessenger extends InteractionMessenger {
                     }
                     default:
                         throw new StatusResponseError(
-                            `Unsupported message type ${message.payloadHeader.messageType}`,
+                            `Unsupported message type ${MessageType[message.payloadHeader.messageType]} (${message.payloadHeader.messageType})`,
                             Status.InvalidAction,
                         );
                 }
