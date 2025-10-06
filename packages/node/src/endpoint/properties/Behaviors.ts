@@ -27,7 +27,7 @@ import {
     Transaction,
 } from "#general";
 import { FeatureSet } from "#model";
-import { ProtocolService } from "#node/server/ProtocolService.js";
+import { ProtocolService } from "#node/integration/ProtocolService.js";
 import { ClusterTypeProtocol, FabricManager, Val } from "#protocol";
 import { ClusterType, VoidSchema } from "#types";
 import type { Agent } from "../Agent.js";
@@ -61,6 +61,13 @@ export class Behaviors {
      */
     get supported() {
         return this.#supported;
+    }
+
+    /**
+     * The list of active behaviors.
+     */
+    get active() {
+        return Object.values(this.#backings).map(backing => backing.type);
     }
 
     get status() {

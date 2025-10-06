@@ -6,7 +6,7 @@
 
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
-import { EventEmitter, Observable, Timer } from "#general";
+import { EventEmitter, Observable } from "#general";
 import { Behavior } from "../../Behavior.js";
 
 /**
@@ -28,8 +28,7 @@ export class IndexBehavior extends Behavior {
     }
 
     override [Symbol.asyncDispose]() {
-        this.internal.changeBroadcaster?.stop();
-        delete this.internal.changeBroadcaster;
+        this.internal.changeBroadcastPending = false;
     }
 
     get partsById() {
@@ -104,11 +103,20 @@ export class IndexBehavior extends Behavior {
      * Trigger change event lazily so transactions complete and we can coalesce into fewer events.
      */
     #change() {
-        if (this.internal.changeBroadcaster) {
+        const { internal } = this;
+
+        if (internal.changeBroadcastPending) {
             return;
         }
 
+        internal.changeBroadcastPending = true;
+
         void Promise.resolve().then(() => {
+            if (!internal.changeBroadcastPending) {
+                return;
+            }
+
+            internal.changeBroadcastPending = false;
             this.events.change.emit();
         });
     }
@@ -116,7 +124,7 @@ export class IndexBehavior extends Behavior {
 
 export namespace IndexBehavior {
     export class Internal {
-        changeBroadcaster?: Timer;
+        changeBroadcastPending?: boolean;
 
         /**
          * Map of ID to {@link Endpoint}.
@@ -126,7 +134,7 @@ export namespace IndexBehavior {
         /**
          * Map of number to {@link Endpoint}.
          */
-        partsByNumber = {} as Record<number, Endpoint>;
+        partsByNumber = {} as Record<string, Endpoint>;
     }
 
     export class Events extends EventEmitter {

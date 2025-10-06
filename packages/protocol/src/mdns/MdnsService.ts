@@ -76,7 +76,7 @@ export class MdnsService {
         return this.#construction;
     }
 
-    async [Symbol.asyncDispose]() {
+    async close() {
         this.#env.delete(MdnsService, this);
 
         await this.#construction.close(async () => {

@@ -28,7 +28,7 @@ import { Interactable } from "#protocol";
 import type { EndpointNumber } from "#types";
 import { RootEndpoint } from "../endpoints/root.js";
 import { NodeLifecycle } from "./NodeLifecycle.js";
-import { ProtocolService } from "./server/ProtocolService.js";
+import { ProtocolService } from "./integration/ProtocolService.js";
 
 const logger = Logger.get("Node");
 

@@ -21,9 +21,9 @@ import {
     UninitializedDependencyError,
 } from "#general";
 import { DataModelPath } from "#model";
+import { ProtocolService } from "#node/integration/ProtocolService.js";
 import type { Node } from "#node/Node.js";
 import { IdentityService } from "#node/server/IdentityService.js";
-import { ProtocolService } from "#node/server/ProtocolService.js";
 import { Val } from "#protocol";
 import { EndpointNumber } from "#types";
 import { RootEndpoint } from "../endpoints/root.js";
@@ -227,7 +227,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
 
                 await tx.addResources(behavior);
 
-                const patch = (behavior.constructor as Behavior.Type).supervisor.patch;
+                const patch = behavior.type.supervisor.patch;
 
                 if (typeof vals !== "object") {
                     throw new ImplementationError(
@@ -266,7 +266,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             await tx.begin();
             await tx.addResources(behavior);
 
-            const patch = (behavior.constructor as Behavior.Type).supervisor.patch;
+            const patch = behavior.type.supervisor.patch;
 
             if (typeof values !== "object") {
                 throw new ImplementationError(`State values for ${type.id} must be an object, not ${typeof values}`);

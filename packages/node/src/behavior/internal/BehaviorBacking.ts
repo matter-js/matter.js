@@ -4,12 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { OnlineEvent } from "#behavior/Events.js";
 import { Migration } from "#behavior/state/migrations/Migration.js";
 import type { Agent } from "#endpoint/Agent.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { BehaviorInitializationError } from "#endpoint/errors.js";
 import type { SupportedElements } from "#endpoint/properties/Behaviors.js";
 import {
+    camelize,
     Construction,
     Crypto,
     EventEmitter,
@@ -19,8 +21,10 @@ import {
     Logger,
     MaybePromise,
     Observable,
+    ObserverGroup,
 } from "#general";
-import { ProtocolService } from "#node/server/ProtocolService.js";
+import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
+import { ProtocolService } from "#node/integration/ProtocolService.js";
 import type { ClusterId } from "#types";
 import type { Behavior } from "../Behavior.js";
 import { Reactor } from "../Reactor.js";
@@ -36,12 +40,16 @@ const logger = Logger.get("BehaviorBacking");
 export abstract class BehaviorBacking {
     #endpoint: Endpoint;
     #type: Behavior.Type;
+    #protocol: ProtocolService;
+    #changeTracking: ChangeNotificationService;
     #internal?: object;
     #events?: EventEmitter;
     #options?: Behavior.Options;
     #datasource?: Datasource;
     #reactors?: Reactors;
     #construction: Construction<BehaviorBacking>;
+    #suppressedChanges?: Set<string>;
+    #quietObservers?: ObserverGroup;
 
     get construction() {
         return this.#construction;
@@ -50,8 +58,12 @@ export abstract class BehaviorBacking {
     constructor(endpoint: Endpoint, type: Behavior.Type, store: Datasource.Store, options?: Behavior.Options) {
         this.#endpoint = endpoint;
         this.#type = type;
+        this.#protocol = endpoint.env.get(ProtocolService);
+        this.#changeTracking = endpoint.env.get(ChangeNotificationService);
         this.store = store;
         this.#options = options;
+
+        this.#configureEventSuppression();
 
         this.#construction = Construction(this);
         this.#construction.onError(error => {
@@ -96,7 +108,7 @@ export abstract class BehaviorBacking {
 
             // Perform actual initialization
             const promise = this.invokeInitializer(behavior, this.#options);
-            return MaybePromise.then(promise, () => this.#endpoint.env.get(ProtocolService).addCluster(this), crash);
+            return MaybePromise.then(promise, () => this.#protocol.addCluster(this), crash);
         } catch (e) {
             crash(e);
         }
@@ -124,6 +136,8 @@ export abstract class BehaviorBacking {
         }
 
         return this.construction.close(() => {
+            this.#quietObservers?.close();
+
             let result = MaybePromise.then(
                 () => this.#reactors?.close(),
                 () => {
@@ -210,6 +224,7 @@ export abstract class BehaviorBacking {
             defaults: this.#endpoint.behaviors.defaultsFor(this.type),
             store: this.store,
             owner: this.#endpoint,
+            onChange: this.#onChange.bind(this),
         };
     }
 
@@ -290,6 +305,50 @@ export abstract class BehaviorBacking {
     }
 
     /**
+     * We handle events in bulk via {@link Datasource.Options.onChange}, but "quieter" and "changesOmitted" events
+     * require special handling.  Those we ignore in the change handler and instead report only when emitted by the
+     * corresponding {@link OnlineEvent}.
+     */
+    #configureEventSuppression() {
+        const { schema } = this.type;
+        if (!schema) {
+            return;
+        }
+
+        for (const property of schema.conformant.properties) {
+            const { changesOmitted, quieter } = property.effectiveQuality;
+
+            if (!changesOmitted && !quieter) {
+                continue;
+            }
+
+            const name = camelize(property.name);
+
+            if (!this.#suppressedChanges) {
+                this.#suppressedChanges = new Set();
+            }
+            this.#suppressedChanges.add(name);
+
+            if (!quieter) {
+                continue;
+            }
+
+            const event = (this.events as unknown as Record<string, OnlineEvent>)[`${name}$Changed`];
+            if (event === undefined) {
+                continue;
+            }
+
+            if (event.isQuieter) {
+                if (!this.#quietObservers) {
+                    this.#quietObservers = new ObserverGroup();
+                }
+
+                this.#quietObservers.on(event.quiet, () => this.#broadcastChanges([name]));
+            }
+        }
+    }
+
+    /**
      * Invoke {@link Behavior.destroy} to clean up application logic.
      */
     #invokeClose(agent: Agent): MaybePromise {
@@ -321,5 +380,26 @@ export abstract class BehaviorBacking {
         }
         const behavior = this.createBehavior(agent, this.#type);
         return behavior;
+    }
+
+    #onChange(props: string[]) {
+        if (this.#suppressedChanges) {
+            props = props.filter(name => !this.#suppressedChanges!.has(name));
+        }
+        this.#broadcastChanges(props);
+    }
+
+    /**
+     * We provide two forms of optimized change tracking.
+     *
+     * {@link ProtocolService} offers a low-level service that supports the Matter protocol.
+     *
+     * {@link ChangeNotificationService} is a higher-level service that supports state synchronization use cases.
+     *
+     * This method informs these services of changes.
+     */
+    #broadcastChanges(props: string[]) {
+        this.#protocol.handleChange(this, props);
+        this.#changeTracking.broadcastUpdate(this, props);
     }
 }

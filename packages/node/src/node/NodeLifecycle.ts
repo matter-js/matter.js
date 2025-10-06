@@ -15,7 +15,7 @@ import { AsyncObservable, Mutex, Observable } from "#general";
 export class NodeLifecycle extends EndpointLifecycle {
     #online = AsyncObservable<[context: ActionContext]>();
     #goingOffline = AsyncObservable<[context: ActionContext]>();
-    #offline = Observable<[context: ActionContext]>();
+    #offline = AsyncObservable<[context: ActionContext]>();
     #commissioned = Observable<[context: ActionContext]>();
     #decommissioned = Observable<[context: ActionContext]>();
     #initialized = Observable<[isCommissioned: boolean]>();

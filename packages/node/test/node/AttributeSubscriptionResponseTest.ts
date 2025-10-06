@@ -6,7 +6,7 @@
 
 import { BasicInformationCluster } from "#clusters/basic-information";
 import { Specification } from "#model";
-import { AttributeResponseFilter, AttributeSubscriptionResponse, Read } from "#protocol";
+import { AttributeSubscriptionResponse, DirtyState, Read } from "#protocol";
 import { AttributeId, ClusterId, EndpointNumber } from "#types";
 import { MockServerNode } from "./mock-server-node.js";
 import { countAttrs } from "./read-helpers.js";
@@ -83,7 +83,7 @@ describe("AttributeSubscriptionResponse", () => {
     });
 });
 
-function readAttrSub(node: MockServerNode, filter: AttributeResponseFilter, ...args: Parameters<typeof Read>) {
+function readAttrSub(node: MockServerNode, filter: DirtyState.ForNode, ...args: Parameters<typeof Read>) {
     const request = Read(...args);
 
     if (!Read.containsAttribute(request)) {
@@ -92,7 +92,7 @@ function readAttrSub(node: MockServerNode, filter: AttributeResponseFilter, ...a
     return readAttrSubRaw(node, filter, request);
 }
 
-async function readAttrSubRaw(node: MockServerNode, filter: AttributeResponseFilter, data: Partial<Read.Attributes>) {
+async function readAttrSubRaw(node: MockServerNode, filter: DirtyState.ForNode, data: Partial<Read.Attributes>) {
     const request = {
         isFabricFiltered: false,
         interactionModelRevision: INTERACTION_MODEL_REVISION,

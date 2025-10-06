@@ -5,6 +5,7 @@
  */
 
 export * from "./client/index.js";
+export * from "./integration/index.js";
 export * from "./Node.js";
 export * from "./NodeLifecycle.js";
 export * from "./server/index.js";

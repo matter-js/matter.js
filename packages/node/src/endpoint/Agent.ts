@@ -186,7 +186,7 @@ export class Agent {
     }
 
     [INSTALL_BEHAVIOR](behavior: Behavior) {
-        this.#behaviors[(behavior.constructor as Behavior.Type).id] = behavior;
+        this.#behaviors[behavior.type.id] = behavior;
     }
 }
 

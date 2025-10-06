@@ -64,17 +64,23 @@ export interface NodeProtocol extends CollectionProtocol<EndpointProtocol> {
     eventHandler: OccurrenceManager;
 
     /**
-     * Event when data on the node changes.
+     * Emitted when attributes change.
      */
-    stateChanged: Observable<
-        [endpointId: EndpointNumber, clusterId: ClusterId, changes: AttributeId[], version: number],
-        MaybePromise
-    >;
+    attrsChanged: Observable<NodeProtocol.AttrChange, MaybePromise>;
 
     /**
      * Inspects an Attribute- or Event path and log in human-readable form if possible
      */
     inspectPath(path: AttributePath | EventPath | CommandPath): string;
+}
+
+export namespace NodeProtocol {
+    export type AttrChange = [
+        endpointId: EndpointNumber,
+        clusterId: ClusterId,
+        changes: AttributeId[],
+        version: number,
+    ];
 }
 
 /**
@@ -114,11 +120,6 @@ export interface ClusterProtocol {
      * The location of the cluster within the data model.
      */
     location: AccessControl.Location;
-
-    /**
-     * The cluster datasource state change event
-     */
-    stateChanged: Observable<[changes: AttributeId[], version: number], MaybePromise>;
 
     /**
      * Read-only state of the cluster

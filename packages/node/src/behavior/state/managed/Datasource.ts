@@ -26,8 +26,6 @@ const logger = Logger.get("Datasource");
 
 const FEATURES_KEY = "__features__";
 
-const changed = Symbol("changed");
-
 const viewTx = Transaction.open("offline-view", "ro");
 
 /**
@@ -62,11 +60,6 @@ export interface Datasource<T extends StateType = StateType> extends Transaction
      * Path used in diagnostic messages.
      */
     location: AccessControl.Location;
-
-    /**
-     * Event that gets emitted when the state changes.
-     */
-    changed: Observable<[changes: string[], version: number], MaybePromise>;
 
     /**
      * Events registered for this Datasource
@@ -105,10 +98,6 @@ export function Datasource<const T extends StateType = StateType>(options: Datas
             return internals.location;
         },
 
-        get changed() {
-            return internals.events[changed];
-        },
-
         get events() {
             return internals.events;
         },
@@ -143,10 +132,6 @@ export namespace Datasource {
         stateChanged?: Observable<[context?: ValueSupervisor.Session], MaybePromise>;
     } & {
         [K in `${string}$Changing` | `${string}$Changed`]: Observable<Parameters<ValueObserver>, MaybePromise>;
-    };
-
-    export type InternalEvents = Events & {
-        [changed]: Observable<[changes: string[], version: number], MaybePromise>;
     };
 
     /**
@@ -204,6 +189,11 @@ export namespace Datasource {
          * For structs we also support the other key (id or name) for input, but always write using the preferred key.
          */
         primaryKey?: "name" | "id";
+
+        /**
+         * Optional callback, invoked when properties change.
+         */
+        onChange?: (attrs: string[]) => MaybePromise<void>;
     }
 
     /**
@@ -275,7 +265,7 @@ interface Internals extends Datasource.Options {
     sessions?: Map<ValueSupervisor.Session, SessionContext>;
     featuresKey?: string;
     interactionObserver(session?: ValueSupervisor.Session): MaybePromise<void>;
-    events: Datasource.InternalEvents;
+    events: Datasource.Events;
     changedEventFor(key: string): undefined | Datasource.Events[any];
     persistentFields: Set<string>;
 }
@@ -328,10 +318,9 @@ function configure(options: Datasource.Options): Internals {
     // Location affects security so make it immutable
     Object.freeze(options.location);
 
-    const events = (options.events ?? {}) as Datasource.InternalEvents;
-    events[changed] = new Observable();
+    const events = options.events ?? {};
 
-    let changedEventIndex: undefined | Map<string, undefined | Datasource.InternalEvents[`${string}$Changed`]>;
+    let changedEventIndex: undefined | Map<string, undefined | Datasource.Events[`${string}$Changed`]>;
 
     const persistentFields = options.supervisor.persistentKeys(options.primaryKey);
 
@@ -443,7 +432,15 @@ function configureExternalChanges(internals: Internals) {
             }
         }
 
-        const iterator = Object.keys(changes)[Symbol.iterator]();
+        const changedProps = Object.keys(changes);
+
+        const onChangePromise = internals.onChange?.(Array.from(changedProps));
+
+        const iterator = changedProps[Symbol.iterator]();
+
+        if (onChangePromise) {
+            return onChangePromise.then(emitChanged);
+        }
 
         return emitChanged();
 
@@ -856,13 +853,10 @@ function createReference(resource: Transaction.Resource, internals: Internals, s
             }
         }
 
-        const changeSetResult = internals.events[changed]?.emit(
-            Array.from(changes.changeList.values()),
-            internals.version,
-        );
+        const onChangePromise = internals.onChange?.([...changes.changeList]);
 
-        if (MaybePromise.is(changeSetResult)) {
-            return changeSetResult.then(emitChanged);
+        if (MaybePromise.is(onChangePromise)) {
+            return onChangePromise.then(emitChanged);
         }
 
         return emitChanged();

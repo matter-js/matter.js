@@ -105,6 +105,13 @@ export abstract class Behavior {
     }
 
     /**
+     * The Behavior's type.
+     */
+    get type() {
+        return this.constructor as Behavior.Type;
+    }
+
+    /**
      * Access the behavior's state.
      */
     declare readonly state: {};
@@ -169,7 +176,7 @@ export abstract class Behavior {
      * Description used in diagnostic messages.
      */
     toString() {
-        return `${this.endpoint}.${(this.constructor as Behavior.Type).id}`;
+        return `${this.endpoint}.${this.type.id}`;
     }
 
     /**

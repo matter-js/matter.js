@@ -11,75 +11,78 @@ import { InternalError } from "#general";
 import { AttributeId, AttributePath, ClusterId, EndpointNumber } from "#types";
 import { AttributeReadResponse } from "./AttributeReadResponse.js";
 
-type ClusterFilter = {
-    [clusterId: ClusterId]: Set<AttributeId>;
-};
-export type AttributeResponseFilter = {
-    [endpointId: EndpointNumber]: ClusterFilter;
-};
+export namespace DirtyState {
+    export type ForCluster = {
+        [clusterId: ClusterId]: Set<AttributeId>;
+    };
+
+    export type ForNode = {
+        [endpointId: EndpointNumber]: ForCluster;
+    };
+}
 
 /**
- * AttributeSubscriptionResponse is a specialized version of AttributeReadResponse that processes a read/subscribe request
- * with a filter applied to the attributes. Only the attributes that match the filter will be processed.
+ * A specialization of {@link AttributeReadResponse} that processes a read/subscribe request with a filter applied to
+ * the attributes. Only processes attributes that match the filter.
  */
 export class AttributeSubscriptionResponse<
     SessionT extends InteractionSession = InteractionSession,
 > extends AttributeReadResponse<SessionT> {
-    #filter: AttributeResponseFilter;
-    #currentEndpointFilter?: ClusterFilter;
-    #currentClusterFilter?: Set<number>;
+    #dirty: DirtyState.ForNode;
+    #currentEndpointDirty?: DirtyState.ForCluster;
+    #currentClusterDirty?: Set<number>;
 
-    constructor(node: NodeProtocol, session: SessionT, filter: AttributeResponseFilter) {
+    constructor(node: NodeProtocol, session: SessionT, filter: DirtyState.ForNode) {
         super(node, session);
-        this.#filter = filter;
+        this.#dirty = filter;
     }
 
-    get filter() {
-        return this.#filter;
+    get dirty() {
+        return this.#dirty;
     }
 
     /** Guarded accessor for this.#currentEndpointFilter.  This should never be undefined */
-    protected get currentEndpointFilter() {
-        if (!this.#currentEndpointFilter) {
+    protected get currentEndpointDirty() {
+        if (!this.#currentEndpointDirty) {
             throw new InternalError("currentEndpointFilter is not set. Should never happen");
         }
-        return this.#currentEndpointFilter;
+        return this.#currentEndpointDirty;
     }
 
     /** Guarded accessor for this.#currentCLusterFilter.  This should never be undefined */
-    protected get currentClusterFilter() {
-        if (!this.#currentClusterFilter) {
+    protected get currentClusterDirty() {
+        if (!this.#currentClusterDirty) {
             throw new InternalError("currentClusterFilter is not set. Should never happen");
         }
-        return this.#currentClusterFilter;
+        return this.#currentClusterDirty;
     }
 
     protected override addConcrete(path: ReadResult.ConcreteAttributePath) {
         const { endpointId, clusterId, attributeId } = path;
-        if (this.#filter[endpointId]?.[clusterId]?.has(attributeId) === undefined) {
+        if (this.#dirty[endpointId]?.[clusterId]?.has(attributeId) === undefined) {
             return;
         }
         super.addConcrete(path);
     }
 
     protected override *readEndpointForWildcard(endpoint: EndpointProtocol, path: AttributePath) {
-        this.#currentEndpointFilter = this.#filter[endpoint.id];
-        if (this.#currentEndpointFilter === undefined) {
+        this.#currentEndpointDirty = this.#dirty[endpoint.id];
+        if (this.#currentEndpointDirty === undefined) {
             return;
         }
         yield* super.readEndpointForWildcard(endpoint, path);
     }
 
     protected override readClusterForWildcard(cluster: ClusterProtocol, path: AttributePath) {
-        this.#currentClusterFilter = this.currentEndpointFilter[cluster.type.id];
-        if (this.#currentClusterFilter === undefined) {
+        this.#currentClusterDirty = this.currentEndpointDirty[cluster.type.id];
+        if (this.#currentClusterDirty === undefined) {
             return;
         }
         super.readClusterForWildcard(cluster, path);
     }
 
     protected override readAttributeForWildcard(attribute: AttributeTypeProtocol, path: AttributePath) {
-        if (!this.currentClusterFilter.has(attribute.id)) {
+        if (!this.currentClusterDirty.has(attribute.id)) {
             return;
         }
         super.readAttributeForWildcard(attribute, path);

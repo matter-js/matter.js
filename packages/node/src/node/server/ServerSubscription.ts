@@ -23,7 +23,7 @@ import {
 } from "#general";
 import { Specification } from "#model";
 import type { ServerNode } from "#node/ServerNode.js";
-import type { AttributeResponseFilter, Message, MessageExchange, NodeSession } from "#protocol";
+import type { DirtyState, Message, MessageExchange, NodeSession } from "#protocol";
 import {
     AttributeReadResponse,
     AttributeSubscriptionResponse,
@@ -124,7 +124,7 @@ export class ServerSubscription extends Subscription {
     readonly #sendDelayTimer: Timer = Time.getTimer(`Subscription ${this.id} delay`, Millis(50), () =>
         this.#triggerSendUpdate(),
     );
-    #outstandingAttributeUpdates?: AttributeResponseFilter;
+    #outstandingAttributeUpdates?: DirtyState.ForNode;
     #outstandingEventsMinNumber?: EventNumber;
     readonly #changeHandlers = new ObserverGroup();
 
@@ -378,7 +378,7 @@ export class ServerSubscription extends Subscription {
     }
 
     /**
-     * Determine all attributes that have changed since the last update and send them tout to the subscriber.
+     * Determine all attributes that have changed since the last update and send them out to the subscriber.
      * Important: This method MUST NOT be called directly. Use triggerSendUpdate() instead!
      */
     async #sendUpdate(onlyWithData = false) {
@@ -561,7 +561,7 @@ export class ServerSubscription extends Subscription {
         // Register change handlers, so that we get changes directly
         if (this.criteria.attributeRequests?.length) {
             this.#changeHandlers.on(
-                this.#context.node.protocol.stateChanged,
+                this.#context.node.protocol.attrsChanged,
                 this.#handleClusterStateChanges.bind(this),
             );
         }
@@ -627,7 +627,7 @@ export class ServerSubscription extends Subscription {
      */
     async *#iterateDataUpdate(
         exchange: MessageExchange,
-        attributeFilter: AttributeResponseFilter | undefined,
+        attributeFilter: DirtyState.ForCluster | undefined,
         eventsMinNumber: EventNumber | undefined,
     ) {
         const request = {
@@ -678,7 +678,7 @@ export class ServerSubscription extends Subscription {
     }
 
     async #sendUpdateMessage(
-        attributeFilter: AttributeResponseFilter | undefined,
+        attributeFilter: DirtyState.ForCluster | undefined,
         eventsMinNumber: EventNumber | undefined,
         onlyWithData: boolean,
     ) {

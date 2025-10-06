@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ElementEvent, Events } from "#behavior/Events.js";
+import type { ElementEvent, Events } from "#behavior/Events.js";
 import { camelize, Logger } from "#general";
 import { ClusterModel, EventModel, MatterModel } from "#model";
-import { ClientNode } from "#node/ClientNode.js";
-import { ReadResult } from "#protocol";
-import { ClusterId, EndpointNumber, EventId } from "#types";
-import { ClientStructure } from "./ClientStructure.js";
+import type { ClientNode } from "#node/ClientNode.js";
+import type { ReadResult } from "#protocol";
+import type { ClusterId, EndpointNumber, EventId } from "#types";
+import type { ClientStructure } from "./ClientStructure.js";
 
 const logger = Logger.get("ClientEventEmitter");
 

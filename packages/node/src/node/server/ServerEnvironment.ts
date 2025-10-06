@@ -7,9 +7,10 @@
 import { limitNodeDataToAllowedFabrics } from "#behavior/cluster/FabricScopedDataHandler.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { Crypto, Observable } from "#general";
+import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { ServerEndpointInitializer } from "#node/server/ServerEndpointInitializer.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { FabricManager, SessionManager } from "#protocol";
+import { FabricManager, MdnsService, SessionManager } from "#protocol";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { IdentityService } from "./IdentityService.js";
 
@@ -28,6 +29,7 @@ export namespace ServerEnvironment {
         env.set(ServerNodeStore, store);
         env.set(EndpointInitializer, new ServerEndpointInitializer(env));
         env.set(IdentityService, new IdentityService(node));
+        env.set(ChangeNotificationService, new ChangeNotificationService(node));
 
         // Ensure these are fully initialized
         const fabrics = await env.load(FabricManager);
@@ -49,7 +51,12 @@ export namespace ServerEnvironment {
         const { env } = node;
 
         env.close(FabricManager);
+        await env.close(ChangeNotificationService);
         await env.close(SessionManager);
         await env.close(ServerNodeStore);
+
+        if (env.owns(MdnsService)) {
+            await env.close(MdnsService);
+        }
     }
 }
