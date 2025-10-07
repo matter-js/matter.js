@@ -438,7 +438,10 @@ export class Behaviors {
             this.#supported = { ...this.#supported };
         }
 
-        type = this.#endpoint.env.get(EndpointInitializer).finalizeType(type);
+        // TODO how to better solve that?
+        if (this.#endpoint.env.has(EndpointInitializer)) {
+            type = this.#endpoint.env.get(EndpointInitializer).finalizeType(type);
+        }
 
         this.#supported[type.id] = type;
 
