@@ -131,6 +131,11 @@ function loadVariables(env: Environment) {
     };
 }
 
+function rootDirOf(env: Environment) {
+    // path.root should always be set when this is called so the "." fallback should not be used
+    return env.vars.get("path.root", ".");
+}
+
 function configureCrypto(env: Environment) {
     Boot.init(() => {
         if (config.installCrypto || (env.vars.boolean("nodejs.crypto") ?? true)) {
@@ -148,7 +153,7 @@ function configureNetwork(env: Environment) {
 
     Boot.init(() => {
         if (config.installNetwork || (env.vars.boolean("nodejs.network") ?? true)) {
-            const basePathForUnixSockets = env.maybeGet(StorageService)?.location;
+            const basePathForUnixSockets = rootDirOf(env);
             env.set(Network, new NodeJsNetwork());
             env.set(HttpEndpointFactory, new NodeJsHttpEndpoint.Factory(basePathForUnixSockets));
         } else {
@@ -175,13 +180,13 @@ function configureStorage(env: Environment) {
     const service = env.get(StorageService);
 
     env.vars.use(() => {
-        service.location = env.vars.get("storage.path", env.vars.get("path.root", "."));
+        service.location = env.vars.get("storage.path", rootDirOf(env));
     });
 
     service.factory = namespace =>
         new StorageBackendDisk(resolve(service.location ?? ".", namespace), env.vars.get("storage.clear", false));
 
-    service.resolve = (...paths) => resolve(service.location ?? ".", ...paths);
+    service.resolve = (...paths) => resolve(rootDirOf(env), ...paths);
 }
 
 export function loadConfigFile(vars: VariableService) {
