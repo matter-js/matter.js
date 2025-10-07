@@ -14,6 +14,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 -   @matter/general
     - Enhancement: Accept all variants of MDNS responses, also non-authoritative ones
     - Fix: Adds safeguard check to prevent a crash seen when handling DNS messages
+    - Fix: (TheNetStriker) Ensure all log destination get all logs
 
 -   @matter/nodejs
     - Fix: Corrects network interface selection logic for windows
