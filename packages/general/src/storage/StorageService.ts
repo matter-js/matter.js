@@ -18,9 +18,17 @@ export class StorageService {
     #factory?: (namespace: string) => Storage;
     #location?: string;
 
-    constructor(environment: Environment, factory?: (namespace: string) => Storage) {
+    constructor(
+        environment: Environment,
+        factory?: (namespace: string) => Storage,
+        resolver?: (...paths: string[]) => string,
+    ) {
         environment.set(StorageService, this);
         this.#factory = factory;
+
+        // Fallback resolver is dumb and probably not useful; expected to be replaced by platform implementation if
+        // file resolution is necessary
+        this.resolve = resolver ?? ((...paths: []) => paths.join("/"));
     }
 
     static [Environmental.create](environment: Environment) {
@@ -60,6 +68,11 @@ export class StorageService {
     set location(location: string | undefined) {
         this.#location = location;
     }
+
+    /**
+     * Join one or more relative paths to some platform-dependent notion of an absolute storage path.
+     */
+    resolve: (...paths: string[]) => string;
 
     [Diagnostic.value]() {
         return [
