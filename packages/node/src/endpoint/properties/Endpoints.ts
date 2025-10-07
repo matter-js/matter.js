@@ -21,6 +21,10 @@ export class Endpoints implements ImmutableSet<Endpoint> {
         this.#node = node;
     }
 
+    protected get node(): Node {
+        return this.#node;
+    }
+
     has(endpoint: Endpoint | number): boolean {
         if (endpoint === this.#node || endpoint === 0) {
             return true;

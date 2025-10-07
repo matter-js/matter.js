@@ -437,6 +437,9 @@ export class Behaviors {
         if (this.#supported === this.#endpoint.type.behaviors) {
             this.#supported = { ...this.#supported };
         }
+
+        type = this.#endpoint.env.get(EndpointInitializer).finalizeType(type);
+
         this.#supported[type.id] = type;
 
         this.#augmentEndpoint(type);
@@ -640,7 +643,7 @@ export class Behaviors {
         }
 
         const backing = this.#endpoint.env.get(EndpointInitializer).createBacking(this.#endpoint, myType);
-        this.#backings[type.id] = backing;
+        this.#backings[backing.type.id] = backing;
         if (!this.#protocol) {
             this.#protocol = this.#endpoint.env.get(ProtocolService);
         }

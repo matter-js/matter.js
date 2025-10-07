@@ -33,6 +33,7 @@ import {
     FabricManager,
     LocatedNodeCommissioningOptions,
     PeerAddress,
+    PeerSet,
     SessionParameters,
     Subscribe,
 } from "#protocol";
@@ -75,7 +76,9 @@ export class CommissioningClient extends Behavior {
         }
 
         this.reactTo((this.endpoint as Node).lifecycle.partsReady, this.#initializeNode);
-        this.reactTo(this.events.peerAddress$Changed, this.#peerAddressChanged);
+        this.reactTo(this.events.peerAddress$Changed, this.#peerAddressChanged, {
+            offline: true,
+        });
     }
 
     commission(passcode: number): Promise<ClientNode>;
@@ -235,7 +238,7 @@ export class CommissioningClient extends Behavior {
         endpoint.lifecycle.initialized.emit(this.state.peerAddress !== undefined);
     }
 
-    #peerAddressChanged(addr?: PeerAddress) {
+    async #peerAddressChanged(addr?: PeerAddress) {
         const node = this.endpoint as ClientNode;
 
         if (addr) {
@@ -250,6 +253,11 @@ export class CommissioningClient extends Behavior {
                     if (!this.state.addresses.some(a => ServerAddress.isEqual(ServerAddress(a), operationalAddress))) {
                         this.state.addresses.push(ServerAddress.definitionOf(operationalAddress));
                     }
+
+                    // Make sure the PeerSet knows about this peer now too
+                    // TODO - IdentityService manages parts of it here, but peers need to be known in PeerSets
+                    const peerSet = this.env.get(PeerSet);
+                    await peerSet.addKnownPeer(addr, operationalAddress, this.descriptor);
                 }
             }
 

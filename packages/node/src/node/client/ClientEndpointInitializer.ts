@@ -11,9 +11,12 @@ import { ClientBehaviorBacking } from "#behavior/internal/ClientBehaviorBacking.
 import { ServerBehaviorBacking } from "#behavior/internal/ServerBehaviorBacking.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
+import { FeatureBitmap } from "#model";
+import { ClientBehavior } from "#node/client/ClientBehavior.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
 import { NodeStore } from "#storage/NodeStore.js";
+import { AttributeId, CommandId } from "#types";
 import { ClientStructure } from "./ClientStructure.js";
 
 export class ClientEndpointInitializer extends EndpointInitializer {
@@ -55,6 +58,41 @@ export class ClientEndpointInitializer extends EndpointInitializer {
         // Cluster behaviors are clients to a remote cluster
         const store = this.structure.storeForRemote(endpoint, type as ClusterBehavior.Type);
         return new ClientBehaviorBacking(endpoint, type, store, endpoint.behaviors.optionsFor(type));
+    }
+
+    /** Convert the Cluster type to a ClientBehavior */
+    override finalizeType(type: Behavior.Type): Behavior.Type {
+        const cluster = (type as ClusterBehavior.Type).cluster;
+        if (cluster === undefined) {
+            return type;
+        }
+
+        const features: FeatureBitmap = {};
+        for (const f in cluster.features) {
+            features[f] = true;
+        }
+        const attributeNames = new Array<string>();
+        const attributes = new Array<AttributeId>();
+        for (const [name, attr] of Object.entries(cluster.attributes)) {
+            attributeNames.push(name);
+            attributes.push(attr.id);
+        }
+        const commandNames = new Array<string>();
+        const commands = new Array<CommandId>();
+        for (const [name, cmd] of Object.entries(cluster.commands)) {
+            commandNames.push(name);
+            commands.push(cmd.requestId);
+        }
+
+        return ClientBehavior({
+            id: cluster.id,
+            revision: cluster.revision,
+            features,
+            attributes,
+            commands,
+            attributeNames,
+            commandNames,
+        });
     }
 
     get structure() {

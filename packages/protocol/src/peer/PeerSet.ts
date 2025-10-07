@@ -829,7 +829,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
 
     async #addOrUpdatePeer(
         address: PeerAddress,
-        operationalServerAddress: ServerAddressUdp,
+        operationalServerAddress?: ServerAddressUdp,
         discoveryData?: DiscoveryData,
     ) {
         let peer = this.#peersByAddress.get(address);
@@ -837,7 +837,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
             peer = { address, dataStore: await this.#store.createNodeStore(address) };
             this.#peers.add(peer);
         }
-        peer.operationalAddress = operationalServerAddress;
+        peer.operationalAddress = operationalServerAddress ?? peer.operationalAddress;
         if (discoveryData !== undefined) {
             peer.discoveryData = {
                 ...peer.discoveryData,
@@ -847,7 +847,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
         await this.#store.updatePeer(peer);
 
         // If we got a new channel and have a running discovery we can end it
-        if (this.#runningPeerDiscoveries.has(address)) {
+        if (peer.operationalAddress !== undefined && this.#runningPeerDiscoveries.has(address)) {
             logger.info(`Found ${address} during discovery, cancel discovery.`);
             // We are currently discovering this node, so we need to update the discovery data
             const { mdnsClient: mdnsScanner } = this.#runningPeerDiscoveries.get(address) ?? {};
@@ -855,6 +855,10 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
             // This ends discovery and triggers the promises
             mdnsScanner?.cancelOperationalDeviceDiscovery(this.#sessions.fabricFor(address), address.nodeId, true);
         }
+    }
+
+    addKnownPeer(address: PeerAddress, operationalServerAddress?: ServerAddressUdp, discoveryData?: DiscoveryData) {
+        return this.#addOrUpdatePeer(address, operationalServerAddress, discoveryData);
     }
 
     #getLastOperationalAddress(address: PeerAddress) {

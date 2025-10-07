@@ -4,24 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { ClientNetworkRuntime } from "#behavior/system/network/ClientNetworkRuntime.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { NetworkRuntime } from "#behavior/system/network/NetworkRuntime.js";
 import { Agent } from "#endpoint/Agent.js";
-import { Endpoint } from "#endpoint/Endpoint.js";
+import { ClientNodeEndpoints } from "#endpoint/properties/ClientNodeEndpoints.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
-import { EndpointType } from "#endpoint/type/EndpointType.js";
-import { Diagnostic, Identity, ImplementationError, Lifecycle, Logger, MaybePromise } from "#general";
-import { FeatureBitmap, Matter, MatterModel } from "#model";
-import { ClientBehavior } from "#node/client/ClientBehavior.js";
+import { Diagnostic, Identity, Lifecycle, Logger, MaybePromise } from "#general";
+import { Matter, MatterModel } from "#model";
 import { Interactable, OccurrenceManager, PeerAddress } from "#protocol";
 import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
 import { RemoteWriter } from "#storage/client/RemoteWriter.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
-import { AttributeId, CommandId } from "#types";
 import { ClientEndpointInitializer } from "./client/ClientEndpointInitializer.js";
 import { ClientNodeInteraction } from "./client/ClientNodeInteraction.js";
 import { Node } from "./Node.js";
@@ -64,6 +60,10 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
      */
     get matter() {
         return this.#matter;
+    }
+
+    override get endpoints(): ClientNodeEndpoints {
+        return new ClientNodeEndpoints(this);
     }
 
     override initialize() {
@@ -218,80 +218,6 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         // Log client node status updates as info rather than notice and change the log facility to make clear it's a
         // client
         logger.info(Diagnostic.strong(this.toString()), message);
-    }
-
-    /**
-     * For nodes where the behavior/cluster structure can not be initialized automatically (e.g. by a subscription) or
-     * when the subscription data misses special clusters, you can use this method to enable a cluster on a specific
-     * endpoint.
-     * The method adds the endpoint, if not existing, and also adds the cluster behavior for the "Complete" variant
-     * (means: all features, commands and attributes) of the cluster to the endpoint, if not already present.
-     */
-    async enableCluster(endpointId: number, type: ClusterBehavior.Type) {
-        let part = this.parts.get(endpointId);
-        const partExisting = part !== undefined;
-        if (part === undefined) {
-            part = new Endpoint({
-                id: `ep${endpointId}`,
-                number: endpointId,
-                type: EndpointType({
-                    name: "ClientEndpoint",
-                    deviceType: EndpointType.UNKNOWN_DEVICE_TYPE,
-                    deviceRevision: EndpointType.UNKNOWN_DEVICE_REVISION,
-                }),
-            });
-        }
-
-        if (!part.behaviors.has(type)) {
-            const cluster = type.cluster;
-            if (cluster === undefined) {
-                throw new ImplementationError(`ClusterBehavior ${type.name} is not associated with a cluster`);
-            }
-
-            const features: FeatureBitmap = {};
-            for (const f in cluster.features) {
-                features[f] = true;
-            }
-            const attributeNames = new Array<string>();
-            const attributes = new Array<AttributeId>();
-            for (const [name, attr] of Object.entries(cluster.attributes)) {
-                attributeNames.push(name);
-                attributes.push(attr.id);
-            }
-            const commandNames = new Array<string>();
-            const commands = new Array<CommandId>();
-            for (const [name, cmd] of Object.entries(cluster.commands)) {
-                commandNames.push(name);
-                commands.push(cmd.requestId);
-            }
-
-            part.behaviors.require(
-                ClientBehavior({
-                    id: cluster.id,
-                    revision: cluster.revision,
-                    features,
-                    attributes,
-                    commands,
-                    attributeNames,
-                    commandNames,
-                }),
-            );
-        }
-
-        if (!partExisting) {
-            await this.add(part);
-        }
-    }
-
-    /**
-     * Use this to manually trigger the default subscription when automatic subscription is disabled.
-     */
-    async subscribe() {
-        return this.act(agent => agent.get(NetworkClient).subscribe());
-    }
-
-    get subscriptionsActivated() {
-        return this.behaviors.internalsOf(NetworkClient).subscriptionActivated;
     }
 }
 
