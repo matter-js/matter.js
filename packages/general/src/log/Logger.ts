@@ -215,7 +215,7 @@ export class Logger {
             const dest = Logger.destinations[name];
 
             if (level < (dest.facilityLevels?.[this.#name] ?? dest.level)) {
-                return;
+                continue;
             }
 
             if (!dest.context) {
