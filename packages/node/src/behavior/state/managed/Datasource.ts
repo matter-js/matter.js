@@ -855,7 +855,7 @@ function createReference(resource: Transaction.Resource, internals: Internals, s
 
         const onChangePromise = internals.onChange?.([...changes.changeList]);
 
-        if (MaybePromise.is(onChangePromise)) {
+        if (onChangePromise) {
             return onChangePromise.then(emitChanged);
         }
 
