@@ -9,7 +9,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
-## __WORK IN PROGRESS__
+## 0.15.5 (2025-10-07)
 
 -   @matter/general
     - Enhancement: Accept all variants of MDNS responses, also non-authoritative ones
