@@ -7,7 +7,7 @@
 import { ImplementationError, Observable } from "#general";
 import { DatatypeModel, FieldElement } from "#model";
 import { Node } from "#node/Node.js";
-import { DEFAULT_MIN_INTERVAL_FLOOR, Subscribe } from "#protocol";
+import { ClientInteraction, DEFAULT_MIN_INTERVAL_FLOOR, Subscribe } from "#protocol";
 import { CaseAuthenticatedTag } from "#types";
 import { ClientNetworkRuntime } from "./ClientNetworkRuntime.js";
 import { NetworkBehavior } from "./NetworkBehavior.js";
@@ -78,7 +78,9 @@ export class NetworkClient extends NetworkBehavior {
             this.internal.defaultSubscriptionId = subscriptionId;
         } else {
             if (this.internal.defaultSubscriptionId !== undefined) {
-                this.#node.interaction.cancelSubscription(this.internal.defaultSubscriptionId);
+                (this.#node.interaction as ClientInteraction).subscriptions
+                    .get(this.internal.defaultSubscriptionId)
+                    ?.close();
                 this.internal.defaultSubscriptionId = undefined;
             }
             this.internal.subscriptionActivated = false;

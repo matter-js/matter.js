@@ -34,11 +34,6 @@ export interface Interactable<SessionT = InteractionSession> {
     subscribe(request: Subscribe, session?: SessionT): SubscribeResult;
 
     /**
-     * Cancel an active subscription.
-     */
-    cancelSubscription(id: number): void;
-
-    /**
      * Perform a Matter write interaction.
      */
     write<T extends Write>(request: T, session?: SessionT): WriteResult<T>;
