@@ -164,7 +164,7 @@ export const config = {
     },
 
     /**
-     * Enables handling of SIGINT, SIGTERM and SIGUSR2 (depending on platform; default: true).
+     * Enables handling of SIGINT, SIGTERM, SIGUSR2 and SIGABRT (depending on platform; default: true).
      */
     get trapProcessSignals() {
         return trapProcessSignals;
