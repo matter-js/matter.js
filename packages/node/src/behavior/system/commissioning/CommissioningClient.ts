@@ -74,15 +74,6 @@ export class CommissioningClient extends Behavior {
             this.state.discoveredAt = Time.nowMs;
         }
 
-        /*if (this.state.peerAddress !== undefined && this.state.addresses?.length) {
-            const udpAddresses = this.state.addresses.filter(a => a.type === "udp");
-            const latestUdpAddress = ServerAddress(udpAddresses[udpAddresses.length - 1]) as ServerAddressUdp;
-            // Make sure the PeerSet knows about this peer now too
-            // TODO - IdentityService manages parts of it here, but peers need to be known in PeerSets
-            const peerSet = this.env.get(PeerSet);
-            await peerSet.addKnownPeer(this.state.peerAddress, latestUdpAddress, this.descriptor);
-        }*/
-
         this.reactTo((this.endpoint as Node).lifecycle.partsReady, this.#initializeNode);
         this.reactTo(this.events.peerAddress$Changed, this.#peerAddressChanged);
     }
@@ -259,11 +250,6 @@ export class CommissioningClient extends Behavior {
                     if (!this.state.addresses.some(a => ServerAddress.isEqual(ServerAddress(a), operationalAddress))) {
                         this.state.addresses.push(ServerAddress.definitionOf(operationalAddress));
                     }
-
-                    // Make sure the PeerSet knows about this peer now too
-                    // TODO - IdentityService manages parts of it here, but peers need to be known in PeerSets
-                    //const peerSet = this.env.get(PeerSet);
-                    //await peerSet.addKnownPeer(addr, operationalAddress, this.descriptor);*/
                 }
             }
 

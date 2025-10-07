@@ -4,10 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError, Observable } from "#general";
+import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
+import { ImplementationError, Observable, ServerAddress, ServerAddressUdp } from "#general";
 import { DatatypeModel, FieldElement } from "#model";
+import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
-import { ClientInteraction, DEFAULT_MIN_INTERVAL_FLOOR, Subscribe } from "#protocol";
+import { ClientInteraction, DEFAULT_MIN_INTERVAL_FLOOR, PeerSet, Subscribe } from "#protocol";
 import { CaseAuthenticatedTag } from "#types";
 import { ClientNetworkRuntime } from "./ClientNetworkRuntime.js";
 import { NetworkBehavior } from "./NetworkBehavior.js";
@@ -22,8 +24,25 @@ export class NetworkClient extends NetworkBehavior {
         this.reactTo(this.events.defaultSubscription$Changed, this.#handleChangedDefaultSubscription);
     }
 
-    override startup() {
-        return this.#handleSubscription();
+    override async startup() {
+        const peerAddress = this.#node.state.commissioning.peerAddress;
+        if (peerAddress !== undefined) {
+            const peerSet = this.env.get(PeerSet);
+            if (!peerSet.has(peerAddress)) {
+                const udpAddresses = this.#node.state.commissioning.addresses?.filter(a => a.type === "udp") ?? [];
+                if (udpAddresses.length) {
+                    const latestUdpAddress = ServerAddress(udpAddresses[udpAddresses.length - 1]) as ServerAddressUdp;
+                    // Make sure the PeerSet knows about this peer now too
+                    await peerSet.addKnownPeer(
+                        peerAddress,
+                        latestUdpAddress,
+                        RemoteDescriptor.fromLongForm(this.#node.state.commissioning),
+                    );
+                }
+            }
+        }
+
+        await this.#handleSubscription();
     }
 
     /**
@@ -88,7 +107,7 @@ export class NetworkClient extends NetworkBehavior {
     }
 
     get #node() {
-        return this.env.get(Node);
+        return this.env.get(Node) as ClientNode;
     }
 
     /**
