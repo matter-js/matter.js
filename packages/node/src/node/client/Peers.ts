@@ -33,7 +33,7 @@ const EXPIRATION_INTERVAL = Minutes.one;
 export class Peers extends EndpointContainer<ClientNode> {
     #expirationInterval?: CancelablePromise;
     #expirationWorker?: Promise<void>;
-    #subscriptHandler?: ClientSubscriptionHandler;
+    #subscriptionHandler?: ClientSubscriptionHandler;
     #closed = false;
 
     constructor(owner: ServerNode) {
@@ -45,7 +45,9 @@ export class Peers extends EndpointContainer<ClientNode> {
 
         this.owner.env.set(PeerAddressStore, new NodePeerAddressStore(owner));
 
-        this.added.on(this.#manageExpiration.bind(this));
+        owner.env.applyTo(InteractionServer, this.#configureInteractionServer.bind(this));
+
+        this.added.on(this.#handlePeerAdded.bind(this));
         this.deleted.on(this.#manageExpiration.bind(this));
     }
 
@@ -145,7 +147,7 @@ export class Peers extends EndpointContainer<ClientNode> {
 
     override async close() {
         this.#closed = true;
-        await this.#subscriptHandler?.close();
+        await this.#subscriptionHandler?.close();
         this.#cancelExpiration();
         await this.#expirationWorker;
         await super.close();
@@ -158,16 +160,37 @@ export class Peers extends EndpointContainer<ClientNode> {
         }
     }
 
-    #manageExpiration() {
-        if (this.#closed) {
+    #handlePeerAdded() {
+        if (this.owner.env.has(InteractionServer)) {
+            this.#configureInteractionServer();
+        }
+        this.#manageExpiration();
+    }
+
+    /**
+     * If required, installs a listener in the environment's {@link InteractionServer} to handle subscription responses.
+     */
+    #configureInteractionServer() {
+        if (this.#closed || this.size > 0 || !this.owner.env.has(InteractionServer)) {
             return;
         }
 
-        // Install handler to receive data reports for subscriptions if we have peer nodes
-        if (this.size > 0 && this.#subscriptHandler === undefined) {
-            const subscriptions = this.owner.env.get(ClientSubscriptions);
-            const interactionServer = this.owner.env.get(InteractionServer);
-            interactionServer.clientHandler = this.#subscriptHandler = new ClientSubscriptionHandler(subscriptions);
+        const subscriptions = this.owner.env.get(ClientSubscriptions);
+        const interactionServer = this.owner.env.get(InteractionServer);
+
+        if (!this.#subscriptionHandler) {
+            this.#subscriptionHandler = new ClientSubscriptionHandler(subscriptions);
+        }
+
+        interactionServer.clientHandler = this.#subscriptionHandler;
+    }
+
+    /**
+     * Enables or disables the expiration timer that culls expired uncommissioned nodes.
+     */
+    #manageExpiration() {
+        if (this.#closed) {
+            return;
         }
 
         if (this.#expirationWorker) {

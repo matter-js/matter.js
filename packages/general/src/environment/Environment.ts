@@ -33,12 +33,12 @@ const logger = Logger.get("Environment");
  * TODO - could remove global singletons by moving here
  */
 export class Environment {
-    #services?: Map<abstract new (...args: any[]) => any, Environmental.Service | null>;
+    #services?: Map<Environmental.ServiceType, Environmental.Service | null>;
     #name: string;
     #parent?: Environment;
-    #added = Observable<[type: abstract new (...args: any[]) => {}, instance: {}]>();
-    #deleted = Observable<[type: abstract new (...args: any[]) => {}, instance: {}]>();
-    #serviceEvents = new Map<abstract new (...args: any[]) => any, Environmental.ServiceEvents<any>>();
+    #added = Observable<[type: Environmental.ServiceType, instance: {}]>();
+    #deleted = Observable<[type: Environmental.ServiceType, instance: {}]>();
+    #serviceEvents = new Map<Environmental.ServiceType, Environmental.ServiceEvents<any>>();
 
     constructor(name: string, parent?: Environment) {
         this.#name = name;
@@ -48,7 +48,7 @@ export class Environment {
     /**
      * Determine if an environmental service is available.
      */
-    has(type: abstract new (...args: any[]) => any): boolean {
+    has(type: Environmental.ServiceType): boolean {
         const mine = this.#services?.get(type);
 
         if (mine === null) {
@@ -61,14 +61,14 @@ export class Environment {
     /**
      * Determine if an environmental services is owned by this environment (not an ancestor).
      */
-    owns(type: abstract new (...args: any[]) => any): boolean {
+    owns(type: Environmental.ServiceType): boolean {
         return !!this.#services?.get(type);
     }
 
     /**
      * Access an environmental service.
      */
-    get<T extends object>(type: abstract new (...args: any[]) => T): T {
+    get<T extends object>(type: Environmental.ServiceType<T>): T {
         const mine = this.#services?.get(type);
 
         if (mine !== undefined && mine !== null) {
@@ -100,7 +100,7 @@ export class Environment {
     /**
      * Access an environmental service that may not exist.
      */
-    maybeGet<T extends object>(type: abstract new (...args: any[]) => T): T | undefined {
+    maybeGet<T extends object>(type: Environmental.ServiceType<T>): T | undefined {
         if (this.has(type)) {
             return this.get(type);
         }
@@ -112,7 +112,7 @@ export class Environment {
      * @param type the class of the service to remove
      * @param instance optional instance expected, if existing instance does not match it is not deleted
      */
-    delete(type: abstract new (...args: any[]) => any, instance?: any) {
+    delete(type: Environmental.ServiceType, instance?: any) {
         if (instance !== undefined && this.#services?.get(type) !== instance) {
             return;
         }
@@ -132,7 +132,7 @@ export class Environment {
      *
      * @param type the class of the service to block
      */
-    block(type: abstract new (...args: any[]) => any) {
+    block(type: Environmental.ServiceType) {
         const instance = this.#services?.get(type);
 
         if (instance !== undefined && instance !== null) {
@@ -153,7 +153,7 @@ export class Environment {
      * Remove and close an environmental service.
      */
     close<T extends object>(
-        type: abstract new (...args: any[]) => T,
+        type: Environmental.ServiceType<T>,
     ): T extends { close: () => MaybePromise<void> } ? MaybePromise<void> : void {
         const instance = this.maybeGet(type);
         if (instance !== undefined) {
@@ -176,7 +176,7 @@ export class Environment {
     /**
      * Install a preinitialized version of an environmental service.
      */
-    set<T extends {}>(type: abstract new (...args: any[]) => T, instance: T) {
+    set<T extends {}>(type: Environmental.ServiceType<T>, instance: T) {
         if (!this.#services) {
             this.#services = new Map();
         }
@@ -222,7 +222,7 @@ export class Environment {
      *
      * This is a more convenient way to observe a specific service than {@link added} and {@link deleted}.
      */
-    eventsFor<T extends Environmental.Factory<any>>(type: T) {
+    eventsFor<T extends Environmental.ServiceType>(type: T) {
         let events = this.#serviceEvents.get(type);
         if (events === undefined) {
             events = {
@@ -241,8 +241,8 @@ export class Environment {
      * {@link added} in the future if the service is added or replaced and/or {@link deleted} if the service is replaced
      * or deleted.
      */
-    applyTo<T extends Environmental.Factory<any>>(
-        type: T,
+    applyTo<T extends object>(
+        type: Environmental.ServiceType<T>,
         added?: (env: Environment, service: T) => MaybePromise<void>,
         deleted?: (env: Environment, service: T) => MaybePromise<void>,
     ) {
