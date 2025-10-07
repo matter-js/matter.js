@@ -140,9 +140,9 @@ export class NodeJsHttpEndpoint implements HttpEndpoint {
                     settled = true;
                     resolve();
                 });
-                server.once("error", error => {
+                server.on("error", error => {
                     if (settled) {
-                        logger.error("Underlying server reported error after success listen", error);
+                        logger.warn("HTTP server error:", error.message);
                         return;
                     }
 
