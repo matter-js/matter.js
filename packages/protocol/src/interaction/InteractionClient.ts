@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ReadScope } from "#action/client/ReadScope.js";
 import { AccessControl } from "#clusters/access-control";
 import {
     Diagnostic,
@@ -12,11 +13,13 @@ import {
     ImplementationError,
     Logger,
     MatterFlowError,
+    MaybePromise,
     PromiseQueue,
     ServerAddressIp,
     Timer,
     UnexpectedDataError,
     isDeepEqual,
+    serialize,
 } from "#general";
 import { Specification } from "#model";
 import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
@@ -40,6 +43,7 @@ import {
     ResponseType,
     StatusCode,
     StatusResponseError,
+    SubscribeRequest,
     TlvEventFilter,
     TlvInvokeResponse,
     TlvNoResponse,
@@ -55,7 +59,7 @@ import { MessageChannel } from "../protocol/MessageChannel.js";
 import { DecodedAttributeReportStatus, DecodedAttributeReportValue } from "./AttributeDataDecoder.js";
 import { DecodedDataReport } from "./DecodedDataReport.js";
 import { DecodedEventData, DecodedEventReportStatus, DecodedEventReportValue } from "./EventDataDecoder.js";
-import { DataReport, InteractionClientMessenger, ReadRequest } from "./InteractionMessenger.js";
+import { InteractionClientMessenger, ReadRequest } from "./InteractionMessenger.js";
 import { RegisteredSubscription, SubscriptionClient } from "./SubscriptionClient.js";
 
 const logger = Logger.get("InteractionClient");
@@ -219,6 +223,11 @@ export class InteractionClient {
             enrichCachedAttributeData?: boolean;
             isFabricFiltered?: boolean;
             executeQueued?: boolean;
+            attributeChangeListener?: (
+                data: DecodedAttributeReportValue<any>,
+                valueChanged?: boolean,
+                oldValue?: any,
+            ) => void;
         } = {},
     ): Promise<DecodedAttributeReportValue<any>[]> {
         return (
@@ -255,6 +264,11 @@ export class InteractionClient {
             eventFilters?: TypeFromSchema<typeof TlvEventFilter>[];
             isFabricFiltered?: boolean;
             executeQueued?: boolean;
+            attributeChangeListener?: (
+                data: DecodedAttributeReportValue<any>,
+                valueChanged?: boolean,
+                oldValue?: any,
+            ) => void;
         } = {},
     ): Promise<{
         attributeReports: DecodedAttributeReportValue<any>[];
@@ -274,6 +288,11 @@ export class InteractionClient {
             enrichCachedAttributeData?: boolean;
             isFabricFiltered?: boolean;
             executeQueued?: boolean;
+            attributeChangeListener?: (
+                data: DecodedAttributeReportValue<any>,
+                valueChanged?: boolean,
+                oldValue?: any,
+            ) => void;
         } = {},
     ): Promise<DecodedAttributeReportValue<any>[]> {
         return (await this.getMultipleAttributesAndEvents(options)).attributeReports;
@@ -286,6 +305,11 @@ export class InteractionClient {
             enrichCachedAttributeData?: boolean;
             isFabricFiltered?: boolean;
             executeQueued?: boolean;
+            attributeChangeListener?: (
+                data: DecodedAttributeReportValue<any>,
+                valueChanged?: boolean,
+                oldValue?: any,
+            ) => void;
         } = {},
     ): Promise<{
         attributeData: DecodedAttributeReportValue<any>[];
@@ -327,6 +351,11 @@ export class InteractionClient {
             eventFilters?: TypeFromSchema<typeof TlvEventFilter>[];
             isFabricFiltered?: boolean;
             executeQueued?: boolean;
+            attributeChangeListener?: (
+                data: DecodedAttributeReportValue<any>,
+                valueChanged?: boolean,
+                oldValue?: any,
+            ) => void;
         } = {},
     ): Promise<DecodedDataReport> {
         if (this.isGroupAddress) {
@@ -340,6 +369,8 @@ export class InteractionClient {
             events: eventRequests,
             enrichCachedAttributeData,
             eventFilters,
+            isFabricFiltered = true,
+            attributeChangeListener,
         } = options;
         if (attributeRequests === undefined && eventRequests === undefined) {
             throw new ImplementationError("When reading attributes and events, at least one must be specified.");
@@ -373,18 +404,21 @@ export class InteractionClient {
         }
 
         const result = await this.withMessenger(async messenger => {
-            const { isFabricFiltered = true } = options;
-            return await this.processReadRequest(messenger, {
-                attributeRequests,
-                dataVersionFilters: dataVersionFilters?.map(({ endpointId, clusterId, dataVersion }) => ({
-                    path: { endpointId, clusterId },
-                    dataVersion,
-                })),
-                eventRequests,
-                eventFilters,
-                isFabricFiltered,
-                interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
-            });
+            return await this.processReadRequest(
+                messenger,
+                {
+                    attributeRequests,
+                    dataVersionFilters: dataVersionFilters?.map(({ endpointId, clusterId, dataVersion }) => ({
+                        path: { endpointId, clusterId },
+                        dataVersion,
+                    })),
+                    eventRequests,
+                    eventFilters,
+                    isFabricFiltered,
+                    interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+                },
+                attributeChangeListener,
+            );
         }, executeQueued);
 
         if (dataVersionFilters !== undefined && dataVersionFilters.length > 0 && enrichCachedAttributeData) {
@@ -401,6 +435,11 @@ export class InteractionClient {
         isFabricFiltered?: boolean;
         requestFromRemote?: boolean;
         executeQueued?: boolean;
+        attributeChangeListener?: (
+            data: DecodedAttributeReportValue<any>,
+            valueChanged?: boolean,
+            oldValue?: any,
+        ) => void;
     }): Promise<AttributeJsType<A> | undefined> {
         const { requestFromRemote } = options;
         const response = await this.getAttributeWithVersion({
@@ -445,12 +484,25 @@ export class InteractionClient {
         isFabricFiltered?: boolean;
         requestFromRemote?: boolean;
         executeQueued?: boolean;
+        attributeChangeListener?: (
+            data: DecodedAttributeReportValue<any>,
+            valueChanged?: boolean,
+            oldValue?: any,
+        ) => void;
     }): Promise<{ value: AttributeJsType<A>; version: number } | undefined> {
         if (this.isGroupAddress) {
             throw new ImplementationError("Reading data from group addresses is not supported.");
         }
 
-        const { endpointId, clusterId, attribute, requestFromRemote, isFabricFiltered, executeQueued } = options;
+        const {
+            endpointId,
+            clusterId,
+            attribute,
+            requestFromRemote,
+            isFabricFiltered,
+            executeQueued,
+            attributeChangeListener,
+        } = options;
         const { id: attributeId } = attribute;
         if (this.#nodeStore !== undefined) {
             if (!requestFromRemote) {
@@ -468,6 +520,7 @@ export class InteractionClient {
             attributes: [{ endpointId, clusterId, attributeId }],
             isFabricFiltered,
             executeQueued,
+            attributeChangeListener,
         });
 
         if (attributeReports.length === 0) {
@@ -501,6 +554,11 @@ export class InteractionClient {
     private async processReadRequest(
         messenger: InteractionClientMessenger,
         request: ReadRequest,
+        attributeChangeListener?: (
+            data: DecodedAttributeReportValue<any>,
+            valueChanged?: boolean,
+            oldValue?: any,
+        ) => void,
     ): Promise<DecodedDataReport> {
         const { attributeRequests, eventRequests } = request;
         logger.debug(
@@ -510,15 +568,19 @@ export class InteractionClient {
         );
         // Send read request and combine all (potentially chunked) responses
         await messenger.sendReadRequest(request);
-        const response = await messenger.readAggregateDataReport();
+        const scope = ReadScope(request);
+        const response = await messenger.readAggregateDataReport(chunk =>
+            this.processAttributeUpdates(scope, chunk, attributeChangeListener),
+        );
 
         // Normalize and decode the response
-        const normalizedResult = DecodedDataReport(response);
-        const { attributeReports, attributeStatus, eventReports, eventStatus } = normalizedResult;
+        const { attributeReports, attributeStatus, eventReports, eventStatus } = response;
 
         const logData = Array<string>();
         if (attributeReports.length > 0) {
-            logData.push(`attributes ${attributeReports.map(({ path }) => resolveAttributeName(path)).join(", ")}`);
+            logData.push(
+                `attributes ${attributeReports.map(({ path, value }) => `${resolveAttributeName(path)}=${serialize(value)}`).join(", ")}`,
+            );
         }
         if (eventReports.length > 0) {
             logData.push(`events ${eventReports.map(({ path }) => resolveEventName(path)).join(", ")}`);
@@ -532,7 +594,7 @@ export class InteractionClient {
         logger.debug(
             logData.length ? `Received read response with ${logData.join(", ")}` : "Received empty read response",
         );
-        return normalizedResult;
+        return response;
     }
 
     async setAttribute<T>(options: {
@@ -744,27 +806,30 @@ export class InteractionClient {
             })}${knownDataVersion !== undefined ? ` (knownDataVersion=${knownDataVersion})` : ""} with minInterval=${minIntervalFloorSeconds}s/maxInterval=${maxIntervalCeilingSeconds}s`,
         );
 
+        const request: SubscribeRequest = {
+            interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+            attributeRequests: [{ endpointId, clusterId, attributeId }],
+            dataVersionFilters:
+                knownDataVersion !== undefined
+                    ? [{ path: { endpointId, clusterId }, dataVersion: knownDataVersion }]
+                    : undefined,
+            keepSubscriptions,
+            minIntervalFloorSeconds,
+            maxIntervalCeilingSeconds,
+            isFabricFiltered,
+        };
+        const scope = ReadScope(request);
+
         const {
             subscribeResponse: { subscriptionId, maxInterval },
             report,
             maximumPeerResponseTimeMs,
         } = await this.withMessenger<{
             subscribeResponse: TypeFromSchema<typeof TlvSubscribeResponse>;
-            report: DataReport;
+            report: DecodedDataReport;
             maximumPeerResponseTimeMs: number;
         }>(async messenger => {
-            await messenger.sendSubscribeRequest({
-                interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
-                attributeRequests: [{ endpointId, clusterId, attributeId }],
-                dataVersionFilters:
-                    knownDataVersion !== undefined
-                        ? [{ path: { endpointId, clusterId }, dataVersion: knownDataVersion }]
-                        : undefined,
-                keepSubscriptions,
-                minIntervalFloorSeconds,
-                maxIntervalCeilingSeconds,
-                isFabricFiltered,
-            });
+            await messenger.sendSubscribeRequest(request);
             const { subscribeResponse, report } = await messenger.readAggregateSubscribeResponse();
             return {
                 subscribeResponse,
@@ -773,14 +838,8 @@ export class InteractionClient {
             };
         }, executeQueued);
 
-        const subscriptionListener = async (dataReport: DataReport) => {
-            updateReceived?.();
-
-            if (!Array.isArray(dataReport.attributeReports) || !dataReport.attributeReports.length) {
-                return;
-            }
-
-            const { attributeReports } = DecodedDataReport(dataReport);
+        const subscriptionListener = async (dataReport: DecodedDataReport) => {
+            const { attributeReports } = dataReport;
 
             if (attributeReports.length === 0) {
                 throw new MatterFlowError("Subscription result reporting undefined/no value not specified");
@@ -792,9 +851,11 @@ export class InteractionClient {
             if (value === undefined)
                 throw new MatterFlowError("Subscription result reporting undefined value not specified.");
 
-            await this.#nodeStore?.persistAttributes([attributeReports[0]]);
+            await this.#nodeStore?.persistAttributes(attributeReports, scope);
 
             listener?.(value, version);
+
+            updateReceived?.();
         };
 
         await this.#registerSubscription(
@@ -811,7 +872,7 @@ export class InteractionClient {
         return { maxInterval };
     }
 
-    async #registerSubscription(subscription: RegisteredSubscription, initialReport: DataReport) {
+    async #registerSubscription(subscription: RegisteredSubscription, initialReport: DecodedDataReport) {
         this.#ownSubscriptionIds.add(subscription.id);
         this.#subscriptionClient.add(subscription);
         await subscription.onData(initialReport);
@@ -862,7 +923,7 @@ export class InteractionClient {
             maximumPeerResponseTimeMs,
         } = await this.withMessenger<{
             subscribeResponse: TypeFromSchema<typeof TlvSubscribeResponse>;
-            report: DataReport;
+            report: DecodedDataReport;
             maximumPeerResponseTimeMs: number;
         }>(async messenger => {
             await messenger.sendSubscribeRequest({
@@ -882,14 +943,8 @@ export class InteractionClient {
             };
         }, executeQueued);
 
-        const subscriptionListener = (dataReport: DataReport) => {
-            updateReceived?.();
-
-            if (!Array.isArray(dataReport.eventReports) || !dataReport.eventReports.length) {
-                return;
-            }
-
-            const { eventReports } = DecodedDataReport(dataReport);
+        const subscriptionListener = (dataReport: DecodedDataReport) => {
+            const { eventReports } = dataReport;
 
             if (eventReports.length === 0) {
                 throw new MatterFlowError("Received empty subscription result value.");
@@ -902,7 +957,10 @@ export class InteractionClient {
                 throw new MatterFlowError("Subscription result reporting undefined value not specified.");
 
             events.forEach(event => listener?.(event));
+
+            updateReceived?.();
         };
+
         await this.#registerSubscription(
             {
                 id: subscriptionId,
@@ -1024,30 +1082,36 @@ export class InteractionClient {
             );
         }
 
+        const request: SubscribeRequest = {
+            interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+            attributeRequests,
+            eventRequests,
+            keepSubscriptions,
+            minIntervalFloorSeconds,
+            maxIntervalCeilingSeconds,
+            isFabricFiltered,
+            eventFilters,
+            dataVersionFilters: dataVersionFilters?.map(({ endpointId, clusterId, dataVersion }) => ({
+                path: { endpointId, clusterId },
+                dataVersion,
+            })),
+        };
+        const scope = ReadScope(request);
+
+        let processNewAttributeChangesInListener = false;
         const {
             report,
             subscribeResponse: { subscriptionId, maxInterval },
             maximumPeerResponseTimeMs,
         } = await this.withMessenger<{
             subscribeResponse: TypeFromSchema<typeof TlvSubscribeResponse>;
-            report: DataReport;
+            report: DecodedDataReport;
             maximumPeerResponseTimeMs: number;
         }>(async messenger => {
-            await messenger.sendSubscribeRequest({
-                interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
-                attributeRequests,
-                eventRequests,
-                keepSubscriptions,
-                minIntervalFloorSeconds,
-                maxIntervalCeilingSeconds,
-                isFabricFiltered,
-                eventFilters,
-                dataVersionFilters: dataVersionFilters?.map(({ endpointId, clusterId, dataVersion }) => ({
-                    path: { endpointId, clusterId },
-                    dataVersion,
-                })),
-            });
-            const { subscribeResponse, report } = await messenger.readAggregateSubscribeResponse();
+            await messenger.sendSubscribeRequest(request);
+            const { subscribeResponse, report } = await messenger.readAggregateSubscribeResponse(attributeReports =>
+                this.processAttributeUpdates(scope, attributeReports, attributeListener),
+            );
             return {
                 subscribeResponse,
                 report,
@@ -1092,13 +1156,12 @@ export class InteractionClient {
                 await this.#nodeStore?.updateLastEventNumber(maxEventNumber);
             }
 
-            if (attributeReports !== undefined) {
-                await this.processAttributeUpdates(attributeReports, attributeListener);
+            // Initial Data reports during seeding are handled directly
+            if (processNewAttributeChangesInListener && attributeReports !== undefined) {
+                await this.processAttributeUpdates(scope, attributeReports, attributeListener);
             }
             updateReceived?.();
         };
-
-        const seedReport = DecodedDataReport(report);
 
         await this.#registerSubscription(
             {
@@ -1106,19 +1169,20 @@ export class InteractionClient {
                 maximumPeerResponseTimeMs,
                 maxIntervalS: maxInterval,
 
-                onData: dataReport => subscriptionListener(DecodedDataReport(dataReport)),
+                onData: dataReport => subscriptionListener(dataReport),
 
                 onTimeout: updateTimeoutHandler,
             },
-            seedReport,
+            report,
         );
+        processNewAttributeChangesInListener = true;
 
         if (dataVersionFilters !== undefined && dataVersionFilters.length > 0 && enrichCachedAttributeData) {
-            this.#enrichCachedAttributeData(seedReport.attributeReports ?? [], dataVersionFilters);
+            this.#enrichCachedAttributeData(report.attributeReports, dataVersionFilters);
         }
 
         return {
-            ...seedReport,
+            ...report,
             maxInterval,
         };
     }
@@ -1127,6 +1191,7 @@ export class InteractionClient {
      * Process changed attributes, detect changes and persist them to the node store
      */
     async processAttributeUpdates(
+        scope: ReadScope,
         attributeReports: DecodedAttributeReportValue<any>[],
         attributeListener?: (data: DecodedAttributeReportValue<any>, valueChanged?: boolean, oldValue?: any) => void,
     ) {
@@ -1142,14 +1207,14 @@ export class InteractionClient {
                 this.#nodeStore?.retrieveAttribute(endpointId, clusterId, attributeId) ?? {};
             const changed = oldValue !== undefined ? !isDeepEqual(oldValue, value) : undefined;
             if (changed !== false || version !== oldVersion) {
-                await this.#nodeStore?.persistAttributes([data]);
+                await this.#nodeStore?.persistAttributes([data], scope);
             }
             logger.debug(
                 `Received attribute update${changed ? "(value changed)" : ""}: ${resolveAttributeName({
                     endpointId,
                     clusterId,
                     attributeId,
-                })} = ${Diagnostic.json(value)} (version=${version})`,
+                })} = ${serialize(value)} (version=${version})`,
             );
 
             attributeListener?.(data, changed, oldValue);
@@ -1467,5 +1532,15 @@ export class InteractionClient {
 
     get maxKnownEventNumber() {
         return this.#nodeStore?.maxEventNumber;
+    }
+
+    cleanupAttributeData(endpointId: EndpointNumber, clusterIds?: ClusterId[]): MaybePromise<void> {
+        return this.#nodeStore?.cleanupAttributeData(endpointId, clusterIds);
+    }
+
+    getAllCachedClusterData() {
+        const result = new Array<DecodedAttributeReportValue<any>>();
+        this.#enrichCachedAttributeData(result, this.getCachedClusterDataVersions());
+        return result;
     }
 }

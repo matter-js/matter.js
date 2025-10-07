@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AdministratorCommissioning, BasicInformation, DescriptorCluster, OperationalCredentials } from "#clusters";
+import { AdministratorCommissioning, BasicInformation, Descriptor, OperationalCredentials } from "#clusters";
 import {
     AsyncObservable,
     AtLeastOne,
@@ -31,6 +31,7 @@ import {
     NodeDiscoveryType,
     NodeSession,
     PaseClient,
+    StructuredReadAttributeData,
     UnknownNodeError,
     structureReadAttributeDataToClusterObject,
 } from "#protocol";
@@ -211,6 +212,22 @@ interface SubscriptionHandlerCallbacks {
     subscriptionAlive: () => void;
 }
 
+type DescriptorData = AttributeClientValues<typeof Descriptor.Complete.attributes>;
+
+/**
+ * Tooling function to check if a list of numbers is the same as another list of numbers.
+ * it uses Sets to prevent duplicate entries and ordering to cause issues if they ever happen.
+ */
+function areNumberListsSame(list1: number[], list2: number[]) {
+    const set1 = new Set(list1);
+    const set2 = new Set(list2);
+    if (set1.size !== set2.size) return false;
+    for (const entry of set1.values()) {
+        if (!set2.has(entry)) return false;
+    }
+    return true;
+}
+
 /**
  * Class to represents one node that is paired/commissioned with the matter.js Controller. Instances are returned by
  * the CommissioningController on commissioning or when connecting.
@@ -260,38 +277,24 @@ export class PairedNode {
     #currentSubscriptionIntervalS?: number;
     #crypto: Crypto;
 
-    readonly events = {
-        /**
-         * Emitted when the node is initialized from local data. These data usually are stale, but you can still already
-         * use the node to interact with the device. If no local data are available this event will be emitted together
-         * with the initializedFromRemote event.
-         */
+    /**
+     * Endpoint structure change information that are checked when updating structure
+     * - null means that the endpoint itself changed, so will be regenerated completely any case
+     * - array of ClusterIds means that only these clusters changed and will be updated
+     */
+    #registeredEndpointStructureChanges = new Map<EndpointNumber, ClusterId[] | null>();
+
+    readonly events: PairedNode.Events = {
         initialized: AsyncObservable<[details: DeviceInformationData]>(),
-
-        /**
-         * Emitted when the node is fully initialized from remote and all attributes and events are subscribed.
-         * This event can also be awaited if code needs to be blocked until the node is fully initialized.
-         */
         initializedFromRemote: AsyncObservable<[details: DeviceInformationData]>(),
-
-        /** Emitted when the state of the node changes. */
         stateChanged: Observable<[nodeState: NodeStates]>(),
-
-        /**
-         * Emitted when an attribute value changes. If the oldValue is undefined then no former value was known.
-         */
         attributeChanged: Observable<[data: DecodedAttributeReportValue<any>, oldValue: any]>(),
-
-        /** Emitted when an event is triggered. */
         eventTriggered: Observable<[DecodedEventReportValue<any>]>(),
-
-        /** Emitted when the structure of the node changes (Endpoints got added or also removed). */
         structureChanged: Observable<[void]>(),
-
-        /** Emitted when the node is decommissioned. */
+        nodeEndpointAdded: Observable<[EndpointNumber]>(),
+        nodeEndpointRemoved: Observable<[EndpointNumber]>(),
+        nodeEndpointChanged: Observable<[EndpointNumber]>(),
         decommissioned: Observable<[void]>(),
-
-        /** Emitted when a subscription alive trigger is received (max interval trigger or any data update) */
         connectionAlive: Observable<[void]>(),
     };
 
@@ -633,7 +636,7 @@ export class PairedNode {
             return;
         }
 
-        await this.#initializeEndpointStructure(storedAttributeData);
+        await this.#initializeEndpointStructure(storedAttributeData, false);
 
         // Inform interested parties that the node is initialized
         await this.events.initialized.emit(this.#nodeDetails.toStorageData());
@@ -678,7 +681,7 @@ export class PairedNode {
                 if (attributeReports === undefined) {
                     throw new InternalError("No attribute reports received when subscribing to all values!");
                 }
-                await this.#initializeEndpointStructure(attributeReports, anyInitializationDone);
+                await this.#initializeEndpointStructure(attributeReports);
 
                 this.#remoteInitializationInProgress = false; // We are done, rest is bonus and should not block reconnections
 
@@ -691,7 +694,7 @@ export class PairedNode {
                 this.#currentSubscriptionIntervalS = maxInterval;
             } else {
                 const allClusterAttributes = await this.readAllAttributes();
-                await this.#initializeEndpointStructure(allClusterAttributes, anyInitializationDone);
+                await this.#initializeEndpointStructure(allClusterAttributes);
                 this.#remoteInitializationInProgress = false; // We are done, rest is bonus and should not block reconnections
             }
             if (!this.#remoteInitializationDone) {
@@ -845,6 +848,16 @@ export class PairedNode {
                     this.#reconnectDelayTimer = undefined;
                     this.#setConnectionState(NodeStates.Connected);
                 }
+
+                if (
+                    this.#remoteInitializationDone &&
+                    this.#registeredEndpointStructureChanges.size > 0 &&
+                    !this.#updateEndpointStructureTimer.isRunning
+                ) {
+                    logger.info(`Node ${this.nodeId}: Endpoint structure needs to be updated ...`);
+                    this.#updateEndpointStructureTimer.stop().start();
+                }
+
                 this.events.connectionAlive.emit();
             },
         };
@@ -854,12 +867,11 @@ export class PairedNode {
 
         // We first update all values by doing a read all on the device
         // We do not enrich existing data because we just want to store updated data
-        const attributeData = await this.#interactionClient.getAllAttributes({
+        await this.#interactionClient.getAllAttributes({
             dataVersionFilters: this.#interactionClient.getCachedClusterDataVersions(),
             executeQueued: !!threadConnected, // We queue subscriptions for thread devices
+            attributeChangeListener: subscriptionHandler.attributeListener,
         });
-        await this.#interactionClient.processAttributeUpdates(attributeData, subscriptionHandler.attributeListener);
-        attributeData.length = 0; // Clear the array to save memory
 
         // If we subscribe anything we use these data to create the endpoint structure, so we do not need to fetch again
         const initialSubscriptionData = await this.#interactionClient.subscribeAllAttributesAndEvents({
@@ -892,35 +904,35 @@ export class PairedNode {
     }
 
     #checkAttributesForNeededStructureUpdate(
-        _endpointId: EndpointNumber,
+        endpointId: EndpointNumber,
         clusterId: ClusterId,
         attributeId: AttributeId,
     ) {
         // Any change in the Descriptor Cluster partsList attribute requires a reinitialization of the endpoint structure
-        let structureUpdateNeeded = false;
-        if (clusterId === DescriptorCluster.id) {
+        if (clusterId === Descriptor.Complete.id) {
             switch (attributeId) {
-                case DescriptorCluster.attributes.partsList.id:
-                case DescriptorCluster.attributes.serverList.id:
-                case DescriptorCluster.attributes.deviceTypeList.id:
-                    structureUpdateNeeded = true;
-                    break;
+                case Descriptor.Complete.attributes.partsList.id:
+                case Descriptor.Complete.attributes.serverList.id:
+                case Descriptor.Complete.attributes.clientList.id:
+                case Descriptor.Complete.attributes.deviceTypeList.id:
+                    this.#registeredEndpointStructureChanges.set(endpointId, null); // full endpoint update needed
+                    return;
             }
         }
-        if (!structureUpdateNeeded) {
-            switch (attributeId) {
-                case FeatureMap.id:
-                case AttributeList.id:
-                case AcceptedCommandList.id:
-                case ClusterRevision.id:
-                    structureUpdateNeeded = true;
-                    break;
-            }
-        }
-
-        if (structureUpdateNeeded) {
-            logger.info(`Node ${this.nodeId}: Endpoint structure needs to be updated ...`);
-            this.#updateEndpointStructureTimer.stop().start();
+        switch (attributeId) {
+            case FeatureMap.id:
+            case AttributeList.id:
+            case AcceptedCommandList.id:
+            case ClusterRevision.id:
+                let knownForUpdate = this.#registeredEndpointStructureChanges.get(endpointId);
+                if (knownForUpdate !== null) {
+                    knownForUpdate = knownForUpdate ?? [];
+                    if (!knownForUpdate.includes(clusterId)) {
+                        knownForUpdate.push(clusterId);
+                        this.#registeredEndpointStructureChanges.set(endpointId, knownForUpdate);
+                    }
+                }
+                break;
         }
     }
 
@@ -956,72 +968,206 @@ export class PairedNode {
     }
 
     async #updateEndpointStructure() {
-        const allClusterAttributes = await this.readAllAttributes();
+        const allClusterAttributes = this.#interactionClient.getAllCachedClusterData();
         await this.#initializeEndpointStructure(allClusterAttributes, true);
-        this.#options.stateInformationCallback?.(this.nodeId, NodeStateInformation.StructureChanged);
-        this.events.structureChanged.emit();
+    }
+
+    /**
+     * Traverse the structure data and collect all data for the given endpointId.
+     * Return true if data for the endpoint was found, otherwise false.
+     * If data was found it is added to the collectedData map.
+     */
+    collectDescriptorData(
+        structure: StructuredReadAttributeData,
+        endpointId: EndpointNumber,
+        collectedData: Map<EndpointNumber, DescriptorData>,
+    ) {
+        if (collectedData.has(endpointId)) {
+            return;
+        }
+        const endpointData = structure[endpointId];
+        const descriptorData = endpointData?.[Descriptor.Complete.id] as DescriptorData | undefined;
+        if (endpointData === undefined || descriptorData === undefined) {
+            logger.info(`Descriptor data for endpoint ${endpointId} not found in structure! Ignoring endpoint ...`);
+            return;
+        }
+        collectedData.set(endpointId, descriptorData);
+        if (descriptorData.partsList.length) {
+            for (const partEndpointId of descriptorData.partsList) {
+                this.collectDescriptorData(structure, partEndpointId, collectedData);
+            }
+        }
+    }
+
+    #hasEndpointChanged(device: Endpoint, descriptorData: DescriptorData) {
+        // Check if the device types (ignoring revision for now), or cluster server or cluster clients differ
+        return !(
+            areNumberListsSame(
+                device.getDeviceTypes().map(({ code }) => code),
+                descriptorData.deviceTypeList.map(({ deviceType }) => deviceType),
+            ) &&
+            // Check if the cluster clients are the same - they map to the serverList attribute
+            areNumberListsSame(
+                device.getAllClusterClients().map(({ id }) => id),
+                descriptorData.serverList,
+            ) &&
+            // Check if the cluster servers are the same - they map to the clientList attribute
+            areNumberListsSame(
+                device.getAllClusterServers().map(({ id }) => id),
+                descriptorData.clientList,
+            )
+        );
     }
 
     /** Reads all data from the device and create a device object structure out of it. */
     async #initializeEndpointStructure(
         allClusterAttributes: DecodedAttributeReportValue<any>[],
-        updateStructure = false,
+        updateStructure = this.#localInitializationDone || this.#remoteInitializationDone,
     ) {
+        if (this.#updateEndpointStructureTimer.isRunning) {
+            this.#updateEndpointStructureTimer.stop();
+        }
+        const eventsToEmit = new Map<EndpointNumber, keyof PairedNode.NodeStructureEvents>();
+        const structureUpdateDetails = this.#registeredEndpointStructureChanges;
+        this.#registeredEndpointStructureChanges = new Map();
+
         const allData = structureReadAttributeDataToClusterObject(allClusterAttributes);
+
+        // Collect the descriptor data for all endpoints referenced in the structure
+        const descriptors = new Map<EndpointNumber, DescriptorData>();
+        this.collectDescriptorData(allData, EndpointNumber(0), descriptors);
 
         if (updateStructure) {
             // Find out what we need to remove or retain
             const endpointsToRemove = new Set<EndpointNumber>(this.#endpoints.keys());
-            for (const [endpointId] of Object.entries(allData)) {
-                const endpointIdNumber = EndpointNumber(parseInt(endpointId));
-                if (this.#endpoints.has(endpointIdNumber)) {
-                    logger.debug(`Node ${this.nodeId}: Retaining device`, endpointId);
-                    endpointsToRemove.delete(endpointIdNumber);
+            for (const endpointId of descriptors.keys()) {
+                const device = this.#endpoints.get(endpointId);
+                if (device !== undefined) {
+                    // Check if there are any changes to the device that require a re-creation
+                    // When structureUpdateDetails from subscription updates state changes we do a deep validation
+                    // to prevent ordering changes to cause unnecessary device re-creations
+                    const hasChanged = structureUpdateDetails.has(endpointId);
+                    if (!hasChanged || !this.#hasEndpointChanged(device, descriptors.get(endpointId)!)) {
+                        logger.debug(
+                            `Node ${this.nodeId}: Retaining endpoint`,
+                            endpointId,
+                            hasChanged ? "(with only structure changes)" : "(unchanged)",
+                        );
+                        endpointsToRemove.delete(endpointId);
+                        if (hasChanged) {
+                            eventsToEmit.set(endpointId, "nodeEndpointChanged");
+                        }
+                    } else {
+                        logger.debug(`Node ${this.nodeId}: Recreating endpoint`, endpointId);
+                        eventsToEmit.set(endpointId, "nodeEndpointChanged");
+                    }
                 }
             }
             // And remove all endpoints no longer in the structure
-            for (const endpointId of endpointsToRemove.values()) {
-                logger.debug(`Node ${this.nodeId}: Removing device`, endpointId);
-                this.#endpoints.get(endpointId)?.removeFromStructure();
-                this.#endpoints.delete(endpointId);
+            for (const endpoint of endpointsToRemove.values()) {
+                const endpointId = EndpointNumber(endpoint);
+                const device = this.#endpoints.get(endpointId);
+                if (device !== undefined) {
+                    if (eventsToEmit.get(endpointId) !== "nodeEndpointChanged") {
+                        logger.debug(`Node ${this.nodeId}: Removing endpoint`, endpointId);
+                        eventsToEmit.set(endpointId, "nodeEndpointRemoved");
+                    }
+                    device.removeFromStructure();
+                    this.#endpoints.delete(endpointId);
+                }
             }
         } else {
             this.#endpoints.clear();
         }
 
-        const partLists = new Map<EndpointNumber, EndpointNumber[]>();
-        for (const [endpointId, clusters] of Object.entries(allData)) {
-            const endpointIdNumber = EndpointNumber(parseInt(endpointId));
-            const descriptorData = clusters[DescriptorCluster.id] as AttributeClientValues<
-                typeof DescriptorCluster.attributes
-            >;
+        for (const endpointId of descriptors.keys()) {
+            const clusters = allData[endpointId];
 
-            partLists.set(endpointIdNumber, descriptorData.partsList);
-
-            if (this.#endpoints.has(endpointIdNumber)) {
+            if (this.#endpoints.has(endpointId)) {
                 // Endpoint exists already, so mo need to create device instance again
                 continue;
             }
 
-            logger.debug(`Node ${this.nodeId}: Creating device`, endpointId, Diagnostic.json(clusters));
-            this.#endpoints.set(
-                endpointIdNumber,
-                this.#createDevice(endpointIdNumber, clusters, this.#interactionClient),
+            const isRecreation = eventsToEmit.get(endpointId) === "nodeEndpointChanged";
+            logger.debug(
+                `Node ${this.nodeId}: ${isRecreation ? "Recreating" : "Creating"} endpoint`,
+                endpointId,
+                Diagnostic.json(clusters),
             );
+            this.#endpoints.set(endpointId, this.#createDevice(endpointId, clusters, this.#interactionClient));
+            if (!isRecreation) {
+                eventsToEmit.set(endpointId, "nodeEndpointAdded");
+            }
         }
 
-        this.#structureEndpoints(partLists);
+        // Remove all children that are not in the partsList anymore
+        for (const [endpointId, { partsList }] of descriptors.entries()) {
+            const endpoint = this.#endpoints.get(endpointId);
+            if (endpoint === undefined) {
+                // Should not happen or endpoint was invalid and that's why not created, then we ignore it
+                continue;
+            }
+            endpoint.getChildEndpoints().forEach(child => {
+                if (child.number !== undefined && !partsList.includes(child.number)) {
+                    // Remove this child because it is no longer in the partsList
+                    endpoint.removeChildEndpoint(child);
+                    if (!eventsToEmit.has(endpointId)) {
+                        eventsToEmit.set(endpointId, "nodeEndpointChanged");
+                    }
+                }
+            });
+        }
+
+        this.#structureEndpoints(descriptors);
+
+        if (updateStructure && eventsToEmit.size) {
+            for (const [endpointId, eventName] of eventsToEmit.entries()) {
+                // Cleanup storage data for removed or updated endpoints
+                if (eventName !== "nodeEndpointAdded") {
+                    // For removed or changed endpoints we need to cleanup the stored data
+                    const clusterServers = descriptors.get(endpointId)?.serverList;
+                    await this.#interactionClient.cleanupAttributeData(
+                        endpointId,
+                        eventName === "nodeEndpointRemoved" ? undefined : clusterServers,
+                    );
+                }
+            }
+
+            const emitChangeEvents = () => {
+                for (const [endpointId, eventName] of eventsToEmit.entries()) {
+                    logger.debug(`Node ${this.nodeId}: Emitting event ${eventName} for endpoint ${endpointId}`);
+                    this.events[eventName].emit(endpointId);
+                }
+                this.#options.stateInformationCallback?.(this.nodeId, NodeStateInformation.StructureChanged);
+                this.events.structureChanged.emit();
+            };
+
+            if (this.#connectionState === NodeStates.Connected) {
+                // If we are connected we can emit the events right away
+                emitChangeEvents();
+            } else {
+                // If we are not connected we need to wait until we are connected again and emit these changes afterwards
+                this.events.stateChanged.once(State => {
+                    if (State === NodeStates.Connected) {
+                        emitChangeEvents();
+                    }
+                });
+            }
+        }
     }
 
-    /** Bring the endpoints in a structure based on their partsList attribute. */
-    #structureEndpoints(partLists: Map<EndpointNumber, EndpointNumber[]>) {
-        logger.debug(
-            `Node ${this.nodeId}: Endpoints from PartsLists`,
-            Diagnostic.json(Array.from(partLists.entries())),
+    /**
+     * Bring the endpoints in a structure based on their partsList attribute. This method only adds endpoints into the
+     * right place as children, Cleanup is not happening here
+     */
+    #structureEndpoints(descriptors: Map<EndpointNumber, DescriptorData>) {
+        const partLists = Array.from(descriptors.entries()).map(
+            ([ep, { partsList }]) => [ep, partsList] as [EndpointNumber, EndpointNumber[]], // else Typescript gets confused
         );
+        logger.debug(`Node ${this.nodeId}: Endpoints from PartsLists`, Diagnostic.json(partLists));
 
         const endpointUsages: { [key: EndpointNumber]: EndpointNumber[] } = {};
-        Array.from(partLists.entries()).forEach(([parent, partsList]) =>
+        partLists.forEach(([parent, partsList]) =>
             partsList.forEach(endPoint => {
                 if (endPoint === parent) {
                     // There could be more cases of invalid and cycling structures that never should happen ... so lets not over optimize to try to find all of them right now
@@ -1051,14 +1197,19 @@ export class PairedNode {
                 const childEndpointId = EndpointNumber(parseInt(childId));
                 const childEndpoint = this.#endpoints.get(childEndpointId);
                 const parentEndpoint = this.#endpoints.get(usages[0]);
+                const existingChildEndpoint = parentEndpoint?.getChildEndpoint(childEndpointId);
                 if (childEndpoint === undefined || parentEndpoint === undefined) {
                     logger.warn(
                         `Node ${this.nodeId}: Endpoint ${usages[0]} not found in the data received from the device!`,
                     );
-                } else if (parentEndpoint.getChildEndpoint(childEndpointId) === undefined) {
+                } else if (existingChildEndpoint !== childEndpoint) {
                     logger.debug(
                         `Node ${this.nodeId}: Endpoint structure: Child: ${childEndpointId} -> Parent: ${parentEndpoint.number}`,
                     );
+                    if (existingChildEndpoint !== undefined) {
+                        // Child endpoint changed, so we need to remove the old one first
+                        parentEndpoint.removeChildEndpoint(existingChildEndpoint);
+                    }
 
                     parentEndpoint.addChildEndpoint(childEndpoint);
                 }
@@ -1087,7 +1238,7 @@ export class PairedNode {
         data: { [key: ClusterId]: { [key: string]: any } },
         interactionClient: InteractionClient,
     ) {
-        const descriptorData = data[DescriptorCluster.id] as AttributeClientValues<typeof DescriptorCluster.attributes>;
+        const descriptorData = data[Descriptor.Complete.id] as DescriptorData;
 
         const deviceTypes = descriptorData.deviceTypeList.flatMap(({ deviceType, revision }) => {
             const deviceTypeDefinition = getDeviceTypeDefinitionFromModelByCode(deviceType);
@@ -1414,5 +1565,57 @@ export class PairedNode {
                 root ? Diagnostic.list([root]) : "Unknown",
             ],
         });
+    }
+}
+
+export namespace PairedNode {
+    export interface NodeStructureEvents {
+        /** Emitted when endpoints are added. */
+        nodeEndpointAdded: Observable<[EndpointNumber]>;
+
+        /** Emitted when endpoints are removed. */
+        nodeEndpointRemoved: Observable<[EndpointNumber]>;
+
+        /** Emitted when endpoints are updated (e.g. device type changed, structure changed). */
+        nodeEndpointChanged: Observable<[EndpointNumber]>;
+    }
+
+    export interface Events extends NodeStructureEvents {
+        /**
+         * Emitted when the node is initialized from local data. These data usually are stale, but you can still already
+         * use the node to interact with the device. If no local data are available this event will be emitted together
+         * with the initializedFromRemote event.
+         */
+        initialized: AsyncObservable<[details: DeviceInformationData]>;
+
+        /**
+         * Emitted when the node is fully initialized from remote and all attributes and events are subscribed.
+         * This event can also be awaited if code needs to be blocked until the node is fully initialized.
+         */
+        initializedFromRemote: AsyncObservable<[details: DeviceInformationData]>;
+
+        /** Emitted when the state of the node changes. */
+        stateChanged: Observable<[nodeState: NodeStates]>;
+
+        /**
+         * Emitted when an attribute value changes. If the oldValue is undefined then no former value was known.
+         */
+        attributeChanged: Observable<[data: DecodedAttributeReportValue<any>, oldValue: any]>;
+
+        /** Emitted when an event is triggered. */
+        eventTriggered: Observable<[DecodedEventReportValue<any>]>;
+
+        /**
+         * Emitted when all node structure changes were applied (Endpoints got added or also removed).
+         * You can alternatively use the nodeEndpointAdded, nodeEndpointRemoved and nodeEndpointChanged events to react on specific changes.
+         * This event is emitted after all nodeEndpointAdded, nodeEndpointRemoved and nodeEndpointChanged events are emitted.
+         */
+        structureChanged: Observable<[void]>;
+
+        /** Emitted when the node is decommissioned. */
+        decommissioned: Observable<[void]>;
+
+        /** Emitted when a subscription alive trigger is received (max interval trigger or any data update) */
+        connectionAlive: Observable<[void]>;
     }
 }

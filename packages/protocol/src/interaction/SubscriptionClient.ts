@@ -5,10 +5,11 @@
  */
 
 import { Environment, Environmental, Logger, MaybePromise, Time, Timer } from "#general";
+import { DecodedDataReport } from "#interaction/DecodedDataReport.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { ProtocolHandler } from "#protocol/ProtocolHandler.js";
 import { INTERACTION_PROTOCOL_ID } from "#types";
-import { DataReport, IncomingInteractionClientMessenger } from "./InteractionMessenger.js";
+import { IncomingInteractionClientMessenger } from "./InteractionMessenger.js";
 
 const logger = Logger.get("SubscriptionClient");
 
@@ -16,7 +17,7 @@ export interface RegisteredSubscription {
     id: number;
     maximumPeerResponseTimeMs: number;
     maxIntervalS: number;
-    onData: (dataReport: DataReport) => MaybePromise<void>;
+    onData: (dataReport: DecodedDataReport) => MaybePromise<void>;
     onTimeout?: () => void;
 }
 
@@ -28,7 +29,7 @@ export interface RegisteredSubscription {
 export class SubscriptionClient implements ProtocolHandler {
     readonly id = INTERACTION_PROTOCOL_ID;
     readonly requiresSecureSession = true;
-    readonly #listeners = new Map<number, (dataReport: DataReport) => MaybePromise<void>>();
+    readonly #listeners = new Map<number, (dataReport: DecodedDataReport) => MaybePromise<void>>();
     readonly #timeouts = new Map<number, Timer>();
 
     constructor() {}
@@ -80,10 +81,10 @@ export class SubscriptionClient implements ProtocolHandler {
     async onNewExchange(exchange: MessageExchange) {
         const messenger = new IncomingInteractionClientMessenger(exchange);
 
-        let dataReport: DataReport;
+        let dataReport: DecodedDataReport;
         try {
             // TODO Adjust this to getting packages as callback when received to handle error cases and checks outside
-            dataReport = await messenger.readAggregateDataReport([...this.#listeners.keys()]);
+            dataReport = await messenger.readAggregateDataReport(undefined, [...this.#listeners.keys()]);
         } finally {
             messenger.close().catch(error => logger.info("Error closing client messenger", error));
         }

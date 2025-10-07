@@ -4,11 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Diagnostic } from "#log/Diagnostic.js";
+import { Logger } from "#log/Logger.js";
 import { InternalError, NotImplementedError, UnexpectedDataError } from "../MatterError.js";
 import { Bytes, Endian } from "../util/Bytes.js";
 import { DataReader } from "../util/DataReader.js";
 import { DataWriter } from "../util/DataWriter.js";
 import { ipv4BytesToString, ipv4ToBytes, ipv6BytesToString, ipv6ToBytes, isIPv4, isIPv6 } from "../util/Ip.js";
+
+const logger = Logger.get("DnsCodec");
 
 /**
  * The maximum MDNS message size to usually fit into one UDP network MTU packet. Data are split into multiple messages
@@ -116,11 +120,51 @@ export type DnsMessagePartiallyPreEncoded = Omit<DnsMessage, "answers" | "additi
     additionalRecords: (DnsRecord<any> | Uint8Array)[];
 };
 
+/** Bit flags to use to determine separate flags in the DnsMessageType field */
+export enum DnsMessageTypeFlag {
+    /** Indicates if the message is a query (0) or a reply (1). */
+    QR = 0x8000,
+
+    /** The type can be QUERY (standard query, 0), IQUERY (inverse query, 1), or STATUS (server status request, 2). */
+    OPCODE = 0x7800,
+
+    /** Authoritative Answer, in a response, indicates if the DNS server is authoritative for the queried hostname. */
+    AA = 0x0400,
+
+    /** TrunCation, indicates that this message was truncated due to excessive length. */
+    TC = 0x0200,
+
+    /** Recursion Desired, indicates if the client means a recursive query. */
+    RD = 0x0100,
+
+    /** Recursion Available, in a response, indicates if the replying DNS server supports recursion. */
+    RA = 0x0080,
+
+    /** Authentic Data, in a response, indicates if the replying DNS server verified the data. */
+    AD = 0x0020,
+
+    /** Checking Disabled, in a query, indicates that non-verified data is acceptable in a response. */
+    CD = 0x0010,
+
+    /** Response code, can be NOERROR (0), FORMERR (1, Format error), SERVFAIL (2), NXDOMAIN (3, Nonexistent domain), etc. */
+    RCODE = 0x000f,
+}
+
+/** Convenient Message types we use when sending mDNS messages */
 export enum DnsMessageType {
-    Query = 0x0000,
+    Query = 0, // No bit set
     TruncatedQuery = 0x0200,
-    Response = 0x8400, // Authoritative Answer
-    TruncatedResponse = 0x8600,
+    Response = DnsMessageTypeFlag.QR | DnsMessageTypeFlag.AA, // Authoritative Answer 0x8400
+}
+
+export namespace DnsMessageType {
+    export function isQuery(type: number) {
+        return (type & DnsMessageTypeFlag.QR) === 0;
+    }
+
+    export function isResponse(type: number) {
+        return (type & DnsMessageTypeFlag.QR) !== 0;
+    }
 }
 
 export enum DnsRecordType {
@@ -282,7 +326,7 @@ export class DnsCodec {
         additionalRecords = [],
     }: Partial<DnsMessagePartiallyPreEncoded>): Uint8Array {
         if (messageType === undefined) throw new InternalError("Message type must be specified!");
-        if (queries.length > 0 && messageType !== DnsMessageType.Query && messageType !== DnsMessageType.TruncatedQuery)
+        if (queries.length > 0 && !DnsMessageType.isQuery(messageType))
             throw new InternalError("Queries can only be included in query messages!");
         if (authorities.length > 0) throw new NotImplementedError("Authority answers are not supported yet!");
 
@@ -310,6 +354,11 @@ export class DnsCodec {
 
     static encodeRecord(record: DnsRecord<any>): Uint8Array {
         const { name, recordType, recordClass, ttl, value, flushCache = false } = record;
+
+        if (recordType === undefined || value === undefined) {
+            logger.warn("Skipping record encoding due to missing type or value.", Diagnostic.dict(record));
+            return new Uint8Array(0);
+        }
 
         const writer = new DataWriter();
         writer.writeByteArray(this.encodeQName(name));

@@ -5,8 +5,8 @@
  */
 
 import type { StorageContext } from "#general";
-import { Construction, Logger } from "#general";
-import { DecodedAttributeReportValue, PeerDataStore, Val } from "#protocol";
+import { Construction, Logger, MaybePromise } from "#general";
+import { DecodedAttributeReportValue, PeerDataStore, ReadScope, Val } from "#protocol";
 import { AttributeId, ClusterId, EndpointNumber, EventNumber } from "#types";
 import { ClientEndpointStore } from "./ClientEndpointStore.js";
 
@@ -132,7 +132,12 @@ export class CachedClientNodeStore extends PeerDataStore {
             });
     }
 
-    async persistAttributes(attributes: DecodedAttributeReportValue<any>[]) {
+    async persistAttributes(attributes: DecodedAttributeReportValue<any>[], scope: ReadScope) {
+        // We only store values that are filtered by out fabric, else we create a mixture of data
+        if (!scope.isFabricFiltered) {
+            return;
+        }
+
         const endpointDataMap = new Map<EndpointNumber, Record<ClusterId, Val.Struct>>();
         for (const {
             path: { endpointId, clusterId, attributeId, attributeName },
@@ -156,7 +161,9 @@ export class CachedClientNodeStore extends PeerDataStore {
             }
 
             clusterData[attributeId.toString()] = { value, attributeName };
-            clusterData[VERSION_KEY] = version;
+            if (scope.isWildcard(endpointId, clusterId)) {
+                clusterData[VERSION_KEY] = version;
+            }
         }
         for (const [endpointId, endpointData] of endpointDataMap) {
             const store = this.#storeForEndpoint(endpointId);
@@ -192,5 +199,18 @@ export class CachedClientNodeStore extends PeerDataStore {
             }
         }
         return versions;
+    }
+
+    cleanupAttributeData(endpointId: EndpointNumber, clusterIds?: ClusterId[]): MaybePromise<void> {
+        const store = this.#storeForEndpoint(endpointId);
+        if (clusterIds === undefined) {
+            this.#endpointStores.delete(endpointId);
+            return store.erase();
+        }
+        for (const clusterId of store.get.keys()) {
+            if (!clusterIds.includes(ClusterId(parseInt(clusterId)))) {
+                store.get.delete(clusterId);
+            }
+        }
     }
 }

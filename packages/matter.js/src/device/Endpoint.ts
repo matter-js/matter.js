@@ -239,7 +239,7 @@ export class Endpoint {
         return this.childEndpoints;
     }
 
-    protected removeChildEndpoint(endpoint: Endpoint): void {
+    removeChildEndpoint(endpoint: Endpoint): void {
         const index = this.childEndpoints.indexOf(endpoint);
         if (index === -1) {
             throw new ImplementationError(`Provided endpoint for deletion does not exist as child endpoint.`);

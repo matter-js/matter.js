@@ -21,6 +21,7 @@ import {
     ObserverGroup,
     StorageContext,
     StorageManager,
+    toHex,
 } from "#general";
 import { Subscription } from "#interaction/Subscription.js";
 import { Specification } from "#model";
@@ -76,6 +77,7 @@ type ResumptionStorageRecord = {
     sharedSecret: Uint8Array;
     resumptionId: Uint8Array;
     fabricId: FabricId;
+    fabricIndex: FabricIndex;
     peerNodeId: NodeId;
     sessionParameters: {
         idleIntervalMs: number;
@@ -545,21 +547,21 @@ export class SessionManager {
                 ([
                     address,
                     { sharedSecret, resumptionId, peerNodeId, fabric, sessionParameters, caseAuthenticatedTags },
-                ]) =>
-                    ({
-                        nodeId: address.nodeId,
-                        sharedSecret,
-                        resumptionId,
-                        fabricId: fabric.fabricId,
-                        peerNodeId: peerNodeId,
-                        sessionParameters: {
-                            ...sessionParameters,
-                            supportedTransports: sessionParameters.supportedTransports
-                                ? SupportedTransportsSchema.encode(sessionParameters.supportedTransports)
-                                : undefined,
-                        },
-                        caseAuthenticatedTags,
-                    }) as ResumptionStorageRecord,
+                ]): ResumptionStorageRecord => ({
+                    nodeId: address.nodeId,
+                    sharedSecret,
+                    resumptionId,
+                    fabricId: fabric.fabricId,
+                    fabricIndex: fabric.fabricIndex,
+                    peerNodeId: peerNodeId,
+                    sessionParameters: {
+                        ...sessionParameters,
+                        supportedTransports: sessionParameters.supportedTransports
+                            ? SupportedTransportsSchema.encode(sessionParameters.supportedTransports)
+                            : undefined,
+                    },
+                    caseAuthenticatedTags,
+                }),
             ),
         );
     }
@@ -578,6 +580,7 @@ export class SessionManager {
                 sharedSecret,
                 resumptionId,
                 fabricId,
+                fabricIndex,
                 peerNodeId,
                 sessionParameters: {
                     idleIntervalMs,
@@ -592,19 +595,27 @@ export class SessionManager {
                 } = {},
                 caseAuthenticatedTags,
             }) => {
-                const fabric = this.#context.fabrics.find(fabric => fabric.fabricId === fabricId);
-                logger.info(
-                    "restoring resumption record for node",
-                    nodeId,
-                    "and peer node",
-                    peerNodeId,
-                    "for fabric index",
-                    fabric?.fabricIndex,
+                const fabric = this.#context.fabrics.find(
+                    fabric =>
+                        fabric.fabricId === fabricId &&
+                        // Backward compatibility logic: fabricIndex was added later (0.15.5), so it might be undefined in older records
+                        (fabricIndex === undefined || fabric.fabricIndex === fabricIndex),
                 );
                 if (!fabric) {
-                    logger.error("fabric not found for resumption record", fabricId);
+                    logger.warn(
+                        `Ignoring resumption record for fabric 0x${toHex(fabricId)} and index ${fabricIndex} because we cannot find a matching fabric`,
+                    );
                     return;
                 }
+                logger.info(
+                    "restoring resumption record for node",
+                    fabric.addressOf(nodeId).toString(),
+                    "and peer node",
+                    fabric.addressOf(peerNodeId).toString(),
+                    "for fabric id",
+                    `0x${toHex(fabric.fabricId)}`,
+                    `(0x${toHex(fabric.rootVendorId)}, "${fabric?.label}")`,
+                );
                 this.#resumptionRecords.set(fabric.addressOf(nodeId), {
                     sharedSecret,
                     resumptionId,

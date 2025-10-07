@@ -254,7 +254,7 @@ export class Fabric {
         };
     }
 
-    addressOf(nodeId: NodeId) {
+    addressOf(nodeId: NodeId): PeerAddress {
         return PeerAddress({ fabricIndex: this.fabricIndex, nodeId });
     }
 

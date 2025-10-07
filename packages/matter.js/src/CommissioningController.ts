@@ -208,12 +208,9 @@ export class CommissioningController {
         };
     }
 
-    #assertIsAddedToMatterServer() {
+    #assertDependencies() {
         if (this.#mdnsScanner === undefined || (this.#storage === undefined && this.#environment === undefined)) {
             throw new ImplementationError("Add the node to the Matter instance before.");
-        }
-        if (!this.#started) {
-            throw new ImplementationError("The node needs to be started before interacting with the controller.");
         }
         return { mdnsScanner: this.#mdnsScanner, storage: this.#storage, environment: this.#environment };
     }
@@ -229,7 +226,6 @@ export class CommissioningController {
 
     /** Internal method to initialize a MatterController instance. */
     async #initializeController() {
-        const { mdnsScanner, storage, environment } = this.#assertIsAddedToMatterServer();
         if (this.#controllerInstance !== undefined) {
             return this.#controllerInstance;
         }
@@ -245,9 +241,8 @@ export class CommissioningController {
             rootFabric,
         } = this.#options;
 
-        if (environment === undefined && storage === undefined) {
-            throw new ImplementationError("Storage not initialized correctly.");
-        }
+        const { mdnsScanner, storage, environment } = this.#assertDependencies();
+
         // Initialize the Storage in a compatible way for the legacy API and new style for new API
         // TODO: clean this up when we really implement ControllerNode/ClientNode concepts in new API
         const controllerStore = environment?.has(ControllerStore)
@@ -300,7 +295,6 @@ export class CommissioningController {
             commissioningFlowImpl?: ClassExtends<ControllerCommissioningFlow>;
         },
     ) {
-        this.#assertIsAddedToMatterServer();
         const controller = this.#assertControllerIsStarted();
 
         const { connectNodeAfterCommissioning = true, commissioningFlowImpl } = commissionOptions ?? {};
@@ -323,7 +317,6 @@ export class CommissioningController {
     }
 
     connectPaseChannel(nodeOptions: NodeCommissioningOptions) {
-        this.#assertIsAddedToMatterServer();
         const controller = this.#assertControllerIsStarted();
 
         return controller.connectPaseChannel(nodeOptions);
@@ -335,7 +328,6 @@ export class CommissioningController {
      * process.
      */
     completeCommissioningForNode(peerNodeId: NodeId, discoveryData?: DiscoveryData) {
-        this.#assertIsAddedToMatterServer();
         const controller = this.#assertControllerIsStarted();
         return controller.completeCommissioning(peerNodeId, discoveryData);
     }
@@ -386,7 +378,7 @@ export class CommissioningController {
     }
 
     /**
-     * Returns the PairedNode instance for a given NodeId. The instance is initialized without auto connect if not yet
+     * Returns the PairedNode instance for a given NodeId. The instance is initialized without auto-connect if not yet
      * created.
      */
     async getNode(nodeId: NodeId, allowUnknownNode = false) {
@@ -657,7 +649,6 @@ export class CommissioningController {
         identifierData: CommissionableDeviceIdentifiers,
         discoveryCapabilities?: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap>,
     ) {
-        this.#assertIsAddedToMatterServer();
         const controller = this.#assertControllerIsStarted();
         controller
             .collectScanners(discoveryCapabilities)
@@ -675,7 +666,6 @@ export class CommissioningController {
         discoveredCallback?: (device: CommissionableDevice) => void,
         timeoutSeconds = 900,
     ) {
-        this.#assertIsAddedToMatterServer();
         const controller = this.#assertControllerIsStarted();
         return await ControllerDiscovery.discoverCommissionableDevices(
             controller.collectScanners(discoveryCapabilities),
@@ -690,10 +680,12 @@ export class CommissioningController {
      * will remove all commissioning data and paired nodes from the controller.
      */
     async resetStorage() {
-        this.#assertControllerIsStarted(
-            "Storage cannot be reset while the controller is operating! Please close the controller first.",
-        );
-        const { storage, environment } = this.#assertIsAddedToMatterServer();
+        if (this.#started) {
+            throw new ImplementationError(
+                "Storage cannot be reset while the controller is operating! Please close the controller first.",
+            );
+        }
+        const { storage, environment } = this.#assertDependencies();
         if (environment !== undefined) {
             const controllerStore = environment.get(ControllerStore);
             await controllerStore.erase();
