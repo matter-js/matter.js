@@ -11,6 +11,20 @@ import { TokenStream } from "#parser/TokenStream.js";
 import { FieldValue } from "../common/index.js";
 import { Aspect } from "./Aspect.js";
 
+namespace Functions {
+    export function minOf(args: unknown[]) {
+        return Math.min(...args.filter(arg => typeof arg === "number"));
+    }
+
+    export function maxOf(args: unknown[]) {
+        return Math.max(...args.filter(arg => typeof arg === "number"));
+    }
+}
+
+function isFunction(name: string): name is keyof typeof Functions {
+    return Object.hasOwn(Functions, name);
+}
+
 /**
  * An operational view of constraints as defined by the Matter specification.
  *
@@ -127,27 +141,29 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
                         }
                         break;
 
-                    case "+":
-                        {
-                            const lhs = valueOf(value.lhs);
-                            const rhs = valueOf(value.rhs);
-                            if (typeof lhs === "number" && typeof rhs === "number") {
-                                return lhs + rhs;
-                            }
-                            return undefined;
+                    case "+": {
+                        const lhs = valueOf(value.lhs);
+                        const rhs = valueOf(value.rhs);
+                        if (typeof lhs === "number" && typeof rhs === "number") {
+                            return lhs + rhs;
                         }
-                        break;
+                        return undefined;
+                    }
 
-                    case "-":
-                        {
-                            const lhs = valueOf(value.lhs);
-                            const rhs = valueOf(value.rhs);
-                            if (typeof lhs === "number" && typeof rhs === "number") {
-                                return lhs - rhs;
-                            }
-                            return undefined;
+                    case "-": {
+                        const lhs = valueOf(value.lhs);
+                        const rhs = valueOf(value.rhs);
+                        if (typeof lhs === "number" && typeof rhs === "number") {
+                            return lhs - rhs;
                         }
-                        break;
+                        return undefined;
+                    }
+
+                    case "maxOf":
+                    case "minOf": {
+                        Functions[type](value.args.map(value => valueOf(value)));
+                        return undefined;
+                    }
                 }
             }
 
@@ -275,9 +291,18 @@ export namespace Constraint {
     }
 
     /**
+     * Parsed function.
+     */
+    export interface Function {
+        type: "maxOf" | "minOf";
+
+        args: Expression[];
+    }
+
+    /**
      * Parsed expression.
      */
-    export type Expression = FieldValue | BinaryOperator;
+    export type Expression = FieldValue | BinaryOperator | Function;
 
     /**
      * These are all ways to describe a constraint.
@@ -316,7 +341,11 @@ namespace Serializer {
                 return sum;
 
             default:
-                return FieldValue.serialize(value);
+                if (isFunction(value.type)) {
+                    return `${value.type}(${(value as Constraint.Function).args.map(value => serializeValue(value)).join(", ")})`;
+                }
+
+                return FieldValue.serialize(value as FieldValue);
         }
     }
 
@@ -357,10 +386,14 @@ namespace Parser {
         const result = parseParts();
 
         if (tokens.token && tokens.token?.type !== ",") {
-            constraint.error("UNEXPECTED_CONSTRAINT_TOKEN", `Unexpected ${tokens.description}`);
+            unexpected();
         }
 
         return result;
+
+        function unexpected() {
+            constraint.error("UNEXPECTED_CONSTRAINT_TOKEN", `Unexpected ${tokens.description}`);
+        }
 
         function parseParts(): Constraint.Ast {
             const parts = Array<Constraint.Ast>();
@@ -534,6 +567,45 @@ namespace Parser {
                         type,
                         lhs: value,
                         rhs,
+                    };
+
+                case "(":
+                    const args = Array<Constraint.Expression>();
+                    tokens.next();
+
+                    const functionName = FieldValue.referenced(value);
+                    if (functionName === undefined) {
+                        unexpected();
+                        return;
+                    }
+                    if (!isFunction(functionName)) {
+                        constraint.error("UNKNOWN_FUNCTION", `Unknown function "${functionName}"`);
+                        return;
+                    }
+
+                    while ((tokens.token?.type as BasicToken.Operator) !== ")") {
+                        const expr = parseValueExpression();
+                        if (expr === undefined) {
+                            return;
+                        }
+                        args.push(expr);
+                        switch (tokens.token?.type as BasicToken.Operator) {
+                            case ",":
+                                tokens.next();
+                                break;
+
+                            case ")":
+                                break;
+
+                            default:
+                                unexpected();
+                                return;
+                        }
+                    }
+                    tokens.next();
+                    return {
+                        type: functionName,
+                        args,
                     };
             }
 
