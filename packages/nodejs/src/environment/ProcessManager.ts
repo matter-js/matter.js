@@ -110,6 +110,16 @@ export class ProcessManager implements Destructable {
         this.runtime.interrupt();
     };
 
+    protected abortHandler = () => {
+        this.uninstallInterruptHandlers();
+
+        logger.fatal("Terminating due to SIGABRT of JS runtime, diagnostics follow");
+        logger.info(JSON.stringify(process.report.getReport(), undefined, 2));
+
+        // Arbitrary code that kind of looks like standard SIGABRT exit code of -6
+        process.exit(-66);
+    };
+
     protected exitHandler = () => {
         if (process.exitCode === 13) {
             logger.error("Internal error: Premature process exit because ongoing work has stalled");
@@ -123,11 +133,13 @@ export class ProcessManager implements Destructable {
     protected installInterruptHandlers = () => {
         process.on("SIGINT", this.interruptHandler);
         process.on("SIGTERM", this.interruptHandler);
+        process.on("SIGABRT", this.abortHandler);
     };
 
     protected uninstallInterruptHandlers = () => {
         process.off("SIGINT", this.interruptHandler);
         process.off("SIGTERM", this.interruptHandler);
+        process.off("SIGABRT", this.abortHandler);
     };
 
     #ignoreSignals() {
