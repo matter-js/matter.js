@@ -5,13 +5,12 @@
  */
 
 import { Bytes, MqttEndpoint } from "#general";
-import type { Buffer as NodeBuffer } from "buffer";
 import { IClientPublishOptions, IPublishPacket } from "mqtt";
 import { Buffer as SafeBuffer } from "safe-buffer";
 
 // We need safe-buffer for platforms that do not supply equivalent of Node.js Buffer.  The types are incompatible with
 // modern node types so install in a local variable and cast to standard buffer type
-const Buffer = (globalThis.Buffer ?? SafeBuffer) as unknown as typeof NodeBuffer;
+const Buffer = globalThis.Buffer ?? SafeBuffer;
 const empty = Buffer.alloc(0);
 
 export namespace MqttJsMessage {

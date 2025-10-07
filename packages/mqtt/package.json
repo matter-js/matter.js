@@ -29,11 +29,11 @@
     },
     "dependencies": {
         "@matter/general": "*",
-        "mqtt": "^5.14.1"
+        "mqtt": "^5.14.1",
+        "safe-buffer": "^5.2.1"
     },
     "devDependencies": {
-        "@matter/tools": "*",
-        "safe-buffer": "^5.2.1"
+        "@matter/tools": "*"
     },
     "engines": {
         "node": ">=20.19.0 <22.0.0 || >=22.13.0"
@@ -41,7 +41,6 @@
     "files": [
         "dist/**/*",
         "src/**/*",
-        "require/**/*",
         "LICENSE"
     ],
     "imports": {
