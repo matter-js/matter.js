@@ -22,7 +22,7 @@ import {
     string,
     ValueElement,
 } from "#model";
-import { NumericRanges } from "../../clusters/NumberConstants.js";
+import { ModelBounds } from "@matter/types";
 import { camelize } from "../../util/string.js";
 import { TypeMap } from "./type-map.js";
 
@@ -205,7 +205,7 @@ function setBounds(source: Element, element: ValueElement) {
             return;
 
         default:
-            typeBounds = (NumericRanges as any)[element.type as any];
+            typeBounds = (ModelBounds.NumericRanges as any)[element.type as any];
             if (!typeBounds) {
                 return;
             }

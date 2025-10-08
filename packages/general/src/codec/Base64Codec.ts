@@ -103,7 +103,7 @@ export namespace Base64 {
                 outLength += 1;
                 break;
             case 1:
-                throw new Error("Invalid base-64 encoding");
+                throw new SyntaxError("Invalid base-64 encoding");
         }
 
         const out = new Uint8Array(outLength);
@@ -113,7 +113,7 @@ export namespace Base64 {
                 if (inPos >= inputLength) return 0;
                 const v = A2B[input.codePointAt(inPos++) ?? -1];
                 if (v === undefined) {
-                    throw new Error("Invalid base-64 encoding");
+                    throw new SyntaxError("Invalid base-64 encoding");
                 }
                 return v;
             }

@@ -308,5 +308,5 @@ function primitiveFallbackOf(model: ValueModel) {
         throw new ImplementationError(`Could not determine primitive base for ${model.path}`);
     }
 
-    return TlvOfModel(model);
+    return TlvOfModel(primitive);
 }

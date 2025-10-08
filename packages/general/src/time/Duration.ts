@@ -19,7 +19,7 @@ import type { Millis, Seconds, TimeUnit } from "./TimeUnit.js";
  * Math operators always result in millisecond values and can thus be converted back to an interval using
  * {@link Millis}.  For example, `Millisecs(Hours(1) + Minutes(30))` would produce a 90 minute {@link Duration}.
  */
-export type Duration = Branded<number, "Interval"> | 0;
+export type Duration = Branded<number, "Duration"> | 0;
 
 /**
  * Create an interval from a number or string.

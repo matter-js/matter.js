@@ -48,7 +48,7 @@ export async function main(argv = process.argv) {
                 stdout.write(
                     "Usage: matter-run [--clear] [--direct] [-<NODE_OPT>]... <SCRIPT> [ARG]...\nRun a Node.js script with source map support and automatic transpilation of TypeScript.",
                 );
-                break;
+                return;
 
             default:
                 // Any option we don't recognize we pass to node
