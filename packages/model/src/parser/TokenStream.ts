@@ -52,8 +52,8 @@ export function TokenStream<T extends Token>(iterator: Iterator<T>): TokenStream
                 case "word":
                     return `word "${(this.token as unknown as BasicToken.Word).value}"`;
 
-                case "number":
-                    return `number "${(this.token as unknown as BasicToken.Number).value}"`;
+                case "value":
+                    return `value "${(this.token as unknown as BasicToken.Number).value}"`;
 
                 default:
                     if (this.token?.type.match(/[a-z]/i)) {

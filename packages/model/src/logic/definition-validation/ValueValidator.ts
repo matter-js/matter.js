@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { camelize } from "#general";
 import { ModelTraversal } from "#logic/ModelTraversal.js";
 import { Access, Aspect, Conformance, Constraint, Quality } from "../../aspects/index.js";
 import { DefinitionError, FieldValue, Metatype } from "../../common/index.js";
@@ -34,6 +35,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
             }
 
             // Field lookup
+            name = camelize(name, true);
             for (let model = this.model.parent; model; model = model.parent) {
                 const member = model.member(name);
                 if (member) {

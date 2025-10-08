@@ -121,7 +121,7 @@ function* lex(
         // The first digit may not actually be a digit if number is hexadecimal or binary
         let num = valueOf(current.value);
         if (num === undefined) {
-            error("INVALID_NUMBER", `Expected digit following numeric suffix`);
+            error("INVALID_NUMBER", `Expected digit following numeric prefix`);
             return { type: "value", value: 0, startLine, startChar };
         }
 
