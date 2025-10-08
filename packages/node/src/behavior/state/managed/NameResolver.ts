@@ -7,7 +7,7 @@
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { camelize } from "#general";
 import type { Schema } from "#model";
-import { ClusterModel, Model, ValueModel } from "#model";
+import { ClusterModel, Model, ValueModel, type FieldValue } from "#model";
 import { Val } from "#protocol";
 import { Internal } from "./Internal.js";
 

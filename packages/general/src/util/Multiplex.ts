@@ -43,7 +43,7 @@ export class BasicMultiplex implements PromiseLike<void> {
                     if (description) {
                         message = `${message} in ${description}`;
                     }
-                    logger.error(message, e);
+                    logger.error(`${message}:`, e);
                 })
                 .finally(() => this.#workers.delete(entry)),
             description,

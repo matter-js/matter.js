@@ -313,32 +313,40 @@ export class ControllerCommissioner {
         if (device !== undefined) {
             logger.info(`Establish PASE to device`, MdnsClient.discoveryDataDiagnostics(device));
         }
-        if (address.type === "udp") {
-            const { ip } = address;
 
-            const isIpv6Address = isIPv6(ip);
-            const paseInterface = this.#context.transports.interfaceFor(
-                ChannelType.UDP,
-                isIpv6Address ? "::" : "0.0.0.0",
-            );
-            if (paseInterface === undefined) {
-                // mainly IPv6 address when IPv4 is disabled
-                throw new PairRetransmissionLimitReachedError(
-                    `IPv${isIpv6Address ? "6" : "4"} interface not initialized. Cannot use ${ip} for commissioning.`,
+        switch (address.type) {
+            case "udp":
+                const { ip } = address;
+
+                const isIpv6Address = isIPv6(ip);
+                const paseInterface = this.#context.transports.interfaceFor(
+                    ChannelType.UDP,
+                    isIpv6Address ? "::" : "0.0.0.0",
                 );
-            }
-            paseChannel = await paseInterface.openChannel(address);
-        } else if (address.type === "ble") {
-            const ble = this.#context.transports.interfaceFor(ChannelType.BLE);
-            if (!ble) {
-                throw new PairRetransmissionLimitReachedError(
-                    `BLE interface not initialized. Cannot use ${address.peripheralAddress} for commissioning.`,
+                if (paseInterface === undefined) {
+                    // mainly IPv6 address when IPv4 is disabled
+                    throw new PairRetransmissionLimitReachedError(
+                        `IPv${isIpv6Address ? "6" : "4"} interface not initialized. Cannot use ${ip} for commissioning.`,
+                    );
+                }
+                paseChannel = await paseInterface.openChannel(address);
+                break;
+
+            case "ble":
+                const ble = this.#context.transports.interfaceFor(ChannelType.BLE);
+                if (!ble) {
+                    throw new PairRetransmissionLimitReachedError(
+                        `BLE interface not initialized. Cannot use ${address.peripheralAddress} for commissioning.`,
+                    );
+                }
+                // TODO Have a Timeout mechanism here for connections
+                paseChannel = await ble.openChannel(address);
+                break;
+
+            default:
+                throw new ImplementationError(
+                    `Unsupported address type ${(address as ServerAddress).type} for Matter protocol`,
                 );
-            }
-            // TODO Have a Timeout mechanism here for connections
-            paseChannel = await ble.openChannel(address);
-        } else {
-            throw new ImplementationError(`Unsupported PASE address type ${address.type}`);
         }
 
         // Do PASE paring
