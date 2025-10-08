@@ -39,7 +39,7 @@ export async function asyncNew<const A extends any[], const C extends new (...ar
  * Construction happens in the initializer parameter of {@link Construction} or via {@link Construction.construct} on
  * the subject.  You invoke in your constructor and place in a property called "construction".
  *
- * Destruciton is optional and happens in the destructor parameter of {@link Construction#close} or via
+ * Destruction is optional and happens in the destructor parameter of {@link Construction#close} or via
  * {@link Construction.destruct} on the subject.  Typically you invoke in a "close" method of the subject.
  *
  * If construction or destruction is not asynchronous (does not return a Promise) then they complete synchronously,
@@ -430,7 +430,7 @@ export function Construction<const T extends Constructable>(
                   }
                 : invokeDestruct;
 
-            // Destruction phase 1 - move to destroyed state
+            // Destruction phase 1 - move to destroying state
             function beginDestruction() {
                 if (status === Lifecycle.Status.Destroying || status === Lifecycle.Status.Destroyed) {
                     return self.closed;

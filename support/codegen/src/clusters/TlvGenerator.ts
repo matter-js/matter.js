@@ -8,10 +8,8 @@ import { capitalize, decamelize, InternalError } from "#general";
 import {
     ClusterModel,
     CommandModel,
-    Constraint,
     DatatypeModel,
     ElementTag,
-    FieldValue,
     MatterModel,
     Metatype,
     Model,
@@ -19,11 +17,12 @@ import {
     status,
     ValueModel,
 } from "#model";
+import { ModelBounds } from "@matter/types";
 import { ScopeFile } from "../util/ScopeFile.js";
 import { Block, Entry } from "../util/TsFile.js";
 import { asObjectKey, camelize, serialize } from "../util/string.js";
 import { GeneratorScope } from "./GeneratorScope.js";
-import { NumericRanges, SpecializedNumbers, specializedNumberTypeFor } from "./NumberConstants.js";
+import { SpecializedNumbers, specializedNumberTypeFor } from "./NumberConstants.js";
 
 /**
  * Adds TLV structures for ValueModels to a ClusterFile
@@ -121,7 +120,7 @@ export class TlvGenerator {
                         "tlv/TlvString",
                         metabase.name === octstr.name ? "TlvByteString" : "TlvString",
                     );
-                    const bounds = this.#createLengthBounds(model);
+                    const bounds = ModelBounds.createLengthBounds(model);
                     if (bounds) {
                         tlv = `${tlv}.bound(${serialize(bounds)})`;
                     }
@@ -135,7 +134,7 @@ export class TlvGenerator {
                     if (!entry) {
                         throw new InternalError(`${model.path}: No list entry type`);
                     }
-                    const bounds = this.#createLengthBounds(model);
+                    const bounds = ModelBounds.createLengthBounds(model);
                     const boundsStr = bounds ? `, ${serialize(bounds)}` : "";
                     tlv = `TlvArray(${this.reference(entry)}${boundsStr})`;
                 }
@@ -219,7 +218,7 @@ export class TlvGenerator {
         }
 
         if (globalMapping?.category !== "datatype") {
-            const bounds = this.#createNumberBounds(model);
+            const bounds = ModelBounds.createNumberBounds(model);
             if (bounds) {
                 tlv = `${tlv}.bound(${serialize(bounds)})`;
             }
@@ -526,73 +525,5 @@ export class TlvGenerator {
                 }
                 break;
         }
-    }
-
-    #extractApplicableConstraint(model: ValueModel) {
-        let constraint = model.effectiveConstraint;
-
-        // Our TLV parser has no way of representing "in" constraints.  But if the referenced array has a member
-        // constraint then we can at least enforce to that level with the TLV parser
-        if (constraint.in) {
-            const siblingName = FieldValue.referenced(constraint.in);
-            if (siblingName) {
-                const sibling = model.parent?.member(camelize(siblingName, true)) as ValueModel;
-                const siblingConstraint = sibling.effectiveConstraint;
-                if (siblingConstraint.entry) {
-                    constraint = siblingConstraint.entry;
-                }
-            }
-        }
-
-        return constraint;
-    }
-
-    #createLengthBounds(model: ValueModel) {
-        const constraint = this.#extractApplicableConstraint(model);
-
-        const value = FieldValue.numericValue(constraint.value, model.type);
-        if (value !== undefined) {
-            return { length: value };
-        }
-
-        return this.#createRangeBounds(constraint, "minLength", "maxLength");
-    }
-
-    #createNumberBounds(model: ValueModel) {
-        const constraint = model.effectiveConstraint;
-
-        const value = FieldValue.numericValue(constraint.value, model.type);
-        if (value !== undefined) {
-            return { min: value, max: value };
-        }
-
-        return this.#createRangeBounds(constraint, "min", "max", model.type);
-    }
-
-    #createRangeBounds(constraint: Constraint, minKey: string, maxKey: string, type?: string) {
-        let min = FieldValue.numericValue(constraint.min, type);
-        let max = FieldValue.numericValue(constraint.max, type);
-
-        if (min === (NumericRanges as any)[type as any]?.min) {
-            min = undefined;
-        }
-
-        if (max === (NumericRanges as any)[type as any]?.max) {
-            max = undefined;
-        }
-
-        if (min === undefined && max === undefined) {
-            return;
-        }
-
-        const bounds = {} as { [key: string]: number };
-        if (min !== undefined) {
-            bounds[minKey] = min;
-        }
-        if (max !== undefined) {
-            bounds[maxKey] = max;
-        }
-
-        return bounds;
     }
 }

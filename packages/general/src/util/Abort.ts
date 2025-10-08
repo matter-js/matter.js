@@ -4,6 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { TimeoutError } from "#MatterError.js";
+import { Duration } from "#time/Duration.js";
+import { Time, Timer } from "#time/Time.js";
+
 /**
  * Utilities for implementing abort logic.
  */
@@ -72,20 +76,40 @@ export namespace Abort {
      * aborts.
      *
      * Closing the returned controller unregisters with the input controller.  It does not perform an abort.
+     *
+     * {@link timeout} is a convenience for adding a timeout.
      */
-    export function subtask(signal: Signal | undefined): DisposableController {
+    export function subtask(signal: Signal | undefined, timeout?: Duration): DisposableController {
+        let timer: Timer | undefined;
+
         if (signal && "signal" in signal) {
             signal = signal.signal;
         }
 
         const controller = new AbortController() as DisposableController;
 
+        if (timeout) {
+            timer = Time.getPeriodicTimer("subtask timeout", timeout, () => {
+                if (controller.signal.aborted) {
+                    return;
+                }
+
+                controller.abort(new TimeoutError());
+            });
+            timer.start();
+        }
+
         if (signal) {
-            const outerHandler = () => controller.abort();
+            const outerHandler = () => controller.abort(signal.reason);
             signal.addEventListener("abort", outerHandler);
-            controller[Symbol.dispose] = () => signal.removeEventListener("abort", outerHandler);
+            controller[Symbol.dispose] = () => {
+                signal.removeEventListener("abort", outerHandler);
+                timer?.stop();
+            };
         } else {
-            controller[Symbol.dispose] = () => {};
+            controller[Symbol.dispose] = () => {
+                timer?.stop();
+            };
         }
 
         return controller;
