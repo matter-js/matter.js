@@ -149,7 +149,7 @@ export namespace FieldValue {
      */
     export type Properties = {
         type: properties;
-        properties: { [name: string]: FieldValue };
+        properties: Record<string, FieldValue>;
     };
 
     /**

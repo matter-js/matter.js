@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize } from "#general";
+import { camelize, isObject } from "#general";
 import { Lexer } from "#parser/Lexer.js";
 import { BasicToken } from "#parser/Token.js";
 import { TokenStream } from "#parser/TokenStream.js";
@@ -138,6 +138,9 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
                     case FieldValue.reference:
                         if (typeof value.name === "string") {
                             value = FieldValue(nameResolver?.(camelize(value.name)));
+                            if (isObject(value)) {
+                                value = { type: "properties", properties: value as Record<string, FieldValue> };
+                            }
                         }
                         break;
 
@@ -156,6 +159,27 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
                         if (typeof lhs === "number" && typeof rhs === "number") {
                             return lhs - rhs;
                         }
+                        return undefined;
+                    }
+
+                    case ".": {
+                        const object = valueOf(value.lhs);
+                        if (!isObject(object)) {
+                            return undefined;
+                        }
+
+                        // rhs may only legally be a name reference
+                        const rhs = FieldValue.referenced(valueOf(value.rhs));
+                        if (rhs === undefined) {
+                            return undefined;
+                        }
+
+                        // Resolve name in context of object.  We aren't using schema here but Object.hasOwn is
+                        // sufficient
+                        if (Object.hasOwn(object, rhs)) {
+                            return (object as Record<string, FieldValue>)[rhs];
+                        }
+
                         return undefined;
                     }
 
@@ -283,7 +307,7 @@ export namespace Constraint {
      * Parsed binary operator.
      */
     export interface BinaryOperator {
-        type: "+" | "-";
+        type: "+" | "-" | ".";
 
         lhs: Expression;
 
@@ -332,7 +356,9 @@ namespace Serializer {
         switch (value.type) {
             case "+":
             case "-":
-                const sum = `${serializeValue(value.lhs, true)} ${value.type} ${serializeValue(value.rhs, true)}`;
+            case ".":
+                const sep = value.type === "." ? "" : " ";
+                const sum = `${serializeValue(value.lhs, true)}${sep}${value.type}${sep}${serializeValue(value.rhs, true)}`;
                 if (inExpr) {
                     // Ideally only add parenthesis if precedence requires.  But nested expressions are not used
                     // anywhere as yet (and probably won't be) so don't try to be fancy, just correct
@@ -555,6 +581,7 @@ namespace Parser {
             switch (tokens.token?.type) {
                 case "+":
                 case "-":
+                case ".":
                     const type = tokens.token.type;
                     tokens.next();
                     const rhs = parseValueExpression();
@@ -570,19 +597,19 @@ namespace Parser {
                     };
 
                 case "(":
-                    const args = Array<Constraint.Expression>();
-                    tokens.next();
-
                     const functionName = FieldValue.referenced(value);
                     if (functionName === undefined) {
                         unexpected();
                         return;
                     }
+
+                    tokens.next();
                     if (!isFunction(functionName)) {
                         constraint.error("UNKNOWN_FUNCTION", `Unknown function "${functionName}"`);
                         return;
                     }
 
+                    const args = Array<Constraint.Expression>();
                     while ((tokens.token?.type as BasicToken.Operator) !== ")") {
                         const expr = parseValueExpression();
                         if (expr === undefined) {
