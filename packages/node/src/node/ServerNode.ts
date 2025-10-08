@@ -11,6 +11,7 @@ import { EventsBehavior } from "#behavior/system/events/EventsBehavior.js";
 import { NetworkServer } from "#behavior/system/network/NetworkServer.js";
 import { ServerNetworkRuntime } from "#behavior/system/network/ServerNetworkRuntime.js";
 import { ProductDescriptionServer } from "#behavior/system/product-description/ProductDescriptionServer.js";
+import { RemoteServer } from "#behavior/system/remote/RemoteServer.js";
 import { SessionsBehavior } from "#behavior/system/sessions/SessionsBehavior.js";
 import { SubscriptionsBehavior } from "#behavior/system/subscriptions/SubscriptionsServer.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
@@ -211,6 +212,7 @@ export namespace ServerNode {
         SessionsBehavior,
         EventsBehavior,
         ControllerBehavior,
+        RemoteServer,
     );
 
     export interface RootEndpoint extends Identity<typeof RootEndpoint> {}

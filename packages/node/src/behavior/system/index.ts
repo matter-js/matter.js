@@ -11,4 +11,5 @@ export * from "./index/index.js";
 export * from "./network/index.js";
 export * from "./parts/index.js";
 export * from "./product-description/index.js";
+export * from "./remote/index.js";
 export * from "./sessions/index.js";
