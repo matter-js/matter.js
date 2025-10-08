@@ -75,13 +75,13 @@ addRun({ name: "Run current file", args: ["${file}"] });
 // Generate tool launchers
 addRun({
     name: "Run shell",
-    cwd: Package.workspace.relative("packages/nodejs-shell"),
+    cwd: "packages/nodejs-shell",
     args: ["dist/cjs/app.js"],
     group: "tool",
 });
 addRun({
     name: "Run CLI tool",
-    cwd: Package.workspace.relative("packages/cli-tool"),
+    cwd: "packages/cli-tool",
     args: ["bin/matter.js"],
     group: "tool",
 });

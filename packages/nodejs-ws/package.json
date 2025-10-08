@@ -1,0 +1,82 @@
+{
+    "name": "@matter/nodejs-ws",
+    "version": "0.0.0-git",
+    "description": "matter.js WebSocket support for Node.js",
+    "keywords": [
+        "iot",
+        "home automation",
+        "matter",
+        "smart device",
+        "websocket"
+    ],
+    "license": "Apache-2.0",
+    "author": "matter.js authors",
+    "contributors": [
+        "Greg Lauckhart <greg@lauckhart.com>"
+    ],
+    "bugs": {
+        "url": "https://github.com/matter-js/matter.js/issues"
+    },
+    "homepage": "https://github.com/matter-js/matter.js",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/matter-js/matter.js.git"
+    },
+    "scripts": {
+        "clean": "matter-build clean",
+        "build": "matter-build",
+        "test": "matter-test",
+        "build-clean": "matter-build --clean"
+    },
+    "dependencies": {
+        "@matter/general": "*",
+        "@matter/nodejs": "*",
+        "ws": "^8.18.3"
+    },
+    "devDependencies": {
+        "@matter/tools": "*",
+        "@matter/node": "*"
+    },
+    "optionalDependencies": {
+        "bufferutil": "^4.0.9"
+    },
+    "engines": {
+        "node": ">=20.19.0 <22.0.0 || >=22.13.0"
+    },
+    "files": [
+        "dist/**/*",
+        "src/**/*",
+        "require/**/*",
+        "LICENSE"
+    ],
+    "imports": {
+        "#general": "@matter/general",
+        "#nodejs": "@matter/nodejs",
+        "#node": "@matter/node"
+    },
+    "type": "module",
+    "main": "dist/cjs/index.js",
+    "types": "dist/cjs/index.d.ts",
+    "exports": {
+        ".": {
+            "import": {
+                "types": "./dist/esm/index.d.ts",
+                "default": "./dist/esm/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/index.d.ts",
+                "default": "./dist/cjs/index.js"
+            }
+        }
+    },
+    "typesVersions": {
+        "*": {
+            ".": [
+                "/dist/cjs/index.d.ts"
+            ]
+        }
+    },
+    "publishConfig": {
+        "access": "public"
+    }
+}
