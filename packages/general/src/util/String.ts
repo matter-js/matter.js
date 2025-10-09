@@ -104,7 +104,7 @@ export function decamelize(name: string, separator = "-") {
 /**
  * Like JSON.stringify but targets well-formed JS and is slightly more readable.
  */
-export function serialize(value: any) {
+export function serialize(value: unknown) {
     const visited = new Set();
 
     function asValidKey(key: string) {
@@ -114,15 +114,15 @@ export function serialize(value: any) {
         return JSON.stringify(key);
     }
 
-    function serializeOne(value: any): string | undefined {
+    function serializeOne(value: unknown): string | undefined {
         if (value === undefined) {
             return;
         }
         if (value === null) {
             return "null";
         }
-        if (value[serialize.SERIALIZE]) {
-            return value[serialize.SERIALIZE]();
+        if ((value as { [serialize.SERIALIZE](): string })[serialize.SERIALIZE]) {
+            return (value as { [serialize.SERIALIZE](): string })[serialize.SERIALIZE]();
         }
         if (typeof value === "function") {
             return;
@@ -147,7 +147,7 @@ export function serialize(value: any) {
         if (visited.has(value)) {
             return;
         }
-        if (value.toJSON) {
+        if ((value as { toJSON(): string }).toJSON) {
             value = JSON.parse(JSON.stringify(value));
         }
 
@@ -161,7 +161,7 @@ export function serialize(value: any) {
                 return "[]";
             }
 
-            const entries = Object.entries(value)
+            const entries = Object.entries(value as {})
                 .map(([k, v]) => [k, serializeOne(v)])
                 .filter(([_k, v]) => v !== undefined)
                 .map(([k, v]) => `${asValidKey(k ?? "")}: ${v}`);
@@ -177,6 +177,25 @@ export function serialize(value: any) {
     }
 
     return serializeOne(value);
+}
+
+/**
+ * Like {@link JSON.stringify} but with support for additional standard objects.
+ */
+export function asJson(value: unknown, space?: number) {
+    return JSON.stringify(
+        value,
+        (_key, value) => {
+            if (typeof value === "bigint") {
+                return value.toString();
+            }
+            if (Bytes.isBytes(value)) {
+                return Bytes.toHex(value);
+            }
+            return value;
+        },
+        space,
+    );
 }
 
 export namespace serialize {
