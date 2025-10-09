@@ -113,11 +113,16 @@ export class Environment {
      * @param instance optional instance expected, if existing instance does not match it is not deleted
      */
     delete(type: Environmental.ServiceType, instance?: any) {
-        if (instance !== undefined && this.#services?.get(type) !== instance) {
-            return;
+        const knownInstance = this.#services?.get(type);
+        if (instance !== undefined) {
+            if (knownInstance !== instance) {
+                return;
+            }
+        } else {
+            instance = knownInstance;
         }
         this.#services?.delete(type);
-        this.#parent?.delete(type);
+        this.#parent?.delete(type, instance);
 
         this.#deleted.emit(type, instance);
 
