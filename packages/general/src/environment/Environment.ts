@@ -77,21 +77,20 @@ export class Environment {
 
         // When null then we do not have it and also do not want to inherit from parent
         if (mine === undefined) {
-            let instance = this.#parent?.maybeGet(type);
+            const instance = this.#parent?.maybeGet(type);
             if (instance !== undefined && instance !== null) {
                 // Parent has it, use it
                 return instance;
             }
+        }
 
-            // ... otherwise try to create it
-            if ((type as Environmental.Factory<T>)[Environmental.create]) {
-                instance = (type as any)[Environmental.create](this) as T;
-                if (!(instance instanceof type)) {
-                    throw new InternalError(`Service creation did not produce instance of ${type.name}`);
-                }
-                this.set(type, instance);
-                return instance;
+        // ... otherwise try to create it The create method must install it in the environment if needed
+        if ((type as Environmental.Factory<T>)[Environmental.create]) {
+            const instance = (type as any)[Environmental.create](this) as T;
+            if (!(instance instanceof type)) {
+                throw new InternalError(`Service creation did not produce instance of ${type.name}`);
             }
+            return instance;
         }
 
         throw new UnsupportedDependencyError(`Required dependency ${type.name}`, "is not available");
