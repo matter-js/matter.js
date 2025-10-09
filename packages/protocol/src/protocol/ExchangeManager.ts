@@ -335,9 +335,10 @@ export class ExchangeManager {
             return;
         }
         const { session } = exchange;
+        this.#exchanges.delete(exchangeIndex);
         if (NodeSession.is(session) && session.closingAfterExchangeFinished) {
             logger.debug(
-                `Exchange index ${exchangeIndex} Session ${session.name} is already marked for closure. Close session now.`,
+                `Exchange index ${exchangeIndex} on Session ${session.name} is already marked for closure. Close session now.`,
             );
             try {
                 await this.#closeSession(session);
@@ -345,7 +346,6 @@ export class ExchangeManager {
                 logger.error(`Error closing session ${session.name}. Ignoring.`, error);
             }
         }
-        this.#exchanges.delete(exchangeIndex);
     }
 
     async #closeSession(session: NodeSession) {
