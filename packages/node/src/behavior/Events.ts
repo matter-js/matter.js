@@ -23,8 +23,8 @@ import {
     type Observer,
 } from "#general";
 import { ElementTag, EventElement, EventModel, type AttributeElement, type ValueModel } from "#model";
-import { Occurrence, OccurrenceManager } from "@matter/protocol";
-import { ClusterId, EventId, Priority } from "@matter/types";
+import { Occurrence, OccurrenceManager } from "#protocol";
+import { ClusterId, EventId, Priority } from "#types";
 import type { Behavior } from "./Behavior.js";
 import { NodeActivity } from "./context/NodeActivity.js";
 
