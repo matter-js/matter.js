@@ -84,7 +84,7 @@ export class Environment {
             }
         }
 
-        // ... otherwise try to create it The create method must install it in the environment if needed
+        // ... otherwise try to create it. The create method must install it in the environment if needed
         if ((type as Environmental.Factory<T>)[Environmental.create]) {
             const instance = (type as any)[Environmental.create](this) as T;
             if (!(instance instanceof type)) {
