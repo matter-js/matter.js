@@ -192,6 +192,8 @@ def load_python():
     def load_class(test_class):
         # Read file and extract YAML header
         path = inspect.getfile(test_class)
+        sys.stderr.write("Loading " + path + "\n")
+
         basename = os.path.basename(path)
         header = []
         with open(path) as source:
@@ -333,7 +335,10 @@ def load_python():
                     for run, config in method_runs.items():
                         props["config"] = config
                         if suite:
-                            suite["members"].append({**props, "name": run, "app": config["app"]})
+                            # All tests have an "app" specified except now one in TC_DeviceBasicComposition.py.  Just
+                            # ignore that
+                            if "app" in config:
+                                suite["members"].append({**props, "name": run, "app": config["app"]})
                         else:
                             tests.append(props)
                 else:
