@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError, InternalError } from "#MatterError.js";
+import { InternalError } from "#MatterError.js";
 import { Instant } from "#time/TimeUnit.js";
 import { MaybePromise } from "#util/Promises.js";
 import { DiagnosticSource } from "../log/DiagnosticSource.js";
@@ -106,48 +106,30 @@ export class Environment {
     }
 
     /**
-     * Remove an environmental service.
+     * Remove an environmental service and block further inheritance
      *
      * @param type the class of the service to remove
      * @param instance optional instance expected, if existing instance does not match it is not deleted
      */
     delete(type: Environmental.ServiceType, instance?: any) {
         const localInstance = this.#services?.get(type);
-        if (localInstance !== undefined) {
-            if (instance !== undefined && localInstance !== instance) {
-                return;
-            }
 
-            this.#services?.delete(type);
-            this.block(type);
-
-            this.#deleted.emit(type, instance);
-
-            const serviceEvents = this.#serviceEvents.get(type);
-            if (serviceEvents) {
-                serviceEvents.deleted.emit(instance);
-            }
-        } else if (this.#parent !== undefined) {
-            this.#parent.delete(type, instance);
-        }
-    }
-
-    /**
-     * Prevent this environment from automatically instantiating or retrieving a service from parent environment.
-     * If a local instance exists it is removed first.
-     *
-     * @param type the class of the service to block
-     */
-    block(type: Environmental.ServiceType) {
-        const instance = this.#services?.get(type);
-
-        if (instance !== undefined && instance !== null) {
-            throw new ImplementationError(
-                `Cannot block service ${type.name} because it is currently installed. Please delete it first.`,
-            );
-        }
-
+        // Remove instance and replace by null to prevent inheritance from parent
         this.#services?.set(type, null);
+
+        if (localInstance === undefined || localInstance === null) {
+            return;
+        }
+        if (instance !== undefined && localInstance !== instance) {
+            return;
+        }
+
+        this.#deleted.emit(type, localInstance);
+
+        const serviceEvents = this.#serviceEvents.get(type);
+        if (serviceEvents) {
+            serviceEvents.deleted.emit(localInstance);
+        }
     }
 
     /**
@@ -157,8 +139,8 @@ export class Environment {
         type: Environmental.ServiceType<T>,
     ): T extends { close: () => MaybePromise<void> } ? MaybePromise<void> : void {
         const instance = this.maybeGet(type);
+        this.delete(type, instance); // delete and block inheritance
         if (instance !== undefined) {
-            this.delete(type, instance);
             return (instance as Partial<Destructable>).close?.() as T extends { close: () => MaybePromise<void> }
                 ? MaybePromise<void>
                 : void;

@@ -55,6 +55,7 @@ export namespace ServerEnvironment {
         await env.close(SessionManager);
         await env.close(ServerNodeStore);
 
+        // TODO verify how to handle closing down Mdns Server because it normally installs itself on the Root Environment
         if (env.owns(MdnsService)) {
             await env.close(MdnsService);
         }
