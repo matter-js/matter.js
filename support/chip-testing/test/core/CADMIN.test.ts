@@ -62,6 +62,10 @@ describe("CADMIN", () => {
     chip("CADMIN/*").exclude(
         // Handled below
         "CADMIN/1.19",
+
+        // These are joint fabric
+        "CADMIN/1.27",
+        "CADMIN/1.28",
     );
 
     chip("CADMIN/1.19").beforeTest(subject => {
