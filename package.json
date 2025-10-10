@@ -19,6 +19,7 @@
     "packages/create",
     "packages/react-native",
     "packages/cli-tool",
+    "packages/nodejs-ws",
     "support/models",
     "support/codegen",
     "support/chip-testing",

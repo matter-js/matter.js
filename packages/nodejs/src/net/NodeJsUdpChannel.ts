@@ -5,10 +5,13 @@
  */
 
 import {
+    AddressInUseError,
+    BindError,
     Bytes,
     ChannelType,
     createPromise,
     Diagnostic,
+    ImplementationError,
     isIPv4,
     isIPv6,
     Logger,
@@ -40,7 +43,22 @@ function createDgramSocket(host: string | undefined, port: number | undefined, o
             try {
                 socket.close();
             } catch (error) {
-                logger.debug("Error closing socket", error);
+                logger.debug("Error closing socket:", error);
+            }
+
+            const code = (error as unknown as { code: string })?.code;
+            let desc = `${host ? host : options.type === "udp4" ? "0.0.0.0" : "{::}"}`;
+            if (port !== undefined) {
+                desc = `${desc}:${port}`;
+            }
+            switch (code) {
+                case "EADDRINUSE":
+                    error = new AddressInUseError(`Cannot bind ${desc} because port is already in use`);
+                    break;
+
+                default:
+                    error = new BindError(`Cannot bind to ${desc} (code ${code})`);
+                    break;
             }
             reject(error);
         };
@@ -56,6 +74,7 @@ function createDgramSocket(host: string | undefined, port: number | undefined, o
             );
             socket.removeListener("error", handleBindError);
             socket.on("error", error => logger.error(error));
+
             resolve(socket);
         });
     });
@@ -66,11 +85,31 @@ export class NodeJsUdpChannel implements UdpChannel {
     readonly #socket: dgram.Socket;
     readonly #netInterface: string | undefined;
 
-    static async create({ listeningPort, type, listeningAddress, netInterface }: UdpChannelOptions) {
-        const socketOptions: dgram.SocketOptions = { type, reuseAddr: true };
+    static async create({ listeningPort, type, listeningAddress, netInterface, reuseAddress }: UdpChannelOptions) {
+        let dgramType: "udp4" | "udp6";
+        switch (type) {
+            case "udp":
+            case "udp6":
+                dgramType = "udp6";
+                break;
+
+            case "udp4":
+                dgramType = "udp4";
+                break;
+
+            default:
+                throw new ImplementationError(`Unrecognized UDP socket type ${type}`);
+        }
+
+        const socketOptions: dgram.SocketOptions = { type: dgramType };
         if (type === "udp6") {
             socketOptions.ipv6Only = true;
         }
+
+        if (reuseAddress) {
+            socketOptions.reuseAddr = true;
+        }
+
         const socket = await createDgramSocket(listeningAddress, listeningPort, socketOptions);
         socket.setBroadcast(true);
         let netInterfaceZone: string | undefined;

@@ -12,6 +12,10 @@ export class NetworkError extends MatterError {}
 
 export class NoAddressAvailableError extends NetworkError {}
 
+export class BindError extends NetworkError {}
+
+export class AddressInUseError extends BindError {}
+
 export const STANDARD_MATTER_PORT = 5540;
 
 /**
