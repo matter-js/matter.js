@@ -198,6 +198,7 @@ export class MessageExchange {
 
         logger.debug(
             "New exchange",
+            isInitiator ? "»" : "«",
             Diagnostic.dict({
                 channel: channel.name,
                 protocol: this.#protocolId,
