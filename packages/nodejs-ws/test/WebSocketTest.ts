@@ -11,7 +11,8 @@ import "@matter/nodejs";
 import "@matter/nodejs-ws";
 
 import { asError, Bytes, Environment, StorageBackendMemory, StorageService } from "#general";
-import { Endpoint, RemoteRequest, RemoteResponse, ServerNode } from "#node";
+import { Endpoint, RemoteRequest, RemoteResponse, ServerNode, WebSocketServer } from "#node";
+import { OnOffServer } from "@matter/node/behaviors/on-off";
 import { OnOffLightDevice } from "@matter/node/devices/on-off-light";
 import { WebSocketStreams } from "@matter/nodejs-ws";
 import { tmpdir } from "node:os";
@@ -111,7 +112,7 @@ describe("WebSocket", () => {
         );
     });
 
-    it.only("writes", async () => {
+    it("writes", async () => {
         await using cx = await setup();
 
         await cx.send({
@@ -195,7 +196,7 @@ describe("WebSocket", () => {
         await cx.receiveUpdate("test", 0, "sessions", "a");
         await cx.receiveUpdate("test", 0, "events", "a");
         await cx.receiveUpdate("test", 0, "controller", "a");
-        await cx.receiveUpdate("test", 0, "remote", "a");
+        await cx.receiveUpdate("test", 0, "websocket", "a");
         await cx.receiveUpdate("test", 0, "descriptor", "a");
         await cx.receiveUpdate("test", 1, "identify", "a");
         await cx.receiveUpdate("test", 1, "groups", "a");
@@ -243,16 +244,15 @@ describe("WebSocket", () => {
 async function setup() {
     const socketPath = join(tmpdir(), `${process.pid}-${tempFileNum++}.sock`);
 
-    const node = new ServerNode({
+    const node = new ServerNode(ServerNode.RootEndpoint.with(WebSocketServer), {
         id: "test",
         environment: environment,
 
-        remote: {
-            ws: true,
-            httpAddress: `http+unix://${encodeURIComponent(socketPath)}/`,
+        websocket: {
+            address: `ws+unix://${encodeURIComponent(socketPath)}/`,
         },
 
-        parts: [new Endpoint(OnOffLightDevice, { id: "light" })],
+        parts: [new Endpoint(OnOffLightDevice.with(OnOffServer.with("Lighting")), { id: "light" })],
     });
 
     await node.start();

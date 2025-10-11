@@ -53,6 +53,9 @@
             "path": "packages/cli-tool"
         },
         {
+            "path": "packages/nodejs-ws"
+        },
+        {
             "path": "support/models"
         },
         {

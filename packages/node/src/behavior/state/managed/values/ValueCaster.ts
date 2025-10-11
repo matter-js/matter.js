@@ -12,21 +12,37 @@ import { RootSupervisor } from "../../../supervision/RootSupervisor.js";
 import { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
 
 /**
- * Obtain a {@link ValueSupervisor.Caster} function for the given schema.
+ * Obtain a {@link ValueSupervisor.Cast} function for the given schema.
  */
-export function ValueCaster(schema: Schema, owner: RootSupervisor) {
+export function ValueCaster(schema: Schema, owner: RootSupervisor): ValueSupervisor.Cast {
     const metatype = schema.effectiveMetatype ?? Metatype.any;
 
+    let cast: ValueSupervisor.Cast;
     switch (metatype) {
         case Metatype.object:
-            return StructCaster(schema, owner);
+            cast = StructCaster(schema, owner);
+            break;
 
         case Metatype.array:
-            return ListCaster(schema as ValueModel, owner);
+            cast = ListCaster(schema as ValueModel, owner);
+            break;
 
         default:
-            return Metatype.cast[metatype];
+            cast = Metatype.cast[metatype];
+            break;
     }
+
+    if (schema.quality.nullable) {
+        return value => {
+            if (value === null) {
+                return value;
+            }
+
+            return cast(value);
+        };
+    }
+
+    return cast;
 }
 
 function StructCaster(schema: ValueModel | ClusterModel, owner: RootSupervisor) {
