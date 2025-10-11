@@ -16,7 +16,7 @@ import "@matter/mqtt";
 /**
  * Create node with MQTT APIs enabled.
  *
- * We specify the default broker at localhost.
+ * This requires an MQTT 5 broker.  By default we configure the broker on localhost.
  *
  * You may configure the broker address here, or use environment variables:
  *
