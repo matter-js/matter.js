@@ -14,11 +14,18 @@ describe("CADMIN", () => {
     before(() =>
         chip.testFor("CADMIN/1.5").edit(
             edit.sed(
+                // Note: Previously had timeout=1 and sleep(5) and test was rock solid.  Subsequent CHIP changes made
+                // things less resilient and would cause failure.  Possibly this guy:
+                //
+                //     https://github.com/project-chip/connectedhomeip/commit/be53d1826ab1160191432605f2db60baa5075a37
+                //
+                // Slightly less aggressive timeouts address this; haven't investigated further.
+
                 // Reduce commissioning window time
-                "s/timeout=180/timeout=1/",
+                "s/timeout=180/timeout=5/",
 
                 // Reduce sleep
-                "s/sleep(190)/sleep(2)/",
+                "s/sleep(190)/sleep(5)/",
 
                 // Reduce discovery timeout too just to make failure faster
                 "s/setupPinCode=/discoveryTimeoutMsec=5000,setupPinCode=/",
