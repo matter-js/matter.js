@@ -15,6 +15,7 @@ import { Endpoint, RemoteRequest, RemoteResponse, ServerNode, WebSocketServer } 
 import { OnOffServer } from "@matter/node/behaviors/on-off";
 import { OnOffLightDevice } from "@matter/node/devices/on-off-light";
 import { WebSocketStreams } from "@matter/nodejs-ws";
+import { MdnsService } from "@matter/protocol";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { ErrorEvent, WebSocket } from "ws";
@@ -22,7 +23,7 @@ import { Val } from "../../protocol/src/action/Val.js";
 
 let tempFileNum = 0;
 
-let environment = new Environment("test", Environment.default);
+let environment: Environment;
 
 describe("WebSocket", () => {
     beforeEach(async () => {
@@ -30,6 +31,11 @@ describe("WebSocket", () => {
         const storage = environment.get(StorageService);
         storage.factory = () => new StorageBackendMemory();
         storage.resolve = (...paths) => resolve(...paths);
+    });
+
+    afterEach(async () => {
+        await Environment.default.close(MdnsService);
+        await new Promise(resolve => setTimeout(resolve, 100));
     });
 
     describe("responds with errors", () => {
