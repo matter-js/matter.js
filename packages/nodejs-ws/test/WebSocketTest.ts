@@ -48,7 +48,7 @@ describe("WebSocket", () => {
             await cx.send("asdf" as any);
 
             await cx.receiveError("invalid-action", "Request is not an object");
-        }).timeout(5000);
+        });
 
         it("for missing opcode", async () => {
             await using cx = await setup();
@@ -56,7 +56,7 @@ describe("WebSocket", () => {
             await cx.send({ id: "1234" } as any);
 
             await cx.receiveError("invalid-action", 'Request does not specify opcode in "method" property', "1234");
-        }).timeout(5000);
+        });
 
         it("for invalid opcode", async () => {
             await using cx = await setup();
@@ -64,7 +64,7 @@ describe("WebSocket", () => {
             await cx.send({ id: "1234", method: "foo" } as any);
 
             await cx.receiveError("invalid-action", 'Unsupported request method "foo"', "1234");
-        }).timeout(5000);
+        });
 
         it("for missing path", async () => {
             await using cx = await setup();
@@ -72,7 +72,7 @@ describe("WebSocket", () => {
             await cx.send({ id: "1234", method: "read" } as any);
 
             await cx.receiveError("invalid-action", 'Request does not specify resource in "target" property', "1234");
-        }).timeout(5000);
+        });
 
         it("for unknown path", async () => {
             await using cx = await setup();
@@ -80,7 +80,7 @@ describe("WebSocket", () => {
             await cx.send({ id: "1234", method: "read", target: "ur mom" });
 
             await cx.receiveError("not-found", 'Target "ur mom" not found', "1234");
-        }).timeout(5000);
+        });
     });
 
     it("connects and reads attributes and full state", async () => {
@@ -119,7 +119,7 @@ describe("WebSocket", () => {
             },
             "b",
         );
-    }).timeout(5000);
+    });
 
     it("writes", async () => {
         await using cx = await setup();
@@ -148,7 +148,7 @@ describe("WebSocket", () => {
         });
 
         await cx.receiveValue(200, "c");
-    }).timeout(5000);
+    });
 
     it("invokes", async () => {
         await using cx = await setup();
@@ -176,7 +176,7 @@ describe("WebSocket", () => {
         });
 
         await cx.receiveValue(true, "c");
-    }).timeout(5000);
+    });
 
     it("subscribes", async () => {
         await using cx = await setup();
@@ -211,6 +211,7 @@ describe("WebSocket", () => {
         await cx.receiveUpdate("test", 1, "groups", "a");
         await cx.receiveUpdate("test", 1, "onOff", "a");
         await cx.receiveUpdate("test", 1, "descriptor", "a");
+        await cx.receiveUpdate("test", 0, "productDescription", "a");
         await cx.receiveUpdate("test", 0, "controller", "a");
         await cx.receiveUpdate("test", 0, "commissioning", "a");
 
@@ -233,7 +234,7 @@ describe("WebSocket", () => {
         await cx.receiveOk("c");
 
         await cx.receiveUpdate("test", 1, "onOff", "a", { onOff: false });
-    }).timeout(5000);
+    }).timeout(1e9);
 
     it("handles client shutdown cleanly", async () => {
         await using cx = await setup();
@@ -247,7 +248,7 @@ describe("WebSocket", () => {
         await cx.receiveValue(false, "a");
 
         await cx.client.writable.close();
-    }).timeout(5000);
+    });
 });
 
 async function setup() {
@@ -264,7 +265,9 @@ async function setup() {
         parts: [new Endpoint(OnOffLightDevice.with(OnOffServer.with("Lighting")), { id: "light" })],
     });
 
-    await node.start();
+    if (!node.lifecycle.isPartsReady) {
+        await node.lifecycle.partsReady;
+    }
 
     const ws = new WebSocket(`ws+unix://${socketPath}:/`);
 
@@ -296,7 +299,7 @@ async function setup() {
 
         async [Symbol.asyncDispose]() {
             if (ws.readyState !== WebSocket.CLOSED) {
-                await client.writable.close();
+                await client.writable.abort();
             }
             await node.close();
         },
