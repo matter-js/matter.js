@@ -67,4 +67,17 @@ export namespace RemoteResponse {
     }
 
     export type Change = Base & StateStream.WireChange;
+
+    export function describe(response: RemoteResponse) {
+        switch (response.kind) {
+            case "update":
+                return `update ${response.endpoint} ${response.behavior}`;
+
+            case "delete":
+                return `delete ${response.endpoint}`;
+
+            default:
+                return response.kind;
+        }
+    }
 }

@@ -15,6 +15,7 @@ import { Endpoint, RemoteRequest, RemoteResponse, ServerNode, WebSocketServer } 
 import { OnOffServer } from "@matter/node/behaviors/on-off";
 import { OnOffLightDevice } from "@matter/node/devices/on-off-light";
 import { WebSocketStreams } from "@matter/nodejs-ws";
+import { MdnsService } from "@matter/protocol";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { ErrorEvent, WebSocket } from "ws";
@@ -22,7 +23,10 @@ import { Val } from "../../protocol/src/action/Val.js";
 
 let tempFileNum = 0;
 
-let environment = new Environment("test", Environment.default);
+let environment: Environment;
+
+// TODO The timeouts of 5s are needed when the test runs locally with more network interfaces because it uses the
+//  real network. We should change that to use a mock network layer instead.
 
 describe("WebSocket", () => {
     beforeEach(async () => {
@@ -30,6 +34,11 @@ describe("WebSocket", () => {
         const storage = environment.get(StorageService);
         storage.factory = () => new StorageBackendMemory();
         storage.resolve = (...paths) => resolve(...paths);
+    });
+
+    afterEach(async () => {
+        await Environment.default.close(MdnsService);
+        await new Promise(resolve => setTimeout(resolve, 100));
     });
 
     describe("responds with errors", () => {
@@ -202,6 +211,7 @@ describe("WebSocket", () => {
         await cx.receiveUpdate("test", 1, "groups", "a");
         await cx.receiveUpdate("test", 1, "onOff", "a");
         await cx.receiveUpdate("test", 1, "descriptor", "a");
+        await cx.receiveUpdate("test", 0, "productDescription", "a");
         await cx.receiveUpdate("test", 0, "controller", "a");
         await cx.receiveUpdate("test", 0, "commissioning", "a");
 
@@ -224,7 +234,7 @@ describe("WebSocket", () => {
         await cx.receiveOk("c");
 
         await cx.receiveUpdate("test", 1, "onOff", "a", { onOff: false });
-    });
+    }).timeout(1e9);
 
     it("handles client shutdown cleanly", async () => {
         await using cx = await setup();
@@ -255,7 +265,9 @@ async function setup() {
         parts: [new Endpoint(OnOffLightDevice.with(OnOffServer.with("Lighting")), { id: "light" })],
     });
 
-    await node.start();
+    if (!node.lifecycle.isPartsReady) {
+        await node.lifecycle.partsReady;
+    }
 
     const ws = new WebSocket(`ws+unix://${socketPath}:/`);
 
@@ -287,7 +299,7 @@ async function setup() {
 
         async [Symbol.asyncDispose]() {
             if (ws.readyState !== WebSocket.CLOSED) {
-                await client.writable.close();
+                await client.writable.abort();
             }
             await node.close();
         },

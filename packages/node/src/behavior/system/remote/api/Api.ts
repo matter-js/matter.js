@@ -71,7 +71,7 @@ export namespace Api {
     }
 
     export function logResponse(facility: string, response: RemoteResponse) {
-        const message = Array<unknown>("»", response.kind);
+        const message = Array<unknown>("»", RemoteResponse.describe(response));
         let level: "error" | "info";
         switch (response.kind) {
             case "error":

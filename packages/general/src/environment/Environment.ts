@@ -77,21 +77,20 @@ export class Environment {
 
         // When null then we do not have it and also do not want to inherit from parent
         if (mine === undefined) {
-            let instance = this.#parent?.maybeGet(type);
+            const instance = this.#parent?.maybeGet(type);
             if (instance !== undefined && instance !== null) {
                 // Parent has it, use it
                 return instance;
             }
+        }
 
-            // ... otherwise try to create it
-            if ((type as Environmental.Factory<T>)[Environmental.create]) {
-                instance = (type as any)[Environmental.create](this) as T;
-                if (!(instance instanceof type)) {
-                    throw new InternalError(`Service creation did not produce instance of ${type.name}`);
-                }
-                this.set(type, instance);
-                return instance;
+        // ... otherwise try to create it. The create method must install it in the environment if needed
+        if ((type as Environmental.Factory<T>)[Environmental.create]) {
+            const instance = (type as any)[Environmental.create](this) as T;
+            if (!(instance instanceof type)) {
+                throw new InternalError(`Service creation did not produce instance of ${type.name}`);
             }
+            return instance;
         }
 
         throw new UnsupportedDependencyError(`Required dependency ${type.name}`, "is not available");
@@ -107,46 +106,30 @@ export class Environment {
     }
 
     /**
-     * Remove an environmental service.
+     * Remove an environmental service and block further inheritance
      *
      * @param type the class of the service to remove
      * @param instance optional instance expected, if existing instance does not match it is not deleted
      */
     delete(type: Environmental.ServiceType, instance?: any) {
-        if (instance !== undefined && this.#services?.get(type) !== instance) {
+        const localInstance = this.#services?.get(type);
+
+        // Remove instance and replace by null to prevent inheritance from parent
+        this.#services?.set(type, null);
+
+        if (localInstance === undefined || localInstance === null) {
             return;
         }
-        this.#services?.delete(type);
-        this.#parent?.delete(type);
+        if (instance !== undefined && localInstance !== instance) {
+            return;
+        }
 
-        this.#deleted.emit(type, instance);
+        this.#deleted.emit(type, localInstance);
 
         const serviceEvents = this.#serviceEvents.get(type);
         if (serviceEvents) {
-            serviceEvents.deleted.emit(instance);
+            serviceEvents.deleted.emit(localInstance);
         }
-    }
-
-    /**
-     * Prevent this environment from automatically instantiating or retrieving a service from parent environment.
-     *
-     * @param type the class of the service to block
-     */
-    block(type: Environmental.ServiceType) {
-        const instance = this.#services?.get(type);
-
-        if (instance !== undefined && instance !== null) {
-            this.#services?.delete(type);
-
-            this.#deleted.emit(type, instance);
-
-            const serviceEvents = this.#serviceEvents.get(type);
-            if (serviceEvents) {
-                serviceEvents.deleted.emit(instance);
-            }
-        }
-
-        this.#services?.set(type, null);
     }
 
     /**
@@ -156,8 +139,8 @@ export class Environment {
         type: Environmental.ServiceType<T>,
     ): T extends { close: () => MaybePromise<void> } ? MaybePromise<void> : void {
         const instance = this.maybeGet(type);
+        this.delete(type, instance); // delete and block inheritance
         if (instance !== undefined) {
-            this.delete(type, instance);
             return (instance as Partial<Destructable>).close?.() as T extends { close: () => MaybePromise<void> }
                 ? MaybePromise<void>
                 : void;
