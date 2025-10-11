@@ -98,6 +98,10 @@ export class PythonTest extends BaseTest {
             line = parseStep(line, step);
 
             if (line.indexOf("Final result: PASS") !== -1) {
+                // Old format
+                passed = true;
+            } else if (line.match(/\[Test\]\s+\S+\s+PASS$/)) {
+                // New format
                 passed = true;
             }
 

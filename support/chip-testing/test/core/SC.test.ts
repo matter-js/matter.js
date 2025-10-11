@@ -41,9 +41,12 @@ describe("SC", () => {
         await sc71.edit(
             edit.sed(
                 // AFAICT 7.1 is kind of pointless unless we run w/ multiple DUTs.  But we do run it and need to disable
-                // the check for default QR code since we do in fact use the default (and there's .01% chance of test
-                // failing due to collision anyway)
+                // the check for default discriminator since we do in fact use the default (and there's .01% chance of
+                // test failing due to collision anyway)
                 "s/, 3840,/, 0000,/",
+
+                // Likewise, we use the default passcode.  Disable that check too
+                "s/, 20202021,/, 00000000,/",
             ),
         );
     }).timeout(10000);
