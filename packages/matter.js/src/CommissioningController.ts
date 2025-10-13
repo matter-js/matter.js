@@ -438,6 +438,9 @@ export class CommissioningController {
         pairedNode.events.initializedFromRemote.on(
             async deviceData => await controller.enhanceCommissionedNodeDetails(nodeId, deviceData),
         );
+        pairedNode.events.deviceInformationChanged.on(
+            async deviceData => await controller.enhanceCommissionedNodeDetails(nodeId, deviceData),
+        );
 
         return pairedNode;
     }
