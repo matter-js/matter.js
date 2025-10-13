@@ -1184,15 +1184,23 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
         request: RequestT,
         expectedProcessingTime?: Duration,
     ): Promise<void> {
-        await this.send(requestMessageType, requestSchema.encode(request), {
-            expectAckOnly: true,
-            expectedProcessingTime: expectedProcessingTime,
-            logContext: {
-                invokeFlags: Diagnostic.asFlags({
-                    suppressResponse: true,
-                }),
-            },
-        });
+        try {
+            await this.send(requestMessageType, requestSchema.encode(request), {
+                expectAckOnly: true,
+                expectedProcessingTime: expectedProcessingTime,
+                logContext: {
+                    invokeFlags: Diagnostic.asFlags({
+                        suppressResponse: true,
+                    }),
+                },
+            });
+        } catch (e) {
+            // If we got anything other than a standalone ack, we throw when receiving a status response, otherwise we ignore it
+            // Mainly needed because of a Matter-SDK bug where a command response is sent even when suppressResponse is true
+            UnexpectedMessageError.accept(e);
+            const { receivedMessage } = e;
+            this.throwIfErrorStatusMessage(receivedMessage);
+        }
     }
 
     private async request<RequestT, ResponseT>(
