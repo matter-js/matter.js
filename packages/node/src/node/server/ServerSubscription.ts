@@ -223,7 +223,7 @@ export class ServerSubscription extends Subscription {
         if (sendInterval < subscriptionMinInterval) {
             // But not faster than once every 2s
             logger.warn(
-                `Determined subscription send interval of ${Duration.format(sendInterval)} is too low. Using maxInterval (${maxInterval}) instead.`,
+                `Determined subscription send interval of ${Duration.format(sendInterval)} is too low. Using maxInterval (${Duration.format(maxInterval)}) instead.`,
             );
             sendInterval = subscriptionMinInterval;
         }
