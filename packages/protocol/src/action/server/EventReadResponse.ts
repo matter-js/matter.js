@@ -332,15 +332,14 @@ export class EventReadResponse<
                 // This event is not in the allowed list, so skip it
                 continue;
             }
-            // Filter out if we need to do fabric filtering and  the event is not for the current fabric
+            // Filter out if we need to do fabric filtering and the event is not for the current fabric
             if (this.#filteredForFabricIndex !== undefined) {
                 const { payload } = event;
-                if (!isObject(payload)) {
-                    continue;
-                }
-                const { fabricIndex } = payload;
-                if (fabricIndex !== undefined && fabricIndex !== this.#filteredForFabricIndex) {
-                    continue;
+                if (payload !== undefined && isObject(payload)) {
+                    const { fabricIndex } = payload;
+                    if (fabricIndex !== undefined && fabricIndex !== this.#filteredForFabricIndex) {
+                        continue;
+                    }
                 }
             }
             yield this.#asValue(event, tlv);
