@@ -600,9 +600,6 @@ export class CommissioningController {
     /** @private */
     async initializeControllerStore() {
         // This can only happen if "MatterServer" approach is not used
-        if (this.#environment === undefined) {
-            throw new ImplementationError("Initialization not done. Add the controller to the MatterServer first.");
-        }
 
         const controllerStore = await ControllerStore.create(this.#environment.name, this.#environment);
         this.#environment.set(ControllerStore, controllerStore);
