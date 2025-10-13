@@ -8,7 +8,7 @@ jobs:
   auto-approve:
     if: |
       github.actor == 'Automator77' &&
-      (github.event.label.name == 'automated-npm-release' || github.event.label.name == 'automated-docker-release')
+      (github.event.label.name == 'automated-npm-release' || github.event.label.name == 'automated-chip-image-release')
 
     runs-on: ubuntu-latest
     steps:

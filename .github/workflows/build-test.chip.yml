@@ -238,6 +238,6 @@ jobs:
           body: |
             New CHIP SHA from CI container build
           labels: |
-            automated-docker-release
+            automated-chip-image-release
           assignees: Automator77
           draft: false
