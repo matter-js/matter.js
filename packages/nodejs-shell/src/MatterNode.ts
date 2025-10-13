@@ -57,13 +57,13 @@ export class MatterNode {
             });
             await this.commissioningController.initializeControllerStore();
 
-            const controllerStore = this.#environment.get(ControllerStore);
+            const controllerStore = this.commissioningController.env.get(ControllerStore);
             if (resetStorage) {
                 await controllerStore.erase();
             }
             this.#storageContext = controllerStore.storage.createContext("Node");
 
-            const storageService = this.#environment.get(StorageService);
+            const storageService = this.commissioningController.env.get(StorageService);
             const baseLocation = storageService.location;
             if (baseLocation !== undefined) {
                 this.#storageLocation = join(baseLocation, id);
