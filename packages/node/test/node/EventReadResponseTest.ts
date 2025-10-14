@@ -4,12 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { MessagesServer } from "#behaviors/messages";
 import { BasicInformationCluster } from "#clusters/basic-information";
+import { Messages } from "#clusters/messages";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/index.js";
+import { Bytes } from "#general";
+import { ServerNode } from "#index.js";
 import { Specification } from "#model";
 import { EventReadResponse, Read, ReadResult } from "#protocol";
-import { ClusterId, EndpointNumber, EventId, StatusCode } from "#types";
+import { ClusterId, EndpointNumber, EventId, FabricIndex, StatusCode } from "#types";
 import { MockServerNode } from "./mock-server-node.js";
 
 const ROOT_ENDPOINT_FULL_CLUSTER_LIST = {
@@ -26,9 +30,167 @@ describe("EventReadResponse", () => {
         MockTime.reset();
     });
 
-    it("reads concrete event", async () => {
+    // Run the same set of simply event reads for fabric scoped and non-fabric-scoped reads
+    [true, false].map(fabricScoped =>
+        describe(`Read Event ${fabricScoped ? "as fabricScoped" : ""}`, () => {
+            it(`reads non-fabric-scoped concrete event with payload`, async () => {
+                const response = await readEv(
+                    await MockServerNode.createOnline(),
+                    fabricScoped,
+                    Read.Event({
+                        cluster: BasicInformationCluster,
+                        events: "startUp",
+                    }),
+                );
+
+                expect(response.data).deep.equals([
+                    [
+                        {
+                            kind: "event-value",
+                            path: {
+                                eventId: 0,
+                                clusterId: 40,
+                                endpointId: 0,
+                            },
+                            number: 1n,
+                            priority: 2,
+                            timestamp: MockTime.epoch.getTime(),
+                            tlv: {},
+                            value: { softwareVersion: 0 },
+                        },
+                    ],
+                ]);
+                expect(response.counts).deep.equals({ status: 0, success: 1, existent: 1 });
+            });
+
+            // This event has a fabricIndex field in its payload, but is not fabric-sensitive!
+            it(`reads non-fabric-scoped concrete event with a payload that has a fabricIndex field`, async () => {
+                const node = await MockServerNode.createOnline();
+                await node.act(agent =>
+                    node.events.basicInformation.leave.emit({ fabricIndex: FabricIndex(4) }, agent.context),
+                );
+
+                const response = await readEv(
+                    node,
+                    fabricScoped,
+                    Read.Event({
+                        cluster: BasicInformationCluster,
+                        events: "leave",
+                    }),
+                );
+
+                expect(response.data).deep.equals([
+                    [
+                        {
+                            kind: "event-value",
+                            path: {
+                                eventId: 2,
+                                clusterId: 40,
+                                endpointId: 0,
+                            },
+                            number: 3n,
+                            priority: 1,
+                            timestamp: MockTime.epoch.getTime(),
+                            tlv: {},
+                            value: { fabricIndex: FabricIndex(4) },
+                        },
+                    ],
+                ]);
+                expect(response.counts).deep.equals({ status: 0, success: 1, existent: 1 });
+            });
+
+            it(`reads non-fabric-scoped concrete event without payload`, async () => {
+                const node = await MockServerNode.createOnline();
+                await node.act(agent => node.events.basicInformation.shutDown.emit(undefined, agent.context));
+
+                const response = await readEv(
+                    node,
+                    fabricScoped,
+                    Read.Event({
+                        cluster: BasicInformationCluster,
+                        events: "shutDown",
+                    }),
+                );
+
+                expect(response.data).deep.equals([
+                    [
+                        {
+                            kind: "event-value",
+                            path: {
+                                eventId: 1,
+                                clusterId: 40,
+                                endpointId: 0,
+                            },
+                            number: 3n,
+                            priority: 2,
+                            timestamp: MockTime.epoch.getTime(),
+                            tlv: {},
+                            value: undefined,
+                        },
+                    ],
+                ]);
+                expect(response.counts).deep.equals({ status: 0, success: 1, existent: 1 });
+            });
+
+            it(`reads fabric-scoped concrete event with payload`, async () => {
+                const node = await MockServerNode.createOnline(
+                    ServerNode.RootEndpoint.with(MessagesServer.with("ReceivedConfirmation")),
+                );
+                await node.act(agent =>
+                    node.events.messages.messageComplete.emit(
+                        {
+                            messageId: Bytes.fromHex("0011223344556677889900aabbccddeeff"),
+                            futureMessagesPreference: Messages.FutureMessagePreference.Allowed,
+                            fabricIndex: FabricIndex(5),
+                        },
+                        agent.context,
+                    ),
+                );
+
+                const response = await readEv(
+                    node,
+                    fabricScoped,
+                    Read.Event({
+                        cluster: Messages.Cluster,
+                        events: "messageComplete",
+                    }),
+                );
+
+                if (fabricScoped) {
+                    expect(response.data).deep.equals([]);
+                    expect(response.counts).deep.equals({ status: 0, success: 0, existent: 1 });
+                } else {
+                    expect(response.data).deep.equals([
+                        [
+                            {
+                                kind: "event-value",
+                                path: {
+                                    eventId: 2,
+                                    clusterId: 0x97,
+                                    endpointId: 0,
+                                },
+                                number: 3n,
+                                priority: 1,
+                                timestamp: MockTime.epoch.getTime(),
+                                tlv: {},
+                                value: {
+                                    messageId: Bytes.fromHex("0011223344556677889900aabbccddeeff"),
+                                    futureMessagesPreference: Messages.FutureMessagePreference.Allowed,
+                                    fabricIndex: FabricIndex(5),
+                                },
+                            },
+                        ],
+                    ]);
+                    expect(response.counts).deep.equals({ status: 0, success: 1, existent: 1 });
+                }
+            });
+        }),
+    );
+
+    it("reads concrete event as fabric scoped", async () => {
         const response = await readEv(
             await MockServerNode.createOnline(),
+            true,
             Read.Event({
                 cluster: BasicInformationCluster,
                 events: "startUp",
@@ -73,6 +235,7 @@ describe("EventReadResponse", () => {
     it("reads non-existent concrete endpoint", async () => {
         const response = await readEv(
             await MockServerNode.createOnline(undefined, { device: undefined }),
+            false,
             Read.Event({
                 endpoint: new Endpoint(OnOffLightDevice, { id: "test", number: 1 }),
                 cluster: BasicInformationCluster,
@@ -100,6 +263,7 @@ describe("EventReadResponse", () => {
         const node = await MockServerNode.createOnline();
         const response = await readEv(
             node,
+            false,
             Read.Event({
                 endpoint: node,
                 cluster: BasicInformationCluster,
@@ -127,6 +291,7 @@ describe("EventReadResponse", () => {
         const node = await MockServerNode.createOnline();
         const response = await readEv(
             node,
+            false,
             Read.Event({
                 endpoint: node,
                 cluster: BasicInformationCluster,
@@ -147,6 +312,7 @@ describe("EventReadResponse", () => {
 
         const response = await readEv(
             node,
+            false,
             Read.Event({
                 endpoint: node,
                 cluster: BasicInformationCluster,
@@ -164,7 +330,7 @@ describe("EventReadResponse", () => {
     it("reads full wildcard", async () => {
         const node = await MockServerNode.createOnline();
         await node.act(agent => node.events.basicInformation.startUp.emit({ softwareVersion: 2 }, agent.context));
-        const response = await readEv(node, Read.Event({}));
+        const response = await readEv(node, false, Read.Event({}));
         expect(countEvents(response.data)).deep.equals({
             0: ROOT_ENDPOINT_FULL_CLUSTER_LIST,
         });
@@ -178,13 +344,16 @@ describe("EventReadResponse", () => {
     // TODO - more tests and Migrate some from InteractionProtocolTest
 });
 
-export function readEv(node: MockServerNode, ...args: Parameters<typeof Read>) {
+export function readEv(node: MockServerNode, isFabricFiltered: boolean, ...args: Parameters<typeof Read>) {
     const request = Read(...args);
 
     if (!Read.containsEvent(request)) {
         throw new Error("Expected an attribute request");
     }
-    return readEvRaw(node, request);
+    return readEvRaw(node, {
+        ...request,
+        isFabricFiltered,
+    });
 }
 
 export async function readEvRaw(node: MockServerNode, data: Partial<Read.Events>) {

@@ -9,6 +9,15 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+# __WORK IN PROGRESS__
+
+-   @matter/general
+    - Fix: Ensures services are not removed from parents when they are removed locally
+
+-   @matter/protocol
+    - Enhancement: Removes exchanges earlier when closing to prevent double session closures
+    - Fix: Fixes Fabric scoped event reads to ensure the filtering is applied correctly 
+
 ## 0.15.5 (2025-10-07)
 
 -   @matter/general

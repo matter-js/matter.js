@@ -18,6 +18,7 @@ import {
     EventPath,
     FabricIndex,
     NodeId,
+    ObjectSchema,
     Status,
     StatusCode,
     StatusResponseError,
@@ -333,13 +334,17 @@ export class EventReadResponse<
                 continue;
             }
             // Filter out if we need to do fabric filtering and the event is not for the current fabric
-            if (this.#filteredForFabricIndex !== undefined) {
+            // TODO adjust this to get the information correctly out of the Model bits when model is enhanced
+            // Right now it works because the ObjectSchema analyzes the fields and sets this whenever the FabricIndex
+            // field is included as fieldId 0xfe
+            if (this.#filteredForFabricIndex !== undefined && tlv instanceof ObjectSchema && tlv.isFabricScoped) {
                 const { payload } = event;
-                if (payload !== undefined && isObject(payload)) {
-                    const { fabricIndex } = payload;
-                    if (fabricIndex !== undefined && fabricIndex !== this.#filteredForFabricIndex) {
-                        continue;
-                    }
+                if (!isObject(payload)) {
+                    throw new InternalError("Fabric sensitive event payload is not an object. Should never happen.");
+                }
+                const { fabricIndex } = payload;
+                if (fabricIndex !== undefined && fabricIndex !== this.#filteredForFabricIndex) {
+                    continue;
                 }
             }
             yield this.#asValue(event, tlv);
