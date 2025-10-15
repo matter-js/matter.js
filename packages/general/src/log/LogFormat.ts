@@ -487,6 +487,7 @@ function renderValue(value: unknown, formatter: Formatter, squash: boolean): str
                 }
                 return renderDiagnostic(e, formatter);
             })
+            .filter(e => e.length > 0)
             .join(squash ? "" : " ");
     }
     if (value instanceof Date) {
@@ -499,7 +500,7 @@ function renderValue(value: unknown, formatter: Formatter, squash: boolean): str
         return formatter.text(serialize(value) ?? "undefined");
     }
     if (typeof value === "function") {
-        return renderValue(value(), formatter, squash);
+        return renderDiagnostic(value(), formatter);
     }
 
     const text = typeof value === "string" || value instanceof String ? value : value.toString().trim();
@@ -543,14 +544,14 @@ function renderDictionary(value: object, formatter: Formatter) {
         if (!suppressKey || formattedValue.length) {
             parts.push(formattedValue);
         } else {
-            // if flag but the value is empty we need to remove the last  space if added above
+            // if flag but the value is empty we need to remove the last space if added above
             if (parts.length && parts[parts.length - 1] === " ") {
                 parts.pop();
             }
         }
     }
 
-    return parts.join("");
+    return parts.join("").trim();
 }
 
 function valueFor(value: unknown) {
