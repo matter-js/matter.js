@@ -41,7 +41,7 @@ export namespace Specifier {
     export type Command<C extends ClusterType = ClusterType> = ClusterType.Command | (string & keyof C["commands"]);
 
     /**
-     * An event specifier may be the name of a cluser event or an event object.
+     * An event specifier may be the name of a cluster event or an event object.
      */
     export type Event<C extends ClusterType = ClusterType> = ClusterType.Event | (string & keyof C["events"]);
 
@@ -97,6 +97,26 @@ export namespace Specifier {
           ? CMD
           : never;
 
+    export function commandOf<const C extends ClusterType, const CMD extends Specifier.Command<C>>(
+        cluster: C | undefined,
+        specifier: CMD,
+    ): CommandFor<C, CMD> {
+        if (typeof specifier !== "string") {
+            return specifier as CommandFor<C, CMD>;
+        }
+
+        if (cluster === undefined) {
+            throw new MalformedRequestError(`Cannot designate command "${specifier}" without a cluster`);
+        }
+
+        const command = cluster.commands?.[specifier];
+        if (command === undefined) {
+            throw new MalformedRequestError(`Cluster ${cluster.name} does not define command ${specifier}`);
+        }
+
+        return command as CommandFor<C, CMD>;
+    }
+
     /**
      * Extract an event object from a cluster and event specifier.
      */
@@ -142,5 +162,64 @@ export namespace Specifier {
             return request.endpoint;
         }
         return request.endpoint?.number;
+    }
+}
+
+export function toWildcardOrHexPath(name: string, value: number | bigint | undefined) {
+    if (value === undefined) {
+        return "*";
+    }
+    return `${name ? `${name}:` : ""}0x${value.toString(16)}`;
+}
+
+/**
+ * Resolve a path into a human readable textual form for logging
+ * TODO: Add a Diagnostic display formatter for this
+ */
+export function resolvePathForSpecifier<const C extends ClusterType>(location: {
+    endpoint?: Specifier.Endpoint;
+    cluster?: Specifier.Cluster;
+    attribute?: Specifier.Attribute<Specifier.ClusterFor<C>>;
+    event?: Specifier.Event<Specifier.ClusterFor<C>>;
+    command?: Specifier.Command<Specifier.ClusterFor<C>>;
+    isUrgent?: boolean;
+    listIndex?: number | null;
+}) {
+    const endpointId = Specifier.endpointIdOf(location);
+    const cluster = location.cluster ? Specifier.clusterFor(location.cluster) : undefined;
+    const attribute = location.attribute && cluster ? Specifier.attributeFor(cluster, location.attribute) : undefined;
+    const event = location.event && cluster ? Specifier.eventFor(cluster, location.event) : undefined;
+    const command = location.command && cluster ? Specifier.commandOf(cluster, location.command) : undefined;
+    const isUrgentString = "isUrgent" in location && location.isUrgent ? "!" : "";
+    const listIndexString = "listIndex" in location && location.listIndex === null ? "[ADD]" : "";
+    const postString = `${listIndexString}${isUrgentString}`;
+
+    const clusterId = cluster?.id;
+    const elementId = attribute ? attribute.id : event ? event.id : command ? command.requestId : undefined;
+
+    if (endpointId === undefined) {
+        return `*.${toWildcardOrHexPath("", clusterId)}.${toWildcardOrHexPath("", elementId)}${postString}`;
+    }
+
+    const endpointName = toWildcardOrHexPath("", endpointId);
+
+    if (cluster === undefined || clusterId === undefined) {
+        return `${endpointName}.*.${toWildcardOrHexPath("", elementId)}${postString}`;
+    }
+
+    const clusterName = toWildcardOrHexPath(cluster.name, clusterId);
+
+    if (elementId !== undefined) {
+        if (event) {
+            return `${endpointName}.${clusterName}.${toWildcardOrHexPath(typeof location.event === "string" ? location.event : "?", elementId)}${postString}`;
+        } else if (attribute) {
+            return `${endpointName}.${clusterName}.${toWildcardOrHexPath(typeof location.attribute === "string" ? location.attribute : "?", elementId)}${postString}`;
+        } else if (command) {
+            return `${endpointName}.${clusterName}.${toWildcardOrHexPath(typeof location.command === "string" ? location.command : "?", elementId)}${postString}`;
+        } else {
+            return "unknown";
+        }
+    } else {
+        return `${endpointName}.${clusterName}.*${postString}`;
     }
 }
