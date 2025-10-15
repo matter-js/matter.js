@@ -50,7 +50,7 @@ export class OnlineServerInteraction implements Interactable<RemoteActorContext.
                 yield chunk;
             }
         } catch (error) {
-            session.reject(error);
+            await session.reject(error);
         }
         return session.resolve(undefined);
     }
