@@ -6,16 +6,7 @@
 
 import { Diagnostic, Duration, isObject } from "#general";
 import { FALLBACK_INTERACTIONMODEL_REVISION } from "#session/Session.js";
-import {
-    ClusterType,
-    CommandData,
-    FabricIndex,
-    InvokeRequest,
-    ObjectSchema,
-    TlvSchema,
-    TlvStream,
-    TypeFromSchema,
-} from "#types";
+import { ClusterType, CommandData, FabricIndex, InvokeRequest, ObjectSchema, TlvSchema, TypeFromSchema } from "#types";
 import { MalformedRequestError } from "./MalformedRequestError.js";
 import { resolvePathForSpecifier, Specifier } from "./Specifier.js";
 
@@ -164,8 +155,6 @@ export namespace Invoke {
         const { requestSchema, requestId, timed } = command;
         const { commandRef } = request;
 
-        let commandFields: TlvStream | undefined;
-
         let fields: any = "fields" in request ? request.fields : undefined;
         if (requestSchema instanceof ObjectSchema) {
             if (fields === undefined) {
@@ -182,7 +171,7 @@ export namespace Invoke {
             requestSchema.validate(fields);
         }
 
-        commandFields = requestSchema.encodeTlv(fields);
+        const commandFields = requestSchema.encodeTlv(fields);
 
         const result: InvokeCommandData = {
             commandPath: {
