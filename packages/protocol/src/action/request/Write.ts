@@ -4,14 +4,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { FALLBACK_INTERACTIONMODEL_REVISION } from "#session/Session.js";
-import { AttributeData, ClusterType, WriteRequest } from "#types";
+import { AccessControl } from "#clusters/access-control";
+import { Diagnostic, Duration } from "#general";
+import { Specification } from "#model";
+import { ArraySchema, AttributeData, AttributeId, ClusterId, ClusterType, WriteRequest } from "#types";
 import { MalformedRequestError } from "./MalformedRequestError.js";
-import { Specifier } from "./Specifier.js";
+import { resolvePathForSpecifier, Specifier } from "./Specifier.js";
+
+const AclClusterId = AccessControl.Complete.id;
+const AclAttributeId = AccessControl.Complete.attributes.acl.id;
+const AclExtensionAttributeId = AccessControl.Complete.attributes.extension.id;
+
+function isAclOrExtensionPath(path: { clusterId: ClusterId; attributeId: AttributeId }) {
+    const { clusterId, attributeId } = path;
+    return clusterId === AclClusterId && (attributeId === AclAttributeId || attributeId === AclExtensionAttributeId);
+}
 
 export interface Write extends WriteRequest {
-    /** Timeout only relevant for Client Interactions */
-    timeout?: number;
+    /** Timeout only relevant for Client Interactions with a required TimedRequest flagging */
+    timeout?: Duration;
 }
 
 /**
@@ -41,13 +52,25 @@ export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: W
     } else {
         options = optionsOrData;
     }
-    const { writes: writeRequests = [] } = options;
+    const { writes: writeRequests = [], timed, timeout, chunkLists } = options;
 
-    const result: Write = {
-        timedRequest: !!options.timed || !!options.timeout,
+    const result = {
+        timedRequest: !!timed || !!timeout,
+        timeout,
         writeRequests,
-        interactionModelRevision: options.interactionModelRevision ?? FALLBACK_INTERACTIONMODEL_REVISION,
-    };
+        moreChunkedMessages: false,
+        interactionModelRevision: options.interactionModelRevision ?? Specification.INTERACTION_MODEL_REVISION,
+
+        [Diagnostic.value]: () =>
+            Diagnostic.list(
+                data.map(entry => {
+                    const { version, value } = entry;
+                    return `${resolvePathForSpecifier(entry)} = ${Diagnostic.json(
+                        value,
+                    )}${version !== undefined ? `(version=${version})` : ""}`;
+                }),
+            ),
+    } as Write;
 
     for (const entry of data) {
         reifyData(entry);
@@ -87,15 +110,43 @@ export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: W
         };
 
         for (const specifier of attributes) {
+            const clusterId = cluster.id;
             const attribute = Specifier.attributeFor(cluster, specifier);
-            writeRequests.push({
-                ...prototype,
-                path: {
-                    ...prototype.path,
-                    attributeId: attribute.id,
-                },
-                data: attribute.schema.encodeTlv(value, { forWriteInteraction: true }),
-            });
+            const { schema, id: attributeId } = attribute;
+
+            if (
+                chunkLists &&
+                Array.isArray(value) &&
+                schema instanceof ArraySchema &&
+                // As implemented for Matter 1.4.2 in https://github.com/project-chip/connectedhomeip/pull/38263
+                // Acl writes will no longer be chunked by default, all others still
+                // Will be streamlined later ... see https://github.com/project-chip/connectedhomeip/issues/38270
+                !isAclOrExtensionPath({ clusterId, attributeId })
+            ) {
+                writeRequests.push(
+                    ...schema
+                        .encodeAsChunkedArray(value, { forWriteInteraction: true })
+                        .map(({ element: data, listIndex }) => ({
+                            path: {
+                                ...prototype.path,
+                                attributeId: attribute.id,
+                                listIndex,
+                            },
+                            data,
+                            dataVersion,
+                        })),
+                );
+            } else {
+                writeRequests.push({
+                    ...prototype,
+                    path: {
+                        ...prototype.path,
+                        attributeId: attribute.id,
+                    },
+                    data: attribute.schema.encodeTlv(value, { forWriteInteraction: true }),
+                });
+            }
+            result.timedRequest ||= attribute.timed;
         }
     }
 }
@@ -104,8 +155,9 @@ export namespace Write {
     export interface Options {
         writes?: AttributeData[];
         timed?: boolean;
-        timeout?: number;
+        timeout?: Duration;
         interactionModelRevision?: number;
+        chunkLists?: boolean;
     }
 
     /**
