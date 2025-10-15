@@ -164,7 +164,7 @@ export class CommissioningController {
 
     readonly #options: CommissioningControllerOptions;
 
-    #environment?: Environment; // Set when new API was initialized correctly
+    #environment: Environment; // Set when new API was initialized correctly
     #storage?: StorageContext;
 
     #mdnsScanner?: MdnsScanner;
@@ -183,8 +183,15 @@ export class CommissioningController {
      * @param options The options for the CommissioningController
      */
     constructor(options: CommissioningControllerOptions) {
+        if (options.environment === undefined) {
+            throw new ImplementationError("Initialization not done. Add the controller to the MatterServer first.");
+        }
+
+        const { environment, id } = options.environment;
+        this.#environment = new Environment(id, environment);
+
         this.#options = options;
-        this.#crypto = (options.environment?.environment ?? Environment.default).get(Crypto);
+        this.#crypto = this.#environment.get(Crypto);
         this.#crypto.reportUsage();
     }
 
@@ -586,13 +593,13 @@ export class CommissioningController {
     /** @private */
     async initializeControllerStore() {
         // This can only happen if "MatterServer" approach is not used
-        if (this.#options.environment === undefined) {
-            throw new ImplementationError("Initialization not done. Add the controller to the MatterServer first.");
-        }
 
-        const { environment, id } = this.#options.environment;
-        const controllerStore = await ControllerStore.create(id, environment);
-        environment.set(ControllerStore, controllerStore);
+        const controllerStore = await ControllerStore.create(this.#environment.name, this.#environment);
+        this.#environment.set(ControllerStore, controllerStore);
+    }
+
+    get env() {
+        return this.#environment;
     }
 
     /**
@@ -600,12 +607,7 @@ export class CommissioningController {
      */
     async start() {
         if (this.#ipv4Disabled === undefined) {
-            if (this.#options.environment === undefined) {
-                throw new ImplementationError("Initialization not done. Add the controller to the MatterServer first.");
-            }
-
-            const { environment: env } = this.#options.environment;
-
+            const env = this.#environment;
             if (!env.has(ControllerStore)) {
                 await this.initializeControllerStore();
             }
@@ -780,10 +782,8 @@ export class CommissioningController {
     }
 
     get groups() {
-        if (this.#controllerInstance === undefined) {
-            throw new ImplementationError("Controller instance not yet started. Please call start() first.");
-        }
-        return this.#controllerInstance.getFabrics()[0].groups;
+        const controllerInstance = this.#assertControllerIsStarted();
+        return controllerInstance.getFabrics()[0].groups;
     }
 }
 
