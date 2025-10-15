@@ -4,22 +4,36 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { resolvePathForSpecifier } from "#action/index.js";
 import { Interactable, InteractionSession } from "#action/Interactable.js";
-import { Invoke } from "#action/request/Invoke.js";
+import { ClientInvoke, Invoke } from "#action/request/Invoke.js";
 import { Read } from "#action/request/Read.js";
 import { Subscribe } from "#action/request/Subscribe.js";
 import { Write } from "#action/request/Write.js";
-import { InvokeResult } from "#action/response/InvokeResult.js";
+import { DecodedInvokeResult, InvokeResult } from "#action/response/InvokeResult.js";
 import { ReadResult } from "#action/response/ReadResult.js";
 import { SubscribeResult } from "#action/response/SubscribeResult.js";
 import { WriteResult } from "#action/response/WriteResult.js";
-import { BasicSet, Environment, Environmental, ImplementationError, PromiseQueue, Seconds } from "#general";
+import {
+    BasicSet,
+    Diagnostic,
+    Duration,
+    Environment,
+    Environmental,
+    ImplementationError,
+    isObject,
+    Logger,
+    PromiseQueue,
+    Seconds,
+} from "#general";
 import { InteractionClientMessenger, MessageType } from "#interaction/InteractionMessenger.js";
 import { InteractionQueue } from "#peer/InteractionQueue.js";
 import { ExchangeProvider } from "#protocol/ExchangeProvider.js";
-import { TlvSubscribeResponse } from "#types";
+import { Status, TlvNoResponse, TlvSubscribeResponse } from "#types";
 import { ClientSubscriptions } from "./ClientSubscriptions.js";
 import { InputChunk } from "./InputChunk.js";
+
+const logger = Logger.get("ClientInteraction");
 
 export interface ClientInteractionContext {
     exchanges: ExchangeProvider;
@@ -28,6 +42,9 @@ export interface ClientInteractionContext {
 }
 
 export const DEFAULT_MIN_INTERVAL_FLOOR = Seconds(1);
+
+const DEFAULT_TIMED_REQUEST_TIMEOUT = Seconds(10);
+const DEFAULT_MINIMUM_RESPONSE_TIMEOUT_WITH_FAILSAFE = Seconds(30);
 
 /**
  * Client-side implementation of the Matter protocol.
@@ -74,37 +91,85 @@ export class ClientInteraction<SessionT extends InteractionSession = Interaction
     }
 
     async *read(request: Read, _session?: SessionT): ReadResult {
-        try {
-            this.#begin(request);
-            const messenger = await InteractionClientMessenger.create(this.#exchanges);
+        const readPathsCount = (request.attributeRequests?.length ?? 0) + (request.eventRequests?.length ?? 0);
+        if (readPathsCount > 9) {
+            logger.debug(
+                "Read interactions with more then 9 paths might be not allowed by the device. Consider splitting then into several read requests.",
+            );
+        }
 
+        this.#begin(request);
+
+        let messenger: undefined | InteractionClientMessenger;
+        try {
+            messenger = await InteractionClientMessenger.create(this.#exchanges);
+
+            logger.debug("Read »", messenger.exchange.via, request);
             await messenger.sendReadRequest(request);
 
+            let attributeReportCount = 0;
+            let eventReportCount = 0;
+
             for await (const report of messenger.readDataReports()) {
+                attributeReportCount += report.attributeReports?.length ?? 0;
+                eventReportCount += report.eventReports?.length ?? 0;
                 yield InputChunk(report);
             }
+
+            logger.debug(
+                "Read «",
+                messenger.exchange.via,
+                Diagnostic.weak(
+                    attributeReportCount + eventReportCount === 0
+                        ? "(empty)"
+                        : Diagnostic.dict({ attributes: attributeReportCount, events: eventReportCount }),
+                ),
+            );
         } finally {
+            await messenger?.close();
             this.#end(request);
         }
     }
 
+    /**
+     * Write chosen attributes remotely to the node.
+     * The returned attribute write status information is returned. No error is thrown for individual attribute write
+     * failures.
+     */
     async write<T extends Write>(request: T, _session?: SessionT): WriteResult<T> {
+        this.#begin(request);
+
         let messenger: undefined | InteractionClientMessenger;
         try {
-            this.#begin(request);
             messenger = await InteractionClientMessenger.create(this.#exchanges);
+
+            if (request.timedRequest) {
+                await messenger.sendTimedRequest(request.timeout ?? DEFAULT_TIMED_REQUEST_TIMEOUT);
+            }
+
+            logger.info("Write »", messenger.exchange.via, request);
+
             const response = await messenger.sendWriteCommand(request);
             if (request.suppressResponse) {
                 return undefined as Awaited<WriteResult<T>>;
             }
             if (!response || !response.writeResponses?.length) {
-                return new Array<WriteResult.AttributeStatus>() as Awaited<WriteResult<T>>;
-            } else {
-                return response.writeResponses.map(
-                    ({
-                        path: { nodeId, endpointId, clusterId, attributeId, listIndex },
-                        status: { status, clusterStatus },
-                    }) => ({
+                return [] as Awaited<WriteResult<T>>;
+            }
+
+            let successCount = 0;
+            let failureCount = 0;
+            const result = response.writeResponses.map(
+                ({
+                    path: { nodeId, endpointId, clusterId, attributeId, listIndex },
+                    status: { status, clusterStatus },
+                }) => {
+                    if (status === Status.Success) {
+                        successCount++;
+                    } else {
+                        failureCount++;
+                    }
+                    return {
                         kind: "attr-status",
                         path: {
                             nodeId,
@@ -115,21 +180,53 @@ export class ClientInteraction<SessionT extends InteractionSession = Interaction
                         },
                         status,
                         clusterStatus,
-                    }),
-                ) as Awaited<WriteResult<T>>;
-            }
+                    };
+                },
+            ) as Awaited<WriteResult<T>>;
+
+            logger.info(
+                "Write «",
+                messenger.exchange.via,
+                Diagnostic.weak(
+                    successCount + failureCount === 0
+                        ? "(empty)"
+                        : Diagnostic.dict({ success: successCount, failure: failureCount }),
+                ),
+            );
+
+            return result;
         } finally {
             await messenger?.close();
             this.#end(request);
         }
     }
 
-    async *invoke(request: Invoke, _session?: SessionT): InvokeResult {
-        let messenger: undefined | InteractionClientMessenger;
+    async *invoke(request: ClientInvoke, _session?: SessionT): DecodedInvokeResult {
+        this.#begin(request);
+
+        let messenger: InteractionClientMessenger | undefined;
         try {
-            this.#begin(request);
             messenger = await InteractionClientMessenger.create(this.#exchanges);
-            const result = await messenger.sendInvokeCommand(request);
+
+            if (request.timedRequest) {
+                await messenger.sendTimedRequest(request.timeout ?? DEFAULT_TIMED_REQUEST_TIMEOUT);
+            }
+
+            logger.info(
+                "Invoke »",
+                messenger.exchange.via,
+                Diagnostic.asFlags({ suppressResponse: request.suppressResponse, timed: request.timedRequest }),
+                request,
+            );
+
+            const { expectedProcessingTime, useExtendedFailSafeMessageResponseTimeout } = request;
+            const result = await messenger.sendInvokeCommand(
+                request,
+                expectedProcessingTime ??
+                    (useExtendedFailSafeMessageResponseTimeout
+                        ? DEFAULT_MINIMUM_RESPONSE_TIMEOUT_WITH_FAILSAFE
+                        : undefined),
+            );
             if (!request.suppressResponse) {
                 if (result && result.invokeResponses?.length) {
                     const chunk: InvokeResult.Chunk = result.invokeResponses
@@ -140,15 +237,38 @@ export class ClientInteraction<SessionT extends InteractionSession = Interaction
                                     commandRef,
                                     commandFields,
                                 } = response.command;
-                                const res: InvokeResult.CommandResponse = {
+                                const cmd = request.commands.get(commandRef);
+                                if (!cmd) {
+                                    throw new ImplementationError(
+                                        `No response schema found for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId})`,
+                                    );
+                                }
+                                const responseSchema = Invoke.commandOf(cmd).responseSchema;
+                                if (commandFields === undefined && responseSchema !== TlvNoResponse) {
+                                    throw new ImplementationError(
+                                        `No command fields found for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId})`,
+                                    );
+                                }
+
+                                const data =
+                                    commandFields === undefined ? undefined : responseSchema.decodeTlv(commandFields);
+
+                                logger.info(
+                                    "Invoke «",
+                                    messenger!.exchange.via,
+                                    Diagnostic.strong(resolvePathForSpecifier(cmd)),
+                                    isObject(data) ? Diagnostic.dict(data) : Diagnostic.weak("(no payload)"),
+                                );
+
+                                const res: InvokeResult.DecodedCommandResponse = {
                                     kind: "cmd-response",
                                     path: {
                                         endpointId: endpointId!,
-                                        clusterId: clusterId,
-                                        commandId: commandId,
+                                        clusterId,
+                                        commandId,
                                     },
                                     commandRef,
-                                    data: commandFields!, // TODO add decoding
+                                    data,
                                 };
                                 return res;
                             } else if (response.status !== undefined) {
@@ -187,11 +307,36 @@ export class ClientInteraction<SessionT extends InteractionSession = Interaction
     }
 
     async subscribe(request: Subscribe, _session?: SessionT): SubscribeResult {
+        const subscriptionPathsCount = (request.attributeRequests?.length ?? 0) + (request.eventRequests?.length ?? 0);
+        if (subscriptionPathsCount > 3) {
+            logger.debug("Subscribe interactions with more then 3 paths might be not allowed by the device.");
+        }
+
+        if (!request.keepSubscriptions) {
+            for (const subscription of this.#subscriptions) {
+                logger.debug(
+                    `Removing subscription with ID ${subscription.subscriptionId} because new subscription replaces it`,
+                );
+                subscription.close();
+            }
+        }
+
+        this.#begin(request);
+
         let messenger: undefined | InteractionClientMessenger;
         try {
-            this.#begin(request);
-
             messenger = await InteractionClientMessenger.create(this.#exchanges);
+
+            logger.info(
+                "Subscribe »",
+                messenger.exchange.via,
+                Diagnostic.asFlags({ keepSubscriptions: request.keepSubscriptions }),
+                Diagnostic.dict({
+                    min: Duration.format(request.minIntervalFloor),
+                    max: Duration.format(request.maxIntervalCeiling),
+                }),
+                request,
+            );
 
             await messenger.sendSubscribeRequest({
                 minIntervalFloorSeconds: Seconds.of(DEFAULT_MIN_INTERVAL_FLOOR),
@@ -203,6 +348,15 @@ export class ClientInteraction<SessionT extends InteractionSession = Interaction
 
             const responseMessage = await messenger.nextMessage(MessageType.SubscribeResponse);
             const response = TlvSubscribeResponse.decode(responseMessage.payload);
+
+            logger.info(
+                "Subscription successful «",
+                messenger.exchange.via,
+                Diagnostic.dict({
+                    subId: response.subscriptionId,
+                    interval: Duration.format(Seconds(response.maxInterval)),
+                }),
+            );
 
             return this.#subscriptions.add(request, response);
         } finally {

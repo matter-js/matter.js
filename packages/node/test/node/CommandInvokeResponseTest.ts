@@ -16,7 +16,7 @@ describe("CommandInvokeResponse", () => {
         const node = await MockServerNode.createOnline(undefined, { device });
         const response = await invokeCmd(
             node,
-            Invoke.Command({
+            Invoke.ConcreteCommandRequest({
                 endpoint: device,
                 cluster: OnOffCluster,
                 command: "on",
@@ -41,7 +41,7 @@ describe("CommandInvokeResponse", () => {
         await node.add(new Endpoint(OnOffLightDevice));
         const response = await invokeCmd(
             node,
-            Invoke.Command({
+            Invoke.WildcardCommandRequest({
                 cluster: OnOffCluster,
                 command: "on",
             }),
@@ -88,7 +88,7 @@ describe("CommandInvokeResponse", () => {
         const node = await MockServerNode.createOnline(undefined, { device: undefined });
         const response = await invokeCmd(
             node,
-            Invoke.Command({
+            Invoke.WildcardCommandRequest({
                 cluster: OnOffCluster,
                 command: "on",
             }),
@@ -102,7 +102,7 @@ describe("CommandInvokeResponse", () => {
         const node = await MockServerNode.createOnline(undefined, { device: undefined });
         const response = await invokeCmd(
             node,
-            Invoke.Command({
+            Invoke.ConcreteCommandRequest({
                 endpoint: node,
                 cluster: OnOffCluster,
                 command: "on",

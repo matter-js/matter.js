@@ -8,10 +8,14 @@ import type { ClusterId, CommandId, CommandPath, EndpointNumber, StatusCode, Tlv
 
 export type InvokeResult = AsyncIterable<InvokeResult.Chunk>;
 
+export type DecodedInvokeResult = AsyncIterable<InvokeResult.DecodedChunk>;
+
 export namespace InvokeResult {
     export type Chunk = Iterable<Data>;
+    export type DecodedChunk = Iterable<DecodedData>;
 
     export type Data = CommandStatus | CommandResponse;
+    export type DecodedData = CommandStatus | DecodedCommandResponse;
 
     export interface ConcreteCommandPath extends CommandPath {
         endpointId: EndpointNumber;
@@ -32,5 +36,9 @@ export namespace InvokeResult {
         path: ConcreteCommandPath;
         commandRef?: number;
         data: TlvStream;
+    }
+
+    export interface DecodedCommandResponse extends Omit<CommandResponse, "data"> {
+        data: any;
     }
 }
