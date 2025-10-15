@@ -10,14 +10,13 @@ import { camelize, capitalize, InternalError } from "#general";
 import { AttributeModel, ClusterModel, CommandModel, FeatureBitmap, Matter } from "#model";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
-import { Invoke } from "#protocol";
+import { ClientInteraction, Invoke } from "#protocol";
 import {
     Attribute,
     AttributeId,
     ClusterComposer,
     ClusterId,
     ClusterRegistry,
-    ClusterType,
     Command,
     CommandId,
     MutableCluster,
@@ -137,8 +136,7 @@ function generateType(analysis: ShapeAnalysis, baseType: Behavior.Type): Cluster
     // Add command implementations
     for (const id of analysis.shape.commands) {
         const name = schema.get(CommandModel, id)?.name ?? createUnknownName("command", id);
-        const command = cluster.commands[camelize(name)];
-        type.prototype[camelize(name, false)] = implementCommand(command);
+        type.prototype[camelize(name, false)] = implementCommand(camelize(name));
     }
 
     return type;
@@ -152,33 +150,35 @@ function generateType(analysis: ShapeAnalysis, baseType: Behavior.Type): Cluster
         isCloned = true;
     }
 
-    function implementCommand(command: ClusterType.Command) {
+    function implementCommand(command: string) {
         return async function (this: ClusterBehavior, fields?: {}) {
             const node = this.env.get(Node) as ClientNode;
 
-            const chunks = node.interaction.invoke(
-                Invoke(
-                    Invoke.Command<any>({
-                        endpoint: this.endpoint,
-                        cluster,
-                        command,
-                        fields,
-                    }),
-                ),
+            const chunks = (node.interaction as ClientInteraction).invoke(
+                Invoke({
+                    commands: [
+                        Invoke.ConcreteCommandRequest<any>({
+                            endpoint: this.endpoint,
+                            cluster,
+                            command,
+                            fields,
+                        }),
+                    ],
+                }),
             );
 
             for await (const chunk of chunks) {
                 for (const entry of chunk) {
-                    // TODO - do we need to support multiple data chunks?
+                    // We send only one command, so we only get one response back
                     switch (entry.kind) {
                         case "cmd-status":
                             if (entry.status !== Status.Success) {
                                 throw StatusResponseError.create(entry.status, undefined, entry.clusterStatus);
                             }
-                            break;
+                            return;
 
                         case "cmd-response":
-                            return command.responseSchema.decodeTlv(entry.data);
+                            return entry.data;
                     }
                 }
             }
