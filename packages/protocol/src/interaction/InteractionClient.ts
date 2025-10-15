@@ -383,26 +383,6 @@ export class InteractionClient {
             );
         }
 
-        logger.debug(
-            `Sending read request: attributes: ${attributeRequests
-                ?.map(path => resolveAttributeName(path))
-                .join(", ")} and events: ${eventRequests?.map(path => resolveEventName(path)).join(", ")}`,
-        );
-        if (dataVersionFilters !== undefined && dataVersionFilters?.length > 0) {
-            logger.debug(
-                `Using DataVersionFilters: ${dataVersionFilters
-                    .map(({ endpointId, clusterId, dataVersion }) => `${endpointId}/${clusterId}=${dataVersion}`)
-                    .join(", ")}`,
-            );
-        }
-        if (eventFilters !== undefined && eventFilters?.length > 0) {
-            logger.debug(
-                `Using event filters: ${eventFilters
-                    .map(({ nodeId, eventMin }) => `${nodeId}=${eventMin}`)
-                    .join(", ")}`,
-            );
-        }
-
         const result = await this.withMessenger(async messenger => {
             return await this.processReadRequest(
                 messenger,
@@ -560,12 +540,32 @@ export class InteractionClient {
             oldValue?: any,
         ) => void,
     ): Promise<DecodedDataReport> {
-        const { attributeRequests, eventRequests } = request;
-        logger.debug(
-            `Sending read request to ${messenger.getExchangeChannelName()} for attributes ${attributeRequests
-                ?.map(path => resolveAttributeName(path))
-                .join(", ")} and events ${eventRequests?.map(path => resolveEventName(path)).join(", ")}`,
-        );
+        const { attributeRequests, eventRequests, dataVersionFilters, eventFilters, isFabricFiltered } = request;
+        logger.debug(() => [
+            "Read »",
+            messenger.exchange.via,
+            Diagnostic.dict({
+                attributes: attributeRequests?.length
+                    ? attributeRequests?.map(path => resolveAttributeName(path)).join(", ")
+                    : undefined,
+                events: eventRequests?.length
+                    ? eventRequests?.map(path => resolveEventName(path)).join(", ")
+                    : undefined,
+                dataVersionFilters: dataVersionFilters?.length
+                    ? dataVersionFilters
+                          .map(
+                              ({ path: { endpointId, clusterId }, dataVersion }) =>
+                                  `${endpointId}/${clusterId}=${dataVersion}`,
+                          )
+                          .join(", ")
+                    : undefined,
+                eventFilters: eventFilters?.length
+                    ? eventFilters.map(({ nodeId, eventMin }) => `${nodeId}=${eventMin}`).join(", ")
+                    : undefined,
+                fabricFiltered: isFabricFiltered,
+            }),
+        ]);
+
         // Send read request and combine all (potentially chunked) responses
         await messenger.sendReadRequest(request);
         const scope = ReadScope(request);
@@ -576,24 +576,32 @@ export class InteractionClient {
         // Normalize and decode the response
         const { attributeReports, attributeStatus, eventReports, eventStatus } = response;
 
-        const logData = Array<string>();
-        if (attributeReports.length > 0) {
-            logData.push(
-                `attributes ${attributeReports.map(({ path, value }) => `${resolveAttributeName(path)}=${serialize(value)}`).join(", ")}`,
-            );
+        if (attributeReports.length || eventReports.length || attributeStatus?.length || eventStatus?.length) {
+            logger.debug(() => [
+                "Read «",
+                messenger.exchange.via,
+                Diagnostic.dict({
+                    attributes: attributeReports.length
+                        ? attributeReports
+                              .map(({ path, value }) => `${resolveAttributeName(path)}=${serialize(value)}`)
+                              .join(", ")
+                        : undefined,
+                    events: eventReports.length
+                        ? eventReports.map(({ path }) => resolveEventName(path)).join(", ")
+                        : undefined,
+                    attributeStatus: attributeStatus?.length
+                        ? attributeStatus.map(({ path }) => resolveAttributeName(path)).join(", ")
+                        : undefined,
+                    eventStatus: eventStatus?.length
+                        ? eventStatus.map(({ path }) => resolveEventName(path)).join(", ")
+                        : undefined,
+                    fabricFiltered: isFabricFiltered,
+                }),
+            ]);
+        } else {
+            logger.debug("Read «", messenger.exchange.via, "empty response");
         }
-        if (eventReports.length > 0) {
-            logData.push(`events ${eventReports.map(({ path }) => resolveEventName(path)).join(", ")}`);
-        }
-        if (attributeStatus !== undefined && attributeStatus.length > 0) {
-            logData.push(`attributeErrors ${attributeStatus.map(({ path }) => resolveAttributeName(path)).join(", ")}`);
-        }
-        if (eventStatus !== undefined && eventStatus.length > 0) {
-            logData.push(`eventErrors ${eventStatus.map(({ path }) => resolveEventName(path)).join(", ")}`);
-        }
-        logger.debug(
-            logData.length ? `Received read response with ${logData.join(", ")}` : "Received empty read response",
-        );
+
         return response;
     }
 
@@ -674,16 +682,7 @@ export class InteractionClient {
                 throw new ImplementationError("Not all attribute write paths are valid for group address writes.");
             }
         }
-        logger.debug(
-            `Sending write request: ${attributes
-                .map(
-                    ({ endpointId, clusterId, attribute: { id }, value, dataVersion }) =>
-                        `${resolveAttributeName({ endpointId, clusterId, attributeId: id })} = ${Diagnostic.json(
-                            value,
-                        )} (version=${dataVersion})`,
-                )
-                .join(", ")}`,
-        );
+
         // TODO Add multi message write handling with streamed encoding
         const writeRequests = attributes.flatMap(
             ({ endpointId, clusterId, attribute: { id, schema }, value, dataVersion }) => {
@@ -726,6 +725,21 @@ export class InteractionClient {
                 if (timedRequest) {
                     await messenger.sendTimedRequest(timedRequestTimeout);
                 }
+
+                logger.debug(() => [
+                    "Write »",
+                    messenger.exchange.via,
+                    Diagnostic.dict({
+                        attributes: attributes
+                            .map(
+                                ({ endpointId, clusterId, attribute: { id }, value, dataVersion }) =>
+                                    `${resolveAttributeName({ endpointId, clusterId, attributeId: id })} = ${Diagnostic.json(
+                                        value,
+                                    )} (version=${dataVersion})`,
+                            )
+                            .join(", "),
+                    }),
+                ]);
 
                 return await messenger.sendWriteCommand({
                     suppressResponse,
@@ -798,14 +812,6 @@ export class InteractionClient {
             }
         }
 
-        logger.debug(
-            `Sending subscribe request for attribute: ${resolveAttributeName({
-                endpointId,
-                clusterId,
-                attributeId,
-            })}${knownDataVersion !== undefined ? ` (knownDataVersion=${knownDataVersion})` : ""} with minInterval=${minIntervalFloorSeconds}s/maxInterval=${maxIntervalCeilingSeconds}s`,
-        );
-
         const request: SubscribeRequest = {
             interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
             attributeRequests: [{ endpointId, clusterId, attributeId }],
@@ -829,6 +835,18 @@ export class InteractionClient {
             report: DecodedDataReport;
             maximumPeerResponseTime: Duration;
         }>(async messenger => {
+            logger.debug(() => [
+                "Subscribe »",
+                messenger.exchange.via,
+                Diagnostic.dict({
+                    attributes: resolveAttributeName({ endpointId, clusterId, attributeId }),
+                    dataVersionFilter: knownDataVersion,
+                    fabricFiltered: isFabricFiltered,
+                    minInterval: Duration.format(Seconds(minIntervalFloorSeconds)),
+                    maxInterval: Duration.format(Seconds(maxIntervalCeilingSeconds)),
+                }),
+            ]);
+
             await messenger.sendSubscribeRequest(request);
             const { subscribeResponse, report } = await messenger.readAggregateSubscribeResponse();
             return {
@@ -913,10 +931,6 @@ export class InteractionClient {
         } = options;
         const { id: eventId } = event;
 
-        logger.debug(
-            `Sending subscribe request for event: ${resolveEventName({ endpointId, clusterId, eventId })} with minInterval=${minIntervalFloor}/maxInterval=${maxIntervalCeiling}`,
-        );
-
         const {
             report,
             subscribeResponse: { subscriptionId, maxInterval },
@@ -926,6 +940,17 @@ export class InteractionClient {
             report: DecodedDataReport;
             maximumPeerResponseTime: Duration;
         }>(async messenger => {
+            logger.debug(() => [
+                "Subscribe »",
+                messenger.exchange.via,
+                Diagnostic.dict({
+                    events: resolveEventName({ endpointId, clusterId, eventId }),
+                    fabricFiltered: isFabricFiltered,
+                    minInterval: Duration.format(minIntervalFloor),
+                    maxInterval: Duration.format(maxIntervalCeiling),
+                }),
+            ]);
+
             await messenger.sendSubscribeRequest({
                 interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
                 eventRequests: [{ endpointId, clusterId, eventId, isUrgent }],
@@ -1060,28 +1085,6 @@ export class InteractionClient {
             }
         }
 
-        logger.debug(
-            `Sending subscribe request: attributes: ${attributeRequests
-                .map(path => resolveAttributeName(path))
-                .join(
-                    ", ",
-                )} and events: ${eventRequests.map(path => resolveEventName(path)).join(", ")}, keepSubscriptions=${keepSubscriptions} with minInterval=${minIntervalFloorSeconds}s/maxInterval=${maxIntervalCeilingSeconds}s`,
-        );
-        if (dataVersionFilters !== undefined && dataVersionFilters?.length > 0) {
-            logger.debug(
-                `Using DataVersionFilters: ${dataVersionFilters
-                    .map(({ endpointId, clusterId, dataVersion }) => `${endpointId}/${clusterId}=${dataVersion}`)
-                    .join(", ")}`,
-            );
-        }
-        if (eventFilters !== undefined && eventFilters?.length > 0) {
-            logger.debug(
-                `Using event filters: ${eventFilters
-                    .map(({ nodeId, eventMin }) => `${nodeId}=${eventMin}`)
-                    .join(", ")}`,
-            );
-        }
-
         const request: SubscribeRequest = {
             interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
             attributeRequests,
@@ -1108,18 +1111,54 @@ export class InteractionClient {
             report: DecodedDataReport;
             maximumPeerResponseTime: Duration;
         }>(async messenger => {
+            logger.debug(() => [
+                "Subscribe »",
+                messenger.exchange.via,
+                Diagnostic.dict({
+                    attributes: attributeRequests.length
+                        ? attributeRequests.map(path => resolveAttributeName(path)).join(", ")
+                        : undefined,
+                    events: eventRequests.length
+                        ? eventRequests.map(path => resolveEventName(path)).join(", ")
+                        : undefined,
+                    dataVersionFilter: dataVersionFilters?.length
+                        ? dataVersionFilters
+                              .map(
+                                  ({ endpointId, clusterId, dataVersion }) =>
+                                      `${endpointId}/${clusterId}=${dataVersion}`,
+                              )
+                              .join(", ")
+                        : undefined,
+                    eventFilters: eventFilters?.length
+                        ? eventFilters.map(({ nodeId, eventMin }) => `${nodeId}=${eventMin}`).join(", ")
+                        : undefined,
+                    fabricFiltered: isFabricFiltered,
+                    keepSubscriptions,
+                    minInterval: Duration.format(Seconds(minIntervalFloorSeconds)),
+                    maxInterval: Duration.format(Seconds(maxIntervalCeilingSeconds)),
+                }),
+            ]);
+
             await messenger.sendSubscribeRequest(request);
             const { subscribeResponse, report } = await messenger.readAggregateSubscribeResponse(attributeReports =>
                 this.processAttributeUpdates(scope, attributeReports, attributeListener),
             );
+
+            logger.info(
+                "Subscription successful «",
+                messenger.exchange.via,
+                Diagnostic.dict({
+                    subId: subscribeResponse.subscriptionId,
+                    maxInterval: Duration.format(Seconds(subscribeResponse.maxInterval)),
+                }),
+            );
+
             return {
                 subscribeResponse,
                 report,
                 maximumPeerResponseTime: this.maximumPeerResponseTime(),
             };
         }, executeQueued);
-
-        logger.info(`Subscription successfully initialized with ID ${subscriptionId} and maxInterval ${maxInterval}s.`);
 
         const subscriptionListener = async (dataReport: {
             attributeReports?: DecodedAttributeReportValue<any>[];
@@ -1139,9 +1178,7 @@ export class InteractionClient {
             if (eventReports !== undefined) {
                 let maxEventNumber = this.#nodeStore?.maxEventNumber ?? eventReports[0].events[0].eventNumber;
                 eventReports.forEach(data => {
-                    logger.debug(
-                        `Received event update: ${resolveEventName(data.path)}: ${Diagnostic.json(data.events)}`,
-                    );
+                    logger.debug(`Event update « ${resolveEventName(data.path)}: ${Diagnostic.json(data.events)}`);
                     const { events } = data;
 
                     maxEventNumber =
@@ -1202,7 +1239,9 @@ export class InteractionClient {
                 version,
             } = data;
 
-            if (value === undefined) throw new MatterFlowError("Received empty subscription result value.");
+            if (value === undefined) {
+                throw new MatterFlowError("Received empty subscription result value.");
+            }
             const { value: oldValue, version: oldVersion } =
                 this.#nodeStore?.retrieveAttribute(endpointId, clusterId, attributeId) ?? {};
             const changed = oldValue !== undefined ? !isDeepEqual(oldValue, value) : undefined;
@@ -1210,7 +1249,7 @@ export class InteractionClient {
                 await this.#nodeStore?.persistAttributes([data], scope);
             }
             logger.debug(
-                `Received attribute update${changed ? "(value changed)" : ""}: ${resolveAttributeName({
+                `Attribute update «${changed ? " (value changed)" : ""}: ${resolveAttributeName({
                     endpointId,
                     clusterId,
                     attributeId,
@@ -1355,7 +1394,7 @@ export class InteractionClient {
             }
             const response = responseSchema.decodeTlv(commandFields);
             logger.debug(
-                `Received invoke response: ${resolveCommandName({
+                `Invoke « ${resolveCommandName({
                     endpointId,
                     clusterId,
                     commandId: requestId,
@@ -1429,7 +1468,7 @@ export class InteractionClient {
         }, executeQueued);
 
         logger.debug(
-            `Invoke successful: ${resolveCommandName({
+            `Invoke successful « ${resolveCommandName({
                 endpointId,
                 clusterId,
                 commandId: requestId,

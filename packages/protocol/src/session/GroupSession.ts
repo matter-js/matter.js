@@ -16,8 +16,9 @@ import {
     MatterFlowError,
     UnexpectedDataError,
 } from "#general";
+import { PeerAddress } from "#peer/PeerAddress.js";
 import type { SessionManager } from "#session/SessionManager.js";
-import { GroupId, NodeId } from "#types";
+import { FabricIndex, GroupId, NodeId } from "#types";
 import { SecureSession } from "./SecureSession.js";
 import { Session } from "./Session.js";
 
@@ -90,6 +91,16 @@ export class GroupSession extends SecureSession {
 
     get associatedFabric(): Fabric {
         return this.#fabric;
+    }
+
+    /**
+     * The peer group's address.
+     */
+    get peerAddress() {
+        return PeerAddress({
+            fabricIndex: this.#fabric?.fabricIndex ?? FabricIndex.NO_FABRIC,
+            nodeId: this.#peerNodeId,
+        });
     }
 
     subjectFor(message?: Message): Subject {

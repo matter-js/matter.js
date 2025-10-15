@@ -22,6 +22,7 @@ import type { Subscription } from "#interaction/Subscription.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { MessageCounter } from "#protocol/MessageCounter.js";
 import { MessageReceptionStateEncryptedWithoutRollover } from "#protocol/MessageReceptionState.js";
+import { SecureChannelMessenger } from "#securechannel/SecureChannelMessenger.js";
 import { CaseAuthenticatedTag, FabricIndex, NodeId, StatusCode, StatusResponseError } from "#types";
 import { SecureSession } from "./SecureSession.js";
 import { Session, SessionParameterOptions } from "./Session.js";
@@ -391,5 +392,25 @@ export namespace NodeSession {
 
     export function is(session?: Session): session is NodeSession {
         return session?.type === SessionType.Unicast;
+    }
+
+    export function logNew(
+        logger: Logger,
+        operation: "New" | "Resumed",
+        session: NodeSession,
+        messenger: SecureChannelMessenger,
+        fabric: Fabric,
+        peerNodeId: NodeId,
+    ) {
+        logger.info(
+            `${operation} session with`,
+            Diagnostic.strong(PeerAddress({ fabricIndex: fabric.fabricIndex, nodeId: peerNodeId }).toString()),
+            Diagnostic.dict({
+                id: session.id,
+                address: messenger.channelName,
+                fabric: `${NodeId.toHexString(fabric.nodeId)} (#${fabric.fabricIndex})`,
+                ...session.parameterDiagnostics,
+            }),
+        );
     }
 }

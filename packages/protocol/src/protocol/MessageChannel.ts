@@ -5,7 +5,7 @@
  */
 
 import { Message, MessageCodec } from "#codec/MessageCodec.js";
-import { Bytes, Channel, Duration, Logger, MatterError, MatterFlowError, Millis, Seconds } from "#general";
+import { Bytes, Channel, Diagnostic, Duration, Logger, MatterError, MatterFlowError, Millis, Seconds } from "#general";
 import type { ExchangeLogContext } from "#protocol/MessageExchange.js";
 import { Session, SessionParameters } from "#session/Session.js";
 
@@ -101,7 +101,7 @@ export class MessageChannel implements Channel<Message> {
     }
 
     get name() {
-        return `${this.channel.name} on session ${this.session.name}`;
+        return Diagnostic.via(`${this.session.name}@${this.channel.name}`);
     }
 
     async close() {

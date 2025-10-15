@@ -35,7 +35,14 @@ import type {
     InteractionSession,
     NodeProtocol,
 } from "#protocol";
-import { EventTypeProtocol, FabricManager, hasRemoteActor, OccurrenceManager, Val } from "#protocol";
+import {
+    EventTypeProtocol,
+    FabricManager,
+    hasRemoteActor,
+    OccurrenceManager,
+    toWildcardOrHexPath,
+    Val,
+} from "#protocol";
 import {
     AttributeId,
     AttributePath,
@@ -554,7 +561,7 @@ function invokeCommand(
     const context = session as ActionContext;
 
     logger.info(
-        "Invoke",
+        "Invoke «",
         Diagnostic.strong(`${path.toString()}.${command.name}`),
         session.transaction.via,
         requestDiagnostic,
@@ -629,13 +636,6 @@ function invokeCommand(
     return result as MaybePromise<Val.Struct | undefined>;
 }
 
-function toWildcardOrHex(name: string, value: number | bigint | undefined) {
-    if (value === undefined) {
-        return "*";
-    }
-    return `${name}:0x${value.toString(16)}`;
-}
-
 /**
  * Resolve a path into a human readable textual form for logging
  * TODO: Add a Diagnostic display formatter for this
@@ -656,35 +656,35 @@ function resolvePathForNode(node: NodeProtocol, path: AttributePath | EventPath 
                 : undefined;
 
     if (endpointId === undefined) {
-        return `*.${toWildcardOrHex("", clusterId)}.${toWildcardOrHex("", elementId)}${postString}`;
+        return `*.${toWildcardOrHexPath("", clusterId)}.${toWildcardOrHexPath("", elementId)}${postString}`;
     }
 
     const endpoint = node[endpointId];
     if (endpoint === undefined) {
-        return `${toWildcardOrHex("?", endpointId)}.${toWildcardOrHex("", clusterId)}.${toWildcardOrHex("", elementId)}${postString}`;
+        return `${toWildcardOrHexPath("?", endpointId)}.${toWildcardOrHexPath("", clusterId)}.${toWildcardOrHexPath("", elementId)}${postString}`;
     }
-    const endpointName = toWildcardOrHex(endpoint.name, endpointId);
+    const endpointName = toWildcardOrHexPath(endpoint.name, endpointId);
 
     if (clusterId === undefined) {
-        return `${endpointName}.*.${toWildcardOrHex("", elementId)}${postString}`;
+        return `${endpointName}.*.${toWildcardOrHexPath("", elementId)}${postString}`;
     }
 
     const cluster = endpoint[clusterId];
     if (cluster === undefined) {
-        return `${endpointName}.${toWildcardOrHex("?", clusterId)}.${toWildcardOrHex("", elementId)}${postString}`;
+        return `${endpointName}.${toWildcardOrHexPath("?", clusterId)}.${toWildcardOrHexPath("", elementId)}${postString}`;
     }
-    const clusterName = toWildcardOrHex(cluster.type.name, clusterId);
+    const clusterName = toWildcardOrHexPath(cluster.type.name, clusterId);
 
     if (elementId !== undefined) {
         if ("eventId" in path) {
             const event = cluster.type.events[elementId];
-            return `${endpointName}.${clusterName}.${toWildcardOrHex(event?.name ?? "?", elementId)}${postString}`;
+            return `${endpointName}.${clusterName}.${toWildcardOrHexPath(event?.name ?? "?", elementId)}${postString}`;
         } else if ("attributeId" in path) {
             const attribute = cluster.type.attributes[elementId];
-            return `${endpointName}.${clusterName}.${toWildcardOrHex(attribute?.name ?? "?", elementId)}${postString}`;
+            return `${endpointName}.${clusterName}.${toWildcardOrHexPath(attribute?.name ?? "?", elementId)}${postString}`;
         } else if ("commandId" in path) {
             const command = cluster.type.commands[elementId];
-            return `${endpointName}.${clusterName}.${toWildcardOrHex(command?.name ?? "?", elementId)}${postString}`;
+            return `${endpointName}.${clusterName}.${toWildcardOrHexPath(command?.name ?? "?", elementId)}${postString}`;
         } else {
             throw new ImplementationError("Invalid path");
         }

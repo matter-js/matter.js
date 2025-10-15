@@ -7,8 +7,7 @@
 import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Fabric } from "#fabric/Fabric.js";
-import { Bytes, Diagnostic, Duration, Logger, PublicKey, UnexpectedDataError } from "#general";
-import { PeerAddress } from "#peer/PeerAddress.js";
+import { Bytes, Duration, Logger, PublicKey, UnexpectedDataError } from "#general";
 import { MessageExchange, RetransmissionLimitReachedError } from "#protocol/MessageExchange.js";
 import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
 import { NodeSession } from "#session/NodeSession.js";
@@ -135,7 +134,7 @@ export class CaseClient {
                 caseAuthenticatedTags,
             });
             await messenger.sendSuccess();
-            this.#logNewSession("Resumed", secureSession, messenger, fabric, peerNodeId);
+            NodeSession.logNew(logger, "Resumed", secureSession, messenger, fabric, peerNodeId);
 
             resumptionRecord.resumptionId = resumptionId; /* update resumptionId */
             resumptionRecord.sessionParameters = secureSession.parameters; /* update mrpParams */
@@ -246,7 +245,7 @@ export class CaseClient {
                 peerSessionParameters,
                 caseAuthenticatedTags: sessionCaseAuthenticatedTags,
             });
-            this.#logNewSession("New", secureSession, messenger, fabric, peerNodeId);
+            NodeSession.logNew(logger, "New", secureSession, messenger, fabric, peerNodeId);
             resumptionRecord = {
                 fabric,
                 peerNodeId,
@@ -261,25 +260,6 @@ export class CaseClient {
         await this.#sessions.saveResumptionRecord(resumptionRecord);
 
         return { session: secureSession, resumed };
-    }
-
-    #logNewSession(
-        operation: "New" | "Resumed",
-        session: NodeSession,
-        messenger: CaseClientMessenger,
-        fabric: Fabric,
-        peerNodeId: NodeId,
-    ) {
-        logger.info(
-            `${operation} session with`,
-            Diagnostic.strong(PeerAddress({ fabricIndex: fabric.fabricIndex, nodeId: peerNodeId }).toString()),
-            Diagnostic.dict({
-                id: session.id,
-                address: messenger.channelName,
-                fabric: `${NodeId.toHexString(fabric.nodeId)} (#${fabric.fabricIndex})`,
-                ...session.parameterDiagnostics,
-            }),
-        );
     }
 }
 

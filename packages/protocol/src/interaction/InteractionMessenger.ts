@@ -105,7 +105,19 @@ const DATA_REPORT_MAX_QUEUED_ATTRIBUTE_MESSAGES = 20;
 const DATA_REPORT_MIN_AVAILABLE_BYTES_BEFORE_SENDING = 40;
 
 class InteractionMessenger {
-    constructor(protected exchange: MessageExchange) {}
+    #exchange: MessageExchange;
+
+    constructor(exchange: MessageExchange) {
+        this.#exchange = exchange;
+    }
+
+    get exchange() {
+        return this.#exchange;
+    }
+
+    protected set exchange(value: MessageExchange) {
+        this.#exchange = value;
+    }
 
     send(messageType: number, payload: Bytes, options?: ExchangeSendOptions) {
         return this.exchange.send(messageType, payload, options);
@@ -197,8 +209,8 @@ class InteractionMessenger {
             );
     }
 
-    getExchangeChannelName() {
-        return this.exchange.channel.name;
+    get session() {
+        return this.exchange.session;
     }
 }
 

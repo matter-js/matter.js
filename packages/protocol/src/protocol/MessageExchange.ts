@@ -30,6 +30,7 @@ import {
     MRP,
 } from "#protocol/MessageChannel.js";
 import { GroupSession } from "#session/GroupSession.js";
+import { SecureSession } from "#session/SecureSession.js";
 import { SessionParameters } from "#session/Session.js";
 import {
     GroupId,
@@ -199,8 +200,8 @@ export class MessageExchange {
         logger.debug(
             "New exchange",
             isInitiator ? "»" : "«",
+            channel.name,
             Diagnostic.dict({
-                channel: channel.name,
                 protocol: this.#protocolId,
                 exId: this.#exchangeId,
                 sess: session.name,
@@ -582,12 +583,16 @@ export class MessageExchange {
                 StatusCode.InvalidAction,
             );
         }
+
         logger.debug(
-            `Starting timed interaction with Transaction ID ${this.#exchangeId} for ${Duration.format(timeout)} from ${this.channel.name}`,
+            "Starting timed interaction «",
+            this.channel.name,
+            Diagnostic.dict({ exId: this.#exchangeId, timeout: Duration.format(timeout) }),
         );
         this.#timedInteractionTimer = Time.getTimer("Timed interaction", timeout, () => {
             logger.debug(
-                `Timed interaction with Transaction ID ${this.#exchangeId} from ${this.channel.name} timed out`,
+                "Timed interaction timeout!",
+                Diagnostic.dict({ exId: this.#exchangeId, via: this.channel.name }),
             );
         }).start();
     }
@@ -595,7 +600,8 @@ export class MessageExchange {
     clearTimedInteraction() {
         if (this.#timedInteractionTimer !== undefined) {
             logger.debug(
-                `Clearing timed interaction with Transaction ID ${this.#exchangeId} from ${this.channel.name}`,
+                "Clearing timed interaction",
+                Diagnostic.dict({ exId: this.#exchangeId, via: this.channel.name }),
             );
             this.#timedInteractionTimer.stop();
             this.#timedInteractionTimer = undefined;
@@ -678,5 +684,13 @@ export class MessageExchange {
         this.#timedInteractionTimer?.stop();
         this.#messagesQueue.close();
         await this.#closed.emit();
+    }
+
+    get via() {
+        if (this.session == undefined || !this.session.isSecure) {
+            return this.channel.name; // already formatted as "via"
+        }
+
+        return Diagnostic.via(`${(this.session as SecureSession).peerAddress.toString()}#${this.session.id}`);
     }
 }

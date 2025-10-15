@@ -7,11 +7,13 @@ import { Subject } from "#action/server/Subject.js";
 import { Message } from "#codec/MessageCodec.js";
 import { Fabric } from "#fabric/Fabric.js";
 import { MatterFlowError } from "#general";
+import { PeerAddress } from "#peer/PeerAddress.js";
 import { Session } from "./Session.js";
 
 export abstract class SecureSession extends Session {
     readonly isSecure = true;
     abstract fabric: Fabric | undefined;
+    abstract peerAddress: PeerAddress;
     abstract subjectFor(message?: Message): Subject;
 }
 

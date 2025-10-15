@@ -5,10 +5,11 @@
  */
 
 import { Noc } from "#certificate/kinds/Noc.js";
-import { Bytes, Crypto, CryptoDecryptError, Logger, PublicKey, UnexpectedDataError } from "#general";
+import { Bytes, Crypto, CryptoDecryptError, Diagnostic, Logger, PublicKey, UnexpectedDataError } from "#general";
+import { NodeSession } from "#session/NodeSession.js";
 import { SessionParametersWithDurations } from "#session/pase/PaseMessages.js";
 import { ResumptionRecord, SessionManager } from "#session/SessionManager.js";
-import { NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "#types";
+import { SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "#types";
 import { FabricManager, FabricNotFoundError } from "../../fabric/FabricManager.js";
 import { MessageExchange } from "../../protocol/MessageExchange.js";
 import { ProtocolHandler } from "../../protocol/ProtocolHandler.js";
@@ -64,7 +65,7 @@ export class CaseServer implements ProtocolHandler {
     }
 
     async #handleSigma1(messenger: CaseServerMessenger) {
-        logger.info(`Received pairing request from ${messenger.channelName}`);
+        logger.info("Received pairing request «", Diagnostic.via(messenger.channelName));
 
         // Initialize context with information from peer
         const { sigma1Bytes, sigma1 } = await messenger.readSigma1();
@@ -86,9 +87,12 @@ export class CaseServer implements ProtocolHandler {
         }
 
         logger.info(
-            `Invalid resumption ID or resume MIC received from ${messenger.channelName}`,
-            context.peerResumptionId,
-            context.peerResumeMic,
+            "Invalid resumption ID or resume MIC received from",
+            messenger.channelName,
+            Diagnostic.dict({
+                resumptionId: context.peerResumptionId,
+                resumeMic: context.peerResumeMic,
+            }),
         );
 
         throw new UnexpectedDataError("Invalid resumption ID or resume MIC.");
@@ -152,13 +156,8 @@ export class CaseServer implements ProtocolHandler {
             throw error;
         }
 
-        logger.info(
-            `Session ${secureSession.id} resumed with ${cx.messenger.channelName} for Fabric ${NodeId.toHexString(
-                fabric.nodeId,
-            )} (index ${fabric.fabricIndex}) and PeerNode ${NodeId.toHexString(peerNodeId)}`,
-            "with CATs",
-            caseAuthenticatedTags,
-        );
+        NodeSession.logNew(logger, "Resumed", secureSession, cx.messenger, fabric, peerNodeId);
+
         cx.resumptionRecord.resumptionId = cx.localResumptionId; /* Update the ID */
 
         // Wait for success on the peer side
@@ -274,13 +273,9 @@ export class CaseServer implements ProtocolHandler {
             peerSessionParameters: cx.peerSessionParams,
             caseAuthenticatedTags,
         });
-        logger.info(
-            `Session ${secureSession.id} created with ${cx.messenger.channelName} for Fabric ${NodeId.toHexString(
-                fabric.nodeId,
-            )} (index ${fabric.fabricIndex}) and PeerNode ${NodeId.toHexString(peerNodeId)}`,
-            "with CATs",
-            caseAuthenticatedTags,
-        );
+
+        NodeSession.logNew(logger, "New", secureSession, cx.messenger, fabric, peerNodeId);
+
         await cx.messenger.sendSuccess();
 
         const resumptionRecord = {
