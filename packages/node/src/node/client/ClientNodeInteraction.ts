@@ -7,10 +7,11 @@
 import type { ActionContext } from "#behavior/context/ActionContext.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import type { ClientNode } from "#node/ClientNode.js";
-import type {
+import {
+    ClientInteraction,
+    ClientInvoke,
+    DecodedInvokeResult,
     Interactable,
-    InvokeRequest,
-    InvokeResult,
     Read,
     ReadResult,
     Subscribe,
@@ -18,7 +19,6 @@ import type {
     Write,
     WriteResult,
 } from "#protocol";
-import { ClientInteraction } from "#protocol";
 import { ClientEndpointInitializer } from "./ClientEndpointInitializer.js";
 
 /**
@@ -31,6 +31,12 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
         this.#node = node;
     }
 
+    /**
+     * Read chosen attributes remotely from the node. Known data versions are automatically injected into the request to
+     * optimize the read.
+     * Therefore, the returned data only contains attributes that have changed since the last read or subscription.
+     * TODO: Allow control of data version injection and enrich response with attribute data missing in response due to data versioning.
+     */
     async *read(request: Read, context?: ActionContext): ReadResult {
         request = this.structure.injectVersionFilters(request);
         const interaction = await this.#connect();
@@ -38,6 +44,10 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
         yield* this.structure.mutate(request, response);
     }
 
+    /**
+     * Subscribe to chosen attributes remotely from the node. Data are automatically updated in the storage and not
+     * returned. The subscription response message with the subscription id and the maxInterval is returned.
+     */
     async subscribe(request: Subscribe, context?: ActionContext): SubscribeResult {
         const intermediateRequest: Subscribe = {
             ...this.structure.injectVersionFilters(request),
@@ -67,11 +77,15 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
         this.#node.env.get(ClientInteraction).cancelSubscription(id);
     }
 
+    /**
+     * Write chosen attributes remotely to the node.
+     * The returned attribute write status information is returned.
+     */
     async write<T extends Write>(request: T, context?: ActionContext): WriteResult<T> {
         return (await this.#connect()).write(request, context);
     }
 
-    async *invoke(request: InvokeRequest, context?: ActionContext): InvokeResult {
+    async *invoke(request: ClientInvoke, context?: ActionContext): DecodedInvokeResult {
         yield* (await this.#connect()).invoke(request, context);
     }
 
