@@ -504,7 +504,6 @@ export class CommissioningController {
      */
     setStorage(storage: StorageContext<SyncStorage>) {
         this.#storage = storage;
-        this.#environment = undefined;
     }
 
     /** Returns true if t least one node is commissioned/paired with this controller instance. */
@@ -621,7 +620,6 @@ export class CommissioningController {
             this.setMdnsBroadcaster(mdnsService.broadcaster);
             this.setMdnsScanner(mdnsService.scanner);
 
-            this.#environment = env;
             const runtime = env.runtime;
             runtime.add(this);
         }
