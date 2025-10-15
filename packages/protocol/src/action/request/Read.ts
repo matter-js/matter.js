@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize } from "#general";
-import { FALLBACK_INTERACTIONMODEL_REVISION } from "#session/Session.js";
-import type {
+import { camelize, Diagnostic } from "#general";
+import { Specification } from "#model";
+import {
     AttributePath,
     ClusterType,
     DataVersionFilter,
@@ -16,7 +16,7 @@ import type {
     ReadRequest,
 } from "#types";
 import { MalformedRequestError } from "./MalformedRequestError.js";
-import { Specifier } from "./Specifier.js";
+import { resolvePathForSpecifier, Specifier } from "./Specifier.js";
 
 /**
  * A read request formulated using Matter protocol semantics.
@@ -47,10 +47,30 @@ export function Read(optionsOrSelector: Read.Options | Read.Selector, ...selecto
     }
     let { attributes: attributeRequests, versionFilters, events: eventRequests, eventFilters } = options;
 
-    const result: Read = {
+    const result = {
         isFabricFiltered: options.fabricFilter ?? true,
-        interactionModelRevision: options.interactionModelRevision ?? FALLBACK_INTERACTIONMODEL_REVISION,
-    };
+        interactionModelRevision: options.interactionModelRevision ?? Specification.INTERACTION_MODEL_REVISION,
+        [Diagnostic.value]: () =>
+            Diagnostic.dict({
+                attributes: attributeRequests?.length
+                    ? attributeRequests?.map(path => resolvePathForSpecifier(path)).join(", ")
+                    : undefined,
+                events: eventRequests?.length
+                    ? eventRequests?.map(path => resolvePathForSpecifier(path)).join(", ")
+                    : undefined,
+                dataVersionFilters: versionFilters?.length
+                    ? versionFilters
+                          .map(
+                              ({ path: { endpointId, clusterId }, dataVersion }) =>
+                                  `${endpointId}/${clusterId}=${dataVersion}`,
+                          )
+                          .join(", ")
+                    : undefined,
+                eventFilters: eventFilters?.length
+                    ? eventFilters.map(({ nodeId, eventMin }) => `${nodeId}=${eventMin}`).join(", ")
+                    : undefined,
+            }),
+    } as Read;
 
     for (const selector of selectors) {
         reifySelector(selector);
