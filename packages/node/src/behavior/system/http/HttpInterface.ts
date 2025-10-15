@@ -292,11 +292,7 @@ function logError(request: Request, response: Response, error: unknown) {
     if (response.status >= 500 && response.status < 600) {
         logger.error(diagnosticHeaderFor(request, response), error);
     } else if (error instanceof MatterError) {
-        logger.error(
-            diagnosticHeaderFor(request, response),
-            Diagnostic.squash("[", Diagnostic.strong(error.id), "]"),
-            error.message,
-        );
+        logger.error(diagnosticHeaderFor(request, response), Diagnostic.errorMessage(error), error.message);
     } else {
         logger.warn(diagnosticHeaderFor(request, response), asError(error).message);
     }

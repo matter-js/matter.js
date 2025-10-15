@@ -58,10 +58,7 @@ function assertExpectedText(
         }
 
         function expectMessage(text: string, indents = 0) {
-            let prefix = " ".repeat(indents * 2);
-            if (ansi) {
-                prefix += "\x1b\\[(?:0;)?31m";
-            }
+            const prefix = " ".repeat(indents * 2);
             expect(current).match(new RegExp(`${prefix}${text}`));
             next();
         }
@@ -91,11 +88,11 @@ function assertExpectedText(
         stackShouldTruncate = truncatedStack !== false;
         expectMessage(`Caused by: ${errorId("aggregate")}some details`);
         expectStack();
-        expectMessage("Cause #0: a problem", 1);
+        expectMessage(`${ansi ? "\u001b\\[0m" : ""}Cause #0: ${ansi ? "\u001b\\[31m" : ""}a problem`, 1);
         expectStack(1);
-        expectMessage(`Caused by: ${errorId("special")}your mom`, 1);
+        expectMessage(`${ansi ? "\u001b\\[0m" : ""}Caused by: ${errorId("special")}your mom`, 1);
         expectStack(1);
-        expectMessage(`Cause #1: ${errorId("another-problem")}another problem`, 1);
+        expectMessage(`${ansi ? "\u001b\\[0m" : ""}Cause #1: ${errorId("another-problem")}another problem`, 1);
         expectStack(1, true);
         expect(current).undefined;
     } catch (e) {
@@ -109,7 +106,7 @@ function assertExpectedText(
             return "";
         }
         if (ansi) {
-            return `\\[\u001b\\[1m${text}\u001b\\[0;31m\\] `;
+            return `\u001b\\[31m\\[\u001b\\[1m${text}\u001b\\[0;31m\\] `;
         }
         return `\\[${text}\\] `;
     }
