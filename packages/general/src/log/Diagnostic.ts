@@ -239,8 +239,33 @@ export namespace Diagnostic {
     /**
      * Create a Diagnostic for an error.
      */
-    export function error(error: any) {
+    export function error(error: unknown) {
         return formatError(error);
+    }
+
+    /**
+     * Create a diagnostic for error messages that may have a code.
+     *
+     * Useful for errors when we don't want to present the stack trace.
+     */
+    export function errorMessage({ id, message, path }: { id?: string; message: string; path?: unknown }): unknown {
+        if (id === undefined && path === undefined) {
+            return Diagnostic("error", message);
+        }
+
+        const diagnostic = Array<unknown>();
+
+        if (id) {
+            diagnostic.push(Diagnostic.squash("[", Diagnostic.strong(id), "]"));
+        }
+
+        if (path) {
+            diagnostic.push(Diagnostic.squash(path, ":"));
+        }
+
+        diagnostic.push(message);
+
+        return Diagnostic("error", diagnostic);
     }
 
     /**
@@ -492,23 +517,16 @@ function formatError(error: unknown, options: { messagePrefix?: string; parentSt
 
     const messageAndStack = Diagnostic.messageAndStackFor(error, parentStack);
     let { stack, stackLines } = messageAndStack;
-    const { id, path } = messageAndStack;
 
     let { message } = messageAndStack;
 
     const messageDiagnostic = Array<unknown>();
     if (messagePrefix) {
-        messageDiagnostic.push(messagePrefix, " ");
+        messageDiagnostic.push(messagePrefix);
     }
-    if (id) {
-        messageDiagnostic.push("[", Diagnostic.strong(id), "] ");
-    }
-    if (path) {
-        messageDiagnostic.push(" ", path, ": ");
-    }
-    messageDiagnostic.push(message);
+    messageDiagnostic.push(Diagnostic.errorMessage(messageAndStack));
 
-    message = Diagnostic.upgrade(message, Diagnostic("error", Diagnostic.squash(...messageDiagnostic)));
+    message = Diagnostic.upgrade(message, messageDiagnostic);
 
     let cause, errors, secondary;
     if (typeof error === "object" && error !== null) {

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ImplementationError } from "#MatterError.js";
 import { Console } from "#log/Console.js";
 import { Diagnostic } from "#log/Diagnostic.js";
 import { LogDestination } from "#log/LogDestination.js";
@@ -101,14 +102,14 @@ describe("Logger", () => {
     describe("debug", () => {
         it("logs a message if level is debug", () => {
             const result = logTestLine();
-            expect(result?.level).equal(LogLevel.DEBUG);
-            expect(result?.message).equal("xxxx-xx-xx xx:xx:xx.xxx DEBUG UnitTest test");
+            expect(result.level).equal(LogLevel.DEBUG);
+            expect(result.message).equal("xxxx-xx-xx xx:xx:xx.xxx DEBUG UnitTest test");
         });
 
         it("logs a func-message if level is debug", () => {
             const result = logTestLineFunc();
-            expect(result?.level).equal(LogLevel.DEBUG);
-            expect(result?.message).equal("xxxx-xx-xx xx:xx:xx.xxx DEBUG UnitTest test");
+            expect(result.level).equal(LogLevel.DEBUG);
+            expect(result.message).equal("xxxx-xx-xx xx:xx:xx.xxx DEBUG UnitTest test");
             expect(loggerFuncCalled).ok;
         });
 
@@ -136,7 +137,7 @@ describe("Logger", () => {
                 method: "info",
             });
 
-            expect(result?.level).equal(LogLevel.INFO);
+            expect(result.level).equal(LogLevel.INFO);
         });
 
         it("doesn't log a message if level is above info", () => {
@@ -155,7 +156,7 @@ describe("Logger", () => {
                 method: "warn",
             });
 
-            expect(result?.level).equal(LogLevel.WARN);
+            expect(result.level).equal(LogLevel.WARN);
         });
 
         it("doesn't log a message if level is above warn", () => {
@@ -174,7 +175,7 @@ describe("Logger", () => {
                 method: "error",
             });
 
-            expect(result?.level).equal(LogLevel.ERROR);
+            expect(result.level).equal(LogLevel.ERROR);
         });
 
         it("doesn't log a message if level is above error", () => {
@@ -193,7 +194,7 @@ describe("Logger", () => {
                 method: "fatal",
             });
 
-            expect(result?.level).equal(LogLevel.FATAL);
+            expect(result.level).equal(LogLevel.FATAL);
         });
     });
 
@@ -208,7 +209,7 @@ describe("Logger", () => {
                 destination: "second",
             });
 
-            expect(result?.level).equal(LogLevel.INFO);
+            expect(result.level).equal(LogLevel.INFO);
         });
 
         it("doesn't log a message if level is above info", () => {
@@ -260,13 +261,13 @@ describe("Logger", () => {
         it("formats lines correctly", () => {
             const result = logTestLine();
 
-            expect(result?.message).equal("xxxx-xx-xx xx:xx:xx.xxx DEBUG UnitTest test");
+            expect(result.message).equal("xxxx-xx-xx xx:xx:xx.xxx DEBUG UnitTest test");
         });
 
         it("formats keys correctly", () => {
             const result = logTestDict();
 
-            expect(result?.message).equal("xxxx-xx-xx xx:xx:xx.xxx DEBUG UnitTest dict test foo: bar biz: 1");
+            expect(result.message).equal("xxxx-xx-xx xx:xx:xx.xxx DEBUG UnitTest dict test foo: bar biz: 1");
         });
 
         it("accepts multiple values", () => {
@@ -274,7 +275,7 @@ describe("Logger", () => {
                 logger.debug("value1", "value2");
             });
 
-            expect(result?.message).equal("xxxx-xx-xx xx:xx:xx.xxx DEBUG UnitTest value1 value2");
+            expect(result.message).equal("xxxx-xx-xx xx:xx:xx.xxx DEBUG UnitTest value1 value2");
         });
 
         it("converts ByteArray to hex strings", () => {
@@ -282,7 +283,7 @@ describe("Logger", () => {
                 logger.debug(Bytes.fromHex("00deadbeef"));
             });
 
-            expect(result?.message).equal("xxxx-xx-xx xx:xx:xx.xxx DEBUG UnitTest 00deadbeef");
+            expect(result.message).equal("xxxx-xx-xx xx:xx:xx.xxx DEBUG UnitTest 00deadbeef");
         });
 
         it("handles undefined and null correctly", () => {
@@ -290,7 +291,7 @@ describe("Logger", () => {
                 logger.debug(undefined, null);
             });
 
-            expect(result?.message).equal("xxxx-xx-xx xx:xx:xx.xxx DEBUG UnitTest undefined null");
+            expect(result.message).equal("xxxx-xx-xx xx:xx:xx.xxx DEBUG UnitTest undefined null");
         });
 
         it("accepts custom formatters", () => {
@@ -302,7 +303,7 @@ describe("Logger", () => {
                 logger.debug("test");
             });
 
-            expect(result?.message).equal("test");
+            expect(result.message).equal("test");
         });
 
         it("logs error stack traces", () => {
@@ -310,7 +311,7 @@ describe("Logger", () => {
                 logger.error("Uh", new Error("oh"));
             });
 
-            const lines = `${result?.message}`.split("\n");
+            const lines = `${result.message}`.split("\n");
             expect(lines.length > 1).ok;
             expect(lines[0]).equal("xxxx-xx-xx xx:xx:xx.xxx ERROR UnitTest Uh oh");
         });
@@ -322,14 +323,14 @@ describe("Logger", () => {
                 logger.error("Uh", error);
             });
 
-            expect(result?.message).equal("xxxx-xx-xx xx:xx:xx.xxx ERROR UnitTest Uh oh");
+            expect(result.message).equal("xxxx-xx-xx xx:xx:xx.xxx ERROR UnitTest Uh oh");
         });
 
         it("emphasizes", () => {
             const result = captureOne(() => {
                 logger.error("THIS IS", Diagnostic.strong("VERY"), "IMPORTANT");
             });
-            expect(result?.message).equals("xxxx-xx-xx xx:xx:xx.xxx ERROR UnitTest THIS IS VERY IMPORTANT");
+            expect(result.message).equals("xxxx-xx-xx xx:xx:xx.xxx ERROR UnitTest THIS IS VERY IMPORTANT");
         });
     });
 
@@ -337,7 +338,7 @@ describe("Logger", () => {
         it("format lines correctly", () => {
             const result = logTestLine({ format: LogFormat.ANSI });
 
-            expect(result?.message).equal(
+            expect(result.message).equal(
                 "\u001b[2mxxxx-xx-xx xx:xx:xx.xxx DEBUG  \u001b[0;1;90mUnitTest             \u001b[0;90mtest\u001b[0m",
             );
         });
@@ -345,7 +346,7 @@ describe("Logger", () => {
         it("formats keys correctly", () => {
             const result = logTestDict({ method: "notice", format: LogFormat.ANSI });
 
-            expect(result?.message).equal(
+            expect(result.message).equal(
                 "\u001b[2mxxxx-xx-xx xx:xx:xx.xxx NOTICE \u001b[0;1;90mUnitTest             \u001b[0;32mdict test \u001b[34mfoo: \u001b[2;39mbar \u001b[0;34mbiz: \u001b[2;39m1\u001b[0m",
             );
         });
@@ -357,7 +358,7 @@ describe("Logger", () => {
                 logger.debug("test");
             });
 
-            expect(result?.message).equal(
+            expect(result.message).equal(
                 "\u001b[2mxxxx-xx-xx xx:xx:xx.xxx DEBUG  \u001b[0;1;90mThisIsAFac~yLongName \u001b[0;90mtest\u001b[0m",
             );
         });
@@ -368,7 +369,7 @@ describe("Logger", () => {
                 logger.notice("THIS IS", Diagnostic.strong("VERY"), "IMPORTANT");
             });
 
-            expect(result?.message).equals(
+            expect(result.message).equals(
                 "\u001b[2mxxxx-xx-xx xx:xx:xx.xxx NOTICE \u001b[0;1;90mUnitTest             \u001b[0;32mTHIS IS \u001b[1mVERY \u001b[0;32mIMPORTANT\u001b[0m",
             );
         });
@@ -390,8 +391,21 @@ describe("Logger", () => {
                 );
             });
 
-            expect(result?.message).equals(
+            expect(result.message).equals(
                 "\u001b[2mxxxx-xx-xx xx:xx:xx.xxx INFO   \u001b[0;1;90mUnitTest             \u001b[0mstart same line\n  next line\n  and more \n  and more\n    indented\n    next line\n      indented deeper\n      and more\n    up again\n      and down\n  and all the way up\u001b[0m",
+            );
+        });
+
+        it("formats errors correctly", () => {
+            const result = captureOne(() => {
+                Logger.format = LogFormat.ANSI;
+                logger.error("Oops:", new ImplementationError("Hmm you bad at this"));
+            });
+
+            const lines = `${result.message}`.split("\n");
+            expect(lines.length > 1).ok;
+            expect(lines[0]).equal(
+                "\u001b[2mxxxx-xx-xx xx:xx:xx.xxx ERROR  \u001b[0;1;90mUnitTest             \u001b[0;31mOops: [\u001b[1mimplementation\u001b[0;31m] Hmm you bad at this",
             );
         });
     });
@@ -400,7 +414,7 @@ describe("Logger", () => {
         it("formats lines correctly", () => {
             const result = logTestLine({ format: LogFormat.HTML });
 
-            expect(result?.message).equal(
+            expect(result.message).equal(
                 '<span class="matter-log-line debug"><span class="matter-log-time">xxxx-xx-xx xx:xx:xx.xxx</span> <span class="matter-log-level">DEBUG</span> <span class="matter-log-facility">UnitTest</span> test</span>',
             );
         });
@@ -408,7 +422,7 @@ describe("Logger", () => {
         it("formats keys correctly", () => {
             const result = logTestDict({ format: LogFormat.HTML });
 
-            expect(result?.message).equal(
+            expect(result.message).equal(
                 '<span class="matter-log-line debug"><span class="matter-log-time">xxxx-xx-xx xx:xx:xx.xxx</span> <span class="matter-log-level">DEBUG</span> <span class="matter-log-facility">UnitTest</span> dict test <span class="matter-log-key">foo:</span> <span class="matter-log-value">bar</span> <span class="matter-log-key">biz:</span> <span class="matter-log-value">1</span></span>',
             );
         });
@@ -418,7 +432,7 @@ describe("Logger", () => {
                 Logger.format = LogFormat.HTML;
                 logger.fatal("THIS IS", Diagnostic.strong("VERY"), "IMPORTANT");
             });
-            expect(result?.message).equals(
+            expect(result.message).equals(
                 '<span class="matter-log-line fatal"><span class="matter-log-time">xxxx-xx-xx xx:xx:xx.xxx</span> <span class="matter-log-level">FATAL</span> <span class="matter-log-facility">UnitTest</span> THIS IS <em>VERY</em> IMPORTANT</span>',
             );
         });
@@ -486,7 +500,7 @@ describe("Logger", () => {
                 logger.notice("Not defined:", Diagnostic.strong(undefined));
             });
 
-            expect(result?.message).equals(
+            expect(result.message).equals(
                 "\u001b[2mxxxx-xx-xx xx:xx:xx.xxx NOTICE \u001b[0;1;90mUnitTest             \u001b[0;32mNot defined: \u001b[1mundefined\u001b[0m",
             );
         });
@@ -497,7 +511,7 @@ describe("Logger", () => {
                 logger.notice("Not defined:", Diagnostic.strong(null));
             });
 
-            expect(result?.message).equals(
+            expect(result.message).equals(
                 "\u001b[2mxxxx-xx-xx xx:xx:xx.xxx NOTICE \u001b[0;1;90mUnitTest             \u001b[0;32mNot defined: \u001b[1mnull\u001b[0m",
             );
         });
@@ -508,7 +522,7 @@ describe("Logger", () => {
                 logger.notice("Not defined:", Diagnostic.strong(0));
             });
 
-            expect(result?.message).equals(
+            expect(result.message).equals(
                 "\u001b[2mxxxx-xx-xx xx:xx:xx.xxx NOTICE \u001b[0;1;90mUnitTest             \u001b[0;32mNot defined: \u001b[1m0\u001b[0m",
             );
         });
@@ -519,7 +533,7 @@ describe("Logger", () => {
                 logger.notice("Object:", {});
             });
 
-            expect(result?.message).equals(
+            expect(result.message).equals(
                 "\u001b[2mxxxx-xx-xx xx:xx:xx.xxx NOTICE \u001b[0;1;90mUnitTest             \u001b[0;32mObject: {}\u001b[0m",
             );
         });
@@ -530,7 +544,7 @@ describe("Logger", () => {
                 logger.notice("Object:", { [Diagnostic.presentation]: "strong" });
             });
 
-            expect(result?.message).equals(
+            expect(result.message).equals(
                 "\u001b[2mxxxx-xx-xx xx:xx:xx.xxx NOTICE \u001b[0;1;90mUnitTest             \u001b[0;32mObject: \u001b[1m{}\u001b[0m",
             );
         });

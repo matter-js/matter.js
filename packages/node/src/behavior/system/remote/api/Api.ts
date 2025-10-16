@@ -75,8 +75,7 @@ export namespace Api {
         let level: "error" | "info";
         switch (response.kind) {
             case "error":
-                message.push(Diagnostic.squash("[", Diagnostic.strong(response.code), "]"));
-                message.push(response.message);
+                message.push(Diagnostic.errorMessage({ id: response.code, message: response.message }));
                 level = "error";
                 break;
 
