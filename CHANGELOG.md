@@ -9,7 +9,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
-# __WORK IN PROGRESS__
+# 0.15.6 (2025-10-16)
 
 -   @matter/general
     - Fix: Ensures services are not removed from parents when they are removed locally
