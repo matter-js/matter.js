@@ -97,7 +97,7 @@ export namespace Specifier {
           ? CMD
           : never;
 
-    export function commandOf<const C extends ClusterType, const CMD extends Specifier.Command<C>>(
+    export function commandFor<const C extends ClusterType, const CMD extends Specifier.Command<C>>(
         cluster: C | undefined,
         specifier: CMD,
     ): CommandFor<C, CMD> {
@@ -189,7 +189,7 @@ export function resolvePathForSpecifier<const C extends ClusterType>(location: {
     const cluster = location.cluster ? Specifier.clusterFor(location.cluster) : undefined;
     const attribute = location.attribute && cluster ? Specifier.attributeFor(cluster, location.attribute) : undefined;
     const event = location.event && cluster ? Specifier.eventFor(cluster, location.event) : undefined;
-    const command = location.command && cluster ? Specifier.commandOf(cluster, location.command) : undefined;
+    const command = location.command && cluster ? Specifier.commandFor(cluster, location.command) : undefined;
     const isUrgentString = "isUrgent" in location && location.isUrgent ? "!" : "";
     const listIndexString = "listIndex" in location && location.listIndex === null ? "[ADD]" : "";
     const postString = `${listIndexString}${isUrgentString}`;

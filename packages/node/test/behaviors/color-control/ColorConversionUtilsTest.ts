@@ -14,7 +14,7 @@ describe("ColorConversionUtils", () => {
         expect(b * 255).to.be.closeTo(0, 0.5);
         const [h, s] = rgbToHsv(r, g, b);
         expect(h).to.be.closeTo(0, 0.5);
-        expect(s).to.be.closeTo(1, 0.5);
+        expect(s).to.be.closeTo(1, 0.05);
 
         const [r2, g2, b2] = hsvToRgb(120, 1);
         expect(r2 * 255).to.be.closeTo(0, 0.5);
@@ -22,7 +22,7 @@ describe("ColorConversionUtils", () => {
         expect(b2 * 255).to.be.closeTo(0, 0.5);
         const [h2, s2] = rgbToHsv(r2, g2, b2);
         expect(h2).to.be.closeTo(120, 0.5);
-        expect(s2).to.be.closeTo(1, 0.5);
+        expect(s2).to.be.closeTo(1, 0.05);
 
         const [r3, g3, b3] = hsvToRgb(240, 1);
         expect(r3 * 255).to.be.closeTo(0, 0.5);
@@ -30,7 +30,7 @@ describe("ColorConversionUtils", () => {
         expect(b3 * 255).to.be.closeTo(255, 0.5);
         const [h3, s3] = rgbToHsv(r3, g3, b3);
         expect(h3).to.be.closeTo(240, 0.5);
-        expect(s3).to.be.closeTo(1, 0.5);
+        expect(s3).to.be.closeTo(1, 0.05);
 
         const [r4, g4, b4] = hsvToRgb(317, 1);
         expect(r4 * 255).to.be.closeTo(255, 0.5);
@@ -38,7 +38,7 @@ describe("ColorConversionUtils", () => {
         expect(b4 * 255).to.be.closeTo(183, 0.5);
         const [h4, s4] = rgbToHsv(r4, g4, b4);
         expect(h4).to.be.closeTo(317, 0.5);
-        expect(s4).to.be.closeTo(1, 0.5);
+        expect(s4).to.be.closeTo(1, 0.05);
 
         const [r5, g5, b5] = hsvToRgb(152, 1);
         expect(r5 * 255).to.be.closeTo(0, 0.5);
@@ -46,7 +46,7 @@ describe("ColorConversionUtils", () => {
         expect(b5 * 255).to.be.closeTo(136, 0.5);
         const [h5, s5] = rgbToHsv(r5, g5, b5);
         expect(h5).to.be.closeTo(152, 0.5);
-        expect(s5).to.be.closeTo(1, 0.5);
+        expect(s5).to.be.closeTo(1, 0.05);
 
         const [r6, g6, b6] = hsvToRgb(123, 0.5);
         expect(r6 * 255).to.be.closeTo(128, 0.5);
@@ -54,15 +54,23 @@ describe("ColorConversionUtils", () => {
         expect(b6 * 255).to.be.closeTo(134, 0.5);
         const [h6, s6] = rgbToHsv(r6, g6, b6);
         expect(h6).to.be.closeTo(123, 0.5);
-        expect(s6).to.be.closeTo(0.5, 0.5);
+        expect(s6).to.be.closeTo(0.5, 0.05);
 
         const [r7, g7, b7] = hsvToRgb(123, 0);
         expect(r7 * 255).to.be.closeTo(255, 0.5);
         expect(g7 * 255).to.be.closeTo(255, 0.5);
         expect(b7 * 255).to.be.closeTo(255, 0.5);
         const [h7, s7] = rgbToHsv(r7, g7, b7);
-        expect(h7).to.be.closeTo(0, 0);
-        expect(s7).to.be.closeTo(0, 0.5);
+        expect(h7).to.be.closeTo(0, 0); // oK because saturation of 0 means no color
+        expect(s7).to.be.closeTo(0, 0.05);
+
+        const [r8, g8, b8] = hsvToRgb(42, 1);
+        expect(r8 * 255).to.be.closeTo(255, 0.5);
+        expect(g8 * 255).to.be.closeTo(179, 0.5);
+        expect(b8 * 255).to.be.closeTo(0, 0.5);
+        const [h8, s8] = rgbToHsv(r8, g8, b8);
+        expect(h8).to.be.closeTo(42, 0.5);
+        expect(s8).to.be.closeTo(1, 0.05);
     });
 
     it("converts xy to rgb and back", () => {

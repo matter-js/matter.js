@@ -46,6 +46,7 @@ import {
     DEFAULT_MAX_PATHS_PER_INVOKE,
     INTERACTION_PROTOCOL_ID,
     ReceivedStatusResponseError,
+    Status,
     StatusCode,
     StatusResponseError,
     TlvAny,
@@ -454,7 +455,9 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             throw new StatusResponseError("No attributes or events requested", StatusCode.InvalidAction);
         }
 
-        logger.debug(() =>
+        logger.debug(() => [
+            "Subscribe request details «",
+            exchange.via,
             Diagnostic.dict({
                 attributes: attributeRequests?.length
                     ? attributeRequests?.map(path => this.#node.protocol.inspectPath(path)).join(", ")
@@ -474,7 +477,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                     ? eventFilters.map(filter => `${filter.nodeId}/${filter.eventMin}`).join(", ")
                     : undefined,
             }),
-        );
+        ]);
 
         // Validate of the paths before proceeding
         attributeRequests?.forEach(path => validateReadAttributesPath(path));
@@ -519,7 +522,14 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 error instanceof MatterError ? error.message : error,
             );
             if (error instanceof StatusResponseError && !(error instanceof ReceivedStatusResponseError)) {
-                logger.info(`Status response » ${error.code} for interaction error: ${error.message}`);
+                logger.info(
+                    "Status",
+                    Diagnostic.strong(`${Status[error.code]}(${error.code})`),
+                    "»",
+                    exchange.via,
+                    "Error:",
+                    Diagnostic.errorMessage(error),
+                );
                 await messenger.sendStatus(error.code, {
                     logContext: {
                         for: "I/SubscriptionSeed-Status",
@@ -629,7 +639,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         const message = {} as Message;
 
         logger.info(
-            `Re-Establish subscription »`,
+            `Reestablish subscription »`,
             exchange.via,
             Diagnostic.dict({
                 subId: subscriptionId,
@@ -672,7 +682,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             subscription.activate();
 
             logger.info(
-                `Subscription successfully re-established »`,
+                `Subscription successfully reestablished »`,
                 exchange.via,
                 Diagnostic.dict({
                     subId: subscriptionId,
