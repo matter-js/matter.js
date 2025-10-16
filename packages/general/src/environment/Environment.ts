@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "#MatterError.js";
 import { MaybePromise } from "#util/Promises.js";
 import { DiagnosticSource } from "../log/DiagnosticSource.js";
 import { Logger } from "../log/Logger.js";
@@ -31,7 +32,7 @@ const logger = Logger.get("Environment");
  * TODO - could remove global singletons by moving here
  */
 export class Environment {
-    #services?: Map<abstract new (...args: any[]) => any, Environmental.Service>;
+    #services?: Map<abstract new (...args: any[]) => any, Environmental.Service | null>;
     #name: string;
     #parent?: Environment;
     #added = Observable<[type: abstract new (...args: any[]) => {}, instance: {}]>();
@@ -47,22 +48,41 @@ export class Environment {
      * Determine if an environmental service is available.
      */
     has(type: abstract new (...args: any[]) => any): boolean {
-        return this.#services?.get(type) !== undefined || (this.#parent?.has(type) ?? false);
+        const mine = this.#services?.get(type);
+
+        if (mine === null) {
+            return false;
+        }
+
+        return mine !== undefined || (this.#parent?.has(type) ?? false);
     }
 
     /**
      * Access an environmental service.
      */
     get<T extends object>(type: abstract new (...args: any[]) => T): T {
-        let instance = this.#services?.get(type) ?? this.#parent?.maybeGet(type);
+        const mine = this.#services?.get(type);
 
-        if (instance) {
-            return instance as T;
+        if (mine !== undefined && mine !== null) {
+            return mine as T;
         }
 
+        // When null then we do not have it and also do not want to inherit from parent
+        if (mine === undefined) {
+            const instance = this.#parent?.maybeGet(type);
+            if (instance !== undefined && instance !== null) {
+                // Parent has it, use it
+                return instance;
+            }
+        }
+
+        // ... otherwise try to create it. The create method must install it in the environment if needed
         if ((type as Environmental.Factory<T>)[Environmental.create]) {
-            this.set(type, (instance = (type as any)[Environmental.create](this)));
-            return instance as T;
+            const instance = (type as any)[Environmental.create](this) as T;
+            if (!(instance instanceof type)) {
+                throw new InternalError(`Service creation did not produce instance of ${type.name}`);
+            }
+            return instance;
         }
 
         throw new UnsupportedDependencyError(`Required dependency ${type.name}`, "is not available");
@@ -84,17 +104,23 @@ export class Environment {
      * @param instance optional instance expected, if existing instance does not match it is not deleted
      */
     delete(type: abstract new (...args: any[]) => any, instance?: any) {
-        if (instance !== undefined && this.#services?.get(type) !== instance) {
+        const localInstance = this.#services?.get(type);
+
+        // Remove instance and replace by null to prevent inheritance from parent
+        this.#services?.set(type, null);
+
+        if (localInstance === undefined || localInstance === null) {
             return;
         }
-        this.#services?.delete(type);
-        this.#parent?.delete(type);
+        if (instance !== undefined && localInstance !== instance) {
+            return;
+        }
 
-        this.#deleted.emit(type, instance);
+        this.#deleted.emit(type, localInstance);
 
         const serviceEvents = this.#serviceEvents.get(type);
         if (serviceEvents) {
-            serviceEvents.deleted.emit(instance);
+            serviceEvents.deleted.emit(localInstance);
         }
     }
 
@@ -105,8 +131,8 @@ export class Environment {
         type: abstract new (...args: any[]) => T,
     ): T extends { close: () => MaybePromise<void> } ? MaybePromise<void> : void {
         const instance = this.maybeGet(type);
+        this.delete(type, instance); // delete and block inheritance
         if (instance !== undefined) {
-            this.delete(type, instance);
             return (instance as Partial<Destructable>).close?.() as T extends { close: () => MaybePromise<void> }
                 ? MaybePromise<void>
                 : void;

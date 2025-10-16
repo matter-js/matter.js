@@ -9,7 +9,7 @@ import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js
 import { Crypto, Observable } from "#general";
 import { ServerEndpointInitializer } from "#node/server/ServerEndpointInitializer.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { FabricManager, SessionManager } from "#protocol";
+import { FabricManager, OccurrenceManager, SessionManager } from "#protocol";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { IdentityService } from "./IdentityService.js";
 
@@ -50,6 +50,7 @@ export namespace ServerEnvironment {
 
         env.close(FabricManager);
         await env.close(SessionManager);
+        await env.close(OccurrenceManager);
         await env.close(ServerNodeStore);
     }
 }

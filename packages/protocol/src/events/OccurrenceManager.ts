@@ -271,8 +271,9 @@ export class OccurrenceManager {
         }
     }
 
+    // For ServerNode usage the ServerEnvironment takes care to close the OccurrenceManager
     close(): MaybePromise<void> {
-        MaybePromise.then(this.#cull, () => this.#store.close());
+        return MaybePromise.then(this.#cull, () => this.#store.close());
     }
 
     add(occurrence: Occurrence): MaybePromise<NumberedOccurrence> {

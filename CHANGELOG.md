@@ -9,6 +9,23 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+# __WORK IN PROGRESS__
+
+-   @matter/general
+    - Fix: Ensures services are not removed from parents when they are removed locally
+
+-   @matter/node
+    - Fix: Ensures OccurrenceManager is closed on node shutdown
+
+-   @matter/protocol
+    - Enhancement: Removes exchanges earlier when closing to prevent double session closures
+    - Enhancement: Ignores invoke responses that should be suppressed but delivered
+    - Fix: Fixes Fabric scoped event reads to ensure the filtering is applied correctly
+
+-   @project-chip/matter.js
+    - Fix: Initializes controller into an own environment instead using the provided environment
+    - Fix: Ensure that the PairedNode meta-data are updated and stored when changed
+
 ## 0.15.5 (2025-10-07)
 
 -   @matter/general
