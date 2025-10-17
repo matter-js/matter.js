@@ -81,7 +81,6 @@ export class StatusReportOnlySecureChannelProtocol implements ProtocolHandler {
         const { session } = exchange;
         SecureSession.assert(session);
         logger.debug(`Peer requested to close session ${session.name}. Remove session now.`);
-        // TODO: and do more - see Core Specs 5.5
         await session.destroy(false, false);
     }
 

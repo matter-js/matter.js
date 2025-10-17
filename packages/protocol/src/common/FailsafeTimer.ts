@@ -69,8 +69,16 @@ export class FailsafeTimer {
         }
     }
 
+    get armed() {
+        return this.#failsafeTimer.isRunning && this.#maxCumulativeFailsafeTimer.isRunning;
+    }
+
     /** Expire the FailSafe context. This is called by the timer and can also be called manually if needed. */
     async expire() {
+        if (!this.armed) {
+            // No timer is running so we are completed or already expired
+            return;
+        }
         this.complete();
         await this.#expiryCallback();
     }
