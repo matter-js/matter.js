@@ -3,7 +3,7 @@
  * Copyright 2022-2025 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { Environment, ImplementationError, Logger, Minutes, Network } from "#general";
+import { Environment, ImplementationError, Logger, Minutes } from "#general";
 import {
     CertificateAuthority,
     CommissionableDevice,
@@ -11,14 +11,12 @@ import {
     ControllerDiscovery,
     DiscoveryData,
     Fabric,
-    MdnsClient,
     MdnsService,
     Scanner,
 } from "#protocol";
 import { DiscoveryCapabilitiesBitmap, NodeId, TypeFromPartialBitSchema } from "#types";
 import {
     CommissioningControllerOptions,
-    configureNetwork as configureControllerNetwork,
     ControllerEnvironmentOptions,
     NodeCommissioningOptions,
 } from "./CommissioningController.js";
@@ -80,29 +78,17 @@ export class PaseCommissioner {
 
         const { certificateAuthorityConfig: rootCertificateData, fabricConfig: fabricConfig } = this.options;
 
-        let mdnsClient: MdnsClient | undefined;
-        let ipv4Disabled = false;
-
         try {
-            const mdnsService = await this.environment.load(MdnsService);
-            ipv4Disabled = !mdnsService.enableIpv4;
-            mdnsClient = mdnsService.client;
+            await this.environment.load(MdnsService);
         } catch {
             logger.debug("No networking available, using only BLE");
         }
 
-        const { scanners, netInterfaces } = await configureControllerNetwork({
-            network: this.environment.get(Network),
-            mdnsClient,
-            ipv4Disabled,
-            ...this.options,
-        });
-
         return await MatterController.createAsPaseCommissioner({
+            id: "PaseCommissioner", // In Memory anyway
+            environment: this.environment,
             certificateAuthorityConfig: rootCertificateData,
             fabricConfig: fabricConfig,
-            scanners,
-            transports: netInterfaces,
             adminFabricLabel: this.options.fabricConfig.label,
         });
     }

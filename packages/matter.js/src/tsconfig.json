@@ -1,5 +1,5 @@
 {
-    "extends": "../../../packages/tools/tsc/tsconfig.lib.json",
+    "extends": "../../tools/tsc/tsconfig.lib.json",
     "compilerOptions": {
         "types": [
             "@matter/tools",
