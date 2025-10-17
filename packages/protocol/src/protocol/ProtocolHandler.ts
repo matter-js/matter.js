@@ -11,8 +11,13 @@ export interface ProtocolHandler {
     /** Protocol ID that this handler implements */
     readonly id: number;
 
-    /** Indicates whether this protocol requires a secure session to be established before it can be used */
-    readonly requiresSecureSession: boolean;
+    /**
+     * Indicates whether this protocol requires a secure session to be established before it can be used.
+     * When `true`, the protocol can only be used over secure sessions.
+     * When `false`, the protocol can only be used without a secure session.
+     * When `undefined`, the protocol can be used with or without a secure session and it is up to the handler to check
+     */
+    readonly requiresSecureSession: boolean | undefined;
 
     /** Called on a new exchange that uses this protocol. The message is the first message of the exchange. */
     onNewExchange(exchange: MessageExchange, message: Message): Promise<void>;
