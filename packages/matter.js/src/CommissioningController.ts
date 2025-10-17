@@ -8,22 +8,19 @@ import { OperationalCredentials } from "#clusters";
 import { ControllerStore } from "#ControllerStore.js";
 import {
     ClassExtends,
-    ConnectionlessTransportSet,
     Crypto,
     Environment,
     ImplementationError,
     InternalError,
     Logger,
     Minutes,
-    Network,
-    NoAddressAvailableError,
     StorageContext,
-    UdpInterface,
     UnexpectedDataError,
 } from "#general";
 import { LegacyControllerStore } from "#LegacyControllerStore.js";
 import {
     Ble,
+    CertificateAuthority,
     CommissionableDevice,
     CommissionableDeviceIdentifiers,
     ControllerCommissioningFlow,
@@ -31,14 +28,10 @@ import {
     DecodedAttributeReportValue,
     DiscoveryAndCommissioningOptions,
     DiscoveryData,
+    Fabric,
     InteractionClient,
-    MdnsAdvertiser,
-    MdnsClient,
-    MdnsServer,
-    MdnsService,
     MessageChannel,
     NodeDiscoveryType,
-    ScannerSet,
 } from "#protocol";
 import {
     CaseAuthenticatedTag,
@@ -49,7 +42,6 @@ import {
     TypeFromPartialBitSchema,
     VendorId,
 } from "#types";
-import { CertificateAuthority, Fabric, MdnsScannerTargetCriteria } from "@matter/protocol";
 import { CommissioningControllerNodeOptions, NodeStates, PairedNode } from "./device/PairedNode.js";
 import { MatterController } from "./MatterController.js";
 
@@ -163,19 +155,15 @@ export class CommissioningController {
     readonly #listeningAddressIpv6?: string;
 
     readonly #options: CommissioningControllerOptions;
+    #id: string;
 
     #environment: Environment; // Set when new API was initialized correctly
     #storage?: StorageContext;
-
-    #mdnsClient?: MdnsClient;
-    #mdnsServer?: MdnsServer;
 
     #controllerInstance?: MatterController;
     readonly #initializedNodes = new Map<NodeId, PairedNode>();
     readonly #nodeUpdateLabelHandlers = new Map<NodeId, (nodeState: NodeStates) => Promise<void>>();
     readonly #sessionDisconnectedHandler = new Map<NodeId, () => Promise<void>>();
-
-    #mdnsTargetCriteria?: MdnsScannerTargetCriteria;
 
     /**
      * Creates a new CommissioningController instance
@@ -189,6 +177,7 @@ export class CommissioningController {
 
         const { environment, id } = options.environment;
         this.#environment = new Environment(id, environment);
+        this.#id = id;
 
         this.#options = options;
         this.#crypto = this.#environment.get(Crypto);
@@ -216,10 +205,10 @@ export class CommissioningController {
     }
 
     #assertDependencies() {
-        if (this.#mdnsClient === undefined || (this.#storage === undefined && this.#environment === undefined)) {
+        if (this.#storage === undefined && this.#environment === undefined) {
             throw new ImplementationError("Add the node to the Matter instance before.");
         }
-        return { mdnsClient: this.#mdnsClient, storage: this.#storage, environment: this.#environment };
+        return { storage: this.#storage, environment: this.#environment };
     }
 
     #assertControllerIsStarted(errorText?: string) {
@@ -248,7 +237,7 @@ export class CommissioningController {
             rootFabric,
         } = this.#options;
 
-        const { mdnsClient, storage, environment } = this.#assertDependencies();
+        const { storage, environment } = this.#assertDependencies();
 
         // Initialize the Storage in a compatible way for the legacy API and new style for new API
         // TODO: clean this up when we really implement ControllerNode/ClientNode concepts in new API
@@ -256,20 +245,9 @@ export class CommissioningController {
             ? environment.get(ControllerStore)
             : new LegacyControllerStore(storage!);
 
-        const { netInterfaces, scanners, port } = await configureNetwork({
-            network: environment?.maybeGet(Network) ?? Environment.default.get(Network),
-            ble: environment?.maybeGet(Ble) ?? Environment.default.maybeGet(Ble),
-            ipv4Disabled: this.#ipv4Disabled,
-            mdnsClient,
-            localPort,
-            listeningAddressIpv4: this.#listeningAddressIpv4,
-            listeningAddressIpv6: this.#listeningAddressIpv6,
-        });
-
         const controller = await MatterController.create({
+            id: this.#id,
             controllerStore,
-            scanners,
-            transports: netInterfaces,
             sessionClosedCallback: peerNodeId => {
                 logger.info(`Session for peer node ${peerNodeId} disconnected ...`);
                 const handler = this.#sessionDisconnectedHandler.get(peerNodeId);
@@ -285,9 +263,16 @@ export class CommissioningController {
             rootNodeId,
             rootCertificateAuthority,
             rootFabric,
+            ble: !!(environment?.maybeGet(Ble) ?? Environment.default.maybeGet(Ble)),
+            ipv4: !this.#ipv4Disabled,
+            listeningAddressIpv4: this.#listeningAddressIpv4,
+            listeningAddressIpv6: this.#listeningAddressIpv6,
+            localPort,
+            environment: this.#environment,
         });
-        if (this.#mdnsServer) {
-            controller.addAdvertiser(new MdnsAdvertiser(this.#crypto, this.#mdnsServer, { port }));
+
+        if (!controller.ble) {
+            logger.warn("BLE is not enabled on this platform");
         }
         return controller;
     }
@@ -486,26 +471,6 @@ export class CommissioningController {
         return Array.from(this.#initializedNodes.values());
     }
 
-    /**
-     * Set the MDNS Scanner instance. Should be only used internally
-     *
-     * @param mdnsServer MdnsScanner instance
-     * @private
-     */
-    setMdnsClient(mdnsServer: MdnsClient) {
-        this.#mdnsClient = mdnsServer;
-    }
-
-    /**
-     * Set the MDNS Broadcaster instance. Should be only used internally
-     *
-     * @param mdnsServer MdnsBroadcaster instance
-     * @private
-     */
-    setMdnsServer(mdnsServer: MdnsServer) {
-        this.#mdnsServer = mdnsServer;
-    }
-
     /** Returns true if t least one node is commissioned/paired with this controller instance. */
     isCommissioned() {
         const controller = this.#assertControllerIsStarted();
@@ -572,10 +537,6 @@ export class CommissioningController {
         }
         await this.#controllerInstance?.close();
 
-        if (this.#mdnsClient !== undefined && this.#mdnsTargetCriteria !== undefined) {
-            this.#mdnsClient.targetCriteriaProviders.delete(this.#mdnsTargetCriteria);
-        }
-
         this.#controllerInstance = undefined;
         this.#initializedNodes.clear();
         this.#ipv4Disabled = undefined;
@@ -622,12 +583,6 @@ export class CommissioningController {
                 await this.initializeControllerStore();
             }
 
-            // Load the MDNS service from the environment and set onto the controller
-            const mdnsService = await env.load(MdnsService);
-            this.#ipv4Disabled = !mdnsService.enableIpv4;
-            this.setMdnsServer(mdnsService.server);
-            this.setMdnsClient(mdnsService.client);
-
             this.#environment = env;
             const runtime = env.runtime;
             runtime.add(this);
@@ -638,17 +593,7 @@ export class CommissioningController {
             this.#controllerInstance = await this.#initializeController();
         }
 
-        this.#mdnsTargetCriteria = {
-            commissionable: true,
-            operationalTargets: [
-                {
-                    operationalId: this.#controllerInstance.fabricConfig.operationalId,
-                },
-            ],
-        };
-        this.#mdnsClient?.targetCriteriaProviders.add(this.#mdnsTargetCriteria);
-
-        this.#controllerInstance.announce();
+        await this.#controllerInstance.start();
         if (this.#options.autoConnect !== false && this.#controllerInstance.isCommissioned()) {
             await this.connect();
         }
@@ -795,55 +740,4 @@ export class CommissioningController {
         const controllerInstance = this.#assertControllerIsStarted();
         return controllerInstance.getFabrics()[0].groups;
     }
-}
-
-export async function configureNetwork(options: {
-    network: Network;
-    ble?: Ble;
-    ipv4Disabled?: boolean;
-    mdnsClient?: MdnsClient;
-    localPort?: number;
-    listeningAddressIpv6?: string;
-    listeningAddressIpv4?: string;
-}) {
-    const { network, ble, ipv4Disabled, mdnsClient, localPort, listeningAddressIpv6, listeningAddressIpv4 } = options;
-
-    const netInterfaces = new ConnectionlessTransportSet();
-    const scanners = new ScannerSet();
-
-    let udpInterface: UdpInterface;
-    try {
-        udpInterface = await UdpInterface.create(network, "udp6", localPort, listeningAddressIpv6);
-        netInterfaces.add(udpInterface);
-    } catch (error) {
-        NoAddressAvailableError.accept(error);
-        logger.info(`IPv6 UDP interface not created because IPv6 is not available, but required my Matter.`);
-        throw error;
-    }
-
-    if (!ipv4Disabled) {
-        // TODO: Add option to transport different ports to broadcaster
-        try {
-            netInterfaces.add(await UdpInterface.create(network, "udp4", udpInterface.port, listeningAddressIpv4));
-        } catch (error) {
-            NoAddressAvailableError.accept(error);
-            logger.info(`IPv4 UDP interface not created because IPv4 is not available`);
-        }
-    }
-    if (mdnsClient) {
-        scanners.add(mdnsClient);
-    }
-
-    if (ble === undefined) {
-        logger.warn("BLE is not supported on this platform");
-    } else {
-        try {
-            netInterfaces.add(ble.centralInterface);
-            scanners.add(ble.scanner);
-        } catch (e) {
-            logger.error("Disabling BLE due to initialization error:", e);
-        }
-    }
-
-    return { netInterfaces, scanners, port: udpInterface.port };
 }
