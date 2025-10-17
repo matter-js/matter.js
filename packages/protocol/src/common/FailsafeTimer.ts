@@ -69,6 +69,7 @@ export class FailsafeTimer {
         }
     }
 
+    /** Returns whether the FailSafe context is currently armed. */
     get armed() {
         return this.#failsafeTimer.isRunning && this.#maxCumulativeFailsafeTimer.isRunning;
     }

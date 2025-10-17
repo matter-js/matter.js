@@ -52,7 +52,7 @@ export abstract class FailsafeContext {
 
         this.#sessions = sessions;
         this.#fabrics = fabrics;
-        this.#associatedFabric = session.associatedFabric;
+        this.#associatedFabric = session.fabric;
 
         this.#construction = Construction(this, async () => {
             this.#fabricBuilder = await FabricBuilder.create(this.#fabrics.crypto);
@@ -72,7 +72,7 @@ export abstract class FailsafeContext {
             // expired and do the relevant cleanup actions.
             session.destroyed.on(() => {
                 if (this.#failsafe?.armed) {
-                    this.#failSafeExpired();
+                    return this.#failSafeExpired();
                 }
             });
         });
