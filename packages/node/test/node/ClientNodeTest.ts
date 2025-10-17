@@ -246,6 +246,12 @@ describe("ClientNode", () => {
     it("removes node after leave event", () => {
         // TODO
     });
+
+    it("disconnect from/disables the node", () => {
+        // TODO
+        // TODO Also include validation that the session is closed correctly on the device side on session close and
+        //  all subscriptions ended and such
+    });
 });
 
 const PEER1_STATE = {

@@ -266,21 +266,23 @@ export class ExchangeManager {
 
             const protocolHandler = this.#protocols.get(message.payloadHeader.protocolId);
 
+            const handlerSecurityMismatch =
+                protocolHandler?.requiresSecureSession !== undefined &&
+                protocolHandler.requiresSecureSession !== session.isSecure;
             // Having a "Secure Session" means it is encrypted in our internal working
             // TODO When adding Group sessions, we need to check how to adjust that handling
-            if (
-                protocolHandler !== undefined &&
-                protocolHandler.requiresSecureSession !== session.isSecure &&
-                !isStandaloneAck
-            ) {
-                logger.debug("Ignore « message because not matching the security requirements", messageDiagnostics);
+            if (handlerSecurityMismatch) {
+                logger.debug(
+                    `Ignore « message because not matching the security requirements (${protocolHandler.requiresSecureSession} vs. ${session.isSecure})`,
+                    messageDiagnostics,
+                );
             }
 
             if (
                 protocolHandler !== undefined &&
                 message.payloadHeader.isInitiatorMessage &&
                 !isDuplicate &&
-                protocolHandler.requiresSecureSession === session.isSecure
+                !handlerSecurityMismatch
             ) {
                 if (isStandaloneAck && !message.payloadHeader.requiresAck) {
                     logger.debug("Ignore « unsolicited standalone ack message", messageDiagnostics);
@@ -316,7 +318,8 @@ export class ExchangeManager {
                         logger.debug("Ignore « duplicate message", messageDiagnostics);
                     }
                     return;
-                } else if (!isStandaloneAck) {
+                }
+                if (!isStandaloneAck) {
                     logger.info("Discard « unexpected message", messageDiagnostics, Diagnostic.json(message));
                 }
             }
