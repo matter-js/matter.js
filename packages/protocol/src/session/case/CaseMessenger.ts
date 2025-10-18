@@ -47,6 +47,8 @@ export class CaseClientMessenger extends SecureChannelMessenger {
             payload,
             payloadHeader: { messageType },
         } = await this.anyNextMessage("Sigma2(Resume)");
+
+        // TODO Add support for BUSY response and resend the message after waiting time
         switch (messageType) {
             case SecureMessageType.Sigma2:
                 return { sigma2Bytes: payload, sigma2: TlvCaseSigma2.decode(payload) as CaseSigma2 };
