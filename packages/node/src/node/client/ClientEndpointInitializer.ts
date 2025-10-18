@@ -49,7 +49,7 @@ export class ClientEndpointInitializer extends EndpointInitializer {
     }
 
     override createBacking(endpoint: Endpoint, type: Behavior.Type): BehaviorBacking {
-        // Non-cluster behaviors are local operation the same server behaviors
+        // Non-cluster behaviors are local, operating the same server behaviors
         if ((type as ClusterBehavior.Type).cluster === undefined) {
             const store = this.structure.storeForLocal(endpoint, type);
             return new ServerBehaviorBacking(endpoint, type, store, endpoint.behaviors.optionsFor(type));

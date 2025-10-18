@@ -49,7 +49,7 @@ export class NetworkServer extends NetworkBehavior {
             discoveryCaps.onIpNetwork = true;
         }
 
-        this.reactTo(this.agent.get(CommissioningServer).events.commissioned, this.#endUncommissionedMode);
+        this.reactTo(this.endpoint.eventsOf(CommissioningServer).commissioned, this.#endUncommissionedMode);
 
         return super.initialize();
     }

@@ -57,7 +57,7 @@ export namespace RemoteDescriptor {
             rotatingIdentifier,
             pairingHint,
             pairingInstructions,
-            sessionParameters,
+            sessionIntervals,
             tcpSupport,
             longIdleTimeOperatingMode,
         } = long;
@@ -102,8 +102,8 @@ export namespace RemoteDescriptor {
             result.PI = pairingInstructions;
         }
 
-        if (sessionParameters !== undefined) {
-            const { idleInterval, activeInterval, activeThreshold } = sessionParameters;
+        if (sessionIntervals !== undefined) {
+            const { idleInterval, activeInterval, activeThreshold } = sessionIntervals;
 
             if (idleInterval !== undefined) {
                 result.SII = idleInterval;
@@ -189,7 +189,7 @@ export namespace RemoteDescriptor {
         if (SAT !== undefined) {
             (sessionParameters ??= {}).activeThreshold = SAT;
         }
-        long.sessionParameters = sessionParameters;
+        long.sessionIntervals = sessionParameters;
 
         long.deviceType = DT === undefined ? undefined : DeviceTypeId(DT);
         long.deviceName = DN;

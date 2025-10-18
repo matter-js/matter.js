@@ -7,6 +7,7 @@
 import { Events, OfflineEvent, OnlineEvent, QuietEvent } from "#behavior/Events.js";
 import { camelize, EventEmitter, GeneratedClass, ImplementationError, Observable } from "#general";
 import {
+    ClassSemantics,
     ClusterModel,
     DefaultValue,
     ElementTag,
@@ -81,9 +82,6 @@ export function createType<const C extends ClusterType>(
         }
     }
 
-    // Mutation of schema will almost certainly result in logic errors so ensure that can't happen
-    schema.freeze();
-
     const newProps = {} as Record<string, ValueModel>;
     const scope = Scope(schema);
 
@@ -110,14 +108,16 @@ export function createType<const C extends ClusterType>(
                 value: cluster,
                 enumerable: true,
             },
-
-            schema: {
-                value: schema,
-            },
         },
 
         instanceDescriptors: createDefaultCommandDescriptors(cluster, base),
     }) as ClusterBehavior.Type;
+
+    // Decorate the class
+    ClassSemantics.of(type).mutableModel = schema;
+
+    // Mutation of schema will almost certainly result in logic errors so ensure that can't happen
+    schema.finalize();
 
     if (useCache) {
         ClusterBehaviorCache.set(cluster, base, schema, type);

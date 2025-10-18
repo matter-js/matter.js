@@ -31,7 +31,7 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
 
     #id: E["id"];
     #name: string;
-    #frozen?: boolean;
+    #isFinal?: boolean;
     #resource?: Resource;
 
     /**
@@ -65,7 +65,7 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     set id(value: E["id"]) {
         const oldId = this.effectiveId;
         this.#id = value;
-        (this.#parent?.children as InternalChildren).updateId(this, oldId);
+        (this.#parent?.children as InternalChildren | undefined)?.updateId(this, oldId);
     }
 
     get name() {
@@ -75,7 +75,7 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     set name(value: string) {
         const oldName = this.#name;
         this.#name = value;
-        (this.#parent?.children as InternalChildren).updateName(this, oldName);
+        (this.#parent?.children as InternalChildren | undefined)?.updateName(this, oldName);
     }
 
     /**
@@ -598,28 +598,36 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
         if (children.length) {
             this.children.push(...children);
         }
+
+        if (!isClone && definition.parent) {
+            this.parent = definition.parent;
+        }
     }
 
     /**
-     * Freeze the model hierarchy rooted at this model.
+     * Finalize the model hierarchy rooted at this model.
      *
      * When using a model as operational schema we implement various optimizations that assume the schema is immutable.
      * This function enforces that assumption and caches a few values that only make sense with frozen schema.
      *
-     * To make changes to a frozen model use {@link clone}.
+     * To make changes to a final model use {@link clone}.
      */
-    freeze() {
-        if (this.#frozen) {
+    finalize() {
+        if (this.#isFinal) {
             return;
         }
 
         const base = this.operationalBase ?? (this.operationalBase = this.base ?? null);
         const shadow = this.operationalShadow ?? (this.operationalShadow = this.shadow ?? null);
-        this.#frozen = true;
+        this.#isFinal = true;
         (this.children as InternalChildren<C>).freeze();
         Object.freeze(this);
-        base?.freeze();
-        shadow?.freeze();
+        base?.finalize();
+        shadow?.finalize();
+    }
+
+    get isFinal() {
+        return this.#isFinal;
     }
 
     toString() {
@@ -743,8 +751,19 @@ export namespace Model {
      * In most places elements and models are interchangeable on input.
      */
     export type Definition<T extends Model> =
-        | (BaseElement.Properties<ElementOf<T>> & { operationalBase?: Model; operationalShadow?: Model })
+        | (BaseElement.Properties<ElementOf<T>> & {
+              parent?: Model;
+              operationalBase?: Model;
+              operationalShadow?: Model;
+          })
         | T;
+
+    /**
+     * An object that may be used in some places where a model is required.
+     *
+     * This is either a model, a class constructor or a DecoratorContext.
+     */
+    export type Source = Model | NewableFunction;
 
     /**
      * Tagged input.  Like {@link Definition} but for places where model type is not implied.
@@ -769,7 +788,10 @@ export namespace Model {
     /**
      * A model constructor for a specific element type.
      */
-    export type ConcreteType<T extends Model = Model> = (new (definition: any) => T) & { Tag: ElementTag };
+    export type ConcreteType<T extends Model = Model> = (new (definition: any) => T) & {
+        Tag: ElementTag;
+        requiresId?: boolean;
+    };
 
     /**
      * A patch to a model tree.

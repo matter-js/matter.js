@@ -8,6 +8,7 @@ import { camelize, InternalError } from "#general";
 import {
     AttributeModel,
     ClusterModel,
+    ElementTag,
     FeatureMap,
     FeatureSet,
     Matter,
@@ -160,8 +161,9 @@ export class RootSupervisor implements ValueSupervisor {
             // TODO: We should handle writable/fabric scoped being non-volatile already in the conformance interpreter
             if (
                 member.effectiveQuality.nonvolatile ||
-                member.effectiveAccess.writable ||
-                member.effectiveAccess.fabricScoped
+                // Persist all writable attributes in addition to those officially marked as nonvolatile
+                (member.tag === ElementTag.Attribute &&
+                    (member.effectiveAccess.writable || member.effectiveAccess.fabricScoped))
             ) {
                 if (key === "id") {
                     const id = member.effectiveId;

@@ -234,7 +234,7 @@ describe("WebSocket", () => {
         await cx.receiveOk("c");
 
         await cx.receiveUpdate("test", 1, "onOff", "a", { onOff: false });
-    }).timeout(1e9);
+    });
 
     it("handles client shutdown cleanly", async () => {
         await using cx = await setup();

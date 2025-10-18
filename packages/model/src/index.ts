@@ -6,6 +6,7 @@
 
 export * from "./aspects/index.js";
 export * from "./common/index.js";
+export * from "./decoration/index.js";
 export * from "./elements/index.js";
 export * from "./logic/index.js";
 export * from "./Matter.js";

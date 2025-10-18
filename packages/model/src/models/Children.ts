@@ -556,9 +556,9 @@ export function Children<T extends Model = Model>(
         });
     }
 
-    function freeze() {
+    function finalize() {
         for (const child of self) {
-            (child as Model).freeze();
+            (child as Model).finalize();
         }
         Object.freeze(children);
     }
@@ -621,7 +621,7 @@ export function Children<T extends Model = Model>(
                     return splice;
 
                 case "freeze":
-                    return freeze;
+                    return finalize;
 
                 case "toString":
                     return () => `[Children: ${children.length}]`;

@@ -71,6 +71,7 @@ export class CommandModel extends ValueModel<CommandElement> implements CommandE
     }
 
     static Tag = CommandElement.Tag;
+    static requiresId = true;
 }
 
 CommandModel.register();
