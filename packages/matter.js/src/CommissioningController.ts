@@ -29,6 +29,7 @@ import {
     DiscoveryAndCommissioningOptions,
     DiscoveryData,
     Fabric,
+    FabricGroups,
     InteractionClient,
     MessageChannel,
     NodeDiscoveryType,
@@ -42,6 +43,7 @@ import {
     TypeFromPartialBitSchema,
     VendorId,
 } from "#types";
+import { ActiveSessionInformation } from "@matter/protocol";
 import { CommissioningControllerNodeOptions, NodeStates, PairedNode } from "./device/PairedNode.js";
 import { MatterController } from "./MatterController.js";
 
@@ -654,7 +656,7 @@ export class CommissioningController {
     }
 
     /** Returns active session information for all connected nodes. */
-    getActiveSessionInformation() {
+    getActiveSessionInformation(): ActiveSessionInformation[] {
         return this.#controllerInstance?.getActiveSessionInformation() ?? [];
     }
 
@@ -736,7 +738,7 @@ export class CommissioningController {
         }
     }
 
-    get groups() {
+    get groups(): FabricGroups {
         const controllerInstance = this.#assertControllerIsStarted();
         return controllerInstance.getFabrics()[0].groups;
     }

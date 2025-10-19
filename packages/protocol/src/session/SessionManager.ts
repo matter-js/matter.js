@@ -31,7 +31,7 @@ import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
 import { GroupSession } from "#session/GroupSession.js";
 import { CaseAuthenticatedTag, DEFAULT_MAX_PATHS_PER_INVOKE, FabricId, FabricIndex, GroupId, NodeId } from "#types";
 import { UnexpectedDataError } from "@matter/general";
-import { Fabric } from "../fabric/Fabric.js";
+import { ExposedFabricInformation, Fabric } from "../fabric/Fabric.js";
 import { MessageCounter } from "../protocol/MessageCounter.js";
 import { InsecureSession } from "./InsecureSession.js";
 import { NodeSession } from "./NodeSession.js";
@@ -89,6 +89,18 @@ type ResumptionStorageRecord = {
     };
     caseAuthenticatedTags?: CaseAuthenticatedTag[];
 };
+
+export interface ActiveSessionInformation {
+    name: string;
+    nodeId: NodeId;
+    peerNodeId: NodeId;
+    fabric?: ExposedFabricInformation;
+    isPeerActive: boolean;
+    secure: boolean;
+    lastInteractionTimestamp?: number;
+    lastActiveTimestamp?: number;
+    numberOfActiveSubscriptions: number;
+}
 
 /**
  * Interfaces {@link SessionManager} with other components.
@@ -654,7 +666,7 @@ export class SessionManager {
         );
     }
 
-    getActiveSessionInformation() {
+    getActiveSessionInformation(): ActiveSessionInformation[] {
         this.#construction.assert();
         return [...this.#sessions]
             .filter(session => session.isSecure && !session.isPase)
