@@ -290,7 +290,7 @@ class Factory extends ClientNodeFactory {
     create(options: ClientNode.Options, peerAddress?: PeerAddress) {
         let node: ClientNode;
         if (peerAddress !== undefined && PeerAddress.isGroup(peerAddress)) {
-            if (options.id !== undefined) {
+            if (options.id === undefined) {
                 options.id = `group${++this.#groupIdCounter}`;
             }
             node = new ClientGroup({
