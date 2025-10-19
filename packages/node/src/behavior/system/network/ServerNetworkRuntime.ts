@@ -18,7 +18,6 @@ import {
     UdpInterface,
 } from "#general";
 import type { ServerNode } from "#node/ServerNode.js";
-import { NodePeerAddressStore } from "#node/client/NodePeerAddressStore.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
 import {
     Advertiser,
@@ -30,7 +29,6 @@ import {
     ExchangeManager,
     MdnsAdvertiser,
     MdnsService,
-    PeerAddressStore,
     PeerSet,
     ScannerSet,
     SecureChannelProtocol,
@@ -294,7 +292,6 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         // Initialize ScannerSet
         this.owner.env.get(ScannerSet).add(mdns.client);
 
-        env.set(PeerAddressStore, new NodePeerAddressStore(owner));
         await env.load(PeerSet);
 
         await this.owner.act(agent => this.owner.lifecycle.online.emit(agent.context));
@@ -327,6 +324,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         await env.close(SecureChannelProtocol);
         await env.close(ConnectionlessTransportSet);
         await env.close(InteractionServer);
+        await env.close(PeerSet);
     }
 
     protected override blockNewActivity() {

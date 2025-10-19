@@ -12,13 +12,12 @@ import { InstanceDiscovery } from "#behavior/system/controller/discovery/Instanc
 import { EndpointContainer } from "#endpoint/properties/EndpointContainer.js";
 import { CancelablePromise, Duration, ImplementationError, Logger, Minutes, Seconds, Time, Timestamp } from "#general";
 import { InteractionServer } from "#node/index.js";
-import { FabricManager, PeerAddress, PeerAddressStore } from "#protocol";
+import { FabricManager, PeerAddress } from "#protocol";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { ClientSubscriptionHandler, ClientSubscriptions } from "@matter/protocol";
 import { ClientNode } from "../ClientNode.js";
 import type { ServerNode } from "../ServerNode.js";
 import { ClientNodeFactory } from "./ClientNodeFactory.js";
-import { NodePeerAddressStore } from "./NodePeerAddressStore.js";
 
 const logger = Logger.get("ClientNodes");
 
@@ -42,8 +41,6 @@ export class Peers extends EndpointContainer<ClientNode> {
         if (!owner.env.has(ClientNodeFactory)) {
             owner.env.set(ClientNodeFactory, new Factory(this));
         }
-
-        this.owner.env.set(PeerAddressStore, new NodePeerAddressStore(owner));
 
         owner.env.applyTo(InteractionServer, this.#configureInteractionServer.bind(this));
 

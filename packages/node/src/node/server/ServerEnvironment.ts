@@ -7,10 +7,11 @@
 import { limitNodeDataToAllowedFabrics } from "#behavior/cluster/FabricScopedDataHandler.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { Crypto, Observable } from "#general";
+import { NodePeerAddressStore } from "#node/client/NodePeerAddressStore.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { ServerEndpointInitializer } from "#node/server/ServerEndpointInitializer.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { FabricManager, MdnsService, OccurrenceManager, SessionManager } from "#protocol";
+import { FabricManager, MdnsService, OccurrenceManager, PeerAddressStore, SessionManager } from "#protocol";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { IdentityService } from "./IdentityService.js";
 
@@ -25,10 +26,17 @@ export namespace ServerEnvironment {
         const { env } = node;
 
         // Install support services
-        const store = await ServerNodeStore.create(env, node.id);
-        env.set(ServerNodeStore, store);
+        if (!env.has(ServerNodeStore)) {
+            // TODO Remove the "if" once the legacy controller is removed
+            const store = await ServerNodeStore.create(env, node.id);
+            env.set(ServerNodeStore, store);
+        }
         env.set(EndpointInitializer, new ServerEndpointInitializer(env));
         env.set(IdentityService, new IdentityService(node));
+        if (!env.has(PeerAddressStore)) {
+            // TODO Remove the "if" once the legacy controller is removed
+            env.set(PeerAddressStore, new NodePeerAddressStore(node));
+        }
         env.set(ChangeNotificationService, new ChangeNotificationService(node));
 
         // Ensure these are fully initialized
