@@ -8,6 +8,7 @@ import { MatterError } from "#general";
 import { createWriteStream, readFileSync } from "node:fs";
 import readline from "node:readline";
 import { Readable, Writable } from "node:stream";
+import { inspect } from "node:util";
 import yargs from "yargs/yargs";
 import { MatterNode } from "../MatterNode.js";
 import { exit } from "../app";
@@ -176,7 +177,8 @@ export class Shell {
             } catch (error) {
                 process.stderr.write(`Error happened during command: ${error}\n`);
                 if (error instanceof Error && error.stack) {
-                    process.stderr.write(error.stack.toString());
+                    const errorText = inspect(error, { depth: 10 });
+                    process.stderr.write(errorText);
                     process.stderr.write("\n");
                 }
                 if (!(error instanceof MatterError)) {
