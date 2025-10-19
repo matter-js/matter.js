@@ -77,21 +77,14 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
                 // Handle Backward compatibility to Matter.js before 0.9.1 and add the missing ACL entry if no entry was set
                 // so far by the controller
                 const fallbackAcl: AccessControlTypes.AccessControlEntry = {
-                    fabricIndex: fabric.fabricIndex,
                     privilege: AccessControlTypes.AccessControlEntryPrivilege.Administer,
                     authMode: AccessControlTypes.AccessControlEntryAuthMode.Case,
                     subjects: [fabric.rootNodeId],
                     targets: null, // entire node
+                    fabricIndex: fabric.fabricIndex,
                 };
                 this.state.acl.push(fallbackAcl);
                 fabricAcls.push(fallbackAcl);
-                logger.warn(
-                    "Added missing ACL entry for fabric",
-                    fabric.fabricIndex,
-                    "for Node ID",
-                    fabric.rootNodeId,
-                    ". This should only happen once after upgrading to matter.js 0.9.1",
-                );
             }
             fabric.accessControl.aclList = fabricAcls;
             fabric.accessControl.extensionEntryAccessCheck = this.extensionEntryAccessCheck.bind(this);
