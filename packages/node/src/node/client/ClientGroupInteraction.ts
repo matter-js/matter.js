@@ -20,7 +20,7 @@ import { ClientNodeInteraction } from "./ClientNodeInteraction.js";
 
 export class ClientGroupInteraction extends ClientNodeInteraction {
     /** Groups do not support reading or subscribing to attributes */
-    override async *read(_request: Read, _context?: ActionContext): ReadResult {
+    override read(_request: Read, _context?: ActionContext): ReadResult {
         throw new ImplementationError("Groups do not support reading attributes");
     }
 
@@ -55,7 +55,7 @@ export class ClientGroupInteraction extends ClientNodeInteraction {
         return super.write({ ...request, suppressResponse: true }, context);
     }
 
-    override async *invoke(request: ClientInvoke, context?: ActionContext): DecodedInvokeResult {
+    override invoke(request: ClientInvoke, context?: ActionContext): DecodedInvokeResult {
         if (request.invokeRequests.some(({ commandPath: { endpointId } }) => endpointId !== undefined)) {
             throw new ImplementationError("Invoking a concrete command on a group address is not supported.");
         }
