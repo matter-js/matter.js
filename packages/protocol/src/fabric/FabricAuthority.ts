@@ -25,19 +25,51 @@ const logger = Logger.get("FabricAuthority");
  * Configuration for fabrics controlled by a FabricAuthority.
  */
 interface FabricAuthorityConfiguration {
+    adminFabricLabel: string;
     adminVendorId?: VendorId;
+    nodeId?: NodeId;
+
+    /** @deprecated Fabric index is assigned automatically, please do not specif this. */
     fabricIndex?: FabricIndex;
     fabricId?: FabricId;
     caseAuthenticatedTags?: CaseAuthenticatedTag[];
-    adminFabricLabel: string;
 }
 
 /**
  * Concrete {@link FabricAuthorityConfiguration} for environmental configuration.
  */
-export class FabricAuthorityConfigurationProvider implements FabricAuthorityConfiguration {
+export class FabricAuthorityConfigurationProvider {
+    #config: Partial<FabricAuthorityConfiguration>;
+
+    constructor(config: Partial<FabricAuthorityConfiguration> = {}) {
+        this.#config = config;
+    }
+
     get adminFabricLabel(): string {
+        if (this.#config.adminFabricLabel !== undefined) {
+            return this.#config.adminFabricLabel;
+        }
         throw new ImplementationError("Admin Fabric Label must be set for FabricAuthorityConfigurationProvider.");
+    }
+
+    get adminVendorId(): VendorId | undefined {
+        return this.#config.adminVendorId;
+    }
+
+    get nodeId(): NodeId | undefined {
+        return this.#config.nodeId;
+    }
+
+    get fabricIndex(): FabricIndex | undefined {
+        return this.#config.fabricIndex;
+    }
+
+    get fabricId(): FabricId | undefined {
+        return this.#config.fabricId;
+    }
+
+    get caseAuthenticatedTags(): CaseAuthenticatedTag[] | undefined {
+        return this.#config.caseAuthenticatedTags;
     }
 }
 
@@ -89,7 +121,8 @@ export class FabricAuthority {
      */
     async defaultFabric() {
         // First search for a fabric associated with the CA's root certificate
-        const fabric = this.fabrics[0];
+        const caRootCert = this.#ca.rootCert;
+        const fabric = this.fabrics.find(fabric => Bytes.areEqual(fabric.rootCert, caRootCert));
         if (fabric !== undefined) {
             if (fabric.label !== this.#config.adminFabricLabel) {
                 await fabric.setLabel(this.#config.adminFabricLabel);
@@ -126,7 +159,7 @@ export class FabricAuthority {
      * Create a new fabric under our control.
      */
     async createFabric() {
-        const rootNodeId = NodeId.randomOperationalNodeId(this.#fabrics.crypto);
+        const rootNodeId = this.#config.nodeId ?? NodeId.randomOperationalNodeId(this.#fabrics.crypto);
         const ipkValue = this.#fabrics.crypto.randomBytes(CRYPTO_SYMMETRIC_KEY_LENGTH);
 
         let vendorId = this.#config.adminVendorId;
@@ -140,7 +173,7 @@ export class FabricAuthority {
         fabricBuilder
             .setRootNodeId(rootNodeId)
             .setIdentityProtectionKey(ipkValue)
-            .setRootVendorId(this.#config.adminVendorId ?? DEFAULT_ADMIN_VENDOR_ID)
+            .setRootVendorId(vendorId)
             .setLabel(this.#config.adminFabricLabel);
 
         const fabricId = this.#config.fabricId ?? FabricId(this.#fabrics.crypto.randomBigInt(8));
