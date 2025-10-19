@@ -786,6 +786,7 @@ export class MdnsClient implements Scanner {
             },
         );
 
+        let lastDiscoveredDevices: CommissionableDevice[] | undefined = undefined;
         while (!canceled) {
             this.#getCommissionableDeviceRecords(identifier).forEach(device => {
                 const { deviceIdentifier } = device;
@@ -802,9 +803,16 @@ export class MdnsClient implements Scanner {
                     break;
                 }
             }
-            await this.#registerWaiterPromise(queryId, true, remainingTime, undefined, false, queryResolver);
+            lastDiscoveredDevices = await this.#registerWaiterPromise(
+                queryId,
+                true,
+                remainingTime,
+                () => this.#getCommissionableDeviceRecords(identifier),
+                false,
+                queryResolver,
+            );
         }
-        return this.#getCommissionableDeviceRecords(identifier);
+        return lastDiscoveredDevices ?? this.#getCommissionableDeviceRecords(identifier);
     }
 
     getDiscoveredCommissionableDevices(identifier: CommissionableDeviceIdentifiers) {
