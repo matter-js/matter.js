@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Construction, MatterAggregateError, StorageContext } from "#general";
+import { Construction, MatterAggregateError, StorageBackendMemory, StorageContext, StorageManager } from "#general";
+import type { ClientGroup } from "#node/ClientGroup.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import type { Node } from "#node/Node.js";
 import { ClientNodeStore } from "./ClientNodeStore.js";
@@ -86,6 +87,17 @@ export class ClientNodeStores {
         return this.#createNodeStore(node.id);
     }
 
+    storeForGroup(node: ClientGroup): ClientNodeStore {
+        this.#construction.assert();
+
+        const store = this.#stores[node.id];
+        if (store) {
+            return store;
+        }
+
+        return this.#createGroupStore(node.id);
+    }
+
     /**
      * List all nodes present.
      */
@@ -97,6 +109,18 @@ export class ClientNodeStores {
 
     async close() {
         await this.construction;
+    }
+
+    /**
+     * Group stores are always created with a memory backend as they are transient.
+     */
+    #createGroupStore(id: string) {
+        const manager = new StorageManager(new StorageBackendMemory());
+        manager.initialize();
+        const store = new ClientNodeStore(id, manager.createContext(id));
+        store.construction.start();
+        this.#stores[id] = store;
+        return store;
     }
 
     #createNodeStore(id: string) {

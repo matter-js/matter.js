@@ -11,6 +11,7 @@ import { Discovery } from "#behavior/system/controller/discovery/Discovery.js";
 import { InstanceDiscovery } from "#behavior/system/controller/discovery/InstanceDiscovery.js";
 import { EndpointContainer } from "#endpoint/properties/EndpointContainer.js";
 import { CancelablePromise, Duration, ImplementationError, Logger, Minutes, Seconds, Time, Timestamp } from "#general";
+import { ClientGroup } from "#node/ClientGroup.js";
 import { InteractionServer } from "#node/index.js";
 import { FabricManager, PeerAddress, PeerAddressStore } from "#protocol";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
@@ -58,6 +59,7 @@ export class Peers extends EndpointContainer<ClientNode> {
         const factory = this.owner.env.get(ClientNodeFactory);
 
         const clientStores = this.owner.env.get(ServerNodeStore).clientStores;
+        // Group nodes have an in-memory only store, so all nodes restored here are ClientNode
         for (const id of clientStores.knownIds) {
             this.add(
                 factory.create({
@@ -131,7 +133,7 @@ export class Peers extends EndpointContainer<ClientNode> {
         if (!node) {
             // We do not have that node till now, also not persisted, so create it
             const factory = this.owner.env.get(ClientNodeFactory);
-            node = factory.create(options);
+            node = factory.create(options, peerAddress);
             await node.construction;
             this.add(node);
 
@@ -278,20 +280,33 @@ export class Peers extends EndpointContainer<ClientNode> {
 
 class Factory extends ClientNodeFactory {
     #owner: Peers;
+    #groupIdCounter = 0;
 
     constructor(owner: Peers) {
         super();
         this.#owner = owner;
     }
 
-    create(options: ClientNode.Options) {
-        if (options.id === undefined) {
-            options.id = this.#owner.owner.env.get(ServerNodeStore).clientStores.allocateId();
+    create(options: ClientNode.Options, peerAddress?: PeerAddress) {
+        let node: ClientNode;
+        if (peerAddress !== undefined && PeerAddress.isGroup(peerAddress)) {
+            if (options.id !== undefined) {
+                options.id = `group${++this.#groupIdCounter}`;
+            }
+            node = new ClientGroup({
+                ...options,
+                owner: this.#owner.owner,
+            });
+        } else {
+            if (options.id === undefined) {
+                options.id = this.#owner.owner.env.get(ServerNodeStore).clientStores.allocateId();
+            }
+            node = new ClientNode({
+                ...options,
+                owner: this.#owner.owner,
+            });
         }
-        const node = new ClientNode({
-            ...options,
-            owner: this.#owner.owner,
-        });
+
         node.construction.start();
         return node;
     }
