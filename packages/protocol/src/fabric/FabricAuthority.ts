@@ -29,7 +29,7 @@ interface FabricAuthorityConfiguration {
     adminVendorId?: VendorId;
     nodeId?: NodeId;
 
-    /** @deprecated Fabric index is assigned automatically, please do not specif this. */
+    /** @deprecated Fabric index is assigned automatically, please do not specify this. */
     fabricIndex?: FabricIndex;
     fabricId?: FabricId;
     caseAuthenticatedTags?: CaseAuthenticatedTag[];
