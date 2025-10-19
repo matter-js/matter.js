@@ -12,7 +12,7 @@ import { ClientGroupInteraction } from "./client/ClientGroupInteraction.js";
 export class ClientGroup extends ClientNode {
     #interaction?: ClientGroupInteraction;
 
-    get isGroup() {
+    override get isGroup() {
         return true;
     }
 
@@ -26,5 +26,11 @@ export class ClientGroup extends ClientNode {
 
     protected override get store() {
         return this.env.get(ServerNodeStore).clientStores.storeForGroup(this);
+    }
+}
+
+export namespace ClientGroup {
+    export function is(value: unknown): value is ClientGroup {
+        return value instanceof ClientGroup;
     }
 }

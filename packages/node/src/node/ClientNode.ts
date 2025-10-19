@@ -53,6 +53,10 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         this.#matter = options.matter ?? Matter;
     }
 
+    get isGroup() {
+        return false;
+    }
+
     /**
      * Model of Matter semantics understood by this node.
      *

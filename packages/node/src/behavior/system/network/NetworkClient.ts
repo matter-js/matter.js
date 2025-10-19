@@ -7,7 +7,6 @@
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
 import { ImplementationError, Observable, ServerAddress, ServerAddressUdp } from "#general";
 import { DatatypeModel, FieldElement } from "#model";
-import type { ClientGroup } from "#node/ClientGroup.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
 import { ClientInteraction, DEFAULT_MIN_INTERVAL_FLOOR, PeerSet, Subscribe } from "#protocol";
@@ -21,7 +20,7 @@ export class NetworkClient extends NetworkBehavior {
     declare events: NetworkClient.Events;
 
     override initialize() {
-        if ((this.#node as ClientGroup).isGroup) {
+        if (this.#node.isGroup) {
             // Groups can never subscribe
             this.state.autoSubscribe = false;
             this.state.defaultSubscription = undefined;
