@@ -5,4 +5,5 @@
  */
 
 import "./disposable.js";
+import "./metadata.js";
 import "./suppressed-error.js";

@@ -146,7 +146,7 @@ const Matter = new MatterModel(
 
 Building.supportedFeatures = ["XS"];
 
-Matter.freeze();
+Matter.finalize();
 
 const scope = Building.scope;
 

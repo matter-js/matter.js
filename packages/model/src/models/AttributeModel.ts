@@ -51,6 +51,7 @@ export class AttributeModel extends PropertyModel<AttributeElement> implements A
     }
 
     static Tag = AttributeElement.Tag;
+    static requiresId = true;
 }
 
 AttributeModel.register();

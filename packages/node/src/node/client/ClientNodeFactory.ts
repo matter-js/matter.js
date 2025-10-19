@@ -7,6 +7,7 @@
 import type { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
 import type { ImmutableSet } from "#general";
 import type { ClientNode } from "#node/ClientNode.js";
+import type { PeerAddress } from "#protocol";
 
 /**
  * Create a new client node.
@@ -16,6 +17,6 @@ import type { ClientNode } from "#node/ClientNode.js";
  */
 export abstract class ClientNodeFactory {
     abstract find(descriptor: RemoteDescriptor): ClientNode | undefined;
-    abstract create(options: ClientNode.Options): ClientNode;
+    abstract create(options: ClientNode.Options, peerAddress?: PeerAddress): ClientNode;
     abstract nodes: ImmutableSet<ClientNode>;
 }

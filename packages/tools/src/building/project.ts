@@ -70,8 +70,7 @@ export class Project {
             await ignoreError("EEXIST", async () => await symlink(join("..", "..", src), destPath));
         } catch (e) {
             if ((e as any).code === "EPERM" && platform() === "win32") {
-                // If developer mode is not enabled, we can't create a symlink
-                // on Windows.  Copy instead
+                // If developer mode is not enabled, we can't create a symlink on Windows.  Copy instead
                 await cp(this.pkg.resolve(src), this.pkg.resolve(dest), {
                     recursive: true,
                     force: true,

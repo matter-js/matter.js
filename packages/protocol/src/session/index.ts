@@ -17,4 +17,5 @@ export * from "./pase/PaseMessenger.js";
 export * from "./pase/PaseServer.js";
 export * from "./SecureSession.js";
 export * from "./Session.js";
+export * from "./SessionIntervals.js";
 export * from "./SessionManager.js";

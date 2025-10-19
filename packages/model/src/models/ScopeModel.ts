@@ -33,11 +33,11 @@ export abstract class ScopeModel<
         return Scope(this);
     }
 
-    override freeze() {
+    override finalize() {
         if (!this.#operationalScope) {
             this.#operationalScope = Scope(this);
         }
-        super.freeze();
+        super.finalize();
         return this;
     }
 

@@ -211,7 +211,7 @@ describe("ClientNode", () => {
 
         // Toggle should now complete
         await MockTime.resolve(toggle);
-    }).timeout(1e9);
+    });
 
     it("emits Matter events", async () => {
         // *** SETUP ***
@@ -261,8 +261,22 @@ const PEER1_STATE = {
         longIdleTimeOperatingMode: false,
         peerAddress: { fabricIndex: 1, nodeId: expect.BIGINT },
         addresses: [
-            { type: "udp", ip: "1111:2222:3333:4444:5555:6666:7777:8802", port: 0x15a4, peripheralAddress: undefined },
-            { type: "udp", ip: "10.10.10.2", port: 0x15a4, peripheralAddress: undefined },
+            {
+                type: "udp",
+                ip: "1111:2222:3333:4444:5555:6666:7777:8802",
+                port: 0x15a4,
+                peripheralAddress: undefined,
+                discoveredAt: undefined,
+                ttl: undefined,
+            },
+            {
+                type: "udp",
+                ip: "10.10.10.2",
+                port: 0x15a4,
+                peripheralAddress: undefined,
+                discoveredAt: undefined,
+                ttl: undefined,
+            },
         ],
         discoveredAt: expect.NUMBER,
         onlineAt: undefined,
@@ -278,9 +292,8 @@ const PEER1_STATE = {
         rotatingIdentifier: undefined,
         pairingHint: 0x21,
         pairingInstructions: undefined,
-        sessionParameters: { idleInterval: 500, activeInterval: 300, activeThreshold: 4000 },
+        sessionIntervals: { idleInterval: 500, activeInterval: 300, activeThreshold: 4000 },
         tcpSupport: 0,
-        longIdleOperatingMode: undefined,
     },
     network: {
         isDisabled: false,

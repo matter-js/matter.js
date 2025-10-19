@@ -99,7 +99,7 @@ export class GeneralCommissioningServer extends GeneralCommissioningBehavior {
                     sessions: this.env.get(SessionManager),
                     expiryLength: Seconds(expiryLengthSeconds),
                     maxCumulativeFailsafe: Seconds(this.state.basicCommissioningInfo.maxCumulativeFailsafeSeconds),
-                    associatedFabric: session.fabric,
+                    session,
                 });
 
                 // Note - this used to be async and wait for construction internally.  However that leads to race

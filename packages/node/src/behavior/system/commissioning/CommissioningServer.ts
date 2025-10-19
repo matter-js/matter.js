@@ -297,35 +297,6 @@ export class CommissioningServer extends Behavior {
     }
 
     /**
-     * Obtain pairing codes for a node.
-     */
-    static pairingCodesFor(node: Endpoint) {
-        const bi = node.stateOf(BasicInformationBehavior);
-        const comm = node.stateOf(CommissioningServer);
-        const net = node.stateOf(NetworkServer);
-
-        const qrPairingCode = QrPairingCodeCodec.encode([
-            {
-                version: 0,
-                vendorId: bi.vendorId,
-                productId: bi.productId,
-                flowType: comm.flowType,
-                discriminator: comm.discriminator,
-                passcode: comm.passcode,
-                discoveryCapabilities: DiscoveryCapabilitiesSchema.encode(net.discoveryCapabilities),
-            },
-        ]);
-
-        return {
-            manualPairingCode: ManualPairingCodeCodec.encode({
-                discriminator: comm.discriminator,
-                passcode: comm.passcode,
-            }),
-            qrPairingCode,
-        };
-    }
-
-    /**
      * Define logical schema to make passcode and discriminator persistent.
      */
     static override readonly schema = new DatatypeModel({
@@ -384,9 +355,33 @@ export namespace CommissioningServer {
         ble?: BleAdvertiser.Options;
 
         [Val.properties](endpoint: Endpoint) {
+            const comm = this;
             return {
                 get pairingCodes() {
-                    return CommissioningServer.pairingCodesFor(endpoint);
+                    const bi = endpoint.stateOf(BasicInformationBehavior);
+                    const net = endpoint.stateOf(NetworkServer);
+
+                    const qrPairingCode = QrPairingCodeCodec.encode([
+                        {
+                            version: 0,
+                            vendorId: bi.vendorId,
+                            productId: bi.productId,
+                            flowType: comm.flowType,
+                            discriminator: comm.discriminator,
+                            passcode: comm.passcode,
+                            discoveryCapabilities: DiscoveryCapabilitiesSchema.encode(net.discoveryCapabilities),
+                        },
+                    ]);
+
+                    return {
+                        manualPairingCode: ManualPairingCodeCodec.encode({
+                            // We use -1 to flag "need generated value" but this will crash the pairing code generator.  So use 0
+                            // so we don't throw an error during initialization
+                            discriminator: comm.discriminator < 0 ? 0 : comm.discriminator,
+                            passcode: comm.passcode < 0 ? 0 : comm.passcode,
+                        }),
+                        qrPairingCode,
+                    };
                 },
 
                 get fabrics() {

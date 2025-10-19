@@ -14,6 +14,7 @@ import {
     UnexpectedDataError,
     UninitializedDependencyError,
 } from "#general";
+import { SecureSession } from "#session/SecureSession.js";
 import { CaseAuthenticatedTag, NodeId, ValidationError, VendorId } from "#types";
 import { Fabric, FabricBuilder } from "../fabric/Fabric.js";
 import { FabricManager } from "../fabric/FabricManager.js";
@@ -47,11 +48,11 @@ export abstract class FailsafeContext {
     #commissioned = AsyncObservable<[], void>();
 
     constructor(options: FailsafeContext.Options) {
-        const { expiryLength, associatedFabric, maxCumulativeFailsafe } = options;
+        const { sessions, fabrics, expiryLength, session, maxCumulativeFailsafe } = options;
 
-        this.#sessions = options.sessions;
-        this.#fabrics = options.fabrics;
-        this.#associatedFabric = options.associatedFabric;
+        this.#sessions = sessions;
+        this.#fabrics = fabrics;
+        this.#associatedFabric = session.fabric;
 
         this.#construction = Construction(this, async () => {
             this.#fabricBuilder = await FabricBuilder.create(this.#fabrics.crypto);
@@ -62,10 +63,18 @@ export abstract class FailsafeContext {
 
             // If ExpiryLengthSeconds is non-zero and the fail-safe timer was not currently armed, then the fail-safe
             // timer SHALL be armed for that duration.
-            this.#failsafe = new FailsafeTimer(associatedFabric, expiryLength, maxCumulativeFailsafe, () =>
+            this.#failsafe = new FailsafeTimer(this.#associatedFabric, expiryLength, maxCumulativeFailsafe, () =>
                 this.#failSafeExpired(),
             );
             logger.debug(`Arm failSafe timer for ${Duration.format(expiryLength)}`);
+
+            // When the PASE session used to arm the Fail-Safe timer is terminated by peer, the Fail-Safe timer SHALL
+            // be considered expired and do the relevant cleanup actions.
+            session.closedByPeer.on(() => {
+                if (!this.#failsafe?.completed) {
+                    return this.#failSafeExpired();
+                }
+            });
         });
     }
 
@@ -341,6 +350,6 @@ export namespace FailsafeContext {
         fabrics: FabricManager;
         expiryLength: Duration;
         maxCumulativeFailsafe: Duration;
-        associatedFabric: Fabric | undefined;
+        session: SecureSession;
     }
 }

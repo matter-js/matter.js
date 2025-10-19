@@ -34,6 +34,7 @@ export class EventModel extends ValueModel<EventElement> implements EventElement
     }
 
     static Tag = EventElement.Tag;
+    static requiresId = true;
 }
 
 EventModel.register();

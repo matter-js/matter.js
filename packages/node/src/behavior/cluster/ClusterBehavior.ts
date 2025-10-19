@@ -7,7 +7,7 @@
 import { Events } from "#behavior/Events.js";
 import type { Agent } from "#endpoint/Agent.js";
 import { ImplementationError, MaybePromise } from "#general";
-import type { Schema } from "#model";
+import { type Schema } from "#model";
 import { ClusterComposer, ClusterType, ElementModifier, TypeFromBitSchema } from "#types";
 import { Behavior } from "../Behavior.js";
 import type { BehaviorBacking } from "../internal/BehaviorBacking.js";

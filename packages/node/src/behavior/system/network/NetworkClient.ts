@@ -20,8 +20,14 @@ export class NetworkClient extends NetworkBehavior {
     declare events: NetworkClient.Events;
 
     override initialize() {
-        this.reactTo(this.events.autoSubscribe$Changed, this.#handleSubscription);
-        this.reactTo(this.events.defaultSubscription$Changed, this.#handleChangedDefaultSubscription);
+        if (this.#node.isGroup) {
+            // Groups can never subscribe
+            this.state.autoSubscribe = false;
+            this.state.defaultSubscription = undefined;
+        } else {
+            this.reactTo(this.events.autoSubscribe$Changed, this.#handleSubscription, { offline: true });
+            this.reactTo(this.events.defaultSubscription$Changed, this.#handleChangedDefaultSubscription);
+        }
     }
 
     override async startup() {

@@ -19,7 +19,22 @@ import {
     Time,
     Timestamp,
 } from "#general";
-import { DatatypeModel, FieldElement } from "#model";
+import {
+    bool,
+    duration,
+    fabricIdx,
+    field,
+    listOf,
+    mandatory,
+    nodeId,
+    nonvolatile,
+    string,
+    systimeMs,
+    uint16,
+    uint32,
+    uint8,
+    vendorId,
+} from "#model";
 import type { ClientNode } from "#node/ClientNode.js";
 import type { Node } from "#node/Node.js";
 import { IdentityService } from "#node/server/IdentityService.js";
@@ -32,14 +47,15 @@ import {
     FabricAuthority,
     FabricManager,
     LocatedNodeCommissioningOptions,
-    PeerAddress,
-    SessionParameters,
+    PeerAddress as ProtocolPeerAddress,
+    SessionIntervals as ProtocolSessionIntervals,
     Subscribe,
 } from "#protocol";
 import {
     CaseAuthenticatedTag,
     DeviceTypeId,
     DiscoveryCapabilitiesBitmap,
+    FabricIndex,
     ManualPairingCodeCodec,
     NodeId,
     TypeFromPartialBitSchema,
@@ -194,7 +210,7 @@ export class CommissioningClient extends Behavior {
             throw new ImplementationError("Cannot decommission node that is not commissioned");
         }
 
-        const formerAddress = PeerAddress(peerAddress).toString();
+        const formerAddress = ProtocolPeerAddress(peerAddress).toString();
 
         const opcreds = this.agent.get(OperationalCredentialsClient);
 
@@ -218,7 +234,7 @@ export class CommissioningClient extends Behavior {
      * If you override, matter.js commissions to the point where commissioning over PASE is complete.  You must then
      * complete commissioning yourself by connecting to the device and invokeint the "CommissioningComplete" command.
      */
-    protected async finalizeCommissioning(_address: PeerAddress, _discoveryData?: DiscoveryData) {
+    protected async finalizeCommissioning(_address: ProtocolPeerAddress, _discoveryData?: DiscoveryData) {
         throw new NotImplementedError();
     }
 
@@ -235,7 +251,7 @@ export class CommissioningClient extends Behavior {
         endpoint.lifecycle.initialized.emit(this.state.peerAddress !== undefined);
     }
 
-    #peerAddressChanged(addr?: PeerAddress) {
+    #peerAddressChanged(addr?: ProtocolPeerAddress) {
         const node = this.endpoint as ClientNode;
 
         if (addr) {
@@ -258,174 +274,198 @@ export class CommissioningClient extends Behavior {
             node.lifecycle.decommissioned.emit(this.context);
         }
     }
-
-    /**
-     * Define logical schema.  This enables runtime validation, make fields persistent and makes subfields editable.
-     */
-    static override readonly schema = new DatatypeModel(
-        {
-            name: "CommissioningState",
-            type: "struct",
-        },
-
-        FieldElement({
-            name: "peerAddress",
-            type: "struct",
-            quality: "N",
-            children: [
-                FieldElement({ name: "fabricIndex", type: "fabric-id" }),
-                FieldElement({ name: "nodeId", type: "node-id" }),
-            ],
-        }),
-
-        FieldElement({
-            name: "addresses",
-            type: "list",
-            quality: "N",
-            children: [
-                FieldElement({
-                    name: "entry",
-                    type: "struct",
-                    children: [
-                        FieldElement({ name: "type", type: "string" }),
-                        FieldElement({ name: "ip", type: "string" }),
-                        FieldElement({ name: "port", type: "uint16" }),
-                        FieldElement({ name: "peripheralAddress", type: "string" }),
-                    ],
-                }),
-            ],
-        }),
-
-        FieldElement({ name: "discoveredAt", type: "systime-ms", quality: "N", conformance: "M" }),
-        FieldElement({ name: "onlineAt", type: "systime-ms" }),
-        FieldElement({ name: "offlineAt", type: "systime-ms" }),
-        FieldElement({ name: "ttl", type: "uint32", quality: "N" }),
-        FieldElement({ name: "deviceIdentifier", type: "string", quality: "N" }),
-        FieldElement({ name: "discriminator", type: "uint16", quality: "N" }),
-        FieldElement({ name: "commissioningMode", type: "uint8", quality: "N" }),
-        FieldElement({ name: "vendorId", type: "vendor-id", quality: "N" }),
-        FieldElement({ name: "productId", type: "uint16", quality: "N" }),
-        FieldElement({ name: "deviceType", type: "uint16", quality: "N" }),
-        FieldElement({ name: "deviceName", type: "string", quality: "N" }),
-        FieldElement({ name: "rotatingIdentifier", type: "string", quality: "N" }),
-        FieldElement({ name: "pairingHint", type: "uint32", quality: "N" }),
-        FieldElement({ name: "pairingInstructions", type: "string", quality: "N" }),
-        FieldElement({
-            name: "sessionParameters",
-            type: "struct",
-            quality: "N",
-            children: [
-                FieldElement({ name: "idleInterval", type: "duration", constraint: "max 3600000" }),
-                FieldElement({ name: "activeInterval", type: "duration", constraint: "max 3600000" }),
-                FieldElement({ name: "activeThreshold", type: "duration", constraint: "max 65535" }),
-            ],
-        }),
-        FieldElement({ name: "tcpSupport", type: "uint8", quality: "N" }),
-        FieldElement({ name: "longIdleOperatingMode", type: "bool", quality: "N" }),
-    );
 }
 
 export namespace CommissioningClient {
+    /**
+     * Concrete version of {@link ProtocolPeerAddress}.
+     */
+    export class PeerAddress implements ProtocolPeerAddress {
+        @field(fabricIdx, mandatory)
+        fabricIndex: FabricIndex;
+
+        @field(nodeId, mandatory)
+        nodeId: NodeId;
+
+        constructor(fabricIndex: FabricIndex, nodeId: NodeId) {
+            this.fabricIndex = fabricIndex;
+            this.nodeId = nodeId;
+        }
+    }
+
+    /**
+     * Concrete version of {@link SessionIntervals}.
+     */
+    export class SessionIntervals implements ProtocolSessionIntervals {
+        @field(duration.extend({ constraint: "max 3600000" }), mandatory)
+        idleInterval: Duration;
+
+        @field(duration.extend({ constraint: "max 3600000" }), mandatory)
+        activeInterval: Duration;
+
+        @field(duration.extend({ constraint: "max 65535" }), mandatory)
+        activeThreshold: Duration;
+
+        constructor(intervals: SessionIntervals) {
+            this.idleInterval = intervals.idleInterval;
+            this.activeInterval = intervals.activeInterval;
+            this.activeThreshold = intervals.activeThreshold;
+        }
+    }
+
+    /**
+     * The network address of a node.
+     */
+    export class NetworkAddress implements ServerAddress.Definition {
+        @field(string, mandatory)
+        type: "udp" | "tcp" | "ble";
+
+        @field(string)
+        ip?: string;
+
+        @field(uint16)
+        port?: number;
+
+        @field(string)
+        peripheralAddress?: string;
+
+        @field(uint32)
+        ttl?: Duration | undefined;
+
+        @field(systimeMs)
+        discoveredAt?: Timestamp | undefined;
+
+        constructor(address: NetworkAddress) {
+            this.type = address.type;
+            this.ip = address.ip;
+            this.port = address.port;
+            this.peripheralAddress = address.peripheralAddress;
+            this.ttl = address.ttl;
+            this.discoveredAt = address.discoveredAt;
+        }
+    }
+
     export class State {
         /**
          * Fabric index and node ID for paired peers.  If this is undefined the node is uncommissioned.
          */
+        @field(PeerAddress, nonvolatile)
         peerAddress?: PeerAddress;
 
         /**
          * Known network addresses for the device.  If this is undefined the node has not been located on any network
          * interface.
          */
+        @field(listOf(NetworkAddress), nonvolatile)
         addresses?: ServerAddress.Definition[];
 
         /**
          * Time at which the device was discovered.
          */
+        @field(systimeMs, nonvolatile)
         discoveredAt?: Timestamp;
 
         /**
          * Time at which we discovered the device's current operational addresses.
          */
+        @field(systimeMs)
         onlineAt?: Timestamp;
 
         /**
          * Time at which we concluded the device's current operational address is unreachable.
          */
+        @field(systimeMs)
         offlineAt?: Timestamp;
 
         /**
          * The TTL of the discovery record if applicable (in seconds).
          */
+        @field(duration, nonvolatile)
         ttl?: Duration;
 
         /**
          * The canonical global ID of the device.
          */
+        @field(string, nonvolatile)
         deviceIdentifier?: string;
 
         /**
          * The device's long discriminator.
          */
+        @field(uint16, nonvolatile)
         discriminator?: number;
 
         /**
          * The last know commissioning mode of the device.
          */
+        @field(uint8, nonvolatile)
         commissioningMode?: CommissioningMode;
 
         /**
          * Vendor.
          */
+        @field(vendorId, nonvolatile)
         vendorId?: VendorId;
 
         /**
          * Product.
          */
+        @field(uint16, nonvolatile)
         productId?: number;
 
         /**
          * Advertised device type.
          */
+        @field(uint16, nonvolatile)
         deviceType?: DeviceTypeId;
 
         /**
          * The advertised device name specified by the user.
          */
+        @field(string, nonvolatile)
         deviceName?: string;
 
         /**
          * An optional manufacturer-specific unique rotating ID for uniquely identifying the device.
          */
+        @field(string, nonvolatile)
         rotatingIdentifier?: string;
 
         /**
          * A bitmap indicating how to transition the device to commissioning mode from its current state.
          */
+        @field(uint32, nonvolatile)
         pairingHint?: number;
 
         /**
          * Textual pairing instructions associated with pairing hint.
          */
+        @field(string, nonvolatile)
         pairingInstructions?: string;
 
         /**
-         * The remote node's session parameters.
+         * The remote node's session intervals.
          */
-        sessionParameters?: Partial<SessionParameters>;
+        @field(SessionIntervals, nonvolatile)
+        sessionIntervals?: Partial<ProtocolSessionIntervals>;
 
         /**
          * TCP support bitmap.
          */
+        @field(uint8, nonvolatile)
         tcpSupport?: number;
 
         /**
          * Indicates whether node is ICD with a slow (15 s+) polling interval.
          */
+        @field(bool, nonvolatile)
         longIdleTimeOperatingMode?: boolean;
     }
 
     export class Events extends BaseEvents {
-        peerAddress$Changed = new Observable<[value: PeerAddress | undefined, oldValue: PeerAddress | undefined]>();
+        peerAddress$Changed = new Observable<
+            [value: ProtocolPeerAddress | undefined, oldValue: ProtocolPeerAddress | undefined]
+        >();
     }
 
     /**

@@ -60,6 +60,8 @@ export class PaseClientMessenger extends SecureChannelMessenger {
             SecureMessageType.PbkdfParamResponse,
             DEFAULT_NORMAL_PROCESSING_TIME,
         );
+
+        // TODO Add support for BUSY response and resend the message after waiting time
         return { responsePayload: payload, response: TlvPbkdfParamResponse.decode(payload) as PbkdfParamResponse };
     }
 

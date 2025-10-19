@@ -210,7 +210,7 @@ export * from "./locationdesc.element.js";
 export * from "./wildcard-path-flags-bitmap.element.js";
 export * from "./software-version-certification-status-enum.element.js";
 export * from "./any.element.js";
-export * from "./interval.element.js";
+export * from "./duration.element.js";
 export * from "./subject-id.element.js";
 export * from "./cluster-revision.element.js";
 export * from "./feature-map.element.js";

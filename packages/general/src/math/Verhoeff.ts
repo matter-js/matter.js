@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ImplementationError } from "#MatterError.js";
+
 /**
  * Verhoeff algorithm to compute a checksum.
  *
@@ -40,6 +42,9 @@ export class Verhoeff {
         let checksum = 0;
         for (let i = 1; i <= length; i++) {
             const digit = Number.parseInt(digits[length - i]);
+            if (Number.isNaN(digit)) {
+                throw new ImplementationError("Invalid verhoeff checksum digit");
+            }
             checksum = this.multiply[checksum][this.permute[i % 8][digit]];
         }
         return this.inverse[checksum];

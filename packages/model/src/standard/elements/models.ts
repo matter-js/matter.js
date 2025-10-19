@@ -230,7 +230,7 @@ export const SoftwareVersionCertificationStatusEnum = new DatatypeModel(
     definitions.SoftwareVersionCertificationStatusEnum,
 );
 export const any = new DatatypeModel(definitions.any);
-export const interval = new DatatypeModel(definitions.duration);
+export const duration = new DatatypeModel(definitions.duration);
 export const subjectId = new DatatypeModel(definitions.subjectId);
 export const ClusterRevision = new AttributeModel(definitions.ClusterRevision);
 export const FeatureMap = new AttributeModel(definitions.FeatureMap);

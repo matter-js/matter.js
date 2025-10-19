@@ -14,6 +14,7 @@ export * from "./Construction.js";
 export * from "./DataReader.js";
 export * from "./DataReadQueue.js";
 export * from "./DataWriter.js";
+export * from "./Decorator.js";
 export * from "./DeepCopy.js";
 export * from "./DeepEqual.js";
 export * from "./Error.js";
