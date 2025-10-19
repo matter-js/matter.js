@@ -97,6 +97,7 @@ export abstract class Session {
      */
     closer?: Promise<void>;
     #destroyed = AsyncObservable<[]>();
+    #closedByPeer = AsyncObservable<[]>();
 
     constructor(args: {
         manager?: SessionManager;
@@ -141,6 +142,10 @@ export abstract class Session {
 
     get destroyed() {
         return this.#destroyed;
+    }
+
+    get closedByPeer() {
+        return this.#closedByPeer;
     }
 
     notifyActivity(messageReceived: boolean) {
