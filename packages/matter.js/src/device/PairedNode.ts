@@ -295,6 +295,7 @@ export class PairedNode {
     #currentSubscriptionIntervalS?: number;
     #crypto: Crypto;
     #deviceInformationUpdateNeeded = false;
+    #nodeShutdownDetected = false;
 
     /**
      * Endpoint structure change information that are checked when updating structure
@@ -892,7 +893,12 @@ export class PairedNode {
                 }
                 this.#deviceInformationUpdateNeeded = false;
 
-                this.events.connectionAlive.emit();
+                if (this.#nodeShutdownDetected) {
+                    this.#nodeShutdownDetected = false;
+                    this.#scheduleReconnect(RECONNECT_DELAY_AFTER_SHUTDOWN);
+                } else {
+                    this.events.connectionAlive.emit();
+                }
             },
         };
         this.#currentSubscriptionHandler = subscriptionHandler;
@@ -978,7 +984,7 @@ export class PairedNode {
     /** Handles a node shutDown event (if supported by the node and received). */
     #handleNodeShutdown() {
         logger.info(`Node ${this.nodeId}: Node shutdown detected, trying to reconnect ...`);
-        this.#scheduleReconnect(RECONNECT_DELAY_AFTER_SHUTDOWN);
+        this.#nodeShutdownDetected = true;
     }
 
     #scheduleReconnect(delay?: Duration) {

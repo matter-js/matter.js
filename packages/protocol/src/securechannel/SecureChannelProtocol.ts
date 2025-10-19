@@ -29,7 +29,9 @@ const logger = Logger.get("SecureChannelProtocol");
 
 export class StatusReportOnlySecureChannelProtocol implements ProtocolHandler {
     readonly id = SECURE_CHANNEL_PROTOCOL_ID;
-    readonly requiresSecureSession = false;
+
+    // We need to check the message details to decide if ok or not, so we take them all
+    readonly requiresSecureSession = undefined;
 
     async onNewExchange(exchange: MessageExchange, message: Message) {
         const messageType = message.payloadHeader.messageType;
@@ -70,6 +72,8 @@ export class StatusReportOnlySecureChannelProtocol implements ProtocolHandler {
                 protocolStatus,
             );
         }
+
+        // CloseSession is the only case where a StatusReport comes as initial message
         if (protocolStatus !== SecureChannelStatusCode.CloseSession) {
             throw new ChannelStatusResponseError(
                 `Received general success status, but protocol status is not CloseSession`,
