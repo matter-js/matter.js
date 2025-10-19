@@ -88,9 +88,9 @@ export class ControllerDiscovery {
     ): Promise<CommissionableDevice[]> {
         const discoveredDevices = new Map<string, CommissionableDevice>();
 
-        await Promise.all(
-            scanners.map(async scanner => {
-                await scanner.findCommissionableDevicesContinuously(
+        const results = await Promise.all(
+            scanners.map(async scanner =>
+                scanner.findCommissionableDevicesContinuously(
                     identifier,
                     device => {
                         const { deviceIdentifier } = device;
@@ -100,14 +100,13 @@ export class ControllerDiscovery {
                         }
                     },
                     timeout,
-                );
-            }),
+                ),
+            ),
         );
 
         // The final answer only consists the devices still left, so expired ones will be excluded
         const finalDiscoveredDevices = new Map<string, CommissionableDevice>();
-        scanners.forEach(scanner => {
-            const devices = scanner.getDiscoveredCommissionableDevices(identifier);
+        results.forEach(devices => {
             devices.forEach(device => {
                 const { deviceIdentifier } = device;
                 if (!discoveredDevices.has(deviceIdentifier)) {
