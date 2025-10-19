@@ -6,7 +6,7 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { BasicInformationBehavior } from "#behaviors/basic-information";
-import { ConnectionlessTransportSet, ImplementationError } from "#general";
+import { ConnectionlessTransportSet, ImplementationError, Logger } from "#general";
 import { Node } from "#node/Node.js";
 import {
     Ble,
@@ -21,12 +21,15 @@ import {
     Scanner,
     ScannerSet,
 } from "#protocol";
-import { FabricId } from "@matter/types";
+import { FabricId, NodeId } from "#types";
+import { CaseAuthenticatedTag } from "@matter/types";
 import type { CommissioningClient } from "../commissioning/CommissioningClient.js";
 import { CommissioningServer } from "../commissioning/CommissioningServer.js";
 import { NetworkServer } from "../network/NetworkServer.js";
 import { ActiveDiscoveries } from "./discovery/ActiveDiscoveries.js";
 import type { Discovery } from "./discovery/Discovery.js";
+
+const logger = Logger.get("ControllerBehavior");
 
 /**
  * Node controller functionality.
@@ -43,11 +46,21 @@ export class ControllerBehavior extends Behavior {
     declare state: ControllerBehavior.State;
 
     override async initialize() {
+        const fabricAuthConfig = this.env.maybeGet(FabricAuthorityConfigurationProvider);
         if (this.state.adminFabricLabel === undefined || this.state.adminFabricLabel === "") {
-            throw new ImplementationError("adminFabricLabel must be set for ControllerBehavior.");
+            if (fabricAuthConfig !== undefined) {
+                this.state.adminFabricLabel = fabricAuthConfig.adminFabricLabel;
+            } else {
+                throw new ImplementationError("adminFabricLabel must be set for ControllerBehavior");
+            }
+        }
+        if (this.state.adminFabricId === undefined && fabricAuthConfig !== undefined) {
+            this.state.adminFabricId = fabricAuthConfig.fabricId;
         }
         const adminFabricLabel = this.state.adminFabricLabel;
         const adminFabricId = this.state.adminFabricId;
+        const adminNodeId = this.state.adminNodeId;
+        const caseAuthenticatedTags = this.state.caseAuthenticatedTags;
 
         // Configure discovery transports
         if (this.state.ip === undefined) {
@@ -61,27 +74,29 @@ export class ControllerBehavior extends Behavior {
             this.state.ble = (await this.agent.load(NetworkServer)).state.ble;
         }
         if (this.state.ble !== false) {
-            this.env.get(ScannerSet).add(this.env.get(Ble).scanner);
+            try {
+                this.env.get(ScannerSet).add(this.env.get(Ble).scanner);
+            } catch (error) {
+                logger.error("Disabling BLE due to initialization error:", error);
+                this.state.ble = false;
+            }
         }
 
         // Configure management of controlled fabrics
-        if (!this.env.has(FabricAuthorityConfigurationProvider)) {
+        if (fabricAuthConfig === undefined) {
             const biState = this.endpoint.stateOf(BasicInformationBehavior);
             this.env.set(
                 FabricAuthorityConfigurationProvider,
-                new (class extends FabricAuthorityConfigurationProvider {
-                    get vendorId() {
+                new FabricAuthorityConfigurationProvider({
+                    get adminVendorId() {
+                        // Use a getter to delay access until needed
                         return biState.vendorId;
-                    }
-
-                    override get adminFabricLabel() {
-                        return adminFabricLabel;
-                    }
-
-                    get fabricId() {
-                        return adminFabricId;
-                    }
-                })(),
+                    },
+                    adminFabricLabel,
+                    fabricId: adminFabricId,
+                    nodeId: adminNodeId,
+                    caseAuthenticatedTags,
+                }),
             );
         }
 
@@ -116,6 +131,7 @@ export class ControllerBehavior extends Behavior {
         // Configure network connections
         const netTransports = this.env.get(ConnectionlessTransportSet);
         if (this.state.ble) {
+            // no try-catch needed because we already added the scanner in initialize()
             netTransports.add(this.env.get(Ble).centralInterface);
         }
 
@@ -191,5 +207,17 @@ export namespace ControllerBehavior {
          * If not provided, a random FabricId will be generated.
          */
         adminFabricId?: FabricId = undefined;
+
+        /**
+         * Contains the NodeId of the admin node when a defined number needs to be used because special Certificates
+         * are used.
+         * If not provided, a random NodeId will be generated.
+         */
+        adminNodeId?: NodeId = undefined;
+
+        /**
+         * Case Authenticated Tags to be used to commission and connect to devices.
+         */
+        caseAuthenticatedTags?: CaseAuthenticatedTag[] = undefined;
     }
 }

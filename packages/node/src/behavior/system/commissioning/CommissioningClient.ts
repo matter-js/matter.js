@@ -109,7 +109,7 @@ export class CommissioningClient extends Behavior {
         await node.owner?.act(agent => agent.load(ControllerBehavior));
 
         // Obtain the fabric we will commission into
-        const fabricAuthority = opts.fabricAuthority || this.env.get(FabricAuthority);
+        const fabricAuthority = opts.fabricAuthority ?? this.env.get(FabricAuthority);
         let { fabric } = opts;
         if (fabric === undefined) {
             if (this.context.fabric === undefined) {
