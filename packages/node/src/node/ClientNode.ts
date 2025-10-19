@@ -53,6 +53,10 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         this.#matter = options.matter ?? Matter;
     }
 
+    get isGroup() {
+        return false;
+    }
+
     /**
      * Model of Matter semantics understood by this node.
      *
@@ -66,8 +70,12 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         return new ClientNodeEndpoints(this);
     }
 
+    protected get store() {
+        return this.env.get(ServerNodeStore).clientStores.storeForNode(this);
+    }
+
     override initialize() {
-        const store = this.env.get(ServerNodeStore).clientStores.storeForNode(this);
+        const store = this.store;
 
         this.env.set(ClientNodeStore, store);
 
@@ -202,7 +210,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
 
         // During early initialization commissioning state may not be loaded, so check directly in storage too
         if (!address) {
-            address = this.env.get(ClientNodeStore).storeForEndpoint(this).peerAddress as PeerAddress | undefined;
+            address = this.store.storeForEndpoint(this).peerAddress as PeerAddress | undefined;
         }
 
         // Use the peer address as a log identifier if present

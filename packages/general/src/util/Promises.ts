@@ -252,7 +252,7 @@ export const MaybePromise = {
                     //
                     //      https://github.com/typescript-eslint/typescript-eslint/issues/7276
                     //
-                    // eslint-disable-next-line @typescript-eslint/no-misused-promises
+                    // seems to be ok as of eslint 9.37.0
                     result = (result as Promise<T>).finally(onfinally);
                 } else {
                     result = result.then(
