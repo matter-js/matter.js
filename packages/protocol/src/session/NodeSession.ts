@@ -331,6 +331,11 @@ export class NodeSession extends SecureSession {
         await this.destroy(sendClose, closeAfterExchangeFinished);
     }
 
+    async closeByPeer() {
+        await this.destroy(false, false);
+        await this.closedByPeer.emit();
+    }
+
     /** Destroys a session. Outstanding subscription data will be discarded. */
     async destroy(sendClose = false, closeAfterExchangeFinished = true) {
         await this.clearSubscriptions(false);

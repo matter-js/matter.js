@@ -19,6 +19,7 @@ export class FailsafeTimer {
     #expiryCallback: () => Promise<void>;
     #failsafeTimer: Timer;
     #maxCumulativeFailsafeTimer: Timer;
+    #completed = false;
 
     constructor(
         public associatedFabric: Fabric | undefined,
@@ -70,14 +71,14 @@ export class FailsafeTimer {
     }
 
     /** Returns whether the FailSafe context is currently armed. */
-    get armed() {
-        return this.#failsafeTimer.isRunning && this.#maxCumulativeFailsafeTimer.isRunning;
+    get completed() {
+        return this.#completed;
     }
 
     /** Expire the FailSafe context. This is called by the timer and can also be called manually if needed. */
     async expire() {
-        if (!this.armed) {
-            // No timer is running so we are completed or already expired
+        if (this.#completed) {
+            // Completion was already triggered, so do nothing
             return;
         }
         this.complete();
@@ -86,6 +87,7 @@ export class FailsafeTimer {
 
     /** Complete the FailSafe context. This is called when the commissioning is completed. */
     complete() {
+        this.#completed = true;
         this.#failsafeTimer.stop();
         this.#maxCumulativeFailsafeTimer.stop();
     }

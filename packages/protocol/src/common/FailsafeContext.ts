@@ -68,10 +68,10 @@ export abstract class FailsafeContext {
             );
             logger.debug(`Arm failSafe timer for ${Duration.format(expiryLength)}`);
 
-            // When the PASE session used to arm the Fail-Safe timer is terminated, the Fail-Safe timer SHALL be considered
-            // expired and do the relevant cleanup actions.
-            session.destroyed.on(() => {
-                if (this.#failsafe?.armed) {
+            // When the PASE session used to arm the Fail-Safe timer is terminated by peer, the Fail-Safe timer SHALL
+            // be considered expired and do the relevant cleanup actions.
+            session.closedByPeer.on(() => {
+                if (!this.#failsafe?.completed) {
                     return this.#failSafeExpired();
                 }
             });
