@@ -179,7 +179,7 @@ export class DeviceAdvertiser {
      * Begin automatic broadcast for fabrics if in operational mode.
      */
     #startOperationalAdvertisement() {
-        if (!this.#isOperational) {
+        if (!this.#isOperational || this.#isClosing) {
             return;
         }
 
