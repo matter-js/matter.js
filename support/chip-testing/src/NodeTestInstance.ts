@@ -17,7 +17,7 @@ import {
     type ServerNode,
 } from "@matter/main";
 import { AdministratorCommissioningServer } from "@matter/main/behaviors/administrator-commissioning";
-import { OccurrenceManager } from "@matter/main/protocol";
+import { MdnsService, OccurrenceManager } from "@matter/main/protocol";
 import { BackchannelCommand, chip, PicsFile, Subject } from "@matter/testing";
 import { DeviceTestInstance, DeviceTestInstanceConfig, log } from "./GenericTestApp.js";
 
@@ -157,6 +157,9 @@ export abstract class NodeTestInstance extends DeviceTestInstance implements Sub
 
     override async close() {
         await this.stop();
+
+        log.directive(`======> ${this.appName}: Closing MdnsService`);
+        await this.#env.get(MdnsService)?.close();
 
         log.directive(`======> ${this.appName}: Instance stopped`);
     }
