@@ -166,7 +166,7 @@ export class DeviceAdvertiser {
      * Advertise the device as operational.
      */
     enterOperationalMode() {
-        if (this.#isOperational) {
+        if (this.#isOperational || this.#isClosing) {
             return;
         }
 
