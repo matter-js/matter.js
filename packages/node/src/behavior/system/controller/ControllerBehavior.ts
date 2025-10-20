@@ -88,6 +88,7 @@ export class ControllerBehavior extends Behavior {
         if (node.lifecycle.isOnline) {
             this.#nodeOnline();
         }
+        this.reactTo(node.lifecycle.goingOffline, this.#nodeGoingOffline);
     }
 
     override async [Symbol.asyncDispose]() {
@@ -111,10 +112,6 @@ export class ControllerBehavior extends Behavior {
             // no try-catch needed because we already added the scanner in initialize()
             netTransports.add(this.env.get(Ble).centralInterface);
         }
-
-        // Clean up as the node goes offline
-        const node = Node.forEndpoint(this.endpoint);
-        this.reactTo(node.lifecycle.goingOffline, this.#nodeGoingOffline);
 
         // Add each pre-existing fabric to discovery criteria
         const authority = this.env.get(FabricAuthority);
@@ -140,6 +137,13 @@ export class ControllerBehavior extends Behavior {
             if (scanner instanceof MdnsClient) {
                 scanner.targetCriteriaProviders.delete(this.internal.mdnsTargetCriteria);
             }
+        }
+        // Clear operational targets
+        this.internal.mdnsTargetCriteria.operationalTargets.length = 0;
+
+        const netTransports = this.env.get(ConnectionlessTransportSet);
+        if (this.state.ble) {
+            netTransports.delete(this.env.get(Ble).centralInterface);
         }
     }
 
