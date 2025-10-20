@@ -6,7 +6,7 @@
 import { Subject } from "#action/server/Subject.js";
 import { AccessControl } from "#clusters/access-control";
 import type { Fabric } from "#fabric/Fabric.js";
-import { InternalError, Logger, MatterFlowError } from "#general";
+import { Diagnostic, InternalError, Logger, MatterFlowError } from "#general";
 import { AccessLevel } from "#model";
 import {
     CaseAuthenticatedTag,
@@ -94,7 +94,10 @@ export class FabricAccessControl {
             throw new InternalError("ACL entries must match the fabric index of the manager");
         }
         this.#aclList = [...aclList] as unknown as AclList; // It is the same structure we just use an internal type for privilege
-        logger.info("ACL List updated for FabricIndex ", this.#fabricIndex, this.#aclList);
+        logger.info(
+            "ACL List updated",
+            this.#aclList.map(e => Diagnostic.dict(e)),
+        );
     }
 
     set extensionEntryAccessCheck(

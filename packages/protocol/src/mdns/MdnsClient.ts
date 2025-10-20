@@ -184,9 +184,10 @@ export class MdnsClient implements Scanner {
         this.#updateScanTargets();
         logger.info(
             "MDNS Scan targets updated :",
-            `commissionable = ${this.#scanForCommissionableDevices}`,
-            "Targets:",
-            this.#operationalScanTargets,
+            Diagnostic.dict({
+                commissionable: this.#scanForCommissionableDevices,
+                operational: this.#operationalScanTargets,
+            }),
         );
     }
 
