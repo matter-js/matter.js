@@ -202,7 +202,7 @@ export async function startTestApp(testInstance: TestInstance) {
         logger.info(`Closing test instance because of ${signal} ...`);
 
         // Trigger storing current data because later it could be too late and testrunner already did things
-        if (testInstance.storage instanceof StorageBackendAsyncJsonFile) {
+        if (testInstance.storage instanceof StorageBackendAsyncJsonFile && testInstance.storage.initialized) {
             testInstance.storage.storeIt(true).catch(error => logger.info(error.stack));
         }
 
@@ -214,7 +214,7 @@ export async function startTestApp(testInstance: TestInstance) {
                 runtime.inactive
                     .then(() => {
                         MaybePromise.then(
-                            testInstance.storage?.close(),
+                            testInstance.storage?.initialized && testInstance.storage?.close(),
                             () => {
                                 logger.info(`Test instance successfully closed.`);
                                 process.exit(0);

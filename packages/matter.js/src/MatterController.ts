@@ -274,11 +274,14 @@ export class MatterController {
         }
 
         this.#construction = Construction(this, async () => {
+            const persistFabric = async (fabric: Fabric) => controllerStore.fabricStorage.set("fabric", fabric.config);
+
             // Initialize Fabric Authority to retrieve the self-added fabric or create a new one
             // Also tweak the storage as needed because we manage storage ourselves
             // Data migration needed
             // Can be removed when we use "commission" via Commissioning behavior
             const fabricAuth = environment.get(FabricAuthority);
+            fabricAuth.fabricAdded.on(persistFabric);
             const fabric = await fabricAuth.defaultFabric({
                 adminFabricLabel,
                 adminVendorId,
@@ -287,7 +290,7 @@ export class MatterController {
                 adminNodeId: rootNodeId,
             });
             fabric.storage = controllerStore.fabricStorage;
-            fabric.persistCallback = () => controllerStore.fabricStorage.set("fabric", fabric.config);
+            fabric.persistCallback = () => persistFabric(fabric);
             this.#fabric = fabric;
 
             // Initialize custom PeerAddressStore to manage commissioned nodes storage in legacy storage format
