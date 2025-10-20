@@ -68,7 +68,7 @@
         "@types/debug": "^4.1.12",
         "@types/mocha": "^10.0.10",
         "@types/docker-modem": "^3.0.6",
-        "@types/node": "^24.7.2",
+        "@types/node": "^24.8.1",
         "@types/wtfnode": "^0.10.0",
         "@types/xml2js": "^0.4.14",
         "@types/yargs": "^17.0.33"
