@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MaybePromise } from "#util/Promises.js";
+import type { MaybePromise } from "#util/Promises.js";
 import { decamelize } from "#util/String.js";
 import { errorOf } from "./util/Error.js";
 

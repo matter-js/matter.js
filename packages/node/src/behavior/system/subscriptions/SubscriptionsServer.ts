@@ -227,10 +227,10 @@ export class SubscriptionsBehavior extends Behavior {
             const { peerAddress: peerAddressDetails, operationalAddress, subscriptionId } = subscription;
             const peerAddress = PeerAddress(peerAddressDetails);
             if (peerStopList.has(peerAddress)) {
-                logger.debug(`Skip re-establishing former subscription to ${peerAddress}`);
+                logger.debug(`Skip reestablishing former subscription to ${peerAddress}`);
                 continue;
             }
-            logger.debug(`Try to re-establish former subscription ${subscriptionId} to ${peerAddress}`);
+            logger.debug(`Try to reestablish former subscription ${subscriptionId} to ${peerAddress}`);
             if (sessions.getSessionForNode(peerAddress) !== undefined) {
                 logger.debug(`We already have and existing session for peer ${peerAddress}`);
             } else {
@@ -280,7 +280,7 @@ export class SubscriptionsBehavior extends Behavior {
         interactionServer.subscriptionEstablishmentStarted.off(blockHandler);
 
         logger.info(
-            `Re-established ${successfullReEstablishments.length}${successfullReEstablishments.length ? ` (${successfullReEstablishments.join(",")})` : ""} of ${formerSubscriptions.length} former subscriptions successfully`,
+            `Reestablished ${successfullReEstablishments.length}${successfullReEstablishments.length ? ` (${successfullReEstablishments.join(",")})` : ""} of ${formerSubscriptions.length} former subscriptions successfully`,
         );
     }
 }

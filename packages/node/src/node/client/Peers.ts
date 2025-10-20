@@ -12,10 +12,9 @@ import { InstanceDiscovery } from "#behavior/system/controller/discovery/Instanc
 import { EndpointContainer } from "#endpoint/properties/EndpointContainer.js";
 import { CancelablePromise, Duration, ImplementationError, Logger, Minutes, Seconds, Time, Timestamp } from "#general";
 import { ClientGroup } from "#node/ClientGroup.js";
-import { InteractionServer } from "#node/index.js";
-import { FabricManager, PeerAddress } from "#protocol";
+import { InteractionServer } from "#node/server/InteractionServer.js";
+import { ClientSubscriptionHandler, ClientSubscriptions, FabricManager, PeerAddress } from "#protocol";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
-import { ClientSubscriptionHandler, ClientSubscriptions } from "@matter/protocol";
 import { ClientNode } from "../ClientNode.js";
 import type { ServerNode } from "../ServerNode.js";
 import { ClientNodeFactory } from "./ClientNodeFactory.js";

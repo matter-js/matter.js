@@ -8,7 +8,7 @@ import { IndexBehavior } from "#behavior/system/index/IndexBehavior.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import type { ImmutableSet } from "#general";
-import { Node } from "#node/Node.js";
+import type { Node } from "#node/Node.js";
 import { StatusResponse } from "#types";
 
 /**

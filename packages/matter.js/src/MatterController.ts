@@ -11,7 +11,7 @@
  */
 
 import { GeneralCommissioning } from "#clusters";
-import { NodeCommissioningOptions } from "#CommissioningController.js";
+import type { NodeCommissioningOptions } from "#CommissioningController.js";
 import { ControllerStoreInterface } from "#ControllerStore.js";
 import { CachedClientNodeStore } from "#device/CachedClientNodeStore.js";
 import { DeviceInformationData } from "#device/DeviceInformation.js";

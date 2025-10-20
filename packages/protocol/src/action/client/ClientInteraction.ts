@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { resolvePathForSpecifier } from "#action/index.js";
 import { Interactable, InteractionSession } from "#action/Interactable.js";
 import { ClientInvoke, Invoke } from "#action/request/Invoke.js";
 import { Read } from "#action/request/Read.js";
+import { resolvePathForSpecifier } from "#action/request/Specifier.js";
 import { Subscribe } from "#action/request/Subscribe.js";
 import { Write } from "#action/request/Write.js";
 import { DecodedInvokeResult, InvokeResult } from "#action/response/InvokeResult.js";
