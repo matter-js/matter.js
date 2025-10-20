@@ -6,7 +6,7 @@
 
 import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
 import { ImplementationError, MockCrypto } from "#general";
-import { FabricId, FabricIndex, VendorId } from "@matter/types";
+import { FabricId, FabricIndex, VendorId } from "#types";
 import { FabricAuthority } from "./FabricAuthority.js";
 import { FabricManager } from "./FabricManager.js";
 
@@ -24,7 +24,7 @@ export async function TestFabric(options: TestFabric.Options = {}) {
     return authority.createFabric({
         adminFabricLabel: `mock-fabric-${index}`,
         adminVendorId: VendorId(0xfff1),
-        adminFabricIndex: FabricIndex(index!),
+        adminFabricIndex: index !== undefined ? FabricIndex(index!) : undefined,
         adminFabricId: FabricId(1),
     });
 }
@@ -37,21 +37,22 @@ export namespace TestFabric {
      *
      * Crypto matter is stable with respect to {@link index}.
      */
-    export async function Authority({ index, fabrics }: Options = {}) {
-        if (index === undefined) {
+    export async function Authority(options: Options = {}) {
+        let { fabrics } = options;
+        if (options.index === undefined) {
             if (fabrics) {
-                index = fabrics.allocateFabricIndex();
+                options.index = fabrics.allocateFabricIndex();
             } else {
-                index = 1;
+                options.index = 1;
             }
         }
 
-        if (index < 1 || index > 254) {
+        if (options.index < 1 || options.index > 254) {
             throw new ImplementationError("Test fabric indexes must be in the range 1-254");
         }
 
         if (!fabrics) {
-            fabrics = new FabricManager(MockCrypto(index));
+            fabrics = new FabricManager(MockCrypto(options.index));
         }
 
         return new FabricAuthority({

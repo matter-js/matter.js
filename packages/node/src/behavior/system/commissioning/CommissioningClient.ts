@@ -129,7 +129,13 @@ export class CommissioningClient extends Behavior {
         let { fabric } = opts;
         if (fabric === undefined) {
             if (this.context.fabric === undefined) {
-                fabric = await fabricAuthority.defaultFabric(this.agent.get(ControllerBehavior).fabricAuthorityConfig);
+                const config = await node.owner?.act(agent => agent.get(ControllerBehavior).fabricAuthorityConfig);
+                if (config === undefined) {
+                    throw new ImplementationError(
+                        `Cannot commission ${node} because no fabric was specified and the controller has no fabric configuration`,
+                    );
+                }
+                fabric = await fabricAuthority.defaultFabric(config);
             } else {
                 fabric = node.env.get(FabricManager).for(this.context.fabric);
             }
