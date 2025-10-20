@@ -33,7 +33,7 @@ import {
     StorageManager,
 } from "#general";
 import { LegacyControllerStore } from "#LegacyControllerStore.js";
-import { InteractionServer, ServerNode } from "#node";
+import { ControllerBehavior, InteractionServer, ServerNode } from "#node";
 import {
     CertificateAuthority,
     ClusterClient,
@@ -329,6 +329,9 @@ export class MatterController {
 
             this.#peers = this.#node.env.get(PeerSet);
             nodesStore.peers = this.#peers;
+
+            // Ensure ControllerBehavior is loaded
+            await this.#node.act(agent => agent.load(ControllerBehavior));
 
             if (this.#fabric.label !== adminFabricLabel) {
                 await fabric.setLabel(adminFabricLabel);
