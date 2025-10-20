@@ -13,7 +13,7 @@ import {
     ClientSubscriptions,
     Fabric,
     FabricAuthority,
-    FabricAuthorityConfigurationProvider,
+    FabricAuthorityConfiguration,
     FabricManager,
     MdnsClient,
     MdnsScannerTargetCriteria,
@@ -21,8 +21,7 @@ import {
     Scanner,
     ScannerSet,
 } from "#protocol";
-import { FabricId, NodeId } from "#types";
-import { CaseAuthenticatedTag } from "@matter/types";
+import { CaseAuthenticatedTag, FabricId, NodeId } from "#types";
 import type { CommissioningClient } from "../commissioning/CommissioningClient.js";
 import { CommissioningServer } from "../commissioning/CommissioningServer.js";
 import { NetworkServer } from "../network/NetworkServer.js";
@@ -46,21 +45,9 @@ export class ControllerBehavior extends Behavior {
     declare state: ControllerBehavior.State;
 
     override async initialize() {
-        const fabricAuthConfig = this.env.maybeGet(FabricAuthorityConfigurationProvider);
         if (this.state.adminFabricLabel === undefined || this.state.adminFabricLabel === "") {
-            if (fabricAuthConfig !== undefined) {
-                this.state.adminFabricLabel = fabricAuthConfig.adminFabricLabel;
-            } else {
-                throw new ImplementationError("adminFabricLabel must be set for ControllerBehavior");
-            }
+            throw new ImplementationError("adminFabricLabel must be set for ControllerBehavior");
         }
-        if (this.state.adminFabricId === undefined && fabricAuthConfig !== undefined) {
-            this.state.adminFabricId = fabricAuthConfig.fabricId;
-        }
-        const adminFabricLabel = this.state.adminFabricLabel;
-        const adminFabricId = this.state.adminFabricId;
-        const adminNodeId = this.state.adminNodeId;
-        const caseAuthenticatedTags = this.state.caseAuthenticatedTags;
 
         // Configure discovery transports
         if (this.state.ip === undefined) {
@@ -80,24 +67,6 @@ export class ControllerBehavior extends Behavior {
                 logger.error("Disabling BLE due to initialization error:", error);
                 this.state.ble = false;
             }
-        }
-
-        // Configure management of controlled fabrics
-        if (fabricAuthConfig === undefined) {
-            const biState = this.endpoint.stateOf(BasicInformationBehavior);
-            this.env.set(
-                FabricAuthorityConfigurationProvider,
-                new FabricAuthorityConfigurationProvider({
-                    get adminVendorId() {
-                        // Use a getter to delay access until needed
-                        return biState.vendorId;
-                    },
-                    adminFabricLabel,
-                    fabricId: adminFabricId,
-                    nodeId: adminNodeId,
-                    caseAuthenticatedTags,
-                }),
-            );
         }
 
         // Ensure the fabric authority is fully initialized
@@ -125,6 +94,14 @@ export class ControllerBehavior extends Behavior {
         await this.env.close(ActiveDiscoveries);
         this.env.delete(FabricAuthority);
         this.env.delete(ScannerSet);
+    }
+
+    get fabricAuthorityConfig(): FabricAuthorityConfiguration {
+        const biState = this.endpoint.stateOf(BasicInformationBehavior);
+        return {
+            adminVendorId: biState.vendorId,
+            ...this.state,
+        };
     }
 
     #nodeOnline() {

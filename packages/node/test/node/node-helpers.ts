@@ -35,6 +35,7 @@ import {
     VendorId,
 } from "#types";
 import { X509Base } from "@matter/protocol";
+import { FabricId, FabricIndex } from "@matter/types";
 import { MockServerNode } from "./mock-server-node.js";
 
 export const FAILSAFE_LENGTH_S = 60;
@@ -112,7 +113,12 @@ export function CommissioningHelper() {
             const authority = await TestFabric.Authority({ index });
 
             // This is the controller's version of the fabric
-            const controllerFabric = await authority.createFabric();
+            const controllerFabric = await authority.createFabric({
+                adminFabricLabel: `mock-fabric-${index}`,
+                adminVendorId: VendorId(0xfff1),
+                adminFabricIndex: FabricIndex(index),
+                adminFabricId: FabricId(1),
+            });
 
             if (!node) {
                 node = await MockServerNode.createOnline();

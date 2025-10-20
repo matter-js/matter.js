@@ -129,7 +129,7 @@ export class CommissioningClient extends Behavior {
         let { fabric } = opts;
         if (fabric === undefined) {
             if (this.context.fabric === undefined) {
-                fabric = await fabricAuthority.defaultFabric();
+                fabric = await fabricAuthority.defaultFabric(this.agent.get(ControllerBehavior).fabricAuthorityConfig);
             } else {
                 fabric = node.env.get(FabricManager).for(this.context.fabric);
             }

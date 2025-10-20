@@ -45,7 +45,6 @@ import {
     DiscoveryData,
     Fabric,
     FabricAuthority,
-    FabricAuthorityConfigurationProvider,
     FabricManager,
     InteractionClientProvider,
     MessageChannel,
@@ -275,25 +274,18 @@ export class MatterController {
         }
 
         this.#construction = Construction(this, async () => {
-            // Initialize Fabric Authority with the provided initial fabric details because we create the Fabric ourselves.
-            // Can be removed when we use "commission" via Commissioning behavior
-            environment.set(
-                FabricAuthorityConfigurationProvider,
-                new FabricAuthorityConfigurationProvider({
-                    adminFabricLabel,
-                    adminVendorId,
-                    fabricId: adminFabricId,
-                    caseAuthenticatedTags,
-                    nodeId: rootNodeId,
-                }),
-            );
-
             // Initialize Fabric Authority to retrieve the self-added fabric or create a new one
             // Also tweak the storage as needed because we manage storage ourselves
             // Data migration needed
             // Can be removed when we use "commission" via Commissioning behavior
             const fabricAuth = environment.get(FabricAuthority);
-            const fabric = await fabricAuth.defaultFabric();
+            const fabric = await fabricAuth.defaultFabric({
+                adminFabricLabel,
+                adminVendorId,
+                adminFabricId,
+                caseAuthenticatedTags,
+                adminNodeId: rootNodeId,
+            });
             fabric.storage = controllerStore.fabricStorage;
             fabric.persistCallback = () => controllerStore.fabricStorage.set("fabric", fabric.config);
             this.#fabric = fabric;

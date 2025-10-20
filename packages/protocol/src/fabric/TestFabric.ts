@@ -6,7 +6,7 @@
 
 import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
 import { ImplementationError, MockCrypto } from "#general";
-import { FabricId, FabricIndex, VendorId } from "#types";
+import { FabricId, FabricIndex, VendorId } from "@matter/types";
 import { FabricAuthority } from "./FabricAuthority.js";
 import { FabricManager } from "./FabricManager.js";
 
@@ -19,8 +19,14 @@ import { FabricManager } from "./FabricManager.js";
  */
 export async function TestFabric(options: TestFabric.Options = {}) {
     const authority = await TestFabric.Authority(options);
+    const { index } = options;
 
-    return authority.createFabric();
+    return authority.createFabric({
+        adminFabricLabel: `mock-fabric-${index}`,
+        adminVendorId: VendorId(0xfff1),
+        adminFabricIndex: FabricIndex(index!),
+        adminFabricId: FabricId(1),
+    });
 }
 
 export namespace TestFabric {
@@ -48,18 +54,10 @@ export namespace TestFabric {
             fabrics = new FabricManager(MockCrypto(index));
         }
 
-        const authority = new FabricAuthority({
+        return new FabricAuthority({
             ca: await CertificateAuthority.create(fabrics.crypto),
-            config: {
-                adminFabricLabel: `mock-fabric-${index}`,
-                adminVendorId: VendorId(0xfff1),
-                fabricIndex: FabricIndex(index),
-                fabricId: FabricId(1),
-            },
             fabrics,
         });
-
-        return authority;
     }
 
     export interface Options {
