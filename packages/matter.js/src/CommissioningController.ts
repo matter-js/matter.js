@@ -19,6 +19,7 @@ import {
 } from "#general";
 import { LegacyControllerStore } from "#LegacyControllerStore.js";
 import {
+    ActiveSessionInformation,
     Ble,
     CertificateAuthority,
     CommissionableDevice,
@@ -43,7 +44,6 @@ import {
     TypeFromPartialBitSchema,
     VendorId,
 } from "#types";
-import { ActiveSessionInformation } from "@matter/protocol";
 import { CommissioningControllerNodeOptions, NodeStates, PairedNode } from "./device/PairedNode.js";
 import { MatterController } from "./MatterController.js";
 
