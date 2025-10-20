@@ -156,6 +156,14 @@ export class ControllerBehavior extends Behavior {
 
     async #nodeGoingOffline() {
         await this.env.close(ClientSubscriptions);
+
+        // Configure each MDNS scanner with criteria
+        const scanners = this.env.get(ScannerSet);
+        for (const scanner of scanners) {
+            if (scanner instanceof MdnsClient) {
+                scanner.targetCriteriaProviders.delete(this.internal.mdnsTargetCriteria);
+            }
+        }
     }
 
     #enableScanningForFabric(fabric: Fabric) {
