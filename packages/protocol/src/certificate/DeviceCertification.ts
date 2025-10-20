@@ -69,7 +69,17 @@ export class DeviceCertification {
             this.#certificate = config.certificate;
             this.#intermediateCertificate = config.intermediateCertificate;
             this.#declaration = config.declaration;
+
+            if (product !== undefined) {
+                this.#validateCertification(product);
+            }
         });
+    }
+
+    #validateCertification(_product: ProductDescription) {
+        //const { privateKey, certificate, intermediateCertificate, declaration } = this.#assertInitialized();
+        // TODO extract and validate vendorIds from certificate and intermediateCertificate and compare to product.vendorId
+        // TODO extract and validate productId from certificate and compare to product.productId
     }
 
     async sign(session: NodeSession, data: Bytes) {
