@@ -93,7 +93,7 @@ jobs:
 
       - name: Use Node.js 20.x
         if: steps.automerge.outputs.mergeResult == 'merged'
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: 20.x
 
