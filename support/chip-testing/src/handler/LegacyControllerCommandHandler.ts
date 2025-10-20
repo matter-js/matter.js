@@ -136,7 +136,6 @@ export class LegacyControllerCommandHandler extends CommandHandler {
     }
 
     close() {
-        logger.info(`-----> Controller ${this.#identity} stopping`);
         return this.#controllerInstance.close();
     }
 
