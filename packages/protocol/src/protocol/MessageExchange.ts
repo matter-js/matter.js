@@ -494,10 +494,10 @@ export class MessageExchange {
 
     #retransmitMessage(message: Message, expectedProcessingTime?: Duration) {
         this.#retransmissionCounter++;
-        if (this.#retransmissionCounter >= MRP.MAX_TRANSMISSIONS) {
+        if (this.#isClosing || this.#retransmissionCounter >= MRP.MAX_TRANSMISSIONS) {
             // Ok all 4 resubmissions are done, but we need to wait a bit longer because of processing time and
             // the resubmissions from the other side
-            if (expectedProcessingTime) {
+            if (expectedProcessingTime && !this.#isClosing) {
                 // We already have waited after the last message was sent, so deduct this time from the final wait time
                 const finalWaitTime = Millis(
                     this.channel.calculateMaximumPeerResponseTime(
