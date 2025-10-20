@@ -6,7 +6,6 @@
 
 import { InternalError, Logger } from "@matter/general";
 import { Environment, NodeId, StorageService } from "@matter/main";
-import { MdnsService } from "@matter/main/protocol";
 import { CommissioningController, ControllerStore } from "@project-chip/matter.js";
 import { mkdirSync } from "node:fs";
 import { ChipToolWebSocketHandler } from "./ChipToolWebSocketHandler.js";
@@ -214,9 +213,6 @@ export class ControllerTestInstance extends TestInstance {
 
     override async close() {
         await this.stop();
-
-        logger.info("Closing MdnsService");
-        await this.#env.close(MdnsService);
 
         logger.info(`${this.appName}: Controller Instance stopped`);
     }
