@@ -24,7 +24,7 @@ export async function TestFabric(options: TestFabric.Options = {}) {
     return authority.createFabric({
         adminFabricLabel: `mock-fabric-${index}`,
         adminVendorId: VendorId(0xfff1),
-        adminFabricIndex: index !== undefined ? FabricIndex(index!) : undefined,
+        adminFabricIndex: index !== undefined ? FabricIndex(index) : undefined,
         adminFabricId: FabricId(1),
     });
 }

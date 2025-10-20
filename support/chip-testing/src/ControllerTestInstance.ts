@@ -184,7 +184,9 @@ export class ControllerTestInstance extends TestInstance {
             throw new InternalError("Started without initialization");
         }
 
+        /*
         this.#env.vars.set("mdns.networkInterface", "en0");
+        */
 
         this.#commandHandler.start();
 
