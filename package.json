@@ -43,7 +43,8 @@
     "matter-multidevice": "matter-run packages/examples/src/device-multiple-onoff/MultiDeviceNode.ts",
     "matter-controller": "matter-run packages/examples/src/controller/ControllerNode.ts",
     "shell": "matter-run packages/nodejs-shell/src/app.ts",
-    "relock": "node packages/tools/bin/relock.js && npm install"
+    "relock": "node packages/tools/bin/relock.js && npm install",
+    "cycles": "matter-build cycles"
   },
   "devDependencies": {
     "@eslint/compat": "^1.4.0",
