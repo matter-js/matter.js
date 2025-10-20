@@ -81,7 +81,7 @@ export class ControllerTestInstance extends TestInstance {
     #setupControllers() {
         const initStorageService = () =>
             new StorageService(this.#env, namespace => {
-                logger.warn(`Storage service requested for namespace ${namespace}`);
+                logger.info(`Storage service requested for namespace ${namespace}`);
                 const storageDir = getParameter("storage-directory") ?? "/tmp";
                 const storageName = `${storageDir}${getParameter("KVS") ?? "/chip_tool_kvs"}-${namespace}`;
                 return new StorageBackendAsyncJsonFile(storageName);
@@ -199,8 +199,8 @@ export class ControllerTestInstance extends TestInstance {
     override async close() {
         await this.stop();
 
-        logger.info("CLosing MdnsService");
-        await this.#env.get(MdnsService)?.close();
+        logger.info("Closing MdnsService");
+        await this.#env.close(MdnsService);
 
         logger.info(`${this.appName}: Controller Instance stopped`);
     }
