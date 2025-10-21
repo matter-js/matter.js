@@ -21,7 +21,15 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Adds Blob support to the Storage interface
     - Feature: Add BDX (Bulk Data eXchange) protocol support according to Matter specification
     - Enhancement: Allows SHA 256 generation using async iterator or readable stream reader as input
-    - Fix: Ensures that StandaloneAck messages are always considering the corresponding Secure channel protocol ID 
+    - Fix: Ensures that StandaloneAck messages are always considering the corresponding Secure channel protocol ID
+    - Enhancement: Added platform abstractions for of HTTP, WebSockets and MQTT
+    - Enhancement: Added polyfills and additional types for decorators
+
+-   @matter/model
+    - Feature: You can now use Ecma TC39 stage 3 decorators to associate assign Matter semantics to JavaScript classes
+    - Feature: You can now reference subproperties in constraints as required by Matter 1.4.2
+    - Feature: Constraints now support Matter 1.4.2 functions `minOf` and `maxOf`
+    - Enhancement: Model API is improved to simplify element filtering based on conformance
 
 -   @matter/types
     - Enhancement: The duplicate event priority definition `EventPriority` is deprecated; use the generated `Priority` enum instead
@@ -37,6 +45,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: MDNS and BLE advertising schedules are now configurable and conform to Matter and DNS-SD specifications
     - Enhancement: MDNS client and server efficiency is improved with a shared socket and message parser
     - Enhancement: MDNS Truncated Queries are now handled correctly
+    - Enhancement: matter.js no longer uses SO_REUSEADDR on the Matter port so you can no longer accidentally start two nodes at the same address simultaneously
     - Fix: Controller networking was previously throwing the incorrect error after a communication timeout
     - Fix: Ensures to only include the MaxTcpMessageSize in Session parameters when TCP is enabled
 
@@ -44,21 +53,31 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: `Endpoint` and `Node` initialization values now require the correct type for some time values and IDs.  So for example, `VendorId(1234)` instead of just `1234`
     - Breaking: `SubscriptionBehavior` is renamed to `SubscriptionsServer` with corresponding ID change to "subscriptions".  This means in part that matter.js will ignore saved subscriptions but devices will recreate them automatically
     - Breaking: The `agentFor` method of `ActionContext` has moved to `Endpoint`.  You likely do not use this directly but if you do you must change `context.agentFor(endpoint)` to `endpoint.agentFor(context)`
-    - Breaking: We have refactored the `ActionContext` class to better delineate fields that apply to operations triggered locally vs those triggered by authenticated peers.  `ActionContext` may be a `RemoteActorContext` or `LocalActorContext`.  You can determine the actor type and access relevant fields using new type guards `isRemoteContext` or `isLocalContext` and new type assertion `assertRemoteContext`.  These replace the former `offline` field of `ActionContext`.
+    - Breaking: We have refactored the `ActionContext` class to better delineate fields that apply to operations triggered locally vs those triggered by authenticated peers.  `ActionContext` may be a `RemoteActorContext` or `LocalActorContext`.  You can determine the actor type and access relevant fields using new type guards `isRemoteContext` or `isLocalContext` and new type assertion `assertRemoteContext`.  These replace the former `offline` field of `ActionContext`
+    - Feature: matter.js now natively supports remote access to Matter nodes via non-Matter protocols.  You can add `HttpServer`, `WebSocketServer` and/or `MqttServer` to your `ServerNode` to enable HTTP, WebSocket and MQTT access respectively
+    - Feature: You can now use Ecma TC39 stage 3 decorators to customize the schema associated with a `Behavior` implementation
+    - Feature: New `StateStream` component offers a high-level API for monitoring changes across multiple nodes
 
 -   @matter/nodejs
     - Enhancement: Uses "stat" to determine storage file existence instead of reading all content
-    - Fix: Corrects network interface selection logic for windows 
+    - Enhancement: Exposes Node's native HTTP server via new abstractions in `@matter/general`
+    - Fix: Corrects network interface selection logic for windows
 
 -   @matter/react-native
     - Fix: (Luxni) Update UDP, BLE and Crypto usage to work with React Native
 
 -   @project-chip/matter.js
-    - BREAKING: `PairedNode.state` got renamed to `PairedNode.connectionState`!
+    - BREAKING: `PairedNode.state` renamed to `PairedNode.connectionState`!
     - Enhancement: Added more convenient accessors for endpoint cached read-only state: `Endpoint.state` property for attributes for all clusters in generic way and `Endpoint.stateOf()` for a typed access for a defined Client behavior
     - Enhancement: Added more convenient accessors for endpoint commands: `Endpoint.commands` property for commands for all clusters in generic way and `Endpoint.commandsOf()` for a types access for a defined Client behavior
     - Enhancement: Added `PairedNode.parts` and `Endpoint.parts` as Map property to access all endpoints of a node
     - Enhancement: Added `PairedNode.state`, `PairedNode.stateOf()`, `PairedNode.commands` and `PairedNode.commandsOf()` to access all endpoints of te root endpoint in a more convenient way
+
+-   @matter/mqtt
+    - Feature: New package implementing `@matter/main` MQTT abstraction using MQTT.js
+
+-   @matter/nodejs-ws
+    - Feature: New package implementing `@matter/main` WebSocket abstraction using ws package and Node.js HTTP server
 
 -   Other
     - Feature: For developers working with the matter.js repository on Macs and Windows, we now offer a devcontainer to facilitate native Linux development
