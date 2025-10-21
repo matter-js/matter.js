@@ -233,20 +233,27 @@ export class RuntimeService implements Multiplex {
         const cancel = () => {
             this.#cancelled.add(worker);
 
-            if (worker.close) {
-                this.#cancelled.add(worker);
-                return Promise.resolve(worker.close()).finally(() => this.delete(worker));
-            }
+            try {
+                if (worker.close) {
+                    return Promise.resolve(worker.close())
+                        .catch(unhandled)
+                        .finally(() => this.delete(worker));
+                }
 
-            if (worker[Symbol.asyncDispose]) {
-                this.#cancelled.add(worker);
-                return Promise.resolve(worker[Symbol.asyncDispose]?.()).finally(() => this.delete(worker));
-            }
+                if (worker[Symbol.asyncDispose]) {
+                    return Promise.resolve(worker[Symbol.asyncDispose]?.())
+                        .catch(unhandled)
+                        .finally(() => this.delete(worker));
+                }
 
-            if (worker[Symbol.dispose]) {
-                worker[Symbol.dispose]?.();
+                if (worker[Symbol.dispose]) {
+                    worker[Symbol.dispose]?.();
+                    this.delete(worker);
+                    return;
+                }
+            } catch (e) {
+                unhandled(e);
                 this.delete(worker);
-                return;
             }
 
             // No means of cancellation so we just need to wait for the worker to exit
@@ -258,6 +265,10 @@ export class RuntimeService implements Multiplex {
         }
 
         return cancel();
+
+        function unhandled(e: unknown) {
+            logger.error(`Unhandled error closing worker:`, e);
+        }
     }
 
     #crash(cause?: Error) {
