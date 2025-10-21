@@ -170,7 +170,7 @@ jobs:
               --target-glob "{TestSelfFabricRemoval}" \
               run \
               --iterations 1 \
-              --all-clusters-app ../support/chip-testing/dist/esm/AllClustersTestApp.js \
+              --all-clusters-app ../support/chip-testing/AllClustersTestApp.sh \
               --bridge-app ../support/chip-testing/dist/esm/BridgeTestApp.js \
               --tv-app ../support/chip-testing/dist/esm/TvTestApp.js \
             || (cat ./test_allclusters.log && exit 1)'
@@ -204,7 +204,7 @@ jobs:
               --target-glob "{TestSelfFabricRemoval}" \
               run \
               --iterations 1 \
-              --all-clusters-app ../support/chip-testing/dist/esm/AllClustersTestApp.js \
+              --all-clusters-app ../support/chip-testing/AllClustersTestApp.sh \
               --bridge-app ../support/chip-testing/dist/esm/BridgeTestApp.js \
               --tv-app ../support/chip-testing/dist/esm/TvTestApp.js \
              || (cat ./test_allclusters.log && exit 1)'
