@@ -311,6 +311,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
             ? this.owner.env.close(DeviceAdvertiser)
             : this.#mdnsAdvertiser?.close();
         this.#mdnsAdvertiser = undefined;
+        logger.info(`Shutting down advertisements for node ${this.owner.id}`);
 
         await this.owner.prepareRuntimeShutdown();
 
@@ -319,12 +320,14 @@ export class ServerNetworkRuntime extends NetworkRuntime {
 
         // Now all sessions are closed, so we wait for Advertiser to be gone
         await advertisementShutdown;
+        logger.info(`Advertisements for node ${this.owner.id} shut down`);
 
         await env.close(ExchangeManager);
         await env.close(SecureChannelProtocol);
         await env.close(ConnectionlessTransportSet);
         await env.close(InteractionServer);
         await env.close(PeerSet);
+        logger.info(`Network runtime for node ${this.owner.id} stopped`);
     }
 
     protected override blockNewActivity() {
