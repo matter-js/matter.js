@@ -41,6 +41,7 @@ export abstract class MdnsAdvertisement<T extends ServiceDescription = ServiceDe
 
     #isPrivacyMasked: boolean;
     #stopAt?: Timestamp;
+    #broadcastPromise?: Promise<void>;
 
     constructor(advertiser: MdnsAdvertiser, qname: string, description: T) {
         description = {
@@ -80,6 +81,18 @@ export abstract class MdnsAdvertisement<T extends ServiceDescription = ServiceDe
      * Broadcast a single announcement immediately.
      */
     async broadcast() {
+        if (this.#broadcastPromise !== undefined) {
+            return this.#broadcastPromise;
+        }
+
+        this.#broadcastPromise = this.#broadcast().then(() => {
+            this.#broadcastPromise = undefined;
+        });
+
+        return this.#broadcastPromise;
+    }
+
+    async #broadcast() {
         if (!this.#isPrivacyMasked && this.isPrivacyMasked) {
             this.#isPrivacyMasked = true;
             await this.advertiser.server.setRecordsGenerator(this.service, this.#recordsGenerator);
@@ -92,6 +105,9 @@ export abstract class MdnsAdvertisement<T extends ServiceDescription = ServiceDe
      * Broadcast expiration announcement immediately.
      */
     async expire() {
+        if (this.#broadcastPromise !== undefined) {
+            await this.#broadcastPromise;
+        }
         logger.info("Unpublishing", this.dict({ time: Duration.format(this.duration) }));
         await this.advertiser.server.expireAnnouncements(this.service);
     }
