@@ -203,6 +203,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         const device = this.owner.env.get(DeviceAdvertiser);
         const mdnsAdvertiser = this.mdnsAdvertiser;
         if (!device.hasAdvertiser(mdnsAdvertiser)) {
+            logger.debug("Enabling MDNS advertising");
             device.addAdvertiser(mdnsAdvertiser);
         }
     }
