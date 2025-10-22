@@ -84,9 +84,12 @@ export class PaseServer implements ProtocolHandler {
                 logger.info(
                     "Pase server: Pairing already in progress (PASE establishment Timer running), ignoring new exchange.",
                 );
+            } else if (this.#pairingMessenger !== undefined) {
+                logger.info("Already handling a pairing request, ignoring new exchange.");
             } else {
+                this.#pairingMessenger = messenger;
                 // Ok new pairing try, handle it
-                await this.handlePairingRequest(this.sessions.crypto, messenger);
+                await this.handlePairingRequest(this.sessions.crypto);
             }
         } catch (error) {
             this.#pairingErrors++;
@@ -105,16 +108,14 @@ export class PaseServer implements ProtocolHandler {
                 );
             }
         } finally {
+            this.#pairingMessenger = undefined;
             // Destroy the unsecure session used to establish the Pase session
             await exchange.session.destroy();
         }
     }
 
-    private async handlePairingRequest(crypto: Crypto, messenger: PaseServerMessenger) {
-        if (this.#pairingMessenger !== undefined) {
-            throw new UnexpectedDataError("Already handling a pairing request.");
-        }
-        this.#pairingMessenger = messenger;
+    private async handlePairingRequest(crypto: Crypto) {
+        const messenger = this.#pairingMessenger!;
 
         logger.info("Received pairing request «", Diagnostic.via(messenger.channelName));
 
