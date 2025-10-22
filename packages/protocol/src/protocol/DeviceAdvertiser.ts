@@ -145,7 +145,6 @@ export class DeviceAdvertiser {
             return;
         }
 
-        logger.info("Starting commissioning advertisement");
         for (const advertiser of this.#advertisers) {
             advertiser.advertise(this.#commissioningService, "startup");
         }
@@ -223,7 +222,6 @@ export class DeviceAdvertiser {
     async close() {
         this.#isClosing = true;
         this.#observers.close();
-        logger.info("Closing DeviceAdvertiser and all Advertisers");
         await this.clearAdvertisers();
     }
 

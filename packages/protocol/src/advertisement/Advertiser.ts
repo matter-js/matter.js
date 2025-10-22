@@ -5,11 +5,8 @@
  */
 
 import type { Fabric } from "#fabric/Fabric.js";
-import { Logger } from "#general";
 import { Advertisement } from "./Advertisement.js";
 import type { ServiceDescription } from "./ServiceDescription.js";
-
-const logger = Logger.get("Advertiser");
 
 /**
  * A component that advertises a Matter service.
@@ -49,7 +46,6 @@ export abstract class Advertiser {
      */
     async close() {
         this.#isClosed = true;
-        logger.info(`Closing advertiser and cancelling ${this.#advertisements.size} advertisements`);
         await Advertisement.closeAll(this.#advertisements);
     }
 
