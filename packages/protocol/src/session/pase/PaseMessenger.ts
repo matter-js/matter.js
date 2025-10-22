@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "#general";
-import { SecureMessageType } from "#types";
+import { Bytes, Duration, UnexpectedDataError } from "#general";
+import { SecureMessageType, TlvSchema } from "#types";
+import { ExchangeSendOptions } from "../../protocol/MessageExchange.js";
 import { DEFAULT_NORMAL_PROCESSING_TIME, SecureChannelMessenger } from "../../securechannel/SecureChannelMessenger.js";
 import {
     PasePake1,
@@ -24,6 +25,8 @@ export const DEFAULT_PASSCODE_ID = 0;
 export const SPAKE_CONTEXT = Bytes.fromString("CHIP PAKE V1 Commissioning");
 
 export class PaseServerMessenger extends SecureChannelMessenger {
+    #closed = false;
+
     async readPbkdfParamRequest() {
         const { payload } = await this.nextMessage(SecureMessageType.PbkdfParamRequest, DEFAULT_NORMAL_PROCESSING_TIME);
         return { requestPayload: payload, request: TlvPbkdfParamRequest.decode(payload) as PbkdfParamRequest };
@@ -45,6 +48,33 @@ export class PaseServerMessenger extends SecureChannelMessenger {
 
     readPasePake3() {
         return this.nextMessageDecoded(SecureMessageType.PasePake3, TlvPasePake3);
+    }
+
+    override close() {
+        this.#closed = true;
+        return super.close();
+    }
+
+    override send<T>(message: T, type: number, schema: TlvSchema<T>, options?: ExchangeSendOptions) {
+        if (this.#closed) {
+            throw new UnexpectedDataError("Cannot send message, messenger is closed");
+        }
+        return super.send(message, type, schema, options);
+    }
+
+    override async nextMessage(
+        expectedMessageType: number,
+        expectedProcessingTimeMs?: Duration,
+        expectedMessageInfo?: string,
+    ) {
+        if (this.#closed) {
+            throw new UnexpectedDataError("Cannot read message, messenger is closed");
+        }
+        const result = await super.nextMessage(expectedMessageType, expectedProcessingTimeMs, expectedMessageInfo);
+        if (this.#closed) {
+            throw new UnexpectedDataError("Cannot read message, messenger is closed");
+        }
+        return result;
     }
 }
 

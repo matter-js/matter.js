@@ -38,8 +38,10 @@ export class PaseServer implements ProtocolHandler {
     readonly id = SECURE_CHANNEL_PROTOCOL_ID;
     readonly requiresSecureSession = false;
 
-    #pairingTimer: Timer | undefined;
+    #pairingTimer?: Timer;
+    #pairingMessenger?: PaseServerMessenger;
     #pairingErrors = 0;
+    #closed = false;
 
     static async fromPin(sessions: SessionManager, setupPinCode: number, pbkdfParameters: PbkdfParameters) {
         const { w0, L } = await Spake2p.computeW0L(sessions.crypto, pbkdfParameters, setupPinCode);
@@ -65,6 +67,10 @@ export class PaseServer implements ProtocolHandler {
     ) {}
 
     async onNewExchange(exchange: MessageExchange) {
+        if (this.#closed) {
+            logger.warn("Pase server: Received new exchange but server is closed, ignoring exchange.");
+            return;
+        }
         const messenger = new PaseServerMessenger(exchange);
         try {
             // When a Commissioner is either in the process of establishing a PASE session with the Commissionee or has
@@ -105,6 +111,11 @@ export class PaseServer implements ProtocolHandler {
     }
 
     private async handlePairingRequest(crypto: Crypto, messenger: PaseServerMessenger) {
+        if (this.#pairingMessenger === undefined) {
+            throw new UnexpectedDataError("No pairing messenger available.");
+        }
+        this.#pairingMessenger = messenger;
+
         logger.info("Received pairing request «", Diagnostic.via(messenger.channelName));
 
         this.#pairingTimer = Time.getTimer("PASE pairing timeout", PASE_PAIRING_TIMEOUT_MS, () =>
@@ -188,6 +199,7 @@ export class PaseServer implements ProtocolHandler {
     }
 
     async close() {
-        // Nothing to do
+        this.#closed = true;
+        await this.#pairingMessenger?.close();
     }
 }

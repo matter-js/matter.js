@@ -235,7 +235,7 @@ export class DeviceCommissioner {
 
         this.#cancelTimeout();
 
-        this.#context.secureChannelProtocol.removePaseCommissioner();
+        await this.#context.secureChannelProtocol.removePaseCommissioner();
 
         this.#windowStatus = AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen;
 

@@ -121,7 +121,8 @@ export class SecureChannelProtocol extends StatusReportOnlySecureChannelProtocol
         this.#paseCommissioner = paseServer;
     }
 
-    removePaseCommissioner() {
+    async removePaseCommissioner() {
+        await this.#paseCommissioner?.close();
         this.#paseCommissioner = undefined;
     }
 
