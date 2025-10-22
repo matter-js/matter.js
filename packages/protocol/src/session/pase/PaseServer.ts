@@ -111,8 +111,8 @@ export class PaseServer implements ProtocolHandler {
     }
 
     private async handlePairingRequest(crypto: Crypto, messenger: PaseServerMessenger) {
-        if (this.#pairingMessenger === undefined) {
-            throw new UnexpectedDataError("No pairing messenger available.");
+        if (this.#pairingMessenger !== undefined) {
+            throw new UnexpectedDataError("Already handling a pairing request.");
         }
         this.#pairingMessenger = messenger;
 
