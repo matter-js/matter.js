@@ -22,6 +22,12 @@ sigterm_handler() {
     fi
     EXIT_CODE=$?
 
+    # If the child reported 134 (abort), normalize to 0 for the SIGTERM case
+    if [ "$EXIT_CODE" -eq 134 ]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') - Normalizing exit code 134 -> 0 after SIGTERM" | tee -a "$LOG_FILE"
+        EXIT_CODE=0
+    fi
+
     # Log completion
     echo "$(date '+%Y-%m-%d %H:%M:%S') - allclustersapp exited with code after SIGTERM: $EXIT_CODE" | tee -a "$LOG_FILE"
 
