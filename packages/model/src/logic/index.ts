@@ -9,6 +9,7 @@ export * from "./cluster-variance/IllegalFeatureCombinations.js";
 export * from "./cluster-variance/InferredComponents.js";
 export * from "./cluster-variance/NamedComponents.js";
 export * from "./cluster-variance/VarianceCondition.js";
+export * from "./ClusterModifier.js";
 export * from "./ClusterVariance.js";
 export * from "./DefaultValue.js";
 export * from "./MergedModel.js";

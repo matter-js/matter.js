@@ -14,7 +14,7 @@ import {
     OptionalEvent,
 } from "#cluster/Cluster.js";
 import { ClusterType } from "#cluster/ClusterType.js";
-import { ElementModifier } from "#cluster/mutation/ElementModifier.js";
+import { ClusterTypeModifier } from "#cluster/mutation/ClusterTypeModifier.js";
 import { Priority } from "#globals/Priority.js";
 import { TlvBoolean } from "#tlv/TlvBoolean.js";
 import { TlvUInt8 } from "#tlv/TlvNumber.js";
@@ -46,21 +46,24 @@ describe("ElementModifier", () => {
             } as const;
 
             // Type: Alteration without optional flag
-            type AlteredWithoutOptionalT = ElementModifier.WithAlterations<typeof cluster, { attributes: { foo: {} } }>;
+            type AlteredWithoutOptionalT = ClusterTypeModifier.WithAlterations<
+                typeof cluster,
+                { attributes: { foo: {} } }
+            >;
             const alteredWithoutOptional = {} as AlteredWithoutOptionalT;
             alteredWithoutOptional satisfies typeof cluster;
             const awoFooOptional = {} as AlteredWithoutOptionalT["attributes"]["foo"]["optional"];
             awoFooOptional satisfies true;
 
             // Type: Entire alteration
-            type AlteredT = ElementModifier.WithAlterations<typeof cluster, typeof alterations>;
+            type AlteredT = ClusterTypeModifier.WithAlterations<typeof cluster, typeof alterations>;
             const altered = { attributes: {} } as AlteredT;
             altered.attributes satisfies {};
             altered.attributes.foo satisfies { optional: false };
             altered.attributes.bar satisfies { optional: true };
 
             // Functional
-            const cluster2 = new ElementModifier(cluster).alter(alterations);
+            const cluster2 = new ClusterTypeModifier(cluster).alter(alterations);
             expect(cluster.attributes.foo.optional).equal(true);
             cluster2.attributes.foo satisfies { optional: false };
             cluster2.attributes.bar satisfies { optional: true };
@@ -69,15 +72,15 @@ describe("ElementModifier", () => {
 
         it("handles empty element set alteration", () => {
             // Type: Altered with empty attribute modifications
-            const emptyAttrs = {} as ElementModifier.WithAlterations<ClusterType, { attributes: {} }>;
+            const emptyAttrs = {} as ClusterTypeModifier.WithAlterations<ClusterType, { attributes: {} }>;
             emptyAttrs satisfies ClusterType;
 
             // Type: Altered with empty command modifications
-            const emptyCommands = {} as ElementModifier.WithAlterations<ClusterType, { commands: {} }>;
+            const emptyCommands = {} as ClusterTypeModifier.WithAlterations<ClusterType, { commands: {} }>;
             emptyCommands satisfies ClusterType;
 
             // Type: Altered with empty command modifications
-            const emptyEvents = {} as ElementModifier.WithAlterations<ClusterType, { commands: {} }>;
+            const emptyEvents = {} as ClusterTypeModifier.WithAlterations<ClusterType, { commands: {} }>;
             emptyEvents satisfies ClusterType;
         });
     });
@@ -86,8 +89,7 @@ describe("ElementModifier", () => {
         it("has correct input values", () => {
             type IsNever<T> = [T] extends [never] ? true : false;
 
-            // Test InputAttributeValues and constituents first as they are
-            // the key to set
+            // Test InputAttributeValues and constituents first as they are the key to set
 
             // Type: Test AttributesOf
             type Attrs = ClusterType.AttributesOf<ClusterType>;
@@ -102,17 +104,17 @@ describe("ElementModifier", () => {
 
         it("sets default value", () => {
             // Type: Value alterations
-            type Alterations = ElementModifier.AttributeValueAlterations<{}>;
+            type Alterations = ClusterTypeModifier.AttributeValueAlterations<{}>;
             const alterations = {} as Alterations;
             alterations satisfies { attributes: {} };
 
             // Type: Untyped cluster & empty values
-            type UntypedEmpty = ElementModifier.WithValues<ClusterType, {}>;
+            type UntypedEmpty = ClusterTypeModifier.WithValues<ClusterType, {}>;
             const untypedEmpty = {} as UntypedEmpty;
             untypedEmpty satisfies ClusterType;
 
             // Type: Untyped cluster
-            type UntypedCluster = ElementModifier.WithValues<
+            type UntypedCluster = ClusterTypeModifier.WithValues<
                 ClusterType,
                 Partial<ClusterType.AttributeValues<ClusterType>>
             >;
@@ -120,7 +122,7 @@ describe("ElementModifier", () => {
             untypedCluster satisfies ClusterType;
 
             // Type: Untyped values
-            type UntypedValues = ElementModifier.WithValues<
+            type UntypedValues = ClusterTypeModifier.WithValues<
                 typeof TestBase,
                 Partial<ClusterType.AttributeValues<typeof TestBase>>
             >;
@@ -128,27 +130,27 @@ describe("ElementModifier", () => {
             untypedValues satisfies Elements1ish;
 
             // Type: Empty values
-            type EmptyValues = ElementModifier.WithValues<typeof TestBase, {}>;
+            type EmptyValues = ClusterTypeModifier.WithValues<typeof TestBase, {}>;
             const emptyValues = {} as EmptyValues;
             emptyValues satisfies Elements1ish;
 
             // Type: Fully specified
-            type Set = ElementModifier.WithValues<typeof TestBase, { attr1: 4 }>;
+            type Set = ClusterTypeModifier.WithValues<typeof TestBase, { attr1: 4 }>;
             const set = {} as Set;
             set satisfies Elements1ish;
 
             // Functional: Generic cluster
-            const generic = new ElementModifier({ attributes: {} } as ClusterType).set({});
+            const generic = new ClusterTypeModifier({ attributes: {} } as ClusterType).set({});
             generic satisfies ClusterType;
             expect(generic.attributes).deep.equal({});
 
             // Functional: Empty attributes
-            const empty = new ElementModifier(ClusterType({ id: 1, revision: 1, name: "One" })).set({});
+            const empty = new ClusterTypeModifier(ClusterType({ id: 1, revision: 1, name: "One" })).set({});
             empty satisfies ClusterType;
             expect(stripFunctions(empty.attributes)).deep.equal(stripFunctions(GlobalAttributes({})));
 
             // Functional: With attribute
-            const withAttr = new ElementModifier(TestBase).set({ attr1: 4 });
+            const withAttr = new ClusterTypeModifier(TestBase).set({ attr1: 4 });
             expect(withAttr.attributes.attr1.default).equal(4);
         });
     });
@@ -177,7 +179,7 @@ describe("ElementModifier", () => {
             };
 
             // Type: Flags to alterations
-            type Alterations = ElementModifier.ElementFlagAlterations<typeof flags>;
+            type Alterations = ClusterTypeModifier.ElementFlagAlterations<typeof flags>;
             ({}) as Alterations satisfies {
                 attributes: { attr: { optional: true } };
                 commands: { cmd: { optional: true } };
@@ -185,11 +187,11 @@ describe("ElementModifier", () => {
             };
 
             // Type: Fully specified
-            type Enabled = ElementModifier.WithFlags<typeof cluster, typeof flags>;
+            type Enabled = ClusterTypeModifier.WithFlags<typeof cluster, typeof flags>;
             ({}) as Enabled satisfies Altered;
 
             // Functional
-            const enabled = new ElementModifier(cluster).enable(flags);
+            const enabled = new ClusterTypeModifier(cluster).enable(flags);
             enabled satisfies Altered;
             expect(enabled.attributes.attr.optional).equal(true);
             expect(enabled.commands.cmd.optional).equal(true);
@@ -219,7 +221,7 @@ describe("ElementModifier", () => {
             };
 
             // Type: Flags to alterations
-            type Alterations = ElementModifier.ElementFlagAlterations<typeof flags>;
+            type Alterations = ClusterTypeModifier.ElementFlagAlterations<typeof flags>;
             ({}) as Alterations satisfies {
                 attributes: { attr: { optional: false } };
                 commands: { cmd: { optional: false } };
@@ -227,11 +229,11 @@ describe("ElementModifier", () => {
             };
 
             // Type: Fully specified
-            type Enabled = ElementModifier.WithFlags<typeof cluster, typeof flags>;
+            type Enabled = ClusterTypeModifier.WithFlags<typeof cluster, typeof flags>;
             ({}) as Enabled satisfies Altered;
 
             // Functional
-            const disabled = new ElementModifier(cluster).enable(flags);
+            const disabled = new ClusterTypeModifier(cluster).enable(flags);
             disabled satisfies Altered;
             expect(disabled.attributes.attr.optional).equal(false);
             expect(disabled.commands.cmd.optional).equal(false);

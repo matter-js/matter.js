@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { asError, InternalError } from "#general";
 import { type Model } from "#models/Model.js";
 import { type ValueModel } from "#models/ValueModel.js";
-import { FieldValue, Metatype } from "../common/index.js";
+import { FeatureSet, FieldValue, Metatype } from "../common/index.js";
 import { BasicToken, Lexer, TokenStream } from "../parser/index.js";
 import { Aspect } from "./Aspect.js";
 
@@ -43,7 +44,7 @@ export class Conformance extends Aspect<Conformance.Definition> {
                     ast = asts[0];
                 } else {
                     ast = {
-                        type: Conformance.Special.Group,
+                        type: Conformance.Special.Otherwise,
                         param: asts,
                     };
                 }
@@ -66,6 +67,15 @@ export class Conformance extends Aspect<Conformance.Definition> {
         return Conformance.validateReferences(this, this.ast, errorTarget, lookup);
     }
 
+    validateComputation(errorTarget: Conformance.ErrorTarget, featuresAvailable?: FeatureSet) {
+        try {
+            // This validation only confirms we can perform computation; we ignore the result
+            this.applicabilityOf(featuresAvailable ?? new Set(), new Set());
+        } catch (e) {
+            errorTarget.error("CANNOT_COMPUTE_CONFORMANCE", `Error computing conformance: ${asError(e).message}`);
+        }
+    }
+
     /**
      * Is the associated element mandatory?
      *
@@ -76,7 +86,7 @@ export class Conformance extends Aspect<Conformance.Definition> {
         if (conformance.type === Conformance.Flag.Mandatory) {
             return true;
         }
-        if (conformance.type === Conformance.Special.Group) {
+        if (conformance.type === Conformance.Special.Otherwise) {
             for (const c of conformance.param) {
                 if (c.type === Conformance.Flag.Provisional) {
                     return false;
@@ -100,7 +110,7 @@ export class Conformance extends Aspect<Conformance.Definition> {
         const fset = features instanceof Set ? (features as Set<string>) : new Set(features);
         const sfset =
             supportedFeatures instanceof Set ? (supportedFeatures as Set<string>) : new Set(supportedFeatures);
-        return computeApplicability(fset, sfset, this.ast);
+        return computeApplicability(fset, sfset, this);
     }
 
     override toString() {
@@ -116,8 +126,9 @@ export class Conformance extends Aspect<Conformance.Definition> {
 export namespace Conformance {
     export enum Applicability {
         None = 0,
-        Unconditional = 1,
+        Optional = 1,
         Conditional = 2,
+        Mandatory = 3,
     }
 
     export type AstParam =
@@ -127,7 +138,7 @@ export namespace Conformance {
         // eslint-disable-next-line @typescript-eslint/no-duplicate-type-constituents
         | Ast.UnaryOperand
         | Ast.BinaryOperands
-        | Ast.Group
+        | Ast.Otherwise
         | Ast.Choice;
 
     export type Ast =
@@ -147,8 +158,8 @@ export namespace Conformance {
               param: Ast.Choice;
           }
         | {
-              type: Special.Group;
-              param: Ast.Group;
+              type: Special.Otherwise;
+              param: Ast.Otherwise;
           }
         | {
               type: Special.OptionalIf;
@@ -181,7 +192,7 @@ export namespace Conformance {
             lhs: Ast;
             rhs: Ast;
         };
-        export type Group = Ast[];
+        export type Otherwise = Ast[];
         export type Choice = {
             name: ChoiceName;
             num: number;
@@ -197,7 +208,7 @@ export namespace Conformance {
         Name = "name",
         Value = "value",
         Choice = "choice",
-        Group = "group",
+        Otherwise = "otherwise",
         OptionalIf = "optionalIf",
     }
 
@@ -282,10 +293,7 @@ export namespace Conformance {
     // Serialize with parenthesis if necessary to make the expression atomic
     function serializeAtomic(ast: Ast, otherOperator?: Operator) {
         const serialized = serialize(ast);
-        if (
-            ast.type === Conformance.Special.Group ||
-            (otherOperator !== undefined && isHigherPrecedence(otherOperator, ast.type))
-        ) {
+        if (otherOperator !== undefined && isHigherPrecedence(otherOperator, ast.type)) {
             return `(${serialized})`;
         }
         return serialized;
@@ -332,7 +340,7 @@ export namespace Conformance {
                 validateReferences(conformance, ast.param, errorTarget, resolver);
                 break;
 
-            case Special.Group:
+            case Special.Otherwise:
                 for (const a of ast.param) {
                     validateReferences(conformance, a, errorTarget, resolver);
                 }
@@ -387,7 +395,7 @@ export namespace Conformance {
                 }
                 return result;
 
-            case Special.Group:
+            case Special.Otherwise:
                 return ast.param.map(d => serialize(d)).join(", ");
 
             case Special.OptionalIf:
@@ -430,60 +438,51 @@ export namespace Conformance {
 
 const flags = new Set(Object.values(Conformance.Flag));
 
-// The DSL is *almost* complex enough to warrant a proper parser library.  Not quite though...
-function ParsedAst(conformance: Conformance, definition: string) {
+function ParsedAst(conformance: Conformance, definition: string): Conformance.Ast {
     definition = definition.replace(" or ", " | ");
     const tokens = TokenStream(Lexer.Basic.lex(definition, (code, message) => conformance.error(code, message)));
-    return parseGroup();
 
-    function parseGroup(end?: BasicToken.Operator): Conformance.Ast {
-        const group = [] as Conformance.Ast[];
+    const otherwise = [] as Conformance.Ast[];
 
-        function groupAsAst(): Conformance.Ast {
-            if (group.length === 1) {
-                return group[0];
-            }
+    while (!tokens.done) {
+        // Optional brackets are only allowed at top-level of expressions
+        const optional = atOperator("[");
 
-            return {
-                type: Conformance.Special.Group,
-                param: group,
+        if (optional) {
+            tokens.next();
+            let expr: Conformance.Ast = {
+                type: Conformance.Special.OptionalIf,
+                param: parseExpression(),
             };
+            if (atOperator("]")) {
+                tokens.next();
+            } else {
+                conformance.error("UNTERMINATED_CONFORMANCE_OPTIONAL", "Unterminated optional conformance group");
+            }
+            expr = parseChoice(expr);
+            otherwise.push(expr);
+        } else {
+            const expr = parseExpression();
+            if (expr) {
+                otherwise.push(expr);
+            }
         }
 
-        while (true) {
-            if (tokens.done) {
-                if (end) {
-                    conformance.error("UNTERMINATED_CONFORMANCE_GROUPING", "Unterminated conformance grouping");
-                }
-                return groupAsAst();
-            }
-
-            // Optional brackets are only allowed at the top-level
-            const optional = !end && atOperator("[");
-
-            if (optional) {
-                tokens.next();
-                let expr: Conformance.Ast = {
-                    type: Conformance.Special.OptionalIf,
-                    param: parseGroup("]"),
-                };
-                expr = parseChoice(expr);
-                group.push(expr);
-            } else {
-                const expr = parseExpression();
-                if (expr) {
-                    group.push(expr);
-                }
-            }
-
-            if (atOperator(",")) {
-                tokens.next();
-            } else if (end && atOperator(end)) {
-                tokens.next();
-                return groupAsAst();
-            }
+        // We allow "," or whitespace as separator; whitespace because spec specifies "top-to-bottom" which presumably
+        // means newline
+        if (atOperator(",")) {
+            tokens.next();
         }
     }
+
+    if (otherwise.length === 1) {
+        return otherwise[0];
+    }
+
+    return {
+        type: Conformance.Special.Otherwise,
+        param: otherwise,
+    };
 
     function atOperator(operator: BasicToken.Operator) {
         const { token } = tokens;
@@ -582,7 +581,7 @@ function ParsedAst(conformance: Conformance, definition: string) {
         };
     }
 
-    function parseAtomicExpression(): string | Conformance.Ast | undefined {
+    function parseAtomicExpression(): Conformance.Ast | undefined {
         const expr = parseAtomicExpressionWithoutChoice();
         if (!expr) {
             return;
@@ -629,7 +628,13 @@ function ParsedAst(conformance: Conformance, definition: string) {
 
         if (atOperator("(")) {
             tokens.next();
-            return parseGroup(")");
+            const expr = parseExpression();
+            if (atOperator(")")) {
+                tokens.next();
+            } else {
+                conformance.error("UNTERMINATED_PARENTHETICAL_GROUP", `Unterminated parenthetical group`);
+            }
+            return expr;
         }
 
         conformance.error("UNEXPECTED_CONFORMANCE_TOKEN", `Unexpected "${tokens.token.type}"`);
@@ -644,76 +649,132 @@ namespace Parser {
     export const BinaryOperators = new Set(BinaryOperatorPrecedence.flat());
 }
 
-function computeApplicability(features: Set<string>, supportedFeatures: Set<string>, ast: Conformance.Ast) {
-    const { None, Unconditional, Conditional } = Conformance.Applicability;
+const operators = new Set<string>(Object.values(Conformance.Operator));
 
-    function processNode(ast: Conformance.Ast): Conformance.Applicability {
+function computeApplicability(features: Set<string>, supportedFeatures: Set<string>, conformance: Conformance) {
+    const { None, Optional, Conditional, Mandatory } = Conformance.Applicability;
+
+    // Handle otherwise lists (must be at top level)
+    const { ast } = conformance;
+    if (ast.type === Conformance.Special.Otherwise) {
+        let fallback = None;
+
+        for (const node of ast.param) {
+            switch (assessOuterExpression(node)) {
+                case Conditional:
+                    fallback = Conditional;
+                    break;
+
+                case Optional:
+                    if (fallback !== Conditional) {
+                        fallback = Optional;
+                    }
+                    break;
+
+                case Mandatory:
+                    return Mandatory;
+            }
+        }
+
+        return fallback;
+    }
+
+    // Not grouped
+    return assessOuterExpression(conformance.ast);
+
+    function assessOuterExpression(ast: Conformance.Ast): Conformance.Applicability {
+        // Handle optionality and other constructs which may only appear here
+        switch (ast.type) {
+            case Conformance.Special.Choice:
+                // For these purposes we ignore choice conformance
+                return assessOuterExpression(ast.param.expr);
+
+            case Conformance.Flag.Optional:
+            case Conformance.Special.Empty:
+                return Optional;
+
+            case Conformance.Special.OptionalIf:
+                const applicability = assessInnerExpression(ast.param);
+                if (applicability === Mandatory) {
+                    return Optional;
+                }
+                return applicability;
+
+            case Conformance.Flag.Disallowed:
+            case Conformance.Flag.Deprecated:
+            case Conformance.Flag.Provisional:
+                return None;
+
+            case Conformance.Flag.Mandatory:
+                return Mandatory;
+
+            case Conformance.Special.Desc:
+                return Conditional;
+        }
+
+        return assessInnerExpression(ast);
+    }
+
+    function assessInnerExpression(ast: Conformance.Ast): Conformance.Applicability {
         switch (ast.type) {
             case Conformance.Special.Name:
+                // Assess features based on configured flags
                 if (features.has(ast.param)) {
-                    return supportedFeatures.has(ast.param) ? Unconditional : None;
+                    return supportedFeatures.has(ast.param) ? Mandatory : None;
                 }
+
+                // This is a field name so test is indeterminate
                 return Conditional;
 
             case Conformance.Operator.NOT:
-                if (processNode(ast.param)) {
-                    return None;
+                // Invert None/Mandatory, pass Conditional
+                switch (assessInnerExpression(ast.param)) {
+                    case None:
+                        return Mandatory;
+
+                    case Conditional:
+                        return Conditional;
+
+                    case Mandatory:
+                        return None;
                 }
                 break;
 
             case Conformance.Operator.AND: {
-                const lhs = processNode(ast.param.lhs);
-                const rhs = processNode(ast.param.rhs);
+                const lhs = assessInnerExpression(ast.param.lhs);
+                const rhs = assessInnerExpression(ast.param.rhs);
                 if (lhs === None || rhs === None) {
                     return None;
                 }
                 if (lhs === Conditional || rhs === Conditional) {
                     return Conditional;
                 }
-                break;
+                return Mandatory;
             }
 
             case Conformance.Operator.OR: {
-                const lhs = processNode(ast.param.lhs);
-                const rhs = processNode(ast.param.rhs);
+                const lhs = assessInnerExpression(ast.param.lhs);
+                const rhs = assessInnerExpression(ast.param.rhs);
                 if (lhs === None && rhs === None) {
                     return None;
                 }
-                if (lhs === Conditional || rhs === Conditional) {
-                    return Conditional;
+                if (lhs === Mandatory || rhs === Mandatory) {
+                    return Mandatory;
                 }
                 break;
             }
 
-            case Conformance.Flag.Disallowed:
-                return None;
-
-            case Conformance.Special.OptionalIf:
-                return processNode(ast.param);
-
-            case Conformance.Special.Group: {
-                let result = None;
-                const { param } = ast;
-                let count = param.length;
-                if (param[count - 1]?.type === Conformance.Flag.Deprecated) {
-                    count--;
+            default:
+                if (operators.has(ast.type)) {
+                    return Optional;
                 }
-                for (let i = 0; i < count; i++) {
-                    switch (processNode(param[i])) {
-                        case Unconditional:
-                            return Unconditional;
 
-                        case Conditional:
-                            result = Conditional;
-                            break;
-                    }
-                }
-                return result;
-            }
+                throw new InternalError(
+                    `Conformance ${conformance}: Invalid node type ${ast.type} in inner expression`,
+                );
         }
-        return Unconditional;
+        return Mandatory;
     }
-    return processNode(ast);
 }
 
 function freezeAst(ast: Conformance.Ast) {
@@ -748,7 +809,7 @@ function freezeAst(ast: Conformance.Ast) {
             Object.freeze(ast.param);
             break;
 
-        case Conformance.Special.Group:
+        case Conformance.Special.Otherwise:
             for (const entry of ast.param) {
                 freezeAst(entry);
             }

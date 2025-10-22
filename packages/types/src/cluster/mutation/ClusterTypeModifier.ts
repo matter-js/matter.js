@@ -7,21 +7,21 @@
 import { ClusterType } from "../ClusterType.js";
 
 /**
- * An "element modifier" mutates cluster elements based on a predefined set of
- * alterations described in the Matter device library.
+ * An "cluster type modifier" mutates {@link ClusterType} elements based on a predefined set of alterations described in
+ * the Matter device library.
  */
-export class ElementModifier<const T extends ClusterType> {
+export class ClusterTypeModifier<const T extends ClusterType> {
     constructor(public cluster: T) {}
 
     /**
      * Create a new cluster with modified elements.
      */
-    alter<const AlterationsT extends ElementModifier.Alterations<T>>(alterations: AlterationsT) {
+    alter<const AlterationsT extends ClusterTypeModifier.Alterations<T>>(alterations: AlterationsT) {
         return modifyElements(this.cluster, alterations, (element, alteration: any) => {
             for (const property in alteration) {
                 element[property] = alteration[property];
             }
-        }) as ElementModifier.WithAlterations<T, AlterationsT>;
+        }) as ClusterTypeModifier.WithAlterations<T, AlterationsT>;
     }
 
     /**
@@ -33,7 +33,7 @@ export class ElementModifier<const T extends ClusterType> {
     set<const ValuesT extends Partial<ClusterType.AttributeValues<T>>>(values: ValuesT) {
         return modifyElements(this.cluster, { attributes: values }, (element, defaultValue) => {
             element.default = defaultValue;
-        }) as ElementModifier.WithValues<T, ValuesT>;
+        }) as ClusterTypeModifier.WithValues<T, ValuesT>;
     }
 
     /**
@@ -41,18 +41,18 @@ export class ElementModifier<const T extends ClusterType> {
      *
      * This informs matter.js that an application supports these elements.
      */
-    enable<const FlagsT extends ElementModifier.ElementFlags<T>>(flags: FlagsT) {
+    enable<const FlagsT extends ClusterTypeModifier.ElementFlags<T>>(flags: FlagsT) {
         return modifyElements(this.cluster, flags, (element, flag) => {
             if (flag === true) {
                 element.optional = false;
             } else if (flag === false) {
                 element.optional = true;
             }
-        }) as ElementModifier.WithAlterations<T, ElementModifier.ElementFlagAlterations<FlagsT>>;
+        }) as ClusterTypeModifier.WithAlterations<T, ClusterTypeModifier.ElementFlagAlterations<FlagsT>>;
     }
 }
 
-export namespace ElementModifier {
+export namespace ClusterTypeModifier {
     /**
      * A set of modifications to cluster elements of a specific type.
      */

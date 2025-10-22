@@ -8,7 +8,7 @@ import { ClusterId } from "../../datatype/ClusterId.js";
 import { ConditionalFeatureList } from "../Cluster.js";
 import { ClusterType } from "../ClusterType.js";
 import { ClusterComposer } from "./ClusterComposer.js";
-import { ElementModifier } from "./ElementModifier.js";
+import { ClusterTypeModifier } from "./ClusterTypeModifier.js";
 
 /**
  * A "mutable cluster" is a {@link ClusterType} with builder methods that support a limited number of modifications as
@@ -37,16 +37,16 @@ export function MutableCluster<const T extends ClusterType.Options, const C exte
             return new ClusterComposer(cluster).compose(features);
         },
 
-        alter(alterations: ElementModifier.Alterations<typeof cluster>) {
-            return new ElementModifier(cluster).alter(alterations);
+        alter(alterations: ClusterTypeModifier.Alterations<typeof cluster>) {
+            return new ClusterTypeModifier(cluster).alter(alterations);
         },
 
         set(values: Partial<ClusterType.AttributeValues<typeof cluster>>) {
-            return new ElementModifier(cluster).set(values);
+            return new ClusterTypeModifier(cluster).set(values);
         },
 
-        enable(flags: ElementModifier.ElementFlags<typeof cluster>) {
-            return new ElementModifier(cluster).enable(flags);
+        enable(flags: ClusterTypeModifier.ElementFlags<typeof cluster>) {
+            return new ClusterTypeModifier(cluster).enable(flags);
         },
     });
 
@@ -77,25 +77,25 @@ export namespace MutableCluster {
         ): ClusterComposer.Of<T, SelectionT>;
 
         /**
-         * Modify elements using {@link ElementModifier.alter}.
+         * Modify elements using {@link ClusterTypeModifier.alter}.
          */
-        alter<const AlterationsT extends ElementModifier.Alterations<T>>(
+        alter<const AlterationsT extends ClusterTypeModifier.Alterations<T>>(
             alterations: AlterationsT,
-        ): ElementModifier.WithAlterations<T, AlterationsT>;
+        ): ClusterTypeModifier.WithAlterations<T, AlterationsT>;
 
         /**
-         * Modify elements using {@link ElementModifier.set}.
+         * Modify elements using {@link ClusterTypeModifier.set}.
          */
         set<const ValuesT extends Partial<ClusterType.AttributeValues<T>>>(
             values: ValuesT,
-        ): ElementModifier.WithValues<T, ValuesT>;
+        ): ClusterTypeModifier.WithValues<T, ValuesT>;
 
         /**
-         * Modify elements using {@link ElementModifier.enable}.
+         * Modify elements using {@link ClusterTypeModifier.enable}.
          */
-        enable<const FlagsT extends ElementModifier.ElementFlags<T>>(
+        enable<const FlagsT extends ClusterTypeModifier.ElementFlags<T>>(
             flags: FlagsT,
-        ): ElementModifier.WithFlags<T, FlagsT>;
+        ): ClusterTypeModifier.WithFlags<T, FlagsT>;
     }
 
     /**

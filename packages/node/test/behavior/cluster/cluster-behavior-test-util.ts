@@ -101,14 +101,14 @@ export const MySchema = new ClusterModel({
     name: "MyCluster",
 
     children: [
-        AttributeElement({ id: 1, name: "ReqAttr", type: "string", conformance: "M" }),
-        AttributeElement({ id: 2, name: "OptAttr", type: "bool", conformance: "O" }),
+        AttributeElement({ id: 1, name: "ReqAttr", type: "string", conformance: "M", default: "hello" }),
+        AttributeElement({ id: 2, name: "OptAttr", type: "bool", conformance: "O", default: true }),
         CommandElement({ id: 5, name: "ReqCmd", response: "ReqResponse", type: "string", conformance: "M" }),
         CommandElement({ id: 5, name: "ReqResponse", direction: "response", type: "string", conformance: "M" }),
         CommandElement({ id: 6, name: "OptCmd", response: "ReqResponse", type: "string", conformance: "O" }),
         CommandElement({ id: 6, name: "OptResponse", direction: "response", type: "string", conformance: "O" }),
-        EventElement({ id: 7, name: "ReqEv", priority: "critical", type: "string" }),
-        EventElement({ id: 8, name: "OptEv", priority: "debug", type: "string" }),
+        EventElement({ id: 7, name: "ReqEv", priority: "critical", type: "string", conformance: "M" }),
+        EventElement({ id: 8, name: "OptEv", priority: "debug", type: "string", conformance: "O" }),
 
         AttributeElement(
             {

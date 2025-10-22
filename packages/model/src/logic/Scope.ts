@@ -218,8 +218,8 @@ export namespace Scope {
     export const IgnoreConformance = "ignore";
 
     /**
-     * Use conformance to resolve conflicts but otherwise return all members.  Useful to detect errors in input
-     * that may contain non-conformant values.
+     * Use conformance to resolve conflicts but otherwise return all members.  Useful to detect errors in input that may
+     * contain non-conformant values.
      */
     export const DeconflictedConformance = "deconflicted";
 

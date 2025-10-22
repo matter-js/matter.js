@@ -89,7 +89,7 @@ function addFeatureNode(
             add({ [feature.name]: true });
             break;
 
-        case Conformance.Special.Group:
+        case Conformance.Special.Otherwise:
             const rules = node.param;
 
             // Temporary storage for exclusions used in algorithm below
