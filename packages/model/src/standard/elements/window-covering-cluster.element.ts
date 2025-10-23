@@ -17,14 +17,14 @@ import {
 
 export const WindowCovering = Cluster(
     { name: "WindowCovering", id: 0x102 },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 5 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 6 }),
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
         Field({ name: "LF", conformance: "O.a+", constraint: "0", title: "Lift" }),
         Field({ name: "TL", conformance: "O.a+", constraint: "1", title: "Tilt" }),
         Field({ name: "PA_LF", conformance: "[LF]", constraint: "2", title: "PositionAwareLift" }),
-        Field({ name: "ABS", conformance: "O", constraint: "3", title: "AbsolutePosition" }),
+        Field({ name: "ABS", conformance: "P, O", constraint: "3", title: "AbsolutePosition" }),
         Field({ name: "PA_TL", conformance: "[TL]", constraint: "4", title: "PositionAwareTilt" })
     ),
 
@@ -34,21 +34,21 @@ export const WindowCovering = Cluster(
     }),
     Attribute({
         name: "PhysicalClosedLimitLift", id: 0x1, type: "uint16", access: "R V",
-        conformance: "[LF & PA_LF & ABS]", default: 0, quality: "F"
+        conformance: "P, [LF & PA_LF & ABS]", default: 0, quality: "F"
     }),
     Attribute({
         name: "PhysicalClosedLimitTilt", id: 0x2, type: "uint16", access: "R V",
-        conformance: "[TL & PA_TL & ABS]", default: 0, quality: "F"
+        conformance: "P, [TL & PA_TL & ABS]", default: 0, quality: "F"
     }),
     Attribute({
         name: "CurrentPositionLift", id: 0x3, type: "uint16", access: "R V",
-        conformance: "[LF & PA_LF & ABS]", constraint: "installedOpenLimitLift to installedClosedLimitLift",
-        default: null, quality: "X N"
+        conformance: "P, [LF & PA_LF & ABS]",
+        constraint: "installedOpenLimitLift to installedClosedLimitLift", default: null, quality: "X N"
     }),
     Attribute({
         name: "CurrentPositionTilt", id: 0x4, type: "uint16", access: "R V",
-        conformance: "[TL & PA_TL & ABS]", constraint: "installedOpenLimitTilt to installedClosedLimitTilt",
-        default: null, quality: "X N"
+        conformance: "P, [TL & PA_TL & ABS]",
+        constraint: "installedOpenLimitTilt to installedClosedLimitTilt", default: null, quality: "X N"
     }),
     Attribute({
         name: "NumberOfActuationsLift", id: 0x5, type: "uint16", access: "R V", conformance: "[LF]",
@@ -72,7 +72,7 @@ export const WindowCovering = Cluster(
     }),
     Attribute({
         name: "OperationalStatus", id: 0xa, type: "OperationalStatusBitmap", access: "R V",
-        conformance: "M", default: 0, quality: "P"
+        conformance: "M", constraint: "max 63", default: 0, quality: "P"
     }),
     Attribute({
         name: "TargetPositionLiftPercent100ths", id: 0xb, type: "percent100ths", access: "R V",
@@ -96,24 +96,27 @@ export const WindowCovering = Cluster(
     }),
     Attribute({
         name: "InstalledOpenLimitLift", id: 0x10, type: "uint16", access: "R V",
-        conformance: "LF & PA_LF & ABS", constraint: "max 65534", default: 0, quality: "N"
+        conformance: "P, LF & PA_LF & ABS", constraint: "max 65534", default: 0, quality: "N"
     }),
     Attribute({
         name: "InstalledClosedLimitLift", id: 0x11, type: "uint16", access: "R V",
-        conformance: "LF & PA_LF & ABS", constraint: "max 65534", default: 65534, quality: "N"
+        conformance: "P, LF & PA_LF & ABS", constraint: "max 65534", default: 65534, quality: "N"
     }),
     Attribute({
         name: "InstalledOpenLimitTilt", id: 0x12, type: "uint16", access: "R V",
-        conformance: "TL & PA_TL & ABS", constraint: "max 65534", default: 0, quality: "N"
+        conformance: "P, TL & PA_TL & ABS", constraint: "max 65534", default: 0, quality: "N"
     }),
     Attribute({
         name: "InstalledClosedLimitTilt", id: 0x13, type: "uint16", access: "R V",
-        conformance: "TL & PA_TL & ABS", constraint: "max 65534", default: 65534, quality: "N"
+        conformance: "P, TL & PA_TL & ABS", constraint: "max 65534", default: 65534, quality: "N"
     }),
     Attribute({ name: "VelocityLift", id: 0x14, conformance: "D" }),
     Attribute({ name: "AccelerationTimeLift", id: 0x15, conformance: "D" }),
     Attribute({ name: "DecelerationTimeLift", id: 0x16, conformance: "D" }),
-    Attribute({ name: "Mode", id: 0x17, type: "ModeBitmap", access: "RW VM", conformance: "M", default: 0, quality: "N" }),
+    Attribute({
+        name: "Mode", id: 0x17, type: "ModeBitmap", access: "RW VM", conformance: "M", constraint: "max 15",
+        default: 0, quality: "N"
+    }),
     Attribute({ name: "IntermediateSetpointsLift", id: 0x18, conformance: "D" }),
     Attribute({ name: "IntermediateSetpointsTilt", id: 0x19, conformance: "D" }),
     Attribute({
@@ -126,7 +129,7 @@ export const WindowCovering = Cluster(
 
     Command(
         {
-            name: "GoToLiftValue", id: 0x4, access: "O", conformance: "[LF & ABS]", direction: "request",
+            name: "GoToLiftValue", id: 0x4, access: "O", conformance: "P, [LF & ABS]", direction: "request",
             response: "status"
         },
         Field({
@@ -146,7 +149,7 @@ export const WindowCovering = Cluster(
 
     Command(
         {
-            name: "GoToTiltValue", id: 0x7, access: "O", conformance: "[TL & ABS]", direction: "request",
+            name: "GoToTiltValue", id: 0x7, access: "O", conformance: "P, [TL & ABS]", direction: "request",
             response: "status"
         },
         Field({
@@ -223,31 +226,31 @@ export const WindowCovering = Cluster(
 
     Datatype(
         { name: "EndProductTypeEnum", type: "enum8" },
-        Field({ name: "RollerShade", id: 0x0, conformance: "LF" }),
-        Field({ name: "RomanShade", id: 0x1, conformance: "LF" }),
-        Field({ name: "BalloonShade", id: 0x2, conformance: "LF" }),
-        Field({ name: "WovenWood", id: 0x3, conformance: "LF" }),
-        Field({ name: "PleatedShade", id: 0x4, conformance: "LF" }),
-        Field({ name: "CellularShade", id: 0x5, conformance: "LF" }),
-        Field({ name: "LayeredShade", id: 0x6, conformance: "LF" }),
-        Field({ name: "LayeredShade2D", id: 0x7, conformance: "LF" }),
-        Field({ name: "SheerShade", id: 0x8, conformance: "LF & TL" }),
-        Field({ name: "TiltOnlyInteriorBlind", id: 0x9, conformance: "TL" }),
-        Field({ name: "InteriorBlind", id: 0xa, conformance: "LF & TL" }),
-        Field({ name: "VerticalBlindStripCurtain", id: 0xb, conformance: "LF & TL" }),
-        Field({ name: "InteriorVenetianBlind", id: 0xc, conformance: "LF & TL" }),
-        Field({ name: "ExteriorVenetianBlind", id: 0xd, conformance: "LF & TL" }),
-        Field({ name: "LateralLeftCurtain", id: 0xe, conformance: "LF" }),
-        Field({ name: "LateralRightCurtain", id: 0xf, conformance: "LF" }),
-        Field({ name: "CentralCurtain", id: 0x10, conformance: "LF" }),
-        Field({ name: "RollerShutter", id: 0x11, conformance: "LF" }),
-        Field({ name: "ExteriorVerticalScreen", id: 0x12, conformance: "LF" }),
-        Field({ name: "AwningTerracePatio", id: 0x13, conformance: "LF" }),
-        Field({ name: "AwningVerticalScreen", id: 0x14, conformance: "LF" }),
-        Field({ name: "TiltOnlyPergola", id: 0x15, conformance: "LF | TL" }),
-        Field({ name: "SwingingShutter", id: 0x16, conformance: "LF | TL" }),
-        Field({ name: "SlidingShutter", id: 0x17, conformance: "LF | TL" }),
-        Field({ name: "Unknown", id: 0xff, conformance: "O" })
+        Field({ name: "RollerShade", id: 0x0, conformance: "M" }),
+        Field({ name: "RomanShade", id: 0x1, conformance: "M" }),
+        Field({ name: "BalloonShade", id: 0x2, conformance: "M" }),
+        Field({ name: "WovenWood", id: 0x3, conformance: "M" }),
+        Field({ name: "PleatedShade", id: 0x4, conformance: "M" }),
+        Field({ name: "CellularShade", id: 0x5, conformance: "M" }),
+        Field({ name: "LayeredShade", id: 0x6, conformance: "M" }),
+        Field({ name: "LayeredShade2D", id: 0x7, conformance: "M" }),
+        Field({ name: "SheerShade", id: 0x8, conformance: "M" }),
+        Field({ name: "TiltOnlyInteriorBlind", id: 0x9, conformance: "M" }),
+        Field({ name: "InteriorBlind", id: 0xa, conformance: "M" }),
+        Field({ name: "VerticalBlindStripCurtain", id: 0xb, conformance: "M" }),
+        Field({ name: "InteriorVenetianBlind", id: 0xc, conformance: "M" }),
+        Field({ name: "ExteriorVenetianBlind", id: 0xd, conformance: "M" }),
+        Field({ name: "LateralLeftCurtain", id: 0xe, conformance: "M" }),
+        Field({ name: "LateralRightCurtain", id: 0xf, conformance: "M" }),
+        Field({ name: "CentralCurtain", id: 0x10, conformance: "M" }),
+        Field({ name: "RollerShutter", id: 0x11, conformance: "M" }),
+        Field({ name: "ExteriorVerticalScreen", id: 0x12, conformance: "M" }),
+        Field({ name: "AwningTerracePatio", id: 0x13, conformance: "M" }),
+        Field({ name: "AwningVerticalScreen", id: 0x14, conformance: "M" }),
+        Field({ name: "TiltOnlyPergola", id: 0x15, conformance: "M" }),
+        Field({ name: "SwingingShutter", id: 0x16, conformance: "M" }),
+        Field({ name: "SlidingShutter", id: 0x17, conformance: "M" }),
+        Field({ name: "Unknown", id: 0xff, conformance: "M" })
     ),
 
     Datatype(

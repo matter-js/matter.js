@@ -112,7 +112,7 @@ export namespace TemperatureControl {
              * Indicates the maximum temperature to which the TemperatureSetpoint attribute may be set.
              *
              * If the Step attribute is supported, this attribute shall be such that MaxTemperature = MinTemperature +
-             * Step * n, where n is an integer and n > 0. If the Step attribute is not supported, this attribute shall
+             * (Step * n), where n is an integer and n > 0. If the Step attribute is not supported, this attribute shall
              * be such that MaxTemperature > MinTemperature.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 8.2.5.3
@@ -131,12 +131,13 @@ export namespace TemperatureControl {
              * SetTemperature command.
              *
              * For example, if the value of MinTemperature is 25.00C (2500) and the Step value is 0.50C (50), valid
-             * values of the TargetTemperature field of the SetTemperature command would be 25.50C (2550), 26.00C
-             * (2600), 26.50C (2650), etc.
+             * values of the TargetTemperature field of the SetTemperature command would be 25.50C
+             *
+             * (2550), 26.00C (2600), 26.50C (2650), etc.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 8.2.5.4
              */
-            step: FixedAttribute(0x3, TlvInt16)
+            step: FixedAttribute(0x3, TlvInt16.bound({ min: 1 }))
         }
     });
 
@@ -208,6 +209,8 @@ export namespace TemperatureControl {
 
         commands: {
             /**
+             * This command is used to set the temperature setpoint.
+             *
              * @see {@link MatterSpecification.v141.Cluster} § 8.2.6.1
              */
             setTemperature: Command(0x0, TlvSetTemperatureRequest, 0x0, TlvNoResponse)

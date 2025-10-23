@@ -18,8 +18,8 @@ Resource.add({
     children: [
         { tag: "requirement", name: "Identify", xref: "device§13.3.6" },
         { tag: "requirement", name: "Groups", xref: "device§13.3.6" },
-        { tag: "requirement", name: "ScenesManagement", xref: "device§13.3.6" },
         { tag: "requirement", name: "OnOff", xref: "device§13.3.6" },
+        { tag: "requirement", name: "ScenesManagement", xref: "device§13.3.6" },
         { tag: "requirement", name: "Thermostat", xref: "device§13.3.6" },
         { tag: "requirement", name: "FanControl", xref: "device§13.3.6" },
         { tag: "requirement", name: "ThermostatUserInterfaceConfiguration", xref: "device§13.3.6" },

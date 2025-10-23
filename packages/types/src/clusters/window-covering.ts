@@ -722,6 +722,9 @@ export namespace WindowCovering {
 
         commands: {
             /**
+             * This command is used to set the target lift position of the window covering to the percentage value
+             * specified in the command.
+             *
              * Upon receipt of this command, the server will adjust the window covering to the lift/slide percentage
              * specified in the payload of this command.
              *
@@ -760,6 +763,9 @@ export namespace WindowCovering {
 
         commands: {
             /**
+             * This command is used to set the target tilt position of the window covering to the percentage value
+             * specified in the command.
+             *
              * Upon receipt of this command, the server will adjust the window covering to the tilt percentage specified
              * in the payload of this command.
              *
@@ -821,6 +827,9 @@ export namespace WindowCovering {
 
         commands: {
             /**
+             * This command is used to set the target lift position of the window covering to the percentage value
+             * specified in the command.
+             *
              * Upon receipt of this command, the server will adjust the window covering to the lift/slide percentage
              * specified in the payload of this command.
              *
@@ -882,6 +891,9 @@ export namespace WindowCovering {
 
         commands: {
             /**
+             * This command is used to set the target tilt position of the window covering to the percentage value
+             * specified in the command.
+             *
              * Upon receipt of this command, the server will adjust the window covering to the tilt percentage specified
              * in the payload of this command.
              *
@@ -910,6 +922,9 @@ export namespace WindowCovering {
     export const LiftAndAbsolutePositionComponent = MutableCluster.Component({
         commands: {
             /**
+             * This command is used to set the target lift position of the window covering to the value specified in the
+             * command.
+             *
              * @see {@link MatterSpecification.v141.Cluster} § 5.3.7.4
              */
             goToLiftValue: OptionalCommand(0x4, TlvGoToLiftValueRequest, 0x4, TlvNoResponse)
@@ -922,6 +937,9 @@ export namespace WindowCovering {
     export const TiltAndAbsolutePositionComponent = MutableCluster.Component({
         commands: {
             /**
+             * This command is used to set the target tilt position of the window covering to the value specified in the
+             * command.
+             *
              * @see {@link MatterSpecification.v141.Cluster} § 5.3.7.6
              */
             goToTiltValue: OptionalCommand(0x7, TlvGoToTiltValueRequest, 0x7, TlvNoResponse)
@@ -934,7 +952,7 @@ export namespace WindowCovering {
     export const Base = MutableCluster.Component({
         id: 0x102,
         name: "WindowCovering",
-        revision: 5,
+        revision: 6,
 
         features: {
             /**
@@ -979,6 +997,14 @@ export namespace WindowCovering {
             /**
              * This attribute shall identify the type of window covering.
              *
+             * If the window covering supports the LF feature and not the TL feature, the following types shall be used
+             * as the constraint for this attribute:
+             *
+             * If the window covering supports the TL feature and not the LF feature, the following types shall be used
+             * as the constraint for this attribute:
+             *
+             * If the window covering supports both the LF and TL features, the following types are allowed to be used:
+             *
              * @see {@link MatterSpecification.v141.Cluster} § 5.3.6.1
              */
             type: FixedAttribute(0x0, TlvEnum<WindowCoveringType>(), { default: WindowCoveringType.Rollershade }),
@@ -1003,6 +1029,14 @@ export namespace WindowCovering {
             /**
              * This attribute SHOULD provide more detail about the product type than can be determined from the main
              * category indicated by the Type attribute.
+             *
+             * If the window covering supports the LF feature and not the TL feature, the following types shall be used
+             * as the constraint for this attribute:
+             *
+             * If the window covering supports the TL feature and not the LF feature, the following types shall be used
+             * as the constraint for this attribute:
+             *
+             * If the window covering supports both the LF and TL features, the following types are allowed to be used:
              *
              * The table below helps to match the EndProductType attribute with the Type attribute.
              *

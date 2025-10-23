@@ -287,7 +287,8 @@ export namespace TimeSynchronization {
     export interface SetTimeZoneRequest extends TypeFromSchema<typeof TlvSetTimeZoneRequest> {}
 
     /**
-     * This command shall be generated in response to a SetTimeZone command.
+     * THis command is used to report the result of a SetTimeZone command. This command shall be generated in response
+     * to a SetTimeZone command.
      *
      * @see {@link MatterSpecification.v141.Core} § 11.17.9.4
      */
@@ -295,15 +296,16 @@ export namespace TimeSynchronization {
         /**
          * If the node supports a time zone database with information for the time zone that will be applied, it may use
          * this information to set the DSTOffset attribute. If the node is setting its own DSTOffset attribute, the
-         * DSTOffsetsRequired field shall be set to false, otherwise it shall be set to true.
+         * DSTOffsetRequired field shall be set to false, otherwise it shall be set to true.
          *
          * @see {@link MatterSpecification.v141.Core} § 11.17.9.4.1
          */
-        dstOffsetsRequired: TlvField(0, TlvBoolean)
+        dstOffsetRequired: TlvField(0, TlvBoolean)
     });
 
     /**
-     * This command shall be generated in response to a SetTimeZone command.
+     * THis command is used to report the result of a SetTimeZone command. This command shall be generated in response
+     * to a SetTimeZone command.
      *
      * @see {@link MatterSpecification.v141.Core} § 11.17.9.4
      */
@@ -508,21 +510,21 @@ export namespace TimeSynchronization {
      */
     export const TlvSetUtcTimeRequest = TlvObject({
         /**
-         * This shall give the Client’s UTC Time.
+         * This field shall give the Client’s UTC Time.
          *
          * @see {@link MatterSpecification.v141.Core} § 11.17.9.1.1
          */
         utcTime: TlvField(0, TlvEpochUs),
 
         /**
-         * This shall give the Client’s Granularity, as described in Granularity.
+         * This field shall give the Client’s Granularity, as described in Granularity.
          *
          * @see {@link MatterSpecification.v141.Core} § 11.17.9.1.2
          */
         granularity: TlvField(1, TlvEnum<Granularity>()),
 
         /**
-         * This shall give the Client’s TimeSource, as described in TimeSource.
+         * This field shall give the Client’s TimeSource, as described in TimeSource.
          *
          * @see {@link MatterSpecification.v141.Core} § 11.17.9.1.3
          */
@@ -567,9 +569,9 @@ export namespace TimeSynchronization {
     export const TimeSyncClientComponent = MutableCluster.Component({
         attributes: {
             /**
-             * A Node ID, endpoint, and associated fabric index of a Node that may be used as trusted time source. See
-             * Section 11.17.13, “Time source prioritization”. This attribute reflects the last value set by an
-             * administrator using the SetTrustedTimeSource command. If the value is null, no trusted time source has
+             * Indicates the Node ID, endpoint, and associated fabric index of a Node that may be used as trusted time
+             * source. See Section 11.17.13, “Time source prioritization”. This attribute reflects the last value set by
+             * an administrator using the SetTrustedTimeSource command. If the value is null, no trusted time source has
              * yet been set.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.17.8.4
@@ -579,7 +581,7 @@ export namespace TimeSynchronization {
 
         commands: {
             /**
-             * This command shall set the TrustedTimeSource attribute. Upon receipt of this command:
+             * This command is used to set the TrustedTimeSource attribute. Upon receipt of this command:
              *
              *   • If the TrustedTimeSource field in the command is null, the node shall set the TrustedTimeSource
              *     attribute to null and shall generate a MissingTrustedTimeSource event.
@@ -621,10 +623,10 @@ export namespace TimeSynchronization {
     export const NtpClientComponent = MutableCluster.Component({
         attributes: {
             /**
-             * The default NTP server that this Node may use if other time sources are unavailable. This attribute is
-             * settable by an Administrator using the SetDefaultNTP command. It SHOULD be set by the Commissioner during
-             * commissioning. If no default NTP server is available, the Commissioner may set this value to null. The
-             * default IANA assigned NTP port of 123 shall be used to access the NTP server.
+             * Indicates the default NTP server that this Node may use if other time sources are unavailable. This
+             * attribute is settable by an Administrator using the SetDefaultNTP command. It SHOULD be set by the
+             * Commissioner during commissioning. If no default NTP server is available, the Commissioner may set this
+             * value to null. The default IANA assigned NTP port of 123 shall be used to access the NTP server.
              *
              * If set, the format of this attribute shall be a domain name or a static IPv6 address with no port, in
              * text format, as specified in RFC 5952. The address format shall follow the recommendations in Section 4
@@ -639,8 +641,8 @@ export namespace TimeSynchronization {
             ),
 
             /**
-             * This attribute is true if the node supports resolving a domain name. DefaultNTP Address values for these
-             * nodes may include domain names. If this is False, the Address for a DefaultNTP shall be an IPv6 address.
+             * Indicates if the node supports resolving a domain name. DefaultNTP Address values for these nodes may
+             * include domain names. If this is False, the Address for a DefaultNTP shall be an IPv6 address.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.17.8.13
              */
@@ -649,11 +651,13 @@ export namespace TimeSynchronization {
 
         commands: {
             /**
-             * This command is used to set the DefaultNTP attribute. If the DefaultNTP Address field does not conform to
-             * the requirements in the DefaultNTP attribute description, the command shall fail with a status code of
-             * INVALID_COMMAND. If the node does not support DNS resolution (as specified in SupportsDNSResolve) and the
-             * provided Address is a domain name, the command shall fail with a status code of INVALID_COMMAND.
-             * Otherwise, the node shall set the DefaultNTP attribute to match the DefaultNTP provided in this command.
+             * This command is used to set the DefaultNTP attribute.
+             *
+             * If the DefaultNTP Address field does not conform to the requirements in the DefaultNTP attribute
+             * description, the command shall fail with a status code of INVALID_COMMAND. If the node does not support
+             * DNS resolution (as specified in SupportsDNSResolve) and the provided Address is a domain name, the
+             * command shall fail with a status code of INVALID_COMMAND. Otherwise, the node shall set the DefaultNTP
+             * attribute to match the DefaultNTP provided in this command.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.17.9.6
              */
@@ -673,10 +677,11 @@ export namespace TimeSynchronization {
     export const TimeZoneComponent = MutableCluster.Component({
         attributes: {
             /**
-             * A list of time zone offsets from UTC and when they shall take effect. This attribute uses a list of time
-             * offset configurations to allow Nodes to handle scheduled regulatory time zone changes. This attribute
-             * shall NOT be used to indicate daylight savings time changes (see DSTOffset attribute for daylight savings
-             * time).
+             * This attribute shall contain a list of time zone offsets from UTC and when they shall take effect.
+             *
+             * This attribute uses a list of time offset configurations to allow Nodes to handle scheduled regulatory
+             * time zone changes. This attribute shall NOT be used to indicate daylight savings time changes (see
+             * Section 11.17.8.7, “DSTOffset Attribute” for daylight savings time).
              *
              * The first entry shall have a ValidAt entry of 0. If there is a second entry, it shall have a non-zero
              * ValidAt time.
@@ -711,8 +716,10 @@ export namespace TimeSynchronization {
             ),
 
             /**
-             * A list of offsets to apply for daylight savings time, and their validity period. List entries shall be
-             * sorted by ValidStarting time.
+             * This attribute shall contain a list of offsets to apply for daylight savings time, and their validity
+             * period.
+             *
+             * List entries shall be sorted by ValidStarting time.
              *
              * A list entry shall NOT have a ValidStarting time that is smaller than the ValidUntil time of the previous
              * entry. There shall be at most one list entry with a null ValidUntil time and, if such an entry is
@@ -731,9 +738,9 @@ export namespace TimeSynchronization {
             dstOffset: Attribute(0x6, TlvArray(TlvDstOffset), { persistent: true, default: [] }),
 
             /**
-             * The computed current local time of the node as a epoch-us (Epoch Time in Microseconds). The value of
-             * LocalTime shall be the sum of the UTCTime, the offset of the currently valid TimeZoneStruct from the
-             * TimeZone attribute (converted to microseconds), and the offset of the currently valid DSTOffsetStruct
+             * Indicates the computed current local time of the node as a epoch-us (Epoch Time in Microseconds). The
+             * value of LocalTime shall be the sum of the UTCTime, the offset of the currently valid TimeZoneStruct from
+             * the TimeZone attribute (converted to microseconds), and the offset of the currently valid DSTOffsetStruct
              * from the DSTOffset attribute (converted to microseconds), if such an entry exists.
              *
              * If the node has not achieved time synchronization, this shall be null. If the node has an empty
@@ -753,15 +760,16 @@ export namespace TimeSynchronization {
             timeZoneDatabase: FixedAttribute(0x8, TlvEnum<TimeZoneDatabase>(), { default: TimeZoneDatabase.None }),
 
             /**
-             * Number of supported list entries in the TimeZone attribute. This attribute may take the value of 1 or 2,
-             * where the optional second list entry may be used to handle scheduled regulatory time zone changes.
+             * Indicates the number of supported list entries in the TimeZone attribute. This attribute may take the
+             * value of 1 or 2, where the optional second list entry may be used to handle scheduled regulatory time
+             * zone changes.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.17.8.11
              */
             timeZoneListMaxSize: FixedAttribute(0xa, TlvUInt8.bound({ min: 1, max: 2 })),
 
             /**
-             * Number of supported list entries in DSTOffset attribute. This value must be at least 1.
+             * Indicates the number of supported list entries in DSTOffset attribute. This value must be at least 1.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.17.8.12
              */
@@ -855,8 +863,10 @@ export namespace TimeSynchronization {
     export const NtpServerComponent = MutableCluster.Component({
         attributes: {
             /**
-             * If the node is running an RFC 5905 NTPv4 compliant server on port 123, this value shall be True. If the
-             * node is not currently running an NTP server, this value shall be False.
+             * Indicates if the node is running an RFC 5905 NTPv4 compliant server on port 123, this value shall be
+             * True.
+             *
+             * If the node is not currently running an NTP server, this value shall be False.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.17.8.10
              */
@@ -908,19 +918,19 @@ export namespace TimeSynchronization {
 
         attributes: {
             /**
-             * If the node has achieved time synchronization, this shall indicate the current time as a UTC epoch-us
-             * (Epoch Time in Microseconds).
+             * If the node has achieved time synchronization, this attribute shall indicate the current time as a UTC
+             * epoch-us (Epoch Time in Microseconds).
              *
-             * If the node has not achieved time synchronization, this shall be null. This attribute may be set when a
-             * SetUTCTime is received.
+             * If the node has not achieved time synchronization, this attribute shall be null. This attribute may be
+             * set when a SetUTCTime is received.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.17.8.1
              */
             utcTime: Attribute(0x0, TlvNullable(TlvEpochUs), { omitChanges: true, default: null }),
 
             /**
-             * The granularity of the error that the node is willing to guarantee on the time synchronization. It is of
-             * type GranularityEnum.
+             * Indicates granularity of the error that the node is willing to guarantee on the time synchronization. It
+             * is of type GranularityEnum.
              *
              * This value shall be set to NoTimeGranularity if UTCTime is null and shall NOT be set to NoTimeGranularity
              * if UTCTime is non-null.
@@ -930,8 +940,8 @@ export namespace TimeSynchronization {
             granularity: Attribute(0x1, TlvEnum<Granularity>(), { default: Granularity.NoTimeGranularity }),
 
             /**
-             * The node’s time source. This attribute indicates what method the node is using to sync, whether the
-             * source uses NTS or not and whether the source is internal or external to the Matter network. This
+             * Indicates the node’s time source. This attribute indicates what method the node is using to sync, whether
+             * the source uses NTS or not and whether the source is internal or external to the Matter network. This
              * attribute may be used by a client to determine its level of trust in the UTCTime. It is of type
              * TimeSourceEnum.
              *
@@ -947,6 +957,8 @@ export namespace TimeSynchronization {
 
         commands: {
             /**
+             * This command is used to set the UTC time of the node.
+             *
              * This command may be issued by Administrator to set the time. If the Commissioner does not have a valid
              * time source, it may send a Granularity of NoTimeGranularity.
              *

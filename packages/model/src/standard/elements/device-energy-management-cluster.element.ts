@@ -34,36 +34,27 @@ export const DeviceEnergyManagement = Cluster(
         Field({ name: "CON", conformance: "O", constraint: "6", title: "ConstraintBasedAdjustment" })
     ),
 
-    Attribute(
-        { name: "EsaType", id: 0x0, type: "ESATypeEnum", access: "R V", conformance: "M", default: 255, quality: "F" }
-    ),
-    Attribute({ name: "EsaCanGenerate", id: 0x1, type: "bool", access: "R V", conformance: "M", default: false, quality: "F" }),
-    Attribute({
-        name: "EsaState", id: 0x2, type: "ESAStateEnum", access: "R V", conformance: "M",
-        constraint: "desc", default: 0
-    }),
-    Attribute({ name: "AbsMinPower", id: 0x3, type: "power-mW", access: "R V", conformance: "M", default: 0 }),
-    Attribute({
-        name: "AbsMaxPower", id: 0x4, type: "power-mW", access: "R V", conformance: "M",
-        constraint: "min absMinPower", default: 0
-    }),
+    Attribute({ name: "EsaType", id: 0x0, type: "ESATypeEnum", access: "R V", conformance: "M", quality: "F" }),
+    Attribute({ name: "EsaCanGenerate", id: 0x1, type: "bool", access: "R V", conformance: "M", quality: "F" }),
+    Attribute({ name: "EsaState", id: 0x2, type: "ESAStateEnum", access: "R V", conformance: "M", constraint: "desc" }),
+    Attribute({ name: "AbsMinPower", id: 0x3, type: "power-mW", access: "R V", conformance: "M" }),
+    Attribute({ name: "AbsMaxPower", id: 0x4, type: "power-mW", access: "R V", conformance: "M", constraint: "min absMinPower" }),
     Attribute({
         name: "PowerAdjustmentCapability", id: 0x5, type: "PowerAdjustCapabilityStruct", access: "R V",
-        conformance: "PA", default: null, quality: "X Q"
+        conformance: "PA", quality: "X Q"
     }),
-    Attribute({
-        name: "Forecast", id: 0x6, type: "ForecastStruct", access: "R V", conformance: "PFR | SFR",
-        default: null, quality: "X Q"
-    }),
+    Attribute(
+        { name: "Forecast", id: 0x6, type: "ForecastStruct", access: "R V", conformance: "PFR | SFR", quality: "X Q" }
+    ),
     Attribute({
         name: "OptOutState", id: 0x7, type: "OptOutStateEnum", access: "R V",
-        conformance: "PA | STA | PAU | FA | CON", constraint: "desc", default: 0
+        conformance: "PA | STA | PAU | FA | CON", constraint: "desc"
     }),
     Event({ name: "PowerAdjustStart", id: 0x0, access: "V", conformance: "PA", priority: "info" }),
 
     Event(
         { name: "PowerAdjustEnd", id: 0x1, access: "V", conformance: "PA", priority: "info" },
-        Field({ name: "Cause", id: 0x0, type: "CauseEnum", conformance: "M", default: 0 }),
+        Field({ name: "Cause", id: 0x0, type: "CauseEnum", conformance: "M" }),
         Field({ name: "Duration", id: 0x1, type: "elapsed-s", conformance: "M" }),
         Field({ name: "EnergyUse", id: 0x2, type: "energy-mWh", conformance: "M" })
     ),
@@ -71,7 +62,7 @@ export const DeviceEnergyManagement = Cluster(
     Event({ name: "Paused", id: 0x2, access: "V", conformance: "PAU", priority: "info" }),
     Event(
         { name: "Resumed", id: 0x3, access: "V", conformance: "PAU", priority: "info" },
-        Field({ name: "Cause", id: 0x0, type: "CauseEnum", conformance: "M", default: 0 })
+        Field({ name: "Cause", id: 0x0, type: "CauseEnum", conformance: "M" })
     ),
 
     Command(
@@ -210,17 +201,17 @@ export const DeviceEnergyManagement = Cluster(
 
     Datatype(
         { name: "CostStruct", type: "struct" },
-        Field({ name: "CostType", id: 0x0, type: "CostTypeEnum", conformance: "M", default: 0 }),
-        Field({ name: "Value", id: 0x1, type: "int32", conformance: "M", default: 0 }),
-        Field({ name: "DecimalPoints", id: 0x2, type: "uint8", conformance: "M", default: 0 }),
+        Field({ name: "CostType", id: 0x0, type: "CostTypeEnum", conformance: "M" }),
+        Field({ name: "Value", id: 0x1, type: "int32", conformance: "M" }),
+        Field({ name: "DecimalPoints", id: 0x2, type: "uint8", conformance: "M" }),
         Field({ name: "Currency", id: 0x3, type: "uint16", conformance: "O", constraint: "max 999", default: 0 })
     ),
 
     Datatype(
         { name: "PowerAdjustStruct", type: "struct" },
-        Field({ name: "MinPower", id: 0x0, type: "power-mW", conformance: "M", default: 0 }),
-        Field({ name: "MaxPower", id: 0x1, type: "power-mW", conformance: "M", constraint: "min minPower", default: 0 }),
-        Field({ name: "MinDuration", id: 0x2, type: "elapsed-s", conformance: "M", default: 0 }),
+        Field({ name: "MinPower", id: 0x0, type: "power-mW", conformance: "M" }),
+        Field({ name: "MaxPower", id: 0x1, type: "power-mW", conformance: "M", constraint: "min minPower" }),
+        Field({ name: "MinDuration", id: 0x2, type: "elapsed-s", conformance: "M" }),
         Field({ name: "MaxDuration", id: 0x3, type: "elapsed-s", conformance: "M", constraint: "min minDuration" })
     ),
 
@@ -230,18 +221,18 @@ export const DeviceEnergyManagement = Cluster(
         Field(
             {
                 name: "PowerAdjustCapability", id: 0x0, type: "list", conformance: "M", constraint: "max 8",
-                default: null, quality: "X"
+                quality: "X"
             },
             Field({ name: "entry", type: "PowerAdjustStruct" })
         ),
 
-        Field({ name: "Cause", id: 0x1, type: "PowerAdjustReasonEnum", conformance: "M", default: 0 })
+        Field({ name: "Cause", id: 0x1, type: "PowerAdjustReasonEnum", conformance: "M" })
     ),
 
     Datatype(
         { name: "ForecastStruct", type: "struct" },
-        Field({ name: "ForecastId", id: 0x0, type: "uint32", conformance: "M", default: 0 }),
-        Field({ name: "ActiveSlotNumber", id: 0x1, type: "uint16", conformance: "M", default: 0, quality: "X" }),
+        Field({ name: "ForecastId", id: 0x0, type: "uint32", conformance: "M" }),
+        Field({ name: "ActiveSlotNumber", id: 0x1, type: "uint16", conformance: "M", quality: "X" }),
         Field({ name: "StartTime", id: 0x2, type: "epoch-s", conformance: "M" }),
         Field({ name: "EndTime", id: 0x3, type: "epoch-s", conformance: "M" }),
         Field({ name: "EarliestStartTime", id: 0x4, type: "epoch-s", conformance: "STA", quality: "X" }),

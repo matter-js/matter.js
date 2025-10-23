@@ -26,7 +26,7 @@ export const RelativePositionTag = SemanticNamespace({
         /**
          * Area in proximity to the point of reference
          */
-        NextTo: { id: 0x1, label: "Next To" },
+        NextTo: { id: 0x1, label: "NextTo" },
 
         /**
          * The area surrounding the point the reference
@@ -35,7 +35,7 @@ export const RelativePositionTag = SemanticNamespace({
 
         On: { id: 0x3, label: "On" },
         Above: { id: 0x4, label: "Above" },
-        FrontOf: { id: 0x5, label: "Front Of" },
+        FrontOf: { id: 0x5, label: "FrontOf" },
         Behind: { id: 0x6, label: "Behind" }
     }
 });

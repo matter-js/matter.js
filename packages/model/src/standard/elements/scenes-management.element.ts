@@ -22,13 +22,10 @@ export const ScenesManagement = Cluster(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
         Field({ name: "SN", conformance: "O", constraint: "0", title: "SceneNames" })
     ),
-    Attribute({
-        name: "LastConfiguredBy", id: 0x0, type: "node-id", access: "R V", conformance: "O", default: null,
-        quality: "X"
-    }),
+    Attribute({ name: "DoNotUse", id: 0x0, access: "R V", conformance: "X" }),
     Attribute({
         name: "SceneTableSize", id: 0x1, type: "uint16", access: "R V", conformance: "M",
-        constraint: "desc", default: 16, quality: "F"
+        constraint: "desc", quality: "F"
     }),
     Attribute(
         { name: "FabricSceneInfo", id: 0x2, type: "list", access: "R F V", conformance: "M", constraint: "desc" },
@@ -71,10 +68,13 @@ export const ScenesManagement = Cluster(
         Field({ name: "Status", id: 0x0, type: "status", conformance: "M", constraint: "desc" }),
         Field({ name: "GroupId", id: 0x1, type: "group-id", conformance: "M" }),
         Field({ name: "SceneId", id: 0x2, type: "uint8", conformance: "M", constraint: "max 254" }),
-        Field({ name: "TransitionTime", id: 0x3, type: "uint32", conformance: "desc", constraint: "max 60000000" }),
-        Field({ name: "SceneName", id: 0x4, type: "string", conformance: "desc", constraint: "max 16" }),
+        Field({
+            name: "TransitionTime", id: 0x3, type: "uint32", conformance: "Status == Success",
+            constraint: "max 60000000"
+        }),
+        Field({ name: "SceneName", id: 0x4, type: "string", conformance: "Status == Success", constraint: "max 16" }),
         Field(
-            { name: "ExtensionFieldSetStructs", id: 0x5, type: "list", conformance: "desc" },
+            { name: "ExtensionFieldSetStructs", id: 0x5, type: "list", conformance: "Status == Success" },
             Field({ name: "entry", type: "ExtensionFieldSetStruct" })
         )
     ),
@@ -174,13 +174,10 @@ export const ScenesManagement = Cluster(
 
     Datatype(
         { name: "SceneInfoStruct", type: "struct" },
-        Field({ name: "SceneCount", id: 0x0, type: "uint8", access: "F", conformance: "M", default: 0 }),
-        Field({
-            name: "CurrentScene", id: 0x1, type: "uint8", access: "S", conformance: "M", constraint: "desc",
-            default: 255
-        }),
-        Field({ name: "CurrentGroup", id: 0x2, type: "group-id", access: "S", conformance: "M", default: 0 }),
-        Field({ name: "SceneValid", id: 0x3, type: "bool", access: "S", conformance: "M", default: false }),
+        Field({ name: "SceneCount", id: 0x0, type: "uint8", access: "F", conformance: "M" }),
+        Field({ name: "CurrentScene", id: 0x1, type: "uint8", access: "S", conformance: "M", constraint: "desc" }),
+        Field({ name: "CurrentGroup", id: 0x2, type: "group-id", access: "S", conformance: "M" }),
+        Field({ name: "SceneValid", id: 0x3, type: "bool", access: "S", conformance: "M" }),
         Field({ name: "RemainingCapacity", id: 0x4, type: "uint8", access: "F", conformance: "M", constraint: "max 253" }),
         Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
     ),

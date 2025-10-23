@@ -29,7 +29,7 @@ Resource.add({
                 "\n" +
                 "> The SSID in Wi-Fi is a collection of 1-32 bytes, the text encoding of which is not specified. " +
                 "  Implementations must be careful to support transferring these byte strings without requiring a " +
-                "  particular encoding. The most common encoding is UTF- 8, however this is just a convention. Some " +
+                "  particular encoding. The most common encoding is UTF-8, however this is just a convention. Some " +
                 "  configurations may use Latin-1 or other character sets."
         },
 
@@ -71,7 +71,27 @@ Resource.add({
 
         {
             tag: "command", name: "NetworkPassphraseResponse", xref: "cluster§10.2.5.2",
-            details: "This command shall be generated in response to a NetworkPassphraseRequest command."
+            details: "This command shall be generated in response to a NetworkPassphraseRequest command.",
+
+            children: [{
+                tag: "field", name: "Passphrase", xref: "cluster§10.2.5.2.1",
+
+                details: "This field shall indicate the current WPA-Personal passphrase or PSK associated with the primary " +
+                    "Wi-Fi network provided by this device, in one of the following formats:" +
+                    "\n" +
+                    "  • 8..63 bytes: WPA/WPA2/WPA3 passphrase." +
+                    "\n" +
+                    "  • 64 bytes: WPA/WPA2/WPA3 raw hex PSK. Each byte shall be a ASCII hexadecimal digit." +
+                    "\n" +
+                    "This matches the formats defined for WPA networks by the Credentials field in the Network " +
+                    "Commissioning cluster (see [MatterCore])." +
+                    "\n" +
+                    "> [!NOTE]" +
+                    "\n" +
+                    "> WPA3-Personal permits passphrases shorter than 8 or longer than 63 characters, however the Network " +
+                    "  Commissioning cluster does not currently support configuring Matter devices to connect to " +
+                    "  operational networks utilizing such a passphrase."
+            }]
         }
     ]
 });

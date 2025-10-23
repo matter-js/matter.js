@@ -27,8 +27,8 @@ export namespace GroupKeyManagementInterface {
          *
          *   • If the EpochStartTime0 is set to 0, then this command shall fail with an INVALID_COMMAND status code
          *     responded to the client. Note that internally, a GroupKeySetStruct’s EpochStartTime0 may be set to zero,
-         *     due to the behavior of the AddNOC command which synthesizes a GroupKeySetStruct (see IPKValue). However,
-         *     the value 0 is illegal in the GroupKeySet field sent by a client.
+         *     due to the behavior of the AddNOC command which synthesizes a GroupKeySetStruct (see Section 11.18.6.8.1,
+         *     “IPKValue Field”). However, the value 0 is illegal in the GroupKeySet field sent by a client.
          *
          *   • If the EpochKey1 field is not null, then the EpochKey0 field shall NOT be null. Otherwise this command
          *     shall fail with an INVALID_COMMAND status code responded to the client.
@@ -69,7 +69,7 @@ export namespace GroupKeyManagementInterface {
          *     SUCCESS.
          *
          *   • If there are insufficient resources on the receiver to store an additional Group Key Set, the status code
-         *     shall be set to RESOURCE_EXHAUSTED (see group key limits);
+         *     shall be set to RESOURCE_EXHAUSTED (see Section 2.11.1.2, “Group Limits”);
          *
          *   • Otherwise, this status code shall be set to FAILURE.
          *

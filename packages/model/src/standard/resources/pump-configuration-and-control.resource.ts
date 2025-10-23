@@ -100,8 +100,8 @@ Resource.add(
 
             {
                 tag: "attribute", name: "MinConstSpeed", xref: "cluster§4.2.7.8",
-                details: "This attribute specifies the minimum speed the pump can achieve when it is working with the " +
-                    "ControlMode attribute set to ConstantSpeed." +
+                details: "This attribute specifies the minimum speed the pump can achieve when it is working with the Con " +
+                    "trolMode attribute set to ConstantSpeed." +
                     "\n" +
                     "Valid range is 0 to 65,534 RPM (steps of 1 RPM). Null if the value is invalid."
             },
@@ -140,11 +140,14 @@ Resource.add(
 
             {
                 tag: "attribute", name: "MaxConstTemp", xref: "cluster§4.2.7.13",
+
                 details: "This attribute specifies the maximum temperature the pump can maintain in the system when it is " +
                     "working with the ControlMode attribute set to ConstantTemperature." +
                     "\n" +
                     "MaxConstTemp shall be greater than or equal to MinConstTemp Valid range is –273.15 °C to 327.67 °C " +
-                    "(steps of 0.01 °C). Null if the value is invalid."
+                    "(steps of 0.01 °C)." +
+                    "\n" +
+                    "Null if the value is invalid."
             },
 
             {
@@ -167,8 +170,8 @@ Resource.add(
                     "\n" +
                     "  • The LocalOverride bit in the PumpStatus attribute is set," +
                     "\n" +
-                    "See OperationMode and ControlMode attributes for a detailed description of the operation and control " +
-                    "of the pump."
+                    "See OperationMode Attribute and ControlMode Attribute for a detailed description of the operation " +
+                    "and control of the pump."
             },
 
             {
@@ -191,8 +194,8 @@ Resource.add(
                     "In case the ControlMode attribute is not included on the device and no remote sensors are connected, " +
                     "the value of the EffectiveControlMode shall match the vendor-specific behavior of the pump." +
                     "\n" +
-                    "See OperationMode and ControlMode attributes for detailed a description of the operation and control " +
-                    "of the pump."
+                    "See OperationMode Attribute and ControlMode Attribute for detailed a description of the operation " +
+                    "and control of the pump."
             },
 
             {
@@ -254,8 +257,7 @@ Resource.add(
                     "energy consumption of the pump increases. If LifetimeEnergyConsumed rises above maximum value it " +
                     "“rolls over” and starts at 0 (zero)." +
                     "\n" +
-                    "This attribute is writeable, in order to allow setting to an appropriate value after maintenance." +
-                    "\n" +
+                    "This attribute is writeable, in order to allow setting to an appropriate value after maintenance. " +
                     "Valid range is 0 kWh to 4,294,967,294 kWh." +
                     "\n" +
                     "Null if the value is unknown."
@@ -296,7 +298,7 @@ Resource.add(
 
                 details: "This attribute specifies the control mode of the pump as defined in ControlModeEnum." +
                     "\n" +
-                    "See the OperationMode attribute for a detailed description of the operation and control of the pump." +
+                    "See OperationMode Attribute for a detailed description of the operation and control of the pump." +
                     "\n" +
                     "ControlMode may be changed at any time, even when the pump is running. The behavior of the pump at " +
                     "the point of changing is vendor-specific." +
@@ -435,9 +437,9 @@ Resource.add(
                         tag: "field", name: "ProportionalPressure",
                         description: "The pump will regulate its speed to maintain a constant differential pressure over its flanges.",
                         xref: "cluster§4.2.6.3.3",
-                        details: "The setpoint is interpreted as a percentage of the range derived of the [MinCompPressure – " +
-                            "MaxCompPressure] attributes. The internal setpoint will be lowered (compensated) dependent on the " +
-                            "flow in the pump (lower flow ⇒ lower internal setpoint)."
+                        details: "The setpoint is interpreted as a percentage of the range derived of the [MinCompPressure – Max " +
+                            "CompPressure] attributes. The internal setpoint will be lowered (compensated) dependent on the flow " +
+                            "in the pump (lower flow ⇒ lower internal setpoint)."
                     },
 
                     {

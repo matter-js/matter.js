@@ -25,7 +25,10 @@ export const MeasurementTypeEnum = Datatype(
     Field({ name: "Frequency", id: 0xb, conformance: "M" }),
     Field({ name: "PowerFactor", id: 0xc, conformance: "M" }),
     Field({ name: "NeutralCurrent", id: 0xd, conformance: "M" }),
-    Field({ name: "ElectricalEnergy", id: 0xe, conformance: "M" })
+    Field({ name: "ElectricalEnergy", id: 0xe, conformance: "M" }),
+    Field({ name: "ReactiveEnergy", id: 0xf, conformance: "M" }),
+    Field({ name: "ApparentEnergy", id: 0x10, conformance: "M" }),
+    Field({ name: "SoilMoisture", id: 0x11, conformance: "M" })
 );
 
 MatterDefinition.children.push(MeasurementTypeEnum);

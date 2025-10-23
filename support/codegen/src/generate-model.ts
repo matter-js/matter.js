@@ -170,11 +170,7 @@ const matter = new MatterModel(merged as MatterElement);
 
 const validationResult = finalizeModel(matter);
 
-if (
-    !matter.get(DatatypeModel, "bool") ||
-    !matter.get(DatatypeModel, "date") ||
-    !matter.get(AttributeModel, "FeatureMap")
-) {
+if (!matter.get(DatatypeModel, "bool") || !matter.get(AttributeModel, "FeatureMap")) {
     throw new InternalError("Model is missing key elements that would break codebase, aborting");
 }
 

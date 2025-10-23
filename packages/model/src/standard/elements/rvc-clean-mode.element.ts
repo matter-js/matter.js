@@ -16,7 +16,7 @@ import {
 
 export const RvcCleanMode = Cluster(
     { name: "RvcCleanMode", id: 0x55, type: "ModeBase" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 4 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
         Field({ name: "DEPONOFF", conformance: "X", constraint: "0", title: "OnOff" })
@@ -42,7 +42,8 @@ export const RvcCleanMode = Cluster(
         Field({ name: "Day", id: 0x9 }),
         Field({ name: "DeepClean", id: 0x4000 }),
         Field({ name: "Vacuum", id: 0x4001 }),
-        Field({ name: "Mop", id: 0x4002 })
+        Field({ name: "Mop", id: 0x4002 }),
+        Field({ name: "VacuumThenMop", id: 0x4003 })
     )
 );
 

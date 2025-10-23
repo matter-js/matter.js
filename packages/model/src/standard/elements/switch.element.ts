@@ -30,15 +30,15 @@ export const Switch = Cluster(
 
     Attribute({
         name: "NumberOfPositions", id: 0x0, type: "uint8", access: "R V", conformance: "M",
-        constraint: "min 2", default: 2, quality: "F"
+        constraint: "min 2", quality: "F"
     }),
     Attribute({
         name: "CurrentPosition", id: 0x1, type: "uint8", access: "R V", conformance: "M",
-        constraint: "max numberOfPositions - 1", default: 0, quality: "N"
+        constraint: "max numberOfPositions - 1", quality: "N"
     }),
     Attribute({
         name: "MultiPressMax", id: 0x2, type: "uint8", access: "R V", conformance: "MSM",
-        constraint: "min 2", default: 2, quality: "F"
+        constraint: "min 2", quality: "F"
     }),
     Event(
         { name: "SwitchLatched", id: 0x0, access: "V", conformance: "LS", priority: "info" },

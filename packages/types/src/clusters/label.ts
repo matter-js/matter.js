@@ -29,8 +29,9 @@ export namespace Label {
 
         /**
          * The Label or Value semantic is not defined here. The Value is a discriminator for a Label that may have
-         * multiple instances. Label:Value examples: "room":"bedroom 2", "orientation":"North", "floor":"2",
-         * "direction":"up"
+         * multiple instances.
+         *
+         * Label:Value examples: "room":"bedroom 2", "orientation":"North", "floor":"2", "direction":"up"
          *
          * @see {@link MatterSpecification.v141.Core} § 9.7.4.1.2
          */

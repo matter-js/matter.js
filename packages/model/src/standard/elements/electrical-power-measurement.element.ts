@@ -17,7 +17,7 @@ import {
 
 export const ElectricalPowerMeasurement = Cluster(
     { name: "ElectricalPowerMeasurement", id: 0x90 },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
@@ -31,7 +31,7 @@ export const ElectricalPowerMeasurement = Cluster(
     Attribute({ name: "PowerMode", id: 0x0, type: "PowerModeEnum", access: "R V", conformance: "M" }),
     Attribute({
         name: "NumberOfMeasurementTypes", id: 0x1, type: "uint8", access: "R V", conformance: "M",
-        constraint: "min 1", quality: "F"
+        constraint: "max 32", quality: "F"
     }),
 
     Attribute(
@@ -61,15 +61,15 @@ export const ElectricalPowerMeasurement = Cluster(
     }),
     Attribute({
         name: "ApparentCurrent", id: 0x7, type: "amperage-mA", access: "R V", conformance: "[ALTC]",
-        constraint: "min 0", default: null, quality: "X Q"
+        default: null, quality: "X Q"
     }),
-    Attribute({ name: "ActivePower", id: 0x8, type: "power-mW", access: "R V", conformance: "M", default: null, quality: "X Q" }),
+    Attribute({ name: "ActivePower", id: 0x8, type: "power-mW", access: "R V", conformance: "M", quality: "X Q" }),
     Attribute({
-        name: "ReactivePower", id: 0x9, type: "power-mW", access: "R V", conformance: "[ALTC]",
+        name: "ReactivePower", id: 0x9, type: "power-mVAR", access: "R V", conformance: "[ALTC]",
         default: null, quality: "X Q"
     }),
     Attribute({
-        name: "ApparentPower", id: 0xa, type: "power-mW", access: "R V", conformance: "[ALTC]",
+        name: "ApparentPower", id: 0xa, type: "power-mVA", access: "R V", conformance: "[ALTC]",
         default: null, quality: "X Q"
     }),
     Attribute({
@@ -92,7 +92,7 @@ export const ElectricalPowerMeasurement = Cluster(
     Attribute(
         {
             name: "HarmonicCurrents", id: 0xf, type: "list", access: "R V", conformance: "HARM",
-            constraint: "desc", default: null, quality: "X Q"
+            constraint: "max 25", quality: "X Q"
         },
         Field({ name: "entry", type: "HarmonicMeasurementStruct" })
     ),
@@ -100,7 +100,7 @@ export const ElectricalPowerMeasurement = Cluster(
     Attribute(
         {
             name: "HarmonicPhases", id: 0x10, type: "list", access: "R V", conformance: "PWRQ",
-            constraint: "desc", default: null, quality: "X Q"
+            constraint: "max 25", quality: "X Q"
         },
         Field({ name: "entry", type: "HarmonicMeasurementStruct" })
     ),
@@ -116,8 +116,12 @@ export const ElectricalPowerMeasurement = Cluster(
 
     Event(
         { name: "MeasurementPeriodRanges", id: 0x0, access: "V", conformance: "Ranges", priority: "info" },
+
         Field(
-            { name: "Ranges", id: 0x0, type: "list", access: "R V", conformance: "M", default: [] },
+            {
+                name: "Ranges", id: 0x0, type: "list", access: "R V", conformance: "M",
+                constraint: "1 to numberOfMeasurementTypes", default: []
+            },
             Field({ name: "entry", type: "MeasurementRangeStruct" })
         )
     ),
@@ -127,6 +131,27 @@ export const ElectricalPowerMeasurement = Cluster(
         Field({ name: "Unknown", id: 0x0, conformance: "M" }),
         Field({ name: "Dc", id: 0x1, conformance: "M" }),
         Field({ name: "Ac", id: 0x2, conformance: "M" })
+    ),
+
+    Datatype(
+        { name: "MeasurementTypeEnum", type: "enum16" },
+        Field({ name: "Unspecified", id: 0x0, conformance: "M" }),
+        Field({ name: "Voltage", id: 0x1, conformance: "M" }),
+        Field({ name: "ActiveCurrent", id: 0x2, conformance: "M" }),
+        Field({ name: "ReactiveCurrent", id: 0x3, conformance: "M" }),
+        Field({ name: "ApparentCurrent", id: 0x4, conformance: "M" }),
+        Field({ name: "ActivePower", id: 0x5, conformance: "M" }),
+        Field({ name: "ReactivePower", id: 0x6, conformance: "M" }),
+        Field({ name: "ApparentPower", id: 0x7, conformance: "M" }),
+        Field({ name: "RmsVoltage", id: 0x8, conformance: "M" }),
+        Field({ name: "RmsCurrent", id: 0x9, conformance: "M" }),
+        Field({ name: "RmsPower", id: 0xa, conformance: "M" }),
+        Field({ name: "Frequency", id: 0xb, conformance: "M" }),
+        Field({ name: "PowerFactor", id: 0xc, conformance: "M" }),
+        Field({ name: "NeutralCurrent", id: 0xd, conformance: "M" }),
+        Field({ name: "ElectricalEnergy", id: 0xe, conformance: "M" }),
+        Field({ name: "ReactiveEnergy", id: 0xf, conformance: "M" }),
+        Field({ name: "ApparentEnergy", id: 0x10, conformance: "M" })
     ),
 
     Datatype(
@@ -152,8 +177,8 @@ export const ElectricalPowerMeasurement = Cluster(
 
     Datatype(
         { name: "HarmonicMeasurementStruct", type: "struct" },
-        Field({ name: "Order", id: 0x0, type: "uint8", conformance: "M", constraint: "min 1", default: 1 }),
-        Field({ name: "Measurement", id: 0x1, type: "int64", conformance: "M", default: null, quality: "X" })
+        Field({ name: "Order", id: 0x0, type: "uint8", conformance: "M", constraint: "min 1" }),
+        Field({ name: "Measurement", id: 0x1, type: "int64", conformance: "M", quality: "X" })
     )
 );
 

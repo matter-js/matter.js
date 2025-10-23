@@ -111,7 +111,7 @@ describe("WebSocket", () => {
                     offOnly: false,
                 },
                 generatedCommandList: [],
-                globalSceneControl: true,
+                globalSceneControl: false,
                 offWaitTime: 0,
                 onOff: false,
                 onTime: 0,
@@ -209,6 +209,7 @@ describe("WebSocket", () => {
         await cx.receiveUpdate("test", 0, "descriptor", "a");
         await cx.receiveUpdate("test", 1, "identify", "a");
         await cx.receiveUpdate("test", 1, "groups", "a");
+        await cx.receiveUpdate("test", 1, "scenesManagement", "a");
         await cx.receiveUpdate("test", 1, "onOff", "a");
         await cx.receiveUpdate("test", 1, "descriptor", "a");
         await cx.receiveUpdate("test", 0, "productDescription", "a");
@@ -223,7 +224,7 @@ describe("WebSocket", () => {
 
         await cx.receiveOk("b");
 
-        await cx.receiveUpdate("test", 1, "onOff", "a", { onOff: true });
+        await cx.receiveUpdate("test", 1, "onOff", "a", { globalSceneControl: true, onOff: true });
 
         await cx.send({
             id: "c",

@@ -9,24 +9,24 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "datatype", name: "MeasurementAccuracyStruct", xref: "cluster§2.1.4.4",
+    tag: "datatype", name: "MeasurementAccuracyStruct", xref: "cluster§2.1.3.3",
     details: "This struct represents the set of accuracy ranges for a given measurement, the maximum and minimum " +
         "values for the measurement, and whether the measurement is directly measured or just estimated from " +
         "other information.",
 
     children: [
         {
-            tag: "field", name: "MeasurementType", xref: "cluster§2.1.4.4.1",
+            tag: "field", name: "MeasurementType", xref: "cluster§2.1.3.3.1",
             details: "This field shall indicate the type of measurement for the accuracy provided."
         },
         {
-            tag: "field", name: "Measured", xref: "cluster§2.1.4.4.2",
+            tag: "field", name: "Measured", xref: "cluster§2.1.3.3.2",
             details: "This field shall indicate whether the associated measurement was directly measured. If this field is " +
                 "not set to true, then the associated measurement was estimated."
         },
 
         {
-            tag: "field", name: "AccuracyRanges", xref: "cluster§2.1.4.4.5",
+            tag: "field", name: "AccuracyRanges", xref: "cluster§2.1.3.3.5",
 
             details: "This field shall indicate a list of measurement ranges and their associated accuracies." +
                 "\n" +

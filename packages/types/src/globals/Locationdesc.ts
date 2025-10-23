@@ -17,7 +17,7 @@ import { TypeFromSchema } from "../tlv/TlvSchema.js";
  *
  * This data type shall be represented by the following structure:
  *
- * @see {@link MatterSpecification.v141.Core} § 7.19.2.45
+ * @see {@link MatterSpecification.v141.Core} § 7.19.2.49
  */
 export const TlvLocationdesc = TlvObject({
     /**
@@ -27,7 +27,7 @@ export const TlvLocationdesc = TlvObject({
      * synthesized user-friendly, understandable, names for the location, rather than opaque values such as "private" or
      * "2fe7c241-a50a-4863-896e-c5878da5ed68".
      *
-     * @see {@link MatterSpecification.v141.Core} § 7.19.2.45.1
+     * @see {@link MatterSpecification.v141.Core} § 7.19.2.49.1
      */
     locationName: TlvField(0, TlvString.bound({ maxLength: 128 })),
 
@@ -41,7 +41,7 @@ export const TlvLocationdesc = TlvObject({
      * FloorNumber tag value 0x1. If the client operates in North America, building level 1, which is at street level,
      * SHOULD be mapped to FloorNumber tag value 0x0.
      *
-     * A null value indicates that this information is not available.
+     * A NULL value indicates that this information is not available.
      *
      * When the clients present the level information for user selection, they SHOULD use the operating region to
      * determine how to render and map this data. For example, if the client operates in North America it SHOULD present
@@ -58,7 +58,7 @@ export const TlvLocationdesc = TlvObject({
      * > Handling complex level situations, such as half levels (side split houses), or the levels from an apartment
      *   building, is up to the client and/or user.
      *
-     * @see {@link MatterSpecification.v141.Core} § 7.19.2.45.2
+     * @see {@link MatterSpecification.v141.Core} § 7.19.2.49.2
      */
     floorNumber: TlvField(1, TlvNullable(TlvInt16)),
 
@@ -66,14 +66,14 @@ export const TlvLocationdesc = TlvObject({
      * This field shall be the ID of an area semantic tag, located within the Common Area Namespace. For example, this
      * tag may indicate that the location refers to a bedroom.
      *
-     * If this field is null, that indicates that the area type information is not available.
+     * If this field is NULL, that indicates that the area type information is not available.
      *
      * > [!NOTE]
      *
      * > This field only indicates the type of the area. Multiple areas of the same type, such as bedrooms, may exist in
      *   a user’s home.
      *
-     * @see {@link MatterSpecification.v141.Core} § 7.19.2.45.3
+     * @see {@link MatterSpecification.v141.Core} § 7.19.2.49.3
      */
     areaType: TlvField(2, TlvNullable(TlvUInt8))
 });
@@ -83,6 +83,6 @@ export const TlvLocationdesc = TlvObject({
  *
  * This data type shall be represented by the following structure:
  *
- * @see {@link MatterSpecification.v141.Core} § 7.19.2.45
+ * @see {@link MatterSpecification.v141.Core} § 7.19.2.49
  */
 export interface Locationdesc extends TypeFromSchema<typeof TlvLocationdesc> {}

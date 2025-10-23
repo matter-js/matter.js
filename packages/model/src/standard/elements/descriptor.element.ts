@@ -16,7 +16,7 @@ import {
 
 export const Descriptor = Cluster(
     { name: "Descriptor", id: 0x1d },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
         Field({ name: "TAGLIST", conformance: "desc", constraint: "0", title: "TagList" })
@@ -51,6 +51,10 @@ export const Descriptor = Cluster(
         Field({ name: "entry", type: "semtag" })
     ),
 
+    Attribute({
+        name: "EndpointUniqueId", id: 0x5, type: "string", access: "R V", conformance: "O",
+        constraint: "max 32", quality: "F"
+    }),
     Datatype(
         { name: "DeviceTypeStruct", type: "struct" },
         Field({ name: "DeviceType", id: 0x0, type: "devtype-id", conformance: "M" }),

@@ -34,8 +34,13 @@ export const LocationTag = SemanticNamespace({
         Inside: { id: 0x2, label: "Inside" },
 
         /**
-         * Element is located outside the equipment (e.g. a sensor "outside" a cabinet)
+         * Element is located outside the equipment (e.g. a sensor "outside" a cabinet).
          */
-        Outside: { id: 0x3, label: "Outside" }
+        Outside: { id: 0x3, label: "Outside" },
+
+        /**
+         * Element is a part of a location divided into zones (e.g. a yard irrigation zone).
+         */
+        Zone: { id: 0x4, label: "Zone" }
     }
 });

@@ -18,7 +18,7 @@ Resource.add({
         "\n" +
         "This attribute shall be a list of the command IDs for server generated commands." +
         "\n" +
-        "For each command in this list that is a response to a client command request, the request command " +
+        "For each command in this list that is a response to a client request command, the request command " +
         "shall be indicated in the AcceptedCommandList attribute." +
         "\n" +
         "If any attribute on a server supports atomic writes, this attribute shall contain the command ID for " +

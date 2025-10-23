@@ -75,10 +75,6 @@ Resource.add(
                     "\n" +
                     "Converting Joules in to Wh of heat (divide by 3600):" +
                     "\n" +
-                    "= 16,728,000 J / 3600" +
-                    "\n" +
-                    "= 4647 Wh (4.65kWh)" +
-                    "\n" +
                     "If the TankPercent feature is supported, then this estimate shall also take into account the " +
                     "percentage of the water in the tank which is already hot." +
                     "\n" +
@@ -128,7 +124,7 @@ Resource.add(
                 tag: "attribute", name: "BoostState", xref: "cluster§9.5.7.6",
                 details: "Indicates whether the Boost, as triggered by a Boost command, is currently Active or Inactive." +
                     "\n" +
-                    "See Boost and CancelBoost commands for more details."
+                    "See Section 9.5.8.1, “Boost Command” and Section 9.5.8.2, “CancelBoost Command” for more details."
             },
 
             {

@@ -24,7 +24,7 @@ import { AccessLevel } from "#model";
 import { Priority } from "../globals/Priority.js";
 import { TlvField, TlvObject, TlvOptionalField } from "../tlv/TlvObject.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
-import { BitFlag, BitsFromPartial, BitField } from "../schema/BitmapSchema.js";
+import { BitFlag, BitField } from "../schema/BitmapSchema.js";
 import { TlvString, TlvByteString } from "../tlv/TlvString.js";
 import { TlvArray } from "../tlv/TlvArray.js";
 import { TlvFabricIndex } from "../datatype/FabricIndex.js";
@@ -774,7 +774,7 @@ export namespace DoorLock {
         userName: TlvField(1, TlvNullable(TlvString.bound({ maxLength: 10 }))),
 
         /**
-         * See UserUniqueID field.
+         * See UserUniqueID.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 5.2.10.34.3
          */
@@ -2244,7 +2244,7 @@ export namespace DoorLock {
         /**
          * This field shall indicate the user ID.
          *
-         * The value of the UserID field shall be between 0 and the value of the NumberOfRFIDUsersSupported attribute.
+         * The value of the UserID field shall be between 0 and the value of the NumberOfRFIDUsersSup ported attribute.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 5.2.10.27.1
          */
@@ -2306,8 +2306,9 @@ export namespace DoorLock {
      * If the requested User ID is valid and the Code doesn’t exist, Get RFID Code Response shall have the following
      * format:
      *
-     * User ID = requested User ID UserStatus = 0 (available) UserType = 0xFF (not supported) RFID Code = 0 (zero
-     * length)
+     * User ID = requested User ID UserStatus = 0 (available) UserType = 0xFF (not supported)
+     *
+     * RFID Code = 0 (zero length)
      *
      * If requested User ID is invalid, send Default Response with an error status. The error status shall be equal to
      * CONSTRAINT_ERROR when User_ID is less than the max number of users supported, and NOT_FOUND if greater than or
@@ -2328,8 +2329,9 @@ export namespace DoorLock {
      * If the requested User ID is valid and the Code doesn’t exist, Get RFID Code Response shall have the following
      * format:
      *
-     * User ID = requested User ID UserStatus = 0 (available) UserType = 0xFF (not supported) RFID Code = 0 (zero
-     * length)
+     * User ID = requested User ID UserStatus = 0 (available) UserType = 0xFF (not supported)
+     *
+     * RFID Code = 0 (zero length)
      *
      * If requested User ID is invalid, send Default Response with an error status. The error status shall be equal to
      * CONSTRAINT_ERROR when User_ID is less than the max number of users supported, and NOT_FOUND if greater than or
@@ -2368,7 +2370,7 @@ export namespace DoorLock {
      */
     export const TlvUnboltDoorRequest = TlvObject({
         /**
-         * See PINCode field.
+         * See Section 5.2.10.1.1, “PINCode Field”.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 5.2.10.41.1
          */
@@ -2521,6 +2523,12 @@ export namespace DoorLock {
      * For the OperatingModesBitmap, a bit SET indicates that the operating mode IS NOT supported. A bit CLEAR indicates
      * that the operating mode IS supported. This is the inverse of most bitmaps in this specification, and it is
      * RECOMMENDED that clients carefully take this into consideration.
+     *
+     * ### WARNING
+     *
+     * For the OperatingModesBitmap, a bit SET indicates that the operating mode IS NOT supported. A bit CLEAR indicates
+     * that the operating mode IS supported. This is the inverse of most bitmaps in this specification, and it is
+     * recommended that clients carefully take this into consideration. See SupportedOperatingModes.
      *
      * @see {@link MatterSpecification.v141.Cluster} § 5.2.6.3
      */
@@ -2697,41 +2705,6 @@ export namespace DoorLock {
     };
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 5.2.6.6
-     */
-    export const AlarmMask = {
-        /**
-         * Locking Mechanism Jammed
-         */
-        lockJammed: BitFlag(0),
-
-        /**
-         * Lock Reset to Factory Defaults
-         */
-        lockFactoryReset: BitFlag(1),
-
-        /**
-         * RF Module Power Cycled
-         */
-        lockRadioPowerCycled: BitFlag(3),
-
-        /**
-         * Tamper Alarm - wrong code entry limit
-         */
-        wrongCodeEntryLimit: BitFlag(4),
-
-        /**
-         * Tamper Alarm - front escutcheon removed from main
-         */
-        frontEscutcheonRemoved: BitFlag(5),
-
-        /**
-         * Forced Door Open under Door Locked Condition
-         */
-        doorForcedOpen: BitFlag(6)
-    };
-
-    /**
      * Input to the DoorLock lockDoor command
      *
      * @see {@link MatterSpecification.v141.Cluster} § 5.2.10.1
@@ -2767,7 +2740,7 @@ export namespace DoorLock {
      */
     export const TlvUnlockDoorRequest = TlvObject({
         /**
-         * See PINCode field.
+         * See Section 5.2.10.1.1, “PINCode Field”.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 5.2.10.2.1
          */
@@ -2796,7 +2769,7 @@ export namespace DoorLock {
         timeout: TlvField(0, TlvUInt16),
 
         /**
-         * See PINCode field.
+         * See Section 5.2.10.1.1, “PINCode Field”.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 5.2.10.3.2
          */
@@ -3075,6 +3048,41 @@ export namespace DoorLock {
     export interface LockOperationErrorEvent extends TypeFromSchema<typeof TlvLockOperationErrorEvent> {}
 
     /**
+     * @see {@link MatterSpecification.v141.Cluster} § 5.2.6.6
+     */
+    export const AlarmMask = {
+        /**
+         * Locking Mechanism Jammed
+         */
+        lockJammed: BitFlag(0),
+
+        /**
+         * Lock Reset to Factory Defaults
+         */
+        lockFactoryReset: BitFlag(1),
+
+        /**
+         * RF Module Power Cycled
+         */
+        lockRadioPowerCycled: BitFlag(3),
+
+        /**
+         * Tamper Alarm - wrong code entry limit
+         */
+        wrongCodeEntryLimit: BitFlag(4),
+
+        /**
+         * Tamper Alarm - front escutcheon removed from main
+         */
+        frontEscutcheonRemoved: BitFlag(5),
+
+        /**
+         * Forced Door Open under Door Locked Condition
+         */
+        doorForcedOpen: BitFlag(6)
+    };
+
+    /**
      * @see {@link MatterSpecification.v141.Cluster} § 5.2.6.23
      */
     export enum EventType {
@@ -3196,7 +3204,7 @@ export namespace DoorLock {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.8
              */
-            numberOfTotalUsersSupported: FixedAttribute(0x11, TlvUInt16, { default: 0 }),
+            numberOfTotalUsersSupported: FixedAttribute(0x11, TlvUInt16),
 
             /**
              * This attribute shall contain a bitmap with the bits set for the values of CredentialRuleEnum supported on
@@ -3204,11 +3212,7 @@ export namespace DoorLock {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.18
              */
-            credentialRulesSupport: FixedAttribute(
-                0x1b,
-                TlvBitmap(TlvUInt8, CredentialRules),
-                { default: BitsFromPartial(CredentialRules, { single: true }) }
-            ),
+            credentialRulesSupport: FixedAttribute(0x1b, TlvBitmap(TlvUInt8, CredentialRules)),
 
             /**
              * Indicates the number of credentials that could be assigned for each user.
@@ -3223,7 +3227,7 @@ export namespace DoorLock {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.19
              */
-            numberOfCredentialsSupportedPerUser: FixedAttribute(0x1c, TlvUInt8, { default: 0 }),
+            numberOfCredentialsSupportedPerUser: FixedAttribute(0x1c, TlvUInt8),
 
             /**
              * Indicates the number of minutes a PIN, RFID, Fingerprint, or other credential associated with a user of
@@ -3270,7 +3274,7 @@ export namespace DoorLock {
             /**
              * Retrieve user.
              *
-             * An InvokeResponse command shall be sent with an appropriate error (e.g. FAILURE, INVALID_COMMAND, etc.)
+             * An InvokeResponse command shall be sent with an appropriate error (e.g. FAILURE, INVALID_ COMMAND, etc.)
              * as needed otherwise the GetUserResponse Command shall be sent implying a status of SUCCESS.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 5.2.10.33
@@ -3372,7 +3376,7 @@ export namespace DoorLock {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.9
              */
-            numberOfPinUsersSupported: FixedAttribute(0x12, TlvUInt16, { default: 0 }),
+            numberOfPinUsersSupported: FixedAttribute(0x12, TlvUInt16),
 
             /**
              * Indicates the maximum length in bytes of a PIN Code on this device.
@@ -3400,7 +3404,7 @@ export namespace DoorLock {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.10
              */
-            numberOfRfidUsersSupported: FixedAttribute(0x13, TlvUInt16, { default: 0 }),
+            numberOfRfidUsersSupported: FixedAttribute(0x13, TlvUInt16),
 
             /**
              * Indicates the maximum length in bytes of a RFID Code on this device. The value depends on the RFID code
@@ -3432,11 +3436,7 @@ export namespace DoorLock {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.11
              */
-            numberOfWeekDaySchedulesSupportedPerUser: FixedAttribute(
-                0x14,
-                TlvUInt8.bound({ max: 253 }),
-                { default: 0 }
-            )
+            numberOfWeekDaySchedulesSupportedPerUser: FixedAttribute(0x14, TlvUInt8.bound({ max: 253 }))
         },
 
         commands: {
@@ -3498,11 +3498,7 @@ export namespace DoorLock {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.12
              */
-            numberOfYearDaySchedulesSupportedPerUser: FixedAttribute(
-                0x15,
-                TlvUInt8.bound({ max: 253 }),
-                { default: 0 }
-            )
+            numberOfYearDaySchedulesSupportedPerUser: FixedAttribute(0x15, TlvUInt8.bound({ max: 253 }))
         },
 
         commands: {
@@ -3564,7 +3560,7 @@ export namespace DoorLock {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.13
              */
-            numberOfHolidaySchedulesSupported: FixedAttribute(0x16, TlvUInt8.bound({ max: 253 }), { default: 0 })
+            numberOfHolidaySchedulesSupported: FixedAttribute(0x16, TlvUInt8.bound({ max: 253 }))
         },
 
         commands: {
@@ -3757,11 +3753,7 @@ export namespace DoorLock {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.35
              */
-            requirePinForRemoteOperation: WritableAttribute(
-                0x33,
-                TlvBoolean,
-                { default: true, writeAcl: AccessLevel.Administer }
-            )
+            requirePinForRemoteOperation: WritableAttribute(0x33, TlvBoolean, { writeAcl: AccessLevel.Administer })
         }
     });
 
@@ -3774,33 +3766,35 @@ export namespace DoorLock {
              * Indicates the verification key component of the Reader’s key pair as defined in [Aliro]. The value, if
              * not null, shall be an uncompressed elliptic curve public key as defined in section 2.3.3 of SEC 1.
              *
-             * Null if no Reader key pair has been configured on the lock. See SetAliroReaderConfig.
+             * Null if no Reader key pair has been configured on the lock. See Section 5.2.10.42, “SetAliroReaderConfig
+             * Command”.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.38
+             * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.37
              */
             aliroReaderVerificationKey: Attribute(
                 0x80,
                 TlvNullable(TlvByteString.bound({ length: 65 })),
-                { default: null, readAcl: AccessLevel.Administer, writeAcl: AccessLevel.Administer }
+                { readAcl: AccessLevel.Administer, writeAcl: AccessLevel.Administer }
             ),
 
             /**
              * Indicates the reader_group_identifier as defined in [Aliro].
              *
-             * Null if no reader_group_identifier has been configured on the lock. See SetAliroReaderConfig.
+             * Null if no reader_group_identifier has been configured on the lock. See Section 5.2.10.42,
+             * “SetAliroReaderConfig Command”.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.39
+             * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.38
              */
             aliroReaderGroupIdentifier: Attribute(
                 0x81,
                 TlvNullable(TlvByteString.bound({ length: 16 })),
-                { default: null, readAcl: AccessLevel.Administer, writeAcl: AccessLevel.Administer }
+                { readAcl: AccessLevel.Administer, writeAcl: AccessLevel.Administer }
             ),
 
             /**
              * Indicates the reader_group_sub_identifier as defined in [Aliro].
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.40
+             * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.39
              */
             aliroReaderGroupSubIdentifier: FixedAttribute(
                 0x82,
@@ -3811,7 +3805,7 @@ export namespace DoorLock {
             /**
              * Indicates the list of protocol versions supported for expedited transactions as defined in [Aliro].
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.41
+             * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.40
              */
             aliroExpeditedTransactionSupportedProtocolVersions: FixedAttribute(
                 0x83,
@@ -3822,9 +3816,9 @@ export namespace DoorLock {
             /**
              * Indicates the maximum number of AliroCredentialIssuerKey credentials that can be stored on the lock.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.45
+             * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.44
              */
-            numberOfAliroCredentialIssuerKeysSupported: FixedAttribute(0x87, TlvUInt16, { default: 0 }),
+            numberOfAliroCredentialIssuerKeysSupported: FixedAttribute(0x87, TlvUInt16),
 
             /**
              * Indicates the maximum number of endpoint key credentials that can be stored on the lock. This limit
@@ -3839,9 +3833,9 @@ export namespace DoorLock {
              *   NumberOfAliroEndpointKeysSupported and also add a credential of type AliroNonEvictableEndpointKey at
              *   the same index, and both credentials would exist on the server.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.46
+             * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.45
              */
-            numberOfAliroEndpointKeysSupported: FixedAttribute(0x88, TlvUInt16, { default: 0 })
+            numberOfAliroEndpointKeysSupported: FixedAttribute(0x88, TlvUInt16)
         },
 
         commands: {
@@ -3888,21 +3882,22 @@ export namespace DoorLock {
             /**
              * Indicates the Group Resolving Key as defined in [Aliro].
              *
-             * Null if no group resolving key has been configured on the lock. See SetAliroReaderConfig.
+             * Null if no group resolving key has been configured on the lock. See Section 5.2.10.42,
+             * “SetAliroReaderConfig Command”.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.42
+             * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.41
              */
             aliroGroupResolvingKey: Attribute(
                 0x84,
                 TlvNullable(TlvByteString.bound({ length: 16 })),
-                { default: null, readAcl: AccessLevel.Administer, writeAcl: AccessLevel.Administer }
+                { readAcl: AccessLevel.Administer, writeAcl: AccessLevel.Administer }
             ),
 
             /**
              * Indicates the list of protocol versions supported for the Bluetooth LE + UWB Access Control Flow as
              * defined in [Aliro].
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.43
+             * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.42
              */
             aliroSupportedBleuwbProtocolVersions: FixedAttribute(
                 0x85,
@@ -3913,12 +3908,12 @@ export namespace DoorLock {
             /**
              * Indicates the version of the Bluetooth LE advertisement as defined in [Aliro].
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.44
+             * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.43
              */
             aliroBleAdvertisingVersion: FixedAttribute(
                 0x86,
                 TlvUInt8,
-                { default: 0, readAcl: AccessLevel.Administer, writeAcl: AccessLevel.Administer }
+                { readAcl: AccessLevel.Administer, writeAcl: AccessLevel.Administer }
             )
         }
     });
@@ -4088,7 +4083,7 @@ export namespace DoorLock {
     export const Base = MutableCluster.Component({
         id: 0x101,
         name: "DoorLock",
-        revision: 8,
+        revision: 9,
 
         features: {
             /**
@@ -4308,30 +4303,29 @@ export namespace DoorLock {
             ),
 
             /**
-             * This attribute shall indicate the current operating mode of the lock as defined in OperatingModeEnum.
+             * Indicates the current operating mode of the lock as defined in OperatingModeEnum.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.24
              */
-            operatingMode: WritableAttribute(
-                0x25,
-                TlvEnum<OperatingMode>(),
-                { default: OperatingMode.Normal, writeAcl: AccessLevel.Manage }
-            ),
+            operatingMode: WritableAttribute(0x25, TlvEnum<OperatingMode>(), { writeAcl: AccessLevel.Manage }),
 
             /**
              * This attribute shall contain a bitmap with all operating bits of the OperatingMode attribute supported by
-             * the lock. All operating modes NOT supported by a lock shall be set to one. The value of the OperatingMode
-             * enumeration defines the related bit to be set.
+             * the lock.
+             *
+             * A bit position set to zero shall indicate that the mode is supported. A bit position set to one shall
+             * indicate that the mode is not supported.
+             *
+             * Any bit that is not yet defined in OperatingModesBitmap shall be set to 1.
+             *
+             * The values considered valid to read or write in the OperatingMode attribute shall be the enum values from
+             * DoorLockOperatingModeEnum whose equivalent same-named bit from OperatingModesBitmap is set to zero in
+             * this attribute. WARNING: This is the opposite of most other semantically similar bitmaps in this
+             * specification.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.25
              */
-            supportedOperatingModes: FixedAttribute(
-                0x26,
-                TlvBitmap(TlvUInt16, OperatingModes),
-                {
-                    default: BitsFromPartial(OperatingModes, { vacation: true, privacy: true, passage: true, alwaysSet: 2047 })
-                }
-            ),
+            supportedOperatingModes: FixedAttribute(0x26, TlvBitmap(TlvUInt16, OperatingModes)),
 
             /**
              * Indicates the default configurations as they are physically set on the device (example: hardware dip
@@ -4420,25 +4414,6 @@ export namespace DoorLock {
                 0x2c,
                 TlvBitmap(TlvUInt8, LocalProgrammingFeatures),
                 { writeAcl: AccessLevel.Administer }
-            ),
-
-            /**
-             * This attribute is only supported if the Alarms cluster is on the same endpoint. The alarm mask is used to
-             * turn on/off alarms for particular functions. Alarms for an alarm group are enabled if the associated
-             * alarm mask bit is set. Each bit represents a group of alarms. Entire alarm groups can be turned on or off
-             * by setting or clearing the associated bit in the alarm mask.
-             *
-             * This mask DOES NOT apply to the Events mechanism of this cluster.
-             *
-             * @see {@link MatterSpecification.v141.Cluster} § 5.2.9.37
-             */
-            alarmMask: OptionalWritableAttribute(
-                0x40,
-                TlvBitmap(TlvUInt16, AlarmMask),
-                {
-                    default: BitsFromPartial(AlarmMask, { lockJammed: true, lockFactoryReset: true, lockRadioPowerCycled: true, wrongCodeEntryLimit: true, frontEscutcheonRemoved: true, doorForcedOpen: true }),
-                    writeAcl: AccessLevel.Administer
-                }
             )
         },
 
@@ -4511,8 +4486,9 @@ export namespace DoorLock {
              *     ◦ shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the
              *       outside.
              *
-             *     ◦ may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the
-             *       inside.
+             *     ◦ may generate a LockOperation event of LockOperationType Unlatch when it is actuated
+             *
+             * from the inside.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 5.2.11.3
              */

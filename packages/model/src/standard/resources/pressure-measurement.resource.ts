@@ -50,7 +50,9 @@ Resource.add(
 
             {
                 tag: "attribute", name: "ScaledValue", xref: "cluster§2.4.5.5",
-                details: "Indicates the pressure in Pascals as follows: ScaledValue = 10Scale x Pressure [Pa]" +
+                details: "Indicates the pressure in Pascals as follows:" +
+                    "\n" +
+                    "ScaledValue = 10Scale x Pressure [Pa]" +
                     "\n" +
                     "The null value indicates that the value is not available."
             },
@@ -68,8 +70,9 @@ Resource.add(
 
             {
                 tag: "attribute", name: "ScaledTolerance", xref: "cluster§2.4.5.8",
-                details: "Indicates the magnitude of the possible error that is associated with ScaledValue. The true value is " +
-                    "located in the range" +
+                details: "Indicates the magnitude of the possible error that is associated with Scaled" +
+                    "\n" +
+                    "### Value. The true value is located in the range" +
                     "\n" +
                     "(ScaledValue – ScaledTolerance) to (ScaledValue + ScaledTolerance)."
             },

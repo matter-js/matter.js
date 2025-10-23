@@ -20,7 +20,7 @@ Resource.add({
         "requirements, but that cannot be used for space heating.",
 
     children: [
-        { tag: "requirement", name: "Identify", xref: "device§14.5.6" },
-        { tag: "requirement", name: "Thermostat", xref: "device§14.5.6" }
+        { tag: "requirement", name: "Identify", xref: "device§14.5.7" },
+        { tag: "requirement", name: "Thermostat", xref: "device§14.5.7" }
     ]
 });

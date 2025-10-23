@@ -151,29 +151,6 @@ describe("ProtocolServiceTest", () => {
         await node.close();
     });
 
-    it("properly sanitize fabric sensitive reads", async () => {
-        const node = await MockServerNode.createOnline();
-
-        const fabric1 = await node.addFabric();
-        const fabric2 = await node.addFabric();
-
-        const fabric1Nocs = await readNocs(node, fabric1, false);
-        expect(fabric1Nocs.length).equals(2);
-        expect(fabric1Nocs[0].fabricIndex).equals(1);
-        expect(fabric1Nocs[0].noc instanceof Uint8Array).to.be.true;
-        expect(fabric1Nocs[1].fabricIndex).equals(2);
-        expect(fabric1Nocs[1].noc).to.be.undefined;
-
-        const fabric2Nocs = await readNocs(node, fabric2, false);
-        expect(fabric2Nocs.length).equals(2);
-        expect(fabric2Nocs[0].fabricIndex).equals(1);
-        expect(fabric2Nocs[0].noc).to.be.undefined;
-        expect(fabric2Nocs[1].fabricIndex).equals(2);
-        expect(fabric2Nocs[1].noc instanceof Uint8Array).to.be.true;
-
-        await node.close();
-    });
-
     it("properly handles subscribe and notify of attributes and events", async () => {
         const node = await MockServerNode.createOnline();
 

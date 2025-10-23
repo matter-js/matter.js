@@ -21,8 +21,11 @@ export const SwitchesNs = SemanticNamespace(
     SemanticTag({ name: "Down", id: 0x4 }),
     SemanticTag({ name: "Next", id: 0x5 }),
     SemanticTag({ name: "Previous", id: 0x6 }),
-    SemanticTag({ name: "Enter/OK/Select", id: 0x7 }),
-    SemanticTag({ name: "Custom", id: 0x8 })
+    SemanticTag({ name: "EnterOkSelect", id: 0x7 }),
+    SemanticTag({ name: "Custom", id: 0x8 }),
+    SemanticTag({ name: "Open", id: 0x9 }),
+    SemanticTag({ name: "Close", id: 0xa }),
+    SemanticTag({ name: "Stop", id: 0xb })
 );
 
 MatterDefinition.children.push(SwitchesNs);

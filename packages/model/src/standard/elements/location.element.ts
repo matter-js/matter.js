@@ -17,7 +17,8 @@ export const LocationNs = SemanticNamespace(
     SemanticTag({ name: "Indoor", id: 0x0 }),
     SemanticTag({ name: "Outdoor", id: 0x1 }),
     SemanticTag({ name: "Inside", id: 0x2 }),
-    SemanticTag({ name: "Outside", id: 0x3 })
+    SemanticTag({ name: "Outside", id: 0x3 }),
+    SemanticTag({ name: "Zone", id: 0x4 })
 );
 
 MatterDefinition.children.push(LocationNs);

@@ -40,19 +40,15 @@ export const BooleanStateConfiguration = Cluster(
         name: "DefaultSensitivityLevel", id: 0x2, type: "uint8", access: "R V", conformance: "[SENSLVL]",
         constraint: "max supportedSensitivityLevels - 1", quality: "F"
     }),
-    Attribute(
-        { name: "AlarmsActive", id: 0x3, type: "AlarmModeBitmap", access: "R V", conformance: "VIS | AUD", default: 0 }
-    ),
-    Attribute(
-        { name: "AlarmsSuppressed", id: 0x4, type: "AlarmModeBitmap", access: "R V", conformance: "SPRS", default: 0 }
-    ),
+    Attribute({ name: "AlarmsActive", id: 0x3, type: "AlarmModeBitmap", access: "R V", conformance: "VIS | AUD" }),
+    Attribute({ name: "AlarmsSuppressed", id: 0x4, type: "AlarmModeBitmap", access: "R V", conformance: "SPRS" }),
     Attribute({
         name: "AlarmsEnabled", id: 0x5, type: "AlarmModeBitmap", access: "R V", conformance: "[VIS | AUD]",
         quality: "N"
     }),
     Attribute({
         name: "AlarmsSupported", id: 0x6, type: "AlarmModeBitmap", access: "R V", conformance: "VIS | AUD",
-        default: 0, quality: "F"
+        quality: "F"
     }),
     Attribute({ name: "SensorFault", id: 0x7, type: "SensorFaultBitmap", access: "R V", conformance: "O", default: 0 }),
     Event(

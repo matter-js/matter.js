@@ -96,19 +96,19 @@ export const WiFiNetworkDiagnostics = Cluster(
         { name: "WiFiVersionEnum", type: "enum8" },
         Field({
             name: "A", id: 0x0, conformance: "M",
-            title: "Indicate the network interface is currently using 802.11a against the wireless access point."
+            title: "Indicate the network interface is currently using IEEE 802.11a against the wireless access point."
         }),
         Field({
             name: "B", id: 0x1, conformance: "M",
-            title: "Indicate the network interface is currently using 802.11b against the wireless access point."
+            title: "Indicate the network interface is currently using IEEE 802.11b against the wireless access point."
         }),
         Field({
             name: "G", id: 0x2, conformance: "M",
-            title: "Indicate the network interface is currently using 802.11g against the wireless access point."
+            title: "Indicate the network interface is currently using IEEE 802.11g against the wireless access point."
         }),
         Field({
             name: "N", id: 0x3, conformance: "M",
-            title: "Indicate the network interface is currently using 802.11n against the wireless access point."
+            title: "Indicate the network interface is currently using IEEE 802.11n against the wireless access point."
         }),
         Field({ name: "Ac", id: 0x4, conformance: "M" }),
         Field({ name: "Ax", id: 0x5, conformance: "M" }),

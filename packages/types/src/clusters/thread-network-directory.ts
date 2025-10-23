@@ -163,7 +163,7 @@ export namespace ThreadNetworkDirectory {
             preferredExtendedPanId: WritableAttribute(
                 0x0,
                 TlvNullable(TlvByteString.bound({ length: 8 })),
-                { persistent: true, default: null, writeAcl: AccessLevel.Manage }
+                { persistent: true, writeAcl: AccessLevel.Manage }
             ),
 
             /**
@@ -183,13 +183,13 @@ export namespace ThreadNetworkDirectory {
             threadNetworks: Attribute(0x1, TlvArray(TlvThreadNetwork), { persistent: true, default: [] }),
 
             /**
-             * This attribute shall indicate the maximum number of entries that can be held in the ThreadNetworks list;
-             * it shall be at least 2 times the number of SupportedFabrics advertised in the Operational Credentials
-             * Cluster on the root endpoint of this node.
+             * Indicates the maximum number of entries that can be held in the ThreadNetworks list; it shall be at least
+             * 2 times the number of SupportedFabrics advertised in the Operational Credentials Cluster on the root
+             * endpoint of this node.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 10.4.5.3
              */
-            threadNetworkTableSize: FixedAttribute(0x2, TlvUInt8, { default: 10 })
+            threadNetworkTableSize: FixedAttribute(0x2, TlvUInt8)
         },
 
         commands: {

@@ -11,6 +11,8 @@ import { MaybePromise } from "#general";
 export namespace WiFiNetworkDiagnosticsInterface {
     export interface ErrorCounts {
         /**
+         * This command is used to reset the count attributes.
+         *
          * Reception of this command shall reset the following attributes to 0:
          *
          *   • BeaconLostCount
@@ -24,8 +26,6 @@ export namespace WiFiNetworkDiagnosticsInterface {
          *   • PacketUnicastRxCount
          *
          *   • PacketUnicastTxCount
-         *
-         * This command has no associated data.
          *
          * @see {@link MatterSpecification.v141.Core} § 11.15.7.1
          */

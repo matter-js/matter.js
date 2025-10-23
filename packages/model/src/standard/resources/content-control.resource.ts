@@ -17,7 +17,9 @@ Resource.add({
         "\n" +
         "This cluster allows to configure content control settings by clients with the Management privilege. " +
         "It is responsibility of the end product to enforce appropriate right access (for example, to prevent " +
-        "a child from disabling this feature).",
+        "a child from disabling this feature)." +
+        "\n" +
+        "NOTE Support for Content Control cluster is provisional.",
 
     children: [
         {
@@ -140,8 +142,7 @@ Resource.add({
                 "activated. If this attribute equals FALSE, then playback of unrated content shall be permitted. " +
                 "Otherwise, the media device shall prevent the playback of unrated content." +
                 "\n" +
-                "When this attribute changes, the device SHOULD make the user aware of any limits of this feature." +
-                "\n" +
+                "When this attribute changes, the device SHOULD make the user aware of any limits of this feature. " +
                 "For example, if the feature does not control content within apps, then the device should make this " +
                 "clear to the user when the attribute changes."
         },
@@ -309,7 +310,7 @@ Resource.add({
             details: "The purpose of this command is to specify whether programs with no Content rating must be blocked by " +
                 "this media device." +
                 "\n" +
-                "Upon receipt of the UnblockUnratedContent command, the media device shall set the BlockUnrated " +
+                "Upon receipt of the UnblockUnratedContent command, the media device shall set the BlockUn rated " +
                 "attribute to FALSE."
         },
 
@@ -536,8 +537,8 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "CatalogVendorId", xref: "cluster§6.13.5.4.1",
-                    details: "This field shall indicate the CSA-issued vendor ID for the catalog. The DIAL registry shall use " +
-                        "value 0x0000." +
+                    details: "This field shall indicate the Connectivity Standards Alliance-issued vendor ID for the catalog. The " +
+                        "DIAL registry shall use value 0x0000." +
                         "\n" +
                         "Content App Platform providers will have their own catalog vendor ID (set to their own Vendor ID) " +
                         "and will assign an ApplicationID to each Content App."

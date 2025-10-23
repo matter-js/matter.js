@@ -15,13 +15,13 @@ import {
 export const CompassLocationNs = SemanticNamespace(
     { name: "CompassLocation", id: 0x3 },
     SemanticTag({ name: "North", id: 0x0 }),
-    SemanticTag({ name: "North-East", id: 0x1 }),
+    SemanticTag({ name: "NorthEast", id: 0x1 }),
     SemanticTag({ name: "East", id: 0x2 }),
-    SemanticTag({ name: "South-East", id: 0x3 }),
+    SemanticTag({ name: "SouthEast", id: 0x3 }),
     SemanticTag({ name: "South", id: 0x4 }),
-    SemanticTag({ name: "South-West", id: 0x5 }),
+    SemanticTag({ name: "SouthWest", id: 0x5 }),
     SemanticTag({ name: "West", id: 0x6 }),
-    SemanticTag({ name: "North-West", id: 0x7 })
+    SemanticTag({ name: "NorthWest", id: 0x7 })
 );
 
 MatterDefinition.children.push(CompassLocationNs);

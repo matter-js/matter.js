@@ -50,9 +50,9 @@ Resource.add({
                 "selected spin speed, as such, this attribute can be an integer between 0 and the number of entries " +
                 "in SpinSpeeds - 1. If a value is received that is outside of the defined constraints, a " +
                 "CONSTRAINT_ERROR shall be sent as the response. If a value is attempted to be written that doesn’t " +
-                "match a valid index (e.g. an index of 5 when the list has 4 values), a CONSTRAINT_ERROR shall be " +
-                "sent as the response. If null is written to this attribute, there will be no spin speed for the" +
+                "match a valid index (e.g. an index of 5 when the list has 4 values), a CONSTRAINT_ERROR shall be" +
                 "\n" +
+                "sent as the response. If null is written to this attribute, there will be no spin speed for the " +
                 "selected cycle. If the value is null, there will be no spin speed on the current mode."
         },
 

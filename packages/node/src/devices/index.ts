@@ -59,6 +59,7 @@ export * from "./solar-power.js";
 export * from "./speaker.js";
 export * from "./temperature-controlled-cabinet.js";
 export * from "./temperature-sensor.js";
+export * from "./thermostat-controller.js";
 export * from "./thermostat.js";
 export * from "./video-remote-control.js";
 export * from "./water-freeze-detector.js";

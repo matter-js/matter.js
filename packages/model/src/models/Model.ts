@@ -261,7 +261,7 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     /**
      * Factory support.
      */
-    static types = {} as { [type: string]: Model.ConcreteType };
+    static types: Record<string, Model.ConcreteType> = {};
 
     /**
      * Add a new model implementation.

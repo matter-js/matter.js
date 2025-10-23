@@ -346,6 +346,10 @@ export namespace SwitchBaseServer {
 
         /** Number of the position considered as the neutral position for the momentary switch. */
         momentaryNeutralPosition: number = 0;
+
+        // These are mandatory; provide reasonable defaults
+        override numberOfPositions = 2;
+        override multiPressMax = 2;
     }
 
     /** Enhance the relevant events for rawPosition attribute. */

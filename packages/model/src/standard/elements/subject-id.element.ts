@@ -9,5 +9,5 @@
 import { MatterDefinition } from "../MatterDefinition.js";
 import { DatatypeElement as Datatype } from "../../elements/index.js";
 
-export const subjectId = Datatype({ name: "subject-id", type: "uint64" });
+export const subjectId = Datatype({ name: "subject-id", type: "uint64", isSeed: true });
 MatterDefinition.children.push(subjectId);

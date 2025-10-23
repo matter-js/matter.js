@@ -38,8 +38,8 @@ import { Identity } from "#general";
  * For example, a Casting Video Player can be a smart TV device, a TV Set Top Box, or a content streaming device that
  * provides input to another device like a TV or computer monitor.
  *
- * Please see Video Player Architecture for additional Casting Video Player requirements relating to Video Player device
- * endpoint composition, commissioning, feature representation in clusters, and UI context.
+ * See Section 10.1, “Video Player Architecture” for additional Casting Video Player requirements relating to Video
+ * Player device endpoint composition, commissioning, feature representation in clusters, and UI context.
  *
  * @see {@link MatterSpecification.v141.Device} § 10.3
  */

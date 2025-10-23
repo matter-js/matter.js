@@ -44,8 +44,9 @@ Resource.add({
 
         {
             tag: "attribute", name: "BasicCommissioningInfo", xref: "core§11.10.6.2",
-            details: "This attribute shall describe critical parameters needed at the beginning of commissioning flow. See " +
-                "BasicCommissioningInfo for more information."
+            details: "This attribute shall describe critical parameters needed at the beginning of commissioning flow." +
+                "\n" +
+                "See Section 11.10.5.3, “BasicCommissioningInfo Type” for more information."
         },
 
         {
@@ -75,9 +76,9 @@ Resource.add({
 
         {
             tag: "attribute", name: "SupportsConcurrentConnection", xref: "core§11.10.6.5",
-            details: "This attribute shall indicate whether this device supports \"concurrent connection flow\" " +
-                "commissioning mode (see Section 5.5, “Commissioning Flows”). If false, the device only supports " +
-                "\"non-concurrent connection flow\" mode."
+            details: "Indicates whether this device supports \"concurrent connection flow\" commissioning mode (see Section " +
+                "5.5, “Commissioning Flows”). If false, the device only supports \"non-concurrent connection flow\" " +
+                "mode."
         },
 
         {
@@ -89,7 +90,8 @@ Resource.add({
                 "When Custom Commissioning Flow is used to obtain user consent (e. g. because the Commissioner does " +
                 "not support the TC feature), the manufacturer-provided means for obtaining user consent shall ensure " +
                 "that this attribute is set to a value which is greater than or equal to TCMinRequiredVersion before " +
-                "returning the user back to the originating Commissioner (see Enhanced Setup Flow)."
+                "returning the user back to the originating Commissioner (see Section 5.7.4, “Enhanced Setup Flow " +
+                "(ESF)”)."
         },
 
         {
@@ -125,7 +127,7 @@ Resource.add({
                 "mandatory terms accepted." +
                 "\n" +
                 "This attribute may be present and False in the case where no terms and conditions are currently " +
-                "mandatory to accept for CommissioningComplete to succeed." +
+                "mandatory to accept for CommissioningComplete command to succeed." +
                 "\n" +
                 "This attribute may appear, or become True after commissioning (e.g. due to a firmware update) to " +
                 "indicate that new Terms & Conditions are available that the user must accept." +
@@ -135,13 +137,13 @@ Resource.add({
                 "When Custom Commissioning Flow is used to obtain user consent (e.g. because the Commissioner does " +
                 "not support the TC feature), the manufacturer-provided means for obtaining user consent shall ensure " +
                 "that this attribute is set to False before returning the user back to the original Commissioner (see " +
-                "Enhanced Setup Flow)."
+                "Section 5.7.4, “Enhanced Setup Flow (ESF)”)."
         },
 
         {
             tag: "attribute", name: "TcUpdateDeadline", xref: "core§11.10.6.10",
             details: "Indicates the System Time in seconds when any functionality limitations will begin due to a lack of " +
-                "acceptance of updated Terms and Conditions, as described in Section 5.7.4.5, “Presenting Updated " +
+                "acceptance of updated Terms and Conditions, as described in Section 5.7.4.6, “Presenting Updated " +
                 "Terms and Conditions”." +
                 "\n" +
                 "A null value indicates that there is no pending deadline for updated TC acceptance."
@@ -150,7 +152,9 @@ Resource.add({
         {
             tag: "command", name: "ArmFailSafe", xref: "core§11.10.7.2",
 
-            details: "Success or failure of this command shall be communicated by the ArmFailSafeResponse command, unless " +
+            details: "This command is used to arm or disarm the fail-safe timer." +
+                "\n" +
+                "Success or failure of this command shall be communicated by the ArmFailSafeResponse command, unless " +
                 "some data model validations caused a failure status code to be issued during the processing of the " +
                 "command." +
                 "\n" +
@@ -203,9 +207,9 @@ Resource.add({
                 "\n" +
                 "  • Whether an AddNOC command or UpdateNOC command has taken place." +
                 "\n" +
-                "  • A Fabric Index for the fabric-scoping of the context, starting at the accessing fabric index for " +
-                "    the ArmFailSafe command, and updated with the Fabric Index associated with an AddNOC command or " +
-                "    an UpdateNOC command being invoked successfully during the ongoing Fail-Safe timer period." +
+                "  • A fabric-index for the fabric-scoping of the context, starting at the accessing fabric index for " +
+                "    the ArmFailSafe command, and updated with the Fabric Index associated with an AddNOC or an " +
+                "    UpdateNOC command being invoked successfully during the ongoing Fail-Safe timer period." +
                 "\n" +
                 "  • The operational credentials associated with any Fabric whose configuration is affected by the " +
                 "    UpdateNOC command." +
@@ -246,8 +250,9 @@ Resource.add({
                 "     6.6.2.9, “Bootstrapping of the Access Control Cluster”) at the Server." +
                 "\n" +
                 "  3. If an AddNOC or UpdateNOC command has been successfully invoked, terminate all CASE sessions " +
-                "     associated with the Fabric whose Fabric Index is recorded in the Fail-Safe context (see " +
-                "     ArmFailSafe) by clearing any associated Secure Session Context at the Server." +
+                "     associated with the Fabric whose Fabric Index is recorded in the Fail-Safe context (see Section " +
+                "     11.10.7.2, “ArmFailSafe Command”) by clearing any associated Secure Session Context at the " +
+                "     Server." +
                 "\n" +
                 "  4. Reset the configuration of all Network Commissioning Networks attribute to their state prior to " +
                 "     the Fail-Safe being armed." +
@@ -257,7 +262,7 @@ Resource.add({
                 "     the Fabric Index that was the subject of the UpdateNOC command." +
                 "\n" +
                 "  6. If an AddNOC command had been successfully invoked, achieve the equivalent effect of invoking " +
-                "     the RemoveFabric command against the Fabric Index stored in the Fail-Safe Context for the " +
+                "     the RemoveFabric command against the fabric-index stored in the Fail-Safe Context for the " +
                 "     Fabric Index that was the subject of the AddNOC command. This shall remove all associations to " +
                 "     that Fabric including all fabric-scoped data, and may possibly factory-reset the device " +
                 "     depending on current device state. This shall only apply to Fabrics added during the fail-safe " +
@@ -265,8 +270,8 @@ Resource.add({
                 "\n" +
                 "  7. If the CSRRequest command had been successfully invoked, but no AddNOC or UpdateNOC command had " +
                 "     been successfully invoked, then the new operational key pair temporarily generated for the " +
-                "     purposes of NOC addition or update (see Node Operational CSR Procedure) shall be removed as it " +
-                "     is no longer needed." +
+                "     purposes of NOC addition or update (see Section 6.4.6.1, “Node Operational Certificate Signing " +
+                "     Request (NOCSR) Procedure”) shall be removed as it is no longer needed." +
                 "\n" +
                 "  8. Remove any RCACs added by the AddTrustedRootCertificate command that are not currently " +
                 "     referenced by any entry in the Fabrics attribute." +
@@ -279,6 +284,7 @@ Resource.add({
 
         {
             tag: "command", name: "ArmFailSafeResponse", xref: "core§11.10.7.3",
+            details: "This command is used to report the result of the ArmFailSafe command.",
 
             children: [
                 {
@@ -296,7 +302,9 @@ Resource.add({
         {
             tag: "command", name: "SetRegulatoryConfig", xref: "core§11.10.7.4",
 
-            details: "This shall add or update the regulatory configuration in the RegulatoryConfig Attribute to the value " +
+            details: "This command is used to set the regulatory configuration for the device." +
+                "\n" +
+                "This shall add or update the regulatory configuration in the RegulatoryConfig Attribute to the value " +
                 "provided in the NewRegulatoryConfig field." +
                 "\n" +
                 "Success or failure of this command shall be communicated by the SetRegulatoryConfigResponse command, " +
@@ -330,6 +338,7 @@ Resource.add({
 
         {
             tag: "command", name: "SetRegulatoryConfigResponse", xref: "core§11.10.7.5",
+            details: "This command is used to report the result of the SetRegulatoryConfig command.",
 
             children: [
                 {
@@ -347,7 +356,7 @@ Resource.add({
         {
             tag: "command", name: "CommissioningComplete", xref: "core§11.10.7.6",
 
-            details: "This command has no data." +
+            details: "This command is used to indicate that the commissioning process is complete." +
                 "\n" +
                 "Success or failure of this command shall be communicated by the CommissioningCompleteResponse " +
                 "command, unless some data model validations caused a failure status code to be issued during the " +
@@ -367,8 +376,7 @@ Resource.add({
                 "\n" +
                 "If Terms and Conditions are required, then an ErrorCode of TCAcknowledgementsNotReceived shall be " +
                 "responded to the invoker if the user acknowledgements to the required Terms and Conditions have not " +
-                "been provided. If the TCAcceptedVersion for the provided acknowledgements is less than " +
-                "TCMinRequiredVersion, then an ErrorCode of TCMinVersionNotMet shall be responded to the invoker." +
+                "been provided." +
                 "\n" +
                 "This command is fabric-scoped, so cannot be issued over a session that does not have an associated " +
                 "fabric, i.e. over PASE session prior to an AddNOC command. In addition, this command is only " +
@@ -411,6 +419,7 @@ Resource.add({
 
         {
             tag: "command", name: "CommissioningCompleteResponse", xref: "core§11.10.7.7",
+            details: "This command is used to report the result of the CommissioningComplete command.",
 
             children: [
                 {
@@ -427,8 +436,8 @@ Resource.add({
 
         {
             tag: "command", name: "SetTcAcknowledgements", xref: "core§11.10.7.8",
-            details: "This command sets the user acknowledgements received in the Enhanced Setup Flow Terms & Conditions " +
-                "into the node.",
+            details: "This command is used to set the user acknowledgements received in the Enhanced Setup Flow Terms & " +
+                "Conditions into the node.",
 
             children: [
                 {
@@ -467,7 +476,7 @@ Resource.add({
 
         {
             tag: "command", name: "SetTcAcknowledgementsResponse", xref: "core§11.10.7.9",
-            details: "This command is used to convey the result from SetTCAcknowledgements.",
+            details: "This command is used to report the result of the SetTCAcknowledgements command.",
             children: [{
                 tag: "field", name: "ErrorCode", xref: "core§11.10.7.9.1",
                 details: "This field shall contain the result of the operation, based on the behavior specified in the " +
@@ -487,15 +496,15 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "InvalidAuthentication",
-                    description: "Executed CommissioningComplet e outside CASE session."
+                    description: "Executed CommissioningComplete outside CASE session."
                 },
                 {
                     tag: "field", name: "NoFailSafe",
-                    description: "Executed CommissioningComplet e when there was no active Fail-Safe context."
+                    description: "Executed CommissioningComplete when there was no active Fail-Safe context."
                 },
                 {
                     tag: "field", name: "BusyWithOtherAdmin",
-                    description: "Attempting to arm fail-safe or execute CommissioningComplet e from a fabric different than the one associated with the current fail-safe context."
+                    description: "Attempting to arm fail-safe or execute CommissioningComplete from a fabric different than the one associated with the current fail-safe context."
                 },
                 {
                     tag: "field", name: "RequiredTcNotAccepted",
@@ -503,7 +512,7 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "TcAcknowledgementsNotReceived",
-                    description: "No acknowledgements from the user for the TC features were received."
+                    description: "No or insufficient acknowledgements from the user for the TC features were received."
                 },
                 {
                     tag: "field", name: "TcMinVersionNotMet",

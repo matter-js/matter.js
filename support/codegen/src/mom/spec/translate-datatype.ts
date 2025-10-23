@@ -5,7 +5,7 @@
  */
 
 import { Logger } from "#general";
-import { AnyElement, DatatypeElement, ElementTag, FabricIndex, FieldElement, Metatype } from "#model";
+import { AnyElement, DatatypeElement, FabricIndex, FieldElement, Metatype } from "#model";
 import { addDocumentation } from "./add-documentation.js";
 import {
     Bits,
@@ -23,8 +23,8 @@ import { repairType, repairTypeIdentifier } from "./repairs/type-repairs.js";
 import { HtmlReference } from "./spec-types.js";
 import {
     Alias,
-    Children,
     chooseIdentityAliases,
+    Details,
     Optional,
     TableRecord,
     translateRecordsToMatter,
@@ -139,10 +139,10 @@ const FieldSchema = {
 
     constraint: Optional(ConstraintStr),
     quality: Optional(Str),
-    default: Optional(NoSpace),
+    default: Optional(Alias(NoSpace, "fallback")),
     access: Optional(Str),
     conformance: Optional(ConformanceCode),
-    children: Children(translateValueChildren),
+    children: Details(translateValueChildren),
 
     // This only applies to the "global elements" table in the core spec
     element: Optional(LowerIdentifier),
@@ -155,6 +155,7 @@ export type FieldRecord = TableRecord<typeof FieldSchema>;
 export function translateFields<T extends AnyElement.Type<FieldRecord>>(
     type: T,
     fields?: HtmlReference,
+    withAccessNotes = true,
 ): ReturnType<T>[] | undefined {
     let records = translateTable(type.Tag, fields, FieldSchema);
 
@@ -166,8 +167,8 @@ export function translateFields<T extends AnyElement.Type<FieldRecord>>(
         return true;
     });
 
-    if (type.Tag !== ElementTag.Attribute) {
-        applyAccessNotes(fields, records);
+    if (withAccessNotes) {
+        applyAccessModifier(fields, records);
     }
 
     return translateRecordsToMatter(type.Tag, records, type) as ReturnType<T>[] | undefined;
@@ -270,26 +271,19 @@ export function translateValueChildren(
         }
 
         case Metatype.object:
-            return translateFields(FieldElement, definition);
+            return translateFields(FieldElement, definition, parent?.type !== "event");
     }
 }
 
-// For some reason, "default" fabric access appears in an informational row instead of the access column in many of the
-// core definitions.  Fix this.
-//
-// We also use the presence of this record to add the implicit FabrixIndex field
-function applyAccessNotes(
-    fields?: HtmlReference,
-    records?: { id: number; name?: string; type?: string; access?: string; conformance?: string }[],
-) {
-    if (!fields?.tables?.[0].notes.length || !records) {
+export function accessModifierOf(details?: HtmlReference) {
+    if (!details?.tables?.[0].notes.length) {
         return;
     }
 
     // Determine what the access flag should be
     let flag: string | undefined;
-    for (const n of fields.tables[0].notes) {
-        const match = n.textContent?.match(/access quality: fabric[\s-](\w+)/i);
+    for (const n of details.tables[0].notes) {
+        const match = n.textContent?.match(/access (?:quality|modifier): fabric[\s-](\w+)/i);
         if (match) {
             const quality = match[1].toLowerCase();
 
@@ -307,35 +301,50 @@ function applyAccessNotes(
             }
 
             if (flag) {
-                break;
+                return flag;
             }
         }
     }
+}
 
-    // If we have the flag, apply it
-    if (flag) {
-        // Update access for each record unless it already has a fabric flag
-        let haveFabricIndex = false;
-        for (const r of records) {
-            if (r.id === FabricIndex.id) {
-                haveFabricIndex = true;
-            }
-            const access = r.access;
-            if (!access) {
-                r.access = flag;
-            } else if (!access.match(/[SF]/i)) {
-                r.access += flag;
-            }
-        }
+// For some reason, "default" fabric access appears in an informational row instead of the access column in many of the
+// core definitions.  Fix this.
+//
+// We also use the presence of this record to add the implicit FabrixIndex field
+function applyAccessModifier(
+    fields?: HtmlReference,
+    records?: { id: number; name?: string; type?: string; access?: string; conformance?: string }[],
+) {
+    if (!records) {
+        return;
+    }
 
-        // Add the FabricIndex field if not already present
-        if (!haveFabricIndex) {
-            records.push({
-                id: FabricIndex.id as number,
-                name: FabricIndex.name,
-                type: "FabricIndex",
-            });
+    const flag = accessModifierOf(fields);
+    if (!flag) {
+        return;
+    }
+
+    // Update access for each record unless it already has a fabric flag
+    let haveFabricIndex = false;
+    for (const r of records) {
+        if (r.id === FabricIndex.id) {
+            haveFabricIndex = true;
         }
+        const access = r.access;
+        if (!access) {
+            r.access = flag;
+        } else if (!access.match(/[SF]/i)) {
+            r.access += flag;
+        }
+    }
+
+    // Add the FabricIndex field if not already present
+    if (!haveFabricIndex) {
+        records.push({
+            id: FabricIndex.id as number,
+            name: FabricIndex.name,
+            type: "FabricIndex",
+        });
     }
 }
 

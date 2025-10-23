@@ -20,7 +20,7 @@ export enum SoftwareVersionCertificationStatus {
 
     /**
      * used for a SoftwareVersion when going into certification testing (These might or might not be placed in DCL,
-     * depending on CSA policy and procedures)
+     * depending on the Connectivity Standards Alliance policy and procedures)
      */
     Provisional = 1,
 

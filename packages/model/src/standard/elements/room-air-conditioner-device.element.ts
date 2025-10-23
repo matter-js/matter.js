@@ -17,11 +17,11 @@ export const RoomAirConditionerDt = DeviceType(
     ),
     Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "serverCluster" }),
-    Requirement({ name: "ScenesManagement", id: 0x62, conformance: "P, O", element: "serverCluster" }),
     Requirement(
         { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster" },
         Requirement({ name: "DEADFRONTBEHAVIOR", conformance: "M", element: "feature" })
     ),
+    Requirement({ name: "ScenesManagement", id: 0x62, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "Thermostat", id: 0x201, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "FanControl", id: 0x202, conformance: "O", element: "serverCluster" }),
     Requirement(

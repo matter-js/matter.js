@@ -25,11 +25,16 @@ export const EcosystemInformation = Cluster(
         { name: "LocationDirectory", id: 0x1, type: "list", access: "R F M", conformance: "M", quality: "N" },
         Field({ name: "entry", type: "EcosystemLocationStruct" })
     ),
+    Datatype(
+        { name: "DeviceTypeStruct", type: "struct" },
+        Field({ name: "DeviceType", id: 0x0, type: "devtype-id", conformance: "M" }),
+        Field({ name: "Revision", id: 0x1, type: "uint16", conformance: "M", constraint: "min 1" })
+    ),
 
     Datatype(
         { name: "EcosystemDeviceStruct", type: "struct" },
         Field({ name: "DeviceName", id: 0x0, type: "string", access: "S", conformance: "O", constraint: "max 64" }),
-        Field({ name: "DeviceNameLastEdit", id: 0x1, type: "epoch-us", access: "S", conformance: "desc", default: 0 }),
+        Field({ name: "DeviceNameLastEdit", id: 0x1, type: "epoch-us", access: "S", conformance: "DeviceName", default: 0 }),
         Field({ name: "BridgedEndpoint", id: 0x2, type: "endpoint-no", access: "S", conformance: "desc", constraint: "desc" }),
         Field({
             name: "OriginalEndpoint", id: 0x3, type: "endpoint-no", access: "S", conformance: "desc",
@@ -37,7 +42,7 @@ export const EcosystemInformation = Cluster(
         }),
         Field(
             { name: "DeviceTypes", id: 0x4, type: "list", access: "S", conformance: "M", constraint: "desc" },
-            Field({ name: "entry", type: "Descriptor.DeviceTypeStruct" })
+            Field({ name: "entry", type: "DeviceTypeStruct" })
         ),
 
         Field(

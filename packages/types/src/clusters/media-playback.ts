@@ -255,6 +255,8 @@ export namespace MediaPlayback {
     }
 
     /**
+     * This command is used to indicate the status of the command that was issued by the client.
+     *
      * This command shall be generated in response to various Playback Commands.
      *
      * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.12
@@ -276,6 +278,8 @@ export namespace MediaPlayback {
     });
 
     /**
+     * This command is used to indicate the status of the command that was issued by the client.
+     *
      * This command shall be generated in response to various Playback Commands.
      *
      * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.12
@@ -651,6 +655,8 @@ export namespace MediaPlayback {
          * This field shall indicate the updated start time as defined by the StartTime attribute, and has the same
          * constraint as that attribute.
          *
+         * This field value shall be 0 when the value of the StartTime attribute is NULL.
+         *
          * @see {@link MatterSpecification.v141.Cluster} § 6.10.8.1.2
          */
         startTime: TlvOptionalField(1, TlvEpochUs),
@@ -659,6 +665,8 @@ export namespace MediaPlayback {
          * This field shall indicate the updated duration as defined by the Duration attribute, and has the same
          * constraint as that attribute.
          *
+         * This field value shall be 0 when the value of the Duration attribute is NULL.
+         *
          * @see {@link MatterSpecification.v141.Cluster} § 6.10.8.1.3
          */
         duration: TlvOptionalField(2, TlvUInt64),
@@ -666,6 +674,9 @@ export namespace MediaPlayback {
         /**
          * This field shall indicate the updated position of playback as defined by the SampledPosition attribute, and
          * has the same constraint as that attribute.
+         *
+         * The UpdatedAt field value of the PlaybackPositionStruct shall be 0, and the Position field value of the
+         * PlaybackPositionStruct shall be NULL, when the value of the SampledPosition attribute is NULL.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 6.10.8.1.4
          */
@@ -683,6 +694,8 @@ export namespace MediaPlayback {
          * This field shall indicate the updated start of the seek range end as defined by the SeekRangeEnd attribute,
          * and has the same constraint as that attribute.
          *
+         * This field value shall be 0 when the value of the SeekRangeEnd attribute is NULL.
+         *
          * @see {@link MatterSpecification.v141.Cluster} § 6.10.8.1.7
          */
         seekRangeEnd: TlvOptionalField(5, TlvUInt64),
@@ -690,6 +703,8 @@ export namespace MediaPlayback {
         /**
          * This field shall indicate the updated start of the seek range start as defined by the SeekRangeStart
          * attribute, and has the same constraint as that attribute.
+         *
+         * This field value shall be 0 when the value of the SeekRangeStart attribute is NULL.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 6.10.8.1.6
          */
@@ -809,7 +824,7 @@ export namespace MediaPlayback {
              * the start of the media. When the media has an associated StartTime, a value of null shall indicate that a
              * seek forward is valid only until the current time within the media, using a position computed from the
              * difference between the current time offset and StartTime, in milliseconds from start of the media,
-             * truncating fractional milliseconds towards 0. A value of Nas when StartTime is not specified shall
+             * truncating fractional milliseconds towards 0. A value of NULL when StartTime is not specified shall
              * indicate that seeking forward is not allowed.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 6.10.6.7
@@ -818,7 +833,7 @@ export namespace MediaPlayback {
 
             /**
              * Indicates the earliest valid position to which a client may seek back, in milliseconds from start of the
-             * media. A value of Nas shall indicate that seeking backwards is not allowed.
+             * media. A value of NULL shall indicate that seeking backwards is not allowed.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 6.10.6.6
              */
@@ -827,6 +842,8 @@ export namespace MediaPlayback {
 
         commands: {
             /**
+             * This command is used to seek to a specific position in the media.
+             *
              * Upon receipt, this shall change the playback position in the media to the given position.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.11
@@ -860,6 +877,8 @@ export namespace MediaPlayback {
 
         commands: {
             /**
+             * This command is used to activate a specific Audio Track for the media being played.
+             *
              * Upon receipt, the server shall set the active Audio Track to the one identified by the TrackID in the
              * Track catalog for the streaming media. If the TrackID does not exist in the Track catalog, OR does not
              * correspond to the streaming media OR no media is being streamed at the time of receipt of this command,
@@ -897,6 +916,8 @@ export namespace MediaPlayback {
 
         commands: {
             /**
+             * This command is used to activate a specific Text Track for the media being played.
+             *
              * Upon receipt, the server shall set the active Text Track to the one identified by the TrackID in the
              * Track catalog for the streaming media. If the TrackID does not exist in the Track catalog, OR does not
              * correspond to the streaming media OR no media is being streamed at the time of receipt of this command,
@@ -907,6 +928,8 @@ export namespace MediaPlayback {
             activateTextTrack: Command(0xd, TlvActivateTextTrackRequest, 0xd, TlvNoResponse),
 
             /**
+             * This command is used to deactivate a specific Text Track for the media being played.
+             *
              * If a Text Track is active (i.e. being displayed), upon receipt of this command, the server shall stop
              * displaying it.
              *
@@ -922,6 +945,8 @@ export namespace MediaPlayback {
     export const VariableSpeedComponent = MutableCluster.Component({
         commands: {
             /**
+             * This command is used to rewind the media.
+             *
              * Upon receipt, this shall start playback of the media backward in case the media is currently playing in
              * the forward direction or is not playing. If the playback is already happening in the backwards direction
              * receipt of this command shall increase the speed of the media playback backwards.
@@ -939,6 +964,8 @@ export namespace MediaPlayback {
             rewind: Command(0x6, TlvRewindRequest, 0xa, TlvPlaybackResponse),
 
             /**
+             * This command is used to fast forward the media.
+             *
              * Upon receipt, this shall start playback of the media in the forward direction in case the media is
              * currently playing in the backward direction or is not playing. If the playback is already happening in
              * the forward direction receipt of this command shall increase the speed of the media playback.
@@ -1021,6 +1048,8 @@ export namespace MediaPlayback {
 
         commands: {
             /**
+             * This command is used to start playback of the media.
+             *
              * Upon receipt, this shall play media. If content is currently in a FastForward or Rewind state. Play shall
              * return media to normal playback speed.
              *
@@ -1029,13 +1058,16 @@ export namespace MediaPlayback {
             play: Command(0x0, TlvNoArguments, 0xa, TlvPlaybackResponse),
 
             /**
-             * Upon receipt, this shall pause playback of the media.
+             * This command is used to pause playback of the media. Upon receipt, this shall pause playback of the
+             * media.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.2
              */
             pause: Command(0x1, TlvNoArguments, 0xa, TlvPlaybackResponse),
 
             /**
+             * This command is used to stop playback of the media.
+             *
              * Upon receipt, this shall stop playback of the media. User-visible outcome is context-specific. This may
              * navigate the user back to the location from where the media was originally launched.
              *
@@ -1044,13 +1076,16 @@ export namespace MediaPlayback {
             stop: Command(0x2, TlvNoArguments, 0xa, TlvPlaybackResponse),
 
             /**
-             * Upon receipt, this shall Start Over with the current media playback item.
+             * This command is used to start playback of the media from the beginning. Upon receipt, this shall Start
+             * Over with the current media playback item.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.4
              */
             startOver: OptionalCommand(0x3, TlvNoArguments, 0xa, TlvPlaybackResponse),
 
             /**
+             * This command is used to go back to the previous media playback item.
+             *
              * Upon receipt, this shall cause the handler to be invoked for "Previous". User experience is
              * context-specific. This will often Go back to the previous media playback item.
              *
@@ -1059,6 +1094,8 @@ export namespace MediaPlayback {
             previous: OptionalCommand(0x4, TlvNoArguments, 0xa, TlvPlaybackResponse),
 
             /**
+             * This command is used to go to the next media playback item.
+             *
              * Upon receipt, this shall cause the handler to be invoked for "Next". User experience is context-specific.
              * This will often Go forward to the next media playback item.
              *
@@ -1067,6 +1104,8 @@ export namespace MediaPlayback {
             next: OptionalCommand(0x5, TlvNoArguments, 0xa, TlvPlaybackResponse),
 
             /**
+             * This command is used to skip forward in the media.
+             *
              * Upon receipt, this shall Skip forward in the media by the given number of milliseconds.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.9
@@ -1074,6 +1113,8 @@ export namespace MediaPlayback {
             skipForward: OptionalCommand(0x8, TlvSkipForwardRequest, 0xa, TlvPlaybackResponse),
 
             /**
+             * This command is used to skip backward in the media.
+             *
              * Upon receipt, this shall Skip backward in the media by the given number of milliseconds.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.10

@@ -80,8 +80,8 @@ Resource.add({
 
         {
             tag: "event", name: "MessageComplete", xref: "cluster§1.16.8.3",
-            details: "This event shall be generated when the message is confirmed by the user, or when the Duration of the " +
-                "message has elapsed without confirmation.",
+            details: "This event shall be generated when the message is confirmed by the user, or when the Duration field " +
+                "of the message has elapsed without confirmation.",
 
             children: [
                 {
@@ -91,7 +91,7 @@ Resource.add({
                 {
                     tag: "field", name: "ResponseId", xref: "cluster§1.16.8.3.2",
                     details: "This field shall indicate the MessageResponseID selected by the user. If there was no response " +
-                        "before the Duration of the message has elapsed, this field shall be null."
+                        "before the Duration field of the message has elapsed, this field shall be null."
                 },
                 {
                     tag: "field", name: "Reply", xref: "cluster§1.16.8.3.3",

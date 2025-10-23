@@ -32,19 +32,19 @@ export const ElectricalEnergyMeasurement = Cluster(
     ),
     Attribute({
         name: "CumulativeEnergyImported", id: 0x1, type: "EnergyMeasurementStruct", access: "R V",
-        conformance: "IMPE & CUME", default: null, quality: "X Q"
+        conformance: "IMPE & CUME", quality: "X Q"
     }),
     Attribute({
         name: "CumulativeEnergyExported", id: 0x2, type: "EnergyMeasurementStruct", access: "R V",
-        conformance: "EXPE & CUME", default: null, quality: "X Q"
+        conformance: "EXPE & CUME", quality: "X Q"
     }),
     Attribute({
         name: "PeriodicEnergyImported", id: 0x3, type: "EnergyMeasurementStruct", access: "R V",
-        conformance: "IMPE & PERE", default: null, quality: "X Q"
+        conformance: "IMPE & PERE", quality: "X Q"
     }),
     Attribute({
         name: "PeriodicEnergyExported", id: 0x4, type: "EnergyMeasurementStruct", access: "R V",
-        conformance: "EXPE & PERE", default: null, quality: "X Q"
+        conformance: "EXPE & PERE", quality: "X Q"
     }),
     Attribute({
         name: "CumulativeEnergyReset", id: 0x5, type: "CumulativeEnergyResetStruct", access: "R V",
@@ -59,6 +59,27 @@ export const ElectricalEnergyMeasurement = Cluster(
         { name: "PeriodicEnergyMeasured", id: 0x1, access: "V", conformance: "PERE", priority: "info" },
         Field({ name: "EnergyImported", id: 0x0, type: "EnergyMeasurementStruct", conformance: "PERE & IMPE" }),
         Field({ name: "EnergyExported", id: 0x1, type: "EnergyMeasurementStruct", conformance: "PERE & EXPE" })
+    ),
+
+    Datatype(
+        { name: "MeasurementTypeEnum", type: "enum16" },
+        Field({ name: "Unspecified", id: 0x0, conformance: "M" }),
+        Field({ name: "Voltage", id: 0x1, conformance: "M" }),
+        Field({ name: "ActiveCurrent", id: 0x2, conformance: "M" }),
+        Field({ name: "ReactiveCurrent", id: 0x3, conformance: "M" }),
+        Field({ name: "ApparentCurrent", id: 0x4, conformance: "M" }),
+        Field({ name: "ActivePower", id: 0x5, conformance: "M" }),
+        Field({ name: "ReactivePower", id: 0x6, conformance: "M" }),
+        Field({ name: "ApparentPower", id: 0x7, conformance: "M" }),
+        Field({ name: "RmsVoltage", id: 0x8, conformance: "M" }),
+        Field({ name: "RmsCurrent", id: 0x9, conformance: "M" }),
+        Field({ name: "RmsPower", id: 0xa, conformance: "M" }),
+        Field({ name: "Frequency", id: 0xb, conformance: "M" }),
+        Field({ name: "PowerFactor", id: 0xc, conformance: "M" }),
+        Field({ name: "NeutralCurrent", id: 0xd, conformance: "M" }),
+        Field({ name: "ElectricalEnergy", id: 0xe, conformance: "M" }),
+        Field({ name: "ReactiveEnergy", id: 0xf, conformance: "M" }),
+        Field({ name: "ApparentEnergy", id: 0x10, conformance: "M" })
     ),
 
     Datatype(

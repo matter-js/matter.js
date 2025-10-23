@@ -61,7 +61,7 @@ export namespace OccupancySensing {
         /**
          * ActiveInfrared (AIR)
          *
-         * Supports sensing using Active InfraRed measurement (e.g. time-of-flight or transflective/reflec tive IR
+         * Supports sensing using Active InfraRed measurement (e.g. time-of-flight or transflective/reflective IR
          * sensing)
          */
         ActiveInfrared = "ActiveInfrared",
@@ -76,7 +76,7 @@ export namespace OccupancySensing {
         /**
          * RfSensing (RFS)
          *
-         * Supports sensing based on RF signal analysis
+         * Supports sensing using analysis of radio signals, e.g.: RSSI, CSI and/or any other metric from the signal
          */
         RfSensing = "RfSensing",
 
@@ -377,7 +377,7 @@ export namespace OccupancySensing {
             physicalContact: BitFlag(3),
 
             /**
-             * Supports sensing using Active InfraRed measurement (e.g. time-of-flight or transflective/reflec tive IR
+             * Supports sensing using Active InfraRed measurement (e.g. time-of-flight or transflective/reflective IR
              * sensing)
              */
             activeInfrared: BitFlag(4),
@@ -388,7 +388,7 @@ export namespace OccupancySensing {
             radar: BitFlag(5),
 
             /**
-             * Supports sensing based on RF signal analysis
+             * Supports sensing using analysis of radio signals, e.g.: RSSI, CSI and/or any other metric from the signal
              */
             rfSensing: BitFlag(6),
 
@@ -421,12 +421,10 @@ export namespace OccupancySensing {
             /**
              * This attribute shall specify the time delay, in seconds, before the sensor changes to its unoccupied
              * state after the last detection of occupancy in the sensed area. This is equivalent to the legacy
-             *
              * *OccupiedToUnoccupiedDelay attributes.
              *
-             * The value of HoldTime shall be within the limits provided in the HoldTimeLimits attribute, i.e.
-             * HoldTimeMin <= HoldTime <= HoldTimeMax Low values of HoldTime SHOULD be avoided since they could lead to
-             * many reporting messages. A value 0 for HoldTime shall NOT be used.
+             * Low values of HoldTime SHOULD be avoided since they could lead to many reporting messages. A value 0 for
+             * HoldTime shall NOT be used.
              *
              * The figure below illustrates this with an example of how this attribute is used for a PIR sensor. It uses
              * threshold detection to generate an "internal detection" signal, which needs post-processing to become

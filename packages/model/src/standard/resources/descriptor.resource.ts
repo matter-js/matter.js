@@ -22,8 +22,8 @@ Resource.add({
         "This cluster supports a list of one or more device type identifiers that represent conformance to " +
         "device type specifications." +
         "\n" +
-        "The cluster supports a PartsList attribute that is a list of zero or more endpoints to support a " +
-        "composed device type.",
+        "The cluster supports a PartsList attribute that is a list of zero or more endpoints to support " +
+        "compound devices or composed device types.",
 
     children: [
         {
@@ -39,7 +39,7 @@ Resource.add({
             tag: "attribute", name: "DeviceTypeList", xref: "core§9.5.6.1",
 
             details: "This is a list of device types and corresponding revisions declaring endpoint conformance (see " +
-                "DeviceTypeStruct). At least one device type entry shall be present." +
+                "Section 9.5.5.1, “DeviceTypeStruct Type”). At least one device type entry shall be present." +
                 "\n" +
                 "An endpoint shall conform to all device types listed in the DeviceTypeList. A cluster instance that " +
                 "is in common for more than one device type in the DeviceTypeList shall be supported as a shared " +
@@ -85,6 +85,23 @@ Resource.add({
                 "A client may use the Label field of each SemanticTagStruct, if present in each structure, to " +
                 "indicate characteristics of an endpoint, or to augment what is provided in the TagID field of the " +
                 "same structure."
+        },
+
+        {
+            tag: "attribute", name: "EndpointUniqueId", xref: "core§9.5.6.6",
+
+            details: "Indicates an identifier which allows to uniquely identify the functionality exposed on an endpoint, " +
+                "and therefore shall be unique within the device. It is constructed in a manufacturer specific " +
+                "manner." +
+                "\n" +
+                "  • If a globally unique identifier is used, the same rules as defined for the UniqueID attribute in " +
+                "    the Basic Information cluster apply." +
+                "\n" +
+                "  • If the identifier is only unique in the scope of the device, and cannot be used to track the " +
+                "    device, then it may remain unchanged at factory reset." +
+                "\n" +
+                "The value does not need to be human readable, since it is intended for machine to machine (M2M) " +
+                "communication."
         },
 
         {

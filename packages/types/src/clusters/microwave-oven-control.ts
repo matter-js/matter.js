@@ -180,14 +180,14 @@ export namespace MicrowaveOvenControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 8.13.5.4
              */
-            minPower: FixedAttribute(0x3, TlvUInt8.bound({ min: 1, max: 99 }), { default: 10 }),
+            minPower: FixedAttribute(0x3, TlvUInt8.bound({ min: 1, max: 99 })),
 
             /**
              * Indicates the maximum value to which the PowerSetting attribute that can be set on the server.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 8.13.5.5
              */
-            maxPower: FixedAttribute(0x4, TlvUInt8.bound({ max: 100 }), { default: 100 }),
+            maxPower: FixedAttribute(0x4, TlvUInt8.bound({ max: 100 })),
 
             /**
              * Indicates the increment of power that can be set on the server. The value of this attribute shall be
@@ -200,7 +200,7 @@ export namespace MicrowaveOvenControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 8.13.5.6
              */
-            powerStep: FixedAttribute(0x5, TlvUInt8, { default: 10 })
+            powerStep: FixedAttribute(0x5, TlvUInt8)
         }
     });
 
@@ -261,7 +261,7 @@ export namespace MicrowaveOvenControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 8.13.5.1
              */
-            cookTime: Attribute(0x0, TlvUInt32.bound({ min: 1 }), { default: 30 }),
+            cookTime: Attribute(0x0, TlvUInt32.bound({ min: 1 })),
 
             /**
              * Indicates the maximum value to which the CookTime attribute can be set.

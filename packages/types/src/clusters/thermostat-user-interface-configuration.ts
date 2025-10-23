@@ -95,22 +95,14 @@ export namespace ThermostatUserInterfaceConfiguration {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 4.5.6.1
              */
-            temperatureDisplayMode: WritableAttribute(
-                0x0,
-                TlvEnum<TemperatureDisplayMode>(),
-                { default: TemperatureDisplayMode.Celsius }
-            ),
+            temperatureDisplayMode: WritableAttribute(0x0, TlvEnum<TemperatureDisplayMode>()),
 
             /**
              * Indicates the level of functionality that is available to the user via the keypad.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 4.5.6.2
              */
-            keypadLockout: WritableAttribute(
-                0x1,
-                TlvEnum<KeypadLockout>(),
-                { default: KeypadLockout.NoLockout, writeAcl: AccessLevel.Manage }
-            ),
+            keypadLockout: WritableAttribute(0x1, TlvEnum<KeypadLockout>(), { writeAcl: AccessLevel.Manage }),
 
             /**
              * This attribute is used to hide the weekly schedule programming functionality or menu on a thermostat from

@@ -33,7 +33,7 @@ Resource.add({
         "\n" +
         "Feature sets are revision controlled as part of a cluster using the ClusterRevision attribute. The " +
         "cluster specification is the independent element that is revision controlled. A remote application " +
-        "reading the FeatureMap and ClusterRevision Attribute will then know exactly what features are " +
+        "reading the FeatureMap and ClusterRevision attribute will then know exactly what features are " +
         "supported in the cluster instance." +
         "\n" +
         "Each feature set shall be well defined within the cluster specification. Each feature shall be " +
@@ -49,5 +49,5 @@ Resource.add({
         "For a cluster whose definition which does not define a FeatureMap, the server shall set this " +
         "attribute to 0 (zero)." +
         "\n" +
-        "Please see Feature Conformance for details on conformance."
+        "See Section 7.3.16, “Feature Conformance” for details on conformance."
 });

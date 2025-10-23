@@ -30,7 +30,7 @@ export namespace ConcentrationMeasurement {
         /**
          * LevelIndication (LEV)
          *
-         * Cluster supports basic level indication for substance using the ConcentrationLev el enum
+         * Cluster supports basic level indication for substance using the ConcentrationLevel enum
          */
         LevelIndication = "LevelIndication",
 
@@ -174,7 +174,7 @@ export namespace ConcentrationMeasurement {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 2.10.6.1
              */
-            measuredValue: Attribute(0x0, TlvNullable(TlvFloat), { default: null }),
+            measuredValue: Attribute(0x0, TlvNullable(TlvFloat)),
 
             /**
              * Indicates the minimum value of MeasuredValue that is capable of being measured. A MinMeasuredValue of
@@ -182,7 +182,7 @@ export namespace ConcentrationMeasurement {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 2.10.6.2
              */
-            minMeasuredValue: Attribute(0x1, TlvNullable(TlvFloat), { default: null }),
+            minMeasuredValue: Attribute(0x1, TlvNullable(TlvFloat)),
 
             /**
              * Indicates the maximum value of MeasuredValue that is capable of being measured. A MaxMeasuredValue of
@@ -190,7 +190,7 @@ export namespace ConcentrationMeasurement {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 2.10.6.3
              */
-            maxMeasuredValue: Attribute(0x2, TlvNullable(TlvFloat), { default: null }),
+            maxMeasuredValue: Attribute(0x2, TlvNullable(TlvFloat)),
 
             /**
              * Indicates the range of error or deviation that can be found in MeasuredValue and PeakMeasuredValue. This
@@ -220,14 +220,14 @@ export namespace ConcentrationMeasurement {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 2.10.6.4
              */
-            peakMeasuredValue: Attribute(0x3, TlvNullable(TlvFloat), { default: null }),
+            peakMeasuredValue: Attribute(0x3, TlvNullable(TlvFloat)),
 
             /**
              * Indicates the window of time used for determining the PeakMeasuredValue. The value is in seconds.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 2.10.6.5
              */
-            peakMeasuredValueWindow: Attribute(0x4, TlvUInt32.bound({ max: 604800 }), { default: 1 })
+            peakMeasuredValueWindow: Attribute(0x4, TlvUInt32.bound({ max: 604800 }))
         }
     });
 
@@ -243,15 +243,14 @@ export namespace ConcentrationMeasurement {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 2.10.6.6
              */
-            averageMeasuredValue: Attribute(0x5, TlvNullable(TlvFloat), { default: null }),
+            averageMeasuredValue: Attribute(0x5, TlvNullable(TlvFloat)),
 
             /**
-             * This attribute shall represent the window of time used for determining the AverageMeasuredValue. The
-             * value is in seconds.
+             * Indicates the window of time used for determining the AverageMeasuredValue. The value is in seconds.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 2.10.6.7
              */
-            averageMeasuredValueWindow: Attribute(0x6, TlvUInt32.bound({ max: 604800 }), { default: 1 })
+            averageMeasuredValueWindow: Attribute(0x6, TlvUInt32.bound({ max: 604800 }))
         }
     });
 
@@ -265,7 +264,7 @@ export namespace ConcentrationMeasurement {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 2.10.6.11
              */
-            levelValue: Attribute(0xa, TlvEnum<LevelValue>(), { default: LevelValue.Unknown })
+            levelValue: Attribute(0xa, TlvEnum<LevelValue>())
         }
     });
 
@@ -281,7 +280,7 @@ export namespace ConcentrationMeasurement {
             numericMeasurement: BitFlag(0),
 
             /**
-             * Cluster supports basic level indication for substance using the ConcentrationLev el enum
+             * Cluster supports basic level indication for substance using the ConcentrationLevel enum
              */
             levelIndication: BitFlag(1),
 
@@ -311,7 +310,7 @@ export namespace ConcentrationMeasurement {
 
         attributes: {
             /**
-             * Indicates the medium in which MeasuredValue is being measured. See MeasurementMediumEnum.
+             * Indicates the medium in which MeasuredValue or LevelValue is being measured. See MeasurementMediumEnum.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 2.10.6.10
              */

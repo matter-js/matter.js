@@ -17,9 +17,13 @@ export const TemperatureControlledCabinetDt = DeviceType(
     { name: "TemperatureControlledCabinet", id: 0x71 },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 113, revision: 3 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 113, revision: 5 } ], element: "attribute" })
     ),
-    Requirement({ name: "TemperatureControl", id: 0x56, conformance: "M", element: "serverCluster" }),
+    Requirement(
+        { name: "TemperatureControl", id: 0x56, conformance: "M", element: "serverCluster" },
+        Requirement({ name: "TEMPERATURENUMBER", conformance: "M", element: "feature" }),
+        Requirement({ name: "TEMPERATURELEVEL", conformance: "X", element: "feature" })
+    ),
     Requirement({ name: "TemperatureMeasurement", id: 0x402, conformance: "O", element: "serverCluster" }),
 
     Requirement(
@@ -36,11 +40,14 @@ export const TemperatureControlledCabinetDt = DeviceType(
         Requirement({ name: "StartUpMode", conformance: "X", element: "attribute" }),
         Requirement({ name: "ONOFF", conformance: "X", element: "feature" })
     ),
+
     Requirement(
         { name: "OvenCavityOperationalState", id: 0x48, conformance: "[Heater]", element: "serverCluster" },
         Requirement({ name: "Pause", conformance: "X", element: "command" }),
-        Requirement({ name: "Resume", conformance: "X", element: "command" })
+        Requirement({ name: "Resume", conformance: "X", element: "command" }),
+        Requirement({ name: "OperationCompletion", conformance: "M", element: "event" })
     ),
+
     Field({ name: "conditions", type: "enum8" }, Field({ name: "Cooler" }), Field({ name: "Heater" }))
 );
 

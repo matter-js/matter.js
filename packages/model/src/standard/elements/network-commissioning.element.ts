@@ -136,7 +136,10 @@ export const NetworkCommissioning = Cluster(
             constraint: "desc"
         }),
         Field({ name: "DebugText", id: 0x1, type: "string", conformance: "O", constraint: "max 512" }),
-        Field({ name: "NetworkIndex", id: 0x2, type: "uint8", conformance: "O", constraint: "max maxNetworks - 1" })
+        Field({
+            name: "NetworkIndex", id: 0x2, type: "uint8", conformance: "NetworkingStatus == Success",
+            constraint: "max maxNetworks - 1"
+        })
     ),
 
     Command(

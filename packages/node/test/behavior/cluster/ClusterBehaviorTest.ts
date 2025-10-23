@@ -225,7 +225,7 @@ describe("ClusterBehavior", () => {
             expect(MyBehavior.defaults.attr1).equals(null);
             expect(MyBehavior.defaults.attr2).equals(123);
             expect(MyBehavior.defaults.attr3).equals("abc");
-            expect(MyBehavior.defaults.attr4).equals(undefined);
+            expect(MyBehavior.defaults.attr4).equals(false);
         });
 
         it("carries forward non-command methods", () => {

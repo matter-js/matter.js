@@ -27,9 +27,9 @@ import {
     UpperIdentifier,
 } from "./html-translators.js";
 import { repairConformance } from "./repairs/aspect-repairs.js";
-import { ClusterReference, Table } from "./spec-types.js";
-import { translateDatatype, translateFields, translateValueChildren } from "./translate-datatype.js";
-import { Alias, Children, Optional, translateRecordsToMatter, translateTable } from "./translate-table.js";
+import { ClusterReference, HtmlReference, Table } from "./spec-types.js";
+import { accessModifierOf, translateDatatype, translateFields, translateValueChildren } from "./translate-datatype.js";
+import { Alias, Details, Optional, translateRecordsToMatter, translateTable } from "./translate-table.js";
 
 const logger = Logger.get("translate-cluster");
 
@@ -242,7 +242,7 @@ function translateMetadata(definition: ClusterReference, children: Array<Cluster
             name: Alias(UpperIdentifier, "code"),
 
             // We let Model handle translation to the proper type
-            default: Optional(Alias(NoSpace, "def")),
+            default: Optional(Alias(NoSpace, "def", "fallback")),
         });
 
         for (const record of records) {
@@ -276,7 +276,7 @@ function translateInvokable(definition: ClusterReference, children: Array<Cluste
             attributeSets.push(...definition.attributeSets);
         }
         for (const attributeSet of attributeSets) {
-            const attributes = translateFields(AttributeElement, attributeSet);
+            const attributes = translateFields(AttributeElement, attributeSet, false);
 
             if (attributes) {
                 children.push(...attributes);
@@ -292,7 +292,7 @@ function translateInvokable(definition: ClusterReference, children: Array<Cluste
             response: Optional(Identifier),
             access: Optional(Str),
             conformance: Optional(ConformanceCode),
-            children: Children(translateValueChildren),
+            children: Details(translateValueChildren),
         });
 
         const commands = translateRecordsToMatter("command", records, r => {
@@ -336,7 +336,8 @@ function translateInvokable(definition: ClusterReference, children: Array<Cluste
             priority: Optional(LowerIdentifier),
             access: Optional(Str),
             conformance: Optional(ConformanceCode),
-            children: Children(translateValueChildren),
+            children: Details(translateValueChildren),
+            accessModifier: Details(extractAccessModifier),
         });
 
         const events = translateRecordsToMatter("event", records, r => {
@@ -363,6 +364,18 @@ function translateInvokable(definition: ClusterReference, children: Array<Cluste
                     logger.warn(`unrecognized priority "${r.priority}", assuming CRITICAL`);
                     priority = EventElement.Priority.Critical;
             }
+
+            // The "access modifier" on the event field table apparently
+            if (r.accessModifier) {
+                if (!r.access) {
+                    r.access = r.accessModifier;
+                } else if (!r.access.includes(r.accessModifier)) {
+                    r.access = `${r.access} ${r.accessModifier}`;
+                }
+
+                delete r.accessModifier;
+            }
+
             return EventElement({ ...r, priority });
         });
         if (events) {
@@ -380,6 +393,17 @@ function translateInvokable(definition: ClusterReference, children: Array<Cluste
         if (statusCodes) {
             children.push(DatatypeElement({ name: "StatusCodeEnum", children: statusCodes }));
         }
+    }
+
+    // The "access modifier" on events table is sometimes necessary to determine whether the event is fabric sensitive.
+    //
+    // We've only seen this in 1.4.2 and only for the "Message" cluster.  Everywhere else the event correctly has "S" in
+    // the event list.
+    //
+    // So I think it's safe to say it's a spec bug and probably should have just handled with override, but keeping in
+    // as a precaution since I put in the effort to implement
+    function extractAccessModifier(_tag: string, _parentRecord: Record<string, unknown>, definition: HtmlReference) {
+        return accessModifierOf(definition);
     }
 }
 

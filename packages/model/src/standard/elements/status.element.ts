@@ -42,7 +42,10 @@ export const status = Datatype(
     Field({ name: "InvalidInState", id: 0xcb }),
     Field({ name: "NoCommandResponse", id: 0xcc }),
     Field({ name: "TermsAndConditionsChanged", id: 0xcd }),
-    Field({ name: "MaintenanceRequired", id: 0xce })
+    Field({ name: "MaintenanceRequired", id: 0xce }),
+    Field({ name: "DynamicConstraintError", id: 0xcf }),
+    Field({ name: "AlreadyExists", id: 0xd0 }),
+    Field({ name: "InvalidTransportType", id: 0xd1 })
 );
 
 MatterDefinition.children.push(status);

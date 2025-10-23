@@ -15,6 +15,9 @@ import {
 import {
     ThreadNetworkDirectoryServer as BaseThreadNetworkDirectoryServer
 } from "../behaviors/thread-network-directory/ThreadNetworkDirectoryServer.js";
+import {
+    ThreadNetworkDiagnosticsServer as BaseThreadNetworkDiagnosticsServer
+} from "../behaviors/thread-network-diagnostics/ThreadNetworkDiagnosticsServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "#general";
@@ -26,15 +29,15 @@ import { Identity } from "#general";
  * Examples of physical devices that implement the Matter Network Infrastructure Manager device type include Wi-Fi
  * gateway routers.
  *
- * Relevant hardware and software requirements for Network Infrastructure Manager devices are defined in Section 15.2.6,
+ * Relevant hardware and software requirements for Network Infrastructure Manager devices are defined in Section 15.3.6,
  * “Other Requirements” and within the clusters mandated by this device type.
  *
  * A Network Infrastructure Manager device may be managed by a service associated with the device vendor, for example,
  * an Internet Service Provider. Sometimes this managing service will have policies that require the use of the Managed
- * Device feature of the Access Control Cluster (see Section 15.2.5.1, “Access Control MNGD Conformance”). Consequently,
+ * Device feature of the Access Control Cluster (see Section 15.3.5.1, “Access Control MNGD Conformance”). Consequently,
  * Commissioners of this device type should be aware of this feature and its use.
  *
- * @see {@link MatterSpecification.v141.Device} § 15.2
+ * @see {@link MatterSpecification.v141.Device} § 15.3
  */
 export interface NetworkInfrastructureManagerDevice extends Identity<typeof NetworkInfrastructureManagerDeviceDefinition> {}
 
@@ -61,13 +64,21 @@ export namespace NetworkInfrastructureManagerRequirements {
     export const ThreadNetworkDirectoryServer = BaseThreadNetworkDirectoryServer;
 
     /**
+     * The ThreadNetworkDiagnostics cluster is required by the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link ThreadNetworkDiagnosticsServer} for convenience.
+     */
+    export const ThreadNetworkDiagnosticsServer = BaseThreadNetworkDiagnosticsServer;
+
+    /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = {
         mandatory: {
             WiFiNetworkManagement: WiFiNetworkManagementServer,
             ThreadBorderRouterManagement: ThreadBorderRouterManagementServer,
-            ThreadNetworkDirectory: ThreadNetworkDirectoryServer
+            ThreadNetworkDirectory: ThreadNetworkDirectoryServer,
+            ThreadNetworkDiagnostics: ThreadNetworkDiagnosticsServer
         }
     };
 }
@@ -75,12 +86,14 @@ export namespace NetworkInfrastructureManagerRequirements {
 export const NetworkInfrastructureManagerDeviceDefinition = MutableEndpoint({
     name: "NetworkInfrastructureManager",
     deviceType: 0x90,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: NetworkInfrastructureManagerRequirements,
+
     behaviors: SupportedBehaviors(
         NetworkInfrastructureManagerRequirements.server.mandatory.WiFiNetworkManagement,
         NetworkInfrastructureManagerRequirements.server.mandatory.ThreadBorderRouterManagement,
-        NetworkInfrastructureManagerRequirements.server.mandatory.ThreadNetworkDirectory
+        NetworkInfrastructureManagerRequirements.server.mandatory.ThreadNetworkDirectory,
+        NetworkInfrastructureManagerRequirements.server.mandatory.ThreadNetworkDiagnostics
     )
 });
 

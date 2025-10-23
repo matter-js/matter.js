@@ -12,6 +12,8 @@ import { GeneralCommissioning } from "#clusters/general-commissioning";
 export namespace GeneralCommissioningInterface {
     export interface Base {
         /**
+         * This command is used to arm or disarm the fail-safe timer.
+         *
          * Success or failure of this command shall be communicated by the ArmFailSafeResponse command, unless some data
          * model validations caused a failure status code to be issued during the processing of the command.
          *
@@ -61,9 +63,9 @@ export namespace GeneralCommissioningInterface {
          *
          *   • Whether an AddNOC command or UpdateNOC command has taken place.
          *
-         *   • A Fabric Index for the fabric-scoping of the context, starting at the accessing fabric index for the
-         *     ArmFailSafe command, and updated with the Fabric Index associated with an AddNOC command or an UpdateNOC
-         *     command being invoked successfully during the ongoing Fail-Safe timer period.
+         *   • A fabric-index for the fabric-scoping of the context, starting at the accessing fabric index for the
+         *     ArmFailSafe command, and updated with the Fabric Index associated with an AddNOC or an UpdateNOC command
+         *     being invoked successfully during the ongoing Fail-Safe timer period.
          *
          *   • The operational credentials associated with any Fabric whose configuration is affected by the UpdateNOC
          *     command.
@@ -100,8 +102,8 @@ export namespace GeneralCommissioningInterface {
          *      “Bootstrapping of the Access Control Cluster”) at the Server.
          *
          *   3. If an AddNOC or UpdateNOC command has been successfully invoked, terminate all CASE sessions associated
-         *      with the Fabric whose Fabric Index is recorded in the Fail-Safe context (see ArmFailSafe) by clearing
-         *      any associated Secure Session Context at the Server.
+         *      with the Fabric whose Fabric Index is recorded in the Fail-Safe context (see Section 11.10.7.2,
+         *      “ArmFailSafe Command”) by clearing any associated Secure Session Context at the Server.
          *
          *   4. Reset the configuration of all Network Commissioning Networks attribute to their state prior to the
          *      Fail-Safe being armed.
@@ -111,14 +113,15 @@ export namespace GeneralCommissioningInterface {
          *      was the subject of the UpdateNOC command.
          *
          *   6. If an AddNOC command had been successfully invoked, achieve the equivalent effect of invoking the
-         *      RemoveFabric command against the Fabric Index stored in the Fail-Safe Context for the Fabric Index that
+         *      RemoveFabric command against the fabric-index stored in the Fail-Safe Context for the Fabric Index that
          *      was the subject of the AddNOC command. This shall remove all associations to that Fabric including all
          *      fabric-scoped data, and may possibly factory-reset the device depending on current device state. This
          *      shall only apply to Fabrics added during the fail-safe period as the result of the AddNOC command.
          *
          *   7. If the CSRRequest command had been successfully invoked, but no AddNOC or UpdateNOC command had been
          *      successfully invoked, then the new operational key pair temporarily generated for the purposes of NOC
-         *      addition or update (see Node Operational CSR Procedure) shall be removed as it is no longer needed.
+         *      addition or update (see Section 6.4.6.1, “Node Operational Certificate Signing Request (NOCSR)
+         *      Procedure”) shall be removed as it is no longer needed.
          *
          *   8. Remove any RCACs added by the AddTrustedRootCertificate command that are not currently referenced by any
          *      entry in the Fabrics attribute.
@@ -133,6 +136,8 @@ export namespace GeneralCommissioningInterface {
         armFailSafe(request: GeneralCommissioning.ArmFailSafeRequest): MaybePromise<GeneralCommissioning.ArmFailSafeResponse>;
 
         /**
+         * This command is used to set the regulatory configuration for the device.
+         *
          * This shall add or update the regulatory configuration in the RegulatoryConfig Attribute to the value provided
          * in the NewRegulatoryConfig field.
          *
@@ -167,7 +172,7 @@ export namespace GeneralCommissioningInterface {
         setRegulatoryConfig(request: GeneralCommissioning.SetRegulatoryConfigRequest): MaybePromise<GeneralCommissioning.SetRegulatoryConfigResponse>;
 
         /**
-         * This command has no data.
+         * This command is used to indicate that the commissioning process is complete.
          *
          * Success or failure of this command shall be communicated by the CommissioningCompleteResponse command, unless
          * some data model validations caused a failure status code to be issued during the processing of the command.
@@ -184,9 +189,7 @@ export namespace GeneralCommissioningInterface {
          * received when no Fail-Safe context exists.
          *
          * If Terms and Conditions are required, then an ErrorCode of TCAcknowledgementsNotReceived shall be responded
-         * to the invoker if the user acknowledgements to the required Terms and Conditions have not been provided. If
-         * the TCAcceptedVersion for the provided acknowledgements is less than TCMinRequiredVersion, then an ErrorCode
-         * of TCMinVersionNotMet shall be responded to the invoker.
+         * to the invoker if the user acknowledgements to the required Terms and Conditions have not been provided.
          *
          * This command is fabric-scoped, so cannot be issued over a session that does not have an associated fabric,
          * i.e. over PASE session prior to an AddNOC command. In addition, this command is only permitted over CASE and
@@ -230,8 +233,8 @@ export namespace GeneralCommissioningInterface {
 
     export interface TermsAndConditions {
         /**
-         * This command sets the user acknowledgements received in the Enhanced Setup Flow Terms & Conditions into the
-         * node.
+         * This command is used to set the user acknowledgements received in the Enhanced Setup Flow Terms & Conditions
+         * into the node.
          *
          * @see {@link MatterSpecification.v141.Core} § 11.10.7.8
          */

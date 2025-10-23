@@ -8,16 +8,7 @@
 
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
-import {
-    OptionalAttribute,
-    FixedAttribute,
-    FabricScopedAttribute,
-    Command,
-    TlvNoResponse,
-    OptionalCommand
-} from "../cluster/Cluster.js";
-import { TlvNodeId } from "../datatype/NodeId.js";
-import { TlvNullable } from "../tlv/TlvNullable.js";
+import { FixedAttribute, FabricScopedAttribute, Command, TlvNoResponse, OptionalCommand } from "../cluster/Cluster.js";
 import {
     TlvUInt16,
     TlvUInt8,
@@ -41,6 +32,7 @@ import { TlvClusterId } from "../datatype/ClusterId.js";
 import { TlvAttributeId } from "../datatype/AttributeId.js";
 import { Status } from "../globals/Status.js";
 import { AccessLevel } from "#model";
+import { TlvNullable } from "../tlv/TlvNullable.js";
 import { Identity } from "#general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
@@ -390,24 +382,21 @@ export namespace ScenesManagement {
         sceneId: TlvField(2, TlvUInt8.bound({ max: 254 })),
 
         /**
-         * If the status is SUCCESS, this field shall be copied from the corresponding field in the Scene Table entry,
-         * otherwise it shall be omitted.
+         * This field shall be set to the corresponding field in the Scene Table entry.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.5.4
          */
         transitionTime: TlvOptionalField(3, TlvUInt32.bound({ max: 60000000 })),
 
         /**
-         * If the status is SUCCESS, this field shall be copied from the corresponding field in the Scene Table entry,
-         * otherwise it shall be omitted.
+         * This field shall be set to the corresponding field in the Scene Table entry.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.5.5
          */
         sceneName: TlvOptionalField(4, TlvString.bound({ maxLength: 16 })),
 
         /**
-         * If the status is SUCCESS, this field shall be copied from the corresponding field in the Scene Table entry,
-         * otherwise it shall be omitted.
+         * This field shall be set to the corresponding field in the Scene Table entry.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.5.6
          */
@@ -874,27 +863,15 @@ export namespace ScenesManagement {
 
         attributes: {
             /**
-             * Indicates the Node ID of the node that last configured the Scene Table.
-             *
-             * The null value indicates that the server has not been configured, or that the identifier of the node that
-             * last configured the Scenes Management cluster is not known.
-             *
-             * The Node ID is scoped to the accessing fabric.
-             *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.4.8.1
-             */
-            lastConfiguredBy: OptionalAttribute(0x0, TlvNullable(TlvNodeId), { default: null }),
-
-            /**
              * Indicates the number of entries in the Scene Table on this endpoint. This is the total across all
              * fabrics; note that a single fabric cannot use all those entries (see Handling of fabric-scoping). The
              * minimum size of this table, (i.e., the minimum number of scenes to support across all fabrics per
              * endpoint) shall be 16, unless a device type in which this cluster is used, defines a larger value in the
              * device type definition.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.4.8.2
+             * @see {@link MatterSpecification.v141.Cluster} § 1.4.8.1
              */
-            sceneTableSize: FixedAttribute(0x1, TlvUInt16, { default: 16 }),
+            sceneTableSize: FixedAttribute(0x1, TlvUInt16),
 
             /**
              * Indicates a list of fabric scoped information about scenes on this endpoint.
@@ -902,7 +879,7 @@ export namespace ScenesManagement {
              * The number of list entries for this attribute shall NOT exceed the number of supported fabrics by the
              * device.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.4.8.3
+             * @see {@link MatterSpecification.v141.Cluster} § 1.4.8.2
              */
             fabricSceneInfo: FabricScopedAttribute(0x2, TlvArray(TlvSceneInfo), { default: [] })
         },

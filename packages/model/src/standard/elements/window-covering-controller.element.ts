@@ -13,7 +13,7 @@ export const WindowCoveringControllerDt = DeviceType(
     { name: "WindowCoveringController", id: 0x203 },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 515, revision: 3 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 515, revision: 4 } ], element: "attribute" })
     ),
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "clientCluster" }),

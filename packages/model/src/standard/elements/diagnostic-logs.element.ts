@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const DiagnosticLogs = Cluster(
-    { name: "DiagnosticLogs", id: 0x32 },
+    { name: "DiagnosticLogs", id: 0x32, quality: "K" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
 
     Command(

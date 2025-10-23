@@ -25,10 +25,7 @@ export const MicrowaveOvenControl = Cluster(
         Field({ name: "PWRLMTS", conformance: "[PWRNUM]", constraint: "2", title: "PowerNumberLimits" })
     ),
 
-    Attribute({
-        name: "CookTime", id: 0x0, type: "elapsed-s", access: "R V", conformance: "M",
-        constraint: "1 to maxCookTime", default: 30
-    }),
+    Attribute({ name: "CookTime", id: 0x0, type: "elapsed-s", access: "R V", conformance: "M", constraint: "1 to maxCookTime" }),
     Attribute({
         name: "MaxCookTime", id: 0x1, type: "elapsed-s", access: "R V", conformance: "M",
         constraint: "1 to 86400", quality: "F"
@@ -36,15 +33,15 @@ export const MicrowaveOvenControl = Cluster(
     Attribute({ name: "PowerSetting", id: 0x2, type: "uint8", access: "R V", conformance: "PWRNUM", constraint: "desc" }),
     Attribute({
         name: "MinPower", id: 0x3, type: "uint8", access: "R V", conformance: "PWRLMTS",
-        constraint: "1 to 99", default: 10, quality: "F"
+        constraint: "1 to 99", quality: "F"
     }),
     Attribute({
         name: "MaxPower", id: 0x4, type: "uint8", access: "R V", conformance: "PWRLMTS",
-        constraint: "minPower + 1 to 100", default: 100, quality: "F"
+        constraint: "minPower + 1 to 100", quality: "F"
     }),
     Attribute({
         name: "PowerStep", id: 0x5, type: "uint8", access: "R V", conformance: "PWRLMTS",
-        constraint: "desc", default: 10, quality: "F"
+        constraint: "desc", quality: "F"
     }),
 
     Attribute(

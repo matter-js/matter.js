@@ -76,11 +76,10 @@ Resource.add({
 
         {
             tag: "attribute", name: "SoftwareVersion", xref: "core§11.1.5.10",
-            details: "This attribute shall contain the current version number for the software running on this Node. The " +
-                "version number can be compared using a total ordering to determine if a version is logically newer " +
-                "than another one. A larger value of SoftwareVersion is newer than a lower value, from the " +
-                "perspective of software updates (see Section 11.20.3.3, “Availability of Software Images”). Nodes " +
-                "may query this field to determine the currently running version of software on another given Node."
+            details: "This attribute shall contain the current version number for the software running on this Node. A " +
+                "larger value of SoftwareVersion is newer than a lower value, from the perspective of software " +
+                "updates (see Section 11.20.3.3, “Availability of Software Images”). Nodes may query this field to " +
+                "determine the currently running version of software on another given Node."
         },
 
         {
@@ -208,9 +207,7 @@ Resource.add({
             tag: "attribute", name: "SpecificationVersion", xref: "core§11.1.5.22",
 
             details: "This attribute shall contain the current version number for the specification version this Node was " +
-                "certified against. The version number can be compared using a total ordering to determine if a " +
-                "version is logically newer than another one. A larger value of SpecificationVersion is newer than a " +
-                "lower value." +
+                "certified against. A larger value of SpecificationVersion is newer than a lower value." +
                 "\n" +
                 "Nodes may query this field to determine the currently supported version of the specification on " +
                 "another given Node." +
@@ -218,18 +215,18 @@ Resource.add({
                 "The format of this number is segmented as its four component bytes. Bit positions for the fields are " +
                 "as follows:" +
                 "\n" +
-                "For example, a SpecificationVersion value of 0x0102AA00 is composed of 4 version components, " +
-                "representing a version 1.2.170.0." +
+                "For example, a SpecificationVersion value of 0x01040200 is composed of 4 version components, " +
+                "representing a version 1.4.2.0." +
                 "\n" +
                 "In the example above:" +
                 "\n" +
-                "  • Major version is the uppermost byte (0x01)." +
+                "  • Major version is the most significant byte (0x01)." +
                 "\n" +
-                "  • Minor version is the following byte (0x02)." +
+                "  • Minor version is the second most significant byte (0x04)." +
                 "\n" +
-                "  • Patch version is 170/0xAA." +
+                "  • Dot version is the third most significant byte (0x02)." +
                 "\n" +
-                "  • Reserved1 value is 0." +
+                "  • Reserved1 value is the least significant byte (0x00)." +
                 "\n" +
                 "The initial revision (1.0) of this specification (1.0) was 0x01000000. Matter Spring 2024 release " +
                 "(1.3) was 0x01030000." +
@@ -253,6 +250,12 @@ Resource.add({
                 "\n" +
                 "If the MaxPathsPerInvoke attribute is absent or zero, such as in Basic Information cluster revisions " +
                 "prior to Revision 3, clients shall assume a value of 1."
+        },
+
+        {
+            tag: "attribute", name: "ConfigurationVersion", xref: "core§11.1.5.24",
+            details: "This attribute shall contain the current version number for the configuration of the Node. A larger " +
+                "value of ConfigurationVersion shall indicate a newer configuration than a lower value."
         },
 
         {
@@ -290,15 +293,13 @@ Resource.add({
 
             children: [{
                 tag: "field", name: "FabricIndex", xref: "core§11.1.6.3.1",
-                details: "This field shall contain the local Fabric Index of the fabric which the node is about to leave."
+                details: "This field shall contain the local fabric-index of the fabric which the node is about to leave."
             }]
         },
 
         {
             tag: "event", name: "ReachableChanged", xref: "core§11.1.6.4",
-            details: "This event shall be supported if and only if the Reachable attribute is supported." +
-                "\n" +
-                "This event (when supported) shall be generated when there is a change in the Reachable attribute." +
+            details: "This event (when supported) shall be generated when there is a change in the Reachable attribute." +
                 "\n" +
                 "Its main use case is in the derived Bridged Device Basic Information cluster.",
             children: [{

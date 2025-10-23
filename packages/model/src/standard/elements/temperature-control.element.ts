@@ -39,7 +39,7 @@ export const TemperatureControl = Cluster(
     }),
     Attribute({
         name: "Step", id: 0x3, type: "temperature", access: "R V", conformance: "STEP",
-        constraint: "max maxTemperature - minTemperature", quality: "F"
+        constraint: "1 to maxTemperature - minTemperature", quality: "F"
     }),
     Attribute({
         name: "SelectedTemperatureLevel", id: 0x4, type: "uint8", access: "R V", conformance: "TL",

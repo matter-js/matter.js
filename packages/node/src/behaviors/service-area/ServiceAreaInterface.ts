@@ -24,9 +24,6 @@ export namespace ServiceAreaInterface {
          * This command is used to skip the given area, and to attempt operating at other areas on the SupportedAreas
          * attribute list.
          *
-         * This command shall NOT be implemented if the CurrentArea attribute and the Progress attribute are both not
-         * implemented. Else, this command shall be optionally implemented.
-         *
          * On receipt of this command the device shall respond with a SkipAreaResponse command.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 1.17.7.3

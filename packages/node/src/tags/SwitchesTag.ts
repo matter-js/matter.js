@@ -14,8 +14,8 @@ import { SemanticNamespace } from "../endpoint/type/SemanticNamespace.js";
  * make an optimized user interface which matches the actual device without requiring a-priori knowledge of the layout
  * of each specific switch device.
  *
- * Please see the rules for applying these and other tags for switch devices, e.g. from the Common Position Namespace
- * and the Common Number Namespace in the Generic Switch device type section in the Device Library.
+ * See the rules for applying these and other tags for switch devices, e.g. from the Common Position Namespace and the
+ * Common Number Namespace in the Generic Switch device type section in the Device Library.
  *
  * @see {@link MatterSpecification.v141.Namespace} § 18
  */
@@ -47,7 +47,10 @@ export const SwitchesTag = SemanticNamespace({
          */
         Previous: { id: 0x6, label: "Previous" },
 
-        EnterOkSelect: { id: 0x7, label: "Enter/OK/Select" },
+        /**
+         * Enter/OK/Select function
+         */
+        EnterOkSelect: { id: 0x7, label: "EnterOkSelect" },
 
         /**
          * Textual description provided in Label field
@@ -58,6 +61,21 @@ export const SwitchesTag = SemanticNamespace({
          *
          * @see {@link MatterSpecification.v141.Namespace} § 18.1
          */
-        Custom: { id: 0x8, label: "Custom" }
+        Custom: { id: 0x8, label: "Custom" },
+
+        /**
+         * e.g. open window covering
+         */
+        Open: { id: 0x9, label: "Open" },
+
+        /**
+         * e.g. close window covering
+         */
+        Close: { id: 0xa, label: "Close" },
+
+        /**
+         * e.g. stop moving window covering
+         */
+        Stop: { id: 0xb, label: "Stop" }
     }
 });

@@ -245,7 +245,7 @@ export namespace ValveConfigurationAndControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 4.6.7.3
              */
-            autoCloseTime: Attribute(0x2, TlvNullable(TlvEpochUs), { default: null })
+            autoCloseTime: Attribute(0x2, TlvNullable(TlvEpochUs))
         }
     });
 
@@ -266,7 +266,7 @@ export namespace ValveConfigurationAndControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 4.6.7.7
              */
-            currentLevel: Attribute(0x6, TlvNullable(TlvPercent), { default: null }),
+            currentLevel: Attribute(0x6, TlvNullable(TlvPercent)),
 
             /**
              * Indicates the target level of the valve as a percentage value, between fully closed and fully open.
@@ -278,7 +278,7 @@ export namespace ValveConfigurationAndControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 4.6.7.8
              */
-            targetLevel: Attribute(0x7, TlvNullable(TlvPercent), { default: null }),
+            targetLevel: Attribute(0x7, TlvNullable(TlvPercent)),
 
             /**
              * Indicates the default value used for the TargetLevel attribute, when a valve transitions from the closed
@@ -350,7 +350,7 @@ export namespace ValveConfigurationAndControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 4.6.7.1
              */
-            openDuration: Attribute(0x0, TlvNullable(TlvUInt32.bound({ min: 1 })), { default: null }),
+            openDuration: Attribute(0x0, TlvNullable(TlvUInt32.bound({ min: 1 }))),
 
             /**
              * Indicates the default duration, in seconds, for which the valve will remain open, if the OpenDuration
@@ -361,11 +361,7 @@ export namespace ValveConfigurationAndControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 4.6.7.2
              */
-            defaultOpenDuration: WritableAttribute(
-                0x1,
-                TlvNullable(TlvUInt32.bound({ min: 1 })),
-                { persistent: true, default: null }
-            ),
+            defaultOpenDuration: WritableAttribute(0x1, TlvNullable(TlvUInt32.bound({ min: 1 })), { persistent: true }),
 
             /**
              * Indicates the remaining duration, in seconds, until the valve closes. Null:
@@ -395,7 +391,7 @@ export namespace ValveConfigurationAndControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 4.6.7.4
              */
-            remainingDuration: Attribute(0x3, TlvNullable(TlvUInt32), { default: null }),
+            remainingDuration: Attribute(0x3, TlvNullable(TlvUInt32)),
 
             /**
              * Indicates the current state of the valve.
@@ -404,7 +400,7 @@ export namespace ValveConfigurationAndControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 4.6.7.5
              */
-            currentState: Attribute(0x4, TlvNullable(TlvEnum<ValveState>()), { default: null }),
+            currentState: Attribute(0x4, TlvNullable(TlvEnum<ValveState>())),
 
             /**
              * Indicates the target state, while changing the state, of the valve.
@@ -414,7 +410,7 @@ export namespace ValveConfigurationAndControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 4.6.7.6
              */
-            targetState: Attribute(0x5, TlvNullable(TlvEnum<ValveState>()), { default: null }),
+            targetState: Attribute(0x5, TlvNullable(TlvEnum<ValveState>())),
 
             /**
              * Indicates any faults registered by the valve.

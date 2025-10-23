@@ -19,11 +19,11 @@ import { TypeFromSchema } from "../tlv/TlvSchema.js";
  *
  * This data type shall be represented by the following structure:
  *
- * @see {@link MatterSpecification.v141.Core} § 7.19.2.42
+ * @see {@link MatterSpecification.v141.Core} § 7.19.2.46
  */
 export const TlvSemtag = TlvObject({
     /**
-     * If the MfgCode field is not null, it shall be the Vendor ID of the manufacturer who has defined a certain
+     * If the MfgCode field is not NULL, it shall be the Vendor ID of the manufacturer who has defined a certain
      * namespace and the NamespaceID field shall be the ID of a namespace defined by the manufacturer identified in the
      * MfgCode field.
      *
@@ -31,9 +31,9 @@ export const TlvSemtag = TlvObject({
      * at least one standard tag which is not from any manufacturer’s namespace. A standard tag is a tag from a common
      * namespace, a derived cluster namespace, or an applicable device-specific namespace.
      *
-     * If MfgCode is null, the NamespaceID field shall indicate a standard namespace.
+     * If MfgCode is NULL, the NamespaceID field shall indicate a standard namespace.
      *
-     * @see {@link MatterSpecification.v141.Core} § 7.19.2.42.1
+     * @see {@link MatterSpecification.v141.Core} § 7.19.2.46.1
      */
     mfgCode: TlvField(0, TlvNullable(TlvVendorId)),
 
@@ -42,7 +42,7 @@ export const TlvSemtag = TlvObject({
      *
      * The common and device-specific semantic tag namespaces are listed in StandardNamespaces.
      *
-     * @see {@link MatterSpecification.v141.Core} § 7.19.2.42.2
+     * @see {@link MatterSpecification.v141.Core} § 7.19.2.46.2
      */
     namespaceId: TlvField(1, TlvEnum<Namespace>()),
 
@@ -52,7 +52,7 @@ export const TlvSemtag = TlvObject({
      * A device may expose tags from the common or device-specific namespaces and from manufacturer-specific namespaces
      * in a single TagList.
      *
-     * @see {@link MatterSpecification.v141.Core} § 7.19.2.42.3
+     * @see {@link MatterSpecification.v141.Core} § 7.19.2.46.3
      */
     tag: TlvField(2, TlvUInt8),
 
@@ -60,12 +60,12 @@ export const TlvSemtag = TlvObject({
      * The Label field, if present, shall contain human-readable text suitable for display on a client. The content of
      * the Label field is defined by the manufacturer.
      *
-     * This field shall be present when the MfgCode is not null. This field SHOULD NOT be used if the Tag is from a
+     * This field shall be present when the MfgCode is not NULL. This field SHOULD NOT be used if the Tag is from a
      * standard namespace, unless the Tag requires further qualification. For example: A Tag that has the meaning of
      * "room" in a location namespace, would require the a label string to qualify the type of room, such as "1", "2b",
      * "Bathroom", etc.
      *
-     * @see {@link MatterSpecification.v141.Core} § 7.19.2.42.4
+     * @see {@link MatterSpecification.v141.Core} § 7.19.2.46.4
      */
     label: TlvOptionalField(3, TlvNullable(TlvString.bound({ maxLength: 64 })))
 });
@@ -75,6 +75,6 @@ export const TlvSemtag = TlvObject({
  *
  * This data type shall be represented by the following structure:
  *
- * @see {@link MatterSpecification.v141.Core} § 7.19.2.42
+ * @see {@link MatterSpecification.v141.Core} § 7.19.2.46
  */
 export interface Semtag extends TypeFromSchema<typeof TlvSemtag> {}

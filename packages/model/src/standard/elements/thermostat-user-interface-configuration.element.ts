@@ -17,11 +17,8 @@ import {
 export const ThermostatUserInterfaceConfiguration = Cluster(
     { name: "ThermostatUserInterfaceConfiguration", id: 0x204 },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
-    Attribute({
-        name: "TemperatureDisplayMode", id: 0x0, type: "TemperatureDisplayModeEnum", access: "RW VO",
-        conformance: "M", default: 0
-    }),
-    Attribute({ name: "KeypadLockout", id: 0x1, type: "KeypadLockoutEnum", access: "RW VM", conformance: "M", default: 0 }),
+    Attribute({ name: "TemperatureDisplayMode", id: 0x0, type: "TemperatureDisplayModeEnum", access: "RW VO", conformance: "M" }),
+    Attribute({ name: "KeypadLockout", id: 0x1, type: "KeypadLockoutEnum", access: "RW VM", conformance: "M" }),
     Attribute({
         name: "ScheduleProgrammingVisibility", id: 0x2, type: "ScheduleProgrammingVisibilityEnum",
         access: "RW VM", conformance: "O", default: 0

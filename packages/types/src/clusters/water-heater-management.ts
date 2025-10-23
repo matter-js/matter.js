@@ -211,7 +211,7 @@ export namespace WaterHeaterManagement {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 9.5.7.3
              */
-            tankVolume: Attribute(0x2, TlvUInt16, { default: 0 }),
+            tankVolume: Attribute(0x2, TlvUInt16),
 
             /**
              * Indicates the estimated heat energy needed to raise the water temperature to the target setpoint. This
@@ -235,10 +235,6 @@ export namespace WaterHeaterManagement {
              *
              * Converting Joules in to Wh of heat (divide by 3600):
              *
-             * = 16,728,000 J / 3600
-             *
-             * = 4647 Wh (4.65kWh)
-             *
              * If the TankPercent feature is supported, then this estimate shall also take into account the percentage
              * of the water in the tank which is already hot.
              *
@@ -254,7 +250,7 @@ export namespace WaterHeaterManagement {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 9.5.7.4
              */
-            estimatedHeatRequired: Attribute(0x3, TlvInt64.bound({ min: 0 }), { default: 0 })
+            estimatedHeatRequired: Attribute(0x3, TlvInt64.bound({ min: 0 }))
         }
     });
 
@@ -292,7 +288,7 @@ export namespace WaterHeaterManagement {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 9.5.7.5
              */
-            tankPercentage: Attribute(0x4, TlvPercent, { default: 0 })
+            tankPercentage: Attribute(0x4, TlvPercent)
         }
     });
 
@@ -336,11 +332,11 @@ export namespace WaterHeaterManagement {
             /**
              * Indicates whether the Boost, as triggered by a Boost command, is currently Active or Inactive.
              *
-             * See Boost and CancelBoost commands for more details.
+             * See Section 9.5.8.1, “Boost Command” and Section 9.5.8.2, “CancelBoost Command” for more details.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 9.5.7.6
              */
-            boostState: Attribute(0x5, TlvEnum<BoostState>(), { default: BoostState.Inactive })
+            boostState: Attribute(0x5, TlvEnum<BoostState>())
         },
 
         commands: {

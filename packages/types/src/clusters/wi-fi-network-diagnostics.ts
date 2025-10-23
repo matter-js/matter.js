@@ -87,17 +87,17 @@ export namespace WiFiNetworkDiagnostics {
         N = 3,
 
         /**
-         * Indicate the network interface is currently using 802.11ac against the wireless access point.
+         * Indicate the network interface is currently using IEEE 802.11ac against the wireless access point.
          */
         Ac = 4,
 
         /**
-         * Indicate the network interface is currently using 802.11ax against the wireless access point.
+         * Indicate the network interface is currently using IEEE 802.11ax against the wireless access point.
          */
         Ax = 5,
 
         /**
-         * Indicate the network interface is currently using 802.11ah against the wireless access point.
+         * Indicate the network interface is currently using IEEE 802.11ah against the wireless access point.
          */
         Ah = 6
     }
@@ -222,18 +222,16 @@ export namespace WiFiNetworkDiagnostics {
     export const ErrorCountsComponent = MutableCluster.Component({
         attributes: {
             /**
-             * The BeaconLostCount attribute shall indicate the count of the number of missed beacons the Node has
-             * detected. If the Node does not have an ability to count beacons expected and not received, this value may
-             * remain set to zero.
+             * Indicates the count of the number of missed beacons the Node has detected. If the Node does not have an
+             * ability to count beacons expected and not received, this value may remain set to zero.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.15.6.6
              */
             beaconLostCount: Attribute(0x5, TlvNullable(TlvUInt32), { omitChanges: true, default: 0 }),
 
             /**
-             * The OverrunCount attribute shall indicate the number of packets dropped either at ingress or egress, due
-             * to lack of buffer memory to retain all packets on the network interface. The OverrunCount attribute shall
-             * be reset to 0 upon a reboot of the Node.
+             * Indicates the number of packets dropped either at ingress or egress, due to lack of buffer memory to
+             * retain all packets on the network interface. The attribute shall be reset to 0 upon a reboot of the Node.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.15.6.13
              */
@@ -242,6 +240,8 @@ export namespace WiFiNetworkDiagnostics {
 
         commands: {
             /**
+             * This command is used to reset the count attributes.
+             *
              * Reception of this command shall reset the following attributes to 0:
              *
              *   • BeaconLostCount
@@ -256,8 +256,6 @@ export namespace WiFiNetworkDiagnostics {
              *
              *   • PacketUnicastTxCount
              *
-             * This command has no associated data.
-             *
              * @see {@link MatterSpecification.v141.Core} § 11.15.7.1
              */
             resetCounts: Command(0x0, TlvNoArguments, 0x0, TlvNoResponse)
@@ -270,39 +268,38 @@ export namespace WiFiNetworkDiagnostics {
     export const PacketCountsComponent = MutableCluster.Component({
         attributes: {
             /**
-             * The BeaconRxCount attribute shall indicate the count of the number of received beacons. The total number
-             * of expected beacons that could have been received during the interval since association SHOULD match the
-             * sum of BeaconRxCount and BeaconLostCount. If the Node does not have an ability to report count of beacons
-             * received, this value may remain set to zero.
+             * Indicates the count of the number of received beacons. The total number of expected beacons that could
+             * have been received during the interval since association SHOULD match the sum of BeaconRxCount and
+             * BeaconLostCount. If the Node does not have an ability to report count of beacons received, this value may
+             * remain set to zero.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.15.6.7
              */
             beaconRxCount: Attribute(0x6, TlvNullable(TlvUInt32), { omitChanges: true, default: 0 }),
 
             /**
-             * The PacketMulticastRxCount attribute shall indicate the number of multicast packets received by the Node.
+             * Indicates the number of multicast packets received by the Node.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.15.6.8
              */
             packetMulticastRxCount: Attribute(0x7, TlvNullable(TlvUInt32), { omitChanges: true, default: 0 }),
 
             /**
-             * The PacketMulticastTxCount attribute shall indicate the number of multicast packets transmitted by the
-             * Node.
+             * Indicates the number of multicast packets transmitted by the Node.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.15.6.9
              */
             packetMulticastTxCount: Attribute(0x8, TlvNullable(TlvUInt32), { omitChanges: true, default: 0 }),
 
             /**
-             * The PacketUnicastRxCount attribute shall indicate the number of unicast packets received by the Node.
+             * Indicates the number of unicast packets received by the Node.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.15.6.10
              */
             packetUnicastRxCount: Attribute(0x9, TlvNullable(TlvUInt32), { omitChanges: true, default: 0 }),
 
             /**
-             * The PacketUnicastTxCount attribute shall indicate the number of unicast packets transmitted by the Node.
+             * Indicates the number of unicast packets transmitted by the Node.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.15.6.11
              */
@@ -334,37 +331,35 @@ export namespace WiFiNetworkDiagnostics {
 
         attributes: {
             /**
-             * The BSSID attribute shall indicate the BSSID for which the Wi-Fi network the Node is currently connected.
+             * Indicates the BSSID for which the Wi-Fi network the Node is currently connected.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.15.6.1
              */
             bssid: Attribute(0x0, TlvNullable(TlvByteString.bound({ length: 6 })), { default: null }),
 
             /**
-             * The SecurityType attribute shall indicate the current type of Wi-Fi security used.
+             * Indicates the current type of Wi-Fi security used.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.15.6.2
              */
             securityType: Attribute(0x1, TlvNullable(TlvEnum<SecurityType>()), { default: null }),
 
             /**
-             * The WiFiVersion attribute shall indicate the current 802.11 standard version in use by the Node, per the
-             * table below.
+             * Indicates the current IEEE 802.11 standard version in use by the Node, per the table below.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.15.6.3
              */
             wiFiVersion: Attribute(0x2, TlvNullable(TlvEnum<WiFiVersion>()), { default: null }),
 
             /**
-             * The ChannelNumber attribute shall indicate the channel that Wi-Fi communication is currently operating
-             * on.
+             * Indicates the channel that Wi-Fi communication is currently operating on.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.15.6.4
              */
             channelNumber: Attribute(0x3, TlvNullable(TlvUInt16), { default: null }),
 
             /**
-             * The RSSI attribute shall indicate the current RSSI of the Node’s Wi-Fi radio in dBm.
+             * Indicates the current RSSI of the Node’s Wi-Fi radio in dBm.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.15.6.5
              */
@@ -375,8 +370,7 @@ export namespace WiFiNetworkDiagnostics {
             ),
 
             /**
-             * The CurrentMaxRate attribute shall indicate the current maximum PHY rate of transfer of data in
-             * bits-per-second.
+             * Indicates the current maximum PHY rate of transfer of data in bits-per-second.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.15.6.12
              */

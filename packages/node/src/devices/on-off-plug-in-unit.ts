@@ -8,10 +8,10 @@
 
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
 import { GroupsServer as BaseGroupsServer } from "../behaviors/groups/GroupsServer.js";
-import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.js";
 import {
     ScenesManagementServer as BaseScenesManagementServer
 } from "../behaviors/scenes-management/ScenesManagementServer.js";
+import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.js";
 import { LevelControlServer as BaseLevelControlServer } from "../behaviors/level-control/LevelControlServer.js";
 import {
     OccupancySensingBehavior as BaseOccupancySensingBehavior
@@ -23,6 +23,17 @@ import { Identity } from "#general";
 /**
  * An On/Off Plug-in Unit is a device that provides power to another device that is plugged into it, and is capable of
  * switching that provided power on or off.
+ *
+ * The Mounted On/Off Control (added in Matter 1.4) has identical cluster requirements as the On/Off Plug-In Unit, and
+ * is marked as superset of this device type (since Matter 1.4.2). For devices intended to be mounted permanently, the
+ * Mounted On/Off Control device type shall be used, with the On/Off Plug-In Unit device type optionally added in the
+ * DeviceTypeList of the Descriptor cluster in addition to the On/Off Plug-In Unit device type (see
+ * [ref_MountedOnOffControlServerGuidance]).
+ *
+ * ### Before Matter 1.4, mounted units typically used the On/Off Plug-In Unit device type. Clients can encounter
+ * devices which were made before or after these specification updates. Therefore, clients SHOULD use the following
+ * heuristic to distinguish the type of physical device based on the device type revision found on an endpoint ("--"
+ * means the device type is not listed).
  *
  * @see {@link MatterSpecification.v141.Device} § 5.1
  */
@@ -44,18 +55,19 @@ export namespace OnOffPlugInUnitRequirements {
     export const GroupsServer = BaseGroupsServer;
 
     /**
+     * The ScenesManagement cluster is required by the Matter specification.
+     *
+     * This version of {@link ScenesManagementServer} is specialized per the specification.
+     */
+    export const ScenesManagementServer = BaseScenesManagementServer
+        .alter({ commands: { copyScene: { optional: false } } });
+
+    /**
      * The OnOff cluster is required by the Matter specification.
      *
      * This version of {@link OnOffServer} is specialized per the specification.
      */
     export const OnOffServer = BaseOnOffServer.with("Lighting");
-
-    /**
-     * The ScenesManagement cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link ScenesManagementServer} for convenience.
-     */
-    export const ScenesManagementServer = BaseScenesManagementServer;
 
     /**
      * The LevelControl cluster is optional per the Matter specification.
@@ -83,8 +95,14 @@ export namespace OnOffPlugInUnitRequirements {
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = {
-        mandatory: { Identify: IdentifyServer, Groups: GroupsServer, OnOff: OnOffServer },
-        optional: { ScenesManagement: ScenesManagementServer, LevelControl: LevelControlServer }
+        mandatory: {
+            Identify: IdentifyServer,
+            Groups: GroupsServer,
+            ScenesManagement: ScenesManagementServer,
+            OnOff: OnOffServer
+        },
+
+        optional: { LevelControl: LevelControlServer }
     };
 
     /**
@@ -96,11 +114,13 @@ export namespace OnOffPlugInUnitRequirements {
 export const OnOffPlugInUnitDeviceDefinition = MutableEndpoint({
     name: "OnOffPlugInUnit",
     deviceType: 0x10a,
-    deviceRevision: 3,
+    deviceRevision: 4,
     requirements: OnOffPlugInUnitRequirements,
+
     behaviors: SupportedBehaviors(
         OnOffPlugInUnitRequirements.server.mandatory.Identify,
         OnOffPlugInUnitRequirements.server.mandatory.Groups,
+        OnOffPlugInUnitRequirements.server.mandatory.ScenesManagement,
         OnOffPlugInUnitRequirements.server.mandatory.OnOff
     )
 });

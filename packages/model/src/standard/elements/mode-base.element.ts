@@ -38,7 +38,7 @@ export const ModeBase = Cluster(
     }),
     Attribute({
         name: "OnMode", id: 0x3, type: "uint8", access: "RW VO", conformance: "DEPONOFF",
-        constraint: "desc", default: null, quality: "X N"
+        constraint: "desc", quality: "X N"
     }),
 
     Command(

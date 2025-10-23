@@ -128,7 +128,7 @@ export namespace AirQuality {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 2.9.6.1
              */
-            airQuality: Attribute(0x0, TlvEnum<AirQualityEnum>(), { default: AirQualityEnum.Unknown })
+            airQuality: Attribute(0x0, TlvEnum<AirQualityEnum>())
         },
 
         /**

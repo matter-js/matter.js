@@ -20,7 +20,7 @@ export const ThreadNetworkDirectory = Cluster(
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute({
         name: "PreferredExtendedPanId", id: 0x0, type: "octstr", access: "RW VM", conformance: "M",
-        constraint: "8", default: null, quality: "X N"
+        constraint: "8", quality: "X N"
     }),
 
     Attribute(
@@ -33,7 +33,7 @@ export const ThreadNetworkDirectory = Cluster(
 
     Attribute({
         name: "ThreadNetworkTableSize", id: 0x2, type: "uint8", access: "R V", conformance: "M",
-        constraint: "desc", default: 10, quality: "F"
+        constraint: "desc", quality: "F"
     }),
     Command(
         { name: "AddNetwork", id: 0x0, access: "M T", conformance: "M", direction: "request", response: "status" },

@@ -102,7 +102,12 @@ export namespace RvcCleanMode {
          *
          * @see {@link MatterSpecification.v141.Cluster} § 7.3.7.2.3
          */
-        Mop = 16386
+        Mop = 16386,
+
+        /**
+         * @see {@link MatterSpecification.v141.Cluster} § 7.3.7.2
+         */
+        VacuumThenMop = 16387
     }
 
     /**
@@ -181,6 +186,9 @@ export namespace RvcCleanMode {
          * A mode option may have more than one mode tag. A mode option may be associated with a mixture of standard and
          * manufacturer specific mode tags. A mode option shall be associated with at least one standard mode tag.
          *
+         * Each mode tag in this field shall be distinct from other mode tags in this field. For example, a simplified
+         * list containing [Auto, Auto] would not be allowed.
+         *
          * A few examples are provided below.
          *
          *   • A mode named "100%" can have both the High (manufacturer specific) and Max (standard) mode tag. Clients
@@ -245,7 +253,7 @@ export namespace RvcCleanMode {
     export const Base = MutableCluster.Component({
         id: 0x55,
         name: "RvcCleanMode",
-        revision: 3,
+        revision: 4,
 
         features: {
             /**

@@ -131,6 +131,10 @@ export namespace ColorControlInterface {
         /**
          * This command is provided to allow MoveTo and Step commands to be stopped.
          *
+         * NOTE This automatically provides symmetry to the Level Control cluster.
+         *
+         * NOTE The StopMoveStep command has no effect on an active color loop.
+         *
          * @see {@link MatterSpecification.v141.Cluster} § 3.2.8.20
          */
         stopMoveStep(request: ColorControl.StopMoveStepRequest): MaybePromise;

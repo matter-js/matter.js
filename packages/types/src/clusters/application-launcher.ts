@@ -44,7 +44,8 @@ export namespace ApplicationLauncher {
      */
     export const TlvApplication = TlvObject({
         /**
-         * This field shall indicate the CSA-issued vendor ID for the catalog. The DIAL registry shall use value 0x0000.
+         * This field shall indicate the Connectivity Standards Alliance-issued vendor ID for the catalog. The DIAL
+         * registry shall use value 0x0000.
          *
          * Content App Platform providers will have their own catalog vendor ID (set to their own Vendor ID) and will
          * assign an ApplicationID to each Content App.
@@ -310,7 +311,8 @@ export namespace ApplicationLauncher {
         attributes: {
             /**
              * This attribute shall specify the list of supported application catalogs, where each entry in the list is
-             * the CSA-issued vendor ID for the catalog. The DIAL registry (see [DIAL Registry]) shall use value 0x0000.
+             * the Connectivity Standards Alliance-issued vendor ID for the catalog. The DIAL registry (see [DIAL
+             * Registry]) shall use value 0x0000.
              *
              * It is expected that Content App Platform providers will have their own catalog vendor ID (set to their
              * own Vendor ID) and will assign an ApplicationID to each Content App.
@@ -398,7 +400,9 @@ export namespace ApplicationLauncher {
              * constraints if any. The Status attribute shall be updated to ActiveHidden or Stopped, depending on the
              * action taken, on the Application Basic cluster of the Endpoint corresponding to the application on which
              * the action was taken. The Status attribute shall be updated on any other application whose Status may
-             * have changed as a result of this command. This command returns a Launcher Response.
+             * have changed as a result of this command.
+             *
+             * This command returns a Launcher Response.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 6.4.7.3
              */

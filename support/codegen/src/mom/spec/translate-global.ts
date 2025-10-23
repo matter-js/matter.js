@@ -16,7 +16,7 @@ import {
     translateFields,
     translateValueChildren,
 } from "./translate-datatype.js";
-import { Alias, Children, Optional, translateRecordsToMatter, translateTable } from "./translate-table.js";
+import { Alias, Details, Optional, translateRecordsToMatter, translateTable } from "./translate-table.js";
 
 let statusType: DatatypeElement | undefined;
 
@@ -76,7 +76,7 @@ const DatatypeSchema = {
     size: Optional(ByteSize),
 
     // A few of the structs define fields in the detail section
-    children: Children(translateValueChildren),
+    children: Details(translateValueChildren),
 };
 
 /**

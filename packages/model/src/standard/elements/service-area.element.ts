@@ -17,7 +17,7 @@ import {
 
 export const ServiceArea = Cluster(
     { name: "ServiceArea", id: 0x150 },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
@@ -79,8 +79,8 @@ export const ServiceArea = Cluster(
 
     Command(
         {
-            name: "SkipArea", id: 0x2, access: "O", conformance: "desc", direction: "request",
-            response: "SkipAreaResponse"
+            name: "SkipArea", id: 0x2, access: "O", conformance: "[CurrentArea | Progress]",
+            direction: "request", response: "SkipAreaResponse"
         },
         Field({ name: "SkippedArea", id: 0x0, type: "uint32", conformance: "M", constraint: "desc" })
     ),

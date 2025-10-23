@@ -12,6 +12,8 @@ import { Actions } from "#clusters/actions";
 export namespace ActionsInterface {
     export interface Base {
         /**
+         * This command is used to trigger an instantaneous action.
+         *
          * This command triggers an action (state change) on the involved endpoints, in a "fire and forget" manner.
          * Afterwards, the action’s state shall be Inactive.
          *
@@ -22,6 +24,8 @@ export namespace ActionsInterface {
         instantAction(request: Actions.InstantActionRequest): MaybePromise;
 
         /**
+         * This command is used to trigger an instantaneous action with a transition over a given time.
+         *
          * It is recommended that, where possible (e.g., it is not possible for attributes with Boolean data type), a
          * gradual transition SHOULD take place from the old to the new state over this time period. However, the exact
          * transition is manufacturer dependent.
@@ -37,6 +41,8 @@ export namespace ActionsInterface {
         instantActionWithTransition(request: Actions.InstantActionWithTransitionRequest): MaybePromise;
 
         /**
+         * This command is used to trigger the commencement of an action.
+         *
          * This command triggers the commencement of an action on the involved endpoints. Afterwards, the action’s state
          * shall be Active.
          *
@@ -51,6 +57,8 @@ export namespace ActionsInterface {
         startAction(request: Actions.StartActionRequest): MaybePromise;
 
         /**
+         * This command is used to trigger the commencement of an action with a duration.
+         *
          * This command triggers the commencement of an action on the involved endpoints, and shall change the action’s
          * state to Active. After the specified Duration, the action will stop, and the action’s state shall change to
          * Inactive.
@@ -63,6 +71,8 @@ export namespace ActionsInterface {
         startActionWithDuration(request: Actions.StartActionWithDurationRequest): MaybePromise;
 
         /**
+         * This command is used to stop an action.
+         *
          * This command stops the ongoing action on the involved endpoints. Afterwards, the action’s state shall be
          * Inactive.
          *
@@ -73,6 +83,8 @@ export namespace ActionsInterface {
         stopAction(request: Actions.StopActionRequest): MaybePromise;
 
         /**
+         * This command is used to pause an action.
+         *
          * This command pauses an ongoing action, and shall change the action’s state to Paused.
          *
          * Example: pause a dynamic lighting effect (the lights stay at their current color) which was previously
@@ -83,6 +95,8 @@ export namespace ActionsInterface {
         pauseAction(request: Actions.PauseActionRequest): MaybePromise;
 
         /**
+         * This command is used to pause an action with a duration.
+         *
          * This command pauses an ongoing action, and shall change the action’s state to Paused. After the specified
          * Duration, the ongoing action will be automatically resumed. which shall change the action’s state to Active.
          *
@@ -100,6 +114,8 @@ export namespace ActionsInterface {
         pauseActionWithDuration(request: Actions.PauseActionWithDurationRequest): MaybePromise;
 
         /**
+         * This command is used to resume an action.
+         *
          * This command resumes a previously paused action, and shall change the action’s state to Active.
          *
          * The difference between ResumeAction and StartAction is that ResumeAction will continue the action from the
@@ -113,6 +129,8 @@ export namespace ActionsInterface {
         resumeAction(request: Actions.ResumeActionRequest): MaybePromise;
 
         /**
+         * This command is used to enable an action.
+         *
          * This command enables a certain action or automation. Afterwards, the action’s state shall be Active.
          *
          * Example: enable a motion sensor to control the lights in an area.
@@ -122,6 +140,8 @@ export namespace ActionsInterface {
         enableAction(request: Actions.EnableActionRequest): MaybePromise;
 
         /**
+         * This command is used to enable an action with a duration.
+         *
          * This command enables a certain action or automation, and shall change the action’s state to be Active. After
          * the specified Duration, the action or automation will stop, and the action’s state shall change to Disabled.
          *
@@ -134,6 +154,8 @@ export namespace ActionsInterface {
         enableActionWithDuration(request: Actions.EnableActionWithDurationRequest): MaybePromise;
 
         /**
+         * This command is used to disable an action.
+         *
          * This command disables a certain action or automation, and shall change the action’s state to Inactive.
          *
          * Example: disable a motion sensor to no longer control the lights in an area.
@@ -143,9 +165,12 @@ export namespace ActionsInterface {
         disableAction(request: Actions.DisableActionRequest): MaybePromise;
 
         /**
+         * This command is used to disable an action with a duration.
+         *
          * This command disables a certain action or automation, and shall change the action’s state to Disabled. After
          * the specified Duration, the action or automation will re-start, and the action’s state shall change to either
-         * Inactive or Active, depending on the actions (see examples 4 and 6).
+         * Inactive or Active, depending on the actions (see Section 9.14.8.4, “Example 4: Wake-up routine” and Section
+         * 9.14.8.6, “Example 6: Alarm system”).
          *
          * Example: disable a "wakeup" experience for a period of 1 week when going on holiday (to prevent them from
          * turning on in the morning while you’re not at home). After this period, the wakeup experience will control

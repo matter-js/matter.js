@@ -38,7 +38,8 @@ export namespace Actions {
          * voice controller could use "set" (to map to InstantAction) or "play" (to map to StartAction) to trigger such
          * actions.
          *
-         * Example: see examples 1 and 2.
+         * Example: see Section 9.14.8.1, “Example 1: Scene recall” and Section 9.14.8.2, “Example 2: Set dynamic light
+         * effect”.
          *
          * @see {@link MatterSpecification.v141.Core} § 9.14.4.2.1
          */
@@ -50,7 +51,7 @@ export namespace Actions {
          * Indicates an action which involves a sequence of events/states of the associated endpoints, such as a wake-up
          * experience.
          *
-         * Example: see example 4.
+         * Example: see Section 9.14.8.4, “Example 4: Wake-up routine”.
          *
          * @see {@link MatterSpecification.v141.Core} § 9.14.4.2.2
          */
@@ -60,7 +61,9 @@ export namespace Actions {
          * Control an automation (e.g. motion sensor controlling lights)
          *
          * Indications an automation (e.g. a motion sensor controlling lights, an alarm system) which can bee.g.
-         * started, stopped, paused, resumed. Example: see example 3.
+         * started, stopped, paused, resumed.
+         *
+         * Example: see Section 9.14.8.3, “Example 3: Pause sensor automation”.
          *
          * @see {@link MatterSpecification.v141.Core} § 9.14.4.2.3
          */
@@ -738,6 +741,8 @@ export namespace Actions {
 
         commands: {
             /**
+             * This command is used to trigger an instantaneous action.
+             *
              * This command triggers an action (state change) on the involved endpoints, in a "fire and forget" manner.
              * Afterwards, the action’s state shall be Inactive.
              *
@@ -748,6 +753,8 @@ export namespace Actions {
             instantAction: OptionalCommand(0x0, TlvInstantActionRequest, 0x0, TlvNoResponse),
 
             /**
+             * This command is used to trigger an instantaneous action with a transition over a given time.
+             *
              * It is recommended that, where possible (e.g., it is not possible for attributes with Boolean data type),
              * a gradual transition SHOULD take place from the old to the new state over this time period. However, the
              * exact transition is manufacturer dependent.
@@ -768,6 +775,8 @@ export namespace Actions {
             ),
 
             /**
+             * This command is used to trigger the commencement of an action.
+             *
              * This command triggers the commencement of an action on the involved endpoints. Afterwards, the action’s
              * state shall be Active.
              *
@@ -782,6 +791,8 @@ export namespace Actions {
             startAction: OptionalCommand(0x2, TlvStartActionRequest, 0x2, TlvNoResponse),
 
             /**
+             * This command is used to trigger the commencement of an action with a duration.
+             *
              * This command triggers the commencement of an action on the involved endpoints, and shall change the
              * action’s state to Active. After the specified Duration, the action will stop, and the action’s state
              * shall change to Inactive.
@@ -794,6 +805,8 @@ export namespace Actions {
             startActionWithDuration: OptionalCommand(0x3, TlvStartActionWithDurationRequest, 0x3, TlvNoResponse),
 
             /**
+             * This command is used to stop an action.
+             *
              * This command stops the ongoing action on the involved endpoints. Afterwards, the action’s state shall be
              * Inactive.
              *
@@ -804,6 +817,8 @@ export namespace Actions {
             stopAction: OptionalCommand(0x4, TlvStopActionRequest, 0x4, TlvNoResponse),
 
             /**
+             * This command is used to pause an action.
+             *
              * This command pauses an ongoing action, and shall change the action’s state to Paused.
              *
              * Example: pause a dynamic lighting effect (the lights stay at their current color) which was previously
@@ -814,6 +829,8 @@ export namespace Actions {
             pauseAction: OptionalCommand(0x5, TlvPauseActionRequest, 0x5, TlvNoResponse),
 
             /**
+             * This command is used to pause an action with a duration.
+             *
              * This command pauses an ongoing action, and shall change the action’s state to Paused. After the specified
              * Duration, the ongoing action will be automatically resumed. which shall change the action’s state to
              * Active.
@@ -832,6 +849,8 @@ export namespace Actions {
             pauseActionWithDuration: OptionalCommand(0x6, TlvPauseActionWithDurationRequest, 0x6, TlvNoResponse),
 
             /**
+             * This command is used to resume an action.
+             *
              * This command resumes a previously paused action, and shall change the action’s state to Active.
              *
              * The difference between ResumeAction and StartAction is that ResumeAction will continue the action from
@@ -845,6 +864,8 @@ export namespace Actions {
             resumeAction: OptionalCommand(0x7, TlvResumeActionRequest, 0x7, TlvNoResponse),
 
             /**
+             * This command is used to enable an action.
+             *
              * This command enables a certain action or automation. Afterwards, the action’s state shall be Active.
              *
              * Example: enable a motion sensor to control the lights in an area.
@@ -854,6 +875,8 @@ export namespace Actions {
             enableAction: OptionalCommand(0x8, TlvEnableActionRequest, 0x8, TlvNoResponse),
 
             /**
+             * This command is used to enable an action with a duration.
+             *
              * This command enables a certain action or automation, and shall change the action’s state to be Active.
              * After the specified Duration, the action or automation will stop, and the action’s state shall change to
              * Disabled.
@@ -867,6 +890,8 @@ export namespace Actions {
             enableActionWithDuration: OptionalCommand(0x9, TlvEnableActionWithDurationRequest, 0x9, TlvNoResponse),
 
             /**
+             * This command is used to disable an action.
+             *
              * This command disables a certain action or automation, and shall change the action’s state to Inactive.
              *
              * Example: disable a motion sensor to no longer control the lights in an area.
@@ -876,9 +901,12 @@ export namespace Actions {
             disableAction: OptionalCommand(0xa, TlvDisableActionRequest, 0xa, TlvNoResponse),
 
             /**
+             * This command is used to disable an action with a duration.
+             *
              * This command disables a certain action or automation, and shall change the action’s state to Disabled.
              * After the specified Duration, the action or automation will re-start, and the action’s state shall change
-             * to either Inactive or Active, depending on the actions (see examples 4 and 6).
+             * to either Inactive or Active, depending on the actions (see Section 9.14.8.4, “Example 4: Wake-up
+             * routine” and Section 9.14.8.6, “Example 6: Alarm system”).
              *
              * Example: disable a "wakeup" experience for a period of 1 week when going on holiday (to prevent them from
              * turning on in the morning while you’re not at home). After this period, the wakeup experience will
@@ -939,7 +967,10 @@ export namespace Actions {
     });
 
     /**
-     * This cluster provides a standardized way for a Node (typically a Bridge, but could be any Node) to expose
+     * This cluster provides a standardized way for a Node (typically a Bridge, but could be any Node) to expose logical
+     * grouping and actions.
+     *
+     * Specifically this cluster provides:
      *
      *   • Information about logical grouping of endpoints on the Node (example: lights in a room)
      *

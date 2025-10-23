@@ -12,7 +12,10 @@ import { AirPurifierDevice } from "#devices/air-purifier";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { MockServerNode } from "../../node/mock-server-node.js";
 
-const fanControl = { fanModeSequence: FanControl.FanModeSequence.OffHigh, percentCurrent: 50 };
+const fanControl = {
+    fanModeSequence: FanControl.FanModeSequence.OffHigh,
+    percentCurrent: 50,
+};
 
 describe("ConcentrationMeasurementServer", () => {
     it("supports numeric measurement mode", async () => {
@@ -45,6 +48,7 @@ describe("ConcentrationMeasurementServer", () => {
         const purifier = new Endpoint(PurifierDevice, {
             fanControl,
             carbonDioxideConcentrationMeasurement: {
+                levelValue: ConcentrationMeasurement.LevelValue.Unknown,
                 measurementMedium: ConcentrationMeasurement.MeasurementMedium.Air,
             },
         });
@@ -73,6 +77,7 @@ describe("ConcentrationMeasurementServer", () => {
             },
 
             carbonMonoxideConcentrationMeasurement: {
+                levelValue: ConcentrationMeasurement.LevelValue.Unknown,
                 measurementMedium: ConcentrationMeasurement.MeasurementMedium.Air,
             },
         });

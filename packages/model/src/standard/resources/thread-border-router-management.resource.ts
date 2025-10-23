@@ -28,7 +28,7 @@ Resource.add({
                     "> [!NOTE]" +
                     "\n" +
                     "> This feature flag can be used to protect an already-configured network from accidental " +
-                    "  configuration change, e.g. when the Thread Border Router serves non- Matter devices that do not " +
+                    "  configuration change, e.g. when the Thread Border Router serves non-Matter devices that do not " +
                     "  support PAN change for an implementation-specific reason."
             }]
         },

@@ -35,13 +35,15 @@ export namespace PressureMeasurement {
     export const ExtendedComponent = MutableCluster.Component({
         attributes: {
             /**
-             * Indicates the pressure in Pascals as follows: ScaledValue = 10Scale x Pressure [Pa]
+             * Indicates the pressure in Pascals as follows:
+             *
+             * ScaledValue = 10Scale x Pressure [Pa]
              *
              * The null value indicates that the value is not available.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 2.4.5.5
              */
-            scaledValue: Attribute(0x10, TlvNullable(TlvInt16), { default: 0 }),
+            scaledValue: Attribute(0x10, TlvNullable(TlvInt16)),
 
             /**
              * Indicates the minimum value of ScaledValue that can be measured. The null value indicates that the value
@@ -49,7 +51,7 @@ export namespace PressureMeasurement {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 2.4.5.6
              */
-            minScaledValue: Attribute(0x11, TlvNullable(TlvInt16.bound({ max: 32766 })), { default: 0 }),
+            minScaledValue: Attribute(0x11, TlvNullable(TlvInt16.bound({ max: 32766 }))),
 
             /**
              * Indicates the maximum value of ScaledValue that can be measured. The null value indicates that the value
@@ -57,11 +59,12 @@ export namespace PressureMeasurement {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 2.4.5.7
              */
-            maxScaledValue: Attribute(0x12, TlvNullable(TlvInt16), { default: 0 }),
+            maxScaledValue: Attribute(0x12, TlvNullable(TlvInt16)),
 
             /**
-             * Indicates the magnitude of the possible error that is associated with ScaledValue. The true value is
-             * located in the range
+             * Indicates the magnitude of the possible error that is associated with Scaled
+             *
+             * ### Value. The true value is located in the range
              *
              * (ScaledValue – ScaledTolerance) to (ScaledValue + ScaledTolerance).
              *
@@ -74,7 +77,7 @@ export namespace PressureMeasurement {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 2.4.5.9
              */
-            scale: Attribute(0x14, TlvInt8.bound({ min: -127 }), { default: 0 })
+            scale: Attribute(0x14, TlvInt8.bound({ min: -127 }))
         }
     });
 

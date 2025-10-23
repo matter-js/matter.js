@@ -7,7 +7,7 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 /**
- * @see {@link MatterSpecification.v141.Cluster} § 2.1.4.2
+ * @see {@link MatterSpecification.v141.Cluster} § 2.1.3.1
  */
 export enum MeasurementType {
     Unspecified = 0,
@@ -80,5 +80,20 @@ export enum MeasurementType {
     /**
      * Electrical energy in milliwatt-hours (mWh)
      */
-    ElectricalEnergy = 14
+    ElectricalEnergy = 14,
+
+    /**
+     * Reactive power in millivolt-amp-hours reactive (mVARh)
+     */
+    ReactiveEnergy = 15,
+
+    /**
+     * Apparent power in millivolt-amp-hours (mVAh)
+     */
+    ApparentEnergy = 16,
+
+    /**
+     * Soil moisture in percent
+     */
+    SoilMoisture = 17
 }

@@ -17,7 +17,7 @@ import {
 
 export const BasicInformation = Cluster(
     { name: "BasicInformation", id: 0x28 },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 4 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 5 }),
     Attribute({
         name: "DataModelRevision", id: 0x0, type: "uint16", access: "R V", conformance: "M",
         constraint: "desc", quality: "F"
@@ -97,6 +97,10 @@ export const BasicInformation = Cluster(
         name: "MaxPathsPerInvoke", id: 0x16, type: "uint16", access: "R V", conformance: "M",
         constraint: "min 1", default: 1, quality: "F"
     }),
+    Attribute({
+        name: "ConfigurationVersion", id: 0x18, type: "uint32", access: "R V", conformance: "P, M",
+        constraint: "min 1", default: 1, quality: "N"
+    }),
     Event(
         { name: "StartUp", id: 0x0, access: "V", conformance: "M", priority: "critical" },
         Field({ name: "SoftwareVersion", id: 0x0, type: "uint32", conformance: "M" })
@@ -107,7 +111,7 @@ export const BasicInformation = Cluster(
         Field({ name: "FabricIndex", id: 0x0, type: "fabric-idx", conformance: "M", constraint: "1 to 254" })
     ),
     Event(
-        { name: "ReachableChanged", id: 0x3, access: "V", conformance: "desc", priority: "info" },
+        { name: "ReachableChanged", id: 0x3, access: "V", conformance: "Reachable", priority: "info" },
         Field({ name: "ReachableNewValue", id: 0x0, type: "bool", conformance: "M" })
     ),
 

@@ -177,6 +177,14 @@ const VarianceMatchers: VarianceMatcher[] = [
         },
     },
 
+    // [Field<| Field>*] or [Field<, Field>*] (optional, unconditional.  Ignores field references)
+    {
+        pattern: pattern("[", DISJUNCT_FIELDS, "]"),
+        processor(add) {
+            add(true);
+        },
+    },
+
     // FOO, [BAR]
     {
         pattern: pattern(FEATURE, ", ", "[", FEATURE, "]"),

@@ -200,6 +200,7 @@ function* lex(
                         next();
                         next();
                         yield tokenizeDigits(2, binaryValueOf);
+                        break;
                     }
                 }
 

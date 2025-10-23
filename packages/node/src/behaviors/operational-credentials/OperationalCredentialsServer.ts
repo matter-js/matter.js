@@ -86,7 +86,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
 
     override initialize(): MaybePromise {
         // maximum number of fabrics. Also FabricBuilder uses 254 as max!
-        if (this.state.supportedFabrics === undefined) {
+        if (!this.state.supportedFabrics) {
             this.state.supportedFabrics = 254;
         }
         this.state.commissionedFabrics = this.state.fabrics.length;

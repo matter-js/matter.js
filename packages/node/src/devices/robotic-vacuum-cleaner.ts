@@ -42,9 +42,10 @@ export namespace RoboticVacuumCleanerRequirements {
     /**
      * The RvcOperationalState cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link RvcOperationalStateServer} for convenience.
+     * This version of {@link RvcOperationalStateServer} is specialized per the specification.
      */
-    export const RvcOperationalStateServer = BaseRvcOperationalStateServer;
+    export const RvcOperationalStateServer = BaseRvcOperationalStateServer
+        .alter({ events: { operationCompletion: { optional: false } } });
 
     /**
      * The RvcCleanMode cluster is optional per the Matter specification.
@@ -76,7 +77,7 @@ export namespace RoboticVacuumCleanerRequirements {
 export const RoboticVacuumCleanerDeviceDefinition = MutableEndpoint({
     name: "RoboticVacuumCleaner",
     deviceType: 0x74,
-    deviceRevision: 3,
+    deviceRevision: 4,
     requirements: RoboticVacuumCleanerRequirements,
     behaviors: SupportedBehaviors(
         RoboticVacuumCleanerRequirements.server.mandatory.Identify,

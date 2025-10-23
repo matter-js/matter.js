@@ -12,11 +12,12 @@ describe("BINFO", () => {
     // When CHIP moves to a newer protocol that we don't support we can move CHIP's version back here
     before(() =>
         chip.testFor("BINFO/2.1").edit(
-            edit.sed(
-                "s/value: 19/value: 18/",
+            edit
+                .sed
+                //"s/value: 19/value: 18/",
                 //"s/minValue: 0x01040000/minValue: 0x01030000/",
                 //"s/maxValue: 0x0104FF00/maxValue: 0x0103FF00/",
-            ),
+                (),
         ),
     );
 

@@ -36,7 +36,7 @@ export namespace ThreadBorderRouterManagement {
          * > [!NOTE]
          *
          * > This feature flag can be used to protect an already-configured network from accidental configuration
-         *   change, e.g. when the Thread Border Router serves non- Matter devices that do not support PAN change for an
+         *   change, e.g. when the Thread Border Router serves non-Matter devices that do not support PAN change for an
          *   implementation-specific reason.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 10.3.4.1
@@ -165,8 +165,8 @@ export namespace ThreadBorderRouterManagement {
              * > [!NOTE]
              *
              * > This feature flag can be used to protect an already-configured network from accidental configuration
-             *   change, e.g. when the Thread Border Router serves non- Matter devices that do not support PAN change
-             *   for an implementation-specific reason.
+             *   change, e.g. when the Thread Border Router serves non-Matter devices that do not support PAN change for
+             *   an implementation-specific reason.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 10.3.4.1
              */
@@ -207,7 +207,7 @@ export namespace ThreadBorderRouterManagement {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 10.3.5.4
              */
-            interfaceEnabled: Attribute(0x3, TlvBoolean, { persistent: true, default: false }),
+            interfaceEnabled: Attribute(0x3, TlvBoolean, { persistent: true }),
 
             /**
              * Null if the Thread Border Router has no dataset configured, otherwise it shall be the timestamp value
@@ -217,7 +217,7 @@ export namespace ThreadBorderRouterManagement {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 10.3.5.5
              */
-            activeDatasetTimestamp: Attribute(0x4, TlvNullable(TlvUInt64), { persistent: true, default: 0 }),
+            activeDatasetTimestamp: Attribute(0x4, TlvNullable(TlvUInt64), { persistent: true }),
 
             /**
              * Null if the Thread Border Router has no Pending dataset configured, otherwise it shall be the timestamp
@@ -227,7 +227,7 @@ export namespace ThreadBorderRouterManagement {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 10.3.5.6
              */
-            pendingDatasetTimestamp: Attribute(0x5, TlvNullable(TlvUInt64), { persistent: true, default: 0 })
+            pendingDatasetTimestamp: Attribute(0x5, TlvNullable(TlvUInt64), { persistent: true })
         },
 
         commands: {

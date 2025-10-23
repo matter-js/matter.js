@@ -627,7 +627,12 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
                 continue;
             }
 
-            const compiledNode = compile(member.conformance.ast);
+            // Enum choice indicates support for the value; it should not affect validation
+            let ast = member.conformance.ast;
+            if (ast.type === Conformance.Special.Choice) {
+                ast = ast.param.expr;
+            }
+            const compiledNode = compile(ast);
 
             let memberValidator: undefined | EnumMemberValidator;
             switch (compiledNode.code) {

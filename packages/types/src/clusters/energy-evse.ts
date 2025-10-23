@@ -271,8 +271,9 @@ export namespace EnergyEvse {
          *   • the AddedEnergy field shall take precedence over the TargetSoC field, and if the EVSE does not support
          *     the SOC feature then the TargetSoC field may only take the values null or 100%.
          *
-         *   • if the AddedEnergy field has not been provided, the EVSE SHOULD assume the vehicle is empty and charge
-         *     until the vehicle stops demanding a charge.
+         *   • if the AddedEnergy field has not been provided, the EVSE SHOULD assume the vehicle is empty
+         *
+         * and charge until the vehicle stops demanding a charge.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 9.3.7.6.2
          */
@@ -451,7 +452,7 @@ export namespace EnergyEvse {
         SessionEnding = 5,
 
         /**
-         * There is a fault (see FaultState attribute)
+         * There is a fault, further details in the FaultState attribute
          */
         Fault = 6
     }
@@ -602,8 +603,8 @@ export namespace EnergyEvse {
          * This field shall indicate the minimum current that can be delivered by the EVSE to the EV in trickle mode.
          * The EVSE current limit can be advertised to an EV in 0.6A steps.
          *
-         * The value of the MinimumChargeCurrent attribute shall be set to the value of this field (see
-         * MinimumChargeCurrent attribute for further details).
+         * The value of the MinimumChargeCurrent attribute shall be set to the value of this field (see Section 9.3.8.7,
+         * “MinimumChargeCurrent Attribute” for further details).
          *
          * @see {@link MatterSpecification.v141.Cluster} § 9.3.9.2.2
          */
@@ -888,7 +889,7 @@ export namespace EnergyEvse {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 9.3.8.5
              */
-            dischargingEnabledUntil: Attribute(0x4, TlvNullable(TlvEpochS), { persistent: true, default: 0 }),
+            dischargingEnabledUntil: Attribute(0x4, TlvNullable(TlvEpochS), { persistent: true }),
 
             /**
              * Indicates the maximum current that can be received by the EVSE from the EV. This attribute can be set
@@ -904,16 +905,12 @@ export namespace EnergyEvse {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 9.3.8.9
              */
-            maximumDischargeCurrent: Attribute(0x8, TlvInt64.bound({ min: 0 }), { persistent: true, default: 0 }),
+            maximumDischargeCurrent: Attribute(0x8, TlvInt64.bound({ min: 0 }), { persistent: true }),
 
             /**
              * @see {@link MatterSpecification.v141.Cluster} § 9.3.8
              */
-            sessionEnergyDischarged: Attribute(
-                0x43,
-                TlvNullable(TlvInt64.bound({ min: 0 })),
-                { persistent: true, default: null }
-            )
+            sessionEnergyDischarged: Attribute(0x43, TlvNullable(TlvInt64.bound({ min: 0 })), { persistent: true })
         },
 
         commands: {
@@ -942,7 +939,7 @@ export namespace EnergyEvse {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 9.3.8.12
              */
-            nextChargeStartTime: Attribute(0x23, TlvNullable(TlvEpochS), { default: null }),
+            nextChargeStartTime: Attribute(0x23, TlvNullable(TlvEpochS)),
 
             /**
              * Indicates the time, in UTC, when the EVSE SHOULD complete the next scheduled charge based on the charging
@@ -954,7 +951,7 @@ export namespace EnergyEvse {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 9.3.8.13
              */
-            nextChargeTargetTime: Attribute(0x24, TlvNullable(TlvEpochS), { default: null }),
+            nextChargeTargetTime: Attribute(0x24, TlvNullable(TlvEpochS)),
 
             /**
              * Indicates the amount of energy that the EVSE is going to attempt to add to the vehicle in the next
@@ -966,7 +963,7 @@ export namespace EnergyEvse {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 9.3.8.14
              */
-            nextChargeRequiredEnergy: Attribute(0x25, TlvNullable(TlvInt64.bound({ min: 0 })), { default: null }),
+            nextChargeRequiredEnergy: Attribute(0x25, TlvNullable(TlvInt64.bound({ min: 0 }))),
 
             /**
              * Indicates the target SoC the EVSE is going to attempt to reach when the vehicle is next charged.
@@ -979,7 +976,7 @@ export namespace EnergyEvse {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 9.3.8.15
              */
-            nextChargeTargetSoC: Attribute(0x26, TlvNullable(TlvPercent), { default: null }),
+            nextChargeTargetSoC: Attribute(0x26, TlvNullable(TlvPercent)),
 
             /**
              * Indicates the vehicle efficiency rating for a connected vehicle.
@@ -1057,14 +1054,14 @@ export namespace EnergyEvse {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 9.3.8.17
              */
-            stateOfCharge: Attribute(0x30, TlvNullable(TlvPercent), { default: null }),
+            stateOfCharge: Attribute(0x30, TlvNullable(TlvPercent)),
 
             /**
              * Indicates the capacity of the EV battery in mWh. This value is always positive.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 9.3.8.18
              */
-            batteryCapacity: Attribute(0x31, TlvNullable(TlvInt64.bound({ min: 0 })), { default: null })
+            batteryCapacity: Attribute(0x31, TlvNullable(TlvInt64.bound({ min: 0 })))
         }
     });
 
@@ -1082,7 +1079,7 @@ export namespace EnergyEvse {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 9.3.8.19
              */
-            vehicleId: Attribute(0x32, TlvNullable(TlvString.bound({ maxLength: 32 })), { default: null })
+            vehicleId: Attribute(0x32, TlvNullable(TlvString.bound({ maxLength: 32 })))
         }
     });
 
@@ -1203,8 +1200,9 @@ export namespace EnergyEvse {
              * > SessionEnding is not really a state but a transition. However, the transition period may take a few
              *   seconds and is useful for some clean up purposes.
              *
-             * The Fault state is used to indicate that the FaultState attribute is not NoError. A null value shall
-             * indicate that the state cannot be determined.
+             * The Fault state is used to indicate that the FaultState attribute is not NoError.
+             *
+             * A null value shall indicate that the state cannot be determined.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 9.3.8.1
              */
@@ -1241,7 +1239,7 @@ export namespace EnergyEvse {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 9.3.8.4
              */
-            chargingEnabledUntil: Attribute(0x3, TlvNullable(TlvEpochS), { persistent: true, default: 0 }),
+            chargingEnabledUntil: Attribute(0x3, TlvNullable(TlvEpochS), { persistent: true }),
 
             /**
              * Indicates the capacity that the circuit that the EVSE is connected to can provide. It is intended to
@@ -1250,15 +1248,16 @@ export namespace EnergyEvse {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 9.3.8.6
              */
-            circuitCapacity: Attribute(0x5, TlvInt64.bound({ min: 0 }), { persistent: true, default: 0 }),
+            circuitCapacity: Attribute(0x5, TlvInt64.bound({ min: 0 }), { persistent: true }),
 
             /**
-             * Indicates the minimum current that can be delivered by the EVSE to the EV. The attribute can be set using
-             * the EnableCharging command.
+             * Indicates the minimum current that can be delivered by the EVSE to the EV.
+             *
+             * The attribute can be set using the EnableCharging command.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 9.3.8.7
              */
-            minimumChargeCurrent: Attribute(0x6, TlvInt64.bound({ min: 0 }), { persistent: true, default: 6000 }),
+            minimumChargeCurrent: Attribute(0x6, TlvInt64.bound({ min: 0 }), { persistent: true }),
 
             /**
              * Indicates the maximum current that can be delivered by the EVSE to the EV.
@@ -1282,7 +1281,7 @@ export namespace EnergyEvse {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 9.3.8.8
              */
-            maximumChargeCurrent: Attribute(0x7, TlvInt64.bound({ min: 0 }), { persistent: true, default: 0 }),
+            maximumChargeCurrent: Attribute(0x7, TlvInt64.bound({ min: 0 }), { persistent: true }),
 
             /**
              * Indicates a maximum current that can set by the consumer (e.g. via an app) as a preference to further
@@ -1328,21 +1327,17 @@ export namespace EnergyEvse {
             /**
              * @see {@link MatterSpecification.v141.Cluster} § 9.3.8
              */
-            sessionId: Attribute(0x40, TlvNullable(TlvUInt32), { persistent: true, default: null }),
+            sessionId: Attribute(0x40, TlvNullable(TlvUInt32), { persistent: true }),
 
             /**
              * @see {@link MatterSpecification.v141.Cluster} § 9.3.8
              */
-            sessionDuration: Attribute(0x41, TlvNullable(TlvUInt32), { persistent: true, default: null }),
+            sessionDuration: Attribute(0x41, TlvNullable(TlvUInt32), { persistent: true }),
 
             /**
              * @see {@link MatterSpecification.v141.Cluster} § 9.3.8
              */
-            sessionEnergyCharged: Attribute(
-                0x42,
-                TlvNullable(TlvInt64.bound({ min: 0 })),
-                { persistent: true, default: null }
-            )
+            sessionEnergyCharged: Attribute(0x42, TlvNullable(TlvInt64.bound({ min: 0 })), { persistent: true })
         },
 
         commands: {
@@ -1459,15 +1454,15 @@ export namespace EnergyEvse {
      * cluster.
      *
      * This cluster supports a safety mechanism that may lockout remote operation until the initial latching conditions
-     * have been met. Some of the fault conditions defined in SAE J1772, such as Ground-Fault Circuit Interrupter (GFCI)
-     * or Charging Circuit Interrupting Device (CCID), may require clearing by an operator by, for example, pressing a
-     * button on the equipment or breaker panel.
+     * have been met. Some of the fault conditions defined in SAE J1772, such as Ground- Fault Circuit Interrupter
+     * (GFCI) or Charging Circuit Interrupting Device (CCID), may require clearing by an operator by, for example,
+     * pressing a button on the equipment or breaker panel.
      *
      * This EVSE cluster is written around support of a single EVSE. Having multiple EVSEs at home or a business is
      * managed by backend system and outside scope of this cluster.
      *
      * Note that in many deployments the EVSE may be outside the home and may suffer from intermittent network
-     * connections (e.g. a weak WiFi signal). It also allows for a charging profile to be pre-configured, in case there
+     * connections (e.g. a weak Wi-Fi signal). It also allows for a charging profile to be pre-configured, in case there
      * is a temporary communications loss during a charging session.
      *
      * EnergyEvseCluster supports optional features that you can enable with the EnergyEvseCluster.with() factory

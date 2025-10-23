@@ -40,7 +40,7 @@ export namespace MicrowaveOvenRequirements {
      * This version of {@link OperationalStateServer} is specialized per the specification.
      */
     export const OperationalStateServer = BaseOperationalStateServer
-        .alter({ attributes: { countdownTime: { optional: false } } });
+        .alter({ attributes: { countdownTime: { optional: false } }, events: { operationCompletion: { optional: false } } });
 
     /**
      * The MicrowaveOvenMode cluster is required by the Matter specification.
@@ -86,7 +86,7 @@ export namespace MicrowaveOvenRequirements {
 export const MicrowaveOvenDeviceDefinition = MutableEndpoint({
     name: "MicrowaveOven",
     deviceType: 0x79,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: MicrowaveOvenRequirements,
     behaviors: SupportedBehaviors(
         MicrowaveOvenRequirements.server.mandatory.OperationalState,

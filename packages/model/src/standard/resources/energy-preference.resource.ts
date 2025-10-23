@@ -11,7 +11,9 @@ import { Resource } from "#models/Resource.js";
 Resource.add({
     tag: "cluster", name: "EnergyPreference", classification: "application", pics: "EPREF",
     xref: "cluster§9.7",
-    details: "This cluster provides an interface to specify preferences for how devices should consume energy.",
+    details: "This cluster provides an interface to specify preferences for how devices should consume energy." +
+        "\n" +
+        "NOTE Support for Energy Preference cluster is provisional.",
 
     children: [
         {
@@ -89,11 +91,8 @@ Resource.add({
 
         {
             tag: "attribute", name: "LowPowerModeSensitivities", xref: "cluster§9.7.6.4",
-
             details: "Indicates a list of BalanceStructs, each representing a condition or set of conditions for the " +
-                "device to enter a low power mode." +
-                "\n" +
-                "This shall contain at least two BalanceStructs." +
+                "device to enter a low power mode. This shall contain at least two BalanceStructs." +
                 "\n" +
                 "Each BalanceStruct shall have a Step field larger than the Step field on the previous BalanceStruct " +
                 "in the list."

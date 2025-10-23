@@ -33,7 +33,7 @@ export namespace FlowMeasurement {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 2.5.4.1
              */
-            measuredValue: Attribute(0x0, TlvNullable(TlvUInt16), { default: null }),
+            measuredValue: Attribute(0x0, TlvNullable(TlvUInt16)),
 
             /**
              * Indicates the minimum value of MeasuredValue that can be measured. See Measured Value for more details.

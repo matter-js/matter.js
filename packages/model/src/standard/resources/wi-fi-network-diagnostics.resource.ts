@@ -36,74 +36,64 @@ Resource.add({
 
         {
             tag: "attribute", name: "Bssid", xref: "core§11.15.6.1",
-            details: "The BSSID attribute shall indicate the BSSID for which the Wi-Fi network the Node is currently " +
-                "connected."
+            details: "Indicates the BSSID for which the Wi-Fi network the Node is currently connected."
         },
         {
             tag: "attribute", name: "SecurityType", xref: "core§11.15.6.2",
-            details: "The SecurityType attribute shall indicate the current type of Wi-Fi security used."
+            details: "Indicates the current type of Wi-Fi security used."
         },
         {
             tag: "attribute", name: "WiFiVersion", xref: "core§11.15.6.3",
-            details: "The WiFiVersion attribute shall indicate the current 802.11 standard version in use by the Node, per " +
-                "the table below."
+            details: "Indicates the current IEEE 802.11 standard version in use by the Node, per the table below."
         },
         {
             tag: "attribute", name: "ChannelNumber", xref: "core§11.15.6.4",
-            details: "The ChannelNumber attribute shall indicate the channel that Wi-Fi communication is currently " +
-                "operating on."
+            details: "Indicates the channel that Wi-Fi communication is currently operating on."
         },
         {
             tag: "attribute", name: "Rssi", xref: "core§11.15.6.5",
-            details: "The RSSI attribute shall indicate the current RSSI of the Node’s Wi-Fi radio in dBm."
+            details: "Indicates the current RSSI of the Node’s Wi-Fi radio in dBm."
         },
-
         {
             tag: "attribute", name: "BeaconLostCount", xref: "core§11.15.6.6",
-            details: "The BeaconLostCount attribute shall indicate the count of the number of missed beacons the Node has " +
-                "detected. If the Node does not have an ability to count beacons expected and not received, this " +
-                "value may remain set to zero."
+            details: "Indicates the count of the number of missed beacons the Node has detected. If the Node does not have " +
+                "an ability to count beacons expected and not received, this value may remain set to zero."
         },
 
         {
             tag: "attribute", name: "BeaconRxCount", xref: "core§11.15.6.7",
-            details: "The BeaconRxCount attribute shall indicate the count of the number of received beacons. The total " +
-                "number of expected beacons that could have been received during the interval since association " +
-                "SHOULD match the sum of BeaconRxCount and BeaconLostCount. If the Node does not have an ability to " +
-                "report count of beacons received, this value may remain set to zero."
+            details: "Indicates the count of the number of received beacons. The total number of expected beacons that " +
+                "could have been received during the interval since association SHOULD match the sum of BeaconRxCount " +
+                "and BeaconLostCount. If the Node does not have an ability to report count of beacons received, this " +
+                "value may remain set to zero."
         },
 
         {
             tag: "attribute", name: "PacketMulticastRxCount", xref: "core§11.15.6.8",
-            details: "The PacketMulticastRxCount attribute shall indicate the number of multicast packets received by the " +
-                "Node."
+            details: "Indicates the number of multicast packets received by the Node."
         },
         {
             tag: "attribute", name: "PacketMulticastTxCount", xref: "core§11.15.6.9",
-            details: "The PacketMulticastTxCount attribute shall indicate the number of multicast packets transmitted by " +
-                "the Node."
+            details: "Indicates the number of multicast packets transmitted by the Node."
         },
         {
             tag: "attribute", name: "PacketUnicastRxCount", xref: "core§11.15.6.10",
-            details: "The PacketUnicastRxCount attribute shall indicate the number of unicast packets received by the " +
-                "Node."
+            details: "Indicates the number of unicast packets received by the Node."
         },
         {
             tag: "attribute", name: "PacketUnicastTxCount", xref: "core§11.15.6.11",
-            details: "The PacketUnicastTxCount attribute shall indicate the number of unicast packets transmitted by the " +
-                "Node."
+            details: "Indicates the number of unicast packets transmitted by the Node."
         },
         {
             tag: "attribute", name: "CurrentMaxRate", xref: "core§11.15.6.12",
-            details: "The CurrentMaxRate attribute shall indicate the current maximum PHY rate of transfer of data in " +
-                "bits-per-second."
+            details: "Indicates the current maximum PHY rate of transfer of data in bits-per-second."
         },
 
         {
             tag: "attribute", name: "OverrunCount", xref: "core§11.15.6.13",
-            details: "The OverrunCount attribute shall indicate the number of packets dropped either at ingress or egress, " +
-                "due to lack of buffer memory to retain all packets on the network interface. The OverrunCount " +
-                "attribute shall be reset to 0 upon a reboot of the Node."
+            details: "Indicates the number of packets dropped either at ingress or egress, due to lack of buffer memory to " +
+                "retain all packets on the network interface. The attribute shall be reset to 0 upon a reboot of the " +
+                "Node."
         },
 
         {
@@ -159,7 +149,9 @@ Resource.add({
         {
             tag: "command", name: "ResetCounts", xref: "core§11.15.7.1",
 
-            details: "Reception of this command shall reset the following attributes to 0:" +
+            details: "This command is used to reset the count attributes." +
+                "\n" +
+                "Reception of this command shall reset the following attributes to 0:" +
                 "\n" +
                 "  • BeaconLostCount" +
                 "\n" +
@@ -171,9 +163,7 @@ Resource.add({
                 "\n" +
                 "  • PacketUnicastRxCount" +
                 "\n" +
-                "  • PacketUnicastTxCount" +
-                "\n" +
-                "This command has no associated data."
+                "  • PacketUnicastTxCount"
         },
 
         {
@@ -198,15 +188,15 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "Ac",
-                    description: "Indicate the network interface is currently using 802.11ac against the wireless access point."
+                    description: "Indicate the network interface is currently using IEEE 802.11ac against the wireless access point."
                 },
                 {
                     tag: "field", name: "Ax",
-                    description: "Indicate the network interface is currently using 802.11ax against the wireless access point."
+                    description: "Indicate the network interface is currently using IEEE 802.11ax against the wireless access point."
                 },
                 {
                     tag: "field", name: "Ah",
-                    description: "Indicate the network interface is currently using 802.11ah against the wireless access point."
+                    description: "Indicate the network interface is currently using IEEE 802.11ah against the wireless access point."
                 }
             ]
         },

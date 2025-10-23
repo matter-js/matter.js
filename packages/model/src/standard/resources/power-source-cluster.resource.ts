@@ -38,7 +38,8 @@ Resource.add({
 
             details: "Indicates the relative preference with which the Node will select this source to provide power. A " +
                 "source with a lower order shall be selected by the Node to provide power before any other source " +
-                "with a higher order, if the lower order source is available (see Status)." +
+                "with a higher order, if the lower order source is available (see Section 11.7.7.1, “Status " +
+                "Attribute”)." +
                 "\n" +
                 "Note, Order is read-only and therefore NOT intended to allow clients control over power source " +
                 "selection."
@@ -162,8 +163,7 @@ Resource.add({
 
         {
             tag: "attribute", name: "BatReplaceability", xref: "core§11.7.7.17",
-            details: "This attribute shall indicate the replaceability of the battery as specified in " +
-                "BatReplaceabilityEnum."
+            details: "Indicates the replaceability of the battery as specified in BatReplaceabilityEnum."
         },
         {
             tag: "attribute", name: "BatPresent", xref: "core§11.7.7.18",
@@ -281,9 +281,13 @@ Resource.add({
                 "The above rules allow that some endpoints can have an unknown power source, and therefore would not " +
                 "be indicated by any instance of this cluster." +
                 "\n" +
+                "### Empty list examples" +
+                "\n" +
                 "Typically, there is one power source for the node. Also common is mains power for the node with " +
                 "battery backup power for the node. In both these common cases, for each cluster instance described, " +
                 "the list is empty." +
+                "\n" +
+                "### Populated list example" +
                 "\n" +
                 "A node has a mains power source with Order as 0 (zero), but some application endpoints (not all) " +
                 "have a battery back up source with Order as 1, which means this list is empty for the Power Source " +

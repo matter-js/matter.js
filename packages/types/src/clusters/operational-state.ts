@@ -76,9 +76,8 @@ export namespace OperationalState {
         operationalStateId: TlvField(0, TlvEnum<OperationalStateEnum>()),
 
         /**
-         * This field shall be present if the OperationalStateID is from the set reserved for Manufacturer Specific
-         * States, otherwise it shall NOT be present. If present, this shall contain a human-readable description of the
-         * operational state.
+         * This field is present when the OperationalStateID is from the set reserved for Manufacturer Specific States.
+         * If present, this shall contain a human-readable description of the operational state.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 1.14.4.2.2
          */
@@ -147,10 +146,8 @@ export namespace OperationalState {
         errorStateId: TlvField(0, TlvEnum<ErrorState>()),
 
         /**
-         * This field shall be present if the ErrorStateID is from the set reserved for Manufacturer Specific Errors,
-         * otherwise it shall NOT be present. If present, this shall contain a human-readable description of the
-         * ErrorStateID; e.g. for a manufacturer specific ErrorStateID of "0x80" the ErrorStateLabel may contain "My
-         * special error".
+         * This field is present when the ErrorStateID is from the set reserved for Manufacturer Specific errors. If
+         * present, this shall contain a human-readable description of the error state.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 1.14.4.4.2
          */
@@ -183,7 +180,7 @@ export namespace OperationalState {
     export const TlvOperationalCommandResponse = TlvObject({
         /**
          * This shall indicate the success or otherwise of the attempted command invocation. On a successful invocation
-         * of the attempted command, the ErrorStateID shall be populated with NoError. Please see the individual command
+         * of the attempted command, the ErrorStateID shall be populated with NoError. See the individual command
          * sections for additional specific requirements on population.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 1.14.6.5.1
@@ -348,8 +345,8 @@ export namespace OperationalState {
 
             /**
              * This attribute shall specify the details of any current error condition being experienced on the device
-             * when the OperationalState attribute is populated with Error. Please see ErrorStateStruct for general
-             * requirements on the population of this attribute.
+             * when the OperationalState attribute is populated with Error. See Section 1.14.4.4, “ErrorStateStruct
+             * Type” for general requirements on the population of this attribute.
              *
              * When there is no error detected, this shall have an ErrorStateID of NoError.
              *

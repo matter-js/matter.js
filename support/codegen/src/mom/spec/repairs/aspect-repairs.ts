@@ -18,7 +18,10 @@ export function repairConstraint(record: { constraint?: string }) {
         .replace(/ to(\d|max)/i, " to $1")
         .replace(/ValuetoMax/, "Value to Max")
         .replace(/Sup ported/, "Supported")
-        .replace(/N\/A/, "");
+        .replace(/N\/A/, "")
+
+        // Window covering decided to use " " as binary separator which spec does not support
+        .replace(/(0b[01]{4}) ([01]{4})/, "$1$2");
 
     // Ignore window covering's bitmap constraints
     if (constraint.match(/^[0x]{4} [0x]{4}$/)) {
@@ -60,10 +63,19 @@ export function repairConformanceRule(conformance?: string) {
         return "M";
     }
 
-    conformance = conformance?.replace("PIRUnoccupiedToOccupied", "PirUnoccupiedToOccupied");
+    conformance = conformance.replace("PIRUnoccupiedToOccupied", "PirUnoccupiedToOccupied");
 
     // Words separated by space is illegal and we can safely assume should be joined
-    conformance = conformance?.replace(/([a-z])\s+([a-z])/gi, "$1$2");
+    conformance = conformance.replace(/([a-z])\s+([a-z])/gi, "$1$2");
+
+    // "Status == SUCCESS" should be "Status == Success" (cluster 1.4.2)
+    conformance = conformance.replace(/status == success/gi, "Status == Success");
+
+    // Null is specified with inconsistent case ("MfgCode != NULL" in cluster 1.4.2, lowercase elsewhere)
+    conformance = conformance.replace(/= null/gi, "= null");
+
+    // Opcreds "OK" StatusCode specified with incorrect case (cluster 1.4.2)
+    conformance = conformance.replace(/StatusCode == OK/g, "StatusCode == Ok");
 
     return conformance;
 }

@@ -13,7 +13,7 @@ export const DishwasherDt = DeviceType(
     { name: "Dishwasher", id: 0x75 },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 117, revision: 1 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 117, revision: 2 } ], element: "attribute" })
     ),
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster" }),
     Requirement(
@@ -27,7 +27,10 @@ export const DishwasherDt = DeviceType(
         Requirement({ name: "ONOFF", conformance: "X", element: "feature" })
     ),
     Requirement({ name: "DishwasherAlarm", id: 0x5d, conformance: "O", element: "serverCluster" }),
-    Requirement({ name: "OperationalState", id: 0x60, conformance: "M", element: "serverCluster" })
+    Requirement(
+        { name: "OperationalState", id: 0x60, conformance: "M", element: "serverCluster" },
+        Requirement({ name: "OperationCompletion", conformance: "M", element: "event" })
+    )
 );
 
 MatterDefinition.children.push(DishwasherDt);

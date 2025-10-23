@@ -12,6 +12,8 @@ import { MediaPlayback } from "#clusters/media-playback";
 export namespace MediaPlaybackInterface {
     export interface Base {
         /**
+         * This command is used to start playback of the media.
+         *
          * Upon receipt, this shall play media. If content is currently in a FastForward or Rewind state. Play shall
          * return media to normal playback speed.
          *
@@ -20,13 +22,15 @@ export namespace MediaPlaybackInterface {
         play(): MaybePromise<MediaPlayback.PlaybackResponse>;
 
         /**
-         * Upon receipt, this shall pause playback of the media.
+         * This command is used to pause playback of the media. Upon receipt, this shall pause playback of the media.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.2
          */
         pause(): MaybePromise<MediaPlayback.PlaybackResponse>;
 
         /**
+         * This command is used to stop playback of the media.
+         *
          * Upon receipt, this shall stop playback of the media. User-visible outcome is context-specific. This may
          * navigate the user back to the location from where the media was originally launched.
          *
@@ -35,13 +39,16 @@ export namespace MediaPlaybackInterface {
         stop(): MaybePromise<MediaPlayback.PlaybackResponse>;
 
         /**
-         * Upon receipt, this shall Start Over with the current media playback item.
+         * This command is used to start playback of the media from the beginning. Upon receipt, this shall Start Over
+         * with the current media playback item.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.4
          */
         startOver(): MaybePromise<MediaPlayback.PlaybackResponse>;
 
         /**
+         * This command is used to go back to the previous media playback item.
+         *
          * Upon receipt, this shall cause the handler to be invoked for "Previous". User experience is context-specific.
          * This will often Go back to the previous media playback item.
          *
@@ -50,6 +57,8 @@ export namespace MediaPlaybackInterface {
         previous(): MaybePromise<MediaPlayback.PlaybackResponse>;
 
         /**
+         * This command is used to go to the next media playback item.
+         *
          * Upon receipt, this shall cause the handler to be invoked for "Next". User experience is context-specific.
          * This will often Go forward to the next media playback item.
          *
@@ -58,6 +67,8 @@ export namespace MediaPlaybackInterface {
         next(): MaybePromise<MediaPlayback.PlaybackResponse>;
 
         /**
+         * This command is used to skip forward in the media.
+         *
          * Upon receipt, this shall Skip forward in the media by the given number of milliseconds.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.9
@@ -65,6 +76,8 @@ export namespace MediaPlaybackInterface {
         skipForward(request: MediaPlayback.SkipForwardRequest): MaybePromise<MediaPlayback.PlaybackResponse>;
 
         /**
+         * This command is used to skip backward in the media.
+         *
          * Upon receipt, this shall Skip backward in the media by the given number of milliseconds.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.10
@@ -74,6 +87,8 @@ export namespace MediaPlaybackInterface {
 
     export interface AdvancedSeek {
         /**
+         * This command is used to seek to a specific position in the media.
+         *
          * Upon receipt, this shall change the playback position in the media to the given position.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.11
@@ -83,6 +98,8 @@ export namespace MediaPlaybackInterface {
 
     export interface AudioTracks {
         /**
+         * This command is used to activate a specific Audio Track for the media being played.
+         *
          * Upon receipt, the server shall set the active Audio Track to the one identified by the TrackID in the Track
          * catalog for the streaming media. If the TrackID does not exist in the Track catalog, OR does not correspond
          * to the streaming media OR no media is being streamed at the time of receipt of this command, the server will
@@ -95,6 +112,8 @@ export namespace MediaPlaybackInterface {
 
     export interface TextTracks {
         /**
+         * This command is used to activate a specific Text Track for the media being played.
+         *
          * Upon receipt, the server shall set the active Text Track to the one identified by the TrackID in the Track
          * catalog for the streaming media. If the TrackID does not exist in the Track catalog, OR does not correspond
          * to the streaming media OR no media is being streamed at the time of receipt of this command, the server shall
@@ -105,6 +124,8 @@ export namespace MediaPlaybackInterface {
         activateTextTrack(request: MediaPlayback.ActivateTextTrackRequest): MaybePromise;
 
         /**
+         * This command is used to deactivate a specific Text Track for the media being played.
+         *
          * If a Text Track is active (i.e. being displayed), upon receipt of this command, the server shall stop
          * displaying it.
          *
@@ -115,6 +136,8 @@ export namespace MediaPlaybackInterface {
 
     export interface VariableSpeed {
         /**
+         * This command is used to rewind the media.
+         *
          * Upon receipt, this shall start playback of the media backward in case the media is currently playing in the
          * forward direction or is not playing. If the playback is already happening in the backwards direction receipt
          * of this command shall increase the speed of the media playback backwards.
@@ -132,6 +155,8 @@ export namespace MediaPlaybackInterface {
         rewind(request: MediaPlayback.RewindRequest): MaybePromise<MediaPlayback.PlaybackResponse>;
 
         /**
+         * This command is used to fast forward the media.
+         *
          * Upon receipt, this shall start playback of the media in the forward direction in case the media is currently
          * playing in the backward direction or is not playing. If the playback is already happening in the forward
          * direction receipt of this command shall increase the speed of the media playback.

@@ -30,9 +30,19 @@ Resource.add({
 
         {
             tag: "attribute", name: "TemperatureUnit", xref: "core§11.5.6.1",
-            details: "The TemperatureUnit attribute shall indicate the unit for the Node to use only when conveying " +
-                "temperature in communication to the user. If provided, this value shall take priority over any unit " +
-                "implied through the ActiveLocale Attribute."
+
+            details: "Indicates the unit for the Node to use only when conveying temperature in communication to the user, " +
+                "for example such as via a user interface on the device. If provided, this value shall take priority " +
+                "over any unit implied through the ActiveLocale Attribute." +
+                "\n" +
+                "An attempt to write to this attribute with a value not included in the SupportedTemperatureUnits " +
+                "attribute list shall result in a CONSTRAINT_ERROR."
+        },
+
+        {
+            tag: "attribute", name: "SupportedTemperatureUnits", xref: "core§11.5.6.2",
+            details: "Indicates a list of units supported by the Node to be used when writing the TemperatureUnit " +
+                "attribute of this cluster. Each entry in the list shall be unique."
         },
 
         {

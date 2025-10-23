@@ -22,7 +22,7 @@ Resource.add({
                 { tag: "field", name: "MEA", details: "Cluster supports numeric measurement of substance" },
                 {
                     tag: "field", name: "LEV",
-                    details: "Cluster supports basic level indication for substance using the ConcentrationLev el enum"
+                    details: "Cluster supports basic level indication for substance using the ConcentrationLevel enum"
                 },
                 { tag: "field", name: "MED", details: "Cluster supports the Medium Concentration Level" },
                 { tag: "field", name: "CRI", details: "Cluster supports the Critical Concentration Level" },
@@ -72,8 +72,7 @@ Resource.add({
 
         {
             tag: "attribute", name: "AverageMeasuredValueWindow", xref: "cluster§2.10.6.7",
-            details: "This attribute shall represent the window of time used for determining the AverageMeasuredValue. The " +
-                "value is in seconds."
+            details: "Indicates the window of time used for determining the AverageMeasuredValue. The value is in seconds."
         },
         {
             tag: "attribute", name: "Uncertainty", xref: "cluster§2.10.6.8",
@@ -86,7 +85,8 @@ Resource.add({
         },
         {
             tag: "attribute", name: "MeasurementMedium", xref: "cluster§2.10.6.10",
-            details: "Indicates the medium in which MeasuredValue is being measured. See MeasurementMediumEnum."
+            details: "Indicates the medium in which MeasuredValue or LevelValue is being measured. See " +
+                "MeasurementMediumEnum."
         },
         {
             tag: "attribute", name: "LevelValue", xref: "cluster§2.10.6.11",

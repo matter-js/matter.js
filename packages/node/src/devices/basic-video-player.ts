@@ -34,8 +34,8 @@ import { Identity } from "#general";
  * For example, a Basic Video Player can be a traditional TV device a physical media playback device such as a DVD
  * Player, or a device that provides input to another device like a TV or computer monitor.
  *
- * Please see Video Player Architecture for additional Basic Video Player requirements relating to Video Player device
- * endpoint composition, commissioning, feature representation in clusters, and UI context.
+ * See Section 10.1, “Video Player Architecture” for additional Basic Video Player requirements relating to Video Player
+ * device endpoint composition, commissioning, feature representation in clusters, and UI context.
  *
  * @see {@link MatterSpecification.v141.Device} § 10.2
  */

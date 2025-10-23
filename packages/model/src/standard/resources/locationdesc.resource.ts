@@ -9,12 +9,12 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "datatype", name: "locationdesc", description: "Location Descriptor", xref: "core§7.19.2.45",
+    tag: "datatype", name: "locationdesc", description: "Location Descriptor", xref: "core§7.19.2.49",
     details: "This data type shall be represented by the following structure:",
 
     children: [
         {
-            tag: "field", name: "LocationName", xref: "core§7.19.2.45.1",
+            tag: "field", name: "LocationName", xref: "core§7.19.2.49.1",
             details: "This field shall indicate the name of the location. For example, \"blue room\"." +
                 "\n" +
                 "If the location name is not user provided, the logic that generates it (clients, devices etc.) " +
@@ -23,7 +23,7 @@ Resource.add({
         },
 
         {
-            tag: "field", name: "FloorNumber", xref: "core§7.19.2.45.2",
+            tag: "field", name: "FloorNumber", xref: "core§7.19.2.49.2",
 
             details: "This field shall indicate the level number. Negative values correspond to basement levels." +
                 "\n" +
@@ -35,7 +35,7 @@ Resource.add({
                 "North America, building level 1, which is at street level, SHOULD be mapped to FloorNumber tag value " +
                 "0x0." +
                 "\n" +
-                "A null value indicates that this information is not available." +
+                "A NULL value indicates that this information is not available." +
                 "\n" +
                 "When the clients present the level information for user selection, they SHOULD use the operating " +
                 "region to determine how to render and map this data. For example, if the client operates in North " +
@@ -55,12 +55,12 @@ Resource.add({
         },
 
         {
-            tag: "field", name: "AreaType", xref: "core§7.19.2.45.3",
+            tag: "field", name: "AreaType", xref: "core§7.19.2.49.3",
 
             details: "This field shall be the ID of an area semantic tag, located within the Common Area Namespace. For " +
                 "example, this tag may indicate that the location refers to a bedroom." +
                 "\n" +
-                "If this field is null, that indicates that the area type information is not available." +
+                "If this field is NULL, that indicates that the area type information is not available." +
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +

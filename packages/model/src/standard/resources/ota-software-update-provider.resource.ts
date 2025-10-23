@@ -103,6 +103,8 @@ Resource.add(
                             "externally agreed-upon policy whereby strictly correct additional MetadataForProvider is expected to " +
                             "fulfill the OTA Software Update process." +
                             "\n" +
+                            "### Usage of the QueryImage Command" +
+                            "\n" +
                             "OTA Requestors shall send a QueryImage command to the OTA Provider to determine the availability of " +
                             "a new Software Image." +
                             "\n" +
@@ -133,7 +135,8 @@ Resource.add(
                             "Providers SHOULD expect OTA Requestors to follow this value to their best capability, however, a " +
                             "restarting Node may come back sooner, due to having lost track of this state response." +
                             "\n" +
-                            "The DelayedActionTime field shall only be present if the Status field is set to Busy." +
+                            "Beware, this field is conditionally present based on the conformance listed in Section 11.20.6.5.2, " +
+                            "“QueryImageResponse Command”." +
                             "\n" +
                             "See Section 11.20.3.2, “Querying the OTA Provider” for details about the rules regarding this field."
                     },
@@ -141,10 +144,11 @@ Resource.add(
                     {
                         tag: "field", name: "ImageUri", xref: "core§11.20.6.5.2.3",
 
-                        details: "This field, when present, shall contain a URI where the OTA Requestor SHOULD download a Software " +
+                        details: "This field, when present, shall contain a URI where the OTA Requestor SHOULD download a Soft ware " +
                             "Image. The syntax of the ImageURI field shall follow the URI syntax as specified in RFC 3986." +
                             "\n" +
-                            "This field shall be present if it appears in a QueryImageResponse with a Status of UpdateAvailable." +
+                            "Beware, this field is conditionally present based on the conformance listed in Section 11.20.6.5.2, " +
+                            "“QueryImageResponse Command”." +
                             "\n" +
                             "If the ImageURI specifies a BDX Protocol bdx: scheme, then the following rules describe the location " +
                             "to be used for download:" +
@@ -244,9 +248,10 @@ Resource.add(
                         tag: "field", name: "SoftwareVersion", xref: "core§11.20.6.5.2.4",
 
                         details: "This field indicates the version of the image being provided to the OTA Requestor by the OTA " +
-                            "Provider when the Status is UpdateAvailable." +
+                            "Provider." +
                             "\n" +
-                            "This field shall be present if it appears in a QueryImageResponse with a Status of UpdateAvailable." +
+                            "Beware, this field is conditionally present based on the conformance listed in Section 11.20.6.5.2, " +
+                            "“QueryImageResponse Command”." +
                             "\n" +
                             "See Section 11.20.3.2, “Querying the OTA Provider” for additional details about the flow and " +
                             "acceptable values."
@@ -256,9 +261,11 @@ Resource.add(
                         tag: "field", name: "SoftwareVersionString", xref: "core§11.20.6.5.2.5",
 
                         details: "This field provides a string version of the image being provided to the OTA Requestor by the OTA " +
-                            "Provider when the Status is UpdateAvailable." +
+                            "Provider." +
                             "\n" +
-                            "This field shall be present if it appears in a QueryImageResponse with a Status of UpdateAvailable." +
+                            "Beware, this field is conditionally present based on the conformance listed in Section 11.20.6.5.2," +
+                            "\n" +
+                            "“QueryImageResponse Command”." +
                             "\n" +
                             "See Section 11.20.3.2, “Querying the OTA Provider” for additional details about the flow and " +
                             "acceptable values."
@@ -266,7 +273,8 @@ Resource.add(
 
                     {
                         tag: "field", name: "UpdateToken", xref: "core§11.20.6.5.2.6",
-                        details: "This optional field shall be present when the Status field contains UpdateAvailable." +
+                        details: "Beware, this field is conditionally present based on the conformance listed in Section 11.20.6.5.2, " +
+                            "“QueryImageResponse Command”." +
                             "\n" +
                             "See Section 11.20.3.6.1, “UpdateToken usage” for additional details about the generation and usage " +
                             "of UpdateToken."
@@ -320,8 +328,12 @@ Resource.add(
                             "new Software Image which the OTA Requestor is ready to start applying. The OTA Provider may use this " +
                             "new version to track or record Software Image application by OTA Requestors." +
                             "\n" +
+                            "### When Generated" +
+                            "\n" +
                             "The ApplyUpdateRequest Command shall be invoked by an OTA Requestor once it is ready to apply a " +
                             "previously downloaded Software Image." +
+                            "\n" +
+                            "### Effect on Receipt" +
                             "\n" +
                             "Upon receipt of this command the OTA Provider shall respond with an Action field consistent with the " +
                             "next action the OTA Requestor should take, including any possible time delay." +
@@ -332,6 +344,8 @@ Resource.add(
                             "\n" +
                             "See Section 11.20.3.6, “Applying a software update” for a description of the flow in response to an " +
                             "OTA Provider receiving an invocation of this command." +
+                            "\n" +
+                            "### Handling Error Cases" +
                             "\n" +
                             "See Section 11.20.3.6, “Applying a software update” for all error-handling information."
                     }
@@ -376,10 +390,12 @@ Resource.add(
                             "SoftwareVersion attribute in the invoking OTA Requestor’s Basic Information Cluster, and SHOULD be " +
                             "consistent with the value representing a new version running on the Node invoking the command." +
                             "\n" +
+                            "### When Generated" +
+                            "\n" +
                             "The NotifyUpdateApplied command SHOULD be invoked in the following two circumstances:" +
                             "\n" +
                             "  1. An OTA Requestor has just successfully applied a Software Image it had obtained from a previous " +
-                            "     QueryImage response." +
+                            "     QueryImageResponse." +
                             "\n" +
                             "  2. An OTA Requestor has just successfully applied a Software Image it had obtained through means " +
                             "     different than those of this Cluster." +
@@ -392,6 +408,8 @@ Resource.add(
                             "\n" +
                             "This command shall be considered optional and shall NOT result in reduced availability of the OTA " +
                             "Provider functionality if OTA Requestors never invoke this command." +
+                            "\n" +
+                            "### Effect on Receipt" +
                             "\n" +
                             "An OTA Provider receiving an invocation of this command may log it internally." +
                             "\n" +

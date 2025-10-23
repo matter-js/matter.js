@@ -152,8 +152,8 @@ export function* scanDocument(docRef: HtmlReference) {
                             }
                         }
 
-                        // If there's just a bare name hanging repeating the section name, don't let it confuse us.  Yes,
-                        // it happens, see v1.1 cluster 6.5.5.2, "OutputTypeEnum"
+                        // If there's just a bare name hanging repeating the section name, don't let it confuse us.
+                        // Yes, it happens, see v1.1 cluster 6.5.5.2, "OutputTypeEnum"
                         if (currentRef?.name === text) {
                             continue;
                         }

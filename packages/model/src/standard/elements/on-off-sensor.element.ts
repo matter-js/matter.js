@@ -18,7 +18,7 @@ export const OnOffSensorDt = DeviceType(
     Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "clientCluster" }),
     Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "clientCluster" }),
-    Requirement({ name: "ScenesManagement", id: 0x62, conformance: "P, O", element: "clientCluster" }),
+    Requirement({ name: "ScenesManagement", id: 0x62, conformance: "O", element: "clientCluster" }),
     Requirement({ name: "OnOff", id: 0x6, conformance: "M", element: "clientCluster" }),
     Requirement({ name: "LevelControl", id: 0x8, conformance: "O", element: "clientCluster" }),
     Requirement({ name: "ColorControl", id: 0x300, conformance: "O", element: "clientCluster" })

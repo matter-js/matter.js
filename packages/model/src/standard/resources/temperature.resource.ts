@@ -10,7 +10,7 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add(
     {
-        tag: "datatype", name: "temperature", description: "Temperature", xref: "core§7.19.2.11",
+        tag: "datatype", name: "temperature", description: "Temperature", xref: "core§7.19.2.9",
 
         details: "This type represents a temperature on the Celsius scale with a resolution of 0.01°C." +
             "\n" +
@@ -20,7 +20,8 @@ Resource.add(
             "\n" +
             "### Conversion of Temperature Values for Display" +
             "\n" +
-            "When converting temperature values for display manufacturers SHOULD ensure that calculations" +
+            "When converting temperature values for display manufacturers SHOULD ensure that calculations round " +
+            "to the nearest representable value. Particular care is needed when using integer arithmetic." +
             "\n" +
             "### Sample Conversion Code" +
             "\n" +
@@ -30,7 +31,7 @@ Resource.add(
             "For degF: the value is a int8u representing 2x temperature value in Fahrenheit (to get 0.5 " +
             "resolution)." +
             "\n" +
-            "For degC: the value is a int16s representing Celsius in 0.01 resolution as expected by the ZCL " +
+            "For degC: the value is a int16s representing Celsius in 0.01 resolution as expected by the Matter " +
             "format."
     }
 );

@@ -108,7 +108,7 @@ export namespace ContentControlInterface {
          * The purpose of this command is to specify whether programs with no Content rating must be blocked by this
          * media device.
          *
-         * Upon receipt of the UnblockUnratedContent command, the media device shall set the BlockUnrated attribute to
+         * Upon receipt of the UnblockUnratedContent command, the media device shall set the BlockUn rated attribute to
          * FALSE.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 6.13.8.9

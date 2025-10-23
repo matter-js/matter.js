@@ -15,11 +15,11 @@ import {
 export const RelativePositionNs = SemanticNamespace(
     { name: "RelativePosition", id: 0x12 },
     SemanticTag({ name: "Under", id: 0x0 }),
-    SemanticTag({ name: "Next To", id: 0x1 }),
+    SemanticTag({ name: "NextTo", id: 0x1 }),
     SemanticTag({ name: "Around", id: 0x2 }),
     SemanticTag({ name: "On", id: 0x3 }),
     SemanticTag({ name: "Above", id: 0x4 }),
-    SemanticTag({ name: "Front Of", id: 0x5 }),
+    SemanticTag({ name: "FrontOf", id: 0x5 }),
     SemanticTag({ name: "Behind", id: 0x6 })
 );
 

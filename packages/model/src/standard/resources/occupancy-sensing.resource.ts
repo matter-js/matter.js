@@ -28,11 +28,15 @@ Resource.add({
                 { tag: "field", name: "PHY", details: "Supports sensing using a physical contact" },
                 {
                     tag: "field", name: "AIR",
-                    details: "Supports sensing using Active InfraRed measurement (e.g. time-of-flight or transflective/reflec tive " +
+                    details: "Supports sensing using Active InfraRed measurement (e.g. time-of-flight or transflective/reflective " +
                         "IR sensing)"
                 },
                 { tag: "field", name: "RAD", details: "Supports sensing using radar waves (microwave)" },
-                { tag: "field", name: "RFS", details: "Supports sensing based on RF signal analysis" },
+                {
+                    tag: "field", name: "RFS",
+                    details: "Supports sensing using analysis of radio signals, e.g.: RSSI, CSI and/or any other metric from the " +
+                        "signal"
+                },
                 { tag: "field", name: "VIS", details: "Supports sensing based on analyzing images" }
             ]
         },
@@ -51,13 +55,11 @@ Resource.add({
             tag: "attribute", name: "HoldTime", xref: "cluster§2.7.6.3",
 
             details: "This attribute shall specify the time delay, in seconds, before the sensor changes to its unoccupied " +
-                "state after the last detection of occupancy in the sensed area. This is equivalent to the legacy" +
-                "\n" +
+                "state after the last detection of occupancy in the sensed area. This is equivalent to the legacy " +
                 "*OccupiedToUnoccupiedDelay attributes." +
                 "\n" +
-                "The value of HoldTime shall be within the limits provided in the HoldTimeLimits attribute, i.e. " +
-                "HoldTimeMin <= HoldTime <= HoldTimeMax Low values of HoldTime SHOULD be avoided since they could " +
-                "lead to many reporting messages. A value 0 for HoldTime shall NOT be used." +
+                "Low values of HoldTime SHOULD be avoided since they could lead to many reporting messages. A value 0 " +
+                "for HoldTime shall NOT be used." +
                 "\n" +
                 "The figure below illustrates this with an example of how this attribute is used for a PIR sensor. It " +
                 "uses threshold detection to generate an \"internal detection\" signal, which needs post-processing to " +

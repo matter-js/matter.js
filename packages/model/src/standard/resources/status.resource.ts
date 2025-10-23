@@ -39,7 +39,7 @@ Resource.add({
         },
         {
             tag: "field", name: "InvalidCommand",
-            description: "The cluster command is malformed, has missing fields, or fields with invalid values.Command not carried out.",
+            description: "The cluster command is malformed, has missing fields, or fields with invalid values. Command not carried out.",
             xref: "core§8.10.1"
         },
         {
@@ -146,12 +146,27 @@ Resource.add({
         },
         {
             tag: "field", name: "TermsAndConditionsChanged",
-            description: "The node requires updated TC acceptance. The user MAY be directed to visit the EnhancedSetupFlowMaintenan ceUrl to complete this.",
+            description: "The node requires updated TC acceptance. The user MAY be directed to visit the EnhancedSetupFlowMaintenanceUrl to complete this.",
             xref: "core§8.10.1"
         },
         {
             tag: "field", name: "MaintenanceRequired",
-            description: "The node requires the user to visit the EnhancedSetupFlowMaintenan ceUrl for instructions on further action.",
+            description: "The node requires the user to visit the EnhancedSetupFlowMaintenanceUrl for instructions on further action.",
+            xref: "core§8.10.1"
+        },
+        {
+            tag: "field", name: "DynamicConstraintError",
+            description: "The value for the data type was not accepted due to runtime validation issues. Command or action not carried out.",
+            xref: "core§8.10.1"
+        },
+        {
+            tag: "field", name: "AlreadyExists",
+            description: "Attempt to create an entity that already exists or create an entity with an identifier that is already in use. Command or action not carried out.",
+            xref: "core§8.10.1"
+        },
+        {
+            tag: "field", name: "InvalidTransportType",
+            description: "Attempt to process on a transport type not valid for this element. Command or action not carried out.",
             xref: "core§8.10.1"
         }
     ]

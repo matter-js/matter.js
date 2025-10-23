@@ -36,8 +36,8 @@ Resource.add({
             tag: "attribute", name: "CatalogList", xref: "cluster§6.4.6.1",
 
             details: "This attribute shall specify the list of supported application catalogs, where each entry in the " +
-                "list is the CSA-issued vendor ID for the catalog. The DIAL registry (see [DIAL Registry]) shall use " +
-                "value 0x0000." +
+                "list is the Connectivity Standards Alliance-issued vendor ID for the catalog. The DIAL registry (see " +
+                "[DIAL Registry]) shall use value 0x0000." +
                 "\n" +
                 "It is expected that Content App Platform providers will have their own catalog vendor ID (set to " +
                 "their own Vendor ID) and will assign an ApplicationID to each Content App."
@@ -125,7 +125,9 @@ Resource.add({
                 "constraints if any. The Status attribute shall be updated to ActiveHidden or Stopped, depending on " +
                 "the action taken, on the Application Basic cluster of the Endpoint corresponding to the application " +
                 "on which the action was taken. The Status attribute shall be updated on any other application whose " +
-                "Status may have changed as a result of this command. This command returns a Launcher Response.",
+                "Status may have changed as a result of this command." +
+                "\n" +
+                "This command returns a Launcher Response.",
 
             children: [{
                 tag: "field", name: "Application", xref: "cluster§6.4.7.3.1",
@@ -169,8 +171,8 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "CatalogVendorId", xref: "cluster§6.4.5.2.1",
-                    details: "This field shall indicate the CSA-issued vendor ID for the catalog. The DIAL registry shall use " +
-                        "value 0x0000." +
+                    details: "This field shall indicate the Connectivity Standards Alliance-issued vendor ID for the catalog. The " +
+                        "DIAL registry shall use value 0x0000." +
                         "\n" +
                         "Content App Platform providers will have their own catalog vendor ID (set to their own Vendor ID) " +
                         "and will assign an ApplicationID to each Content App."

@@ -12,7 +12,7 @@ import { BitFlag } from "../schema/BitmapSchema.js";
  * The WildcardPathFlagsBitmap indicates flags that apply to the path, affecting wildcard expansion. The following flags
  * are defined:
  *
- * @see {@link MatterSpecification.v141.Core} § 8.9.2.3
+ * @see {@link MatterSpecification.v141.Core} § 8.9.2.5
  */
 export const WildcardPathFlags = {
     /**
@@ -30,7 +30,7 @@ export const WildcardPathFlags = {
      */
     wildcardSkipAttributeList: BitFlag(2),
 
-    reserved: BitFlag(3),
+    doNotUse: BitFlag(3),
 
     /**
      * Skip the AcceptedCommandList and GeneratedCommandList global attributes during wildcard expansion.

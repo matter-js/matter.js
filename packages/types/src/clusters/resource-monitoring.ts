@@ -215,7 +215,7 @@ export namespace ResourceMonitoring {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 2.8.6.3
              */
-            changeIndication: Attribute(0x2, TlvEnum<ChangeIndication>(), { default: ChangeIndication.Ok }),
+            changeIndication: Attribute(0x2, TlvEnum<ChangeIndication>()),
 
             /**
              * Indicates whether a resource is currently installed. A value of true shall indicate that a resource is

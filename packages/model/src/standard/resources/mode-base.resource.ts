@@ -51,7 +51,17 @@ Resource.add({
                 "ModeOptionStruct." +
                 "\n" +
                 "Each entry in this list shall have a unique value for the Mode field. Each entry in this list shall " +
-                "have a unique value for the Label field."
+                "have a unique value for the Label field." +
+                "\n" +
+                "The set of ModeTags listed in each entry in this list shall be distinct from the sets of ModeTags " +
+                "listed in the other entries. This comparison shall NOT depend on the order of the ModeTags in the " +
+                "lists. Two sets shall be considered distinct if one of them contains an element that the other one " +
+                "does not. Note that the two sets could have a non-empty intersection, or one could be a subset of " +
+                "the other, and still be distinct." +
+                "\n" +
+                "Simplified examples of allowed ModeTags lists:" +
+                "\n" +
+                "Simplified examples of disallowed ModeTags lists:"
         },
 
         {
@@ -75,7 +85,7 @@ Resource.add({
                 "\n" +
                 "If this attribute is not null, the CurrentMode attribute shall be set to the StartUpMode value, when " +
                 "the server is powered up, except in the case when the OnMode attribute overrides the StartUpMode " +
-                "attribute (see OnModeWithPowerUp)." +
+                "attribute (see Section 1.10.6.4.1, “OnMode with Power Up”)." +
                 "\n" +
                 "This behavior does not apply to reboots associated with OTA. After an OTA restart, the CurrentMode " +
                 "attribute shall return to its value prior to the restart." +
@@ -201,6 +211,9 @@ Resource.add({
                         "A mode option may have more than one mode tag. A mode option may be associated with a mixture of " +
                         "standard and manufacturer specific mode tags. A mode option shall be associated with at least one " +
                         "standard mode tag." +
+                        "\n" +
+                        "Each mode tag in this field shall be distinct from other mode tags in this field. For example, a " +
+                        "simplified list containing [Auto, Auto] would not be allowed." +
                         "\n" +
                         "A few examples are provided below." +
                         "\n" +

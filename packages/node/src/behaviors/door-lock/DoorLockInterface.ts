@@ -69,7 +69,7 @@ export namespace DoorLockInterface {
         /**
          * Retrieve user.
          *
-         * An InvokeResponse command shall be sent with an appropriate error (e.g. FAILURE, INVALID_COMMAND, etc.) as
+         * An InvokeResponse command shall be sent with an appropriate error (e.g. FAILURE, INVALID_ COMMAND, etc.) as
          * needed otherwise the GetUserResponse Command shall be sent implying a status of SUCCESS.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 5.2.10.33

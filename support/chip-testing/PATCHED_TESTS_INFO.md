@@ -5,8 +5,6 @@
 | Test                                   | Reason                                                                                        |
 |----------------------------------------|-----------------------------------------------------------------------------------------------|
 | TestAccessControlCluster.yaml          | see https://github.com/project-chip/connectedhomeip/issues/33578                              |
-| TestOperationalCredentialsCluster.yaml | VIDVerificationStatement checks from Matter 1.5 were added                                    | 
-| Test_TC_BINFO_2_1.yaml                 | SDK already prepared for Matter 1.5 including new attributes                                  |
 
 # CI-PICS
 

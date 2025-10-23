@@ -608,7 +608,7 @@ function ParsedAst(conformance: Conformance, definition: string): Conformance.As
                 return { type: Conformance.Special.Desc };
             }
 
-            if (name === "null") {
+            if (name.toLowerCase() === "null") {
                 return { type: Conformance.Special.Value, param: null };
             }
 
@@ -644,7 +644,7 @@ function ParsedAst(conformance: Conformance, definition: string): Conformance.As
 
 namespace Parser {
     // Highest precedence first
-    export const BinaryOperatorPrecedence = [["&"], ["|", "^"], [">", "<", ">=", "<="], ["==", "!="]];
+    export const BinaryOperatorPrecedence = [[">", "<", ">=", "<="], ["&"], ["|", "^"], ["==", "!="]];
 
     export const BinaryOperators = new Set(BinaryOperatorPrecedence.flat());
 }
@@ -768,12 +768,9 @@ function computeApplicability(features: Set<string>, supportedFeatures: Set<stri
                 if (operators.has(ast.type)) {
                     return Optional;
                 }
-
-                throw new InternalError(
-                    `Conformance ${conformance}: Invalid node type ${ast.type} in inner expression`,
-                );
         }
-        return Mandatory;
+
+        throw new InternalError(`Conformance ${conformance}: Invalid node type ${ast.type} in inner expression`);
     }
 }
 

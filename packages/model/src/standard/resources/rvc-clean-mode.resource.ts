@@ -59,7 +59,8 @@ Resource.add({
                 {
                     tag: "field", name: "Mop", xref: "cluster§7.3.7.2.3",
                     details: "The device’s mopping feature is enabled in this mode."
-                }
+                },
+                { tag: "field", name: "VacuumThenMop", xref: "cluster§7.3.7.2" }
             ]
         }
     ]

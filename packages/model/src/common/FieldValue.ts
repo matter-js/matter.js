@@ -290,7 +290,7 @@ export namespace FieldValue {
             return value;
         }
 
-        if (value === "null") {
+        if (value === "null" || value === "NULL") {
             return null;
         }
 

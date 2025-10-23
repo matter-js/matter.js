@@ -10,6 +10,7 @@ import {
     ClassSemantics,
     ClusterModel,
     Conformance,
+    DecodedBitmap,
     DefaultValue,
     ElementTag,
     FeatureMap,
@@ -456,6 +457,9 @@ function selectDefaultValue(
     // If there's an explicit default, use that
     const effectiveDefault = DefaultValue(scope, member);
     if (effectiveDefault !== undefined) {
+        if (member.effectiveMetatype === "bitmap") {
+            return DecodedBitmap(member, effectiveDefault);
+        }
         return effectiveDefault;
     }
 
@@ -465,6 +469,13 @@ function selectDefaultValue(
     }
 
     switch (member.effectiveMetatype) {
+        case Metatype.integer:
+        case Metatype.float:
+            return 0;
+
+        case Metatype.boolean:
+            return false;
+
         case Metatype.bitmap:
         case Metatype.object:
             // This is not a very good default but it is better than undefined

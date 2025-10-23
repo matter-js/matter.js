@@ -21,8 +21,8 @@ export const OnOffLightDt = DeviceType(
     ),
     Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster" }),
     Requirement(
-        { name: "ScenesManagement", id: 0x62, conformance: "P, M", element: "serverCluster" },
-        Requirement({ name: "CopyScene", conformance: "P, M", element: "command" })
+        { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster" },
+        Requirement({ name: "CopyScene", conformance: "M", element: "command" })
     ),
     Requirement(
         { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster" },

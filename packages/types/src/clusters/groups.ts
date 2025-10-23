@@ -44,14 +44,7 @@ export namespace Groups {
      *
      * @see {@link MatterSpecification.v141.Cluster} § 1.3.6.1
      */
-    export const NameSupportAttribute = {
-        nameSupport: BitFlag(7),
-
-        /**
-         * The ability to store a name for a group.
-         */
-        groupNames: BitFlag(7)
-    };
+    export const NameSupportAttribute = { groupNames: BitFlag(7) };
 
     /**
      * Input to the Groups addGroup command

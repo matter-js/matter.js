@@ -35,9 +35,10 @@ export namespace LaundryDryerRequirements {
     /**
      * The OperationalState cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link OperationalStateServer} for convenience.
+     * This version of {@link OperationalStateServer} is specialized per the specification.
      */
-    export const OperationalStateServer = BaseOperationalStateServer;
+    export const OperationalStateServer = BaseOperationalStateServer
+        .alter({ events: { operationCompletion: { optional: false } } });
 
     /**
      * The Identify cluster is optional per the Matter specification.
@@ -93,7 +94,7 @@ export namespace LaundryDryerRequirements {
 export const LaundryDryerDeviceDefinition = MutableEndpoint({
     name: "LaundryDryer",
     deviceType: 0x7c,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: LaundryDryerRequirements,
     behaviors: SupportedBehaviors(LaundryDryerRequirements.server.mandatory.OperationalState)
 });

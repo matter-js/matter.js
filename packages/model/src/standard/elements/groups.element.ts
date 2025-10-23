@@ -26,9 +26,9 @@ export const Groups = Cluster(
     Attribute(
         {
             name: "NameSupport", id: 0x0, type: "NameSupportBitmap", access: "R V", conformance: "M",
-            constraint: "desc", default: 0, quality: "F"
+            constraint: "desc", quality: "F"
         },
-        Field({ name: "NameSupport", constraint: "7", default: 1 })
+        Field({ name: "GroupNames", constraint: "7", default: 1 })
     ),
 
     Command(

@@ -50,7 +50,7 @@ Resource.add({
                 "since the Node’s last reboot. This attribute SHOULD be incremented to account for the periods of " +
                 "time that a Node is in a low-power or sleep state. This attribute shall only be reset upon a device " +
                 "reboot. This attribute shall be based on the same System Time source as those used to fulfill any " +
-                "usage of the system-us and system-ms data types within the server."
+                "usage of the systime-us and systime-ms data types within the server."
         },
 
         {
@@ -110,10 +110,11 @@ Resource.add({
 
             details: "The TestEventTriggersEnabled attribute shall indicate whether the Node has any TestEventTrigger " +
                 "configured. When this attribute is true, the Node has been configured with one or more test event " +
-                "triggers by virtue of the internally programmed EnableKey value (see TestEventTrigger) being set to " +
-                "a non-zero value. This attribute can be used by Administrators to detect if a device was " +
-                "inadvertently commissioned with test event trigger mode enabled, and take appropriate action (e.g. " +
-                "warn the user and/or offer to remove all fabrics on the Node)."
+                "triggers by virtue of the internally programmed EnableKey value (see Section 11.12.7.1, " +
+                "“TestEventTrigger Command”) being set to a non-zero value. This attribute can be used by " +
+                "Administrators to detect if a device was inadvertently commissioned with test event trigger mode " +
+                "enabled, and take appropriate action (e.g. warn the user and/or offer to remove all fabrics on the " +
+                "Node)."
         },
 
         { tag: "attribute", name: "DoNotUse", xref: "core§11.12.6" },
@@ -221,7 +222,8 @@ Resource.add({
                         "Connectivity Standards Alliance, in conjunction with certification test cases documentation." +
                         "\n" +
                         "Values of EventTrigger in the range 0xFFFF_FFFF_0000_0000 through 0xFFFF_FFFF_FFFF_FFFF are reserved " +
-                        "for testing use by manufacturers and will not appear in CSA certification test literature." +
+                        "for testing use by manufacturers and will not appear in the Connectivity Standards Alliance " +
+                        "certification test literature." +
                         "\n" +
                         "If the value of EventTrigger received is not supported by the receiving Node, this command shall " +
                         "fail with a status code of INVALID_COMMAND." +
@@ -263,7 +265,7 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "SystemTimeMs", xref: "core§11.12.7.3.1",
-                    details: "This shall indicate the current System Time in milliseconds (type system-ms), with the value taken " +
+                    details: "This shall indicate the current System Time in milliseconds (type systime-ms), with the value taken " +
                         "at the time of processing of the TimeSnapshot command that generated this response." +
                         "\n" +
                         "The value shall be taken from the same clock which populates the Timestamp field in events when " +
@@ -318,11 +320,10 @@ Resource.add({
                         "\n" +
                         "  • The EnableKey field does not match the a-priori value configured on the device." +
                         "\n" +
-                        "  • The TestEventTriggersEnabled field is currently false." +
-                        "\n" +
-                        "Otherwise, the server shall respond with a PayloadTestResponse command with a Payload field value " +
-                        "containing Count instances of the Value byte. If the response is too large to send, the server shall " +
-                        "fail the command and respond with a response status of RESOURCE_EXHAUSTED." +
+                        "  • The TestEventTriggersEnabled field is currently false. Otherwise, the server shall respond with " +
+                        "    a PayloadTestResponse command with a Payload field value containing Count instances of the Value " +
+                        "    byte. If the response is too large to send, the server shall fail the command and respond with a " +
+                        "    response status of RESOURCE_EXHAUSTED." +
                         "\n" +
                         "For example:" +
                         "\n" +
@@ -411,7 +412,7 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "ThreadFault",
-                    description: "The Node has encountered a fault with its 802.15.4 radio."
+                    description: "The Node has encountered a fault with its802.15.4 radio."
                 },
                 { tag: "field", name: "NfcFault", description: "The Node has encountered a fault with its NFC radio." },
                 { tag: "field", name: "BleFault", description: "The Node has encountered a fault with its BLE radio." },

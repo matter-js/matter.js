@@ -280,15 +280,24 @@ Resource.add(
             },
             {
                 tag: "attribute", name: "OperatingMode", xref: "cluster§5.2.9.24",
-                details: "This attribute shall indicate the current operating mode of the lock as defined in " +
-                    "OperatingModeEnum."
+                details: "Indicates the current operating mode of the lock as defined in OperatingModeEnum."
             },
 
             {
                 tag: "attribute", name: "SupportedOperatingModes", xref: "cluster§5.2.9.25",
+
                 details: "This attribute shall contain a bitmap with all operating bits of the OperatingMode attribute " +
-                    "supported by the lock. All operating modes NOT supported by a lock shall be set to one. The value of " +
-                    "the OperatingMode enumeration defines the related bit to be set."
+                    "supported by the lock." +
+                    "\n" +
+                    "A bit position set to zero shall indicate that the mode is supported. A bit position set to one " +
+                    "shall indicate that the mode is not supported." +
+                    "\n" +
+                    "Any bit that is not yet defined in OperatingModesBitmap shall be set to 1." +
+                    "\n" +
+                    "The values considered valid to read or write in the OperatingMode attribute shall be the enum values " +
+                    "from DoorLockOperatingModeEnum whose equivalent same-named bit from OperatingModesBitmap is set to " +
+                    "zero in this attribute. WARNING: This is the opposite of most other semantically similar bitmaps in " +
+                    "this specification."
             },
 
             {
@@ -403,65 +412,58 @@ Resource.add(
             },
 
             {
-                tag: "attribute", name: "AlarmMask", xref: "cluster§5.2.9.37",
+                tag: "attribute", name: "AliroReaderVerificationKey", xref: "cluster§5.2.9.37",
 
-                details: "This attribute is only supported if the Alarms cluster is on the same endpoint. The alarm mask is " +
-                    "used to turn on/off alarms for particular functions. Alarms for an alarm group are enabled if the " +
-                    "associated alarm mask bit is set. Each bit represents a group of alarms. Entire alarm groups can be " +
-                    "turned on or off by setting or clearing the associated bit in the alarm mask." +
-                    "\n" +
-                    "This mask DOES NOT apply to the Events mechanism of this cluster."
-            },
-
-            {
-                tag: "attribute", name: "AliroReaderVerificationKey", xref: "cluster§5.2.9.38",
                 details: "Indicates the verification key component of the Reader’s key pair as defined in [Aliro]. The value, " +
                     "if not null, shall be an uncompressed elliptic curve public key as defined in section 2.3.3 of SEC " +
                     "1." +
                     "\n" +
-                    "Null if no Reader key pair has been configured on the lock. See SetAliroReaderConfig."
+                    "Null if no Reader key pair has been configured on the lock. See Section 5.2.10.42, " +
+                    "“SetAliroReaderConfig Command”."
             },
 
             {
-                tag: "attribute", name: "AliroReaderGroupIdentifier", xref: "cluster§5.2.9.39",
+                tag: "attribute", name: "AliroReaderGroupIdentifier", xref: "cluster§5.2.9.38",
                 details: "Indicates the reader_group_identifier as defined in [Aliro]." +
                     "\n" +
-                    "Null if no reader_group_identifier has been configured on the lock. See SetAliroReaderConfig."
+                    "Null if no reader_group_identifier has been configured on the lock. See Section 5.2.10.42, " +
+                    "“SetAliroReaderConfig Command”."
             },
 
             {
-                tag: "attribute", name: "AliroReaderGroupSubIdentifier", xref: "cluster§5.2.9.40",
+                tag: "attribute", name: "AliroReaderGroupSubIdentifier", xref: "cluster§5.2.9.39",
                 details: "Indicates the reader_group_sub_identifier as defined in [Aliro]."
             },
             {
                 tag: "attribute", name: "AliroExpeditedTransactionSupportedProtocolVersions",
-                xref: "cluster§5.2.9.41",
+                xref: "cluster§5.2.9.40",
                 details: "Indicates the list of protocol versions supported for expedited transactions as defined in [Aliro]."
             },
 
             {
-                tag: "attribute", name: "AliroGroupResolvingKey", xref: "cluster§5.2.9.42",
+                tag: "attribute", name: "AliroGroupResolvingKey", xref: "cluster§5.2.9.41",
                 details: "Indicates the Group Resolving Key as defined in [Aliro]." +
                     "\n" +
-                    "Null if no group resolving key has been configured on the lock. See SetAliroReaderConfig."
+                    "Null if no group resolving key has been configured on the lock. See Section 5.2.10.42, " +
+                    "“SetAliroReaderConfig Command”."
             },
 
             {
-                tag: "attribute", name: "AliroSupportedBleuwbProtocolVersions", xref: "cluster§5.2.9.43",
+                tag: "attribute", name: "AliroSupportedBleuwbProtocolVersions", xref: "cluster§5.2.9.42",
                 details: "Indicates the list of protocol versions supported for the Bluetooth LE + UWB Access Control Flow as " +
                     "defined in [Aliro]."
             },
             {
-                tag: "attribute", name: "AliroBleAdvertisingVersion", xref: "cluster§5.2.9.44",
+                tag: "attribute", name: "AliroBleAdvertisingVersion", xref: "cluster§5.2.9.43",
                 details: "Indicates the version of the Bluetooth LE advertisement as defined in [Aliro]."
             },
             {
-                tag: "attribute", name: "NumberOfAliroCredentialIssuerKeysSupported", xref: "cluster§5.2.9.45",
+                tag: "attribute", name: "NumberOfAliroCredentialIssuerKeysSupported", xref: "cluster§5.2.9.44",
                 details: "Indicates the maximum number of AliroCredentialIssuerKey credentials that can be stored on the lock."
             },
 
             {
-                tag: "attribute", name: "NumberOfAliroEndpointKeysSupported", xref: "cluster§5.2.9.46",
+                tag: "attribute", name: "NumberOfAliroEndpointKeysSupported", xref: "cluster§5.2.9.45",
 
                 details: "Indicates the maximum number of endpoint key credentials that can be stored on the lock. This limit " +
                     "applies to the sum of the number of AliroEvictableEndpointKey credentials and the number of " +
@@ -522,8 +524,9 @@ Resource.add(
                     "    ◦ shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
                     "      outside." +
                     "\n" +
-                    "    ◦ may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
-                    "      inside.",
+                    "    ◦ may generate a LockOperation event of LockOperationType Unlatch when it is actuated" +
+                    "\n" +
+                    "from the inside.",
 
                 children: [
                     {
@@ -695,7 +698,10 @@ Resource.add(
                     "> If the attribute AutoRelockTime is supported the lock will transition to the locked state when the " +
                     "  auto relock time has expired.",
 
-                children: [{ tag: "field", name: "PinCode", xref: "cluster§5.2.10.2.1", details: "See PINCode field." }]
+                children: [{
+                    tag: "field", name: "PinCode", xref: "cluster§5.2.10.2.1",
+                    details: "See Section 5.2.10.1.1, “PINCode Field”."
+                }]
             },
 
             { tag: "command", name: "Toggle", xref: "cluster§5.2.10" },
@@ -714,7 +720,10 @@ Resource.add(
                         details: "This field shall indicate the timeout in seconds to wait before relocking the door lock. This value " +
                             "is independent of the AutoRelockTime attribute value."
                     },
-                    { tag: "field", name: "PinCode", xref: "cluster§5.2.10.3.2", details: "See PINCode field." }
+                    {
+                        tag: "field", name: "PinCode", xref: "cluster§5.2.10.3.2",
+                        details: "See Section 5.2.10.1.1, “PINCode Field”."
+                    }
                 ]
             },
 
@@ -1208,7 +1217,7 @@ Resource.add(
                         tag: "field", name: "UserId", xref: "cluster§5.2.10.27.1",
                         details: "This field shall indicate the user ID." +
                             "\n" +
-                            "The value of the UserID field shall be between 0 and the value of the NumberOfRFIDUsersSupported " +
+                            "The value of the UserID field shall be between 0 and the value of the NumberOfRFIDUsersSup ported " +
                             "attribute."
                     },
 
@@ -1248,8 +1257,9 @@ Resource.add(
                     "If the requested User ID is valid and the Code doesn’t exist, Get RFID Code Response shall have the " +
                     "following format:" +
                     "\n" +
-                    "User ID = requested User ID UserStatus = 0 (available) UserType = 0xFF (not supported) RFID Code = 0 " +
-                    "(zero length)" +
+                    "User ID = requested User ID UserStatus = 0 (available) UserType = 0xFF (not supported)" +
+                    "\n" +
+                    "RFID Code = 0 (zero length)" +
                     "\n" +
                     "If requested User ID is invalid, send Default Response with an error status. The error status shall " +
                     "be equal to CONSTRAINT_ERROR when User_ID is less than the max number of users supported, and " +
@@ -1394,7 +1404,7 @@ Resource.add(
                 tag: "command", name: "GetUser", xref: "cluster§5.2.10.33",
                 details: "Retrieve user." +
                     "\n" +
-                    "An InvokeResponse command shall be sent with an appropriate error (e.g. FAILURE, INVALID_COMMAND, " +
+                    "An InvokeResponse command shall be sent with an appropriate error (e.g. FAILURE, INVALID_ COMMAND, " +
                     "etc.) as needed otherwise the GetUserResponse Command shall be sent implying a status of SUCCESS."
             },
 
@@ -1415,10 +1425,7 @@ Resource.add(
                         tag: "field", name: "UserName", xref: "cluster§5.2.10.34.2",
                         details: "This field shall contain a string to use as a human readable identifier for the user."
                     },
-                    {
-                        tag: "field", name: "UserUniqueId", xref: "cluster§5.2.10.34.3",
-                        details: "See UserUniqueID field."
-                    },
+                    { tag: "field", name: "UserUniqueId", xref: "cluster§5.2.10.34.3", details: "See UserUniqueID." },
                     {
                         tag: "field", name: "UserStatus", xref: "cluster§5.2.10.34.4",
                         details: "This field shall indicate the UserStatus assigned to the user when created or modified."
@@ -1707,7 +1714,10 @@ Resource.add(
                     "> If the attribute AutoRelockTime is supported, the lock will transition to the locked state when " +
                     "  the auto relock time has expired.",
 
-                children: [{ tag: "field", name: "PinCode", xref: "cluster§5.2.10.41.1", details: "See PINCode field." }]
+                children: [{
+                    tag: "field", name: "PinCode", xref: "cluster§5.2.10.41.1",
+                    details: "See Section 5.2.10.1.1, “PINCode Field”."
+                }]
             },
 
             {
@@ -1776,6 +1786,13 @@ Resource.add(
                 tag: "datatype", name: "OperatingModesBitmap",
                 description: "For the OperatingModesBitmap, a bit SET indicates that the operating mode IS NOT supported. A bit CLEAR indicates that the operating mode IS supported. This is the inverse of most bitmaps in this specification, and it is RECOMMENDED that clients carefully take this into consideration.",
                 xref: "cluster§5.2.6.3",
+
+                details: "### WARNING" +
+                    "\n" +
+                    "For the OperatingModesBitmap, a bit SET indicates that the operating mode IS NOT supported. A bit " +
+                    "CLEAR indicates that the operating mode IS supported. This is the inverse of most bitmaps in this " +
+                    "specification, and it is recommended that clients carefully take this into consideration. See " +
+                    "SupportedOperatingModes.",
 
                 children: [
                     { tag: "field", name: "Normal", description: "Normal operation mode is NOT supported" },

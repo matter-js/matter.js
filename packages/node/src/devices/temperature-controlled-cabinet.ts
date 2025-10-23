@@ -41,9 +41,9 @@ export namespace TemperatureControlledCabinetRequirements {
     /**
      * The TemperatureControl cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link TemperatureControlServer} for convenience.
+     * This version of {@link TemperatureControlServer} is specialized per the specification.
      */
-    export const TemperatureControlServer = BaseTemperatureControlServer;
+    export const TemperatureControlServer = BaseTemperatureControlServer.with("TemperatureNumber");
 
     /**
      * The TemperatureMeasurement cluster is optional per the Matter specification.
@@ -70,9 +70,10 @@ export namespace TemperatureControlledCabinetRequirements {
     /**
      * The OvenCavityOperationalState cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link OvenCavityOperationalStateServer} for convenience.
+     * This version of {@link OvenCavityOperationalStateServer} is specialized per the specification.
      */
-    export const OvenCavityOperationalStateServer = BaseOvenCavityOperationalStateServer;
+    export const OvenCavityOperationalStateServer = BaseOvenCavityOperationalStateServer
+        .alter({ events: { operationCompletion: { optional: false } } });
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
@@ -92,7 +93,7 @@ export namespace TemperatureControlledCabinetRequirements {
 export const TemperatureControlledCabinetDeviceDefinition = MutableEndpoint({
     name: "TemperatureControlledCabinet",
     deviceType: 0x71,
-    deviceRevision: 3,
+    deviceRevision: 5,
     requirements: TemperatureControlledCabinetRequirements,
     behaviors: SupportedBehaviors()
 });

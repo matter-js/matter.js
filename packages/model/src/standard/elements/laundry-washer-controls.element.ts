@@ -32,7 +32,7 @@ export const LaundryWasherControls = Cluster(
     }),
     Attribute({
         name: "NumberOfRinses", id: 0x2, type: "NumberOfRinsesEnum", access: "RW VO", conformance: "RINSE",
-        constraint: "desc", default: 1
+        constraint: "desc"
     }),
     Attribute(
         { name: "SupportedRinses", id: 0x3, type: "list", access: "R V", conformance: "RINSE", constraint: "max 4" },

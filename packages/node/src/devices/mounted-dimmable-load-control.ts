@@ -8,11 +8,11 @@
 
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
 import { GroupsServer as BaseGroupsServer } from "../behaviors/groups/GroupsServer.js";
-import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.js";
-import { LevelControlServer as BaseLevelControlServer } from "../behaviors/level-control/LevelControlServer.js";
 import {
     ScenesManagementServer as BaseScenesManagementServer
 } from "../behaviors/scenes-management/ScenesManagementServer.js";
+import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.js";
+import { LevelControlServer as BaseLevelControlServer } from "../behaviors/level-control/LevelControlServer.js";
 import {
     OccupancySensingBehavior as BaseOccupancySensingBehavior
 } from "../behaviors/occupancy-sensing/OccupancySensingBehavior.js";
@@ -21,9 +21,22 @@ import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js
 import { Identity } from "#general";
 
 /**
- * A Mounted Dimmable Load Control is a fixed device that provides power to another device that is plugged into it, and
- * is capable of being switched on or off and have its level adjusted. The Mounted Dimmable Load Control is typically
- * used to control a conventional non-communicating light through its mains connection using phase cutting.
+ * A Mounted Dimmable Load Control is a fixed device that provides power to a load connected to it, and is capable of
+ * being switched on or off and have its level adjusted. The Mounted Dimmable Load Control is typically used to control
+ * a conventional non-communicating light through its mains connection using phase cutting.
+ *
+ * This device type is intended for any wall-mounted or hardwired dimmer-capable load controller, while Dimmable Plug-In
+ * Unit is intended only for dimmer-capable smart plugs that are not permanently connected, and which can be unplugged
+ * from their power source.
+ *
+ * > [!NOTE]
+ *
+ * > Since this device type was added in Matter 1.4, for endpoints using this device type
+ *
+ * it is recommended to add the subset device type Dimmable Plug-In Unit to the DeviceTypeList of the Descriptor cluster
+ * on the same endpoint for backward compatibility with existing clients.
+ *
+ * See [ref_MountedDimmablePlugInUnitClientGuidance] for client guidance with these two device types.
  *
  * @see {@link MatterSpecification.v141.Device} § 5.4
  */
@@ -43,6 +56,14 @@ export namespace MountedDimmableLoadControlRequirements {
      * We provide this alias to the default implementation {@link GroupsServer} for convenience.
      */
     export const GroupsServer = BaseGroupsServer;
+
+    /**
+     * The ScenesManagement cluster is required by the Matter specification.
+     *
+     * This version of {@link ScenesManagementServer} is specialized per the specification.
+     */
+    export const ScenesManagementServer = BaseScenesManagementServer
+        .alter({ commands: { copyScene: { optional: false } } });
 
     /**
      * The OnOff cluster is required by the Matter specification.
@@ -67,13 +88,6 @@ export namespace MountedDimmableLoadControlRequirements {
         });
 
     /**
-     * The ScenesManagement cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link ScenesManagementServer} for convenience.
-     */
-    export const ScenesManagementServer = BaseScenesManagementServer;
-
-    /**
      * The OccupancySensing cluster is optional per the Matter specification.
      *
      * We provide this alias to the default implementation {@link OccupancySensingBehavior} for convenience.
@@ -87,11 +101,10 @@ export namespace MountedDimmableLoadControlRequirements {
         mandatory: {
             Identify: IdentifyServer,
             Groups: GroupsServer,
+            ScenesManagement: ScenesManagementServer,
             OnOff: OnOffServer,
             LevelControl: LevelControlServer
-        },
-
-        optional: { ScenesManagement: ScenesManagementServer }
+        }
     };
 
     /**
@@ -103,12 +116,13 @@ export namespace MountedDimmableLoadControlRequirements {
 export const MountedDimmableLoadControlDeviceDefinition = MutableEndpoint({
     name: "MountedDimmableLoadControl",
     deviceType: 0x110,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: MountedDimmableLoadControlRequirements,
 
     behaviors: SupportedBehaviors(
         MountedDimmableLoadControlRequirements.server.mandatory.Identify,
         MountedDimmableLoadControlRequirements.server.mandatory.Groups,
+        MountedDimmableLoadControlRequirements.server.mandatory.ScenesManagement,
         MountedDimmableLoadControlRequirements.server.mandatory.OnOff,
         MountedDimmableLoadControlRequirements.server.mandatory.LevelControl
     )

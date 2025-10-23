@@ -29,9 +29,9 @@ export namespace CookSurfaceRequirements {
     /**
      * The TemperatureControl cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link TemperatureControlServer} for convenience.
+     * This version of {@link TemperatureControlServer} is specialized per the specification.
      */
-    export const TemperatureControlServer = BaseTemperatureControlServer;
+    export const TemperatureControlServer = BaseTemperatureControlServer.with("TemperatureLevel");
 
     /**
      * The TemperatureMeasurement cluster is optional per the Matter specification.
@@ -63,7 +63,7 @@ export namespace CookSurfaceRequirements {
 export const CookSurfaceDeviceDefinition = MutableEndpoint({
     name: "CookSurface",
     deviceType: 0x77,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: CookSurfaceRequirements,
     behaviors: SupportedBehaviors()
 });

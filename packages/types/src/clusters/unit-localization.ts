@@ -7,9 +7,10 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
-import { WritableAttribute } from "../cluster/Cluster.js";
+import { WritableAttribute, FixedAttribute } from "../cluster/Cluster.js";
 import { TlvEnum } from "../tlv/TlvNumber.js";
 import { AccessLevel } from "#model";
+import { TlvArray } from "../tlv/TlvArray.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { Identity } from "#general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
@@ -55,9 +56,12 @@ export namespace UnitLocalization {
     export const TemperatureUnitComponent = MutableCluster.Component({
         attributes: {
             /**
-             * The TemperatureUnit attribute shall indicate the unit for the Node to use only when conveying temperature
-             * in communication to the user. If provided, this value shall take priority over any unit implied through
-             * the ActiveLocale Attribute.
+             * Indicates the unit for the Node to use only when conveying temperature in communication to the user, for
+             * example such as via a user interface on the device. If provided, this value shall take priority over any
+             * unit implied through the ActiveLocale Attribute.
+             *
+             * An attempt to write to this attribute with a value not included in the SupportedTemperatureUnits
+             * attribute list shall result in a CONSTRAINT_ERROR.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.5.6.1
              */
@@ -65,6 +69,17 @@ export namespace UnitLocalization {
                 0x0,
                 TlvEnum<TempUnit>(),
                 { persistent: true, writeAcl: AccessLevel.Manage }
+            ),
+
+            /**
+             * Indicates a list of units supported by the Node to be used when writing the TemperatureUnit attribute of
+             * this cluster. Each entry in the list shall be unique.
+             *
+             * @see {@link MatterSpecification.v141.Core} § 11.5.6.2
+             */
+            supportedTemperatureUnits: FixedAttribute(
+                0x1,
+                TlvArray(TlvEnum<TempUnit>(), { minLength: 2, maxLength: 3 })
             )
         }
     });
@@ -75,7 +90,7 @@ export namespace UnitLocalization {
     export const Base = MutableCluster.Component({
         id: 0x2d,
         name: "UnitLocalization",
-        revision: 1,
+        revision: 2,
 
         features: {
             /**
@@ -127,6 +142,10 @@ export namespace UnitLocalization {
         attributes: {
             temperatureUnit: MutableCluster.AsConditional(
                 TemperatureUnitComponent.attributes.temperatureUnit,
+                { mandatoryIf: [TEMP] }
+            ),
+            supportedTemperatureUnits: MutableCluster.AsConditional(
+                TemperatureUnitComponent.attributes.supportedTemperatureUnits,
                 { mandatoryIf: [TEMP] }
             )
         }

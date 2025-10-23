@@ -85,16 +85,13 @@ export namespace SmokeCoAlarm {
     }
 
     /**
+     * This value shall indicate that the smoke sensor has nominal contamination levels, no customer action is required.
+     *
      * @see {@link MatterSpecification.v141.Cluster} § 2.11.5.6
      */
     export enum ContaminationState {
         /**
          * Nominal state, the sensor is not contaminated
-         *
-         * This value shall indicate that the smoke sensor has nominal contamination levels, no customer action is
-         * required.
-         *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.11.5.6.1
          */
         Normal = 0,
 
@@ -235,15 +232,13 @@ export namespace SmokeCoAlarm {
     export interface InterconnectCoAlarmEvent extends TypeFromSchema<typeof TlvInterconnectCoAlarmEvent> {}
 
     /**
+     * This value shall indicate that this alarm is not alarming.
+     *
      * @see {@link MatterSpecification.v141.Cluster} § 2.11.5.3
      */
     export enum ExpressedState {
         /**
          * Nominal state, the device is not alarming
-         *
-         * This value shall indicate that this alarm is not alarming.
-         *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.11.5.3.1
          */
         Normal = 0,
 

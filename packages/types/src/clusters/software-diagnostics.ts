@@ -94,24 +94,24 @@ export namespace SoftwareDiagnostics {
      */
     export const TlvSoftwareFaultEvent = TlvObject({
         /**
-         * The ID field shall be set to the ID of the software thread in which the last software fault occurred.
+         * This field shall be set to the ID of the software thread in which the last software fault occurred.
          *
          * @see {@link MatterSpecification.v141.Core} § 11.13.8.1.1
          */
         id: TlvField(0, TlvUInt64),
 
         /**
-         * The Name field shall be set to a manufacturer-specified name or prefix of the software thread in which the
-         * last software fault occurred.
+         * This field shall be set to a manufacturer-specified name or prefix of the software thread in which the last
+         * software fault occurred.
          *
          * @see {@link MatterSpecification.v141.Core} § 11.13.8.1.2
          */
         name: TlvOptionalField(1, TlvString.bound({ maxLength: 8 })),
 
         /**
-         * The FaultRecording field shall be a manufacturer-specified payload intended to convey information to assist
-         * in further diagnosing or debugging a software fault. The FaultRecording field may be used to convey
-         * information such as, but not limited to, thread backtraces or register contents.
+         * This field shall be a manufacturer-specified payload intended to convey information to assist in further
+         * diagnosing or debugging a software fault. The FaultRecording field may be used to convey information such as,
+         * but not limited to, thread backtraces or register contents.
          *
          * @see {@link MatterSpecification.v141.Core} § 11.13.8.1.3
          */
@@ -131,9 +131,8 @@ export namespace SoftwareDiagnostics {
     export const WatermarksComponent = MutableCluster.Component({
         attributes: {
             /**
-             * The CurrentHeapHighWatermark attribute shall indicate the maximum amount of heap memory, in bytes, that
-             * has been used by the Node. This value shall only be reset upon a Node reboot or upon receiving of the
-             * ResetWatermarks command.
+             * Indicates the maximum amount of heap memory, in bytes, that has been used by the Node. This value shall
+             * only be reset upon a Node reboot or upon receiving of the ResetWatermarks command.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.13.6.4
              */
@@ -142,11 +141,13 @@ export namespace SoftwareDiagnostics {
 
         commands: {
             /**
+             * This command is used to reset the high watermarks for heap and stack memory.
+             *
              * Receipt of this command shall reset the following values which track high and lower watermarks:
              *
              *   • The StackFreeMinimum field of the ThreadMetrics attribute
              *
-             *   • The CurrentHeapHighWatermark attribute This command has no payload.
+             *   • The CurrentHeapHighWatermark attribute
              *
              * ### Effect on Receipt
              *
@@ -181,24 +182,23 @@ export namespace SoftwareDiagnostics {
 
         attributes: {
             /**
-             * The ThreadMetrics attribute shall be a list of ThreadMetricsStruct structs. Each active thread on the
-             * Node shall be represented by a single entry within the ThreadMetrics attribute.
+             * This attribute shall be a list of ThreadMetricsStruct structs. Each active thread on the Node shall be
+             * represented by a single entry within the ThreadMetrics attribute.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.13.6.1
              */
             threadMetrics: OptionalAttribute(0x0, TlvArray(TlvThreadMetrics, { maxLength: 64 }), { default: [] }),
 
             /**
-             * The CurrentHeapFree attribute shall indicate the current amount of heap memory, in bytes, that are free
-             * for allocation. The effective amount may be smaller due to heap fragmentation or other reasons.
+             * Indicates the current amount of heap memory, in bytes, that are free for allocation. The effective amount
+             * may be smaller due to heap fragmentation or other reasons.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.13.6.2
              */
             currentHeapFree: OptionalAttribute(0x1, TlvUInt64),
 
             /**
-             * The CurrentHeapUsed attribute shall indicate the current amount of heap memory, in bytes, that is being
-             * used.
+             * Indicates the current amount of heap memory, in bytes, that is being used.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.13.6.3
              */
@@ -207,7 +207,7 @@ export namespace SoftwareDiagnostics {
 
         events: {
             /**
-             * The SoftwareFault Event shall be generated when a software fault takes place on the Node.
+             * This Event shall be generated when a software fault occurs on the Node.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.13.8.1
              */
