@@ -10,7 +10,7 @@ describe("TSTAT", () => {
     before(async () => {
         await chip.testFor("TSTAT/2.2").edit(
             edit.sed(
-                // Current tests do not respect updated Deadband limits ... now allowed up to 127
+                // Current tests do not respect updated Deadband limits, which now allow values up to 127, so tweak test
                 "s/status = await self.write_single_attribute(attribute_value=cluster.Attributes.MinSetpointDeadBand(30), endpoint_id=endpoint, expect_success=False)/status = await self.write_single_attribute(attribute_value=cluster.Attributes.MinSetpointDeadBand(128), endpoint_id=endpoint, expect_success=False)/",
             ),
             edit.region(

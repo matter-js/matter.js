@@ -35,7 +35,7 @@ const ThermostatBehaviorLogicBase = ThermostatBehavior.with(
  * It **does not** implement any logic to actually control a thermostat device or to react to temperature changes to e.g.
  * adjust the ThermostatRunningMode when the Auto feature is supported. This is all up to the specific implementation.
  *
- * For local temperature or occupance values we check if there is a local cluster available on the same endpoint and use
+ * For local temperature or occupancy values we check if there is a local cluster available on the same endpoint and use
  * them, alternatively raw measurements can be set in the states externalMeasuredIndoorTemperature and
  * externallyMeasuredOccupancy. The OutdoorTemperature can be set directly on the attribute if supported.
  * The RemoteSensing attribute need to be set correctly as needed by the developer to identify the measurement source.
@@ -47,7 +47,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
 
     override initialize() {
         if (this.features.scheduleConfiguration) {
-            throw new ImplementationError("ScheduleConfiguration features is deprecated and not allows to be used!");
+            throw new ImplementationError("ScheduleConfiguration features is deprecated and not allowed to be used!");
         }
         if (this.features.presets || this.features.matterScheduleConfiguration) {
             logger.warn(
@@ -151,7 +151,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                 if (coolingSetpoint - desiredHeatingSetpoint < this.setpointDeadBand) {
                     // We are limited by the Cooling Setpoint
                     coolingSetpoint = desiredHeatingSetpoint + this.setpointDeadBand;
-                    if (coolingSetpoint === this.#clampSetpointToLimits("Heat", coolingSetpoint)) {
+                    if (coolingSetpoint === this.#clampSetpointToLimits("Cool", coolingSetpoint)) {
                         // Desired cooling setpoint is enforcable
                         // Set the new cooling and heating setpoints
                         this.state.occupiedCoolingSetpoint = coolingSetpoint;
@@ -235,11 +235,17 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     }
 
     #assertOccupiedSetbackChanging(v: number | null) {
-        this.#assertSetbackChange(v, "occupied");
+        const croppedValue = this.#cropSetbackChange(v, "occupied");
+        if (v !== croppedValue) {
+            this.state.occupiedSetback = croppedValue;
+        }
     }
 
     #assertUnoccupiedSetbackChanging(v: number | null) {
-        this.#assertSetbackChange(v, "unoccupied");
+        const croppedValue = this.#cropSetbackChange(v, "unoccupied");
+        if (v !== croppedValue) {
+            this.state.unoccupiedSetback = croppedValue;
+        }
     }
 
     #handleTemperatureChangeForSetback(newValue: number | null) {
@@ -343,11 +349,11 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         }
     }
 
-    #assertSetbackChange(newValue: number | null, state: "occupied" | "unoccupied") {
+    #cropSetbackChange(newValue: number | null, state: "occupied" | "unoccupied") {
         if (newValue === null) {
-            return;
+            return null;
         }
-        newValue = cropValueRange(
+        return cropValueRange(
             newValue,
             this.state[`${state}SetbackMin`] ?? -1270,
             this.state[`${state}SetbackMax`] ?? 1270,
@@ -755,7 +761,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             max = this.state[`max${scope}`] ?? defaults.absMax,
             absMax = this.state[`absMax${scope}`] ?? defaults.absMax,
         } = details;
-        logger.warn(
+        logger.debug(
             `Validating user setpoint limits for ${scope}: absMin=${absMin}, min=${min}, max=${max}, absMax=${absMax}`,
         );
         if (absMin > min) {
