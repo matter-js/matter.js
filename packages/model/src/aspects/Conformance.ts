@@ -604,12 +604,12 @@ function ParsedAst(conformance: Conformance, definition: string): Conformance.As
                 return { type: name as Conformance.Flag };
             }
 
-            if (name.toLowerCase() === "desc") {
-                return { type: Conformance.Special.Desc };
-            }
+            switch (name.toLowerCase()) {
+                case "desc":
+                    return { type: Conformance.Special.Desc };
 
-            if (name.toLowerCase() === "null") {
-                return { type: Conformance.Special.Value, param: null };
+                case "null":
+                    return { type: Conformance.Special.Value, param: null };
             }
 
             return { type: Conformance.Special.Name, param: name };
