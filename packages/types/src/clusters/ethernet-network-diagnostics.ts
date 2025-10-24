@@ -101,17 +101,16 @@ export namespace EthernetNetworkDiagnostics {
     export const PacketCountsComponent = MutableCluster.Component({
         attributes: {
             /**
-             * The PacketRxCount attribute shall indicate the number of packets that have been received on the ethernet
-             * network interface. The PacketRxCount attribute shall be reset to 0 upon a reboot of the Node.
+             * Indicates the number of packets that have been received on the ethernet network interface. The attribute
+             * shall be reset to 0 upon a reboot of the Node.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.16.6.3
              */
             packetRxCount: Attribute(0x2, TlvUInt64, { omitChanges: true, default: 0 }),
 
             /**
-             * The PacketTxCount attribute shall indicate the number of packets that have been successfully transferred
-             * on the ethernet network interface. The PacketTxCount attribute shall be reset to 0 upon a reboot of the
-             * Node.
+             * Indicates the number of packets that have been successfully transferred on the ethernet network
+             * interface. The attribute shall be reset to 0 upon a reboot of the Node.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.16.6.4
              */
@@ -125,26 +124,25 @@ export namespace EthernetNetworkDiagnostics {
     export const ErrorCountsComponent = MutableCluster.Component({
         attributes: {
             /**
-             * The TxErrCount attribute shall indicate the number of failed packet transmissions that have occurred on
-             * the ethernet network interface. The TxErrCount attribute shall be reset to 0 upon a reboot of the Node.
+             * Indicates the number of failed packet transmissions that have occurred on the ethernet network interface.
+             * The attribute shall be reset to 0 upon a reboot of the Node.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.16.6.5
              */
             txErrCount: Attribute(0x4, TlvUInt64, { omitChanges: true, default: 0 }),
 
             /**
-             * The CollisionCount attribute shall indicate the number of collisions that have occurred while attempting
-             * to transmit a packet on the ethernet network interface. The CollisionCount attribute shall be reset to 0
-             * upon a reboot of the Node.
+             * Indicates the number of collisions that have occurred while attempting to transmit a packet on the
+             * ethernet network interface. The attribute shall be reset to 0 upon a reboot of the Node.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.16.6.6
              */
             collisionCount: Attribute(0x5, TlvUInt64, { omitChanges: true, default: 0 }),
 
             /**
-             * The OverrunCount attribute shall indicate the number of packets dropped either at ingress or egress, due
-             * to lack of buffer memory to retain all packets on the ethernet network interface. The OverrunCount
-             * attribute shall be reset to 0 upon a reboot of the Node.
+             * Indicates the number of packets dropped either at ingress or egress, due to lack of buffer memory to
+             * retain all packets on the ethernet network interface. The attribute shall be reset to 0 upon a reboot of
+             * the Node.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.16.6.7
              */
@@ -158,6 +156,8 @@ export namespace EthernetNetworkDiagnostics {
     export const PacketCountsOrErrorCountsComponent = MutableCluster.Component({
         commands: {
             /**
+             * This command is used to reset the count attributes.
+             *
              * Reception of this command shall reset the following attributes to 0:
              *
              *   • PacketRxCount
@@ -169,8 +169,6 @@ export namespace EthernetNetworkDiagnostics {
              *   • CollisionCount
              *
              *   • OverrunCount
-             *
-             * This command has no associated data.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.16.7.1
              */
@@ -202,34 +200,32 @@ export namespace EthernetNetworkDiagnostics {
 
         attributes: {
             /**
-             * The PHYRate attribute shall indicate the current nominal, usable speed at the top of the physical layer
-             * of the Node. A value of null shall indicate that the interface is not currently configured or
-             * operational.
+             * Indicates the current nominal, usable speed at the top of the physical layer of the Node. A value of null
+             * shall indicate that the interface is not currently configured or operational.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.16.6.1
              */
             phyRate: OptionalAttribute(0x0, TlvNullable(TlvEnum<PhyRate>()), { default: null }),
 
             /**
-             * The FullDuplex attribute shall indicate if the Node is currently utilizing the full-duplex operating
-             * mode. A value of null shall indicate that the interface is not currently configured or operational.
+             * Indicates if the Node is currently utilizing the full-duplex operating mode. A value of null shall
+             * indicate that the interface is not currently configured or operational.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.16.6.2
              */
             fullDuplex: OptionalAttribute(0x1, TlvNullable(TlvBoolean), { default: null }),
 
             /**
-             * The CarrierDetect attribute shall indicate the value of the Carrier Detect control signal present on the
-             * ethernet network interface. A value of null shall indicate that the interface is not currently configured
-             * or operational.
+             * Indicates the value of the Carrier Detect control signal present on the ethernet network interface. A
+             * value of null shall indicate that the interface is not currently configured or operational.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.16.6.8
              */
             carrierDetect: OptionalAttribute(0x7, TlvNullable(TlvBoolean), { omitChanges: true, default: null }),
 
             /**
-             * The TimeSinceReset attribute shall indicate the duration of time, in minutes, that it has been since the
-             * ethernet network interface has reset for any reason.
+             * Indicates the duration of time, in minutes, that it has been since the ethernet network interface has
+             * reset for any reason.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.16.6.9
              */

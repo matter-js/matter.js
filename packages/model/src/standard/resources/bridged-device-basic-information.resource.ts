@@ -12,8 +12,10 @@ Resource.add({
     tag: "cluster", name: "BridgedDeviceBasicInformation", classification: "endpoint", pics: "BRBINFO",
     xref: "core§9.13",
 
-    details: "This cluster is a derived cluster of the Basic Information cluster and serves two purposes towards a " +
-        "Node communicating with a Bridge:" +
+    details: "This cluster provides attributes and events for determining basic information about Bridged Nodes." +
+        "\n" +
+        "This cluster is derived from the Basic Information cluster and serves two purposes towards a Node " +
+        "communicating with a Bridge:" +
         "\n" +
         "  • Indicate that the functionality on the Endpoint where it is placed (and its Parts) is bridged, " +
         "    and" +
@@ -63,7 +65,7 @@ Resource.add({
         { tag: "attribute", name: "LocalConfigDisabled", xref: "core§9.13.5" },
 
         {
-            tag: "attribute", name: "Reachable", xref: "core§9.13.5.1",
+            tag: "attribute", name: "Reachable", xref: "core§9.13.5.2",
 
             details: "This attribute shall be used to indicate whether the bridged device is reachable by the bridge, so a " +
                 "Matter Node which wants to communicate with a bridged device can get an indication that this might " +
@@ -77,18 +79,35 @@ Resource.add({
         },
 
         {
-            tag: "attribute", name: "UniqueId", xref: "core§9.13.5.2",
+            tag: "attribute", name: "UniqueId", xref: "core§9.13.5.3",
+
             details: "This attribute shall, for a Bridged Device, be updated when the Bridge is factory reset. If the " +
                 "bridged device does not provide some unique id (e.g. in the case of bridging from non-Matter " +
                 "devices, or in case of bridging Matter devices from an earlier revision which were not required to " +
                 "provide a UniqueID attribute), the bridge shall generate a unique id on behalf of the bridged " +
-                "device."
+                "device." +
+                "\n" +
+                "NOTE The UniqueID attribute was optional in cluster revisions prior to revision 4."
         },
 
         { tag: "attribute", name: "CapabilityMinima", xref: "core§9.13.5" },
         { tag: "attribute", name: "ProductAppearance", xref: "core§9.13.5" },
         { tag: "attribute", name: "SpecificationVersion", xref: "core§9.13.5" },
         { tag: "attribute", name: "MaxPathsPerInvoke", xref: "core§9.13.5" },
+
+        {
+            tag: "attribute", name: "ConfigurationVersion", xref: "core§9.13.5.4",
+
+            details: "This attribute shall contain the current version number for the configuration of the bridged device." +
+                "\n" +
+                "If the bridge detects a change on a bridged device, which it deems as a change in the configuration " +
+                "of the bridged device, it shall increase this attribute as described in Section 9.2.9, “Node " +
+                "Configuration Changes”." +
+                "\n" +
+                "The ability and the method used to detect such a change on a bridged device is manufacturer " +
+                "specific."
+        },
+
         { tag: "event", name: "StartUp", xref: "core§9.13.7" },
         { tag: "event", name: "ShutDown", xref: "core§9.13.7" },
 

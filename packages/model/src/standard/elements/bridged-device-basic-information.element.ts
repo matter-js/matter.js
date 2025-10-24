@@ -17,14 +17,14 @@ import {
 
 export const BridgedDeviceBasicInformation = Cluster(
     { name: "BridgedDeviceBasicInformation", id: 0x39, type: "BasicInformation" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 4 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 5 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
         Field({ name: "BIS", conformance: "O", constraint: "20", title: "BridgedIcdSupport" })
     ),
     Attribute({ name: "DataModelRevision", id: 0x0, conformance: "X" }),
-    Attribute({ name: "VendorName", id: 0x1, conformance: "O" }),
-    Attribute({ name: "VendorId", id: 0x2, conformance: "O" }),
+    Attribute({ name: "VendorName", id: 0x1, conformance: "desc" }),
+    Attribute({ name: "VendorId", id: 0x2, conformance: "desc" }),
     Attribute({ name: "ProductName", id: 0x3, conformance: "O" }),
     Attribute({ name: "ProductId", id: 0x4, conformance: "desc" }),
     Attribute({ name: "NodeLabel", id: 0x5, conformance: "O" }),
@@ -45,6 +45,7 @@ export const BridgedDeviceBasicInformation = Cluster(
     Attribute({ name: "ProductAppearance", id: 0x14, conformance: "O" }),
     Attribute({ name: "SpecificationVersion", id: 0x15, conformance: "X" }),
     Attribute({ name: "MaxPathsPerInvoke", id: 0x16, conformance: "X" }),
+    Attribute({ name: "ConfigurationVersion", id: 0x18, conformance: "P, O" }),
     Event({ name: "StartUp", id: 0x0, conformance: "O", priority: "critical" }),
     Event({ name: "ShutDown", id: 0x1, conformance: "O", priority: "critical" }),
     Event(

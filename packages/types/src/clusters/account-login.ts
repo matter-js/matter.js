@@ -41,15 +41,15 @@ export namespace AccountLogin {
     export interface GetSetupPinRequest extends TypeFromSchema<typeof TlvGetSetupPinRequest> {}
 
     /**
-     * This message is sent in response to the GetSetupPIN command, and contains the Setup PIN code, or null when the
-     * account identified in the request does not match the active account of the running Content App.
+     * This message is sent in response to the GetSetupPIN command, and contains the Setup PIN, or null when the account
+     * identified in the request does not match the active account of the running Content App.
      *
      * @see {@link MatterSpecification.v141.Cluster} § 6.2.4.2
      */
     export const TlvGetSetupPinResponse = TlvObject({
         /**
-         * This field shall provide the setup PIN code as a text string at least 8 characters in length or empty string
-         * to indicate that the accounts do not match.
+         * This field shall provide the Setup PIN as a text string at least 8 characters in length or empty string to
+         * indicate that the accounts do not match.
          *
          * > [!NOTE]
          *
@@ -62,8 +62,8 @@ export namespace AccountLogin {
     });
 
     /**
-     * This message is sent in response to the GetSetupPIN command, and contains the Setup PIN code, or null when the
-     * account identified in the request does not match the active account of the running Content App.
+     * This message is sent in response to the GetSetupPIN command, and contains the Setup PIN, or null when the account
+     * identified in the request does not match the active account of the running Content App.
      *
      * @see {@link MatterSpecification.v141.Cluster} § 6.2.4.2
      */
@@ -83,11 +83,11 @@ export namespace AccountLogin {
         tempAccountIdentifier: TlvField(0, TlvString.bound({ minLength: 16, maxLength: 100 })),
 
         /**
-         * This field shall provide the setup PIN code as a text string at least 8 characters in length.
+         * This field shall provide the Setup PIN as a text string at least 8 characters in length.
          *
          * > [!NOTE]
          *
-         * > Newer cluster clients should be aware that AccountLogin cluster version 1 specified an 11 digit minimum
+         * > Newer cluster clients should be aware that AccountLogin cluster revision 1 specified an 11 digit minimum
          *   length.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 6.2.4.3.2
@@ -165,13 +165,13 @@ export namespace AccountLogin {
         commands: {
             /**
              * The purpose of this command is to determine if the active user account of the given Content App matches
-             * the active user account of a given Commissionee, and when it does, return a Setup PIN code which can be
-             * used for password-authenticated session establishment (PASE) with the Commissionee.
+             * the active user account of a given Commissionee, and when it does, return a Setup PIN which can be used
+             * for password-authenticated session establishment (PASE) with the Commissionee.
              *
              * For example, a Video Player with a Content App Platform may invoke this command on one of its Content App
              * endpoints to facilitate commissioning of a Phone App made by the same vendor as the Content App. If the
-             * accounts match, then the Content App may return a setup code that can be used by the Video Player to
-             * commission the Phone App without requiring the user to physically input a setup code.
+             * accounts match, then the Content App may return a Setup PIN that can be used by the Video Player to
+             * commission the Phone App without requiring the user to physically input a Setup PIN.
              *
              * The account match is determined by the Content App using a method which is outside the scope of this
              * specification and will typically involve a central service which is in communication with both the
@@ -198,7 +198,7 @@ export namespace AccountLogin {
              * The Setup PIN is a character string so that it can accommodate different future formats, including
              * alpha-numeric encodings. For a Commissionee it shall be populated with the Manual Pairing Code (see
              * Manual Pairing Code section in [MatterCore]) encoded as a string (11 characters) or the Passcode portion
-             * of the Manual Pairing Code (when less than 11 characters) .
+             * of the Manual Pairing Code (when less than 11 characters).
              *
              * The server shall implement rate limiting to prevent brute force attacks. No more than 10 unique requests
              * in a 10 minute period shall be allowed; a command response status of FAILURE should sent for additional
@@ -220,7 +220,7 @@ export namespace AccountLogin {
 
             /**
              * The purpose of this command is to allow the Content App to assume the user account of a given
-             * Commissionee by leveraging the Setup PIN code input by the user during the commissioning process.
+             * Commissionee by leveraging the Setup PIN input by the user during the commissioning process.
              *
              * For example, a Video Player with a Content App Platform may invoke this command on one of its Content App
              * endpoints after the commissioning has completed of a Phone App made by the same vendor as the Content
@@ -248,12 +248,12 @@ export namespace AccountLogin {
              *
              * The Setup PIN for a Commissionee may be populated with the Manual Pairing Code encoded as a string of
              * decimal numbers (11 characters) or the Passcode portion of the Manual Pairing Code encoded as a string of
-             * decimal numbers (8 characters) .
+             * decimal numbers (8 characters).
              *
              * The server shall implement rate limiting to prevent brute force attacks. No more than 10 unique requests
              * in a 10 minute period shall be allowed; a command response status of FAILURE should sent for additional
              * commands received within the 10 minute period. Because access to this command is limited to nodes with
-             * Admin-level access, and the user is involved when obtaining the SetupPIN, there are in place multiple
+             * Admin-level access, and the user is involved when obtaining the Setup PIN, there are in place multiple
              * obstacles to successfully mounting a brute force attack. A Content App that supports this command shall
              * ensure that the Temporary Account Identifier used by its clients is not valid for more than 10 minutes.
              *

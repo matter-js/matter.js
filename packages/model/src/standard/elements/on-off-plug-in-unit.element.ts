@@ -13,7 +13,7 @@ export const OnOffPlugInUnitDt = DeviceType(
     { name: "OnOffPlugInUnit", id: 0x10a },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 266, revision: 3 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 266, revision: 4 } ], element: "attribute" })
     ),
     Requirement(
         { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" },
@@ -21,8 +21,8 @@ export const OnOffPlugInUnitDt = DeviceType(
     ),
     Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster" }),
     Requirement(
-        { name: "ScenesManagement", id: 0x62, conformance: "P, M", element: "serverCluster" },
-        Requirement({ name: "CopyScene", conformance: "P, M", element: "command" })
+        { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster" },
+        Requirement({ name: "CopyScene", conformance: "M", element: "command" })
     ),
     Requirement(
         { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster" },

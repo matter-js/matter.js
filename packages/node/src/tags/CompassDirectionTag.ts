@@ -19,12 +19,12 @@ export const CompassDirectionTag = SemanticNamespace({
 
     tags: {
         Northward: { id: 0x0, label: "Northward" },
-        NorthEastward: { id: 0x1, label: "North-Eastward" },
+        NorthEastward: { id: 0x1, label: "NorthEastward" },
         Eastward: { id: 0x2, label: "Eastward" },
-        SouthEastward: { id: 0x3, label: "South-Eastward" },
+        SouthEastward: { id: 0x3, label: "SouthEastward" },
         Southward: { id: 0x4, label: "Southward" },
-        SouthWestward: { id: 0x5, label: "South-Westward" },
+        SouthWestward: { id: 0x5, label: "SouthWestward" },
         Westward: { id: 0x6, label: "Westward" },
-        NorthWestward: { id: 0x7, label: "North-Westward" }
+        NorthWestward: { id: 0x7, label: "NorthWestward" }
     }
 });

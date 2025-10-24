@@ -31,7 +31,7 @@ export const ResourceMonitoring = Cluster(
         name: "DegradationDirection", id: 0x1, type: "DegradationDirectionEnum", access: "R V",
         conformance: "CON", constraint: "desc", quality: "F"
     }),
-    Attribute({ name: "ChangeIndication", id: 0x2, type: "ChangeIndicationEnum", access: "R V", conformance: "M", default: 0 }),
+    Attribute({ name: "ChangeIndication", id: 0x2, type: "ChangeIndicationEnum", access: "R V", conformance: "M" }),
     Attribute({ name: "InPlaceIndicator", id: 0x3, type: "bool", access: "R V", conformance: "O" }),
     Attribute({
         name: "LastChangedTime", id: 0x4, type: "epoch-s", access: "RW VO", conformance: "O", default: null,

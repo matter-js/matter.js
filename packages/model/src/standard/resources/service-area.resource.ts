@@ -131,10 +131,10 @@ Resource.add({
                 "server, such as interactions with a user interface." +
                 "\n" +
                 "When updating the SupportedMaps attribute list by deleting entries, or by setting the attribute to " +
-                "an empty list, the SupportedLocations attribute shall be updated such that all entries in that list " +
-                "meet the constraints indicated in the description of the SupportedLocations attribute. This may " +
-                "result in the server removing entries from the SupportedAreas attribute list. See the SupportedAreas " +
-                "attribute description for the implications of changing that attribute." +
+                "an empty list, the SupportedAreas attribute shall be updated such that all entries in that list meet " +
+                "the constraints indicated in the description of the SupportedAreas attribute. This may result in the " +
+                "server removing entries from the SupportedAreas attribute list. See the SupportedAreas attribute " +
+                "description for the implications of changing that attribute." +
                 "\n" +
                 "The SupportedMaps attribute list changes mentioned above SHOULD NOT be allowed while the device is " +
                 "operating, to reduce the impact on the clients, and the potential confusion for the users."
@@ -202,7 +202,7 @@ Resource.add({
                 "Null if the CurrentArea attribute is null." +
                 "\n" +
                 "If the Progress attribute is available, and it contains an entry matching CurrentArea, the server " +
-                "may use the time estimate provided in the InitialTimeEstimate field of that entry to compute the " +
+                "may use the time estimate provided in the EstimatedTime field of that entry to compute the " +
                 "EstimatedEndTime attribute." +
                 "\n" +
                 "The value of this attribute shall only be reported in the following cases:" +
@@ -289,8 +289,8 @@ Resource.add({
                 tag: "field", name: "Status", xref: "cluster§1.17.7.2.1",
 
                 details: "If the Status field is set to Success or UnsupportedArea, the server may use a non-empty string for " +
-                    "the StatusText field to provide additional information. For example, if Status is set to " +
-                    "UnsupportedArea, the server may use StatusText to indicate which areas are unsupported." +
+                    "the StatusText field to provide additional information. For example, if Status is set to Unsupport " +
+                    "edArea, the server may use StatusText to indicate which areas are unsupported." +
                     "\n" +
                     "If the Status field is not set to Success, or UnsupportedArea, the StatusText field shall include a " +
                     "vendor-defined error description which can be used to explain the error to the user. For example, if " +
@@ -301,12 +301,8 @@ Resource.add({
 
         {
             tag: "command", name: "SkipArea", xref: "cluster§1.17.7.3",
-
             details: "This command is used to skip the given area, and to attempt operating at other areas on the " +
                 "SupportedAreas attribute list." +
-                "\n" +
-                "This command shall NOT be implemented if the CurrentArea attribute and the Progress attribute are " +
-                "both not implemented. Else, this command shall be optionally implemented." +
                 "\n" +
                 "On receipt of this command the device shall respond with a SkipAreaResponse command.",
 
@@ -516,8 +512,9 @@ Resource.add({
                         "A value of null indicates that the total operational time is unknown." +
                         "\n" +
                         "There may be cases where the total operational time exceeds the maximum value that can be conveyed " +
-                        "by this attribute, and in such instances this attribute shall be populated with null. Null if the " +
-                        "Status field is not set to Completed or Skipped."
+                        "by this attribute, and in such instances this attribute shall be populated with null." +
+                        "\n" +
+                        "Null if the Status field is not set to Completed or Skipped."
                 },
 
                 {

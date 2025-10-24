@@ -35,6 +35,14 @@ export function repairDefaultValue(record: { default?: string; type?: string }) 
                 delete record.default;
                 break;
 
+            case "ok":
+                // Core 1.4.2 uses "OK" instead of "Success" for fallback status code.  They also incorrectly name the
+                // type as "StatusCode" so handle that and the correct variant in case they ever fix
+                if (record.type === "status" || record.type === "StatusCode") {
+                    record.default = "Success";
+                }
+                break;
+
             default:
                 // Sometimes enum values are suffixed with enum name in parenthesis
                 if (def.match(/^\d+\(.*\)$/)) {

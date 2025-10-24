@@ -43,7 +43,10 @@ export const OccupancySensing = Cluster(
         name: "OccupancySensorTypeBitmap", id: 0x2, type: "OccupancySensorTypeBitmap", access: "R V",
         conformance: "M, D", constraint: "0 to 7", quality: "F"
     }),
-    Attribute({ name: "HoldTime", id: 0x3, type: "uint16", access: "RW VM", conformance: "O", constraint: "desc", quality: "N" }),
+    Attribute({
+        name: "HoldTime", id: 0x3, type: "uint16", access: "RW VM", conformance: "O",
+        constraint: "holdTimeLimits.holdTimeMin to holdTimeLimits.holdTimeMax", quality: "N"
+    }),
     Attribute({
         name: "HoldTimeLimits", id: 0x4, type: "HoldTimeLimitsStruct", access: "R V",
         conformance: "HoldTime", quality: "F"
@@ -114,7 +117,7 @@ export const OccupancySensing = Cluster(
     Datatype(
         { name: "HoldTimeLimitsStruct", type: "struct" },
         Field({ name: "HoldTimeMin", id: 0x0, type: "uint16", conformance: "M", constraint: "min 1" }),
-        Field({ name: "HoldTimeMax", id: 0x1, type: "uint16", conformance: "M", constraint: "min holdTimeMin, min 10" }),
+        Field({ name: "HoldTimeMax", id: 0x1, type: "uint16", conformance: "M", constraint: "min maxOf(holdTimeMin, 10)" }),
         Field({
             name: "HoldTimeDefault", id: 0x2, type: "uint16", conformance: "M",
             constraint: "holdTimeMin to holdTimeMax"

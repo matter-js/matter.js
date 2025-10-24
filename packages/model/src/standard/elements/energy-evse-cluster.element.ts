@@ -32,29 +32,23 @@ export const EnergyEvse = Cluster(
     Attribute({ name: "State", id: 0x0, type: "StateEnum", access: "R V", conformance: "M", quality: "X" }),
     Attribute({ name: "SupplyState", id: 0x1, type: "SupplyStateEnum", access: "R V", conformance: "M" }),
     Attribute({ name: "FaultState", id: 0x2, type: "FaultStateEnum", access: "R V", conformance: "M" }),
-    Attribute({
-        name: "ChargingEnabledUntil", id: 0x3, type: "epoch-s", access: "R V", conformance: "M", default: 0,
-        quality: "X N"
-    }),
-    Attribute({
-        name: "DischargingEnabledUntil", id: 0x4, type: "epoch-s", access: "R V", conformance: "V2X",
-        default: 0, quality: "X N"
-    }),
+    Attribute({ name: "ChargingEnabledUntil", id: 0x3, type: "epoch-s", access: "R V", conformance: "M", quality: "X N" }),
+    Attribute({ name: "DischargingEnabledUntil", id: 0x4, type: "epoch-s", access: "R V", conformance: "V2X", quality: "X N" }),
     Attribute({
         name: "CircuitCapacity", id: 0x5, type: "amperage-mA", access: "R V", conformance: "M",
-        constraint: "min 0", default: 0, quality: "N"
+        constraint: "min 0", quality: "N"
     }),
     Attribute({
         name: "MinimumChargeCurrent", id: 0x6, type: "amperage-mA", access: "R V", conformance: "M",
-        constraint: "min 0", default: 6000, quality: "N"
+        constraint: "min 0", quality: "N"
     }),
     Attribute({
         name: "MaximumChargeCurrent", id: 0x7, type: "amperage-mA", access: "R V", conformance: "M",
-        constraint: "min 0", default: 0, quality: "N"
+        constraint: "min 0", quality: "N"
     }),
     Attribute({
         name: "MaximumDischargeCurrent", id: 0x8, type: "amperage-mA", access: "R V", conformance: "V2X",
-        constraint: "min 0", default: 0, quality: "N"
+        constraint: "min 0", quality: "N"
     }),
     Attribute({
         name: "UserMaximumChargeCurrent", id: 0x9, type: "amperage-mA", access: "RW VM", conformance: "O",
@@ -64,52 +58,37 @@ export const EnergyEvse = Cluster(
         name: "RandomizationDelayWindow", id: 0xa, type: "elapsed-s", access: "RW VM", conformance: "O",
         constraint: "max 86400", default: 600, quality: "N"
     }),
-    Attribute({
-        name: "NextChargeStartTime", id: 0x23, type: "epoch-s", access: "R V", conformance: "PREF",
-        default: null, quality: "X"
-    }),
-    Attribute({
-        name: "NextChargeTargetTime", id: 0x24, type: "epoch-s", access: "R V", conformance: "PREF",
-        default: null, quality: "X"
-    }),
+    Attribute({ name: "NextChargeStartTime", id: 0x23, type: "epoch-s", access: "R V", conformance: "PREF", quality: "X" }),
+    Attribute(
+        { name: "NextChargeTargetTime", id: 0x24, type: "epoch-s", access: "R V", conformance: "PREF", quality: "X" }
+    ),
     Attribute({
         name: "NextChargeRequiredEnergy", id: 0x25, type: "energy-mWh", access: "R V", conformance: "PREF",
-        constraint: "min 0", default: null, quality: "X"
+        constraint: "min 0", quality: "X"
     }),
-    Attribute({
-        name: "NextChargeTargetSoC", id: 0x26, type: "percent", access: "R V", conformance: "PREF",
-        default: null, quality: "X"
-    }),
+    Attribute({ name: "NextChargeTargetSoC", id: 0x26, type: "percent", access: "R V", conformance: "PREF", quality: "X" }),
     Attribute({
         name: "ApproximateEvEfficiency", id: 0x27, type: "uint16", access: "RW VM", conformance: "[PREF]",
         constraint: "desc", default: null, quality: "X N"
     }),
-    Attribute({
-        name: "StateOfCharge", id: 0x30, type: "percent", access: "R V", conformance: "SOC", default: null,
-        quality: "X"
-    }),
+    Attribute({ name: "StateOfCharge", id: 0x30, type: "percent", access: "R V", conformance: "SOC", quality: "X" }),
     Attribute({
         name: "BatteryCapacity", id: 0x31, type: "energy-mWh", access: "R V", conformance: "SOC",
-        constraint: "min 0", default: null, quality: "X"
+        constraint: "min 0", quality: "X"
     }),
     Attribute({
         name: "VehicleId", id: 0x32, type: "string", access: "R V", conformance: "PNC",
-        constraint: "max 32", default: null, quality: "X"
+        constraint: "max 32", quality: "X"
     }),
-    Attribute(
-        { name: "SessionId", id: 0x40, type: "uint32", access: "R V", conformance: "M", default: null, quality: "X N" }
-    ),
-    Attribute({
-        name: "SessionDuration", id: 0x41, type: "elapsed-s", access: "R V", conformance: "M",
-        default: null, quality: "X N Q"
-    }),
+    Attribute({ name: "SessionId", id: 0x40, type: "uint32", access: "R V", conformance: "M", quality: "X N" }),
+    Attribute({ name: "SessionDuration", id: 0x41, type: "elapsed-s", access: "R V", conformance: "M", quality: "X N Q" }),
     Attribute({
         name: "SessionEnergyCharged", id: 0x42, type: "energy-mWh", access: "R V", conformance: "M",
-        constraint: "min 0", default: null, quality: "X N Q"
+        constraint: "min 0", quality: "X N Q"
     }),
     Attribute({
         name: "SessionEnergyDischarged", id: 0x43, type: "energy-mWh", access: "R V", conformance: "V2X",
-        constraint: "min 0", default: null, quality: "X N Q"
+        constraint: "min 0", quality: "X N Q"
     }),
     Event(
         { name: "EvConnected", id: 0x0, access: "V", conformance: "M", priority: "info" },
@@ -158,7 +137,7 @@ export const EnergyEvse = Cluster(
 
     Command(
         { name: "EnableCharging", id: 0x2, access: "O T", conformance: "M", direction: "request", response: "status" },
-        Field({ name: "ChargingEnabledUntil", id: 0x0, type: "epoch-s", conformance: "M", default: null, quality: "X" }),
+        Field({ name: "ChargingEnabledUntil", id: 0x0, type: "epoch-s", conformance: "M", quality: "X" }),
         Field({ name: "MinimumChargeCurrent", id: 0x1, type: "amperage-mA", conformance: "M", constraint: "min 0" }),
         Field({ name: "MaximumChargeCurrent", id: 0x2, type: "amperage-mA", conformance: "M", constraint: "min 0" })
     ),
@@ -168,7 +147,7 @@ export const EnergyEvse = Cluster(
             name: "EnableDischarging", id: 0x3, access: "O T", conformance: "V2X", direction: "request",
             response: "status"
         },
-        Field({ name: "DischargingEnabledUntil", id: 0x0, type: "epoch-s", conformance: "M", default: null, quality: "X" }),
+        Field({ name: "DischargingEnabledUntil", id: 0x0, type: "epoch-s", conformance: "M", quality: "X" }),
         Field({ name: "MaximumDischargeCurrent", id: 0x1, type: "amperage-mA", conformance: "M", constraint: "min 0" })
     ),
 
@@ -260,10 +239,7 @@ export const EnergyEvse = Cluster(
 
     Datatype(
         { name: "ChargingTargetStruct", type: "struct" },
-        Field({
-            name: "TargetTimeMinutesPastMidnight", id: 0x0, type: "uint16", conformance: "M",
-            constraint: "max 1439", default: 0
-        }),
+        Field({ name: "TargetTimeMinutesPastMidnight", id: 0x0, type: "uint16", conformance: "M", constraint: "max 1439" }),
         Field({ name: "TargetSoC", id: 0x1, type: "percent", conformance: "SOC, O.a+", default: 0 }),
         Field({
             name: "AddedEnergy", id: 0x2, type: "energy-mWh", conformance: "[SOC], O.a+", constraint: "min 0",

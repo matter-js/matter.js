@@ -12,10 +12,19 @@ import { FanControl } from "#clusters/fan-control";
 export namespace FanControlInterface {
     export interface Step {
         /**
-         * This command speeds up or slows down the fan, in steps, without the client having to know the fan speed. This
-         * command supports, for example, a user operated wall switch, where the user provides the feedback or control
-         * to stop sending this command when the proper speed is reached. The step speed values are implementation
-         * specific. How many step speeds are implemented is implementation specific.
+         * This command indirectly changes the speed-oriented attributes of the fan in steps rather than using the
+         * speed-oriented attributes, FanMode, PercentSetting, or SpeedSetting, directly. This command supports, for
+         * example, a user-operated and wall-mounted toggle switch that can be used to increase or decrease the speed of
+         * the fan by pressing the toggle switch up or down until the desired fan speed is reached. How this command is
+         * interpreted by the server and how it affects the values of the speed-oriented attributes is implementation
+         * specific.
+         *
+         * For example, a fan supports this command, and the value of the FanModeSequence attribute is 0. The current
+         * value of the FanMode attribute is 2, or Medium. This command is received with the Direction field set to
+         * Increase. As per it’s specific implementation, the server reacts to the command by setting the value of the
+         * FanMode attribute to 3, or High, which in turn sets the PercentSetting and SpeedSetting (if present)
+         * attributes to appropriate values, as defined by Section 4.4.6.3.1, “Percent Rules” and Section 4.4.6.6.1,
+         * “Speed Rules” respectively.
          *
          * This command supports these fields:
          *

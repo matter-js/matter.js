@@ -75,7 +75,27 @@ export namespace RvcOperationalState {
         /**
          * The device is on the dock, not charging
          */
-        Docked = 66
+        Docked = 66,
+
+        /**
+         * The device is automatically emptying its own dust bin, such as to a dock
+         */
+        EmptyingDustBin = 67,
+
+        /**
+         * The device is automatically cleaning its own mopping device, such as on a dock
+         */
+        CleaningMop = 68,
+
+        /**
+         * The device is automatically filling its own clean water tank for use when mopping, such as from a dock
+         */
+        FillingWaterTank = 69,
+
+        /**
+         * The device is processing acquired data to update its maps
+         */
+        UpdatingMaps = 70
     }
 
     /**
@@ -92,9 +112,8 @@ export namespace RvcOperationalState {
         operationalStateId: TlvField(0, TlvEnum<OperationalState | OperationalStateNamespace.OperationalStateEnum>()),
 
         /**
-         * This field shall be present if the OperationalStateID is from the set reserved for Manufacturer Specific
-         * States, otherwise it shall NOT be present. If present, this shall contain a human-readable description of the
-         * operational state.
+         * This field is present when the OperationalStateID is from the set reserved for Manufacturer Specific States.
+         * If present, this shall contain a human-readable description of the operational state.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 1.14.4.2.2
          */
@@ -156,12 +175,12 @@ export namespace RvcOperationalState {
         DustBinFull = 67,
 
         /**
-         * The device has detected that its water tank is empty
+         * The device has detected that its clean water tank is empty
          */
         WaterTankEmpty = 68,
 
         /**
-         * The device has detected that its water tank is missing
+         * The device has detected that its clean water tank is missing
          */
         WaterTankMissing = 69,
 
@@ -173,7 +192,45 @@ export namespace RvcOperationalState {
         /**
          * The device has detected that its cleaning pad is missing
          */
-        MopCleaningPadMissing = 71
+        MopCleaningPadMissing = 71,
+
+        /**
+         * The device is unable to start or to continue operating due to a low battery
+         */
+        LowBattery = 72,
+
+        /**
+         * The device is unable to move to an area where it was asked to operate, such as by setting the ServiceArea
+         * cluster’s SelectedAreas attribute, due to an obstruction. For example, the obstruction might be a closed door
+         * or objects blocking the mapped path.
+         */
+        CannotReachTargetArea = 73,
+
+        /**
+         * The device has detected that its dirty water tank is full
+         */
+        DirtyWaterTankFull = 74,
+
+        /**
+         * The device has detected that its dirty water is missing
+         */
+        DirtyWaterTankMissing = 75,
+
+        /**
+         * The device has detected that one or more wheels are jammed by an object
+         */
+        WheelsJammed = 76,
+
+        /**
+         * The device has detected that its brush is jammed by an object
+         */
+        BrushJammed = 77,
+
+        /**
+         * The device has detected that one of its sensors, such as LiDAR, infrared, or camera is obscured and needs to
+         * be cleaned
+         */
+        NavigationSensorObscured = 78
     }
 
     /**
@@ -188,10 +245,8 @@ export namespace RvcOperationalState {
         errorStateId: TlvField(0, TlvEnum<ErrorState | OperationalStateNamespace.ErrorState>()),
 
         /**
-         * This field shall be present if the ErrorStateID is from the set reserved for Manufacturer Specific Errors,
-         * otherwise it shall NOT be present. If present, this shall contain a human-readable description of the
-         * ErrorStateID; e.g. for a manufacturer specific ErrorStateID of "0x80" the ErrorStateLabel may contain "My
-         * special error".
+         * This field is present when the ErrorStateID is from the set reserved for Manufacturer Specific errors. If
+         * present, this shall contain a human-readable description of the error state.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 1.14.4.4.2
          */
@@ -218,7 +273,7 @@ export namespace RvcOperationalState {
     export const TlvOperationalCommandResponse = TlvObject({
         /**
          * This shall indicate the success or otherwise of the attempted command invocation. On a successful invocation
-         * of the attempted command, the ErrorStateID shall be populated with NoError. Please see the individual command
+         * of the attempted command, the ErrorStateID shall be populated with NoError. See the individual command
          * sections for additional specific requirements on population.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 1.14.6.5.1
@@ -251,7 +306,7 @@ export namespace RvcOperationalState {
     export const ClusterInstance = MutableCluster({
         id: 0x61,
         name: "RvcOperationalState",
-        revision: 2,
+        revision: 3,
 
         attributes: {
             /**
@@ -339,8 +394,8 @@ export namespace RvcOperationalState {
 
             /**
              * This attribute shall specify the details of any current error condition being experienced on the device
-             * when the OperationalState attribute is populated with Error. Please see ErrorStateStruct for general
-             * requirements on the population of this attribute.
+             * when the OperationalState attribute is populated with Error. See Section 1.14.4.4, “ErrorStateStruct
+             * Type” for general requirements on the population of this attribute.
              *
              * When there is no error detected, this shall have an ErrorStateID of NoError.
              *

@@ -50,21 +50,21 @@ Resource.add({
         "  • The global FabricIndex field of a fabric-scoped struct shall be ignored in a write interaction." +
         "\n" +
         "  • The global FabricIndex field SHOULD NOT be indicated on a fabric-scoped struct contained in the " +
-        "    payload of a command request." +
+        "    payload of a request command." +
         "\n" +
         "  • The global FabricIndex field shall be ignored on a fabric-scoped struct contained in the payload " +
-        "    of a command request." +
+        "    of a request command." +
         "\n" +
         "  • When a write interaction creates a fabric-scoped struct entry (in a fabric-scoped list), the " +
         "    server shall implicitly load the accessing fabric-index into the global FabricIndex field of the " +
         "    struct." +
         "\n" +
-        "  • When the payload of a command request contains a fabric-scoped struct, the server shall " +
+        "  • When the payload of a request command contains a fabric-scoped struct, the server shall " +
         "    implicitly load the accessing fabric-index into the global FabricIndex field of the struct." +
         "\n" +
         "### • A fabric-scoped struct may be defined with some fields that are fabric-sensitive." +
         "\n" +
         "  • For interactions on a fabric-scoped struct that report back data, fabric-sensitive struct fields " +
-        "    shall NOT be indicated when reporting data back to the client, when the struct has an associated " +
+        "    shall be omitted when reporting data back to the client, when the struct has an associated " +
         "    fabric, and it is not the accessing fabric."
 });

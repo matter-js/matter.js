@@ -20,12 +20,12 @@ export const CompassLocationTag = SemanticNamespace({
 
     tags: {
         North: { id: 0x0, label: "North" },
-        NorthEast: { id: 0x1, label: "North-East" },
+        NorthEast: { id: 0x1, label: "NorthEast" },
         East: { id: 0x2, label: "East" },
-        SouthEast: { id: 0x3, label: "South-East" },
+        SouthEast: { id: 0x3, label: "SouthEast" },
         South: { id: 0x4, label: "South" },
-        SouthWest: { id: 0x5, label: "South-West" },
+        SouthWest: { id: 0x5, label: "SouthWest" },
         West: { id: 0x6, label: "West" },
-        NorthWest: { id: 0x7, label: "North-West" }
+        NorthWest: { id: 0x7, label: "NorthWest" }
     }
 });

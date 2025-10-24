@@ -187,7 +187,7 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
             case Conformance.Special.Choice:
                 return createChoice(ast.param);
 
-            case Conformance.Special.Group:
+            case Conformance.Special.Otherwise:
                 return createGroup(ast.param);
 
             case Conformance.Special.Name:
@@ -281,7 +281,7 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
      * A "group" node is a list or the entries in an optional ([ ... ]) clause. The resulting node is the value of the
      * first list member that does not report as Code.Nonconformant.
      */
-    function createGroup(param: Conformance.Ast.Group): DynamicNode {
+    function createGroup(param: Conformance.Ast.Otherwise): DynamicNode {
         if (!Array.isArray(param)) {
             throw new SchemaImplementationError(
                 DataModelPath(schema.path),
@@ -627,7 +627,12 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
                 continue;
             }
 
-            const compiledNode = compile(member.conformance.ast);
+            // Enum choice indicates support for the value; it should not affect validation
+            let ast = member.conformance.ast;
+            if (ast.type === Conformance.Special.Choice) {
+                ast = ast.param.expr;
+            }
+            const compiledNode = compile(ast);
 
             let memberValidator: undefined | EnumMemberValidator;
             switch (compiledNode.code) {

@@ -6,13 +6,13 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { AttributeModel } from "../../models/AttributeModel.js";
+import * as definitions from "./definitions.js";
 import { ClusterModel } from "../../models/ClusterModel.js";
 import { DatatypeModel } from "../../models/DatatypeModel.js";
-import { DeviceTypeModel } from "../../models/DeviceTypeModel.js";
+import { AttributeModel } from "../../models/AttributeModel.js";
 import { FieldModel } from "../../models/FieldModel.js";
+import { DeviceTypeModel } from "../../models/DeviceTypeModel.js";
 import { SemanticNamespaceModel } from "../../models/SemanticNamespaceModel.js";
-import * as definitions from "./definitions.js";
 
 export const Identify = new ClusterModel(definitions.Identify);
 export const Groups = new ClusterModel(definitions.Groups);
@@ -42,29 +42,20 @@ export const ActivatedCarbonFilterMonitoring = new ClusterModel(definitions.Acti
 export const WaterTankLevelMonitoring = new ClusterModel(definitions.WaterTankLevelMonitoring);
 export const AirQuality = new ClusterModel(definitions.AirQuality);
 export const ConcentrationMeasurement = new ClusterModel(definitions.ConcentrationMeasurement);
-export const CarbonMonoxideConcentrationMeasurement = new ClusterModel(
-    definitions.CarbonMonoxideConcentrationMeasurement,
-);
-export const CarbonDioxideConcentrationMeasurement = new ClusterModel(
-    definitions.CarbonDioxideConcentrationMeasurement,
-);
-export const NitrogenDioxideConcentrationMeasurement = new ClusterModel(
-    definitions.NitrogenDioxideConcentrationMeasurement,
-);
+export const CarbonMonoxideConcentrationMeasurement = new ClusterModel(definitions.CarbonMonoxideConcentrationMeasurement);
+export const CarbonDioxideConcentrationMeasurement = new ClusterModel(definitions.CarbonDioxideConcentrationMeasurement);
+export const NitrogenDioxideConcentrationMeasurement = new ClusterModel(definitions.NitrogenDioxideConcentrationMeasurement);
 export const OzoneConcentrationMeasurement = new ClusterModel(definitions.OzoneConcentrationMeasurement);
 export const Pm25ConcentrationMeasurement = new ClusterModel(definitions.Pm25ConcentrationMeasurement);
 export const FormaldehydeConcentrationMeasurement = new ClusterModel(definitions.FormaldehydeConcentrationMeasurement);
 export const Pm1ConcentrationMeasurement = new ClusterModel(definitions.Pm1ConcentrationMeasurement);
 export const Pm10ConcentrationMeasurement = new ClusterModel(definitions.Pm10ConcentrationMeasurement);
-export const TotalVolatileOrganicCompoundsConcentrationMeasurement = new ClusterModel(
-    definitions.TotalVolatileOrganicCompoundsConcentrationMeasurement,
-);
+export const TotalVolatileOrganicCompoundsConcentrationMeasurement = new ClusterModel(definitions.TotalVolatileOrganicCompoundsConcentrationMeasurement);
 export const RadonConcentrationMeasurement = new ClusterModel(definitions.RadonConcentrationMeasurement);
 export const SmokeCoAlarm = new ClusterModel(definitions.SmokeCoAlarm);
 export const ElectricalEnergyMeasurement = new ClusterModel(definitions.ElectricalEnergyMeasurement);
 export const ElectricalPowerMeasurement = new ClusterModel(definitions.ElectricalPowerMeasurement);
 export const ColorControl = new ClusterModel(definitions.ColorControl);
-export const BallastConfiguration = new ClusterModel(definitions.BallastConfiguration);
 export const PumpConfigurationAndControl = new ClusterModel(definitions.PumpConfigurationAndControl);
 export const Thermostat = new ClusterModel(definitions.Thermostat);
 export const FanControl = new ClusterModel(definitions.FanControl);
@@ -92,9 +83,7 @@ export const DishwasherMode = new ClusterModel(definitions.DishwasherMode);
 export const DishwasherAlarm = new ClusterModel(definitions.DishwasherAlarm);
 export const LaundryWasherMode = new ClusterModel(definitions.LaundryWasherMode);
 export const LaundryWasherControls = new ClusterModel(definitions.LaundryWasherControls);
-export const RefrigeratorAndTemperatureControlledCabinetMode = new ClusterModel(
-    definitions.RefrigeratorAndTemperatureControlledCabinetMode,
-);
+export const RefrigeratorAndTemperatureControlledCabinetMode = new ClusterModel(definitions.RefrigeratorAndTemperatureControlledCabinetMode);
 export const RefrigeratorAlarm = new ClusterModel(definitions.RefrigeratorAlarm);
 export const LaundryDryerControls = new ClusterModel(definitions.LaundryDryerControls);
 export const OvenCavityOperationalState = new ClusterModel(definitions.OvenCavityOperationalState);
@@ -119,9 +108,6 @@ export const UserLabel = new ClusterModel(definitions.UserLabel);
 export const AccessControl = new ClusterModel(definitions.AccessControl);
 export const BridgedDeviceBasicInformation = new ClusterModel(definitions.BridgedDeviceBasicInformation);
 export const Actions = new ClusterModel(definitions.Actions);
-export const ProxyDiscovery = new ClusterModel(definitions.ProxyDiscovery);
-export const ProxyConfiguration = new ClusterModel(definitions.ProxyConfiguration);
-export const ValidProxies = new ClusterModel(definitions.ValidProxies);
 export const IcdManagement = new ClusterModel(definitions.IcdManagement);
 export const EcosystemInformation = new ClusterModel(definitions.EcosystemInformation);
 export const BasicInformation = new ClusterModel(definitions.BasicInformation);
@@ -146,7 +132,7 @@ export const AdministratorCommissioning = new ClusterModel(definitions.Administr
 export const OtaSoftwareUpdateProvider = new ClusterModel(definitions.OtaSoftwareUpdateProvider);
 export const OtaSoftwareUpdateRequestor = new ClusterModel(definitions.OtaSoftwareUpdateRequestor);
 export const JointFabricDatastore = new ClusterModel(definitions.JointFabricDatastore);
-export const JointFabricPki = new ClusterModel(definitions.JointFabricPki);
+export const JointFabricAdministrator = new ClusterModel(definitions.JointFabricAdministrator);
 export const CommissionerControl = new ClusterModel(definitions.CommissionerControl);
 export const MeasurementTypeEnum = new DatatypeModel(definitions.MeasurementTypeEnum);
 export const MeasurementAccuracyRangeStruct = new DatatypeModel(definitions.MeasurementAccuracyRangeStruct);
@@ -181,8 +167,6 @@ export const list = new DatatypeModel(definitions.list);
 export const struct = new DatatypeModel(definitions.struct);
 export const percent = new DatatypeModel(definitions.percent);
 export const percent100ths = new DatatypeModel(definitions.percent100ths);
-export const tod = new DatatypeModel(definitions.tod);
-export const date = new DatatypeModel(definitions.date);
 export const epochUs = new DatatypeModel(definitions.epochUs);
 export const epochS = new DatatypeModel(definitions.epochS);
 export const posixMs = new DatatypeModel(definitions.posixMs);
@@ -194,6 +178,11 @@ export const powerMW = new DatatypeModel(definitions.powerMW);
 export const amperageMA = new DatatypeModel(definitions.amperageMA);
 export const voltageMV = new DatatypeModel(definitions.voltageMV);
 export const energyMWh = new DatatypeModel(definitions.energyMWh);
+export const powerMVa = new DatatypeModel(definitions.powerMVa);
+export const energyMVAh = new DatatypeModel(definitions.energyMVAh);
+export const powerMVar = new DatatypeModel(definitions.powerMVar);
+export const energyMVaRh = new DatatypeModel(definitions.energyMVaRh);
+export const money = new DatatypeModel(definitions.money);
 export const enum8 = new DatatypeModel(definitions.enum8);
 export const enum16 = new DatatypeModel(definitions.enum16);
 export const priority = new DatatypeModel(definitions.priority);
@@ -212,9 +201,13 @@ export const commandId = new DatatypeModel(definitions.commandId);
 export const actionId = new DatatypeModel(definitions.actionId);
 export const transId = new DatatypeModel(definitions.transId);
 export const nodeId = new DatatypeModel(definitions.nodeId);
+export const subjectId = new DatatypeModel(definitions.subjectId);
 export const entryIdx = new DatatypeModel(definitions.entryIdx);
 export const dataVer = new DatatypeModel(definitions.dataVer);
 export const eventNo = new DatatypeModel(definitions.eventNo);
+export const namespace = new DatatypeModel(definitions.namespace);
+export const tag = new DatatypeModel(definitions.tag);
+export const ThreeLevelAutoEnum = new DatatypeModel(definitions.ThreeLevelAutoEnum);
 export const string = new DatatypeModel(definitions.string);
 export const ipadr = new DatatypeModel(definitions.ipadr);
 export const ipv4Adr = new DatatypeModel(definitions.ipv4Adr);
@@ -222,16 +215,13 @@ export const ipv6Adr = new DatatypeModel(definitions.ipv6Adr);
 export const ipv6Pre = new DatatypeModel(definitions.ipv6Pre);
 export const hwadr = new DatatypeModel(definitions.hwadr);
 export const semtag = new DatatypeModel(definitions.semtag);
-export const namespace = new DatatypeModel(definitions.namespace);
-export const tag = new DatatypeModel(definitions.tag);
 export const locationdesc = new DatatypeModel(definitions.locationdesc);
+export const currency = new DatatypeModel(definitions.currency);
+export const price = new DatatypeModel(definitions.price);
 export const WildcardPathFlagsBitmap = new DatatypeModel(definitions.WildcardPathFlagsBitmap);
-export const SoftwareVersionCertificationStatusEnum = new DatatypeModel(
-    definitions.SoftwareVersionCertificationStatusEnum,
-);
+export const SoftwareVersionCertificationStatusEnum = new DatatypeModel(definitions.SoftwareVersionCertificationStatusEnum);
 export const any = new DatatypeModel(definitions.any);
 export const duration = new DatatypeModel(definitions.duration);
-export const subjectId = new DatatypeModel(definitions.subjectId);
 export const ClusterRevision = new AttributeModel(definitions.ClusterRevision);
 export const FeatureMap = new AttributeModel(definitions.FeatureMap);
 export const AttributeList = new AttributeModel(definitions.AttributeList);
@@ -285,6 +275,7 @@ export const WindowCoveringControllerDt = new DeviceTypeModel(definitions.Window
 export const ThermostatDt = new DeviceTypeModel(definitions.ThermostatDt);
 export const FanDt = new DeviceTypeModel(definitions.FanDt);
 export const AirPurifierDt = new DeviceTypeModel(definitions.AirPurifierDt);
+export const ThermostatControllerDt = new DeviceTypeModel(definitions.ThermostatControllerDt);
 export const BasicVideoPlayerDt = new DeviceTypeModel(definitions.BasicVideoPlayerDt);
 export const CastingVideoPlayerDt = new DeviceTypeModel(definitions.CastingVideoPlayerDt);
 export const SpeakerDt = new DeviceTypeModel(definitions.SpeakerDt);

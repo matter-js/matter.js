@@ -19,8 +19,8 @@ export const LaundryTag = SemanticNamespace({
 
     tags: {
         Normal: { id: 0x0, label: "Normal" },
-        LightDry: { id: 0x1, label: "Light Dry" },
-        ExtraDry: { id: 0x2, label: "Extra Dry" },
-        NoDry: { id: 0x3, label: "No Dry" }
+        LightDry: { id: 0x1, label: "LightDry" },
+        ExtraDry: { id: 0x2, label: "ExtraDry" },
+        NoDry: { id: 0x3, label: "NoDry" }
     }
 });

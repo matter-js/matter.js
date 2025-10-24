@@ -111,8 +111,8 @@ Resource.add({
         {
             tag: "attribute", name: "OperationalError", xref: "cluster§1.14.5.6",
             details: "This attribute shall specify the details of any current error condition being experienced on the " +
-                "device when the OperationalState attribute is populated with Error. Please see ErrorStateStruct for " +
-                "general requirements on the population of this attribute." +
+                "device when the OperationalState attribute is populated with Error. See Section 1.14.4.4, " +
+                "“ErrorStateStruct Type” for general requirements on the population of this attribute." +
                 "\n" +
                 "When there is no error detected, this shall have an ErrorStateID of NoError."
         },
@@ -313,8 +313,8 @@ Resource.add({
             children: [{
                 tag: "field", name: "CommandResponseState", xref: "cluster§1.14.6.5.1",
                 details: "This shall indicate the success or otherwise of the attempted command invocation. On a successful " +
-                    "invocation of the attempted command, the ErrorStateID shall be populated with NoError. Please see " +
-                    "the individual command sections for additional specific requirements on population."
+                    "invocation of the attempted command, the ErrorStateID shall be populated with NoError. See the " +
+                    "individual command sections for additional specific requirements on population."
             }]
         },
 
@@ -356,12 +356,10 @@ Resource.add({
                     tag: "field", name: "OperationalStateId", xref: "cluster§1.14.4.2.1",
                     details: "This shall be populated with a value from the OperationalStateEnum."
                 },
-
                 {
                     tag: "field", name: "OperationalStateLabel", xref: "cluster§1.14.4.2.2",
-                    details: "This field shall be present if the OperationalStateID is from the set reserved for Manufacturer " +
-                        "Specific States, otherwise it shall NOT be present. If present, this shall contain a human-readable " +
-                        "description of the operational state."
+                    details: "This field is present when the OperationalStateID is from the set reserved for Manufacturer Specific " +
+                        "States. If present, this shall contain a human-readable description of the operational state."
                 }
             ]
         },
@@ -414,13 +412,10 @@ Resource.add({
                     tag: "field", name: "ErrorStateId", xref: "cluster§1.14.4.4.1",
                     details: "This shall be populated with a value from the ErrorStateEnum."
                 },
-
                 {
                     tag: "field", name: "ErrorStateLabel", xref: "cluster§1.14.4.4.2",
-                    details: "This field shall be present if the ErrorStateID is from the set reserved for Manufacturer Specific " +
-                        "Errors, otherwise it shall NOT be present. If present, this shall contain a human-readable " +
-                        "description of the ErrorStateID; e.g. for a manufacturer specific ErrorStateID of \"0x80\" the " +
-                        "ErrorStateLabel may contain \"My special error\"."
+                    details: "This field is present when the ErrorStateID is from the set reserved for Manufacturer Specific " +
+                        "errors. If present, this shall contain a human-readable description of the error state."
                 },
 
                 {

@@ -39,7 +39,11 @@ Resource.add({
                 "\n" +
                 "> The approval is valid for a period determined by the manufacturer and characteristics of the node " +
                 "  presenting the Commissioner Control Cluster. Clients SHOULD send the CommissionNode command " +
-                "  immediately upon receiving a CommissioningRequestResult event."
+                "  immediately upon receiving a CommissioningRequestResult event." +
+                "\n" +
+                "11.26.7.2. RequestID / ClientNodeID Fields The RequestID shall match the RequestID provided to " +
+                "RequestCommissioningApproval and the ClientNodeID shall match the NodeID of the client which " +
+                "generated the RequestCommissioningApproval command."
         },
 
         {
@@ -106,8 +110,8 @@ Resource.add({
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
-                "> This is an alias onto the Open Commissioning Window command within the Administrator Commissioning " +
-                "  Cluster. Refer to the Open Commissioning Window command for a description of the command behavior " +
+                "> This is an alias onto the OpenCommissioningWindow command within the Administrator Commissioning " +
+                "  Cluster. Refer to the OpenCommissioningWindow command for a description of the command behavior " +
                 "  and parameters." +
                 "\n" +
                 "The parameters for ReverseOpenCommissioningWindow command are as follows:"

@@ -36,7 +36,7 @@ Resource.add({
         "\n" +
         "  • The cluster data version shall be incremented when the list order or entries change." +
         "\n" +
-        "  • An entry shall NOT be null." +
+        "  • An entry shall NOT be NULL." +
         "\n" +
         "  • The list shall support reading and reporting all entries." +
         "\n" +
@@ -52,7 +52,8 @@ Resource.add({
         "\n" +
         "  • If the list is writable, it shall support adding one or more individual entries." +
         "\n" +
-        "  • A list may define an entry that is a struct that is fabric-scoped (see Fabric-Scoped Quality)." +
+        "  • A list may define an entry that is a struct that is fabric-scoped (see Section 7.6.4, " +
+        "    “Fabric-Scoped Access”)." +
         "\n" +
         "### Fabric-Scoped List" +
         "\n" +
@@ -78,7 +79,7 @@ Resource.add({
         "  • For a write interaction, fabric-filtering shall be enabled." +
         "\n" +
         "  • When writing to a fabric-scoped list, the write interaction shall be on an accessing fabric, " +
-        "    otherwise, the write interaction shall fail (see Interaction Model)." +
+        "    otherwise, the write interaction shall fail (see Interaction Model Specification)." +
         "\n" +
         "  • For a read interaction on a list, fabric-filtering may be enabled." +
         "\n" +

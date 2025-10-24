@@ -78,10 +78,13 @@ export const ConstraintStr = (el: HTMLElement) => {
 
         case "max 262 - 1":
             return "";
+
+        case "max (262 - 1)":
+            return "";
     }
 
     if (str.indexOf("262") !== -1) {
-        throw new Error("Unrecognized constraint definition apparently referencing 2**62");
+        throw new Error(`Unrecognized constraint definition "${str}" apparently referencing 2**62`);
     }
 
     // As of 1.4.1 the constraint column is so badly butchered we must resolve to concatenating any two words that are

@@ -179,7 +179,7 @@ export namespace RefrigeratorAlarm {
 
         events: {
             /**
-             * This event shall be generated when one or more alarms change state, and shall have these fields:
+             * This event shall be generated when one or more alarms change state.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 1.15.8.1
              */

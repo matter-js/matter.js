@@ -189,6 +189,8 @@ Resource.add({
                         "discovery of the location of that endpoint by walking over all endpoints and checking their " +
                         "Descriptor Cluster." +
                         "\n" +
+                        "### When Generated" +
+                        "\n" +
                         "An OTA Provider may invoke this command directly to an OTA Requestor, to announce its presence as an " +
                         "OTA Provider on the Fabric." +
                         "\n" +
@@ -197,12 +199,12 @@ Resource.add({
                         "AnnouncementReason is UrgentUpdateAvailable, in which case this command may be more frequent." +
                         "\n" +
                         "Any invocation shall be made with a delay of at least 1 second between invocations from a given OTA " +
-                        "Provider, to reduce burden on the networking infrastructure and affect a form of serialized" +
+                        "Provider, to reduce burden on the networking infrastructure and affect a form of serialized jitter. " +
+                        "It is recommended to offset the first announcement of a round (i.e. new set of announcements after a " +
+                        "previous complete set) by a random delay time with a distribution span of >= 60 seconds to jitter " +
+                        "announcement schedules over time." +
                         "\n" +
-                        "jitter. It is recommended to offset the first announcement of a round (i.e. new set of announcements " +
-                        "after a previous complete set) by a random delay time with a distribution span of" +
-                        "\n" +
-                        ">= 60 seconds to jitter announcement schedules over time." +
+                        "### Effect on Receipt" +
                         "\n" +
                         "On receipt of this command, an OTA Requestor SHOULD consider the new ProviderNodeID and " +
                         "AnnouncementReason to possibly query for new software sooner than it would have with its default " +

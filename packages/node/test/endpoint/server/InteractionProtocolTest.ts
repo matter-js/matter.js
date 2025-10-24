@@ -916,37 +916,37 @@ const wildcardTestCases: {
     wildcardPathFilter?: TypeFromPartialBitSchema<typeof WildcardPathFlagsBitmap>;
     count: number;
 }[] = [
-    { testCase: "no", clusterId: ClusterId(0x28), wildcardPathFilter: undefined, count: 22 },
+    { testCase: "no", clusterId: ClusterId(0x28), wildcardPathFilter: undefined, count: 23 },
     { testCase: "skipRootNode", clusterId: ClusterId(0x28), wildcardPathFilter: { skipRootNode: true }, count: 0 }, // all sorted out
     {
         testCase: "skipGlobalAttributes",
         clusterId: ClusterId(0x28), // BasicInformationCluster
         wildcardPathFilter: { skipGlobalAttributes: true },
-        count: 19,
+        count: 20,
     }, // 3 less
     {
         testCase: "skipAttributeList",
         clusterId: ClusterId(0x28), // BasicInformationCluster
         wildcardPathFilter: { skipAttributeList: true },
-        count: 21,
+        count: 22,
     }, // 1 less
     {
         testCase: "skipCommandLists",
         clusterId: ClusterId(0x28), // BasicInformationCluster
         wildcardPathFilter: { skipCommandLists: true },
-        count: 20,
+        count: 21,
     }, // 2 less
     {
         testCase: "skipFixedAttributes",
         clusterId: ClusterId(0x28), // BasicInformationCluster
         wildcardPathFilter: { skipFixedAttributes: true },
-        count: 3,
+        count: 4,
     }, // 19 less
     {
         testCase: "skipChangesOmittedAttributes",
         clusterId: ClusterId(0x28), // BasicInformationCluster
         wildcardPathFilter: { skipChangesOmittedAttributes: true },
-        count: 22,
+        count: 23,
     }, // nothing filtered
     {
         testCase: "no for WiFiDiag",

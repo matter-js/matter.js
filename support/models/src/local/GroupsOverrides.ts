@@ -25,7 +25,7 @@ LocalMatter.children.push({
             tag: "attribute",
             id: 0,
             name: "NameSupport",
-            children: [{ tag: "field", name: "NameSupport", default: true, constraint: "7" }],
+            children: [{ tag: "field", name: "GroupNames", default: true, constraint: "7" }],
         },
     ],
 });

@@ -26,10 +26,7 @@ export const AirQuality = Cluster(
         Field({ name: "XPOOR", conformance: "O", constraint: "3", title: "ExtremelyPoor" })
     ),
 
-    Attribute({
-        name: "AirQuality", id: 0x0, type: "AirQualityEnum", access: "R V", conformance: "M",
-        constraint: "desc", default: 0
-    }),
+    Attribute({ name: "AirQuality", id: 0x0, type: "AirQualityEnum", access: "R V", conformance: "M", constraint: "desc" }),
 
     Datatype(
         { name: "AirQualityEnum", type: "enum8" },

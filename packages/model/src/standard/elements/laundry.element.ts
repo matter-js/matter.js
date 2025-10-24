@@ -15,9 +15,9 @@ import {
 export const LaundryNs = SemanticNamespace(
     { name: "Laundry", id: 0xe },
     SemanticTag({ name: "Normal", id: 0x0 }),
-    SemanticTag({ name: "Light Dry", id: 0x1 }),
-    SemanticTag({ name: "Extra Dry", id: 0x2 }),
-    SemanticTag({ name: "No Dry", id: 0x3 })
+    SemanticTag({ name: "LightDry", id: 0x1 }),
+    SemanticTag({ name: "ExtraDry", id: 0x2 }),
+    SemanticTag({ name: "NoDry", id: 0x3 })
 );
 
 MatterDefinition.children.push(LaundryNs);

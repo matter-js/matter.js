@@ -77,7 +77,10 @@ export namespace ElectricalEnergyMeasurement {
      * Such a server may also include the systime fields to indicate how many seconds had passed since boot for a given
      * timestamp; this allows for client-side resolution of UTC time for previous reports that only included systime.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.1
+     * Elements using this data type shall indicate whether it represents cumulative or periodic energy, e.g. in the
+     * name or in the element description.
+     *
+     * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.2
      */
     export const TlvEnergyMeasurement = TlvObject({
         /**
@@ -90,7 +93,7 @@ export namespace ElectricalEnergyMeasurement {
          * during the period specified by either the StartTimestamp and EndTimestamp fields, the period specified by the
          * StartSystime and EndSystime fields, or both.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.1.1
+         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.2.1
          */
         energy: TlvField(0, TlvInt64.bound({ min: 0 })),
 
@@ -106,7 +109,7 @@ export namespace ElectricalEnergyMeasurement {
          * Otherwise, if the server had not yet determined the time in UTC at or before the beginning of the measurement
          * period, or does not have the capability of determining the time in UTC, this field shall be omitted.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.1.2
+         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.2.2
          */
         startTimestamp: TlvOptionalField(1, TlvEpochS),
 
@@ -120,7 +123,7 @@ export namespace ElectricalEnergyMeasurement {
          * Otherwise, if the server had not yet determined the time in UTC by the end of the measurement period, or does
          * not have the capability of determining the time in UTC, this field shall be omitted.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.1.3
+         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.2.3
          */
         endTimestamp: TlvOptionalField(2, TlvEpochS),
 
@@ -137,7 +140,7 @@ export namespace ElectricalEnergyMeasurement {
          * this field may be omitted; if it is indicated, its value shall be the time elapsed since boot at the UTC time
          * indicated in StartTimestamp.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.1.4
+         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.2.4
          */
         startSystime: TlvOptionalField(3, TlvSysTimeMS),
 
@@ -152,7 +155,7 @@ export namespace ElectricalEnergyMeasurement {
          * be omitted; if it is indicated, its value shall be the time elapsed since boot at the UTC time indicated in
          * EndTimestamp.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.1.5
+         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.2.5
          */
         endSystime: TlvOptionalField(4, TlvSysTimeMS)
     });
@@ -167,7 +170,10 @@ export namespace ElectricalEnergyMeasurement {
      * Such a server may also include the systime fields to indicate how many seconds had passed since boot for a given
      * timestamp; this allows for client-side resolution of UTC time for previous reports that only included systime.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.1
+     * Elements using this data type shall indicate whether it represents cumulative or periodic energy, e.g. in the
+     * name or in the element description.
+     *
+     * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.2
      */
     export interface EnergyMeasurement extends TypeFromSchema<typeof TlvEnergyMeasurement> {}
 
@@ -175,7 +181,7 @@ export namespace ElectricalEnergyMeasurement {
      * This struct shall represent the times at which cumulative measurements were last zero, either due to
      * initialization of the device, or an internal reset of the cumulative value.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.2
+     * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.3
      */
     export const TlvCumulativeEnergyReset = TlvObject({
         /**
@@ -192,7 +198,7 @@ export namespace ElectricalEnergyMeasurement {
          * If the timestamp in UTC when the value of the Energy field on the CumulativeEnergyImported attribute was most
          * recently zero cannot currently be determined, a value of null shall be returned.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.2.1
+         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.3.1
          */
         importedResetTimestamp: TlvOptionalField(0, TlvNullable(TlvEpochS)),
 
@@ -210,7 +216,7 @@ export namespace ElectricalEnergyMeasurement {
          * If the timestamp in UTC when the value of the Energy field on the CumulativeEnergyExported attribute was most
          * recently zero cannot currently be determined, a value of null shall be returned.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.2.2
+         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.3.2
          */
         exportedResetTimestamp: TlvOptionalField(1, TlvNullable(TlvEpochS)),
 
@@ -226,7 +232,7 @@ export namespace ElectricalEnergyMeasurement {
          * CumulativeEnergyImported attribute was most recently zero, this field may be omitted; if it is indicated, its
          * value shall be the time elapsed since boot at the UTC time indicated in ImportedResetTimestamp.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.2.3
+         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.3.3
          */
         importedResetSystime: TlvOptionalField(2, TlvNullable(TlvSysTimeMS)),
 
@@ -242,7 +248,7 @@ export namespace ElectricalEnergyMeasurement {
          * CumulativeEnergyExported attribute was most recently zero, this field may be omitted; if it is indicated, its
          * value shall be the time elapsed since boot at the UTC time indicated in ImportedResetTimestamp.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.2.4
+         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.3.4
          */
         exportedResetSystime: TlvOptionalField(3, TlvNullable(TlvSysTimeMS))
     });
@@ -251,7 +257,7 @@ export namespace ElectricalEnergyMeasurement {
      * This struct shall represent the times at which cumulative measurements were last zero, either due to
      * initialization of the device, or an internal reset of the cumulative value.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.2
+     * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.3
      */
     export interface CumulativeEnergyReset extends TypeFromSchema<typeof TlvCumulativeEnergyReset> {}
 
@@ -316,6 +322,93 @@ export namespace ElectricalEnergyMeasurement {
     export interface PeriodicEnergyMeasuredEvent extends TypeFromSchema<typeof TlvPeriodicEnergyMeasuredEvent> {}
 
     /**
+     * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.1
+     */
+    export enum MeasurementType {
+        Unspecified = 0,
+
+        /**
+         * Voltage in millivolts (mV)
+         */
+        Voltage = 1,
+
+        /**
+         * Active current in milliamps (mA)
+         */
+        ActiveCurrent = 2,
+
+        /**
+         * Reactive current in milliamps (mA)
+         */
+        ReactiveCurrent = 3,
+
+        /**
+         * Apparent current in milliamps (mA)
+         */
+        ApparentCurrent = 4,
+
+        /**
+         * Active power in milliwatts (mW)
+         */
+        ActivePower = 5,
+
+        /**
+         * Reactive power in millivolt-amps reactive (mVAR)
+         */
+        ReactivePower = 6,
+
+        /**
+         * Apparent power in millivolt-amps (mVA)
+         */
+        ApparentPower = 7,
+
+        /**
+         * Root mean squared voltage in millivolts (mV)
+         */
+        RmsVoltage = 8,
+
+        /**
+         * Root mean squared current in milliamps (mA)
+         */
+        RmsCurrent = 9,
+
+        /**
+         * Root mean squared power in milliwatts (mW)
+         */
+        RmsPower = 10,
+
+        /**
+         * AC frequency in millihertz (mHz)
+         */
+        Frequency = 11,
+
+        /**
+         * Power Factor ratio in+/- 1/100ths of a percent.
+         */
+        PowerFactor = 12,
+
+        /**
+         * AC neutral current in milliamps (mA)
+         */
+        NeutralCurrent = 13,
+
+        /**
+         * Electrical energy in milliwatt-hours (mWh)
+         */
+        ElectricalEnergy = 14,
+
+        /**
+         * Reactive power in millivolt-amp-hours reactive (mVARh)
+         */
+        ReactiveEnergy = 15,
+
+        /**
+         * Apparent power in millivolt-amp-hours (mVAh)
+         */
+        ApparentEnergy = 16
+    }
+
+    /**
      * A ElectricalEnergyMeasurementCluster supports these elements if it supports features ImportedEnergy and
      * CumulativeEnergy.
      */
@@ -338,7 +431,7 @@ export namespace ElectricalEnergyMeasurement {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 2.12.6.2
              */
-            cumulativeEnergyImported: Attribute(0x1, TlvNullable(TlvEnergyMeasurement), { default: null })
+            cumulativeEnergyImported: Attribute(0x1, TlvNullable(TlvEnergyMeasurement))
         }
     });
 
@@ -365,7 +458,7 @@ export namespace ElectricalEnergyMeasurement {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 2.12.6.3
              */
-            cumulativeEnergyExported: Attribute(0x2, TlvNullable(TlvEnergyMeasurement), { default: null })
+            cumulativeEnergyExported: Attribute(0x2, TlvNullable(TlvEnergyMeasurement))
         }
     });
 
@@ -392,7 +485,7 @@ export namespace ElectricalEnergyMeasurement {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 2.12.6.4
              */
-            periodicEnergyImported: Attribute(0x3, TlvNullable(TlvEnergyMeasurement), { default: null })
+            periodicEnergyImported: Attribute(0x3, TlvNullable(TlvEnergyMeasurement))
         }
     });
 
@@ -419,7 +512,7 @@ export namespace ElectricalEnergyMeasurement {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 2.12.6.5
              */
-            periodicEnergyExported: Attribute(0x4, TlvNullable(TlvEnergyMeasurement), { default: null })
+            periodicEnergyExported: Attribute(0x4, TlvNullable(TlvEnergyMeasurement))
         }
     });
 

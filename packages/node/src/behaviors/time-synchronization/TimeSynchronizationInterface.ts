@@ -12,6 +12,8 @@ import { TimeSynchronization } from "#clusters/time-synchronization";
 export namespace TimeSynchronizationInterface {
     export interface Base {
         /**
+         * This command is used to set the UTC time of the node.
+         *
          * This command may be issued by Administrator to set the time. If the Commissioner does not have a valid time
          * source, it may send a Granularity of NoTimeGranularity.
          *
@@ -35,7 +37,7 @@ export namespace TimeSynchronizationInterface {
 
     export interface TimeSyncClient {
         /**
-         * This command shall set the TrustedTimeSource attribute. Upon receipt of this command:
+         * This command is used to set the TrustedTimeSource attribute. Upon receipt of this command:
          *
          *   • If the TrustedTimeSource field in the command is null, the node shall set the TrustedTimeSource attribute
          *     to null and shall generate a MissingTrustedTimeSource event.
@@ -51,11 +53,13 @@ export namespace TimeSynchronizationInterface {
 
     export interface NtpClient {
         /**
-         * This command is used to set the DefaultNTP attribute. If the DefaultNTP Address field does not conform to the
-         * requirements in the DefaultNTP attribute description, the command shall fail with a status code of
-         * INVALID_COMMAND. If the node does not support DNS resolution (as specified in SupportsDNSResolve) and the
-         * provided Address is a domain name, the command shall fail with a status code of INVALID_COMMAND. Otherwise,
-         * the node shall set the DefaultNTP attribute to match the DefaultNTP provided in this command.
+         * This command is used to set the DefaultNTP attribute.
+         *
+         * If the DefaultNTP Address field does not conform to the requirements in the DefaultNTP attribute description,
+         * the command shall fail with a status code of INVALID_COMMAND. If the node does not support DNS resolution (as
+         * specified in SupportsDNSResolve) and the provided Address is a domain name, the command shall fail with a
+         * status code of INVALID_COMMAND. Otherwise, the node shall set the DefaultNTP attribute to match the
+         * DefaultNTP provided in this command.
          *
          * @see {@link MatterSpecification.v141.Core} § 11.17.9.6
          */

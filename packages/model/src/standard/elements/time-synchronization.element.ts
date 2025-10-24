@@ -123,7 +123,7 @@ export const TimeSynchronization = Cluster(
 
     Command(
         { name: "SetTimeZoneResponse", id: 0x3, conformance: "TZ", direction: "response" },
-        Field({ name: "DstOffsetsRequired", id: 0x0, type: "bool", conformance: "M", default: true })
+        Field({ name: "DstOffsetRequired", id: 0x0, type: "bool", conformance: "M", default: true })
     ),
 
     Command(

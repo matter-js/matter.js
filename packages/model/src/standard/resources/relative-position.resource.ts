@@ -16,7 +16,7 @@ Resource.add({
         "user of these tags must indicate that. Note the difference with Chapter 9, Common Position Semantic " +
         "Tag Namespace, which contains tags indicating the position relative to the device.",
     children: [
-        { tag: "semanticTag", name: "Next To", description: "Area in proximity to the point of reference" },
+        { tag: "semanticTag", name: "NextTo", description: "Area in proximity to the point of reference" },
         { tag: "semanticTag", name: "Around", description: "The area surrounding the point the reference" }
     ]
 });

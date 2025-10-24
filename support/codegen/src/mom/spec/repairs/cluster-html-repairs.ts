@@ -111,6 +111,9 @@ export const ClusterHtmlRepairs: Record<string, HtmlRepairs> = {
     "ICD Management": {
         // ClientTypeEnum is one level too deep (1.4 core)
         "9.17.5.1.1": POP,
+
+        // It's a fake heading in 1.4.2 (probably was in 1.4 too) and has moved
+        "9.16.5.1.1": POP,
     },
 
     "Service Area": {

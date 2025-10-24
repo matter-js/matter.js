@@ -24,9 +24,9 @@ Resource.add({
         "such as a DVD Player, or a device that provides input to another device like a TV or computer " +
         "monitor." +
         "\n" +
-        "Please see Video Player Architecture for additional Basic Video Player requirements relating to " +
-        "Video Player device endpoint composition, commissioning, feature representation in clusters, and UI " +
-        "context.",
+        "See Section 10.1, “Video Player Architecture” for additional Basic Video Player requirements " +
+        "relating to Video Player device endpoint composition, commissioning, feature representation in " +
+        "clusters, and UI context.",
 
     children: [
         { tag: "requirement", name: "OnOff", xref: "device§10.2.4" },

@@ -7,7 +7,7 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
-import { FixedAttribute, Attribute } from "../cluster/Cluster.js";
+import { FixedAttribute, Attribute, OptionalFixedAttribute } from "../cluster/Cluster.js";
 import { TlvArray } from "../tlv/TlvArray.js";
 import { TlvSemtag } from "../globals/Semtag.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
@@ -17,6 +17,7 @@ import { TlvUInt16 } from "../tlv/TlvNumber.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { TlvClusterId } from "../datatype/ClusterId.js";
 import { TlvEndpointNumber } from "../datatype/EndpointNumber.js";
+import { TlvString } from "../tlv/TlvString.js";
 import { Identity } from "#general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
@@ -106,7 +107,7 @@ export namespace Descriptor {
     export const Base = MutableCluster.Component({
         id: 0x1d,
         name: "Descriptor",
-        revision: 2,
+        revision: 3,
 
         features: {
             /**
@@ -120,8 +121,8 @@ export namespace Descriptor {
 
         attributes: {
             /**
-             * This is a list of device types and corresponding revisions declaring endpoint conformance (see
-             * DeviceTypeStruct). At least one device type entry shall be present.
+             * This is a list of device types and corresponding revisions declaring endpoint conformance (see Section
+             * 9.5.5.1, “DeviceTypeStruct Type”). At least one device type entry shall be present.
              *
              * An endpoint shall conform to all device types listed in the DeviceTypeList. A cluster instance that is in
              * common for more than one device type in the DeviceTypeList shall be supported as a shared cluster
@@ -153,7 +154,24 @@ export namespace Descriptor {
              *
              * @see {@link MatterSpecification.v141.Core} § 9.5.6.4
              */
-            partsList: Attribute(0x3, TlvArray(TlvEndpointNumber), { default: [] })
+            partsList: Attribute(0x3, TlvArray(TlvEndpointNumber), { default: [] }),
+
+            /**
+             * Indicates an identifier which allows to uniquely identify the functionality exposed on an endpoint, and
+             * therefore shall be unique within the device. It is constructed in a manufacturer specific manner.
+             *
+             *   • If a globally unique identifier is used, the same rules as defined for the UniqueID attribute in the
+             *     Basic Information cluster apply.
+             *
+             *   • If the identifier is only unique in the scope of the device, and cannot be used to track the device,
+             *     then it may remain unchanged at factory reset.
+             *
+             * The value does not need to be human readable, since it is intended for machine to machine (M2M)
+             * communication.
+             *
+             * @see {@link MatterSpecification.v141.Core} § 9.5.6.6
+             */
+            endpointUniqueId: OptionalFixedAttribute(0x5, TlvString.bound({ maxLength: 32 }))
         },
 
         /**
@@ -180,8 +198,8 @@ export namespace Descriptor {
      * This cluster supports a list of one or more device type identifiers that represent conformance to device type
      * specifications.
      *
-     * The cluster supports a PartsList attribute that is a list of zero or more endpoints to support a composed device
-     * type.
+     * The cluster supports a PartsList attribute that is a list of zero or more endpoints to support compound devices
+     * or composed device types.
      *
      * DescriptorCluster supports optional features that you can enable with the DescriptorCluster.with() factory
      * method.

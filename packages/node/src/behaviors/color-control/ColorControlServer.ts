@@ -216,11 +216,7 @@ export class ColorControlBaseServer extends ColorControlBase {
      * Sets the current color temperature value in Mireds (0..0xFFFF) and converts into Matter number range.
      */
     set mireds(value: number) {
-        this.state.colorTemperatureMireds = cropValueRange(
-            value,
-            this.minimumColorTemperatureMireds,
-            this.maximumColorTemperatureMireds,
-        );
+        this.state.colorTemperatureMireds = this.#cropColorTemperature(value);
     }
 
     /** Returns the current color temperature value in Kelvin (from internal Mireds). */
@@ -380,7 +376,7 @@ export class ColorControlBaseServer extends ColorControlBase {
             let targetMiredsValue: number | null;
             switch (startUpMiredsValue) {
                 case null:
-                    targetMiredsValue = currentMiredsValue;
+                    targetMiredsValue = this.#cropColorTemperature(currentMiredsValue);
                     break;
                 default:
                     targetMiredsValue = startUpMiredsValue;
@@ -1270,16 +1266,8 @@ export class ColorControlBaseServer extends ColorControlBase {
             if (colorTemperatureMaximumMireds === 0) {
                 colorTemperatureMaximumMireds = this.maximumColorTemperatureMireds;
             }
-            colorTemperatureMinimumMireds = cropValueRange(
-                colorTemperatureMinimumMireds,
-                this.minimumColorTemperatureMireds,
-                this.maximumColorTemperatureMireds,
-            );
-            colorTemperatureMaximumMireds = cropValueRange(
-                colorTemperatureMaximumMireds,
-                this.minimumColorTemperatureMireds,
-                this.maximumColorTemperatureMireds,
-            );
+            colorTemperatureMinimumMireds = this.#cropColorTemperature(colorTemperatureMinimumMireds);
+            colorTemperatureMaximumMireds = this.#cropColorTemperature(colorTemperatureMaximumMireds);
 
             return this.moveColorTemperatureLogic(
                 moveMode,
@@ -1350,16 +1338,8 @@ export class ColorControlBaseServer extends ColorControlBase {
             if (colorTemperatureMaximumMireds === 0) {
                 colorTemperatureMaximumMireds = this.maximumColorTemperatureMireds;
             }
-            colorTemperatureMinimumMireds = cropValueRange(
-                colorTemperatureMinimumMireds,
-                this.minimumColorTemperatureMireds,
-                this.maximumColorTemperatureMireds,
-            );
-            colorTemperatureMaximumMireds = cropValueRange(
-                colorTemperatureMaximumMireds,
-                this.minimumColorTemperatureMireds,
-                this.maximumColorTemperatureMireds,
-            );
+            colorTemperatureMinimumMireds = this.#cropColorTemperature(colorTemperatureMinimumMireds);
+            colorTemperatureMaximumMireds = this.#cropColorTemperature(colorTemperatureMaximumMireds);
 
             return this.stepColorTemperatureLogic(
                 stepMode,
@@ -1773,6 +1753,14 @@ export class ColorControlBaseServer extends ColorControlBase {
         (this.state as any)[fieldName] = cropValueRange(Math.round(value * 65536), MIN_CIE_XY_VALUE, MAX_CIE_XY_VALUE);
     }
 
+    #cropColorTemperature(temperatureMireds: number) {
+        return cropValueRange(
+            temperatureMireds,
+            this.minimumColorTemperatureMireds,
+            this.maximumColorTemperatureMireds,
+        );
+    }
+
     override async [Symbol.asyncDispose]() {
         if (this.internal.transitions) {
             await this.internal.transitions.close();
@@ -1810,6 +1798,17 @@ export namespace ColorControlBaseServer {
          * When managing transitions, this is the interval at which steps occur in ms.
          */
         transitionStepInterval = Millis(100);
+
+        // These were the default values specified prior to Matter 1.4.2.  We still need default values so using the
+        // previously specified values which are presumably educated logical defaults
+        override currentX = 24939;
+        override currentY = 24701;
+        override colorTemperatureMireds = 250;
+        override enhancedColorMode = ColorControl.EnhancedColorMode.CurrentXAndCurrentY;
+        override colorLoopTime = 25;
+        override colorLoopStartEnhancedHue = 8960;
+        override colorLoopActive = ColorControl.ColorLoopActive.Inactive;
+        override colorLoopDirection = ColorControl.ColorLoopDirection.Increment;
 
         [Val.properties](endpoint: Endpoint) {
             // Only return remaining time if the attribute is defined in the endpoint

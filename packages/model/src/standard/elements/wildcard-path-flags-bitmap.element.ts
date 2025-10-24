@@ -14,7 +14,7 @@ export const WildcardPathFlagsBitmap = Datatype(
     Field({ name: "WildcardSkipRootNode", constraint: "0" }),
     Field({ name: "WildcardSkipGlobalAttributes", constraint: "1" }),
     Field({ name: "WildcardSkipAttributeList", constraint: "2" }),
-    Field({ name: "Reserved", constraint: "3" }),
+    Field({ name: "DoNotUse", constraint: "3" }),
     Field({ name: "WildcardSkipCommandLists", constraint: "4" }),
     Field({ name: "WildcardSkipCustomElements", constraint: "5" }),
     Field({ name: "WildcardSkipFixedAttributes", constraint: "6" }),

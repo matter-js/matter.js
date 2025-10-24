@@ -27,6 +27,8 @@ const TYPE_ERRORS: { [badType: string]: string } = {
     ipv6addr: "ipv6adr",
     "endpoint-id": "endpoint-no",
     "ModeBitmap.": "ModeBitmap",
+    CurrencyStruct: "currency",
+    StatusCode: "status",
 
     // Can't use this one because ModeSelect defines a different SemanticTagStruct
     //SemanticTagStruct: "semtag",

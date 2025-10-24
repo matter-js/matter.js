@@ -311,7 +311,8 @@ export namespace ContentControl {
      */
     export const TlvAppInfo = TlvObject({
         /**
-         * This field shall indicate the CSA-issued vendor ID for the catalog. The DIAL registry shall use value 0x0000.
+         * This field shall indicate the Connectivity Standards Alliance-issued vendor ID for the catalog. The DIAL
+         * registry shall use value 0x0000.
          *
          * Content App Platform providers will have their own catalog vendor ID (set to their own Vendor ID) and will
          * assign an ApplicationID to each Content App.
@@ -992,10 +993,9 @@ export namespace ContentControl {
              * activated. If this attribute equals FALSE, then playback of unrated content shall be permitted.
              * Otherwise, the media device shall prevent the playback of unrated content.
              *
-             * When this attribute changes, the device SHOULD make the user aware of any limits of this feature.
-             *
-             * For example, if the feature does not control content within apps, then the device should make this clear
-             * to the user when the attribute changes.
+             * When this attribute changes, the device SHOULD make the user aware of any limits of this feature. For
+             * example, if the feature does not control content within apps, then the device should make this clear to
+             * the user when the attribute changes.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 6.13.7.8
              */
@@ -1018,7 +1018,7 @@ export namespace ContentControl {
              * The purpose of this command is to specify whether programs with no Content rating must be blocked by this
              * media device.
              *
-             * Upon receipt of the UnblockUnratedContent command, the media device shall set the BlockUnrated attribute
+             * Upon receipt of the UnblockUnratedContent command, the media device shall set the BlockUn rated attribute
              * to FALSE.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 6.13.8.9
@@ -1375,6 +1375,8 @@ export namespace ContentControl {
      * This cluster allows to configure content control settings by clients with the Management privilege. It is
      * responsibility of the end product to enforce appropriate right access (for example, to prevent a child from
      * disabling this feature).
+     *
+     * NOTE Support for Content Control cluster is provisional.
      *
      * ContentControlCluster supports optional features that you can enable with the ContentControlCluster.with()
      * factory method.

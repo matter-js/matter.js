@@ -22,7 +22,7 @@ export const RootNodeDt = DeviceType(
     Requirement({ name: "BasicInformation", id: 0x28, conformance: "M", element: "serverCluster", quality: "I" }),
     Requirement(
         { name: "AccessControl", id: 0x1f, conformance: "M", element: "serverCluster", quality: "I" },
-        Requirement({ name: "MNGD", conformance: "[ManagedAcl, Allowed]", constraint: "desc", element: "feature" })
+        Requirement({ name: "MNGD", conformance: "[ManagedAclAllowed]", constraint: "desc", element: "feature" })
     ),
     Requirement(
         { name: "PowerSourceConfiguration", id: 0x2e, conformance: "O, D", element: "serverCluster", quality: "I" }

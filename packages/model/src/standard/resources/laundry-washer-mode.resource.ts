@@ -29,8 +29,8 @@ Resource.add({
         { tag: "attribute", name: "OnMode", xref: "cluster§8.5.6" },
         {
             tag: "datatype", name: "ModeOptionStruct", xref: "cluster§8.5.5.1",
-            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                "ModeOptionStruct type. A blank field indicates no change."
+            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the ModeOption " +
+                "Struct type. A blank field indicates no change."
         },
 
         {

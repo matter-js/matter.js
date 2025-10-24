@@ -25,7 +25,7 @@ import {
     Attribute,
     ClusterId,
     ClusterType,
-    ElementModifier,
+    ClusterTypeModifier,
     TlvBoolean,
     TlvInt32,
     TlvNullable,
@@ -214,10 +214,10 @@ describe("ClusterBehavior", () => {
                     name: "MyCluster",
                     id: 1,
                     children: [
-                        AttributeElement({ id: 1, name: "Attr1", type: "int32", quality: "X" }),
-                        AttributeElement({ id: 2, name: "Attr2", type: "int32", default: 123 }),
-                        AttributeElement({ id: 3, name: "Attr3", type: "string", default: "abc" }),
-                        AttributeElement({ id: 4, name: "Attr4", type: "bool" }),
+                        AttributeElement({ id: 1, name: "Attr1", type: "int32", quality: "X", conformance: "M" }),
+                        AttributeElement({ id: 2, name: "Attr2", type: "int32", default: 123, conformance: "M" }),
+                        AttributeElement({ id: 3, name: "Attr3", type: "string", default: "abc", conformance: "M" }),
+                        AttributeElement({ id: 4, name: "Attr4", type: "bool", conformance: "M" }),
                     ],
                 }),
             );
@@ -225,7 +225,7 @@ describe("ClusterBehavior", () => {
             expect(MyBehavior.defaults.attr1).equals(null);
             expect(MyBehavior.defaults.attr2).equals(123);
             expect(MyBehavior.defaults.attr3).equals("abc");
-            expect(MyBehavior.defaults.attr4).equals(undefined);
+            expect(MyBehavior.defaults.attr4).equals(false);
         });
 
         it("carries forward non-command methods", () => {
@@ -265,7 +265,7 @@ describe("ClusterBehavior", () => {
             // Test constituent parts
             MyCluster.name satisfies "MyCluster";
 
-            const AlteredCluster = new ElementModifier(MyCluster).alter({});
+            const AlteredCluster = new ClusterTypeModifier(MyCluster).alter({});
             AlteredCluster.name satisfies "MyCluster";
 
             const BehaviorForAlteredCluster = MyBehavior.for(AlteredCluster);

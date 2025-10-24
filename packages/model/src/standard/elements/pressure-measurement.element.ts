@@ -35,21 +35,21 @@ export const PressureMeasurement = Cluster(
     Attribute({ name: "Tolerance", id: 0x3, type: "uint16", access: "R V", conformance: "O", constraint: "max 2048", default: 0 }),
     Attribute({
         name: "ScaledValue", id: 0x10, type: "int16", access: "R V", conformance: "EXT",
-        constraint: "minScaledValue to maxScaledValue", default: 0, quality: "X"
+        constraint: "minScaledValue to maxScaledValue", quality: "X"
     }),
     Attribute({
         name: "MinScaledValue", id: 0x11, type: "int16", access: "R V", conformance: "EXT",
-        constraint: "max 32766", default: 0, quality: "X"
+        constraint: "max 32766", quality: "X"
     }),
     Attribute({
         name: "MaxScaledValue", id: 0x12, type: "int16", access: "R V", conformance: "EXT",
-        constraint: "minScaledValue + 1 to 32767", default: 0, quality: "X"
+        constraint: "minScaledValue + 1 to 32767", quality: "X"
     }),
     Attribute({
         name: "ScaledTolerance", id: 0x13, type: "uint16", access: "R V", conformance: "[EXT]",
         constraint: "max 2048", default: 0
     }),
-    Attribute({ name: "Scale", id: 0x14, type: "int8", access: "R V", conformance: "EXT", constraint: "min -127", default: 0 })
+    Attribute({ name: "Scale", id: 0x14, type: "int8", access: "R V", conformance: "EXT", constraint: "min -127" })
 );
 
 MatterDefinition.children.push(PressureMeasurement);

@@ -18,7 +18,7 @@ import {
 
 export const DoorLock = Cluster(
     { name: "DoorLock", id: 0x101 },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 8 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 9 }),
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
@@ -50,29 +50,20 @@ export const DoorLock = Cluster(
     Attribute({ name: "DoorOpenEvents", id: 0x4, type: "uint32", access: "RW VM", conformance: "[DPS]" }),
     Attribute({ name: "DoorClosedEvents", id: 0x5, type: "uint32", access: "RW VM", conformance: "[DPS]" }),
     Attribute({ name: "OpenPeriod", id: 0x6, type: "uint16", access: "RW VM", conformance: "[DPS]" }),
-    Attribute({
-        name: "NumberOfTotalUsersSupported", id: 0x11, type: "uint16", access: "R V", conformance: "USR",
-        default: 0, quality: "F"
-    }),
-    Attribute({
-        name: "NumberOfPinUsersSupported", id: 0x12, type: "uint16", access: "R V", conformance: "PIN",
-        default: 0, quality: "F"
-    }),
-    Attribute({
-        name: "NumberOfRfidUsersSupported", id: 0x13, type: "uint16", access: "R V", conformance: "RID",
-        default: 0, quality: "F"
-    }),
+    Attribute({ name: "NumberOfTotalUsersSupported", id: 0x11, type: "uint16", access: "R V", conformance: "USR", quality: "F" }),
+    Attribute({ name: "NumberOfPinUsersSupported", id: 0x12, type: "uint16", access: "R V", conformance: "PIN", quality: "F" }),
+    Attribute({ name: "NumberOfRfidUsersSupported", id: 0x13, type: "uint16", access: "R V", conformance: "RID", quality: "F" }),
     Attribute({
         name: "NumberOfWeekDaySchedulesSupportedPerUser", id: 0x14, type: "uint8", access: "R V",
-        conformance: "WDSCH", constraint: "max 253", default: 0, quality: "F"
+        conformance: "WDSCH", constraint: "max 253", quality: "F"
     }),
     Attribute({
         name: "NumberOfYearDaySchedulesSupportedPerUser", id: 0x15, type: "uint8", access: "R V",
-        conformance: "YDSCH", constraint: "max 253", default: 0, quality: "F"
+        conformance: "YDSCH", constraint: "max 253", quality: "F"
     }),
     Attribute({
         name: "NumberOfHolidaySchedulesSupported", id: 0x16, type: "uint8", access: "R V",
-        conformance: "HDSCH", constraint: "max 253", default: 0, quality: "F"
+        conformance: "HDSCH", constraint: "max 253", quality: "F"
     }),
     Attribute({ name: "MaxPinCodeLength", id: 0x17, type: "uint8", access: "R V", conformance: "PIN", quality: "F" }),
     Attribute({ name: "MinPinCodeLength", id: 0x18, type: "uint8", access: "R V", conformance: "PIN", quality: "F" }),
@@ -80,11 +71,11 @@ export const DoorLock = Cluster(
     Attribute({ name: "MinRfidCodeLength", id: 0x1a, type: "uint8", access: "R V", conformance: "RID", quality: "F" }),
     Attribute({
         name: "CredentialRulesSupport", id: 0x1b, type: "CredentialRulesBitmap", access: "R V",
-        conformance: "USR", default: 1, quality: "F"
+        conformance: "USR", quality: "F"
     }),
     Attribute({
         name: "NumberOfCredentialsSupportedPerUser", id: 0x1c, type: "uint8", access: "R V",
-        conformance: "USR", default: 0, quality: "F"
+        conformance: "USR", quality: "F"
     }),
     Attribute({
         name: "Language", id: 0x21, type: "string", access: "R[W] VM", conformance: "O",
@@ -101,11 +92,11 @@ export const DoorLock = Cluster(
     }),
     Attribute({
         name: "OperatingMode", id: 0x25, type: "OperatingModeEnum", access: "R[W] VM", conformance: "M",
-        constraint: "desc", default: 0, quality: "P"
+        constraint: "desc", quality: "P"
     }),
     Attribute({
         name: "SupportedOperatingModes", id: 0x26, type: "OperatingModesBitmap", access: "R V",
-        conformance: "M", default: 65526, quality: "F"
+        conformance: "M", quality: "F"
     }),
     Attribute({
         name: "DefaultConfigurationRegister", id: 0x27, type: "ConfigurationRegisterBitmap", access: "R V",
@@ -145,7 +136,7 @@ export const DoorLock = Cluster(
     }),
     Attribute({
         name: "RequirePinForRemoteOperation", id: 0x33, type: "bool", access: "R[W] VA",
-        conformance: "COTA & PIN", default: true, quality: "P"
+        conformance: "COTA & PIN", quality: "P"
     }),
     Attribute({ name: "SecurityLevel", id: 0x34, access: "R V", conformance: "D", default: "0" }),
     Attribute({
@@ -153,16 +144,12 @@ export const DoorLock = Cluster(
         constraint: "1 to 2880", quality: "P"
     }),
     Attribute({
-        name: "AlarmMask", id: 0x40, type: "AlarmMaskBitmap", access: "RW VA", conformance: "O",
-        default: 65535, quality: "P"
-    }),
-    Attribute({
         name: "AliroReaderVerificationKey", id: 0x80, type: "octstr", access: "R A", conformance: "ALIRO",
-        constraint: "65", default: null, quality: "X"
+        constraint: "65", quality: "X"
     }),
     Attribute({
         name: "AliroReaderGroupIdentifier", id: 0x81, type: "octstr", access: "R A", conformance: "ALIRO",
-        constraint: "16", default: null, quality: "X"
+        constraint: "16", quality: "X"
     }),
     Attribute({
         name: "AliroReaderGroupSubIdentifier", id: 0x82, type: "octstr", access: "R A",
@@ -172,35 +159,32 @@ export const DoorLock = Cluster(
     Attribute(
         {
             name: "AliroExpeditedTransactionSupportedProtocolVersions", id: 0x83, type: "list", access: "R A",
-            conformance: "ALIRO", constraint: "max 16[2]", default: [], quality: "F"
+            conformance: "ALIRO", constraint: "max 16[2]", quality: "F"
         },
         Field({ name: "entry", type: "octstr" })
     ),
 
     Attribute({
         name: "AliroGroupResolvingKey", id: 0x84, type: "octstr", access: "R A", conformance: "ALBU",
-        constraint: "16", default: null, quality: "X"
+        constraint: "16", quality: "X"
     }),
 
     Attribute(
         {
             name: "AliroSupportedBleuwbProtocolVersions", id: 0x85, type: "list", access: "R A",
-            conformance: "ALBU", constraint: "max 16[2]", default: [], quality: "F"
+            conformance: "ALBU", constraint: "max 16[2]", quality: "F"
         },
         Field({ name: "entry", type: "octstr" })
     ),
 
-    Attribute({
-        name: "AliroBleAdvertisingVersion", id: 0x86, type: "uint8", access: "R A", conformance: "ALBU",
-        default: 0, quality: "F"
-    }),
+    Attribute({ name: "AliroBleAdvertisingVersion", id: 0x86, type: "uint8", access: "R A", conformance: "ALBU", quality: "F" }),
     Attribute({
         name: "NumberOfAliroCredentialIssuerKeysSupported", id: 0x87, type: "uint16", access: "R V",
-        conformance: "ALIRO", default: 0, quality: "F"
+        conformance: "ALIRO", quality: "F"
     }),
     Attribute({
         name: "NumberOfAliroEndpointKeysSupported", id: 0x88, type: "uint16", access: "R V",
-        conformance: "ALIRO", default: 0, quality: "F"
+        conformance: "ALIRO", quality: "F"
     }),
     Event(
         { name: "DoorLockAlarm", id: 0x0, access: "V", conformance: "M", priority: "critical" },
@@ -285,11 +269,8 @@ export const DoorLock = Cluster(
             response: "status"
         },
         Field({ name: "UserId", id: 0x0, type: "uint16", conformance: "M", constraint: "desc" }),
-        Field({
-            name: "UserStatus", id: 0x1, type: "UserStatusEnum", conformance: "M", constraint: "desc",
-            default: 1, quality: "X"
-        }),
-        Field({ name: "UserType", id: 0x2, type: "UserTypeEnum", conformance: "M", default: 0, quality: "X" }),
+        Field({ name: "UserStatus", id: 0x1, type: "UserStatusEnum", conformance: "M", constraint: "desc", quality: "X" }),
+        Field({ name: "UserType", id: 0x2, type: "UserTypeEnum", conformance: "M", quality: "X" }),
         Field({ name: "Pin", id: 0x3, type: "octstr", conformance: "M" })
     ),
 
@@ -304,10 +285,7 @@ export const DoorLock = Cluster(
     Command(
         { name: "GetPinCodeResponse", id: 0x6, conformance: "!USR & PIN", direction: "response" },
         Field({ name: "UserId", id: 0x0, type: "uint16", conformance: "M", constraint: "desc" }),
-        Field({
-            name: "UserStatus", id: 0x1, type: "UserStatusEnum", conformance: "M", constraint: "desc",
-            default: 0, quality: "X"
-        }),
+        Field({ name: "UserStatus", id: 0x1, type: "UserStatusEnum", conformance: "M", constraint: "desc", quality: "X" }),
         Field({ name: "UserType", id: 0x2, type: "UserTypeEnum", conformance: "M", constraint: "desc", quality: "X" }),
         Field({ name: "PinCode", id: 0x3, type: "octstr", conformance: "M", quality: "X" })
     ),
@@ -396,7 +374,7 @@ export const DoorLock = Cluster(
             name: "UserIndex", id: 0x1, type: "uint16", conformance: "M",
             constraint: "1 to numberOfTotalUsersSupported"
         }),
-        Field({ name: "Status", id: 0x2, type: "status", conformance: "M", constraint: "desc", default: 0 }),
+        Field({ name: "Status", id: 0x2, type: "status", conformance: "M", constraint: "desc" }),
         Field({ name: "DaysMask", id: 0x3, type: "DaysMaskBitmap", conformance: "O" }),
         Field({ name: "StartHour", id: 0x4, type: "uint8", conformance: "O", constraint: "max 23" }),
         Field({ name: "StartMinute", id: 0x5, type: "uint8", conformance: "O", constraint: "max 59" }),
@@ -461,7 +439,7 @@ export const DoorLock = Cluster(
             name: "UserIndex", id: 0x1, type: "uint16", conformance: "M",
             constraint: "1 to numberOfTotalUsersSupported"
         }),
-        Field({ name: "Status", id: 0x2, type: "status", conformance: "M", constraint: "desc", default: 0 }),
+        Field({ name: "Status", id: 0x2, type: "status", conformance: "M", constraint: "desc" }),
         Field({ name: "LocalStartTime", id: 0x3, type: "epoch-s", conformance: "O" }),
         Field({ name: "LocalEndTime", id: 0x4, type: "epoch-s", conformance: "O" })
     ),
@@ -512,7 +490,7 @@ export const DoorLock = Cluster(
             name: "HolidayIndex", id: 0x0, type: "uint8", conformance: "M",
             constraint: "1 to numberOfHolidaySchedulesSupported"
         }),
-        Field({ name: "Status", id: 0x1, type: "status", conformance: "M", constraint: "desc", default: 0 }),
+        Field({ name: "Status", id: 0x1, type: "status", conformance: "M", constraint: "desc" }),
         Field({ name: "LocalStartTime", id: 0x2, type: "epoch-s", conformance: "O", quality: "X" }),
         Field({ name: "LocalEndTime", id: 0x3, type: "epoch-s", conformance: "O", quality: "X" }),
         Field({ name: "OperatingMode", id: 0x4, type: "OperatingModeEnum", conformance: "O", quality: "X" })
@@ -558,14 +536,8 @@ export const DoorLock = Cluster(
             response: "status"
         },
         Field({ name: "UserId", id: 0x0, type: "uint16", conformance: "M", constraint: "desc" }),
-        Field({
-            name: "UserStatus", id: 0x1, type: "UserStatusEnum", conformance: "M", constraint: "desc",
-            default: 1, quality: "X"
-        }),
-        Field({
-            name: "UserType", id: 0x2, type: "UserTypeEnum", conformance: "M", constraint: "desc", default: 0,
-            quality: "X"
-        }),
+        Field({ name: "UserStatus", id: 0x1, type: "UserStatusEnum", conformance: "M", constraint: "desc", quality: "X" }),
+        Field({ name: "UserType", id: 0x2, type: "UserTypeEnum", conformance: "M", constraint: "desc", quality: "X" }),
         Field({ name: "RfidCode", id: 0x3, type: "octstr", conformance: "M" })
     ),
 
@@ -580,10 +552,7 @@ export const DoorLock = Cluster(
     Command(
         { name: "GetRfidCodeResponse", id: 0x17, conformance: "!USR & RID", direction: "response" },
         Field({ name: "UserId", id: 0x0, type: "uint16", conformance: "M", constraint: "desc" }),
-        Field({
-            name: "UserStatus", id: 0x1, type: "UserStatusEnum", conformance: "M", constraint: "desc",
-            default: 0, quality: "X"
-        }),
+        Field({ name: "UserStatus", id: 0x1, type: "UserStatusEnum", conformance: "M", constraint: "desc", quality: "X" }),
         Field({ name: "UserType", id: 0x2, type: "UserTypeEnum", conformance: "M", constraint: "desc", quality: "X" }),
         Field({ name: "RfidCode", id: 0x3, type: "octstr", conformance: "M", quality: "X" })
     ),
@@ -612,17 +581,17 @@ export const DoorLock = Cluster(
             constraint: "1 to numberOfTotalUsersSupported"
         }),
         Field({ name: "UserName", id: 0x2, type: "string", conformance: "M", constraint: "max 10", quality: "X" }),
-        Field({ name: "UserUniqueId", id: 0x3, type: "uint32", conformance: "M", default: 4294967295, quality: "X" }),
+        Field({ name: "UserUniqueId", id: 0x3, type: "uint32", conformance: "M", quality: "X" }),
         Field({
             name: "UserStatus", id: 0x4, type: "UserStatusEnum", conformance: "M",
-            constraint: "occupiedEnabled, occupiedDisabled", default: 1, quality: "X"
+            constraint: "occupiedEnabled, occupiedDisabled", quality: "X"
         }),
         Field({
             name: "UserType", id: 0x5, type: "UserTypeEnum", conformance: "M",
             constraint: "unrestrictedUser, nonAccessUser, forcedUser, disposableUser, expiringUser, scheduleRestrictedUser, remoteOnlyUser",
-            default: 0, quality: "X"
+            quality: "X"
         }),
-        Field({ name: "CredentialRule", id: 0x6, type: "CredentialRuleEnum", conformance: "M", default: 0, quality: "X" })
+        Field({ name: "CredentialRule", id: 0x6, type: "CredentialRuleEnum", conformance: "M", quality: "X" })
     ),
 
     Command(
@@ -643,12 +612,12 @@ export const DoorLock = Cluster(
             constraint: "1 to numberOfTotalUsersSupported"
         }),
         Field({ name: "UserName", id: 0x1, type: "string", conformance: "M", constraint: "max 10", quality: "X" }),
-        Field({ name: "UserUniqueId", id: 0x2, type: "uint32", conformance: "M", default: 0, quality: "X" }),
-        Field({ name: "UserStatus", id: 0x3, type: "UserStatusEnum", conformance: "M", default: 0, quality: "X" }),
-        Field({ name: "UserType", id: 0x4, type: "UserTypeEnum", conformance: "M", default: 0, quality: "X" }),
+        Field({ name: "UserUniqueId", id: 0x2, type: "uint32", conformance: "M", quality: "X" }),
+        Field({ name: "UserStatus", id: 0x3, type: "UserStatusEnum", conformance: "M", quality: "X" }),
+        Field({ name: "UserType", id: 0x4, type: "UserTypeEnum", conformance: "M", quality: "X" }),
         Field({
             name: "CredentialRule", id: 0x5, type: "CredentialRuleEnum", conformance: "M", constraint: "desc",
-            default: 0, quality: "X"
+            quality: "X"
         }),
 
         Field(
@@ -689,12 +658,12 @@ export const DoorLock = Cluster(
         }),
         Field({
             name: "UserStatus", id: 0x4, type: "UserStatusEnum", conformance: "M",
-            constraint: "occupiedEnabled, occupiedDisabled", default: 1, quality: "X"
+            constraint: "occupiedEnabled, occupiedDisabled", quality: "X"
         }),
         Field({
             name: "UserType", id: 0x5, type: "UserTypeEnum", conformance: "M",
             constraint: "unrestrictedUser, programmingUser, nonAccessUser, forcedUser, disposableUser, expiringUser, remoteOnlyUser",
-            default: 0, quality: "X"
+            quality: "X"
         })
     ),
 
@@ -703,7 +672,7 @@ export const DoorLock = Cluster(
         Field({ name: "Status", id: 0x0, type: "status", conformance: "M", constraint: "desc" }),
         Field({
             name: "UserIndex", id: 0x1, type: "uint16", conformance: "M",
-            constraint: "1 to numberOfTotalUsersSupported", default: 0, quality: "X"
+            constraint: "1 to numberOfTotalUsersSupported", quality: "X"
         }),
         Field({ name: "NextCredentialIndex", id: 0x2, type: "uint16", conformance: "O", constraint: "desc", quality: "X" })
     ),
@@ -993,7 +962,7 @@ export const DoorLock = Cluster(
     Datatype(
         { name: "CredentialStruct", type: "struct" },
         Field({ name: "CredentialType", id: 0x0, type: "CredentialTypeEnum", conformance: "M" }),
-        Field({ name: "CredentialIndex", id: 0x1, type: "uint16", conformance: "M", default: 0 })
+        Field({ name: "CredentialIndex", id: 0x1, type: "uint16", conformance: "M" })
     ),
     Datatype(
         { name: "StatusCodeEnum", type: "enum8" },

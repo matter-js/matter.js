@@ -30,19 +30,10 @@ Resource.add({
             }]
         },
 
-        {
-            tag: "attribute", name: "LastConfiguredBy", xref: "cluster§1.4.8.1",
-
-            details: "Indicates the Node ID of the node that last configured the Scene Table." +
-                "\n" +
-                "The null value indicates that the server has not been configured, or that the identifier of the node " +
-                "that last configured the Scenes Management cluster is not known." +
-                "\n" +
-                "The Node ID is scoped to the accessing fabric."
-        },
+        { tag: "attribute", name: "DoNotUse", xref: "cluster§1.4.8" },
 
         {
-            tag: "attribute", name: "SceneTableSize", xref: "cluster§1.4.8.2",
+            tag: "attribute", name: "SceneTableSize", xref: "cluster§1.4.8.1",
             details: "Indicates the number of entries in the Scene Table on this endpoint. This is the total across all " +
                 "fabrics; note that a single fabric cannot use all those entries (see Handling of fabric-scoping). " +
                 "The minimum size of this table, (i.e., the minimum number of scenes to support across all fabrics " +
@@ -51,7 +42,7 @@ Resource.add({
         },
 
         {
-            tag: "attribute", name: "FabricSceneInfo", xref: "cluster§1.4.8.3",
+            tag: "attribute", name: "FabricSceneInfo", xref: "cluster§1.4.8.2",
             details: "Indicates a list of fabric scoped information about scenes on this endpoint." +
                 "\n" +
                 "The number of list entries for this attribute shall NOT exceed the number of supported fabrics by " +
@@ -140,18 +131,15 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "TransitionTime", xref: "cluster§1.4.9.5.4",
-                    details: "If the status is SUCCESS, this field shall be copied from the corresponding field in the Scene Table " +
-                        "entry, otherwise it shall be omitted."
+                    details: "This field shall be set to the corresponding field in the Scene Table entry."
                 },
                 {
                     tag: "field", name: "SceneName", xref: "cluster§1.4.9.5.5",
-                    details: "If the status is SUCCESS, this field shall be copied from the corresponding field in the Scene Table " +
-                        "entry, otherwise it shall be omitted."
+                    details: "This field shall be set to the corresponding field in the Scene Table entry."
                 },
                 {
                     tag: "field", name: "ExtensionFieldSetStructs", xref: "cluster§1.4.9.5.6",
-                    details: "If the status is SUCCESS, this field shall be copied from the corresponding field in the Scene Table " +
-                        "entry, otherwise it shall be omitted."
+                    details: "This field shall be set to the corresponding field in the Scene Table entry."
                 }
             ]
         },

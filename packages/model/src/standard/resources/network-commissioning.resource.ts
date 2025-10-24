@@ -69,7 +69,7 @@ Resource.add(
                 details: "Indicates the maximum duration taken, in seconds, by the network interface on this cluster server " +
                     "instance to provide scan results." +
                     "\n" +
-                    "See ScanNetworks for usage."
+                    "See Section 11.9.7.1, “ScanNetworks Command” for usage."
             },
 
             {
@@ -89,7 +89,8 @@ Resource.add(
                     "It is undefined what happens if InterfaceEnabled is written to false on the same interface as that " +
                     "which is used to write the value. In that case, it is possible that the Administrator would have to " +
                     "await expiry of the fail-safe, and associated recovery of network configuration to prior safe " +
-                    "values, before being able to communicate with the node again (see ArmFailSafe)." +
+                    "values, before being able to communicate with the node again (see Section 11.10.7.2, “ArmFailSafe " +
+                    "Command”)." +
                     "\n" +
                     "It may be possible to disable Ethernet interfaces but it is implementation-defined. If not " +
                     "supported, a write to this attribute with a value of false shall fail with a status of " +
@@ -172,7 +173,10 @@ Resource.add(
             {
                 tag: "command", name: "ScanNetworks", xref: "core§11.9.7.1",
 
-                details: "This command shall scan on the Cluster instance’s associated network interface for either of:" +
+                details: "This command is used to scan for available networks on the network interface associated with the " +
+                    "cluster instance." +
+                    "\n" +
+                    "This command shall scan on the Cluster instance’s associated network interface for either of:" +
                     "\n" +
                     "  • All available networks (non-directed scanning)" +
                     "\n" +
@@ -187,8 +191,9 @@ Resource.add(
                     "Wi-Fi SSID) is provided in the command arguments. Directed scanning shall restrict the result set to " +
                     "the specified network only." +
                     "\n" +
-                    "If this command is received without an armed fail-safe context (see ArmFailSafe), then this command " +
-                    "shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator." +
+                    "If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe " +
+                    "Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the " +
+                    "initiator." +
                     "\n" +
                     "The client shall NOT expect the server to be done scanning and have responded with " +
                     "ScanNetworksResponse before ScanMaxTimeSeconds seconds have elapsed. Enough transport time " +
@@ -233,7 +238,9 @@ Resource.add(
             {
                 tag: "command", name: "ScanNetworksResponse", xref: "core§11.9.7.2",
 
-                details: "This command shall contain the status of the last ScanNetworks command, and the associated scan " +
+                details: "This command is used to report the results of a ScanNetworks command." +
+                    "\n" +
+                    "This command shall contain the status of the last ScanNetworks command, and the associated scan " +
                     "results if the operation was successful." +
                     "\n" +
                     "Results are valid only if NetworkingStatus is Success." +
@@ -306,10 +313,13 @@ Resource.add(
             {
                 tag: "command", name: "AddOrUpdateWiFiNetwork", xref: "core§11.9.7.3",
 
-                details: "This command shall be used to add or modify Wi-Fi network configurations." +
+                details: "This command is used to add or update a Wi-Fi network configuration." +
                     "\n" +
-                    "If this command is received without an armed fail-safe context (see ArmFailSafe), then this command " +
-                    "shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator." +
+                    "This command shall be used to add or modify Wi-Fi network configurations." +
+                    "\n" +
+                    "If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe " +
+                    "Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the " +
+                    "initiator." +
                     "\n" +
                     "The Credentials associated with the network are not readable after execution of this command, as " +
                     "they do not appear in the Networks attribute, for security reasons." +
@@ -333,7 +343,7 @@ Resource.add(
                         details: "Credentials is the passphrase or PSK for the network (if any is needed)." +
                             "\n" +
                             "Security type, cipher and credential format (passphrase or PSK) shall be contextually auto-selected " +
-                            "during execution of the ConnectNetwork Command and during subsequent operational state network " +
+                            "during execution of the ConnectNetwork command and during subsequent operational state network " +
                             "connections, based on the most secure Wi-Fi security type available within beacons and probe " +
                             "responses for the set of all discovered BSSIDs for the configured SSID. The type of PSK or " +
                             "passphrase used shall be inferred based on the length and contents of the Credentials field " +
@@ -365,17 +375,23 @@ Resource.add(
                             "to achieve successful operation, or if all retry attempts fail."
                     },
 
-                    { tag: "field", name: "Breadcrumb", xref: "core§11.9.7.3.3", details: "See Breadcrumb for usage." }
+                    {
+                        tag: "field", name: "Breadcrumb", xref: "core§11.9.7.3.3",
+                        details: "See Section 11.9.7.1.2, “Breadcrumb Field” for usage."
+                    }
                 ]
             },
 
             {
                 tag: "command", name: "AddOrUpdateThreadNetwork", xref: "core§11.9.7.4",
 
-                details: "This command shall be used to add or modify Thread network configurations." +
+                details: "This command is used to add or update a Thread network configuration." +
                     "\n" +
-                    "If this command is received without an armed fail-safe context (see ArmFailSafe), then this command " +
-                    "shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator." +
+                    "This command shall be used to add or modify Thread network configurations." +
+                    "\n" +
+                    "If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe " +
+                    "Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the " +
+                    "initiator." +
                     "\n" +
                     "See Section 11.9.7.5, “Common processing of AddOrUpdateWiFiNetwork and AddOrUpdateThreadNetwork” for " +
                     "behavior of addition/update." +
@@ -397,19 +413,26 @@ Resource.add(
                             "shall pass the OperationalDataset as an opaque octet string."
                     },
 
-                    { tag: "field", name: "Breadcrumb", xref: "core§11.9.7.4.2", details: "See Breadcrumb for usage." }
+                    {
+                        tag: "field", name: "Breadcrumb", xref: "core§11.9.7.4.2",
+                        details: "See Section 11.9.7.1.2, “Breadcrumb Field” for usage."
+                    }
                 ]
             },
 
             {
                 tag: "command", name: "RemoveNetwork", xref: "core§11.9.7.6",
 
-                details: "This command shall remove the network configuration from the Cluster if there was already a network " +
+                details: "This command is used to remove a network configuration on the network interface associated with the " +
+                    "cluster instance." +
+                    "\n" +
+                    "This command shall remove the network configuration from the Cluster if there was already a network " +
                     "configuration with the same NetworkID. The relative order of the entries in the Networks attribute " +
                     "shall remain unchanged, except for the removal of the requested network configuration." +
                     "\n" +
-                    "If this command is received without an armed fail-safe context (see ArmFailSafe), then this command " +
-                    "shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator." +
+                    "If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe " +
+                    "Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the " +
+                    "initiator." +
                     "\n" +
                     "If the Networks attribute does not contain a matching entry, the command shall immediately respond " +
                     "with NetworkConfigResponse having NetworkingStatus status field set to NetworkIdNotFound." +
@@ -424,14 +447,20 @@ Resource.add(
                         details: "This field shall contain the NetworkID for the entry to remove: the SSID for Wi-Fi and XPAN ID for " +
                             "Thread."
                     },
-                    { tag: "field", name: "Breadcrumb", xref: "core§11.9.7.6.2", details: "See Breadcrumb for usage." }
+                    {
+                        tag: "field", name: "Breadcrumb", xref: "core§11.9.7.6.2",
+                        details: "See Section 11.9.7.1.2, “Breadcrumb Field” for usage."
+                    }
                 ]
             },
 
             {
                 tag: "command", name: "NetworkConfigResponse", xref: "core§11.9.7.7",
 
-                details: "This response command relates status information for some commands which require it as their " +
+                details: "This command is used to report the results of a network configuration command " +
+                    "(AddOrUpdateWiFiNetwork, AddOrUpdateThreadNetwork, or RemoveNetwork)." +
+                    "\n" +
+                    "This response command relates status information for some commands which require it as their " +
                     "response command. See each individual cluster server command for the situations that may cause a " +
                     "NetworkingStatus different than Success." +
                     "\n" +
@@ -461,13 +490,14 @@ Resource.add(
                             "  • UnknownError: An internal error occurred during the operation."
                     },
 
-                    { tag: "field", name: "DebugText", xref: "core§11.9.7.7.2", details: "See DebugText for usage." },
-
+                    {
+                        tag: "field", name: "DebugText", xref: "core§11.9.7.7.2",
+                        details: "See Section 11.9.7.2.2, “DebugText Field” for usage."
+                    },
                     {
                         tag: "field", name: "NetworkIndex", xref: "core§11.9.7.7.3",
-                        details: "When the NetworkingStatus is Success, this field shall be present. It shall contain the 0-based " +
-                            "index of the entry in the Networks attribute that was last added, updated or removed successfully by " +
-                            "the associated request command."
+                        details: "This field shall contain the 0-based index of the entry in the Networks attribute that was last " +
+                            "added, updated or removed successfully by the associated request command."
                     }
                 ]
             },
@@ -475,7 +505,10 @@ Resource.add(
             {
                 tag: "command", name: "ConnectNetwork", xref: "core§11.9.7.8",
 
-                details: "This command shall attempt to connect to a network whose configuration was previously added by " +
+                details: "This command is used to connect to a network on the network interface associated with the cluster " +
+                    "instance." +
+                    "\n" +
+                    "This command shall attempt to connect to a network whose configuration was previously added by " +
                     "either the AddOrUpdateWiFiNetwork or AddOrUpdateThreadNetwork commands. Network is identified by its " +
                     "NetworkID." +
                     "\n" +
@@ -483,8 +516,9 @@ Resource.add(
                     "unable to proceed with such an operation, such as if it is currently attempting to connect in the " +
                     "background, or is already proceeding with a prior ConnectNetwork." +
                     "\n" +
-                    "If this command is received without an armed fail-safe context (see ArmFailSafe), then this command " +
-                    "shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator." +
+                    "If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe " +
+                    "Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the " +
+                    "initiator." +
                     "\n" +
                     "Before connecting to the new network, the Node shall disconnect the operational network connections " +
                     "managed by any other Network Commissioning cluster instances (whether under the Root Node or a " +
@@ -518,8 +552,8 @@ Resource.add(
                     "attribute." +
                     "\n" +
                     "Even after successfully connecting to a network, the configuration shall revert to the prior state " +
-                    "of configuration if the CommissioningComplete command (see CommissioningComplete) is not " +
-                    "successfully invoked before expiry of the Fail-Safe timer." +
+                    "of configuration if the CommissioningComplete command (see Section 11.10.7.6, “CommissioningComplete " +
+                    "Command”) is not successfully invoked before expiry of the Fail-Safe timer." +
                     "\n" +
                     "When non-concurrent commissioning is being used by a Commissioner or Administrator, the " +
                     "ConnectNetworkResponse shall be sent with the NetworkingStatus field set to Success prior to closing " +
@@ -531,8 +565,8 @@ Resource.add(
                     "ConnectNetwork command, the client SHOULD re-invoke the Arm Fail-Safe command with a duration that " +
                     "meets the following:" +
                     "\n" +
-                    "  1. Sufficient time to meet the minimum required time (see ConnectMaxTimeSeconds) that may be taken " +
-                    "     by the server to connect to the desired network." +
+                    "  1. Sufficient time to meet the minimum required time (see Section 11.9.6.4, “ConnectMaxTimeSeconds " +
+                    "     Attribute”) that may be taken by the server to connect to the desired network." +
                     "\n" +
                     "  2. Sufficient time to account for possible message-layer retries when a response is requested." +
                     "\n" +
@@ -558,14 +592,19 @@ Resource.add(
                         details: "This field shall contain the NetworkID for the entry used to configure the connection: the SSID for " +
                             "Wi-Fi and XPAN ID for Thread."
                     },
-                    { tag: "field", name: "Breadcrumb", xref: "core§11.9.7.8.2", details: "See Breadcrumb for usage." }
+                    {
+                        tag: "field", name: "Breadcrumb", xref: "core§11.9.7.8.2",
+                        details: "See Section 11.9.7.1.2, “Breadcrumb Field” for usage."
+                    }
                 ]
             },
 
             {
                 tag: "command", name: "ConnectNetworkResponse", xref: "core§11.9.7.9",
 
-                details: "Before generating a ConnectNetworkResponse, the server shall:" +
+                details: "This command is used to report the results of a ConnectNetwork command." +
+                    "\n" +
+                    "Before generating a ConnectNetworkResponse, the server shall:" +
                     "\n" +
                     "  • Set the LastNetworkingStatus attribute value to the NetworkingStatus matching the response." +
                     "\n" +
@@ -600,7 +639,10 @@ Resource.add(
                             "    AuthFailure, UnsupportedSecurity, OtherConnectionFailure, IPV6Failed, IPBindFailed"
                     },
 
-                    { tag: "field", name: "DebugText", xref: "core§11.9.7.9.2", details: "See DebugText for usage." },
+                    {
+                        tag: "field", name: "DebugText", xref: "core§11.9.7.9.2",
+                        details: "See Section 11.9.7.2.2, “DebugText Field” for usage."
+                    },
 
                     {
                         tag: "field", name: "ErrorValue", xref: "core§11.9.7.9.3",
@@ -630,7 +672,9 @@ Resource.add(
 
             {
                 tag: "command", name: "ReorderNetwork", xref: "core§11.9.7.10",
-                details: "This command shall set the specific order of the network configuration selected by its NetworkID in " +
+                details: "This command is used to re-order the network configuration list." +
+                    "\n" +
+                    "This command shall set the specific order of the network configuration selected by its NetworkID in " +
                     "the Networks attribute to match the position given by NetworkIndex.",
 
                 children: [
@@ -648,7 +692,7 @@ Resource.add(
                     {
                         tag: "field", name: "Breadcrumb", xref: "core§11.9.7.10.3",
 
-                        details: "See Breadcrumb for usage." +
+                        details: "See Section 11.9.7.1.2, “Breadcrumb Field” for usage." +
                             "\n" +
                             "### Effect when received" +
                             "\n" +
@@ -716,13 +760,10 @@ Resource.add(
 
             {
                 tag: "datatype", name: "ThreadCapabilitiesBitmap", xref: "core§11.9.5.2",
-
                 details: "The ThreadCapabilitiesBitmap encodes the supported Thread features and capabilities of a " +
                     "Thread-enabled network interface." +
                     "\n" +
-                    "> [!NOTE]" +
-                    "\n" +
-                    "> The valid combinations of capabilities are restricted and dependent on Thread version.",
+                    "NOTE The valid combinations of capabilities are restricted and dependent on Thread version.",
 
                 children: [
                     {
@@ -778,7 +819,7 @@ Resource.add(
                     { tag: "field", name: "NetworkNotFound", description: "Cannot find AP: SSID Not found" },
                     {
                         tag: "field", name: "RegulatoryError",
-                        description: "Cannot find AP: Mismatch on band/channels/regulato ry domain / 2.4GHz vs 5GHz"
+                        description: "Cannot find AP: Mismatch on band/channels/regulatory domain/ 2.4GHz vs 5GHz"
                     },
                     { tag: "field", name: "AuthFailure", description: "Cannot associate due to authentication failure" },
                     {

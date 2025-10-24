@@ -11,6 +11,8 @@ import { MaybePromise } from "#general";
 export namespace EthernetNetworkDiagnosticsInterface {
     export interface PacketCountsOrErrorCounts {
         /**
+         * This command is used to reset the count attributes.
+         *
          * Reception of this command shall reset the following attributes to 0:
          *
          *   • PacketRxCount
@@ -22,8 +24,6 @@ export namespace EthernetNetworkDiagnosticsInterface {
          *   • CollisionCount
          *
          *   • OverrunCount
-         *
-         * This command has no associated data.
          *
          * @see {@link MatterSpecification.v141.Core} § 11.16.7.1
          */

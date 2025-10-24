@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 // Paths we read/write must be defined here
 const DIR_MAPPING = {
     "!cache": Package.workspace.resolve("codegen/.cache"),
-    "!intermediate": Package.workspace.resolve("models/src"),
+    "!intermediate": Package.workspace.resolve("support/models/src"),
     "!types": Package.workspace.resolve("packages/types/src"),
     "!clusters": Package.workspace.resolve("packages/types/src/clusters"),
     "!globals": Package.workspace.resolve("packages/types/src/globals"),

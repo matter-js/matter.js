@@ -15,7 +15,13 @@ describe("HepaFilterMonitoringServer", () => {
         const node = await MockServerNode.create();
         const DeviceType = AirPurifierDevice.with(HepaFilterMonitoringServer);
         await node.add(DeviceType, {
-            fanControl: { fanModeSequence: FanControl.FanModeSequence.OffHigh, percentCurrent: 50 },
+            fanControl: {
+                fanModeSequence: FanControl.FanModeSequence.OffHigh,
+                percentCurrent: 50,
+            },
+            hepaFilterMonitoring: {
+                changeIndication: ResourceMonitoring.ChangeIndication.Ok,
+            },
         });
         await node.close();
     });
@@ -28,6 +34,7 @@ describe("HepaFilterMonitoringServer", () => {
             fanControl: { fanModeSequence: FanControl.FanModeSequence.OffHigh, percentCurrent: 50 },
             hepaFilterMonitoring: {
                 condition: 100,
+                changeIndication: ResourceMonitoring.ChangeIndication.Ok,
                 degradationDirection: ResourceMonitoring.DegradationDirection.Down,
             },
         });
@@ -43,6 +50,7 @@ describe("HepaFilterMonitoringServer", () => {
             fanControl: { fanModeSequence: FanControl.FanModeSequence.OffHigh, percentCurrent: 50 },
             hepaFilterMonitoring: {
                 condition: 100,
+                changeIndication: ResourceMonitoring.ChangeIndication.Ok,
                 degradationDirection: ResourceMonitoring.DegradationDirection.Down,
             },
         });

@@ -20,7 +20,7 @@ Resource.add({
         },
         {
             tag: "field", name: "Provisional",
-            description: "used for a SoftwareVersion when going into certification testing (These might or might not be placed in DCL, depending on CSA policy and procedures)"
+            description: "used for a SoftwareVersion when going into certification testing (These might or might not be placed in DCL, depending on the Connectivity Standards Alliance policy and procedures)"
         },
         { tag: "field", name: "Certified", description: "used for a SoftwareVersion which has been certified" },
         { tag: "field", name: "Revoked", description: "used for a SoftwareVersion which has been revoked" }

@@ -499,11 +499,8 @@ export namespace ColorControl {
          * This field shall indicate a lower bound on the ColorTemperatureMireds attribute (≡ an upper bound on the
          * color temperature in kelvins) for the current move operation
          *
-         * ColorTempPhysicalMinMireds <= ColorTemperatureMinimumMireds field <=
-         *
-         * ### ColorTemperatureMireds
-         *
-         * As such if the move operation takes the ColorTemperatureMireds attribute towards the value of the
+         * ColorTempPhysicalMinMireds <= ColorTemperatureMinimumMireds field <= ColorTemperatureMireds As such if the
+         * move operation takes the ColorTemperatureMireds attribute towards the value of the
          * ColorTemperatureMinimumMireds field it shall be clipped so that the above invariant is satisfied. If the
          * ColorTemperatureMinimumMireds field is set to 0, ColorTempPhysicalMinMireds shall be used as the lower bound
          * for the ColorTemperatureMireds attribute.
@@ -516,11 +513,8 @@ export namespace ColorControl {
          * This field shall indicate an upper bound on the ColorTemperatureMireds attribute (≡ a lower bound on the
          * color temperature in kelvins) for the current move operation
          *
-         * ColorTemperatureMireds <= ColorTemperatureMaximumMireds field <=
-         *
-         * ### ColorTempPhysicalMaxMireds
-         *
-         * As such if the move operation takes the ColorTemperatureMireds attribute towards the value of the
+         * ColorTemperatureMireds <= ColorTemperatureMaximumMireds field <= ColorTempPhysicalMaxMireds As such if the
+         * move operation takes the ColorTemperatureMireds attribute towards the value of the
          * ColorTemperatureMaximumMireds field it shall be clipped so that the above invariant is satisfied. If the
          * ColorTemperatureMaximumMireds field is set to 0, ColorTempPhysicalMaxMireds shall be used as the upper bound
          * for the ColorTemperatureMireds attribute.
@@ -573,11 +567,8 @@ export namespace ColorControl {
          * This field shall indicate a lower bound on the ColorTemperatureMireds attribute (≡ an upper bound on the
          * color temperature in kelvins) for the current step operation
          *
-         * ColorTempPhysicalMinMireds <= ColorTemperatureMinimumMireds field <=
-         *
-         * ### ColorTemperatureMireds
-         *
-         * As such if the step operation takes the ColorTemperatureMireds attribute towards the value of the
+         * ColorTempPhysicalMinMireds <= ColorTemperatureMinimumMireds field <= ColorTemperatureMireds As such if the
+         * step operation takes the ColorTemperatureMireds attribute towards the value of the
          * ColorTemperatureMinimumMireds field it shall be clipped so that the above invariant is satisfied. If the
          * ColorTemperatureMinimumMireds field is set to 0, ColorTempPhysicalMinMireds shall be used as the lower bound
          * for the ColorTemperatureMireds attribute.
@@ -860,7 +851,7 @@ export namespace ColorControl {
         Deactivate = 0,
 
         /**
-         * Activate the color loop from the value in the ColorLoopStartEnhance dHue field.
+         * Activate the color loop from the value in the ColorLoopStartEnhancedHue field.
          */
         ActivateFromColorLoopStartEnhancedHue = 1,
 
@@ -1064,7 +1055,7 @@ export namespace ColorControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 3.2.7.2
              */
-            currentHue: Attribute(0x0, TlvUInt8.bound({ max: 254 }), { persistent: true, default: 0 }),
+            currentHue: Attribute(0x0, TlvUInt8.bound({ max: 254 }), { persistent: true }),
 
             /**
              * Indicates the current saturation value of the light. It is updated as fast as practical during commands
@@ -1085,11 +1076,7 @@ export namespace ColorControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 3.2.7.3
              */
-            currentSaturation: Attribute(
-                0x1,
-                TlvUInt8.bound({ max: 254 }),
-                { scene: true, persistent: true, default: 0 }
-            )
+            currentSaturation: Attribute(0x1, TlvUInt8.bound({ max: 254 }), { scene: true, persistent: true })
         },
 
         commands: {
@@ -1153,11 +1140,7 @@ export namespace ColorControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 3.2.7.5
              */
-            currentX: Attribute(
-                0x3,
-                TlvUInt16.bound({ max: 65279 }),
-                { scene: true, persistent: true, default: 24939 }
-            ),
+            currentX: Attribute(0x3, TlvUInt16.bound({ max: 65279 }), { scene: true, persistent: true }),
 
             /**
              * Indicates the current value of the normalized chromaticity value y, as defined in the CIE xyY Color
@@ -1177,11 +1160,7 @@ export namespace ColorControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 3.2.7.6
              */
-            currentY: Attribute(
-                0x4,
-                TlvUInt16.bound({ max: 65279 }),
-                { scene: true, persistent: true, default: 24701 }
-            )
+            currentY: Attribute(0x4, TlvUInt16.bound({ max: 65279 }), { scene: true, persistent: true })
         },
 
         commands: {
@@ -1230,12 +1209,11 @@ export namespace ColorControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 3.2.7.9
              */
-            colorTemperatureMireds: Attribute(0x7, TlvUInt16, { scene: true, persistent: true, default: 250 }),
+            colorTemperatureMireds: Attribute(0x7, TlvUInt16, { scene: true, persistent: true }),
 
             /**
-             * This attribute shall indicate the minimum mired value supported by the hardware.
-             * ColorTempPhysicalMinMireds corresponds to the maximum color temperature in kelvins supported by the
-             * hardware.
+             * Indicates the minimum mired value supported by the hardware. ColorTempPhysicalMinMireds corresponds to
+             * the maximum color temperature in kelvins supported by the hardware.
              *
              * ColorTempPhysicalMinMireds <= ColorTemperatureMireds.
              *
@@ -1244,9 +1222,8 @@ export namespace ColorControl {
             colorTempPhysicalMinMireds: Attribute(0x400b, TlvUInt16.bound({ min: 1, max: 65279 })),
 
             /**
-             * This attribute shall indicate the maximum mired value supported by the hardware.
-             * ColorTempPhysicalMaxMireds corresponds to the minimum color temperature in kelvins supported by the
-             * hardware.
+             * Indicates the maximum mired value supported by the hardware. ColorTempPhysicalMaxMireds corresponds to
+             * the minimum color temperature in kelvins supported by the hardware.
              *
              * ColorTemperatureMireds <= ColorTempPhysicalMaxMireds.
              *
@@ -1267,7 +1244,9 @@ export namespace ColorControl {
              * Note that since this attribute is stored as a micro reciprocal degree (mired) value (i.e. color
              * temperature in kelvins = 1,000,000 / CoupleColorTempToLevelMinMireds), the
              * CoupleColorTempToLevelMinMireds attribute corresponds to an upper bound on the value of the color
-             * temperature in kelvins supported by the device.
+             * temperature
+             *
+             * in kelvins supported by the device.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 3.2.7.22
              */
@@ -1333,7 +1312,7 @@ export namespace ColorControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 3.2.7.12
              */
-            enhancedCurrentHue: Attribute(0x4000, TlvUInt16, { scene: true, persistent: true, default: 0 })
+            enhancedCurrentHue: Attribute(0x4000, TlvUInt16, { scene: true, persistent: true })
         },
 
         commands: {
@@ -1386,24 +1365,16 @@ export namespace ColorControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 3.2.7.14
              */
-            colorLoopActive: Attribute(
-                0x4002,
-                TlvEnum<ColorLoopActive>(),
-                { scene: true, persistent: true, default: ColorLoopActive.Inactive }
-            ),
+            colorLoopActive: Attribute(0x4002, TlvEnum<ColorLoopActive>(), { scene: true, persistent: true }),
 
             /**
-             * Indicates the current direction of the color loop. If this attribute has the value 0, the
-             * EnhancedCurrentHue attribute shall be decremented. If this attribute has the value 1, the
+             * Indicates the current direction of the color loop. If this attribute has the value Decrement, the
+             * EnhancedCurrentHue attribute shall be decremented. If this attribute has the value Increment, the
              * EnhancedCurrentHue attribute shall be incremented.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 3.2.7.15
              */
-            colorLoopDirection: Attribute(
-                0x4003,
-                TlvEnum<ColorLoopDirection>(),
-                { scene: true, persistent: true, default: ColorLoopDirection.Decrement }
-            ),
+            colorLoopDirection: Attribute(0x4003, TlvEnum<ColorLoopDirection>(), { scene: true, persistent: true }),
 
             /**
              * Indicates the number of seconds it shall take to perform a full color loop, i.e., to cycle all values of
@@ -1411,14 +1382,14 @@ export namespace ColorControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 3.2.7.16
              */
-            colorLoopTime: Attribute(0x4004, TlvUInt16, { scene: true, persistent: true, default: 25 }),
+            colorLoopTime: Attribute(0x4004, TlvUInt16, { scene: true, persistent: true }),
 
             /**
              * Indicates the value of the EnhancedCurrentHue attribute from which the color loop shall be started.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 3.2.7.17
              */
-            colorLoopStartEnhancedHue: Attribute(0x4005, TlvUInt16, { default: 8960 }),
+            colorLoopStartEnhancedHue: Attribute(0x4005, TlvUInt16),
 
             /**
              * Indicates the value of the EnhancedCurrentHue attribute before the color loop was started. Once the color
@@ -1426,7 +1397,7 @@ export namespace ColorControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 3.2.7.18
              */
-            colorLoopStoredEnhancedHue: Attribute(0x4006, TlvUInt16, { default: 0 })
+            colorLoopStoredEnhancedHue: Attribute(0x4006, TlvUInt16)
         },
 
         commands: {
@@ -1447,6 +1418,10 @@ export namespace ColorControl {
         commands: {
             /**
              * This command is provided to allow MoveTo and Step commands to be stopped.
+             *
+             * NOTE This automatically provides symmetry to the Level Control cluster.
+             *
+             * NOTE The StopMoveStep command has no effect on an active color loop.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 3.2.8.20
              */
@@ -1513,8 +1488,7 @@ export namespace ColorControl {
             remainingTime: OptionalAttribute(0x2, TlvUInt16, { default: 0 }),
 
             /**
-             * This attribute shall indicate what mechanism, if any, is in use for compensation for color/intensity
-             * drift over time.
+             * Indicates what mechanism, if any, is in use for compensation for color/intensity drift over time.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 3.2.7.7
              */
@@ -1595,11 +1569,17 @@ export namespace ColorControl {
             primary1Y: OptionalFixedAttribute(0x12, TlvUInt16.bound({ max: 65279 })),
 
             /**
-             * Indicates a representation of the maximum intensity of this primary as defined in the Dimming Light Curve
-             * in the Ballast Configuration cluster (see Ballast Configuration Cluster), normalized such that the
-             * primary with the highest maximum intensity contains the value 254.
+             * Indicates a representation of the maximum intensity of this primary as defined in Section 3.1.3, “The
+             * Dimming Light Curve”, normalized such that the primary with the highest maximum intensity contains the
+             * value 254.
              *
              * A value of null shall indicate that this primary is not available.
+             *
+             * 3.2.7.28. Primary2X, Primary2Y, Primary2Intensity, Primary3X, Primary3Y, Primary3Intensity, Primary4X,
+             * Primary4Y, Primary4Intensity, Primary5X, Primary5Y, Primary5Intensity, Primary6X, Primary6Y and
+             * Primary6Intensity Attributes These attributes shall represent the capabilities of the 2nd, 3rd, 4th, 5th
+             * and 6th primaries, where present, in the same way as for the Primary1X, Primary1Y and Primary1Intensity
+             * attributes.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 3.2.7.27
              */
@@ -1741,11 +1721,19 @@ export namespace ColorControl {
             ),
 
             /**
-             * Indicates a representation of the relative intensity of the red color point as defined in the Dimming
-             * Light Curve in the Ballast Configuration cluster (see Ballast Configuration Cluster), normalized such
-             * that the color point with the highest relative intensity contains the value 254.
+             * Indicates a representation of the relative intensity of the red color point as defined in Section 3.1.3,
+             * “The Dimming Light Curve”, normalized such that the color point with the highest relative intensity
+             * contains the value 254.
              *
              * A value of null shall indicate an invalid value.
+             *
+             * 3.2.7.34. ColorPointGX, ColorPointGY, ColorPointGIntensity, ColorPointBX, ColorPointBY and
+             * ColorPointBIntensity Attributes These attributes shall represent the chromaticity values and intensities
+             * of the green and blue color points, in the same way as for the ColorPointRX, ColorPointRY and
+             * ColorPointRIntensity attributes.
+             *
+             * If any one of these red, green or blue color point attributes is implemented then they shall all be
+             * implemented.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 3.2.7.33
              */
@@ -1818,11 +1806,7 @@ export namespace ColorControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 3.2.7.13
              */
-            enhancedColorMode: Attribute(
-                0x4001,
-                TlvEnum<EnhancedColorMode>(),
-                { scene: true, persistent: true, default: EnhancedColorMode.CurrentXAndCurrentY }
-            ),
+            enhancedColorMode: Attribute(0x4001, TlvEnum<EnhancedColorMode>(), { scene: true, persistent: true }),
 
             /**
              * Indicates the color control capabilities of the device.

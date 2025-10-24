@@ -16,5 +16,11 @@ export class UnitLocalizationServer extends UnitLocalizationBehavior.with("Tempe
         if (this.state.temperatureUnit === undefined) {
             this.state.temperatureUnit = UnitLocalization.TempUnit.Celsius;
         }
+        if (!this.state.supportedTemperatureUnits?.length) {
+            this.state.supportedTemperatureUnits = [
+                UnitLocalization.TempUnit.Celsius,
+                UnitLocalization.TempUnit.Fahrenheit,
+            ];
+        }
     }
 }

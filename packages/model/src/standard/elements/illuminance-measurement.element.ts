@@ -19,7 +19,7 @@ export const IlluminanceMeasurement = Cluster(
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
     Attribute({
         name: "MeasuredValue", id: 0x0, type: "uint16", access: "R V", conformance: "M",
-        constraint: "0, minMeasuredValue to maxMeasuredValue", default: 0, quality: "X P"
+        constraint: "0, minMeasuredValue to maxMeasuredValue", quality: "X P"
     }),
     Attribute({
         name: "MinMeasuredValue", id: 0x1, type: "uint16", access: "R V", conformance: "M",

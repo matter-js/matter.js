@@ -53,7 +53,7 @@ Resource.add({
 
         {
             tag: "event", name: "Notify", xref: "cluster§1.15.8.1",
-            details: "This event shall be generated when one or more alarms change state, and shall have these fields:",
+            details: "This event shall be generated when one or more alarms change state.",
 
             children: [
                 {

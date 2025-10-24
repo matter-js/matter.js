@@ -73,7 +73,23 @@ Resource.add({
                 { tag: "field", name: "Error", description: "The device is in an error state" },
                 { tag: "field", name: "SeekingCharger", description: "The device is en route to the charging dock" },
                 { tag: "field", name: "Charging", description: "The device is charging" },
-                { tag: "field", name: "Docked", description: "The device is on the dock, not charging" }
+                { tag: "field", name: "Docked", description: "The device is on the dock, not charging" },
+                {
+                    tag: "field", name: "EmptyingDustBin",
+                    description: "The device is automatically emptying its own dust bin, such as to a dock"
+                },
+                {
+                    tag: "field", name: "CleaningMop",
+                    description: "The device is automatically cleaning its own mopping device, such as on a dock"
+                },
+                {
+                    tag: "field", name: "FillingWaterTank",
+                    description: "The device is automatically filling its own clean water tank for use when mopping, such as from a dock"
+                },
+                {
+                    tag: "field", name: "UpdatingMaps",
+                    description: "The device is processing acquired data to update its maps"
+                }
             ]
         },
 
@@ -108,11 +124,11 @@ Resource.add({
                 { tag: "field", name: "DustBinFull", description: "The device has detected that its dust bin is full" },
                 {
                     tag: "field", name: "WaterTankEmpty",
-                    description: "The device has detected that its water tank is empty"
+                    description: "The device has detected that its clean water tank is empty"
                 },
                 {
                     tag: "field", name: "WaterTankMissing",
-                    description: "The device has detected that its water tank is missing"
+                    description: "The device has detected that its clean water tank is missing"
                 },
                 {
                     tag: "field", name: "WaterTankLidOpen",
@@ -121,6 +137,34 @@ Resource.add({
                 {
                     tag: "field", name: "MopCleaningPadMissing",
                     description: "The device has detected that its cleaning pad is missing"
+                },
+                {
+                    tag: "field", name: "LowBattery",
+                    description: "The device is unable to start or to continue operating due to a low battery"
+                },
+                {
+                    tag: "field", name: "CannotReachTargetArea",
+                    description: "The device is unable to move to an area where it was asked to operate, such as by setting the ServiceArea cluster’s SelectedAreas attribute, due to an obstruction. For example, the obstruction might be a closed door or objects blocking the mapped path."
+                },
+                {
+                    tag: "field", name: "DirtyWaterTankFull",
+                    description: "The device has detected that its dirty water tank is full"
+                },
+                {
+                    tag: "field", name: "DirtyWaterTankMissing",
+                    description: "The device has detected that its dirty water is missing"
+                },
+                {
+                    tag: "field", name: "WheelsJammed",
+                    description: "The device has detected that one or more wheels are jammed by an object"
+                },
+                {
+                    tag: "field", name: "BrushJammed",
+                    description: "The device has detected that its brush is jammed by an object"
+                },
+                {
+                    tag: "field", name: "NavigationSensorObscured",
+                    description: "The device has detected that one of its sensors, such as LiDAR, infrared, or camera is obscured and needs to be cleaned"
                 }
             ]
         }

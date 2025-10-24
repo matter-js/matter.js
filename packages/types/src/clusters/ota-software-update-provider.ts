@@ -148,6 +148,8 @@ export namespace OtaSoftwareUpdateProvider {
          * whereby strictly correct additional MetadataForProvider is expected to fulfill the OTA Software Update
          * process.
          *
+         * ### Usage of the QueryImage Command
+         *
          * OTA Requestors shall send a QueryImage command to the OTA Provider to determine the availability of a new
          * Software Image.
          *
@@ -274,7 +276,8 @@ export namespace OtaSoftwareUpdateProvider {
          * Requestors to follow this value to their best capability, however, a restarting Node may come back sooner,
          * due to having lost track of this state response.
          *
-         * The DelayedActionTime field shall only be present if the Status field is set to Busy.
+         * Beware, this field is conditionally present based on the conformance listed in Section 11.20.6.5.2,
+         * “QueryImageResponse Command”.
          *
          * See Section 11.20.3.2, “Querying the OTA Provider” for details about the rules regarding this field.
          *
@@ -283,10 +286,11 @@ export namespace OtaSoftwareUpdateProvider {
         delayedActionTime: TlvOptionalField(1, TlvUInt32),
 
         /**
-         * This field, when present, shall contain a URI where the OTA Requestor SHOULD download a Software Image. The
+         * This field, when present, shall contain a URI where the OTA Requestor SHOULD download a Soft ware Image. The
          * syntax of the ImageURI field shall follow the URI syntax as specified in RFC 3986.
          *
-         * This field shall be present if it appears in a QueryImageResponse with a Status of UpdateAvailable.
+         * Beware, this field is conditionally present based on the conformance listed in Section 11.20.6.5.2,
+         * “QueryImageResponse Command”.
          *
          * If the ImageURI specifies a BDX Protocol bdx: scheme, then the following rules describe the location to be
          * used for download:
@@ -384,10 +388,10 @@ export namespace OtaSoftwareUpdateProvider {
         imageUri: TlvOptionalField(2, TlvString.bound({ maxLength: 256 })),
 
         /**
-         * This field indicates the version of the image being provided to the OTA Requestor by the OTA Provider when
-         * the Status is UpdateAvailable.
+         * This field indicates the version of the image being provided to the OTA Requestor by the OTA Provider.
          *
-         * This field shall be present if it appears in a QueryImageResponse with a Status of UpdateAvailable.
+         * Beware, this field is conditionally present based on the conformance listed in Section 11.20.6.5.2,
+         * “QueryImageResponse Command”.
          *
          * See Section 11.20.3.2, “Querying the OTA Provider” for additional details about the flow and acceptable
          * values.
@@ -397,10 +401,11 @@ export namespace OtaSoftwareUpdateProvider {
         softwareVersion: TlvOptionalField(3, TlvUInt32),
 
         /**
-         * This field provides a string version of the image being provided to the OTA Requestor by the OTA Provider
-         * when the Status is UpdateAvailable.
+         * This field provides a string version of the image being provided to the OTA Requestor by the OTA Provider.
          *
-         * This field shall be present if it appears in a QueryImageResponse with a Status of UpdateAvailable.
+         * Beware, this field is conditionally present based on the conformance listed in Section 11.20.6.5.2,
+         *
+         * “QueryImageResponse Command”.
          *
          * See Section 11.20.3.2, “Querying the OTA Provider” for additional details about the flow and acceptable
          * values.
@@ -410,7 +415,8 @@ export namespace OtaSoftwareUpdateProvider {
         softwareVersionString: TlvOptionalField(4, TlvString.bound({ minLength: 1, maxLength: 64 })),
 
         /**
-         * This optional field shall be present when the Status field contains UpdateAvailable.
+         * Beware, this field is conditionally present based on the conformance listed in Section 11.20.6.5.2,
+         * “QueryImageResponse Command”.
          *
          * See Section 11.20.3.6.1, “UpdateToken usage” for additional details about the generation and usage of
          * UpdateToken.
@@ -474,8 +480,12 @@ export namespace OtaSoftwareUpdateProvider {
          * Software Image which the OTA Requestor is ready to start applying. The OTA Provider may use this new version
          * to track or record Software Image application by OTA Requestors.
          *
+         * ### When Generated
+         *
          * The ApplyUpdateRequest Command shall be invoked by an OTA Requestor once it is ready to apply a previously
          * downloaded Software Image.
+         *
+         * ### Effect on Receipt
          *
          * Upon receipt of this command the OTA Provider shall respond with an Action field consistent with the next
          * action the OTA Requestor should take, including any possible time delay.
@@ -486,6 +496,8 @@ export namespace OtaSoftwareUpdateProvider {
          *
          * See Section 11.20.3.6, “Applying a software update” for a description of the flow in response to an OTA
          * Provider receiving an invocation of this command.
+         *
+         * ### Handling Error Cases
          *
          * See Section 11.20.3.6, “Applying a software update” for all error-handling information.
          *
@@ -571,10 +583,12 @@ export namespace OtaSoftwareUpdateProvider {
          * attribute in the invoking OTA Requestor’s Basic Information Cluster, and SHOULD be consistent with the value
          * representing a new version running on the Node invoking the command.
          *
+         * ### When Generated
+         *
          * The NotifyUpdateApplied command SHOULD be invoked in the following two circumstances:
          *
          *   1. An OTA Requestor has just successfully applied a Software Image it had obtained from a previous
-         *      QueryImage response.
+         *      QueryImageResponse.
          *
          *   2. An OTA Requestor has just successfully applied a Software Image it had obtained through means different
          *      than those of this Cluster.
@@ -586,6 +600,8 @@ export namespace OtaSoftwareUpdateProvider {
          *
          * This command shall be considered optional and shall NOT result in reduced availability of the OTA Provider
          * functionality if OTA Requestors never invoke this command.
+         *
+         * ### Effect on Receipt
          *
          * An OTA Provider receiving an invocation of this command may log it internally.
          *

@@ -17,7 +17,7 @@ import {
 
 export const RvcOperationalState = Cluster(
     { name: "RvcOperationalState", id: 0x61, type: "OperationalState" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
     Command({ name: "Pause", id: 0x0 }),
     Command({ name: "Stop", id: 0x1, conformance: "X" }),
     Command({ name: "Start", id: 0x2, conformance: "X" }),
@@ -36,7 +36,11 @@ export const RvcOperationalState = Cluster(
         Field({ name: "Error", id: 0x3, conformance: "M" }),
         Field({ name: "SeekingCharger", id: 0x40, conformance: "M" }),
         Field({ name: "Charging", id: 0x41, conformance: "M" }),
-        Field({ name: "Docked", id: 0x42, conformance: "M" })
+        Field({ name: "Docked", id: 0x42, conformance: "M" }),
+        Field({ name: "EmptyingDustBin", id: 0x43, conformance: "O" }),
+        Field({ name: "CleaningMop", id: 0x44, conformance: "O" }),
+        Field({ name: "FillingWaterTank", id: 0x45, conformance: "O" }),
+        Field({ name: "UpdatingMaps", id: 0x46, conformance: "O" })
     ),
 
     Datatype(
@@ -52,7 +56,14 @@ export const RvcOperationalState = Cluster(
         Field({ name: "WaterTankEmpty", id: 0x44, conformance: "M" }),
         Field({ name: "WaterTankMissing", id: 0x45, conformance: "M" }),
         Field({ name: "WaterTankLidOpen", id: 0x46, conformance: "M" }),
-        Field({ name: "MopCleaningPadMissing", id: 0x47, conformance: "M" })
+        Field({ name: "MopCleaningPadMissing", id: 0x47, conformance: "M" }),
+        Field({ name: "LowBattery", id: 0x48, conformance: "M" }),
+        Field({ name: "CannotReachTargetArea", id: 0x49, conformance: "M" }),
+        Field({ name: "DirtyWaterTankFull", id: 0x4a, conformance: "M" }),
+        Field({ name: "DirtyWaterTankMissing", id: 0x4b, conformance: "M" }),
+        Field({ name: "WheelsJammed", id: 0x4c, conformance: "M" }),
+        Field({ name: "BrushJammed", id: 0x4d, conformance: "M" }),
+        Field({ name: "NavigationSensorObscured", id: 0x4e, conformance: "M" })
     )
 );
 

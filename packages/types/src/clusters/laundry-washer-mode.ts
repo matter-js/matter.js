@@ -152,7 +152,7 @@ export namespace LaundryWasherMode {
     export interface ModeTagStruct extends TypeFromSchema<typeof TlvModeTagStruct> {}
 
     /**
-     * The table below lists the changes relative to the Mode Base cluster for the fields of the ModeOptionStruct type.
+     * The table below lists the changes relative to the Mode Base cluster for the fields of the ModeOption Struct type.
      * A blank field indicates no change.
      *
      * @see {@link MatterSpecification.v141.Cluster} § 8.5.5.1
@@ -164,7 +164,7 @@ export namespace LaundryWasherMode {
     });
 
     /**
-     * The table below lists the changes relative to the Mode Base cluster for the fields of the ModeOptionStruct type.
+     * The table below lists the changes relative to the Mode Base cluster for the fields of the ModeOption Struct type.
      * A blank field indicates no change.
      *
      * @see {@link MatterSpecification.v141.Cluster} § 8.5.5.1

@@ -9,7 +9,9 @@
 import {
     JointFabricDatastoreServer as BaseJointFabricDatastoreServer
 } from "../behaviors/joint-fabric-datastore/JointFabricDatastoreServer.js";
-import { JointFabricPkiServer as BaseJointFabricPkiServer } from "../behaviors/joint-fabric-pki/JointFabricPkiServer.js";
+import {
+    JointFabricAdministratorServer as BaseJointFabricAdministratorServer
+} from "../behaviors/joint-fabric-administrator/JointFabricAdministratorServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { DeviceClassification } from "#model";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
@@ -20,8 +22,8 @@ import { Identity } from "#general";
  * signed by the Joint Fabric Anchor Root CA.
  *
  * A client wanting to access the capabilities of the Joint Fabric Administrator may use the Joint Commissioning Method
- * to be commissioned onto the Joint Fabric. Once commissioned, a client may access the capabilities of the Joint Fabric
- * Administrator.
+ * (as specified in the Matter core specification) to be commissioned onto the Joint Fabric. Once commissioned, a client
+ * may access the capabilities of the Joint Fabric Administrator.
  *
  * @see {@link MatterSpecification.v141.Device} § 2.9
  */
@@ -36,17 +38,20 @@ export namespace JointFabricAdministratorRequirements {
     export const JointFabricDatastoreServer = BaseJointFabricDatastoreServer;
 
     /**
-     * The JointFabricPki cluster is required by the Matter specification.
+     * The JointFabricAdministrator cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link JointFabricPkiServer} for convenience.
+     * We provide this alias to the default implementation {@link JointFabricAdministratorServer} for convenience.
      */
-    export const JointFabricPkiServer = BaseJointFabricPkiServer;
+    export const JointFabricAdministratorServer = BaseJointFabricAdministratorServer;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = {
-        mandatory: { JointFabricDatastore: JointFabricDatastoreServer, JointFabricPki: JointFabricPkiServer }
+        mandatory: {
+            JointFabricDatastore: JointFabricDatastoreServer,
+            JointFabricAdministrator: JointFabricAdministratorServer
+        }
     };
 }
 
@@ -58,7 +63,7 @@ export const JointFabricAdministratorEndpointDefinition = MutableEndpoint({
     requirements: JointFabricAdministratorRequirements,
     behaviors: SupportedBehaviors(
         JointFabricAdministratorRequirements.server.mandatory.JointFabricDatastore,
-        JointFabricAdministratorRequirements.server.mandatory.JointFabricPki
+        JointFabricAdministratorRequirements.server.mandatory.JointFabricAdministrator
     )
 });
 

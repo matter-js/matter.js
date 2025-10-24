@@ -108,10 +108,10 @@ Resource.add(
             {
                 tag: "attribute", name: "AlarmsEnabled", xref: "cluster§1.8.6.6",
 
-                details: "Indicates the alarm modes that will be emitted if the sensor is triggered." +
+                details: "Indicates the alarm modes that will be emitted if the sensor is triggered. If an alarm mode is not " +
+                    "supported, the bit indicating this alarm mode shall always be 0." +
                     "\n" +
-                    "If an alarm mode is not supported, the bit indicating this alarm mode shall always be 0. A bit shall " +
-                    "indicate whether the alarm mode is enabled or disabled:" +
+                    "A bit shall indicate whether the alarm mode is enabled or disabled:" +
                     "\n" +
                     "  • 0 = Disabled" +
                     "\n" +

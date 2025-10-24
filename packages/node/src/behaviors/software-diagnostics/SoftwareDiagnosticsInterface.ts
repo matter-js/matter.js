@@ -11,11 +11,13 @@ import { MaybePromise } from "#general";
 export namespace SoftwareDiagnosticsInterface {
     export interface Watermarks {
         /**
+         * This command is used to reset the high watermarks for heap and stack memory.
+         *
          * Receipt of this command shall reset the following values which track high and lower watermarks:
          *
          *   • The StackFreeMinimum field of the ThreadMetrics attribute
          *
-         *   • The CurrentHeapHighWatermark attribute This command has no payload.
+         *   • The CurrentHeapHighWatermark attribute
          *
          * ### Effect on Receipt
          *

@@ -26,15 +26,11 @@ export const ThreadBorderRouterManagement = Cluster(
     ),
     Attribute({ name: "BorderAgentId", id: 0x1, type: "octstr", access: "R V", conformance: "M", constraint: "16" }),
     Attribute({ name: "ThreadVersion", id: 0x2, type: "uint16", access: "R V", conformance: "M", quality: "F" }),
-    Attribute({ name: "InterfaceEnabled", id: 0x3, type: "bool", access: "R V", conformance: "M", default: false, quality: "N" }),
-    Attribute({
-        name: "ActiveDatasetTimestamp", id: 0x4, type: "uint64", access: "R V", conformance: "M",
-        default: 0, quality: "X N"
-    }),
-    Attribute({
-        name: "PendingDatasetTimestamp", id: 0x5, type: "uint64", access: "R V", conformance: "M",
-        default: 0, quality: "X N"
-    }),
+    Attribute({ name: "InterfaceEnabled", id: 0x3, type: "bool", access: "R V", conformance: "M", quality: "N" }),
+    Attribute({ name: "ActiveDatasetTimestamp", id: 0x4, type: "uint64", access: "R V", conformance: "M", quality: "X N" }),
+    Attribute(
+        { name: "PendingDatasetTimestamp", id: 0x5, type: "uint64", access: "R V", conformance: "M", quality: "X N" }
+    ),
     Command({
         name: "GetActiveDatasetRequest", id: 0x0, access: "M", conformance: "M", direction: "request",
         response: "DatasetResponse"

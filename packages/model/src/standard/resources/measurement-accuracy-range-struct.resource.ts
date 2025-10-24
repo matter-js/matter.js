@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "datatype", name: "MeasurementAccuracyRangeStruct", xref: "cluster§2.1.4.3",
+    tag: "datatype", name: "MeasurementAccuracyRangeStruct", xref: "cluster§2.1.3.2",
 
     details: "This struct represents the accuracy of a measurement for a range of measurement values. Accuracy " +
         "shall be expressed as a maximum +/- percentage of the true value, a maximum +/- fixed value of the " +
@@ -42,7 +42,7 @@ Resource.add({
 
     children: [
         {
-            tag: "field", name: "RangeMin", xref: "cluster§2.1.4.3.1",
+            tag: "field", name: "RangeMin", xref: "cluster§2.1.3.2.1",
 
             details: "This field shall indicate the minimum measurement value for the specified level of accuracy." +
                 "\n" +
@@ -54,7 +54,7 @@ Resource.add({
         },
 
         {
-            tag: "field", name: "RangeMax", xref: "cluster§2.1.4.3.2",
+            tag: "field", name: "RangeMax", xref: "cluster§2.1.3.2.2",
 
             details: "This field shall indicate the maximum measurement value for the specified level of accuracy. The " +
                 "value of this field shall be greater than the value of the RangeMin field." +
@@ -67,29 +67,29 @@ Resource.add({
         },
 
         {
-            tag: "field", name: "PercentMax", xref: "cluster§2.1.4.3.3",
+            tag: "field", name: "PercentMax", xref: "cluster§2.1.3.2.3",
             details: "This field shall indicate the maximum +/- percentage accuracy for the associated measurement."
         },
         {
-            tag: "field", name: "PercentMin", xref: "cluster§2.1.4.3.4",
+            tag: "field", name: "PercentMin", xref: "cluster§2.1.3.2.4",
             details: "This field shall indicate the minimum +/- percentage accuracy for the associated measurement."
         },
         {
-            tag: "field", name: "PercentTypical", xref: "cluster§2.1.4.3.5",
+            tag: "field", name: "PercentTypical", xref: "cluster§2.1.3.2.5",
             details: "This field shall indicate the typical +/- percentage accuracy for the associated measurement."
         },
         {
-            tag: "field", name: "FixedMax", xref: "cluster§2.1.4.3.6",
+            tag: "field", name: "FixedMax", xref: "cluster§2.1.3.2.6",
             details: "This field shall indicate the maximum +/- fixed accuracy for the associated measurement, in the unit " +
                 "indicated by MeasurementType."
         },
         {
-            tag: "field", name: "FixedMin", xref: "cluster§2.1.4.3.7",
+            tag: "field", name: "FixedMin", xref: "cluster§2.1.3.2.7",
             details: "This field shall indicate the minimum +/- fixed accuracy for the associated measurement, in the unit " +
                 "indicated by MeasurementType."
         },
         {
-            tag: "field", name: "FixedTypical", xref: "cluster§2.1.4.3.8",
+            tag: "field", name: "FixedTypical", xref: "cluster§2.1.3.2.8",
             details: "This field shall indicate the typical +/- fixed accuracy for the associated measurement, in the unit " +
                 "indicated by MeasurementType."
         }

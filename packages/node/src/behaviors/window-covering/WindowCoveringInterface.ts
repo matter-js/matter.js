@@ -96,6 +96,9 @@ export namespace WindowCoveringInterface {
 
     export interface Lift {
         /**
+         * This command is used to set the target lift position of the window covering to the percentage value specified
+         * in the command.
+         *
          * Upon receipt of this command, the server will adjust the window covering to the lift/slide percentage
          * specified in the payload of this command.
          *
@@ -119,6 +122,9 @@ export namespace WindowCoveringInterface {
 
     export interface Tilt {
         /**
+         * This command is used to set the target tilt position of the window covering to the percentage value specified
+         * in the command.
+         *
          * Upon receipt of this command, the server will adjust the window covering to the tilt percentage specified in
          * the payload of this command.
          *
@@ -142,6 +148,9 @@ export namespace WindowCoveringInterface {
 
     export interface LiftAndPositionAwareLift {
         /**
+         * This command is used to set the target lift position of the window covering to the percentage value specified
+         * in the command.
+         *
          * Upon receipt of this command, the server will adjust the window covering to the lift/slide percentage
          * specified in the payload of this command.
          *
@@ -165,6 +174,9 @@ export namespace WindowCoveringInterface {
 
     export interface TiltAndPositionAwareTilt {
         /**
+         * This command is used to set the target tilt position of the window covering to the percentage value specified
+         * in the command.
+         *
          * Upon receipt of this command, the server will adjust the window covering to the tilt percentage specified in
          * the payload of this command.
          *
@@ -188,6 +200,9 @@ export namespace WindowCoveringInterface {
 
     export interface LiftAndAbsolutePosition {
         /**
+         * This command is used to set the target lift position of the window covering to the value specified in the
+         * command.
+         *
          * @see {@link MatterSpecification.v141.Cluster} § 5.3.7.4
          */
         goToLiftValue(request: WindowCovering.GoToLiftValueRequest): MaybePromise;
@@ -195,6 +210,9 @@ export namespace WindowCoveringInterface {
 
     export interface TiltAndAbsolutePosition {
         /**
+         * This command is used to set the target tilt position of the window covering to the value specified in the
+         * command.
+         *
          * @see {@link MatterSpecification.v141.Cluster} § 5.3.7.6
          */
         goToTiltValue(request: WindowCovering.GoToTiltValueRequest): MaybePromise;

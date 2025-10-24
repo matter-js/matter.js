@@ -62,7 +62,7 @@ export enum Status {
     UnsupportedCommand = 129,
 
     /**
-     * The cluster command is malformed, has missing fields, or fields with invalid values.Command not carried out.
+     * The cluster command is malformed, has missing fields, or fields with invalid values. Command not carried out.
      *
      * @see {@link MatterSpecification.v141.Core} § 8.10.1
      */
@@ -227,17 +227,39 @@ export enum Status {
     NoCommandResponse = 204,
 
     /**
-     * The node requires updated TC acceptance. The user MAY be directed to visit the EnhancedSetupFlowMaintenan ceUrl
-     * to complete this.
+     * The node requires updated TC acceptance. The user MAY be directed to visit the EnhancedSetupFlowMaintenanceUrl to
+     * complete this.
      *
      * @see {@link MatterSpecification.v141.Core} § 8.10.1
      */
     TermsAndConditionsChanged = 205,
 
     /**
-     * The node requires the user to visit the EnhancedSetupFlowMaintenan ceUrl for instructions on further action.
+     * The node requires the user to visit the EnhancedSetupFlowMaintenanceUrl for instructions on further action.
      *
      * @see {@link MatterSpecification.v141.Core} § 8.10.1
      */
-    MaintenanceRequired = 206
+    MaintenanceRequired = 206,
+
+    /**
+     * The value for the data type was not accepted due to runtime validation issues. Command or action not carried out.
+     *
+     * @see {@link MatterSpecification.v141.Core} § 8.10.1
+     */
+    DynamicConstraintError = 207,
+
+    /**
+     * Attempt to create an entity that already exists or create an entity with an identifier that is already in use.
+     * Command or action not carried out.
+     *
+     * @see {@link MatterSpecification.v141.Core} § 8.10.1
+     */
+    AlreadyExists = 208,
+
+    /**
+     * Attempt to process on a transport type not valid for this element. Command or action not carried out.
+     *
+     * @see {@link MatterSpecification.v141.Core} § 8.10.1
+     */
+    InvalidTransportType = 209
 }

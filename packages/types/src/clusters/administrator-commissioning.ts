@@ -107,7 +107,7 @@ export namespace AdministratorCommissioning {
         commissioningTimeout: TlvField(0, TlvUInt16),
 
         /**
-         * This field shall specify an ephemeral PAKE passcode verifier (see Section 3.10, “Password- Authenticated Key
+         * This field shall specify an ephemeral PAKE passcode verifier (see Section 3.10, “Password-Authenticated Key
          * Exchange (PAKE)”) computed by the existing Administrator to be used for this commissioning. The field is
          * concatenation of two values (w0 || L) shall be (CRYPTO_GROUP_SIZE_BYTES +
          * CRYPTO_PUBLIC_KEY_SIZE_BYTES)-octets long as detailed in Crypto_PAKEValues_Responder. It shall be derived
@@ -120,9 +120,9 @@ export namespace AdministratorCommissioning {
         pakePasscodeVerifier: TlvField(1, TlvByteString.bound({ length: 97 })),
 
         /**
-         * This field shall be used by the Node as the long discriminator for DNS-SD advertisement (see Commissioning
-         * Discriminator) for discovery by the new Administrator. The new Administrator can find and filter DNS-SD
-         * records by long discriminator to locate and initiate commissioning with the appropriate Node.
+         * This field shall be used by the Node as the long discriminator for DNS-SD advertisement (see Section 4.3.1.5,
+         * “TXT key for discriminator (D)”) for discovery by the new Administrator. The new Administrator can find and
+         * filter DNS-SD records by long discriminator to locate and initiate commissioning with the appropriate Node.
          *
          * @see {@link MatterSpecification.v141.Core} § 11.19.8.1.3
          */
@@ -146,8 +146,9 @@ export namespace AdministratorCommissioning {
          * specified in Section 3.9, “Password-Based Key Derivation Function (PBKDF)”, within the definition of the
          * Crypto_PBKDFParameterSet.
          *
-         * When a Node receives the Open Commissioning Window command, it shall begin advertising on DNS-SD as described
+         * When a Node receives the OpenCommissioningWindow command, it shall begin advertising on DNS-SD as described
          * in Section 4.3.1, “Commissionable Node Discovery” and for a time period as described in CommissioningTimeout.
+         *
          * When the command is received by a ICD, it shall enter into active mode. The ICD shall remain in Active Mode
          * as long as one of these conditions is met:
          *
@@ -303,7 +304,7 @@ export namespace AdministratorCommissioning {
             /**
              * When the WindowStatus attribute is not set to WindowNotOpen, this attribute shall indicate the
              * FabricIndex associated with the Fabric scoping of the Administrator that opened the window. This may be
-             * used to cross-reference in the Fabrics attribute of the Node Operational Credentials cluster.
+             * used to cross-reference in the Fabrics attribute of the Operational Credentials cluster.
              *
              * If, during an open commissioning window, the fabric for the Administrator that opened the window is
              * removed, then this attribute shall be set to null.
@@ -416,8 +417,8 @@ export namespace AdministratorCommissioning {
      * 5.6.2, “Basic Commissioning Method (BCM)” and Enhanced Commissioning which shall be supported and is described in
      * Section 5.6.3, “Enhanced Commissioning Method (ECM)”.
      *
-     * For the management of Operational Credentials and Trusted Root Certificates, the Node Operational Credentials
-     * cluster is used.
+     * For the management of Operational Credentials and Trusted Root Certificates, the Operational Credentials cluster
+     * is used.
      *
      * If the Administrator Commissioning Cluster server instance is present on an endpoint with the Root Node device
      * type in the Descriptor cluster DeviceTypeList, then:

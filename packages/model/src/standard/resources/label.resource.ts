@@ -33,8 +33,9 @@ Resource.add({
                 {
                     tag: "field", name: "Value", xref: "core§9.7.4.1.2",
                     details: "The Label or Value semantic is not defined here. The Value is a discriminator for a Label that may " +
-                        "have multiple instances. Label:Value examples: \"room\":\"bedroom 2\", \"orientation\":\"North\", " +
-                        "\"floor\":\"2\", \"direction\":\"up\""
+                        "have multiple instances." +
+                        "\n" +
+                        "Label:Value examples: \"room\":\"bedroom 2\", \"orientation\":\"North\", \"floor\":\"2\", \"direction\":\"up\""
                 }
             ]
         }

@@ -150,7 +150,7 @@ export namespace Identify {
     export const ClusterInstance = MutableCluster({
         id: 0x3,
         name: "Identify",
-        revision: 5,
+        revision: 6,
 
         attributes: {
             /**
@@ -164,9 +164,20 @@ export namespace Identify {
              * If this attribute reaches or is set to the value 0 then the device shall terminate its identification
              * state.
              *
+             * Changes to this attribute shall only be marked as reportable in the following cases:
+             *
+             *   • When it changes from 0 to any other value and vice versa, or
+             *
+             *   • When it is written by a client, or
+             *
+             *   • When the value is set by an Identify command.
+             *
+             * Since this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the
+             * reporting of this attribute in order to keep track of the remaining duration.
+             *
              * @see {@link MatterSpecification.v141.Cluster} § 1.2.5.1
              */
-            identifyTime: WritableAttribute(0x0, TlvUInt16, { default: 0 }),
+            identifyTime: WritableAttribute(0x0, TlvUInt16),
 
             /**
              * Indicates how the identification state is presented to the user.

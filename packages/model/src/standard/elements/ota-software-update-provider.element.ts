@@ -40,11 +40,17 @@ export const OtaSoftwareUpdateProvider = Cluster(
     Command(
         { name: "QueryImageResponse", id: 0x1, conformance: "M", direction: "response" },
         Field({ name: "Status", id: 0x0, type: "StatusEnum", conformance: "M" }),
-        Field({ name: "DelayedActionTime", id: 0x1, type: "uint32", conformance: "O" }),
-        Field({ name: "ImageUri", id: 0x2, type: "string", conformance: "O", constraint: "max 256" }),
-        Field({ name: "SoftwareVersion", id: 0x3, type: "uint32", conformance: "O" }),
-        Field({ name: "SoftwareVersionString", id: 0x4, type: "string", conformance: "O", constraint: "1 to 64" }),
-        Field({ name: "UpdateToken", id: 0x5, type: "octstr", conformance: "O", constraint: "8 to 32" }),
+        Field({ name: "DelayedActionTime", id: 0x1, type: "uint32", conformance: "Status == Busy" }),
+        Field({ name: "ImageUri", id: 0x2, type: "string", conformance: "Status == UpdateAvailable", constraint: "max 256" }),
+        Field({ name: "SoftwareVersion", id: 0x3, type: "uint32", conformance: "Status == UpdateAvailable" }),
+        Field({
+            name: "SoftwareVersionString", id: 0x4, type: "string", conformance: "Status == UpdateAvailable",
+            constraint: "1 to 64"
+        }),
+        Field({
+            name: "UpdateToken", id: 0x5, type: "octstr", conformance: "Status == UpdateAvailable",
+            constraint: "8 to 32"
+        }),
         Field({ name: "UserConsentNeeded", id: 0x6, type: "bool", conformance: "O", default: false }),
         Field({ name: "MetadataForRequestor", id: 0x7, type: "octstr", conformance: "O", constraint: "max 512" })
     ),

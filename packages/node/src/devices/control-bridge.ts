@@ -9,12 +9,12 @@
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
 import { IdentifyBehavior as BaseIdentifyBehavior } from "../behaviors/identify/IdentifyBehavior.js";
 import { GroupsBehavior as BaseGroupsBehavior } from "../behaviors/groups/GroupsBehavior.js";
-import { OnOffBehavior as BaseOnOffBehavior } from "../behaviors/on-off/OnOffBehavior.js";
-import { LevelControlBehavior as BaseLevelControlBehavior } from "../behaviors/level-control/LevelControlBehavior.js";
-import { ColorControlBehavior as BaseColorControlBehavior } from "../behaviors/color-control/ColorControlBehavior.js";
 import {
     ScenesManagementBehavior as BaseScenesManagementBehavior
 } from "../behaviors/scenes-management/ScenesManagementBehavior.js";
+import { OnOffBehavior as BaseOnOffBehavior } from "../behaviors/on-off/OnOffBehavior.js";
+import { LevelControlBehavior as BaseLevelControlBehavior } from "../behaviors/level-control/LevelControlBehavior.js";
+import { ColorControlBehavior as BaseColorControlBehavior } from "../behaviors/color-control/ColorControlBehavior.js";
 import {
     IlluminanceMeasurementBehavior as BaseIlluminanceMeasurementBehavior
 } from "../behaviors/illuminance-measurement/IlluminanceMeasurementBehavior.js";
@@ -57,6 +57,13 @@ export namespace ControlBridgeRequirements {
     export const GroupsBehavior = BaseGroupsBehavior;
 
     /**
+     * The ScenesManagement cluster is required by the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link ScenesManagementBehavior} for convenience.
+     */
+    export const ScenesManagementBehavior = BaseScenesManagementBehavior;
+
+    /**
      * The OnOff cluster is required by the Matter specification.
      *
      * We provide this alias to the default implementation {@link OnOffBehavior} for convenience.
@@ -76,13 +83,6 @@ export namespace ControlBridgeRequirements {
      * We provide this alias to the default implementation {@link ColorControlBehavior} for convenience.
      */
     export const ColorControlBehavior = BaseColorControlBehavior;
-
-    /**
-     * The ScenesManagement cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link ScenesManagementBehavior} for convenience.
-     */
-    export const ScenesManagementBehavior = BaseScenesManagementBehavior;
 
     /**
      * The IlluminanceMeasurement cluster is optional per the Matter specification.
@@ -110,13 +110,13 @@ export namespace ControlBridgeRequirements {
         mandatory: {
             Identify: IdentifyBehavior,
             Groups: GroupsBehavior,
+            ScenesManagement: ScenesManagementBehavior,
             OnOff: OnOffBehavior,
             LevelControl: LevelControlBehavior,
             ColorControl: ColorControlBehavior
         },
 
         optional: {
-            ScenesManagement: ScenesManagementBehavior,
             IlluminanceMeasurement: IlluminanceMeasurementBehavior,
             OccupancySensing: OccupancySensingBehavior
         }

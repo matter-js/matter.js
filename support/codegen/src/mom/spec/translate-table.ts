@@ -5,7 +5,7 @@
  */
 
 import { Logger, camelize, isObject } from "#general";
-import { AnyElement, FieldElement, Specification } from "#model";
+import { AnyElement, Specification } from "#model";
 import { addDocumentation } from "./add-documentation.js";
 import { Str } from "./html-translators.js";
 import { HtmlReference, Table } from "./spec-types.js";
@@ -31,14 +31,18 @@ export const Alias = <T>(wrapped: Translator<T>, ...sources: string[]): Alias<T>
 type Constant<T> = { option: "constant"; value: T };
 export const Constant = <T>(value: T): Constant<T> => ({ option: "constant", value });
 
-/** Converts detail section into children */
-type ChildTranslator = (tag: string, parentRecord: any, definition: HtmlReference) => FieldElement[] | undefined;
-type Children = { option: "children"; translator: ChildTranslator };
-export const Children = (translator: ChildTranslator) => ({ option: "children", translator });
+/** Process detail section associated with table record */
+type DetailTranslator = (tag: string, parentRecord: Record<string, unknown>, definition: HtmlReference) => unknown;
+type Details<T extends DetailTranslator> = { option: "details"; translator: T };
+export const Details = <const T extends DetailTranslator>(translator: T): Details<T> => ({
+    option: "details",
+    translator,
+});
 
 /**
- * A simple schema format.  This is all a little fancy for an ugly scraping
- * tool but accuracy and repeatability is the goal
+ * A simple schema format.
+ *
+ * This is a little fancy for an ugly scraping tool but accuracy and repeatability is the goal.
  */
 type TableSchema = Record<string, unknown>;
 
@@ -47,8 +51,8 @@ type FieldType<F> =
         ? W | undefined
         : F extends Alias<infer W> | Translator<infer W> | Constant<infer W>
           ? W
-          : F extends Children
-            ? FieldElement[]
+          : F extends Details<infer T>
+            ? ReturnType<T>
             : never;
 
 // Create TS object type from schema definition
@@ -85,7 +89,7 @@ export function translateTable<T extends TableSchema>(
     const aliases = Array<[string, string]>();
     const optional = new Set<string>();
     const translators = Array<[string, Translator<any> | string | number]>();
-    let childTranslator: ChildTranslator | undefined;
+    let detailTranslators: Record<string, DetailTranslator> | undefined;
 
     nextField: for (const kv of Object.entries(schema)) {
         const [k] = kv;
@@ -109,8 +113,11 @@ export function translateTable<T extends TableSchema>(
                     v = v.value;
                     break;
 
-                case "children":
-                    childTranslator = v.translator as ChildTranslator;
+                case "details":
+                    if (detailTranslators === undefined) {
+                        detailTranslators = {};
+                    }
+                    detailTranslators[k] = v.translator as DetailTranslator;
                     continue nextField;
             }
         }
@@ -178,7 +185,7 @@ export function translateTable<T extends TableSchema>(
     }
 
     if (definition.details) {
-        installPreciseDetails(tag, definition.details, result, childTranslator);
+        installPreciseDetails(tag, definition.details, result, detailTranslators);
     }
 
     return result;
@@ -218,7 +225,7 @@ function installPreciseDetails(
         children?: AnyElement[];
         element?: string;
     }>,
-    childTranslator?: ChildTranslator,
+    detailTranslators?: Record<string, DetailTranslator>,
 ) {
     const lookup = Object.fromEntries(
         definitions.map(detail => [detail.name.toLowerCase().replace(/\s*\([^)]+\)\s*/g, " "), detail]),
@@ -256,9 +263,16 @@ function installPreciseDetails(
                 break;
             }
 
-            // 1.4 added " Type" suffix to global types
+            // Handle inconsistencies in global datatype titles
             if (titleSuffix === "datatype") {
+                // 1.4 added " Type" suffix to global types
                 detail = lookup[`${identifier} type`];
+                if (detail) {
+                    break;
+                }
+
+                // 1.4.2 decided to specify "currency" and "price" as "CurrencyStruct" and "PriceStruct"
+                detail = lookup[`${identifier}struct type`];
                 if (detail) {
                     break;
                 }
@@ -317,8 +331,10 @@ function installPreciseDetails(
         record.name = record.name.replace(/EndPoint/g, "Endpoint");
 
         // Translate children (such as datatype or ACE fields)
-        if (childTranslator) {
-            record.children = childTranslator(tag, record, detail);
+        if (detailTranslators) {
+            for (const key in detailTranslators) {
+                (record as Record<string, unknown>)[key] = detailTranslators[key](tag, record, detail);
+            }
         }
     }
 }

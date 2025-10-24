@@ -43,6 +43,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
                 }
             }
         });
+        this.model.conformance.validateComputation(this, this.model.owner(ClusterModel)?.featureNames);
 
         this.#validateAspect("constraint");
         this.#validateAspect("access");

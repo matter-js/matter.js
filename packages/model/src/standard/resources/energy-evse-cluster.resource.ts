@@ -35,14 +35,14 @@ Resource.add(
             "\n" +
             "This cluster supports a safety mechanism that may lockout remote operation until the initial " +
             "latching conditions have been met. Some of the fault conditions defined in SAE J1772, such as " +
-            "Ground-Fault Circuit Interrupter (GFCI) or Charging Circuit Interrupting Device (CCID), may require " +
+            "Ground- Fault Circuit Interrupter (GFCI) or Charging Circuit Interrupting Device (CCID), may require " +
             "clearing by an operator by, for example, pressing a button on the equipment or breaker panel." +
             "\n" +
             "This EVSE cluster is written around support of a single EVSE. Having multiple EVSEs at home or a " +
             "business is managed by backend system and outside scope of this cluster." +
             "\n" +
             "Note that in many deployments the EVSE may be outside the home and may suffer from intermittent " +
-            "network connections (e.g. a weak WiFi signal). It also allows for a charging profile to be " +
+            "network connections (e.g. a weak Wi-Fi signal). It also allows for a charging profile to be " +
             "pre-configured, in case there is a temporary communications loss during a charging session.",
 
         children: [
@@ -140,8 +140,9 @@ Resource.add(
                     "> SessionEnding is not really a state but a transition. However, the transition period may take a " +
                     "  few seconds and is useful for some clean up purposes." +
                     "\n" +
-                    "The Fault state is used to indicate that the FaultState attribute is not NoError. A null value shall " +
-                    "indicate that the state cannot be determined."
+                    "The Fault state is used to indicate that the FaultState attribute is not NoError." +
+                    "\n" +
+                    "A null value shall indicate that the state cannot be determined."
             },
 
             {
@@ -195,8 +196,9 @@ Resource.add(
 
             {
                 tag: "attribute", name: "MinimumChargeCurrent", xref: "cluster§9.3.8.7",
-                details: "Indicates the minimum current that can be delivered by the EVSE to the EV. The attribute can be set " +
-                    "using the EnableCharging command."
+                details: "Indicates the minimum current that can be delivered by the EVSE to the EV." +
+                    "\n" +
+                    "The attribute can be set using the EnableCharging command."
             },
 
             {
@@ -573,8 +575,8 @@ Resource.add(
                         details: "This field shall indicate the minimum current that can be delivered by the EVSE to the EV in trickle " +
                             "mode. The EVSE current limit can be advertised to an EV in 0.6A steps." +
                             "\n" +
-                            "The value of the MinimumChargeCurrent attribute shall be set to the value of this field (see " +
-                            "MinimumChargeCurrent attribute for further details)."
+                            "The value of the MinimumChargeCurrent attribute shall be set to the value of this field (see Section " +
+                            "9.3.8.7, “MinimumChargeCurrent Attribute” for further details)."
                     },
 
                     {
@@ -689,7 +691,10 @@ Resource.add(
                         tag: "field", name: "SessionEnding",
                         description: "The EVSE is transitioning from any plugged-in state to NotPluggedIn"
                     },
-                    { tag: "field", name: "Fault", description: "There is a fault (see FaultState attribute)" }
+                    {
+                        tag: "field", name: "Fault",
+                        description: "There is a fault, further details in the FaultState attribute"
+                    }
                 ]
             },
 
@@ -842,8 +847,9 @@ Resource.add(
                             "  • the AddedEnergy field shall take precedence over the TargetSoC field, and if the EVSE does not " +
                             "    support the SOC feature then the TargetSoC field may only take the values null or 100%." +
                             "\n" +
-                            "  • if the AddedEnergy field has not been provided, the EVSE SHOULD assume the vehicle is empty and " +
-                            "    charge until the vehicle stops demanding a charge."
+                            "  • if the AddedEnergy field has not been provided, the EVSE SHOULD assume the vehicle is empty" +
+                            "\n" +
+                            "and charge until the vehicle stops demanding a charge."
                     },
 
                     {

@@ -444,7 +444,7 @@ export namespace Messages {
 
         /**
          * This field shall indicate the MessageResponseID selected by the user. If there was no response before the
-         * Duration of the message has elapsed, this field shall be null.
+         * Duration field of the message has elapsed, this field shall be null.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 1.16.8.3.2
          */
@@ -589,8 +589,8 @@ export namespace Messages {
             messagePresented: Event(0x1, Priority.Info, TlvMessagePresentedEvent),
 
             /**
-             * This event shall be generated when the message is confirmed by the user, or when the Duration of the
-             * message has elapsed without confirmation.
+             * This event shall be generated when the message is confirmed by the user, or when the Duration field of
+             * the message has elapsed without confirmation.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 1.16.8.3
              */

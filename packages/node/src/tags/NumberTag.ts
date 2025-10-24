@@ -28,6 +28,26 @@ export const NumberTag = SemanticNamespace({
         Seven: { id: 0x7, label: "Seven" },
         Eight: { id: 0x8, label: "Eight" },
         Nine: { id: 0x9, label: "Nine" },
-        Ten: { id: 0xa, label: "Ten" }
+        Ten: { id: 0xa, label: "Ten" },
+        Eleven: { id: 0xb, label: "Eleven" },
+        Twelve: { id: 0xc, label: "Twelve" },
+        Thirteen: { id: 0xd, label: "Thirteen" },
+        Fourteen: { id: 0xe, label: "Fourteen" },
+        Fifteen: { id: 0xf, label: "Fifteen" },
+        Sixteen: { id: 0x10, label: "Sixteen" },
+        Seventeen: { id: 0x11, label: "Seventeen" },
+        Eighteen: { id: 0x12, label: "Eighteen" },
+        Nineteen: { id: 0x13, label: "Nineteen" },
+        Twenty: { id: 0x14, label: "Twenty" },
+        TwentyOne: { id: 0x15, label: "TwentyOne" },
+        TwentyTwo: { id: 0x16, label: "TwentyTwo" },
+        TwentyThree: { id: 0x17, label: "TwentyThree" },
+        TwentyFour: { id: 0x18, label: "TwentyFour" },
+        TwentyFive: { id: 0x19, label: "TwentyFive" },
+        TwentySix: { id: 0x1a, label: "TwentySix" },
+        TwentySeven: { id: 0x1b, label: "TwentySeven" },
+        TwentyEight: { id: 0x1c, label: "TwentyEight" },
+        TwentyNine: { id: 0x1d, label: "TwentyNine" },
+        Thirty: { id: 0x1e, label: "Thirty" }
     }
 });

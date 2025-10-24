@@ -5,5 +5,5 @@
  */
 
 export * from "./ClusterComposer.js";
-export * from "./ElementModifier.js";
+export * from "./ClusterTypeModifier.js";
 export * from "./MutableCluster.js";

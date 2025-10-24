@@ -86,8 +86,8 @@ export namespace CommissionerControl {
      *
      * > [!NOTE]
      *
-     * > This is an alias onto the Open Commissioning Window command within the Administrator Commissioning Cluster.
-     *   Refer to the Open Commissioning Window command for a description of the command behavior and parameters.
+     * > This is an alias onto the OpenCommissioningWindow command within the Administrator Commissioning Cluster. Refer
+     *   to the OpenCommissioningWindow command for a description of the command behavior and parameters.
      *
      * The parameters for ReverseOpenCommissioningWindow command are as follows:
      *
@@ -95,7 +95,7 @@ export namespace CommissionerControl {
      */
     export const TlvReverseOpenCommissioningWindowResponse = TlvObject({
         commissioningTimeout: TlvField(0, TlvUInt16),
-        pakePasscodeVerifier: TlvField(1, TlvByteString),
+        pakePasscodeVerifier: TlvField(1, TlvByteString.bound({ length: 97 })),
         discriminator: TlvField(2, TlvUInt16.bound({ max: 4095 })),
         iterations: TlvField(3, TlvUInt32.bound({ min: 1000, max: 100000 })),
         salt: TlvField(4, TlvByteString.bound({ minLength: 16, maxLength: 32 }))
@@ -113,8 +113,8 @@ export namespace CommissionerControl {
      *
      * > [!NOTE]
      *
-     * > This is an alias onto the Open Commissioning Window command within the Administrator Commissioning Cluster.
-     *   Refer to the Open Commissioning Window command for a description of the command behavior and parameters.
+     * > This is an alias onto the OpenCommissioningWindow command within the Administrator Commissioning Cluster. Refer
+     *   to the OpenCommissioningWindow command for a description of the command behavior and parameters.
      *
      * The parameters for ReverseOpenCommissioningWindow command are as follows:
      *
@@ -240,6 +240,10 @@ export namespace CommissionerControl {
              * > The approval is valid for a period determined by the manufacturer and characteristics of the node
              *   presenting the Commissioner Control Cluster. Clients SHOULD send the CommissionNode command immediately
              *   upon receiving a CommissioningRequestResult event.
+             *
+             * 11.26.7.2. RequestID / ClientNodeID Fields The RequestID shall match the RequestID provided to
+             * RequestCommissioningApproval and the ClientNodeID shall match the NodeID of the client which generated
+             * the RequestCommissioningApproval command.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.26.7.1
              */

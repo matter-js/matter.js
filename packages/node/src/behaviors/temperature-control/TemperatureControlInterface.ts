@@ -12,6 +12,8 @@ import { TemperatureControl } from "#clusters/temperature-control";
 export namespace TemperatureControlInterface {
     export interface Base {
         /**
+         * This command is used to set the temperature setpoint.
+         *
          * @see {@link MatterSpecification.v141.Cluster} § 8.2.6.1
          */
         setTemperature(request: TemperatureControl.SetTemperatureRequest): MaybePromise;

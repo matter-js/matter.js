@@ -29,11 +29,6 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     type?: string;
     isSeed?: boolean;
 
-    #id: E["id"];
-    #name: string;
-    #isFinal?: boolean;
-    #resource?: Resource;
-
     /**
      * Indicates that an element defines a datatype.
      */
@@ -54,6 +49,17 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
      */
     operationalShadow?: Model | null;
 
+    /**
+     * Indicates whether the corresponding element is supported by an implementation.
+     *
+     * This is an operational implementation hint and does not override conformance.
+     */
+    isSupported?: boolean;
+
+    #id: E["id"];
+    #name: string;
+    #isFinal?: boolean;
+    #resource?: Resource;
     #children?: InternalChildren<C>;
     #parent?: Model;
     #root?: MatterModel;
@@ -255,7 +261,7 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     /**
      * Factory support.
      */
-    static types = {} as { [type: string]: Model.ConcreteType };
+    static types: Record<string, Model.ConcreteType> = {};
 
     /**
      * Add a new model implementation.
@@ -567,6 +573,7 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
         this.isSeed = definition.isSeed;
         this.operationalBase = definition.operationalBase;
         this.operationalShadow = definition.operationalShadow;
+        this.isSupported = definition.isSupported;
 
         if (isClone) {
             if (definition.hasLocalResource) {
@@ -755,6 +762,7 @@ export namespace Model {
               parent?: Model;
               operationalBase?: Model;
               operationalShadow?: Model;
+              isSupported?: boolean;
           })
         | T;
 

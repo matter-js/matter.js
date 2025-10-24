@@ -54,17 +54,17 @@ Resource.add({
 
         {
             tag: "attribute", name: "UtcTime", xref: "core§11.17.8.1",
-            details: "If the node has achieved time synchronization, this shall indicate the current time as a UTC " +
-                "epoch-us (Epoch Time in Microseconds)." +
+            details: "If the node has achieved time synchronization, this attribute shall indicate the current time as a " +
+                "UTC epoch-us (Epoch Time in Microseconds)." +
                 "\n" +
-                "If the node has not achieved time synchronization, this shall be null. This attribute may be set " +
-                "when a SetUTCTime is received."
+                "If the node has not achieved time synchronization, this attribute shall be null. This attribute may " +
+                "be set when a SetUTCTime is received."
         },
 
         {
             tag: "attribute", name: "Granularity", xref: "core§11.17.8.2",
-            details: "The granularity of the error that the node is willing to guarantee on the time synchronization. It " +
-                "is of type GranularityEnum." +
+            details: "Indicates granularity of the error that the node is willing to guarantee on the time " +
+                "synchronization. It is of type GranularityEnum." +
                 "\n" +
                 "This value shall be set to NoTimeGranularity if UTCTime is null and shall NOT be set to " +
                 "NoTimeGranularity if UTCTime is non-null."
@@ -73,10 +73,10 @@ Resource.add({
         {
             tag: "attribute", name: "TimeSource", xref: "core§11.17.8.3",
 
-            details: "The node’s time source. This attribute indicates what method the node is using to sync, whether the " +
-                "source uses NTS or not and whether the source is internal or external to the Matter network. This " +
-                "attribute may be used by a client to determine its level of trust in the UTCTime. It is of type " +
-                "TimeSourceEnum." +
+            details: "Indicates the node’s time source. This attribute indicates what method the node is using to sync, " +
+                "whether the source uses NTS or not and whether the source is internal or external to the Matter " +
+                "network. This attribute may be used by a client to determine its level of trust in the UTCTime. It " +
+                "is of type TimeSourceEnum." +
                 "\n" +
                 "If a node is unsure if the selected NTP server is within the Matter network, it SHOULD select one of " +
                 "the NonMatter* values." +
@@ -87,17 +87,17 @@ Resource.add({
 
         {
             tag: "attribute", name: "TrustedTimeSource", xref: "core§11.17.8.4",
-            details: "A Node ID, endpoint, and associated fabric index of a Node that may be used as trusted time source. " +
-                "See Section 11.17.13, “Time source prioritization”. This attribute reflects the last value set by an " +
-                "administrator using the SetTrustedTimeSource command. If the value is null, no trusted time source " +
-                "has yet been set."
+            details: "Indicates the Node ID, endpoint, and associated fabric index of a Node that may be used as trusted " +
+                "time source. See Section 11.17.13, “Time source prioritization”. This attribute reflects the last " +
+                "value set by an administrator using the SetTrustedTimeSource command. If the value is null, no " +
+                "trusted time source has yet been set."
         },
 
         {
             tag: "attribute", name: "DefaultNtp", xref: "core§11.17.8.5",
 
-            details: "The default NTP server that this Node may use if other time sources are unavailable. This attribute " +
-                "is settable by an Administrator using the SetDefaultNTP command. It SHOULD be set by the " +
+            details: "Indicates the default NTP server that this Node may use if other time sources are unavailable. This " +
+                "attribute is settable by an Administrator using the SetDefaultNTP command. It SHOULD be set by the " +
                 "Commissioner during commissioning. If no default NTP server is available, the Commissioner may set " +
                 "this value to null. The default IANA assigned NTP port of 123 shall be used to access the NTP " +
                 "server." +
@@ -110,10 +110,11 @@ Resource.add({
         {
             tag: "attribute", name: "TimeZone", xref: "core§11.17.8.6",
 
-            details: "A list of time zone offsets from UTC and when they shall take effect. This attribute uses a list of " +
-                "time offset configurations to allow Nodes to handle scheduled regulatory time zone changes. This " +
-                "attribute shall NOT be used to indicate daylight savings time changes (see DSTOffset attribute for " +
-                "daylight savings time)." +
+            details: "This attribute shall contain a list of time zone offsets from UTC and when they shall take effect." +
+                "\n" +
+                "This attribute uses a list of time offset configurations to allow Nodes to handle scheduled " +
+                "regulatory time zone changes. This attribute shall NOT be used to indicate daylight savings time " +
+                "changes (see Section 11.17.8.7, “DSTOffset Attribute” for daylight savings time)." +
                 "\n" +
                 "The first entry shall have a ValidAt entry of 0. If there is a second entry, it shall have a " +
                 "non-zero ValidAt time." +
@@ -143,8 +144,10 @@ Resource.add({
         {
             tag: "attribute", name: "DstOffset", xref: "core§11.17.8.7",
 
-            details: "A list of offsets to apply for daylight savings time, and their validity period. List entries shall " +
-                "be sorted by ValidStarting time." +
+            details: "This attribute shall contain a list of offsets to apply for daylight savings time, and their " +
+                "validity period." +
+                "\n" +
+                "List entries shall be sorted by ValidStarting time." +
                 "\n" +
                 "A list entry shall NOT have a ValidStarting time that is smaller than the ValidUntil time of the " +
                 "previous entry. There shall be at most one list entry with a null ValidUntil time and, if such an " +
@@ -162,10 +165,11 @@ Resource.add({
         {
             tag: "attribute", name: "LocalTime", xref: "core§11.17.8.8",
 
-            details: "The computed current local time of the node as a epoch-us (Epoch Time in Microseconds). The value of " +
-                "LocalTime shall be the sum of the UTCTime, the offset of the currently valid TimeZoneStruct from the " +
-                "TimeZone attribute (converted to microseconds), and the offset of the currently valid " +
-                "DSTOffsetStruct from the DSTOffset attribute (converted to microseconds), if such an entry exists." +
+            details: "Indicates the computed current local time of the node as a epoch-us (Epoch Time in Microseconds). " +
+                "The value of LocalTime shall be the sum of the UTCTime, the offset of the currently valid " +
+                "TimeZoneStruct from the TimeZone attribute (converted to microseconds), and the offset of the " +
+                "currently valid DSTOffsetStruct from the DSTOffset attribute (converted to microseconds), if such an " +
+                "entry exists." +
                 "\n" +
                 "If the node has not achieved time synchronization, this shall be null. If the node has an empty " +
                 "DSTOffset, this shall be null."
@@ -180,27 +184,28 @@ Resource.add({
 
         {
             tag: "attribute", name: "NtpServerAvailable", xref: "core§11.17.8.10",
-            details: "If the node is running an RFC 5905 NTPv4 compliant server on port 123, this value shall be True. If " +
-                "the node is not currently running an NTP server, this value shall be False."
+            details: "Indicates if the node is running an RFC 5905 NTPv4 compliant server on port 123, this value shall be " +
+                "True." +
+                "\n" +
+                "If the node is not currently running an NTP server, this value shall be False."
         },
 
         {
             tag: "attribute", name: "TimeZoneListMaxSize", xref: "core§11.17.8.11",
-            details: "Number of supported list entries in the TimeZone attribute. This attribute may take the value of 1 " +
-                "or 2, where the optional second list entry may be used to handle scheduled regulatory time zone " +
-                "changes."
+            details: "Indicates the number of supported list entries in the TimeZone attribute. This attribute may take " +
+                "the value of 1 or 2, where the optional second list entry may be used to handle scheduled regulatory " +
+                "time zone changes."
         },
 
         {
             tag: "attribute", name: "DstOffsetListMaxSize", xref: "core§11.17.8.12",
-            details: "Number of supported list entries in DSTOffset attribute. This value must be at least 1."
+            details: "Indicates the number of supported list entries in DSTOffset attribute. This value must be at least " +
+                "1."
         },
-
         {
             tag: "attribute", name: "SupportsDnsResolve", xref: "core§11.17.8.13",
-            details: "This attribute is true if the node supports resolving a domain name. DefaultNTP Address values for " +
-                "these nodes may include domain names. If this is False, the Address for a DefaultNTP shall be an " +
-                "IPv6 address."
+            details: "Indicates if the node supports resolving a domain name. DefaultNTP Address values for these nodes " +
+                "may include domain names. If this is False, the Address for a DefaultNTP shall be an IPv6 address."
         },
 
         {
@@ -268,7 +273,9 @@ Resource.add({
         {
             tag: "command", name: "SetUtcTime", xref: "core§11.17.9.1",
 
-            details: "This command may be issued by Administrator to set the time. If the Commissioner does not have a " +
+            details: "This command is used to set the UTC time of the node." +
+                "\n" +
+                "This command may be issued by Administrator to set the time. If the Commissioner does not have a " +
                 "valid time source, it may send a Granularity of NoTimeGranularity." +
                 "\n" +
                 "Upon receipt of this command, the node may update its UTCTime attribute to match the time specified " +
@@ -288,15 +295,15 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "UtcTime", xref: "core§11.17.9.1.1",
-                    details: "This shall give the Client’s UTC Time."
+                    details: "This field shall give the Client’s UTC Time."
                 },
                 {
                     tag: "field", name: "Granularity", xref: "core§11.17.9.1.2",
-                    details: "This shall give the Client’s Granularity, as described in Granularity."
+                    details: "This field shall give the Client’s Granularity, as described in Granularity."
                 },
                 {
                     tag: "field", name: "TimeSource", xref: "core§11.17.9.1.3",
-                    details: "This shall give the Client’s TimeSource, as described in TimeSource."
+                    details: "This field shall give the Client’s TimeSource, as described in TimeSource."
                 }
             ]
         },
@@ -304,7 +311,7 @@ Resource.add({
         {
             tag: "command", name: "SetTrustedTimeSource", xref: "core§11.17.9.2",
 
-            details: "This command shall set the TrustedTimeSource attribute. Upon receipt of this command:" +
+            details: "This command is used to set the TrustedTimeSource attribute. Upon receipt of this command:" +
                 "\n" +
                 "  • If the TrustedTimeSource field in the command is null, the node shall set the TrustedTimeSource " +
                 "    attribute to null and shall generate a MissingTrustedTimeSource event." +
@@ -341,13 +348,14 @@ Resource.add({
 
         {
             tag: "command", name: "SetTimeZoneResponse", xref: "core§11.17.9.4",
-            details: "This command shall be generated in response to a SetTimeZone command.",
+            details: "THis command is used to report the result of a SetTimeZone command. This command shall be generated " +
+                "in response to a SetTimeZone command.",
 
             children: [{
-                tag: "field", name: "DstOffsetsRequired", xref: "core§11.17.9.4.1",
+                tag: "field", name: "DstOffsetRequired", xref: "core§11.17.9.4.1",
                 details: "If the node supports a time zone database with information for the time zone that will be applied, " +
                     "it may use this information to set the DSTOffset attribute. If the node is setting its own DSTOffset " +
-                    "attribute, the DSTOffsetsRequired field shall be set to false, otherwise it shall be set to true."
+                    "attribute, the DSTOffsetRequired field shall be set to false, otherwise it shall be set to true."
             }]
         },
 
@@ -371,12 +379,13 @@ Resource.add({
         {
             tag: "command", name: "SetDefaultNtp", xref: "core§11.17.9.6",
 
-            details: "This command is used to set the DefaultNTP attribute. If the DefaultNTP Address field does not " +
-                "conform to the requirements in the DefaultNTP attribute description, the command shall fail with a " +
-                "status code of INVALID_COMMAND. If the node does not support DNS resolution (as specified in " +
-                "SupportsDNSResolve) and the provided Address is a domain name, the command shall fail with a status " +
-                "code of INVALID_COMMAND. Otherwise, the node shall set the DefaultNTP attribute to match the " +
-                "DefaultNTP provided in this command.",
+            details: "This command is used to set the DefaultNTP attribute." +
+                "\n" +
+                "If the DefaultNTP Address field does not conform to the requirements in the DefaultNTP attribute " +
+                "description, the command shall fail with a status code of INVALID_COMMAND. If the node does not " +
+                "support DNS resolution (as specified in SupportsDNSResolve) and the provided Address is a domain " +
+                "name, the command shall fail with a status code of INVALID_COMMAND. Otherwise, the node shall set " +
+                "the DefaultNTP attribute to match the DefaultNTP provided in this command.",
 
             children: [{
                 tag: "field", name: "DefaultNtp", xref: "core§11.17.9.6.1",

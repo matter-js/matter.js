@@ -162,7 +162,7 @@ export namespace ContentLauncher {
         /**
          * This field shall indicate the color, in RGB or RGBA, used for styling different Video Player sections like
          * Logo, Watermark, etc. The value shall conform to the 6-digit or 8-digit format defined for CSS sRGB
-         * hexadecimal color notation. Examples:
+         * hexadecimal color notation [https://www.w3.org/TR/css-color-4/#hex-notation]. Examples:
          *
          *   • #76DE19 for R=0x76, G=0xDE, B=0x19, A absent
          *
@@ -542,7 +542,7 @@ export namespace ContentLauncher {
         Event = 4,
 
         /**
-         * A franchise is a video entity which can represent a number of video entities, like movies or TV shows.For
+         * A franchise is a video entity which can represent a number of video entities, like movies or TV shows. For
          * example, take the fictional franchise "Intergalactic Wars" which represents a collection of movie trilogies,
          * as well as animated and live action TV shows. This entity type was introduced to account for requests by
          * customers such as "Find Intergalactic Wars movies", which would search for all 'Intergalactic Wars' programs

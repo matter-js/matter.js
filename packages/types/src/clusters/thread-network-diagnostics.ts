@@ -105,7 +105,10 @@ export namespace ThreadNetworkDiagnostics {
      */
     export const TlvNeighborTable = TlvObject({
         /**
-         * This field shall specify the IEEE 802.15.4 extended address for the neighboring Node.
+         * This field shall specify the IEEE 802.15.4 extended address for the neighboring Node. The uint64 value is
+         * composed by taking the 8 octets of the extended address EUI-64 and treating them as a big-endian integer. For
+         * example, octet string (in hexadecimal, from first octet to last) 00112233AABBCCDD would lead to a value of
+         * 0x00112233AABBCCDD.
          *
          * @see {@link MatterSpecification.v141.Core} § 11.14.5.4.1
          */
@@ -120,7 +123,9 @@ export namespace ThreadNetworkDiagnostics {
         age: TlvField(1, TlvUInt32),
 
         /**
-         * This field shall specify the RLOC16 of the neighboring Node.
+         * This field shall specify the RLOC16 of the neighboring Node. The uint16 value is composed by taking the two
+         * RLOC16 and treating the octet string as if it was encoding a big-endian integer. For example, octet string
+         * (in hexadecimal, from first octet to last) 44AA would lead to a value of 0x44AA.
          *
          * @see {@link MatterSpecification.v141.Core} § 11.14.5.4.3
          */
@@ -227,14 +232,19 @@ export namespace ThreadNetworkDiagnostics {
     export const TlvRouteTable = TlvObject({
         /**
          * This field shall specify the IEEE 802.15.4 extended address for the Node for which this route table entry
-         * corresponds.
+         * corresponds. The uint64 value is composed by taking the 8 octets of the extended address EUI- 64 and treating
+         * them as a big-endian integer. For example, octet string (in hexadecimal, from first octet to last)
+         * 00112233AABBCCDD would lead to a value of 0x00112233AABBCCDD.
          *
          * @see {@link MatterSpecification.v141.Core} § 11.14.5.5.1
          */
         extAddress: TlvField(0, TlvUInt64),
 
         /**
-         * This field shall specify the RLOC16 for the Node for which this route table entry corresponds.
+         * This field shall specify the RLOC16 for the Node for which this route table entry corresponds. The uint16
+         * value is composed by taking the two RLOC16 and treating the octet string as if it was encoding a big-endian
+         * integer. For example, octet string (in hexadecimal, from first octet to last) 44AA would lead to a value of
+         * 0x44AA.
          *
          * @see {@link MatterSpecification.v141.Core} § 11.14.5.5.2
          */
@@ -519,9 +529,9 @@ export namespace ThreadNetworkDiagnostics {
     export const ErrorCountsComponent = MutableCluster.Component({
         attributes: {
             /**
-             * The OverrunCount attribute shall indicate the number of packets dropped either at ingress or egress, due
-             * to lack of buffer memory to retain all packets on the ethernet network interface. The OverrunCount
-             * attribute shall be reset to 0 upon a reboot of the Node.
+             * Indicates the number of packets dropped either at ingress or egress, due to lack of buffer memory to
+             * retain all packets on the ethernet network interface. The OverrunCount attribute shall be reset to 0 upon
+             * a reboot of the Node.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.7
              */
@@ -530,12 +540,13 @@ export namespace ThreadNetworkDiagnostics {
 
         commands: {
             /**
+             * This command is used to reset the count attributes.
+             *
              * Reception of this command shall reset the following attributes to 0:
              *
              *   • OverrunCount
              *
-             * This command has no associated data. Upon completion, this command shall send a status code set to a
-             * value of SUCCESS back to the initiator.
+             * Upon completion, this command shall send a status code of SUCCESS back to the initiator.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.7.1
              */
@@ -549,69 +560,65 @@ export namespace ThreadNetworkDiagnostics {
     export const MleCountsComponent = MutableCluster.Component({
         attributes: {
             /**
-             * The DetachedRoleCount attribute shall indicate the number of times the Node entered the
-             * OT_DEVICE_ROLE_DETACHED role as specified within the Thread specification. This value shall only be reset
-             * upon a Node reboot.
+             * Indicates the number of times the Node entered the OT_DEVICE_ROLE_DETACHED role as specified within the
+             * Thread specification. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.15
              */
             detachedRoleCount: OptionalAttribute(0xe, TlvUInt16, { omitChanges: true, default: 0 }),
 
             /**
-             * The ChildRoleCount attribute shall indicate the number of times the Node entered the OT_DEVICE_ROLE_CHILD
-             * role as specified within the Thread specification. This value shall only be reset upon a Node reboot.
+             * Indicates the number of times the Node entered the OT_DEVICE_ROLE_CHILD role as specified within the
+             * Thread specification. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.16
              */
             childRoleCount: OptionalAttribute(0xf, TlvUInt16, { omitChanges: true, default: 0 }),
 
             /**
-             * The RouterRoleCount attribute shall indicate the number of times the Node entered the
-             * OT_DEVICE_ROLE_ROUTER role as specified within the Thread specification. This value shall only be reset
-             * upon a Node reboot.
+             * Indicates the number of times the Node entered the OT_DEVICE_ROLE_ROUTER role as specified within the
+             * Thread specification. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.17
              */
             routerRoleCount: OptionalAttribute(0x10, TlvUInt16, { omitChanges: true, default: 0 }),
 
             /**
-             * The LeaderRoleCount attribute shall indicate the number of times the Node entered the
-             * OT_DEVICE_ROLE_LEADER role as specified within the Thread specification. This value shall only be reset
-             * upon a Node reboot.
+             * Indicates the number of times the Node entered the OT_DEVICE_ROLE_LEADER role as specified within the
+             * Thread specification. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.18
              */
             leaderRoleCount: OptionalAttribute(0x11, TlvUInt16, { omitChanges: true, default: 0 }),
 
             /**
-             * The AttachAttemptCount attribute shall indicate the number of attempts that have been made to attach to a
-             * Thread network while the Node was detached from all Thread networks. This value shall only be reset upon
-             * a Node reboot.
+             * Indicates the number of attempts that have been made to attach to a Thread network while the Node was
+             * detached from all Thread networks. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.19
              */
             attachAttemptCount: OptionalAttribute(0x12, TlvUInt16, { omitChanges: true, default: 0 }),
 
             /**
-             * The PartitionIdChangeCount attribute shall indicate the number of times that the Thread network that the
-             * Node is connected to has changed its Partition ID. This value shall only be reset upon a Node reboot.
+             * Indicates the number of times that the Thread network that the Node is connected to has changed its
+             * Partition ID. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.20
              */
             partitionIdChangeCount: OptionalAttribute(0x13, TlvUInt16, { omitChanges: true, default: 0 }),
 
             /**
-             * The BetterPartitionAttachAttemptCount attribute shall indicate the number of times a Node has attempted
-             * to attach to a different Thread partition that it has determined is better than the partition it is
-             * currently attached to. This value shall only be reset upon a Node reboot.
+             * Indicates the number of times a Node has attempted to attach to a different Thread partition that it has
+             * determined is better than the partition it is currently attached to. This value shall only be reset upon
+             * a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.21
              */
             betterPartitionAttachAttemptCount: OptionalAttribute(0x14, TlvUInt16, { omitChanges: true, default: 0 }),
 
             /**
-             * The ParentChangeCount attribute shall indicate the number of times a Node has changed its parent. This
-             * value shall only be reset upon a Node reboot.
+             * Indicates the number of times a Node has changed its parent. This value shall only be reset upon a Node
+             * reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.22
              */
@@ -625,312 +632,290 @@ export namespace ThreadNetworkDiagnostics {
     export const MacCountsComponent = MutableCluster.Component({
         attributes: {
             /**
-             * The TxTotalCount attribute shall indicate the total number of unique MAC frame transmission requests. The
-             * TxTotalCount attribute shall only be incremented by 1 for each MAC transmission request regardless of the
-             * amount of CCA failures, CSMA-CA attempts, or retransmissions. This value shall only be reset upon a Node
-             * reboot.
+             * Indicates the total number of unique MAC frame transmission requests. The attribute shall only be
+             * incremented by 1 for each MAC transmission request regardless of the amount of CCA failures, CSMA-CA
+             * attempts, or retransmissions. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.23
              */
             txTotalCount: OptionalAttribute(0x16, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The TxUnicastCount attribute shall indicate the total number of unique unicast MAC frame transmission
-             * requests. The TxUnicastCount attribute shall only be incremented by 1 for each unicast MAC transmission
-             * request regardless of the amount of CCA failures, CSMA-CA attempts, or retransmissions. This value shall
-             * only be reset upon a Node reboot.
+             * Indicates the total number of unique unicast MAC frame transmission requests. The attribute shall only be
+             * incremented by 1 for each unicast MAC transmission request regardless of the amount of CCA failures,
+             * CSMA-CA attempts, or retransmissions. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.24
              */
             txUnicastCount: OptionalAttribute(0x17, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The TxBroadcastCount attribute shall indicate the total number of unique broadcast MAC frame transmission
-             * requests. The TxBroadcastCount attribute shall only be incremented by 1 for each broadcast MAC
-             * transmission request regardless of the amount of CCA failures, CSMA-CA attempts, or retransmissions. This
-             * value shall only be reset upon a Node reboot.
+             * Indicates the total number of unique broadcast MAC frame transmission requests. The attribute shall only
+             * be incremented by 1 for each broadcast MAC transmission request regardless of the amount of CCA failures,
+             * CSMA-CA attempts, or retransmissions. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.25
              */
             txBroadcastCount: OptionalAttribute(0x18, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The TxAckRequestedCount attribute shall indicate the total number of unique MAC frame transmission
-             * requests with requested acknowledgment. The TxAckRequestedCount attribute shall only be incremented by 1
-             * for each MAC transmission request with requested acknowledgment regardless of the amount of CCA failures,
-             * CSMA-CA attempts, or retransmissions. This value shall only be reset upon a Node reboot.
+             * Indicates the total number of unique MAC frame transmission requests with requested acknowledgment. The
+             * attribute shall only be incremented by 1 for each MAC transmission request with requested acknowledgment
+             * regardless of the amount of CCA failures, CSMA-CA attempts, or retransmissions. This value shall only be
+             * reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.26
              */
             txAckRequestedCount: OptionalAttribute(0x19, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The TxAckedCount attribute shall indicate the total number of unique MAC frame transmission requests that
-             * were acked. The TxAckedCount attribute shall only be incremented by 1 for each MAC transmission request
-             * that is acked regardless of the amount of CCA failures, CSMA-CA attempts, or retransmissions. This value
-             * shall only be reset upon a Node reboot.
+             * Indicates the total number of unique MAC frame transmission requests that were acked. The attribute shall
+             * only be incremented by 1 for each MAC transmission request that is acked regardless of the amount of CCA
+             * failures, CSMA-CA attempts, or retransmissions. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.27
              */
             txAckedCount: OptionalAttribute(0x1a, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The TxNoAckRequestedCount attribute shall indicate the total number of unique MAC frame transmission
-             * requests without requested acknowledgment. The TxNoAckRequestedCount attribute shall only be incremented
-             * by 1 for each MAC transmission request that is does not request acknowledgement regardless of the amount
-             * of CCA failures, CSMA-CA attempts, or retransmissions.
+             * Indicates the total number of unique MAC frame transmission requests without requested acknowledgment.
+             * The attribute shall only be incremented by 1 for each MAC transmission request that is does not request
+             * acknowledgement regardless of the amount of CCA failures, CSMA-CA attempts, or retransmissions.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.28
              */
             txNoAckRequestedCount: OptionalAttribute(0x1b, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The TxDataCount attribute shall indicate the total number of unique MAC Data frame transmission requests.
-             * The TxDataCount attribute shall only be incremented by 1 for each MAC Data frame transmission request
-             * regardless of the amount of CCA failures, CSMA-CA attempts, or retransmissions. This value shall only be
-             * reset upon a Node reboot.
+             * Indicates the total number of unique MAC Data frame transmission requests. The attribute shall only be
+             * incremented by 1 for each MAC Data frame transmission request regardless of the amount of CCA failures,
+             * CSMA-CA attempts, or retransmissions. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.29
              */
             txDataCount: OptionalAttribute(0x1c, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The TxDataPollCount attribute shall indicate the total number of unique MAC Data Poll frame transmission
-             * requests. The TxDataPollCount attribute shall only be incremented by 1 for each MAC Data Poll frame
-             * transmission request regardless of the amount of CCA failures, CSMA-CA attempts, or retransmissions. This
-             * value shall only be reset upon a Node reboot.
+             * Indicates the total number of unique MAC Data Poll frame transmission requests. The attribute shall only
+             * be incremented by 1 for each MAC Data Poll frame transmission request regardless of the amount of CCA
+             * failures, CSMA-CA attempts, or retransmissions. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.30
              */
             txDataPollCount: OptionalAttribute(0x1d, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The TxBeaconCount attribute shall indicate the total number of unique MAC Beacon frame transmission
-             * requests. The TxBeaconCount attribute shall only be incremented by 1 for each MAC Beacon frame
-             * transmission request regardless of the amount of CCA failures, CSMA-CA attempts, or retransmissions.
+             * Indicates the total number of unique MAC Beacon frame transmission requests. The attribute shall only be
+             * incremented by 1 for each MAC Beacon frame transmission request regardless of the amount of CCA failures,
+             * CSMA-CA attempts, or retransmissions.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.31
              */
             txBeaconCount: OptionalAttribute(0x1e, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The TxBeaconRequestCount attribute shall indicate the total number of unique MAC Beacon Request frame
-             * transmission requests. The TxBeaconRequestCount attribute shall only be incremented by 1 for each MAC
-             * Beacon Request frame transmission request regardless of the amount of CCA failures, CSMA-CA attempts, or
-             * retransmissions. This value shall only be reset upon a Node reboot.
+             * Indicates the total number of unique MAC Beacon Request frame transmission requests. The attribute shall
+             * only be incremented by 1 for each MAC Beacon Request frame transmission request regardless of the amount
+             * of CCA failures, CSMA-CA attempts, or retransmissions. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.32
              */
             txBeaconRequestCount: OptionalAttribute(0x1f, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The TxOtherCount attribute shall indicate the total number of unique MAC frame transmission requests that
-             * are not counted by any other attribute. The TxOtherCount attribute shall only be incremented by 1 for
-             * each MAC frame transmission request regardless of the amount of CCA failures, CSMA-CA attempts, or
-             * retransmissions. This value shall only be reset upon a Node reboot.
+             * Indicates the total number of unique MAC frame transmission requests that are not counted by any other
+             * attribute. The attribute shall only be incremented by 1 for each MAC frame transmission request
+             * regardless of the amount of CCA failures, CSMA-CA attempts, or retransmissions. This value shall only be
+             * reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.33
              */
             txOtherCount: OptionalAttribute(0x20, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The TxRetryCount attribute shall indicate the total number of MAC retransmission attempts. The
-             * TxRetryCount attribute shall only be incremented by 1 for each retransmission attempt that may be
-             * triggered by lack of acknowledgement, CSMA/CA failure, or other type of transmission error. This value
-             * shall only be reset upon a Node reboot.
+             * Indicates the total number of MAC retransmission attempts. The attribute shall only be incremented by 1
+             * for each retransmission attempt that may be triggered by lack of acknowledgement, CSMA/CA failure, or
+             * other type of transmission error. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.34
              */
             txRetryCount: OptionalAttribute(0x21, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The TxDirectMaxRetryExpiryCount attribute shall indicate the total number of unique MAC transmission
-             * packets that meet maximal retry limit for direct packets. The TxDirectMaxRetryExpiryCount attribute shall
-             * only be incremented by 1 for each unique MAC transmission packets that meets the maximal retry limit for
-             * direct packets. This value shall only be reset upon a Node reboot.
+             * Indicates the total number of unique MAC transmission packets that meet maximal retry limit for direct
+             * packets. The attribute shall only be incremented by 1 for each unique MAC transmission packets that meets
+             * the maximal retry limit for direct packets. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.35
              */
             txDirectMaxRetryExpiryCount: OptionalAttribute(0x22, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The TxIndirectMaxRetryExpiryCount attribute shall indicate the total number of unique MAC transmission
-             * packets that meet maximal retry limit for indirect packets. The TxIndirectMaxRetryExpiryCount attribute
-             * shall only be incremented by 1 for each unique MAC transmission packets that meets the maximal retry
-             * limit for indirect packets. This value shall only be reset upon a Node reboot.
+             * Indicates the total number of unique MAC transmission packets that meet maximal retry limit for indirect
+             * packets. The attribute shall only be incremented by 1 for each unique MAC transmission packets that meets
+             * the maximal retry limit for indirect packets. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.36
              */
             txIndirectMaxRetryExpiryCount: OptionalAttribute(0x23, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The TxErrCcaCount attribute shall indicate the total number of CCA failures. The TxErrCcaCount attribute
-             * shall only be incremented by 1 for each instance of a CCA failure. This value shall only be reset upon a
-             * Node reboot.
+             * Indicates the total number of CCA failures. The TxErrCcaCount attribute shall only be incremented by 1
+             * for each instance of a CCA failure. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.37
              */
             txErrCcaCount: OptionalAttribute(0x24, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The TxErrAbortCount attribute shall indicate the total number of unique MAC transmission request failures
-             * caused by an abort error. The TxErrAbortCount attribute shall only be incremented by 1 for each unique
-             * MAC transmission request failure caused by an abort error.
+             * Indicates the total number of unique MAC transmission request failures caused by an abort error. The
+             * attribute shall only be incremented by 1 for each unique MAC transmission request failure caused by an
+             * abort error.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.38
              */
             txErrAbortCount: OptionalAttribute(0x25, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The TxErrBusyChannelCount attribute shall indicate the total number of unique MAC transmission request
-             * failures caused by an error as the result of a busy channel (a CSMA/CA fail). The TxErrBusyChannelCount
-             * attribute shall only be incremented by 1 for each unique MAC transmission request failure caused by a
-             * busy channel such as a CSMA/CA failure.
+             * Indicates the total number of unique MAC transmission request failures caused by an error as the result
+             * of a busy channel (a CSMA/CA fail). The attribute shall only be incremented by 1 for each unique MAC
+             * transmission request failure caused by a busy channel such as a CSMA/CA failure.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.39
              */
             txErrBusyChannelCount: OptionalAttribute(0x26, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The RxTotalCount attribute shall indicate the total number of received unique MAC frames. This value
-             * shall only be reset upon a Node reboot.
+             * Indicates the total number of received unique MAC frames. This value shall only be reset upon a Node
+             * reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.40
              */
             rxTotalCount: OptionalAttribute(0x27, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The RxUnicastCount attribute shall indicate the total number of received unique unicast MAC frames. This
-             * value shall only be reset upon a Node reboot.
+             * Indicates the total number of received unique unicast MAC frames. This value shall only be reset upon a
+             * Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.41
              */
             rxUnicastCount: OptionalAttribute(0x28, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The RxBroadcastCount attribute shall indicate the total number of received unique broadcast MAC frames.
-             * This value shall only be reset upon a Node reboot.
+             * Indicates the total number of received unique broadcast MAC frames. This value shall only be reset upon a
+             * Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.42
              */
             rxBroadcastCount: OptionalAttribute(0x29, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The RxDataCount attribute shall indicate the total number of received unique MAC Data frames. This value
-             * shall only be reset upon a Node reboot.
+             * Indicates the total number of received unique MAC Data frames. This value shall only be reset upon a Node
+             * reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.43
              */
             rxDataCount: OptionalAttribute(0x2a, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The RxDataPollCount attribute shall indicate the total number of received unique MAC Data Poll frames.
-             * This value shall only be reset upon a Node reboot.
+             * Indicates the total number of received unique MAC Data Poll frames. This value shall only be reset upon a
+             * Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.44
              */
             rxDataPollCount: OptionalAttribute(0x2b, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The RxBeaconCount attribute shall indicate the total number of received unique MAC Beacon frames. This
-             * value shall only be reset upon a Node reboot.
+             * Indicates the total number of received unique MAC Beacon frames. This value shall only be reset upon a
+             * Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.45
              */
             rxBeaconCount: OptionalAttribute(0x2c, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The RxBeaconRequestCount attribute shall indicate the total number of received unique MAC Beacon Request
-             * frames. This value shall only be reset upon a Node reboot.
+             * Indicates the total number of received unique MAC Beacon Request frames. This value shall only be reset
+             * upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.46
              */
             rxBeaconRequestCount: OptionalAttribute(0x2d, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The RxOtherCount attribute shall indicate the total number of received unique MAC frame requests that are
-             * not counted by any other attribute. This value shall only be reset upon a Node reboot.
+             * Indicates the total number of received unique MAC frame requests that are not counted by any other
+             * attribute. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.47
              */
             rxOtherCount: OptionalAttribute(0x2e, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The RxAddressFilteredCount attribute shall indicate the total number of received unique MAC frame
-             * requests that have been dropped as a result of MAC filtering. This value shall only be reset upon a Node
-             * reboot.
+             * Indicates the total number of received unique MAC frame requests that have been dropped as a result of
+             * MAC filtering. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.48
              */
             rxAddressFilteredCount: OptionalAttribute(0x2f, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The RxDestAddrFilteredCount attribute shall indicate the total number of received unique MAC frame
-             * requests that have been dropped as a result of a destination address check. This value shall only be
-             * reset upon a Node reboot.
+             * Indicates the total number of received unique MAC frame requests that have been dropped as a result of a
+             * destination address check. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.49
              */
             rxDestAddrFilteredCount: OptionalAttribute(0x30, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The RxDuplicatedCount attribute shall indicate the total number of received MAC frame requests that have
-             * been dropped as a result of being a duplicate of a previously received MAC frame request. This value
-             * shall only be reset upon a Node reboot.
+             * Indicates the total number of received MAC frame requests that have been dropped as a result of being a
+             * duplicate of a previously received MAC frame request. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.50
              */
             rxDuplicatedCount: OptionalAttribute(0x31, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The RxErrNoFrameCount attribute shall indicate the total number of received unique MAC frame requests
-             * that have been dropped as a result of missing or malformed frame contents. This value shall only be reset
-             * upon a Node reboot.
+             * Indicates the total number of received unique MAC frame requests that have been dropped as a result of
+             * missing or malformed frame contents. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.51
              */
             rxErrNoFrameCount: OptionalAttribute(0x32, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The RxErrUnknownNeighborCount attribute shall indicate the total number of received unique MAC frame
-             * requests that have been dropped as a result of originating from an unknown neighbor device. This value
-             * shall only be reset upon a Node reboot.
+             * Indicates the total number of received unique MAC frame requests that have been dropped as a result of
+             * originating from an unknown neighbor device. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.52
              */
             rxErrUnknownNeighborCount: OptionalAttribute(0x33, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The RxErrInvalidSrcAddrCount attribute shall indicate the total number of received unique MAC frame
-             * requests that have been dropped as a result of containing an invalid source address. This value shall
-             * only be reset upon a Node reboot.
+             * Indicates the total number of received unique MAC frame requests that have been dropped as a result of
+             * containing an invalid source address. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.53
              */
             rxErrInvalidSrcAddrCount: OptionalAttribute(0x34, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The RxErrSecCount attribute shall indicate the total number of received unique MAC frame requests that
-             * have been dropped as a result of an error with the security of the received frame. This value shall only
-             * be reset upon a Node reboot.
+             * Indicates the total number of received unique MAC frame requests that have been dropped as a result of an
+             * error with the security of the received frame. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.54
              */
             rxErrSecCount: OptionalAttribute(0x35, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The RxErrFcsCount attribute shall indicate the total number of received unique MAC frame requests that
-             * have been dropped as a result of an error with the FCS of the received frame. This value shall only be
-             * reset upon a Node reboot.
+             * Indicates the total number of received unique MAC frame requests that have been dropped as a result of an
+             * error with the FCS of the received frame. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.55
              */
             rxErrFcsCount: OptionalAttribute(0x36, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * The RxErrOtherCount attribute shall indicate the total number of received unique MAC frame requests that
-             * have been dropped as a result of an error that is not counted by any other attribute. This value shall
-             * only be reset upon a Node reboot.
+             * Indicates the total number of received unique MAC frame requests that have been dropped as a result of an
+             * error that is not counted by any other attribute. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.56
              */
@@ -971,110 +956,105 @@ export namespace ThreadNetworkDiagnostics {
 
         attributes: {
             /**
-             * The Channel attribute shall indicate the 802.15.4 channel number configured on the Node’s Thread
-             * interface (that is, the Active Operational Dataset’s current Channel value). A value of null shall
-             * indicate that the Thread interface is not currently configured or operational.
+             * Indicates the 802.15.4 channel number configured on the Node’s Thread interface (that is, the Active
+             * Operational Dataset’s current Channel value). A value of null shall indicate that the Thread interface is
+             * not currently configured or operational.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.1
              */
             channel: Attribute(0x0, TlvNullable(TlvUInt16)),
 
             /**
-             * The RoutingRole attribute shall indicate the role that this Node has within the routing of messages
-             * through the Thread network, as defined by RoutingRoleEnum. The potential roles are defined in the
-             * following table. A value of null shall indicate that the Thread interface is not currently configured or
-             * operational.
+             * Indicates the role that this Node has within the routing of messages through the Thread network, as
+             * defined by RoutingRoleEnum. The potential roles are defined in the following table. A value of null shall
+             * indicate that the Thread interface is not currently configured or operational.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.2
              */
             routingRole: Attribute(0x1, TlvNullable(TlvEnum<RoutingRole>())),
 
             /**
-             * The NetworkName attribute shall indicate a human-readable (displayable) name for the Thread network that
-             * the Node has been configured to join to. A value of null shall indicate that the Thread interface is not
-             * currently configured or operational.
+             * Indicates a human-readable (displayable) name for the Thread network that the Node has been configured to
+             * join to. A value of null shall indicate that the Thread interface is not currently configured or
+             * operational.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.3
              */
             networkName: Attribute(0x2, TlvNullable(TlvString.bound({ maxLength: 16 }))),
 
             /**
-             * The PanId attribute shall indicate the 16-bit identifier of the Node on the Thread network. A value of
-             * null shall indicate that the Thread interface is not currently configured or operational.
+             * Indicates the 16-bit identifier of the Node on the Thread network. A value of null shall indicate that
+             * the Thread interface is not currently configured or operational.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.4
              */
             panId: Attribute(0x3, TlvNullable(TlvUInt16)),
 
             /**
-             * The ExtendedPanId attribute shall indicate the unique 64-bit identifier of the Node on the Thread
-             * network. A value of null shall indicate that the Thread interface is not currently configured or
-             * operational.
+             * Indicates the unique 64-bit identifier of the Node on the Thread network. A value of null shall indicate
+             * that the Thread interface is not currently configured or operational.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.5
              */
             extendedPanId: Attribute(0x4, TlvNullable(TlvUInt64)),
 
             /**
-             * The MeshLocalPrefix attribute shall indicate the mesh-local IPv6 prefix for the Thread network that the
-             * Node has been configured to join to. A value of null shall indicate that the Thread interface is not
-             * currently configured or operational.
+             * Indicates the mesh-local IPv6 prefix for the Thread network that the Node has been configured to join to.
+             * A value of null shall indicate that the Thread interface is not currently configured or operational.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.6
              */
             meshLocalPrefix: Attribute(0x5, TlvNullable(TlvByteString)),
 
             /**
-             * The NeighborTable attribute shall indicate the current list of Nodes that comprise the neighbor table on
-             * the Node.
+             * Indicates the current list of Nodes that comprise the neighbor table on the Node.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.8
              */
             neighborTable: Attribute(0x7, TlvArray(TlvNeighborTable), { default: [] }),
 
             /**
-             * The RouteTable attribute shall indicate the current list of router capable Nodes for which routes have
-             * been established.
+             * Indicates the current list of router capable Nodes for which routes have been established.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.9
              */
             routeTable: Attribute(0x8, TlvArray(TlvRouteTable), { default: [] }),
 
             /**
-             * The PartitionId attribute shall indicate the Thread Leader Partition Id for the Thread network to which
-             * the Node is joined. Null if not attached to a Thread network.
+             * Indicates the Thread Leader Partition Id for the Thread network to which the Node is joined. Null if not
+             * attached to a Thread network.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.10
              */
             partitionId: Attribute(0x9, TlvNullable(TlvUInt32)),
 
             /**
-             * The Weighting attribute shall indicate the Thread Leader Weight used when operating in the Leader role.
-             * Null if not attached to a Thread network.
+             * Indicates the Thread Leader Weight used when operating in the Leader role. Null if not attached to a
+             * Thread network.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.11
              */
             weighting: Attribute(0xa, TlvNullable(TlvUInt16.bound({ max: 255 }))),
 
             /**
-             * The DataVersion attribute shall indicate the full Network Data Version the Node currently uses. Null if
-             * not attached to a Thread network.
+             * Indicates the full Network Data Version the Node currently uses. Null if not attached to a Thread
+             * network.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.12
              */
             dataVersion: Attribute(0xb, TlvNullable(TlvUInt16.bound({ max: 255 }))),
 
             /**
-             * The StableDataVersion attribute shall indicate the Network Data Version for the stable subset of data the
-             * Node currently uses. Null if not attached to a Thread network.
+             * Indicates the Network Data Version for the stable subset of data the Node currently uses. Null if not
+             * attached to a Thread network.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.13
              */
             stableDataVersion: Attribute(0xc, TlvNullable(TlvUInt16.bound({ max: 255 }))),
 
             /**
-             * The LeaderRouterId attribute shall indicate the 8-bit LeaderRouterId the Node shall attempt to utilize
-             * upon becoming a router or leader on the Thread network. Null if not attached to a Thread network.
+             * Indicates the 8-bit LeaderRouterId the Node shall attempt to utilize upon becoming a router or leader on
+             * the Thread network. Null if not attached to a Thread network.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.14
              */
@@ -1102,27 +1082,27 @@ export namespace ThreadNetworkDiagnostics {
             delay: OptionalAttribute(0x3a, TlvNullable(TlvUInt32), { default: 0 }),
 
             /**
-             * The SecurityPolicy attribute indicates the current security policies for the Thread partition to which a
-             * Node is connected. Null when there is no dataset configured.
+             * Indicates the current security policies for the Thread partition to which a Node is connected. Null when
+             * there is no dataset configured.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.60
              */
             securityPolicy: Attribute(0x3b, TlvNullable(TlvSecurityPolicy)),
 
             /**
-             * The ChannelPage0Mask attribute indicates the channels within channel page 0, in the 2.4GHz ISM band. The
-             * channels are represented in most significant bit order, with bit value 1 meaning selected, bit value 0
-             * meaning unselected. For example, the most significant bit of the left-most byte indicates channel 0. If
-             * channel 0 and channel 10 are selected, the mask would be: 80 20 00 00. Null when there is no dataset
-             * configured.
+             * Indicates the channels within channel page 0, in the 2.4GHz ISM band. The channels are represented in
+             * most significant bit order, with bit value 1 meaning selected, bit value 0 meaning unselected. For
+             * example, the most significant bit of the left-most byte indicates channel
+             *
+             * 0. If channel 0 and channel 10 are selected, the mask would be: 80 20 00 00. Null when there is no
+             * dataset configured.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.61
              */
             channelPage0Mask: Attribute(0x3c, TlvNullable(TlvByteString.bound({ length: 4 }))),
 
             /**
-             * The OperationalDatasetComponents attribute is a collection of flags to indicate the presence of various
-             * operationally acquired values.
+             * Indicates a collection of flags to indicate the presence of various operationally acquired values.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.14.6.62
              */
@@ -1138,12 +1118,22 @@ export namespace ThreadNetworkDiagnostics {
             ),
 
             /**
-             * @see {@link MatterSpecification.v141.Core} § 11.14.6
+             * Indicates the IEEE 802.15.4 extended address for the Node. A value of null shall indicate that the
+             * extended address is not yet known. The uint64 value is composed by taking the 8 octets of the extended
+             * address EUI-64 and treating them as a big-endian integer. For example, octet string (in hexadecimal, from
+             * first octet to last) 00112233AABBCCDD would lead to a value of 0x00112233AABBCCDD.
+             *
+             * @see {@link MatterSpecification.v141.Core} § 11.14.6.64
              */
             extAddress: Attribute(0x3f, TlvNullable(TlvUInt64)),
 
             /**
-             * @see {@link MatterSpecification.v141.Core} § 11.14.6
+             * Indicates the RLOC16 of the Node. A value of null shall indicate that the Thread interface is not
+             * currently configured or operational. The uint16 value is composed by taking the two RLOC16 and treating
+             * the octet string as if it was encoding a big-endian integer. For example, octet string (in hexadecimal,
+             * from first octet to last) 44AA would lead to a value of 0x44AA.
+             *
+             * @see {@link MatterSpecification.v141.Core} § 11.14.6.65
              */
             rloc16: Attribute(0x40, TlvNullable(TlvUInt16))
         },

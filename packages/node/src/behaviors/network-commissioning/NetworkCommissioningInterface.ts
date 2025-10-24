@@ -12,6 +12,9 @@ import { NetworkCommissioning } from "#clusters/network-commissioning";
 export namespace NetworkCommissioningInterface {
     export interface WiFiNetworkInterfaceOrThreadNetworkInterface {
         /**
+         * This command is used to scan for available networks on the network interface associated with the cluster
+         * instance.
+         *
          * This command shall scan on the Cluster instance’s associated network interface for either of:
          *
          *   • All available networks (non-directed scanning)
@@ -27,8 +30,8 @@ export namespace NetworkCommissioningInterface {
          * SSID) is provided in the command arguments. Directed scanning shall restrict the result set to the specified
          * network only.
          *
-         * If this command is received without an armed fail-safe context (see ArmFailSafe), then this command shall
-         * fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe
+         * Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
          *
          * The client shall NOT expect the server to be done scanning and have responded with ScanNetworksResponse
          * before ScanMaxTimeSeconds seconds have elapsed. Enough transport time affordances for retries SHOULD be
@@ -56,12 +59,15 @@ export namespace NetworkCommissioningInterface {
         scanNetworks(request: NetworkCommissioning.ScanNetworksRequest): MaybePromise<NetworkCommissioning.ScanNetworksResponse>;
 
         /**
+         * This command is used to remove a network configuration on the network interface associated with the cluster
+         * instance.
+         *
          * This command shall remove the network configuration from the Cluster if there was already a network
          * configuration with the same NetworkID. The relative order of the entries in the Networks attribute shall
          * remain unchanged, except for the removal of the requested network configuration.
          *
-         * If this command is received without an armed fail-safe context (see ArmFailSafe), then this command shall
-         * fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe
+         * Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
          *
          * If the Networks attribute does not contain a matching entry, the command shall immediately respond with
          * NetworkConfigResponse having NetworkingStatus status field set to NetworkIdNotFound.
@@ -75,6 +81,8 @@ export namespace NetworkCommissioningInterface {
         removeNetwork(request: NetworkCommissioning.RemoveNetworkRequest): MaybePromise<NetworkCommissioning.NetworkConfigResponse>;
 
         /**
+         * This command is used to connect to a network on the network interface associated with the cluster instance.
+         *
          * This command shall attempt to connect to a network whose configuration was previously added by either the
          * AddOrUpdateWiFiNetwork or AddOrUpdateThreadNetwork commands. Network is identified by its NetworkID.
          *
@@ -82,8 +90,8 @@ export namespace NetworkCommissioningInterface {
          * to proceed with such an operation, such as if it is currently attempting to connect in the background, or is
          * already proceeding with a prior ConnectNetwork.
          *
-         * If this command is received without an armed fail-safe context (see ArmFailSafe), then this command shall
-         * fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe
+         * Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
          *
          * Before connecting to the new network, the Node shall disconnect the operational network connections managed
          * by any other Network Commissioning cluster instances (whether under the Root Node or a Secondary Network
@@ -115,8 +123,8 @@ export namespace NetworkCommissioningInterface {
          * The precedence order of any entry subject to ConnectNetwork shall NOT change within the Networks attribute.
          *
          * Even after successfully connecting to a network, the configuration shall revert to the prior state of
-         * configuration if the CommissioningComplete command (see CommissioningComplete) is not successfully invoked
-         * before expiry of the Fail-Safe timer.
+         * configuration if the CommissioningComplete command (see Section 11.10.7.6, “CommissioningComplete Command”)
+         * is not successfully invoked before expiry of the Fail-Safe timer.
          *
          * When non-concurrent commissioning is being used by a Commissioner or Administrator, the
          * ConnectNetworkResponse shall be sent with the NetworkingStatus field set to Success prior to closing the
@@ -127,8 +135,8 @@ export namespace NetworkCommissioningInterface {
          * the new operational network. Therefore, before invoking the ConnectNetwork command, the client SHOULD
          * re-invoke the Arm Fail-Safe command with a duration that meets the following:
          *
-         *   1. Sufficient time to meet the minimum required time (see ConnectMaxTimeSeconds) that may be taken by the
-         *      server to connect to the desired network.
+         *   1. Sufficient time to meet the minimum required time (see Section 11.9.6.4, “ConnectMaxTimeSeconds
+         *      Attribute”) that may be taken by the server to connect to the desired network.
          *
          *   2. Sufficient time to account for possible message-layer retries when a response is requested.
          *
@@ -152,6 +160,8 @@ export namespace NetworkCommissioningInterface {
         connectNetwork(request: NetworkCommissioning.ConnectNetworkRequest): MaybePromise<NetworkCommissioning.ConnectNetworkResponse>;
 
         /**
+         * This command is used to re-order the network configuration list.
+         *
          * This command shall set the specific order of the network configuration selected by its NetworkID in the
          * Networks attribute to match the position given by NetworkIndex.
          *
@@ -162,10 +172,12 @@ export namespace NetworkCommissioningInterface {
 
     export interface WiFiNetworkInterface {
         /**
+         * This command is used to add or update a Wi-Fi network configuration.
+         *
          * This command shall be used to add or modify Wi-Fi network configurations.
          *
-         * If this command is received without an armed fail-safe context (see ArmFailSafe), then this command shall
-         * fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe
+         * Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
          *
          * The Credentials associated with the network are not readable after execution of this command, as they do not
          * appear in the Networks attribute, for security reasons.
@@ -183,10 +195,12 @@ export namespace NetworkCommissioningInterface {
 
     export interface ThreadNetworkInterface {
         /**
+         * This command is used to add or update a Thread network configuration.
+         *
          * This command shall be used to add or modify Thread network configurations.
          *
-         * If this command is received without an armed fail-safe context (see ArmFailSafe), then this command shall
-         * fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe
+         * Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
          *
          * See Section 11.9.7.5, “Common processing of AddOrUpdateWiFiNetwork and AddOrUpdateThreadNetwork” for behavior
          * of addition/update.

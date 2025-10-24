@@ -168,7 +168,36 @@ Resource.add({
         },
 
         {
-            tag: "datatype", name: "EnergyMeasurementStruct", xref: "cluster§2.12.5.1",
+            tag: "datatype", name: "MeasurementTypeEnum", xref: "cluster§2.12.5.1",
+
+            children: [
+                { tag: "field", name: "Voltage", description: "Voltage in millivolts (mV)" },
+                { tag: "field", name: "ActiveCurrent", description: "Active current in milliamps (mA)" },
+                { tag: "field", name: "ReactiveCurrent", description: "Reactive current in milliamps (mA)" },
+                { tag: "field", name: "ApparentCurrent", description: "Apparent current in milliamps (mA)" },
+                { tag: "field", name: "ActivePower", description: "Active power in milliwatts (mW)" },
+                {
+                    tag: "field", name: "ReactivePower",
+                    description: "Reactive power in millivolt-amps reactive (mVAR)"
+                },
+                { tag: "field", name: "ApparentPower", description: "Apparent power in millivolt-amps (mVA)" },
+                { tag: "field", name: "RmsVoltage", description: "Root mean squared voltage in millivolts (mV)" },
+                { tag: "field", name: "RmsCurrent", description: "Root mean squared current in milliamps (mA)" },
+                { tag: "field", name: "RmsPower", description: "Root mean squared power in milliwatts (mW)" },
+                { tag: "field", name: "Frequency", description: "AC frequency in millihertz (mHz)" },
+                { tag: "field", name: "PowerFactor", description: "Power Factor ratio in+/- 1/100ths of a percent." },
+                { tag: "field", name: "NeutralCurrent", description: "AC neutral current in milliamps (mA)" },
+                { tag: "field", name: "ElectricalEnergy", description: "Electrical energy in milliwatt-hours (mWh)" },
+                {
+                    tag: "field", name: "ReactiveEnergy",
+                    description: "Reactive power in millivolt-amp-hours reactive (mVARh)"
+                },
+                { tag: "field", name: "ApparentEnergy", description: "Apparent power in millivolt-amp-hours (mVAh)" }
+            ]
+        },
+
+        {
+            tag: "datatype", name: "EnergyMeasurementStruct", xref: "cluster§2.12.5.2",
 
             details: "This struct shall indicate the amount of energy measured during a given measurement period." +
                 "\n" +
@@ -178,11 +207,14 @@ Resource.add({
                 "A server which has determined the time in UTC shall use the timestamp fields to specify the " +
                 "measurement period. Such a server may also include the systime fields to indicate how many seconds " +
                 "had passed since boot for a given timestamp; this allows for client-side resolution of UTC time for " +
-                "previous reports that only included systime.",
+                "previous reports that only included systime." +
+                "\n" +
+                "Elements using this data type shall indicate whether it represents cumulative or periodic energy, " +
+                "e.g. in the name or in the element description.",
 
             children: [
                 {
-                    tag: "field", name: "Energy", xref: "cluster§2.12.5.1.1",
+                    tag: "field", name: "Energy", xref: "cluster§2.12.5.2.1",
 
                     details: "This field shall be the reported energy." +
                         "\n" +
@@ -196,7 +228,7 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "StartTimestamp", xref: "cluster§2.12.5.1.2",
+                    tag: "field", name: "StartTimestamp", xref: "cluster§2.12.5.2.2",
 
                     details: "This field shall indicate the timestamp in UTC of the beginning of the period during which the value " +
                         "of the Energy field was measured." +
@@ -212,7 +244,7 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "EndTimestamp", xref: "cluster§2.12.5.1.3",
+                    tag: "field", name: "EndTimestamp", xref: "cluster§2.12.5.2.3",
 
                     details: "This field shall indicate the timestamp in UTC of the end of the period during which the value of " +
                         "the Energy field was measured." +
@@ -225,7 +257,7 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "StartSystime", xref: "cluster§2.12.5.1.4",
+                    tag: "field", name: "StartSystime", xref: "cluster§2.12.5.2.4",
 
                     details: "This field shall indicate the time elapsed since boot at the beginning of the period during which " +
                         "the value of the Energy field was measured." +
@@ -242,7 +274,7 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "EndSystime", xref: "cluster§2.12.5.1.5",
+                    tag: "field", name: "EndSystime", xref: "cluster§2.12.5.2.5",
 
                     details: "This field shall indicate the time elapsed since boot at the end of the period during which the " +
                         "value of the Energy field was measured." +
@@ -258,13 +290,13 @@ Resource.add({
         },
 
         {
-            tag: "datatype", name: "CumulativeEnergyResetStruct", xref: "cluster§2.12.5.2",
+            tag: "datatype", name: "CumulativeEnergyResetStruct", xref: "cluster§2.12.5.3",
             details: "This struct shall represent the times at which cumulative measurements were last zero, either due to " +
                 "initialization of the device, or an internal reset of the cumulative value.",
 
             children: [
                 {
-                    tag: "field", name: "ImportedResetTimestamp", xref: "cluster§2.12.5.2.1",
+                    tag: "field", name: "ImportedResetTimestamp", xref: "cluster§2.12.5.3.1",
 
                     details: "This field shall indicate the timestamp in UTC when the value of the Energy field on the " +
                         "CumulativeEnergyImported attribute was most recently zero." +
@@ -281,7 +313,7 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "ExportedResetTimestamp", xref: "cluster§2.12.5.2.2",
+                    tag: "field", name: "ExportedResetTimestamp", xref: "cluster§2.12.5.3.2",
 
                     details: "This field shall indicate the timestamp in UTC when the value of the Energy field on the " +
                         "CumulativeEnergyExported attribute was most recently zero." +
@@ -298,7 +330,7 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "ImportedResetSystime", xref: "cluster§2.12.5.2.3",
+                    tag: "field", name: "ImportedResetSystime", xref: "cluster§2.12.5.3.3",
 
                     details: "This field shall indicate the time elapsed since boot when the value of the Energy field on the " +
                         "CumulativeEnergyImported attribute was most recently zero." +
@@ -314,7 +346,7 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "ExportedResetSystime", xref: "cluster§2.12.5.2.4",
+                    tag: "field", name: "ExportedResetSystime", xref: "cluster§2.12.5.3.4",
 
                     details: "This field shall indicate the time elapsed since boot when the value of the Energy field on the " +
                         "CumulativeEnergyExported attribute was most recently zero." +

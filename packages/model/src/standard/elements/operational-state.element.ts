@@ -90,7 +90,10 @@ export const OperationalState = Cluster(
     Datatype(
         { name: "OperationalStateStruct", type: "struct" },
         Field({ name: "OperationalStateId", id: 0x0, type: "OperationalStateEnum", conformance: "M", default: 0 }),
-        Field({ name: "OperationalStateLabel", id: 0x1, type: "string", conformance: "desc", constraint: "max 64" })
+        Field({
+            name: "OperationalStateLabel", id: 0x1, type: "string",
+            conformance: "OperationalStateID >= 128 & OperationalStateID <= 191", constraint: "max 64"
+        })
     ),
 
     Datatype(
@@ -104,7 +107,10 @@ export const OperationalState = Cluster(
     Datatype(
         { name: "ErrorStateStruct", type: "struct" },
         Field({ name: "ErrorStateId", id: 0x0, type: "ErrorStateEnum", conformance: "M", default: 0 }),
-        Field({ name: "ErrorStateLabel", id: 0x1, type: "string", conformance: "desc", constraint: "max 64" }),
+        Field({
+            name: "ErrorStateLabel", id: 0x1, type: "string",
+            conformance: "ErrorStateID >= 128 & ErrorStateID <= 191", constraint: "max 64"
+        }),
         Field({ name: "ErrorStateDetails", id: 0x2, type: "string", conformance: "O", constraint: "max 64" })
     )
 );

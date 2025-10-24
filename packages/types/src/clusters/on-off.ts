@@ -259,7 +259,7 @@ export namespace OnOff {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 1.5.6.3
              */
-            globalSceneControl: Attribute(0x4000, TlvBoolean, { default: true }),
+            globalSceneControl: Attribute(0x4000, TlvBoolean),
 
             /**
              * This attribute specifies the length of time (in 1/10ths second) that the On state shall be maintained
@@ -269,7 +269,7 @@ export namespace OnOff {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 1.5.6.4
              */
-            onTime: WritableAttribute(0x4001, TlvUInt16, { default: 0 }),
+            onTime: WritableAttribute(0x4001, TlvUInt16),
 
             /**
              * This attribute specifies the length of time (in 1/10ths second) that the Off state shall be guarded to
@@ -281,7 +281,7 @@ export namespace OnOff {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 1.5.6.5
              */
-            offWaitTime: WritableAttribute(0x4002, TlvUInt16, { default: 0 }),
+            offWaitTime: WritableAttribute(0x4002, TlvUInt16),
 
             /**
              * This attribute shall define the desired startup behavior of a device when it is supplied with power and
@@ -422,7 +422,7 @@ export namespace OnOff {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 1.5.6.2
              */
-            onOff: Attribute(0x0, TlvBoolean, { scene: true, persistent: true, default: false })
+            onOff: Attribute(0x0, TlvBoolean, { scene: true, persistent: true })
         },
 
         commands: {

@@ -56,7 +56,7 @@ export namespace IlluminanceMeasurement {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 2.2.5.1
              */
-            measuredValue: Attribute(0x0, TlvNullable(TlvUInt16), { default: 0 }),
+            measuredValue: Attribute(0x0, TlvNullable(TlvUInt16)),
 
             /**
              * Indicates the minimum value of MeasuredValue that can be measured. A value of null indicates that this

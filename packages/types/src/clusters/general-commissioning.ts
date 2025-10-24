@@ -105,12 +105,12 @@ export namespace GeneralCommissioning {
         InvalidAuthentication = 2,
 
         /**
-         * Executed CommissioningComplet e when there was no active Fail-Safe context.
+         * Executed CommissioningComplete when there was no active Fail-Safe context.
          */
         NoFailSafe = 3,
 
         /**
-         * Attempting to arm fail-safe or execute CommissioningComplet e from a fabric different than the one associated
+         * Attempting to arm fail-safe or execute CommissioningComplete from a fabric different than the one associated
          * with the current fail-safe context.
          */
         BusyWithOtherAdmin = 4,
@@ -121,7 +121,7 @@ export namespace GeneralCommissioning {
         RequiredTcNotAccepted = 5,
 
         /**
-         * No acknowledgements from the user for the TC features were received.
+         * No or insufficient acknowledgements from the user for the TC features were received.
          */
         TcAcknowledgementsNotReceived = 6,
 
@@ -132,7 +132,7 @@ export namespace GeneralCommissioning {
     }
 
     /**
-     * This command is used to convey the result from SetTCAcknowledgements.
+     * This command is used to report the result of the SetTCAcknowledgements command.
      *
      * @see {@link MatterSpecification.v141.Core} § 11.10.7.9
      */
@@ -147,7 +147,7 @@ export namespace GeneralCommissioning {
     });
 
     /**
-     * This command is used to convey the result from SetTCAcknowledgements.
+     * This command is used to report the result of the SetTCAcknowledgements command.
      *
      * @see {@link MatterSpecification.v141.Core} § 11.10.7.9
      */
@@ -230,6 +230,8 @@ export namespace GeneralCommissioning {
     export interface ArmFailSafeRequest extends TypeFromSchema<typeof TlvArmFailSafeRequest> {}
 
     /**
+     * This command is used to report the result of the ArmFailSafe command.
+     *
      * @see {@link MatterSpecification.v141.Core} § 11.10.7.3
      */
     export const TlvArmFailSafeResponse = TlvObject({
@@ -250,6 +252,8 @@ export namespace GeneralCommissioning {
     });
 
     /**
+     * This command is used to report the result of the ArmFailSafe command.
+     *
      * @see {@link MatterSpecification.v141.Core} § 11.10.7.3
      */
     export interface ArmFailSafeResponse extends TypeFromSchema<typeof TlvArmFailSafeResponse> {}
@@ -273,6 +277,8 @@ export namespace GeneralCommissioning {
     export interface SetRegulatoryConfigRequest extends TypeFromSchema<typeof TlvSetRegulatoryConfigRequest> {}
 
     /**
+     * This command is used to report the result of the SetRegulatoryConfig command.
+     *
      * @see {@link MatterSpecification.v141.Core} § 11.10.7.5
      */
     export const TlvSetRegulatoryConfigResponse = TlvObject({
@@ -293,11 +299,15 @@ export namespace GeneralCommissioning {
     });
 
     /**
+     * This command is used to report the result of the SetRegulatoryConfig command.
+     *
      * @see {@link MatterSpecification.v141.Core} § 11.10.7.5
      */
     export interface SetRegulatoryConfigResponse extends TypeFromSchema<typeof TlvSetRegulatoryConfigResponse> {}
 
     /**
+     * This command is used to report the result of the CommissioningComplete command.
+     *
      * @see {@link MatterSpecification.v141.Core} § 11.10.7.7
      */
     export const TlvCommissioningCompleteResponse = TlvObject({
@@ -318,6 +328,8 @@ export namespace GeneralCommissioning {
     });
 
     /**
+     * This command is used to report the result of the CommissioningComplete command.
+     *
      * @see {@link MatterSpecification.v141.Core} § 11.10.7.7
      */
     export interface CommissioningCompleteResponse extends TypeFromSchema<typeof TlvCommissioningCompleteResponse> {}
@@ -334,7 +346,7 @@ export namespace GeneralCommissioning {
              * When Custom Commissioning Flow is used to obtain user consent (e. g. because the Commissioner does not
              * support the TC feature), the manufacturer-provided means for obtaining user consent shall ensure that
              * this attribute is set to a value which is greater than or equal to TCMinRequiredVersion before returning
-             * the user back to the originating Commissioner (see Enhanced Setup Flow).
+             * the user back to the originating Commissioner (see Section 5.7.4, “Enhanced Setup Flow (ESF)”).
              *
              * @see {@link MatterSpecification.v141.Core} § 11.10.6.6
              */
@@ -385,7 +397,7 @@ export namespace GeneralCommissioning {
              * mandatory terms accepted.
              *
              * This attribute may be present and False in the case where no terms and conditions are currently mandatory
-             * to accept for CommissioningComplete to succeed.
+             * to accept for CommissioningComplete command to succeed.
              *
              * This attribute may appear, or become True after commissioning (e.g. due to a firmware update) to indicate
              * that new Terms & Conditions are available that the user must accept.
@@ -394,8 +406,8 @@ export namespace GeneralCommissioning {
              *
              * When Custom Commissioning Flow is used to obtain user consent (e.g. because the Commissioner does not
              * support the TC feature), the manufacturer-provided means for obtaining user consent shall ensure that
-             * this attribute is set to False before returning the user back to the original Commissioner (see Enhanced
-             * Setup Flow).
+             * this attribute is set to False before returning the user back to the original Commissioner (see Section
+             * 5.7.4, “Enhanced Setup Flow (ESF)”).
              *
              * @see {@link MatterSpecification.v141.Core} § 11.10.6.9
              */
@@ -407,7 +419,7 @@ export namespace GeneralCommissioning {
 
             /**
              * Indicates the System Time in seconds when any functionality limitations will begin due to a lack of
-             * acceptance of updated Terms and Conditions, as described in Section 5.7.4.5, “Presenting Updated Terms
+             * acceptance of updated Terms and Conditions, as described in Section 5.7.4.6, “Presenting Updated Terms
              * and Conditions”.
              *
              * A null value indicates that there is no pending deadline for updated TC acceptance.
@@ -423,8 +435,8 @@ export namespace GeneralCommissioning {
 
         commands: {
             /**
-             * This command sets the user acknowledgements received in the Enhanced Setup Flow Terms & Conditions into
-             * the node.
+             * This command is used to set the user acknowledgements received in the Enhanced Setup Flow Terms &
+             * Conditions into the node.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.10.7.8
              */
@@ -475,8 +487,9 @@ export namespace GeneralCommissioning {
             breadcrumb: WritableAttribute(0x0, TlvUInt64, { default: 0, writeAcl: AccessLevel.Administer }),
 
             /**
-             * This attribute shall describe critical parameters needed at the beginning of commissioning flow. See
-             * BasicCommissioningInfo for more information.
+             * This attribute shall describe critical parameters needed at the beginning of commissioning flow.
+             *
+             * See Section 11.10.5.3, “BasicCommissioningInfo Type” for more information.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.10.6.2
              */
@@ -515,9 +528,8 @@ export namespace GeneralCommissioning {
             ),
 
             /**
-             * This attribute shall indicate whether this device supports "concurrent connection flow" commissioning
-             * mode (see Section 5.5, “Commissioning Flows”). If false, the device only supports "non-concurrent
-             * connection flow" mode.
+             * Indicates whether this device supports "concurrent connection flow" commissioning mode (see Section 5.5,
+             * “Commissioning Flows”). If false, the device only supports "non-concurrent connection flow" mode.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.10.6.5
              */
@@ -526,6 +538,8 @@ export namespace GeneralCommissioning {
 
         commands: {
             /**
+             * This command is used to arm or disarm the fail-safe timer.
+             *
              * Success or failure of this command shall be communicated by the ArmFailSafeResponse command, unless some
              * data model validations caused a failure status code to be issued during the processing of the command.
              *
@@ -578,9 +592,9 @@ export namespace GeneralCommissioning {
              *
              *   • Whether an AddNOC command or UpdateNOC command has taken place.
              *
-             *   • A Fabric Index for the fabric-scoping of the context, starting at the accessing fabric index for the
-             *     ArmFailSafe command, and updated with the Fabric Index associated with an AddNOC command or an
-             *     UpdateNOC command being invoked successfully during the ongoing Fail-Safe timer period.
+             *   • A fabric-index for the fabric-scoping of the context, starting at the accessing fabric index for the
+             *     ArmFailSafe command, and updated with the Fabric Index associated with an AddNOC or an UpdateNOC
+             *     command being invoked successfully during the ongoing Fail-Safe timer period.
              *
              *   • The operational credentials associated with any Fabric whose configuration is affected by the
              *     UpdateNOC command.
@@ -618,8 +632,8 @@ export namespace GeneralCommissioning {
              *      6.6.2.9, “Bootstrapping of the Access Control Cluster”) at the Server.
              *
              *   3. If an AddNOC or UpdateNOC command has been successfully invoked, terminate all CASE sessions
-             *      associated with the Fabric whose Fabric Index is recorded in the Fail-Safe context (see ArmFailSafe)
-             *      by clearing any associated Secure Session Context at the Server.
+             *      associated with the Fabric whose Fabric Index is recorded in the Fail-Safe context (see Section
+             *      11.10.7.2, “ArmFailSafe Command”) by clearing any associated Secure Session Context at the Server.
              *
              *   4. Reset the configuration of all Network Commissioning Networks attribute to their state prior to the
              *      Fail-Safe being armed.
@@ -629,7 +643,7 @@ export namespace GeneralCommissioning {
              *      that was the subject of the UpdateNOC command.
              *
              *   6. If an AddNOC command had been successfully invoked, achieve the equivalent effect of invoking the
-             *      RemoveFabric command against the Fabric Index stored in the Fail-Safe Context for the Fabric Index
+             *      RemoveFabric command against the fabric-index stored in the Fail-Safe Context for the Fabric Index
              *      that was the subject of the AddNOC command. This shall remove all associations to that Fabric
              *      including all fabric-scoped data, and may possibly factory-reset the device depending on current
              *      device state. This shall only apply to Fabrics added during the fail-safe period as the result of
@@ -637,8 +651,8 @@ export namespace GeneralCommissioning {
              *
              *   7. If the CSRRequest command had been successfully invoked, but no AddNOC or UpdateNOC command had been
              *      successfully invoked, then the new operational key pair temporarily generated for the purposes of
-             *      NOC addition or update (see Node Operational CSR Procedure) shall be removed as it is no longer
-             *      needed.
+             *      NOC addition or update (see Section 6.4.6.1, “Node Operational Certificate Signing Request (NOCSR)
+             *      Procedure”) shall be removed as it is no longer needed.
              *
              *   8. Remove any RCACs added by the AddTrustedRootCertificate command that are not currently referenced by
              *      any entry in the Fabrics attribute.
@@ -659,6 +673,8 @@ export namespace GeneralCommissioning {
             ),
 
             /**
+             * This command is used to set the regulatory configuration for the device.
+             *
              * This shall add or update the regulatory configuration in the RegulatoryConfig Attribute to the value
              * provided in the NewRegulatoryConfig field.
              *
@@ -700,7 +716,7 @@ export namespace GeneralCommissioning {
             ),
 
             /**
-             * This command has no data.
+             * This command is used to indicate that the commissioning process is complete.
              *
              * Success or failure of this command shall be communicated by the CommissioningCompleteResponse command,
              * unless some data model validations caused a failure status code to be issued during the processing of the
@@ -719,8 +735,7 @@ export namespace GeneralCommissioning {
              *
              * If Terms and Conditions are required, then an ErrorCode of TCAcknowledgementsNotReceived shall be
              * responded to the invoker if the user acknowledgements to the required Terms and Conditions have not been
-             * provided. If the TCAcceptedVersion for the provided acknowledgements is less than TCMinRequiredVersion,
-             * then an ErrorCode of TCMinVersionNotMet shall be responded to the invoker.
+             * provided.
              *
              * This command is fabric-scoped, so cannot be issued over a session that does not have an associated
              * fabric, i.e. over PASE session prior to an AddNOC command. In addition, this command is only permitted

@@ -13,7 +13,7 @@ export const LaundryDryerDt = DeviceType(
     { name: "LaundryDryer", id: 0x7c },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 124, revision: 1 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 124, revision: 2 } ], element: "attribute" })
     ),
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster" }),
     Requirement(
@@ -27,7 +27,10 @@ export const LaundryDryerDt = DeviceType(
     ),
     Requirement({ name: "LaundryDryerControls", id: 0x4a, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "TemperatureControl", id: 0x56, conformance: "O", element: "serverCluster" }),
-    Requirement({ name: "OperationalState", id: 0x60, conformance: "M", element: "serverCluster" })
+    Requirement(
+        { name: "OperationalState", id: 0x60, conformance: "M", element: "serverCluster" },
+        Requirement({ name: "OperationCompletion", conformance: "M", element: "event" })
+    )
 );
 
 MatterDefinition.children.push(LaundryDryerDt);

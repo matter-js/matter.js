@@ -17,8 +17,8 @@ import {
 
 export const Identify = Cluster(
     { name: "Identify", id: 0x3 },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 5 }),
-    Attribute({ name: "IdentifyTime", id: 0x0, type: "uint16", access: "RW VO", conformance: "M", default: 0 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 6 }),
+    Attribute({ name: "IdentifyTime", id: 0x0, type: "uint16", access: "RW VO", conformance: "M", quality: "Q" }),
     Attribute({ name: "IdentifyType", id: 0x1, type: "IdentifyTypeEnum", access: "R V", conformance: "M", constraint: "desc" }),
     Command(
         { name: "Identify", id: 0x0, access: "M", conformance: "M", direction: "request", response: "status" },

@@ -25,6 +25,25 @@ export namespace WiFiNetworkManagement {
      * @see {@link MatterSpecification.v141.Cluster} § 10.2.5.2
      */
     export const TlvNetworkPassphraseResponse = TlvObject({
+        /**
+         * This field shall indicate the current WPA-Personal passphrase or PSK associated with the primary Wi-Fi
+         * network provided by this device, in one of the following formats:
+         *
+         *   • 8..63 bytes: WPA/WPA2/WPA3 passphrase.
+         *
+         *   • 64 bytes: WPA/WPA2/WPA3 raw hex PSK. Each byte shall be a ASCII hexadecimal digit.
+         *
+         * This matches the formats defined for WPA networks by the Credentials field in the Network Commissioning
+         * cluster (see [MatterCore]).
+         *
+         * > [!NOTE]
+         *
+         * > WPA3-Personal permits passphrases shorter than 8 or longer than 63 characters, however the Network
+         *   Commissioning cluster does not currently support configuring Matter devices to connect to operational
+         *   networks utilizing such a passphrase.
+         *
+         * @see {@link MatterSpecification.v141.Cluster} § 10.2.5.2.1
+         */
         passphrase: TlvField(0, TlvByteString.bound({ maxLength: 64 }))
     });
 
@@ -54,7 +73,7 @@ export namespace WiFiNetworkManagement {
              *
              * > The SSID in Wi-Fi is a collection of 1-32 bytes, the text encoding of which is not specified.
              *   Implementations must be careful to support transferring these byte strings without requiring a
-             *   particular encoding. The most common encoding is UTF- 8, however this is just a convention. Some
+             *   particular encoding. The most common encoding is UTF-8, however this is just a convention. Some
              *   configurations may use Latin-1 or other character sets.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 10.2.4.1
@@ -62,7 +81,7 @@ export namespace WiFiNetworkManagement {
             ssid: Attribute(
                 0x0,
                 TlvNullable(TlvByteString.bound({ minLength: 1, maxLength: 32 })),
-                { persistent: true, default: null }
+                { persistent: true }
             ),
 
             /**
@@ -88,7 +107,7 @@ export namespace WiFiNetworkManagement {
             passphraseSurrogate: Attribute(
                 0x1,
                 TlvNullable(TlvUInt64),
-                { persistent: true, default: null, readAcl: AccessLevel.Manage, writeAcl: AccessLevel.Manage }
+                { persistent: true, readAcl: AccessLevel.Manage, writeAcl: AccessLevel.Manage }
             )
         },
 

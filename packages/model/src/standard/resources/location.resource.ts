@@ -28,7 +28,11 @@ Resource.add({
         },
         {
             tag: "semanticTag", name: "Outside",
-            description: "Element is located outside the equipment (e.g. a sensor \"outside\" a cabinet)"
+            description: "Element is located outside the equipment (e.g. a sensor \"outside\" a cabinet)."
+        },
+        {
+            tag: "semanticTag", name: "Zone",
+            description: "Element is a part of a location divided into zones (e.g. a yard irrigation zone)."
         }
     ]
 });

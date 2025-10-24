@@ -125,7 +125,7 @@ export const AccessControl = Cluster(
     Datatype(
         { name: "AccessControlEntryPrivilegeEnum", type: "enum8" },
         Field({ name: "View", id: 0x1, conformance: "M" }),
-        Field({ name: "ProxyView", id: 0x2, conformance: "P, M" }),
+        Field({ name: "ProxyView", id: 0x2, conformance: "D" }),
         Field({ name: "Operate", id: 0x3, conformance: "M" }),
         Field({ name: "Manage", id: 0x4, conformance: "M" }),
         Field({ name: "Administer", id: 0x5, conformance: "M" })

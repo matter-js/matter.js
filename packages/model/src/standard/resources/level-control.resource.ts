@@ -39,7 +39,7 @@ Resource.add({
 
                 {
                     tag: "field", name: "FQ", xref: "cluster§1.6.4.3",
-                    details: "Supports frequency attributes and behavior."
+                    details: "NOTE The Frequency feature is provisional."
                 }
             ]
         },
@@ -95,8 +95,7 @@ Resource.add({
         {
             tag: "attribute", name: "CurrentFrequency", xref: "cluster§1.6.6.6",
 
-            details: "This attribute shall indicate the frequency at which the device is at CurrentLevel. A " +
-                "CurrentFrequency of 0 is unknown." +
+            details: "Indicates the frequency at which the device is at CurrentLevel. A CurrentFrequency of 0 is unknown." +
                 "\n" +
                 "Changes to this attribute shall only be marked as reportable in the following cases:" +
                 "\n" +

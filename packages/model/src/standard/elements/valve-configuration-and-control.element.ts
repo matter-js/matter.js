@@ -26,27 +26,18 @@ export const ValveConfigurationAndControl = Cluster(
     ),
     Attribute({
         name: "OpenDuration", id: 0x0, type: "elapsed-s", access: "R V", conformance: "M",
-        constraint: "min 1", default: null, quality: "X"
+        constraint: "min 1", quality: "X"
     }),
     Attribute({
         name: "DefaultOpenDuration", id: 0x1, type: "elapsed-s", access: "RW VO", conformance: "M",
-        constraint: "min 1", default: null, quality: "X N"
+        constraint: "min 1", quality: "X N"
     }),
-    Attribute({ name: "AutoCloseTime", id: 0x2, type: "epoch-us", access: "R V", conformance: "TS", default: null, quality: "X" }),
-    Attribute({
-        name: "RemainingDuration", id: 0x3, type: "elapsed-s", access: "R V", conformance: "M",
-        default: null, quality: "X Q"
-    }),
-    Attribute({
-        name: "CurrentState", id: 0x4, type: "ValveStateEnum", access: "R V", conformance: "M",
-        default: null, quality: "X"
-    }),
-    Attribute({
-        name: "TargetState", id: 0x5, type: "ValveStateEnum", access: "R V", conformance: "M",
-        default: null, quality: "X"
-    }),
-    Attribute({ name: "CurrentLevel", id: 0x6, type: "percent", access: "R V", conformance: "LVL", default: null, quality: "X" }),
-    Attribute({ name: "TargetLevel", id: 0x7, type: "percent", access: "R V", conformance: "LVL", default: null, quality: "X" }),
+    Attribute({ name: "AutoCloseTime", id: 0x2, type: "epoch-us", access: "R V", conformance: "TS", quality: "X" }),
+    Attribute({ name: "RemainingDuration", id: 0x3, type: "elapsed-s", access: "R V", conformance: "M", quality: "X Q" }),
+    Attribute({ name: "CurrentState", id: 0x4, type: "ValveStateEnum", access: "R V", conformance: "M", quality: "X" }),
+    Attribute({ name: "TargetState", id: 0x5, type: "ValveStateEnum", access: "R V", conformance: "M", quality: "X" }),
+    Attribute({ name: "CurrentLevel", id: 0x6, type: "percent", access: "R V", conformance: "LVL", quality: "X" }),
+    Attribute({ name: "TargetLevel", id: 0x7, type: "percent", access: "R V", conformance: "LVL", quality: "X" }),
     Attribute({
         name: "DefaultOpenLevel", id: 0x8, type: "percent", access: "RW VO", conformance: "[LVL]",
         constraint: "1 to 100", default: 100, quality: "N"

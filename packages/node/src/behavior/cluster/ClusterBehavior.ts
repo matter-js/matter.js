@@ -7,8 +7,8 @@
 import { Events } from "#behavior/Events.js";
 import type { Agent } from "#endpoint/Agent.js";
 import { ImplementationError, MaybePromise } from "#general";
-import { type Schema } from "#model";
-import { ClusterComposer, ClusterType, ElementModifier, TypeFromBitSchema } from "#types";
+import { ClusterModel, ClusterModifier, type Schema } from "#model";
+import { ClusterComposer, ClusterType, ClusterTypeModifier, TypeFromBitSchema } from "#types";
 import { Behavior } from "../Behavior.js";
 import type { BehaviorBacking } from "../internal/BehaviorBacking.js";
 import type { RootSupervisor } from "../supervision/RootSupervisor.js";
@@ -134,9 +134,14 @@ export class ClusterBehavior extends Behavior {
      */
     static alter<
         This extends ClusterBehavior.Type,
-        const AlterationsT extends ElementModifier.Alterations<This["cluster"]>,
+        const AlterationsT extends ClusterTypeModifier.Alterations<This["cluster"]>,
     >(this: This, alterations: AlterationsT) {
-        return this.for(new ElementModifier(this.cluster).alter(alterations));
+        const cluster = new ClusterTypeModifier(this.cluster).alter(alterations);
+        const schema =
+            this.schema instanceof ClusterModel
+                ? ClusterModifier.applyRequirements(this.schema, alterations)
+                : undefined;
+        return this.for(cluster, schema);
     }
 
     /**
@@ -146,9 +151,12 @@ export class ClusterBehavior extends Behavior {
      */
     static enable<
         This extends ClusterBehavior.Type,
-        const FlagsT extends ElementModifier.ElementFlags<This["cluster"]>,
+        const FlagsT extends ClusterTypeModifier.ElementFlags<This["cluster"]>,
     >(this: This, flags: FlagsT) {
-        return this.for(new ElementModifier(this.cluster).enable(flags));
+        const cluster = new ClusterTypeModifier(this.cluster).enable(flags);
+        const schema =
+            this.schema instanceof ClusterModel ? ClusterModifier.applyPresence(this.schema, flags) : undefined;
+        return this.for(cluster, schema);
     }
 
     /**
@@ -297,19 +305,22 @@ export namespace ClusterBehavior {
          */
         alter<
             This extends ClusterBehavior.Type,
-            const AlterationsT extends ElementModifier.Alterations<This["cluster"]>,
+            const AlterationsT extends ClusterTypeModifier.Alterations<This["cluster"]>,
         >(
             this: This,
             alterations: AlterationsT,
-        ): ClusterBehavior.Type<ElementModifier.WithAlterations<This["cluster"], AlterationsT>, This>;
+        ): ClusterBehavior.Type<ClusterTypeModifier.WithAlterations<This["cluster"], AlterationsT>, This>;
 
         set<This extends Behavior.Type>(this: This, defaults: Behavior.InputStateOf<This>): This;
 
-        enable<This extends ClusterBehavior.Type, const FlagsT extends ElementModifier.ElementFlags<This["cluster"]>>(
+        enable<
+            This extends ClusterBehavior.Type,
+            const FlagsT extends ClusterTypeModifier.ElementFlags<This["cluster"]>,
+        >(
             this: This,
             flags: FlagsT,
         ): ClusterBehavior.Type<
-            ElementModifier.WithAlterations<This["cluster"], ElementModifier.ElementFlagAlterations<FlagsT>>,
+            ClusterTypeModifier.WithAlterations<This["cluster"], ClusterTypeModifier.ElementFlagAlterations<FlagsT>>,
             This
         >;
     }

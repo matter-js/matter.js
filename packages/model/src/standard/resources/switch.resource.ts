@@ -55,7 +55,7 @@ Resource.add({
                 {
                     tag: "field", name: "AS", xref: "cluster§1.13.4.6",
                     details: "This feature flag indicates simplified handling of events for multi-press-capable switches. See " +
-                        "Multi Press Details."
+                        "Section 1.13.8, “Sequence of events for MultiPress”."
                 }
             ]
         },
@@ -63,7 +63,7 @@ Resource.add({
         {
             tag: "attribute", name: "NumberOfPositions", xref: "cluster§1.13.5.1",
             details: "Indicates the maximum number of positions the switch has. Any kind of switch has a minimum of 2 " +
-                "positions. Also see Multi Position Details for the case NumberOfPositions>2."
+                "positions. Also see Section 1.13.10, “Multi Position Details” for the case NumberOfPositions>2."
         },
 
         {
@@ -208,7 +208,7 @@ Resource.add({
                 "Otherwise, the following paragraphs describe the situations where this event is generated." +
                 "\n" +
                 "This event shall be generated to indicate how many times the momentary switch has been pressed in a " +
-                "multi-press sequence, during that sequence. See Multi Press Details below.",
+                "multi-press sequence, during that sequence. See Section 1.13.8, “Sequence of events for MultiPress”.",
 
             children: [
                 {
@@ -234,8 +234,8 @@ Resource.add({
             tag: "event", name: "MultiPressComplete", xref: "cluster§1.13.6.7",
 
             details: "This event shall be generated to indicate how many times the momentary switch has been pressed in a " +
-                "multi-press sequence, after it has been detected that the sequence has ended. See Multi Press " +
-                "Details." +
+                "multi-press sequence, after it has been detected that the sequence has ended. See Section 1.13.8, " +
+                "“Sequence of events for MultiPress”." +
                 "\n" +
                 "The PreviousPosition field shall indicate the previous value of the CurrentPosition attribute, i.e. " +
                 "just prior to release." +

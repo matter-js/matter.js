@@ -26,16 +26,16 @@ export const WaterHeaterManagement = Cluster(
     ),
     Attribute({
         name: "HeaterTypes", id: 0x0, type: "WaterHeaterHeatSourceBitmap", access: "R V", conformance: "M",
-        default: 0, quality: "F"
+        quality: "F"
     }),
-    Attribute({ name: "HeatDemand", id: 0x1, type: "WaterHeaterHeatSourceBitmap", access: "R V", conformance: "M", default: 0 }),
-    Attribute({ name: "TankVolume", id: 0x2, type: "uint16", access: "R V", conformance: "EM", default: 0 }),
+    Attribute({ name: "HeatDemand", id: 0x1, type: "WaterHeaterHeatSourceBitmap", access: "R V", conformance: "M" }),
+    Attribute({ name: "TankVolume", id: 0x2, type: "uint16", access: "R V", conformance: "EM" }),
     Attribute({
         name: "EstimatedHeatRequired", id: 0x3, type: "energy-mWh", access: "R V", conformance: "EM",
-        constraint: "min 0", default: 0
+        constraint: "min 0"
     }),
-    Attribute({ name: "TankPercentage", id: 0x4, type: "percent", access: "R V", conformance: "TP", default: 0 }),
-    Attribute({ name: "BoostState", id: 0x5, type: "BoostStateEnum", access: "R V", conformance: "M", default: 0 }),
+    Attribute({ name: "TankPercentage", id: 0x4, type: "percent", access: "R V", conformance: "TP" }),
+    Attribute({ name: "BoostState", id: 0x5, type: "BoostStateEnum", access: "R V", conformance: "M" }),
     Event(
         { name: "BoostStarted", id: 0x0, access: "V", conformance: "M", priority: "info" },
         Field({ name: "BoostInfo", id: 0x0, type: "WaterHeaterBoostInfoStruct", conformance: "M" })

@@ -50,8 +50,19 @@ Resource.add(
 
             {
                 tag: "attribute", name: "Type", xref: "cluster§5.3.6.1",
-                details: "This attribute shall identify the type of window covering."
+
+                details: "This attribute shall identify the type of window covering." +
+                    "\n" +
+                    "If the window covering supports the LF feature and not the TL feature, the following types shall be " +
+                    "used as the constraint for this attribute:" +
+                    "\n" +
+                    "If the window covering supports the TL feature and not the LF feature, the following types shall be " +
+                    "used as the constraint for this attribute:" +
+                    "\n" +
+                    "If the window covering supports both the LF and TL features, the following types are allowed to be " +
+                    "used:"
             },
+
             {
                 tag: "attribute", name: "PhysicalClosedLimitLift", xref: "cluster§5.3.6.2",
                 details: "Indicates the maximum possible encoder position possible (Unit cm, centimeters) to position the " +
@@ -118,8 +129,18 @@ Resource.add(
 
             {
                 tag: "attribute", name: "EndProductType", xref: "cluster§5.3.6.16",
+
                 details: "This attribute SHOULD provide more detail about the product type than can be determined from the " +
                     "main category indicated by the Type attribute." +
+                    "\n" +
+                    "If the window covering supports the LF feature and not the TL feature, the following types shall be " +
+                    "used as the constraint for this attribute:" +
+                    "\n" +
+                    "If the window covering supports the TL feature and not the LF feature, the following types shall be " +
+                    "used as the constraint for this attribute:" +
+                    "\n" +
+                    "If the window covering supports both the LF and TL features, the following types are allowed to be " +
+                    "used:" +
                     "\n" +
                     "The table below helps to match the EndProductType attribute with the Type attribute."
             },
@@ -262,6 +283,8 @@ Resource.add(
 
             {
                 tag: "command", name: "GoToLiftValue", xref: "cluster§5.3.7.4",
+                details: "This command is used to set the target lift position of the window covering to the value specified " +
+                    "in the command.",
                 children: [{
                     tag: "field", name: "LiftValue", xref: "cluster§5.3.7.4.1",
                     details: "This field shall specify the requested physical lift/slide position in unit cm (centimeters)."
@@ -271,7 +294,10 @@ Resource.add(
             {
                 tag: "command", name: "GoToLiftPercentage", xref: "cluster§5.3.7.5",
 
-                details: "Upon receipt of this command, the server will adjust the window covering to the lift/slide " +
+                details: "This command is used to set the target lift position of the window covering to the percentage value " +
+                    "specified in the command." +
+                    "\n" +
+                    "Upon receipt of this command, the server will adjust the window covering to the lift/slide " +
                     "percentage specified in the payload of this command." +
                     "\n" +
                     "If the command includes LiftPercent100thsValue, then TargetPositionLiftPercent100ths attribute shall " +
@@ -290,6 +316,8 @@ Resource.add(
 
             {
                 tag: "command", name: "GoToTiltValue", xref: "cluster§5.3.7.6",
+                details: "This command is used to set the target tilt position of the window covering to the value specified " +
+                    "in the command.",
                 children: [{
                     tag: "field", name: "TiltValue", xref: "cluster§5.3.7.6.1",
                     details: "This field shall specify the requested physical tilt position in unit 0.1° (tenth of a degrees)."
@@ -299,7 +327,10 @@ Resource.add(
             {
                 tag: "command", name: "GoToTiltPercentage", xref: "cluster§5.3.7.7",
 
-                details: "Upon receipt of this command, the server will adjust the window covering to the tilt percentage " +
+                details: "This command is used to set the target tilt position of the window covering to the percentage value " +
+                    "specified in the command." +
+                    "\n" +
+                    "Upon receipt of this command, the server will adjust the window covering to the tilt percentage " +
                     "specified in the payload of this command." +
                     "\n" +
                     "If the command includes TiltPercent100thsValue, then TargetPositionTiltPercent100ths attribute shall " +

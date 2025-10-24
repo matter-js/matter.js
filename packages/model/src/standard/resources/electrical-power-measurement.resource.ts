@@ -140,6 +140,9 @@ Resource.add({
             details: "This shall indicate the most recent ApparentCurrent (square root sum of the squares of active and " +
                 "reactive currents) reading in milliamps (mA)." +
                 "\n" +
+                "A positive value represents current flowing into the server, while a negative value represents " +
+                "current flowing out of the server." +
+                "\n" +
                 "The reporting interval of this attribute shall be manufacturer dependent. The server may choose to " +
                 "omit publication of deltas considered not meaningful." +
                 "\n" +
@@ -342,9 +345,8 @@ Resource.add({
                 "\n" +
                 "If the neutral current cannot be measured or derived, a value of null shall be returned." +
                 "\n" +
-                "A positive value represents an imbalance between the phase currents when power is imported." +
-                "\n" +
-                "A negative value represents an imbalance between the phase currents when power is exported." +
+                "A positive value represents an imbalance between the phase currents when power is imported. A " +
+                "negative value represents an imbalance between the phase currents when power is exported." +
                 "\n" +
                 "The reporting interval of this attribute shall be manufacturer dependent. The server may choose to " +
                 "omit publication of deltas considered not meaningful." +
@@ -376,7 +378,36 @@ Resource.add({
         },
 
         {
-            tag: "datatype", name: "MeasurementRangeStruct", xref: "cluster§2.13.5.2",
+            tag: "datatype", name: "MeasurementTypeEnum", xref: "cluster§2.13.5.2",
+
+            children: [
+                { tag: "field", name: "Voltage", description: "Voltage in millivolts (mV)" },
+                { tag: "field", name: "ActiveCurrent", description: "Active current in milliamps (mA)" },
+                { tag: "field", name: "ReactiveCurrent", description: "Reactive current in milliamps (mA)" },
+                { tag: "field", name: "ApparentCurrent", description: "Apparent current in milliamps (mA)" },
+                { tag: "field", name: "ActivePower", description: "Active power in milliwatts (mW)" },
+                {
+                    tag: "field", name: "ReactivePower",
+                    description: "Reactive power in millivolt-amps reactive (mVAR)"
+                },
+                { tag: "field", name: "ApparentPower", description: "Apparent power in millivolt-amps (mVA)" },
+                { tag: "field", name: "RmsVoltage", description: "Root mean squared voltage in millivolts (mV)" },
+                { tag: "field", name: "RmsCurrent", description: "Root mean squared current in milliamps (mA)" },
+                { tag: "field", name: "RmsPower", description: "Root mean squared power in milliwatts (mW)" },
+                { tag: "field", name: "Frequency", description: "AC frequency in millihertz (mHz)" },
+                { tag: "field", name: "PowerFactor", description: "Power Factor ratio in+/- 1/100ths of a percent." },
+                { tag: "field", name: "NeutralCurrent", description: "AC neutral current in milliamps (mA)" },
+                { tag: "field", name: "ElectricalEnergy", description: "Electrical energy in milliwatt-hours (mWh)" },
+                {
+                    tag: "field", name: "ReactiveEnergy",
+                    description: "Reactive power in millivolt-amp-hours reactive (mVARh)"
+                },
+                { tag: "field", name: "ApparentEnergy", description: "Apparent power in millivolt-amp-hours (mVAh)" }
+            ]
+        },
+
+        {
+            tag: "datatype", name: "MeasurementRangeStruct", xref: "cluster§2.13.5.3",
 
             details: "This struct shall indicate the maximum and minimum values of a given measurement type during a " +
                 "measurement period, along with the observation times of these values." +
@@ -391,26 +422,26 @@ Resource.add({
 
             children: [
                 {
-                    tag: "field", name: "MeasurementType", xref: "cluster§2.13.5.2.1",
+                    tag: "field", name: "MeasurementType", xref: "cluster§2.13.5.3.1",
                     details: "This field shall be the type of measurement for the range provided."
                 },
 
                 {
-                    tag: "field", name: "Min", xref: "cluster§2.13.5.2.2",
+                    tag: "field", name: "Min", xref: "cluster§2.13.5.3.2",
                     details: "This field shall be the smallest measured value for the associated measurement over either the " +
                         "period between StartTimestamp and EndTimestamp, or the period between StartSystime and EndSystime, " +
                         "or both."
                 },
 
                 {
-                    tag: "field", name: "Max", xref: "cluster§2.13.5.2.3",
+                    tag: "field", name: "Max", xref: "cluster§2.13.5.3.3",
                     details: "This field shall be the largest measured value for the associated measurement over the period " +
                         "between either StartTimestamp and EndTimestamp or the period between StartSystime and EndSystime, or " +
                         "both."
                 },
 
                 {
-                    tag: "field", name: "StartTimestamp", xref: "cluster§2.13.5.2.4",
+                    tag: "field", name: "StartTimestamp", xref: "cluster§2.13.5.3.4",
                     details: "This field shall be the timestamp in UTC of the beginning of the measurement period." +
                         "\n" +
                         "If the server had not yet determined the time in UTC at or before the beginning of the measurement " +
@@ -418,7 +449,7 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "EndTimestamp", xref: "cluster§2.13.5.2.5",
+                    tag: "field", name: "EndTimestamp", xref: "cluster§2.13.5.3.5",
                     details: "This field shall be the timestamp in UTC of the end of the measurement period." +
                         "\n" +
                         "If the server had not yet determined the time in UTC at or before the beginning of the measurement " +
@@ -426,7 +457,7 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "MinTimestamp", xref: "cluster§2.13.5.2.6",
+                    tag: "field", name: "MinTimestamp", xref: "cluster§2.13.5.3.6",
                     details: "This field shall be the most recent timestamp in UTC that the value in the Min field was measured." +
                         "\n" +
                         "This field shall be greater than or equal to the value of the StartTimestamp field. This field shall " +
@@ -434,14 +465,14 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "MaxTimestamp", xref: "cluster§2.13.5.2.7",
+                    tag: "field", name: "MaxTimestamp", xref: "cluster§2.13.5.3.7",
                     details: "This field shall be the most recent timestamp in UTC of the value in the Max field. This field shall " +
                         "be greater than or equal to the value of the StartTimestamp field. This field shall be less than or " +
                         "equal to the value of the EndTimestamp field."
                 },
 
                 {
-                    tag: "field", name: "StartSystime", xref: "cluster§2.13.5.2.8",
+                    tag: "field", name: "StartSystime", xref: "cluster§2.13.5.3.8",
                     details: "This field shall be the time since boot of the beginning of the measurement period." +
                         "\n" +
                         "If the server had determined the time in UTC at or before the start of the measurement period, this " +
@@ -449,7 +480,7 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "EndSystime", xref: "cluster§2.13.5.2.9",
+                    tag: "field", name: "EndSystime", xref: "cluster§2.13.5.3.9",
                     details: "This field shall be the time since boot of the end of the measurement period." +
                         "\n" +
                         "If the server had determined the time in UTC at the end of the measurement period, this field may be " +
@@ -457,7 +488,7 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "MinSystime", xref: "cluster§2.13.5.2.10",
+                    tag: "field", name: "MinSystime", xref: "cluster§2.13.5.3.10",
                     details: "This field shall be the measurement time since boot of the value in the Min field was measured. This " +
                         "field shall be greater than or equal to the value of the StartSystime field." +
                         "\n" +
@@ -465,7 +496,7 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "MaxSystime", xref: "cluster§2.13.5.2.11",
+                    tag: "field", name: "MaxSystime", xref: "cluster§2.13.5.3.11",
                     details: "This field shall be the measurement time since boot of the value in the Max field. This field shall " +
                         "be greater than or equal to the value of the StartSystime field." +
                         "\n" +
@@ -475,17 +506,17 @@ Resource.add({
         },
 
         {
-            tag: "datatype", name: "HarmonicMeasurementStruct", xref: "cluster§2.13.5.3",
+            tag: "datatype", name: "HarmonicMeasurementStruct", xref: "cluster§2.13.5.4",
 
             children: [
                 {
-                    tag: "field", name: "Order", xref: "cluster§2.13.5.3.1",
+                    tag: "field", name: "Order", xref: "cluster§2.13.5.4.1",
                     details: "This field shall be the order of the harmonic being measured. Typically this is an odd number, but " +
                         "servers may choose to report even harmonics."
                 },
 
                 {
-                    tag: "field", name: "Measurement", xref: "cluster§2.13.5.3.2",
+                    tag: "field", name: "Measurement", xref: "cluster§2.13.5.4.2",
 
                     details: "This field shall be the measured value for the given harmonic order." +
                         "\n" +

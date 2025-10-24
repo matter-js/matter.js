@@ -4,12 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { FieldModel } from "#models/FieldModel.js";
-import { FeatureMap } from "#standard/elements/definitions.js";
 import { Bytes, camelize, Duration, NotImplementedError } from "@matter/general";
-import { ElementTag, FieldValue, Metatype } from "../common/index.js";
-import { Model } from "../models/Model.js";
+import { FieldValue, Metatype } from "../common/index.js";
 import type { ValueModel } from "../models/ValueModel.js";
+import { DecodedBitmap } from "./DecodedBitmap.js";
 import { Scope } from "./Scope.js";
 
 /**
@@ -26,7 +24,7 @@ import { Scope } from "./Scope.js";
 export function DefaultValue(scope: Scope, model: ValueModel, ifValid = false): any {
     const value = castValue(model, model.default);
     if (value === undefined) {
-        return buildValue(scope, model, ifValid);
+        return createValue(scope, model, ifValid);
     }
     return value;
 }
@@ -71,7 +69,7 @@ function castValue(model: ValueModel, modelDefault?: FieldValue): unknown {
             // bit fields (composed above)
             if (typeof modelDefault === "number" || typeof modelDefault === "bigint") {
                 // Default value is a number
-                return decodeBitmap(model, modelDefault);
+                return DecodedBitmap(model, modelDefault);
             }
 
             // Default value may be an object
@@ -123,9 +121,9 @@ function castValue(model: ValueModel, modelDefault?: FieldValue): unknown {
 }
 
 /**
- * When an explicit default value is not present, for some types we generate a default from the structure.
+ * When an explicit default value is not present, for some types we generate a default.
  */
-function buildValue(scope: Scope, model: ValueModel, ifValid: boolean) {
+function createValue(scope: Scope, model: ValueModel, ifValid: boolean) {
     switch (model.effectiveMetatype) {
         case Metatype.array:
             // We don't really build default array values except in the case of non-nullable arrays where zero items is
@@ -220,49 +218,4 @@ function buildBitmap(scope: Scope, model: ValueModel) {
     }
 
     return result;
-}
-
-function decodeBitmap(model: ValueModel, value: number | bigint) {
-    const fields = new Map<ValueModel, number | boolean>();
-
-    // Value is 0, so no bit set
-    if (value === 0) {
-        return {};
-    }
-    // Test each bit.  If set, install appropriate value into object
-    for (let bit = 0; Math.pow(2, bit) <= value; bit++) {
-        if (typeof value === "bigint") {
-            if (!(value & (1n << BigInt(bit)))) {
-                continue;
-            }
-        } else if (!(value & (1 << bit))) {
-            continue;
-        }
-
-        const definition = model.bitDefinition(bit);
-        if (!definition) {
-            continue;
-        }
-
-        const constraint = definition.effectiveConstraint;
-        if (constraint.value !== undefined) {
-            // Bit flag
-            fields.set(definition, true);
-        } else if (constraint.min !== undefined) {
-            // Bit range
-            const fieldBit = 1 << (bit - (constraint.min as number));
-            fields.set(definition, ((fields.get(definition) as number) ?? 0) | fieldBit);
-        }
-    }
-
-    let nameGenerator;
-    if (Model.types[ElementTag.Attribute] && model.id === FeatureMap.id) {
-        // Special case for feature map; use the long name as the key rather than the name
-        nameGenerator = (model: ValueModel) =>
-            (model as FieldModel).title === undefined ? camelize(model.name) : camelize((model as FieldModel).title!);
-    } else {
-        nameGenerator = (model: ValueModel) => camelize(model.name);
-    }
-
-    return Object.fromEntries([...fields.entries()].map(([k, v]) => [nameGenerator(k), v]));
 }

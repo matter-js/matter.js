@@ -13,6 +13,7 @@ import {
     OptionalFixedAttribute,
     OptionalWritableAttribute,
     OptionalAttribute,
+    Attribute,
     Event,
     OptionalEvent
 } from "../cluster/Cluster.js";
@@ -274,7 +275,7 @@ export namespace BasicInformation {
      */
     export const TlvLeaveEvent = TlvObject({
         /**
-         * This field shall contain the local Fabric Index of the fabric which the node is about to leave.
+         * This field shall contain the local fabric-index of the fabric which the node is about to leave.
          *
          * @see {@link MatterSpecification.v141.Core} § 11.1.6.3.1
          */
@@ -315,7 +316,7 @@ export namespace BasicInformation {
     export const ClusterInstance = MutableCluster({
         id: 0x28,
         name: "BasicInformation",
-        revision: 4,
+        revision: 5,
 
         attributes: {
             /**
@@ -406,11 +407,10 @@ export namespace BasicInformation {
             hardwareVersionString: FixedAttribute(0x8, TlvString.bound({ minLength: 1, maxLength: 64 })),
 
             /**
-             * This attribute shall contain the current version number for the software running on this Node. The
-             * version number can be compared using a total ordering to determine if a version is logically newer than
-             * another one. A larger value of SoftwareVersion is newer than a lower value, from the perspective of
-             * software updates (see Section 11.20.3.3, “Availability of Software Images”). Nodes may query this field
-             * to determine the currently running version of software on another given Node.
+             * This attribute shall contain the current version number for the software running on this Node. A larger
+             * value of SoftwareVersion is newer than a lower value, from the perspective of software updates (see
+             * Section 11.20.3.3, “Availability of Software Images”). Nodes may query this field to determine the
+             * currently running version of software on another given Node.
              *
              * @see {@link MatterSpecification.v141.Core} § 11.1.5.10
              */
@@ -562,8 +562,7 @@ export namespace BasicInformation {
 
             /**
              * This attribute shall contain the current version number for the specification version this Node was
-             * certified against. The version number can be compared using a total ordering to determine if a version is
-             * logically newer than another one. A larger value of SpecificationVersion is newer than a lower value.
+             * certified against. A larger value of SpecificationVersion is newer than a lower value.
              *
              * Nodes may query this field to determine the currently supported version of the specification on another
              * given Node.
@@ -571,18 +570,18 @@ export namespace BasicInformation {
              * The format of this number is segmented as its four component bytes. Bit positions for the fields are as
              * follows:
              *
-             * For example, a SpecificationVersion value of 0x0102AA00 is composed of 4 version components, representing
-             * a version 1.2.170.0.
+             * For example, a SpecificationVersion value of 0x01040200 is composed of 4 version components, representing
+             * a version 1.4.2.0.
              *
              * In the example above:
              *
-             *   • Major version is the uppermost byte (0x01).
+             *   • Major version is the most significant byte (0x01).
              *
-             *   • Minor version is the following byte (0x02).
+             *   • Minor version is the second most significant byte (0x04).
              *
-             *   • Patch version is 170/0xAA.
+             *   • Dot version is the third most significant byte (0x02).
              *
-             *   • Reserved1 value is 0.
+             *   • Reserved1 value is the least significant byte (0x00).
              *
              * The initial revision (1.0) of this specification (1.0) was 0x01000000. Matter Spring 2024 release (1.3)
              * was 0x01030000.
@@ -609,7 +608,15 @@ export namespace BasicInformation {
              *
              * @see {@link MatterSpecification.v141.Core} § 11.1.5.23
              */
-            maxPathsPerInvoke: FixedAttribute(0x16, TlvUInt16.bound({ min: 1 }), { default: 1 })
+            maxPathsPerInvoke: FixedAttribute(0x16, TlvUInt16.bound({ min: 1 }), { default: 1 }),
+
+            /**
+             * This attribute shall contain the current version number for the configuration of the Node. A larger value
+             * of ConfigurationVersion shall indicate a newer configuration than a lower value.
+             *
+             * @see {@link MatterSpecification.v141.Core} § 11.1.5.24
+             */
+            configurationVersion: Attribute(0x18, TlvUInt32.bound({ min: 1 }), { persistent: true, default: 1 })
         },
 
         events: {
@@ -647,8 +654,6 @@ export namespace BasicInformation {
             leave: OptionalEvent(0x2, Priority.Info, TlvLeaveEvent),
 
             /**
-             * This event shall be supported if and only if the Reachable attribute is supported.
-             *
              * This event (when supported) shall be generated when there is a change in the Reachable attribute.
              *
              * Its main use case is in the derived Bridged Device Basic Information cluster.

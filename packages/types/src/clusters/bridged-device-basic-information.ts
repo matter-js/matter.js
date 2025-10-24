@@ -15,6 +15,7 @@ import {
     OptionalWritableAttribute,
     Attribute,
     FixedAttribute,
+    OptionalAttribute,
     OptionalEvent
 } from "../cluster/Cluster.js";
 import { TlvField, TlvObject } from "../tlv/TlvObject.js";
@@ -216,7 +217,7 @@ export namespace BridgedDeviceBasicInformation {
     export const Base = MutableCluster.Component({
         id: 0x39,
         name: "BridgedDeviceBasicInformation",
-        revision: 4,
+        revision: 5,
 
         features: {
             /**
@@ -310,7 +311,7 @@ export namespace BridgedDeviceBasicInformation {
              * reachable may be delayed due to the technique employed (e.g. detecting that a number of expected messages
              * from the bridged device did not arrive). Also see event ReachableChanged below.
              *
-             * @see {@link MatterSpecification.v141.Core} § 9.13.5.1
+             * @see {@link MatterSpecification.v141.Core} § 9.13.5.2
              */
             reachable: Attribute(0x11, TlvBoolean),
 
@@ -320,14 +321,29 @@ export namespace BridgedDeviceBasicInformation {
              * of bridging Matter devices from an earlier revision which were not required to provide a UniqueID
              * attribute), the bridge shall generate a unique id on behalf of the bridged device.
              *
-             * @see {@link MatterSpecification.v141.Core} § 9.13.5.2
+             * NOTE The UniqueID attribute was optional in cluster revisions prior to revision 4.
+             *
+             * @see {@link MatterSpecification.v141.Core} § 9.13.5.3
              */
             uniqueId: FixedAttribute(0x12, TlvString.bound({ maxLength: 32 })),
 
             /**
              * @see {@link MatterSpecification.v141.Core} § 9.13.5
              */
-            productAppearance: OptionalFixedAttribute(0x14, BasicInformation.TlvProductAppearance)
+            productAppearance: OptionalFixedAttribute(0x14, BasicInformation.TlvProductAppearance),
+
+            /**
+             * This attribute shall contain the current version number for the configuration of the bridged device.
+             *
+             * If the bridge detects a change on a bridged device, which it deems as a change in the configuration of
+             * the bridged device, it shall increase this attribute as described in Section 9.2.9, “Node Configuration
+             * Changes”.
+             *
+             * The ability and the method used to detect such a change on a bridged device is manufacturer specific.
+             *
+             * @see {@link MatterSpecification.v141.Core} § 9.13.5.4
+             */
+            configurationVersion: OptionalAttribute(0x18, TlvUInt32.bound({ min: 1 }), { persistent: true })
         },
 
         events: {
@@ -382,8 +398,10 @@ export namespace BridgedDeviceBasicInformation {
     export const ClusterInstance = MutableCluster(Base);
 
     /**
-     * This cluster is a derived cluster of the Basic Information cluster and serves two purposes towards a Node
-     * communicating with a Bridge:
+     * This cluster provides attributes and events for determining basic information about Bridged Nodes.
+     *
+     * This cluster is derived from the Basic Information cluster and serves two purposes towards a Node communicating
+     * with a Bridge:
      *
      *   • Indicate that the functionality on the Endpoint where it is placed (and its Parts) is bridged, and
      *

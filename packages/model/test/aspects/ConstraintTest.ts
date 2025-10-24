@@ -25,6 +25,8 @@ const TEST_CONSTRAINTS: [text: string, ast: Constraint.Ast, expectedText?: strin
     ["4, 44", { parts: [{ value: 4 }, { value: 44 }] }],
     ["in foo", { in: { type: "reference", name: "foo" } }],
     ["-2.5°C to 2.5°C", { min: { type: "celsius", value: -2.5 }, max: { type: "celsius", value: 2.5 } }],
+    ["max 0b1", { max: 1 }, "max 1"],
+    ["max 0b00111111", { max: 63 }, "max 63"],
     [
         "0 to NumberOfPositions-1",
         { min: 0, max: { type: "-", lhs: { type: "reference", name: "numberOfPositions" }, rhs: 1 } },

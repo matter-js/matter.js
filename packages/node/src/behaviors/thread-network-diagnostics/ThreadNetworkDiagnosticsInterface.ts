@@ -11,12 +11,13 @@ import { MaybePromise } from "#general";
 export namespace ThreadNetworkDiagnosticsInterface {
     export interface ErrorCounts {
         /**
+         * This command is used to reset the count attributes.
+         *
          * Reception of this command shall reset the following attributes to 0:
          *
          *   • OverrunCount
          *
-         * This command has no associated data. Upon completion, this command shall send a status code set to a value of
-         * SUCCESS back to the initiator.
+         * Upon completion, this command shall send a status code of SUCCESS back to the initiator.
          *
          * @see {@link MatterSpecification.v141.Core} § 11.14.7.1
          */

@@ -20,7 +20,8 @@ Resource.add({
         "\n" +
         "Each group entry includes a membership list of zero of more endpoints that are members of the group " +
         "on the node. Modification of this membership list is done via the Groups cluster, which is scoped to " +
-        "an endpoint. Please see the System Model specification for more information on groups.",
+        "an endpoint. See the Chapter 9, System Model Specification specification for more information on " +
+        "groups.",
 
     children: [
         {
@@ -40,7 +41,8 @@ Resource.add({
             tag: "attribute", name: "GroupTable", xref: "core§11.2.6.2",
 
             details: "This attribute is a list of GroupInfoMapStruct entries. Each entry provides read-only information " +
-                "about how a given logical Group ID maps to a particular set of endpoints, and a name for the group. " +
+                "about how a given logical Group ID maps to a particular set of endpoints, and a name for the group." +
+                "\n" +
                 "The content of this attribute reflects data managed via the Groups cluster (see AppClusters), and is " +
                 "in general terms referred to as the 'node-wide Group Table'." +
                 "\n" +
@@ -53,15 +55,16 @@ Resource.add({
             tag: "attribute", name: "MaxGroupsPerFabric", xref: "core§11.2.6.3",
             details: "Indicates the maximum number of groups that this node supports per fabric. The value of this " +
                 "attribute shall be set to be no less than the required minimum supported groups as specified in " +
-                "Group Limits. The length of the GroupKeyMap and GroupTable list attributes shall NOT exceed the " +
-                "value of the MaxGroupsPerFabric attribute multiplied by the number of supported fabrics."
+                "Section 2.11.1.2, “Group Limits”. The length of the GroupKeyMap and GroupTable list attributes shall " +
+                "NOT exceed the value of the MaxGroupsPerFabric attribute multiplied by the number of supported " +
+                "fabrics."
         },
 
         {
             tag: "attribute", name: "MaxGroupKeysPerFabric", xref: "core§11.2.6.4",
             details: "Indicates the maximum number of group key sets this node supports per fabric. The value of this " +
                 "attribute shall be set according to the minimum number of group key sets to support as specified in " +
-                "Group Limits."
+                "Section 2.11.1.2, “Group Limits”."
         },
 
         {
@@ -83,7 +86,8 @@ Resource.add({
                 "  • If the EpochStartTime0 is set to 0, then this command shall fail with an INVALID_COMMAND status " +
                 "    code responded to the client. Note that internally, a GroupKeySetStruct’s EpochStartTime0 may be " +
                 "    set to zero, due to the behavior of the AddNOC command which synthesizes a GroupKeySetStruct " +
-                "    (see IPKValue). However, the value 0 is illegal in the GroupKeySet field sent by a client." +
+                "    (see Section 11.18.6.8.1, “IPKValue Field”). However, the value 0 is illegal in the GroupKeySet " +
+                "    field sent by a client." +
                 "\n" +
                 "  • If the EpochKey1 field is not null, then the EpochKey0 field shall NOT be null. Otherwise this " +
                 "    command shall fail with an INVALID_COMMAND status code responded to the client." +
@@ -129,7 +133,7 @@ Resource.add({
                 "    to SUCCESS." +
                 "\n" +
                 "  • If there are insufficient resources on the receiver to store an additional Group Key Set, the " +
-                "    status code shall be set to RESOURCE_EXHAUSTED (see group key limits);" +
+                "    status code shall be set to RESOURCE_EXHAUSTED (see Section 2.11.1.2, “Group Limits”);" +
                 "\n" +
                 "  • Otherwise, this status code shall be set to FAILURE."
         },

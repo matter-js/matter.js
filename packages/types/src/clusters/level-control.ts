@@ -60,7 +60,7 @@ export namespace LevelControl {
         /**
          * Frequency (FQ)
          *
-         * Supports frequency attributes and behavior.
+         * NOTE The Frequency feature is provisional.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 1.6.4.3
          */
@@ -272,7 +272,7 @@ export namespace LevelControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 1.6.6.3
              */
-            remainingTime: Attribute(0x1, TlvUInt16, { default: 0 }),
+            remainingTime: Attribute(0x1, TlvUInt16),
 
             minLevel: OptionalAttribute(0x2, TlvUInt8.bound({ min: 1, max: 254 }), { default: 1 }),
 
@@ -314,8 +314,7 @@ export namespace LevelControl {
     export const FrequencyComponent = MutableCluster.Component({
         attributes: {
             /**
-             * This attribute shall indicate the frequency at which the device is at CurrentLevel. A CurrentFrequency of
-             * 0 is unknown.
+             * Indicates the frequency at which the device is at CurrentLevel. A CurrentFrequency of 0 is unknown.
              *
              * Changes to this attribute shall only be marked as reportable in the following cases:
              *
@@ -327,7 +326,7 @@ export namespace LevelControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 1.6.6.6
              */
-            currentFrequency: Attribute(0x4, TlvUInt16, { scene: true, default: 0 }),
+            currentFrequency: Attribute(0x4, TlvUInt16, { scene: true }),
 
             /**
              * Indicates the minimum value of CurrentFrequency that is capable of being assigned. MinFrequency shall be
@@ -335,7 +334,7 @@ export namespace LevelControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 1.6.6.7
              */
-            minFrequency: Attribute(0x5, TlvUInt16, { default: 0 }),
+            minFrequency: Attribute(0x5, TlvUInt16),
 
             /**
              * Indicates the maximum value of CurrentFrequency that is capable of being assigned. MaxFrequency shall be
@@ -343,7 +342,7 @@ export namespace LevelControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 1.6.6.8
              */
-            maxFrequency: Attribute(0x6, TlvUInt16, { default: 0 })
+            maxFrequency: Attribute(0x6, TlvUInt16)
         },
 
         commands: {
@@ -385,7 +384,7 @@ export namespace LevelControl {
             lighting: BitFlag(1),
 
             /**
-             * Supports frequency attributes and behavior.
+             * NOTE The Frequency feature is provisional.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 1.6.4.3
              */
@@ -406,7 +405,7 @@ export namespace LevelControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 1.6.6.2
              */
-            currentLevel: Attribute(0x0, TlvNullable(TlvUInt8), { scene: true, persistent: true, default: null }),
+            currentLevel: Attribute(0x0, TlvNullable(TlvUInt8), { scene: true, persistent: true }),
 
             /**
              * Indicates the maximum value of CurrentLevel that is capable of being assigned.
@@ -462,7 +461,7 @@ export namespace LevelControl {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 1.6.6.11
              */
-            onLevel: WritableAttribute(0x11, TlvNullable(TlvUInt8), { default: null }),
+            onLevel: WritableAttribute(0x11, TlvNullable(TlvUInt8)),
 
             /**
              * Indicates the time taken to move the current level from the minimum level to the maximum level when an On

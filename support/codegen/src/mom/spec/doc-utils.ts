@@ -89,7 +89,7 @@ export function identifyDocument(path: string): IndexDetail {
     const titleAndVersion = title.split(/ version /i);
     if (titleAndVersion.length === 2 && titleAndVersion[1].match(/(?:\d\.)+/)) {
         title = titleAndVersion[0];
-        version = titleAndVersion[1];
+        version = titleAndVersion[1].replace(/-adopted/, "");
     } else {
         const versionEl = titleEl.nextElementSibling;
         if (!versionEl || !versionEl.textContent || !versionEl.textContent.match(/version (?:\d\.)+/i)) {

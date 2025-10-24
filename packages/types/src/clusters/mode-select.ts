@@ -38,7 +38,7 @@ export namespace ModeSelect {
          * OnOff (DEPONOFF)
          *
          * This feature creates a dependency between an OnOff cluster instance and this cluster instance on the same
-         * endpoint. See OnMode for more information.
+         * endpoint. See Section 1.9.6.6, “OnMode Attribute” for more information.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 1.9.4.1
          */
@@ -169,7 +169,7 @@ export namespace ModeSelect {
         features: {
             /**
              * This feature creates a dependency between an OnOff cluster instance and this cluster instance on the same
-             * endpoint. See OnMode for more information.
+             * endpoint. See Section 1.9.6.6, “OnMode Attribute” for more information.
              *
              * @see {@link MatterSpecification.v141.Cluster} § 1.9.4.1
              */
@@ -224,7 +224,7 @@ export namespace ModeSelect {
              *
              * If this attribute is not null, the CurrentMode attribute shall be set to the StartUpMode value, when the
              * server is powered up, except in the case when the OnMode attribute overrides the StartUpMode attribute
-             * (see OnModeWithPowerUp).
+             * (see Section 1.9.6.6.1, “OnMode with Power Up”).
              *
              * This behavior does not apply to reboots associated with OTA. After an OTA restart, the CurrentMode
              * attribute shall return to its value prior to the restart.

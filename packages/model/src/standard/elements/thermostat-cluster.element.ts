@@ -17,7 +17,7 @@ import {
 
 export const Thermostat = Cluster(
     { name: "Thermostat", id: 0x201 },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 8 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 9 }),
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
@@ -32,10 +32,7 @@ export const Thermostat = Cluster(
         Field({ name: "PRES", conformance: "O", constraint: "8", title: "Presets" })
     ),
 
-    Attribute({
-        name: "LocalTemperature", id: 0x0, type: "temperature", access: "R V", conformance: "M",
-        default: null, quality: "X P"
-    }),
+    Attribute({ name: "LocalTemperature", id: 0x0, type: "temperature", access: "R V", conformance: "M", quality: "X P" }),
     Attribute({
         name: "OutdoorTemperature", id: 0x1, type: "temperature", access: "R V", conformance: "O",
         default: null, quality: "X"
@@ -122,7 +119,7 @@ export const Thermostat = Cluster(
     }),
     Attribute({
         name: "SystemMode", id: 0x1c, type: "SystemModeEnum", access: "RW VM", conformance: "M",
-        constraint: "desc", default: 1, quality: "N"
+        constraint: "desc", quality: "N"
     }),
     Attribute({
         name: "ThermostatRunningMode", id: 0x1e, type: "ThermostatRunningModeEnum", access: "R V",
@@ -374,13 +371,6 @@ export const Thermostat = Cluster(
         Field({ name: "OutdoorSensorFail", constraint: "2" }),
         Field({ name: "CoilSensorFail", constraint: "3" }),
         Field({ name: "FanFail", constraint: "4" })
-    ),
-
-    Datatype(
-        { name: "AlarmCodeBitmap", type: "map8" },
-        Field({ name: "Initialization", constraint: "0" }),
-        Field({ name: "Hardware", constraint: "1" }),
-        Field({ name: "SelfCalibration", constraint: "2" })
     ),
 
     Datatype(

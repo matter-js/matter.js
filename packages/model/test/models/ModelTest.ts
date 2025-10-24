@@ -145,7 +145,7 @@ describe("Model", () => {
     describe("all", () => {
         it("finds all models by type", () => {
             expect(Fixtures.matter.all(ClusterModel).length).equal(3);
-            expect(Fixtures.matter.all(DatatypeModel).length).equal(75);
+            expect(Fixtures.matter.all(DatatypeModel).length).equal(82);
         });
     });
 

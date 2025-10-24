@@ -233,13 +233,10 @@ Resource.add({
 
         {
             tag: "datatype", name: "ExpressedStateEnum", xref: "cluster§2.11.5.3",
+            details: "This value shall indicate that this alarm is not alarming.",
 
             children: [
-                {
-                    tag: "field", name: "Normal", description: "Nominal state, the device is not alarming",
-                    xref: "cluster§2.11.5.3.1",
-                    details: "This value shall indicate that this alarm is not alarming."
-                },
+                { tag: "field", name: "Normal", description: "Nominal state, the device is not alarming" },
 
                 {
                     tag: "field", name: "SmokeAlarm", description: "Smoke Alarm state", xref: "cluster§2.11.5.3.2",
@@ -338,15 +335,11 @@ Resource.add({
 
         {
             tag: "datatype", name: "ContaminationStateEnum", xref: "cluster§2.11.5.6",
+            details: "This value shall indicate that the smoke sensor has nominal contamination levels, no customer action " +
+                "is required.",
 
             children: [
-                {
-                    tag: "field", name: "Normal", description: "Nominal state, the sensor is not contaminated",
-                    xref: "cluster§2.11.5.6.1",
-                    details: "This value shall indicate that the smoke sensor has nominal contamination levels, no customer action " +
-                        "is required."
-                },
-
+                { tag: "field", name: "Normal", description: "Nominal state, the sensor is not contaminated" },
                 {
                     tag: "field", name: "Low", description: "Low contamination", xref: "cluster§2.11.5.6.2",
                     details: "This value shall indicate that the smoke sensor has detectable contamination levels, but the " +

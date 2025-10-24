@@ -11,11 +11,11 @@ import { FabricScopedAttribute } from "../cluster/Cluster.js";
 import { TlvArray } from "../tlv/TlvArray.js";
 import { TlvOptionalField, TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { TlvString } from "../tlv/TlvString.js";
-import { TlvEpochUs } from "../tlv/TlvNumber.js";
+import { TlvEpochUs, TlvUInt16 } from "../tlv/TlvNumber.js";
 import { TlvEndpointNumber } from "../datatype/EndpointNumber.js";
-import { Descriptor } from "./descriptor.js";
-import { TlvFabricIndex } from "../datatype/FabricIndex.js";
+import { TlvDeviceTypeId } from "../datatype/DeviceTypeId.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
+import { TlvFabricIndex } from "../datatype/FabricIndex.js";
 import { AccessLevel } from "#model";
 import { TlvLocationdesc } from "../globals/Locationdesc.js";
 import { Identity } from "#general";
@@ -23,23 +23,51 @@ import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace EcosystemInformation {
     /**
-     * @see {@link MatterSpecification.v141.Core} § 9.18.4.1
+     * The device type and revision define endpoint conformance to a release of a device type definition. See the Data
+     * Model specification for more information.
+     *
+     * @see {@link MatterSpecification.v141.Core} § 9.17.4.1
+     */
+    export const TlvDeviceType = TlvObject({
+        /**
+         * This shall indicate the device type definition.
+         *
+         * @see {@link MatterSpecification.v141.Core} § 9.17.4.1.1
+         */
+        deviceType: TlvField(0, TlvDeviceTypeId),
+
+        /**
+         * This is the implemented revision of the device type definition.
+         *
+         * @see {@link MatterSpecification.v141.Core} § 9.17.4.1.2
+         */
+        revision: TlvField(1, TlvUInt16.bound({ min: 1 }))
+    });
+
+    /**
+     * The device type and revision define endpoint conformance to a release of a device type definition. See the Data
+     * Model specification for more information.
+     *
+     * @see {@link MatterSpecification.v141.Core} § 9.17.4.1
+     */
+    export interface DeviceType extends TypeFromSchema<typeof TlvDeviceType> {}
+
+    /**
+     * @see {@link MatterSpecification.v141.Core} § 9.17.4.2
      */
     export const TlvEcosystemDevice = TlvObject({
         /**
          * This field shall indicate the device’s name, which is provided externally if the user consents. (For example,
          * provided by the user in an ecosystem specific interface.)
          *
-         * @see {@link MatterSpecification.v141.Core} § 9.18.4.1.1
+         * @see {@link MatterSpecification.v141.Core} § 9.17.4.2.1
          */
         deviceName: TlvOptionalField(0, TlvString.bound({ maxLength: 64 })),
 
         /**
-         * This field shall be present and set if the DeviceName field is present.
-         *
          * This field shall indicate the timestamp of when the DeviceName was last modified.
          *
-         * @see {@link MatterSpecification.v141.Core} § 9.18.4.1.2
+         * @see {@link MatterSpecification.v141.Core} § 9.17.4.2.2
          */
         deviceNameLastEdit: TlvOptionalField(1, TlvEpochUs),
 
@@ -48,7 +76,7 @@ export namespace EcosystemInformation {
          *
          * This field shall be present and set to a valid endpoint if the device is accessible through the bridge.
          *
-         * @see {@link MatterSpecification.v141.Core} § 9.18.4.1.3
+         * @see {@link MatterSpecification.v141.Core} § 9.17.4.2.3
          */
         bridgedEndpoint: TlvOptionalField(2, TlvEndpointNumber),
 
@@ -58,7 +86,7 @@ export namespace EcosystemInformation {
          * the OriginalEndpoint field value would be the same on both bridges. This field shall be present and set to a
          * valid endpoint on the original device if that device is a Matter device.
          *
-         * @see {@link MatterSpecification.v141.Core} § 9.18.4.1.4
+         * @see {@link MatterSpecification.v141.Core} § 9.17.4.2.4
          */
         originalEndpoint: TlvOptionalField(3, TlvEndpointNumber),
 
@@ -68,29 +96,27 @@ export namespace EcosystemInformation {
          *
          * This field shall contain a list of valid device type ids.
          *
-         * @see {@link MatterSpecification.v141.Core} § 9.18.4.1.5
+         * @see {@link MatterSpecification.v141.Core} § 9.17.4.2.5
          */
-        deviceTypes: TlvField(4, TlvArray(Descriptor.TlvDeviceType)),
+        deviceTypes: TlvField(4, TlvArray(TlvDeviceType)),
 
         /**
          * This field shall specify the EcosystemLocationStruct entries in the LocationDirectory attribute associated
          * with this EcosystemDeviceStruct.
          *
-         * @see {@link MatterSpecification.v141.Core} § 9.18.4.1.6
+         * @see {@link MatterSpecification.v141.Core} § 9.17.4.2.6
          */
         uniqueLocationIDs: TlvField(5, TlvArray(TlvString, { maxLength: 64 })),
 
         /**
          * This field shall indicate the timestamp of when the UniqueLocationIDs was last modified.
          *
-         * > [!NOTE]
+         * NOTE If multiple server instances update the UniqueLocationIDs field at the same time, it is possible one of
+         * the updates will be missed. This is considered an acceptable limitation to reduce the complexity of the
+         * design. Since this is meant to be provided from user input, it is unlikely these signals would be happening
+         * at one time.
          *
-         * > If multiple server instances update the UniqueLocationIDs field at the same time, it is possible one of the
-         *   updates will be missed. This is considered an acceptable limitation to reduce the complexity of the design.
-         *   Since this is meant to be provided from user input, it is unlikely these signals would be happening at one
-         *   time.
-         *
-         * @see {@link MatterSpecification.v141.Core} § 9.18.4.1.7
+         * @see {@link MatterSpecification.v141.Core} § 9.17.4.2.7
          */
         uniqueLocationIDsLastEdit: TlvField(6, TlvEpochUs),
 
@@ -98,12 +124,12 @@ export namespace EcosystemInformation {
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 9.18.4.1
+     * @see {@link MatterSpecification.v141.Core} § 9.17.4.2
      */
     export interface EcosystemDevice extends TypeFromSchema<typeof TlvEcosystemDevice> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 9.18.4.2
+     * @see {@link MatterSpecification.v141.Core} § 9.17.4.3
      */
     export const TlvEcosystemLocation = TlvObject({
         /**
@@ -129,25 +155,27 @@ export namespace EcosystemInformation {
          * Information Cluster server instance changing and the UniqueLocationID on the remote server instance does not
          * change.
          *
-         * @see {@link MatterSpecification.v141.Core} § 9.18.4.2.1
+         * @see {@link MatterSpecification.v141.Core} § 9.17.4.3.1
          */
         uniqueLocationId: TlvField(0, TlvString.bound({ maxLength: 64 })),
 
         /**
-         * This field shall indicate the location (e.g. living room, driveway) and associated metadata that is provided
-         * externally if the user consents. (For example, provided by the user in an ecosystem specific interface.)
+         * This field shall indicate the location (e.g. living room, driveway) and associated metadata that is
+         *
+         * provided externally if the user consents. (For example, provided by the user in an ecosystem specific
+         * interface.)
          *
          * "Location" in this context is typically used by the user’s grouping into rooms, areas or other logical
          * groupings of how devices are used. So a device might be part of multiple such "Locations"s.
          *
-         * @see {@link MatterSpecification.v141.Core} § 9.18.4.2.2
+         * @see {@link MatterSpecification.v141.Core} § 9.17.4.3.2
          */
         locationDescriptor: TlvField(1, TlvLocationdesc),
 
         /**
          * This field shall indicate the timestamp of when the LocationDescriptor was last modified.
          *
-         * @see {@link MatterSpecification.v141.Core} § 9.18.4.2.3
+         * @see {@link MatterSpecification.v141.Core} § 9.17.4.3.3
          */
         locationDescriptorLastEdit: TlvField(2, TlvEpochUs),
 
@@ -155,7 +183,7 @@ export namespace EcosystemInformation {
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 9.18.4.2
+     * @see {@link MatterSpecification.v141.Core} § 9.17.4.3
      */
     export interface EcosystemLocation extends TypeFromSchema<typeof TlvEcosystemLocation> {}
 
@@ -173,7 +201,7 @@ export namespace EcosystemInformation {
              * this will contain a single entry, but may grow with more complex device compositions (e.g. another
              * bridge.) An empty list indicates that the information is not available.
              *
-             * @see {@link MatterSpecification.v141.Core} § 9.18.5.1
+             * @see {@link MatterSpecification.v141.Core} § 9.17.5.1
              */
             deviceDirectory: FabricScopedAttribute(
                 0x0,
@@ -190,7 +218,7 @@ export namespace EcosystemInformation {
              *
              * LocationDirectory entries shall be removed if there is no DeviceDirectory that references it.
              *
-             * @see {@link MatterSpecification.v141.Core} § 9.18.5.2
+             * @see {@link MatterSpecification.v141.Core} § 9.17.5.2
              */
             locationDirectory: FabricScopedAttribute(
                 0x1,
@@ -229,7 +257,7 @@ export namespace EcosystemInformation {
      * For the purposes of the Ecosystem Information Cluster section, an instance of the Ecosystem Information Cluster
      * will be referred to as an "instance".
      *
-     * @see {@link MatterSpecification.v141.Core} § 9.18
+     * @see {@link MatterSpecification.v141.Core} § 9.17
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

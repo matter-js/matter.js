@@ -27,48 +27,44 @@ Resource.add({
 
         {
             tag: "attribute", name: "ThreadMetrics", xref: "core§11.13.6.1",
-            details: "The ThreadMetrics attribute shall be a list of ThreadMetricsStruct structs. Each active thread on " +
-                "the Node shall be represented by a single entry within the ThreadMetrics attribute."
+            details: "This attribute shall be a list of ThreadMetricsStruct structs. Each active thread on the Node shall " +
+                "be represented by a single entry within the ThreadMetrics attribute."
         },
         {
             tag: "attribute", name: "CurrentHeapFree", xref: "core§11.13.6.2",
-            details: "The CurrentHeapFree attribute shall indicate the current amount of heap memory, in bytes, that are " +
-                "free for allocation. The effective amount may be smaller due to heap fragmentation or other reasons."
+            details: "Indicates the current amount of heap memory, in bytes, that are free for allocation. The effective " +
+                "amount may be smaller due to heap fragmentation or other reasons."
         },
         {
             tag: "attribute", name: "CurrentHeapUsed", xref: "core§11.13.6.3",
-            details: "The CurrentHeapUsed attribute shall indicate the current amount of heap memory, in bytes, that is " +
-                "being used."
+            details: "Indicates the current amount of heap memory, in bytes, that is being used."
         },
-
         {
             tag: "attribute", name: "CurrentHeapHighWatermark", xref: "core§11.13.6.4",
-            details: "The CurrentHeapHighWatermark attribute shall indicate the maximum amount of heap memory, in bytes, " +
-                "that has been used by the Node. This value shall only be reset upon a Node reboot or upon receiving " +
-                "of the ResetWatermarks command."
+            details: "Indicates the maximum amount of heap memory, in bytes, that has been used by the Node. This value " +
+                "shall only be reset upon a Node reboot or upon receiving of the ResetWatermarks command."
         },
 
         {
             tag: "event", name: "SoftwareFault", xref: "core§11.13.8.1",
-            details: "The SoftwareFault Event shall be generated when a software fault takes place on the Node.",
+            details: "This Event shall be generated when a software fault occurs on the Node.",
 
             children: [
                 {
                     tag: "field", name: "Id", xref: "core§11.13.8.1.1",
-                    details: "The ID field shall be set to the ID of the software thread in which the last software fault " +
-                        "occurred."
+                    details: "This field shall be set to the ID of the software thread in which the last software fault occurred."
                 },
                 {
                     tag: "field", name: "Name", xref: "core§11.13.8.1.2",
-                    details: "The Name field shall be set to a manufacturer-specified name or prefix of the software thread in " +
-                        "which the last software fault occurred."
+                    details: "This field shall be set to a manufacturer-specified name or prefix of the software thread in which " +
+                        "the last software fault occurred."
                 },
 
                 {
                     tag: "field", name: "FaultRecording", xref: "core§11.13.8.1.3",
-                    details: "The FaultRecording field shall be a manufacturer-specified payload intended to convey information to " +
-                        "assist in further diagnosing or debugging a software fault. The FaultRecording field may be used to " +
-                        "convey information such as, but not limited to, thread backtraces or register contents."
+                    details: "This field shall be a manufacturer-specified payload intended to convey information to assist in " +
+                        "further diagnosing or debugging a software fault. The FaultRecording field may be used to convey " +
+                        "information such as, but not limited to, thread backtraces or register contents."
                 }
             ]
         },
@@ -76,11 +72,13 @@ Resource.add({
         {
             tag: "command", name: "ResetWatermarks", xref: "core§11.13.7.1",
 
-            details: "Receipt of this command shall reset the following values which track high and lower watermarks:" +
+            details: "This command is used to reset the high watermarks for heap and stack memory." +
+                "\n" +
+                "Receipt of this command shall reset the following values which track high and lower watermarks:" +
                 "\n" +
                 "  • The StackFreeMinimum field of the ThreadMetrics attribute" +
                 "\n" +
-                "  • The CurrentHeapHighWatermark attribute This command has no payload." +
+                "  • The CurrentHeapHighWatermark attribute" +
                 "\n" +
                 "### Effect on Receipt" +
                 "\n" +

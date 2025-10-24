@@ -19,7 +19,6 @@ export { AlarmBase } from "./alarm-base.js";
 export { ApplicationBasicCluster, ApplicationBasic } from "./application-basic.js";
 export { ApplicationLauncherCluster, ApplicationLauncher } from "./application-launcher.js";
 export { AudioOutputCluster, AudioOutput } from "./audio-output.js";
-export { BallastConfigurationCluster, BallastConfiguration } from "./ballast-configuration.js";
 export { BasicInformationCluster, BasicInformation } from "./basic-information.js";
 export { BindingCluster, Binding } from "./binding.js";
 export { BooleanStateCluster, BooleanState } from "./boolean-state.js";
@@ -72,8 +71,8 @@ export { HepaFilterMonitoringCluster, HepaFilterMonitoring } from "./hepa-filter
 export { IcdManagementCluster, IcdManagement } from "./icd-management.js";
 export { IdentifyCluster, Identify } from "./identify.js";
 export { IlluminanceMeasurementCluster, IlluminanceMeasurement } from "./illuminance-measurement.js";
+export { JointFabricAdministratorCluster, JointFabricAdministrator } from "./joint-fabric-administrator.js";
 export { JointFabricDatastoreCluster, JointFabricDatastore } from "./joint-fabric-datastore.js";
-export { JointFabricPkiCluster, JointFabricPki } from "./joint-fabric-pki.js";
 export { KeypadInputCluster, KeypadInput } from "./keypad-input.js";
 export { Label } from "./label.js";
 export { LaundryDryerControlsCluster, LaundryDryerControls } from "./laundry-dryer-controls.js";
@@ -113,8 +112,6 @@ export { PowerSourceCluster, PowerSource } from "./power-source.js";
 export { PowerSourceConfigurationCluster, PowerSourceConfiguration } from "./power-source-configuration.js";
 export { PowerTopologyCluster, PowerTopology } from "./power-topology.js";
 export { PressureMeasurementCluster, PressureMeasurement } from "./pressure-measurement.js";
-export { ProxyConfigurationCluster, ProxyConfiguration } from "./proxy-configuration.js";
-export { ProxyDiscoveryCluster, ProxyDiscovery } from "./proxy-discovery.js";
 export { PumpConfigurationAndControlCluster, PumpConfigurationAndControl } from "./pump-configuration-and-control.js";
 export {
     RadonConcentrationMeasurementCluster,
@@ -157,7 +154,6 @@ export {
 } from "./total-volatile-organic-compounds-concentration-measurement.js";
 export { UnitLocalizationCluster, UnitLocalization } from "./unit-localization.js";
 export { UserLabelCluster, UserLabel } from "./user-label.js";
-export { ValidProxiesCluster, ValidProxies } from "./valid-proxies.js";
 export {
     ValveConfigurationAndControlCluster,
     ValveConfigurationAndControl

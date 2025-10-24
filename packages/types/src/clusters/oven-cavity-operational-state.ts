@@ -27,7 +27,7 @@ export namespace OvenCavityOperationalState {
     export const TlvOperationalCommandResponse = TlvObject({
         /**
          * This shall indicate the success or otherwise of the attempted command invocation. On a successful invocation
-         * of the attempted command, the ErrorStateID shall be populated with NoError. Please see the individual command
+         * of the attempted command, the ErrorStateID shall be populated with NoError. See the individual command
          * sections for additional specific requirements on population.
          *
          * @see {@link MatterSpecification.v141.Cluster} § 1.14.6.5.1
@@ -131,8 +131,8 @@ export namespace OvenCavityOperationalState {
 
             /**
              * This attribute shall specify the details of any current error condition being experienced on the device
-             * when the OperationalState attribute is populated with Error. Please see ErrorStateStruct for general
-             * requirements on the population of this attribute.
+             * when the OperationalState attribute is populated with Error. See Section 1.14.4.4, “ErrorStateStruct
+             * Type” for general requirements on the population of this attribute.
              *
              * When there is no error detected, this shall have an ErrorStateID of NoError.
              *

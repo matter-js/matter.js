@@ -58,9 +58,9 @@ Resource.add({
 
         {
             tag: "attribute", name: "ThreadNetworkTableSize", xref: "cluster§10.4.5.3",
-            details: "This attribute shall indicate the maximum number of entries that can be held in the ThreadNetworks " +
-                "list; it shall be at least 2 times the number of SupportedFabrics advertised in the Operational " +
-                "Credentials Cluster on the root endpoint of this node."
+            details: "Indicates the maximum number of entries that can be held in the ThreadNetworks list; it shall be at " +
+                "least 2 times the number of SupportedFabrics advertised in the Operational Credentials Cluster on " +
+                "the root endpoint of this node."
         },
 
         {

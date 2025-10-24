@@ -26,10 +26,10 @@ export const OnOff = Cluster(
         Field({ name: "OFFONLY", conformance: "[!LT | DF]", constraint: "2", title: "OffOnly" })
     ),
 
-    Attribute({ name: "OnOff", id: 0x0, type: "bool", access: "R V", conformance: "M", default: false, quality: "N S" }),
-    Attribute({ name: "GlobalSceneControl", id: 0x4000, type: "bool", access: "R V", conformance: "LT", default: true }),
-    Attribute({ name: "OnTime", id: 0x4001, type: "uint16", access: "RW VO", conformance: "LT", default: 0 }),
-    Attribute({ name: "OffWaitTime", id: 0x4002, type: "uint16", access: "RW VO", conformance: "LT", default: 0 }),
+    Attribute({ name: "OnOff", id: 0x0, type: "bool", access: "R V", conformance: "M", quality: "N S" }),
+    Attribute({ name: "GlobalSceneControl", id: 0x4000, type: "bool", access: "R V", conformance: "LT" }),
+    Attribute({ name: "OnTime", id: 0x4001, type: "uint16", access: "RW VO", conformance: "LT" }),
+    Attribute({ name: "OffWaitTime", id: 0x4002, type: "uint16", access: "RW VO", conformance: "LT" }),
     Attribute({
         name: "StartUpOnOff", id: 0x4003, type: "StartUpOnOffEnum", access: "RW VM", conformance: "LT",
         constraint: "desc", quality: "X N"
@@ -40,7 +40,7 @@ export const OnOff = Cluster(
     Command(
         { name: "OffWithEffect", id: 0x40, access: "O", conformance: "LT", direction: "request", response: "status" },
         Field({ name: "EffectIdentifier", id: 0x0, type: "EffectIdentifierEnum", conformance: "M", constraint: "desc" }),
-        Field({ name: "EffectVariant", id: 0x1, type: "enum8", conformance: "M", constraint: "desc", default: 0 })
+        Field({ name: "EffectVariant", id: 0x1, type: "enum8", conformance: "M", constraint: "desc" })
     ),
     Command({
         name: "OnWithRecallGlobalScene", id: 0x41, access: "O", conformance: "LT", direction: "request",

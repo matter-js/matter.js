@@ -33,9 +33,10 @@ export namespace DishwasherRequirements {
     /**
      * The OperationalState cluster is required by the Matter specification.
      *
-     * We provide this alias to the default implementation {@link OperationalStateServer} for convenience.
+     * This version of {@link OperationalStateServer} is specialized per the specification.
      */
-    export const OperationalStateServer = BaseOperationalStateServer;
+    export const OperationalStateServer = BaseOperationalStateServer
+        .alter({ events: { operationCompletion: { optional: false } } });
 
     /**
      * The Identify cluster is optional per the Matter specification.
@@ -91,7 +92,7 @@ export namespace DishwasherRequirements {
 export const DishwasherDeviceDefinition = MutableEndpoint({
     name: "Dishwasher",
     deviceType: 0x75,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: DishwasherRequirements,
     behaviors: SupportedBehaviors(DishwasherRequirements.server.mandatory.OperationalState)
 });
