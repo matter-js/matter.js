@@ -360,6 +360,39 @@ export const Thermostat = Cluster(
         Field({ name: "PresetHandle", id: 0x0, type: "octstr", conformance: "M", constraint: "max 16", quality: "X" })
     ),
 
+    Command(
+        { name: "AtomicRequest", id: 0xfe, access: "O", direction: "request", response: "AtomicResponse" },
+
+        Field(
+            { name: "RequestType", id: 0x0, type: "enum8", conformance: "M" },
+            Field({ name: "BeginWrite", id: 0x0 }),
+            Field({ name: "CommitWrite", id: 0x1 }),
+            Field({ name: "RollbackWrite", id: 0x2 })
+        ),
+
+        Field(
+            { name: "AttributeRequests", id: 0x1, type: "list", conformance: "M" },
+            Field({ name: "entry", type: "attrib-id" })
+        ),
+        Field({ name: "Timeout", id: 0x2, type: "uint16", conformance: "O" })
+    ),
+
+    Command(
+        { name: "AtomicResponse", id: 0xfd, direction: "response" },
+        Field({ name: "StatusCode", id: 0x0, type: "status", conformance: "M" }),
+
+        Field(
+            { name: "AttributeStatus", id: 0x1, type: "list", conformance: "M" },
+            Field(
+                { name: "entry", type: "struct" },
+                Field({ name: "AttributeId", id: 0x0, type: "attrib-id", conformance: "M" }),
+                Field({ name: "StatusCode", id: 0x1, type: "status", conformance: "M" })
+            )
+        ),
+
+        Field({ name: "Timeout", id: 0x2, type: "uint16", conformance: "O" })
+    ),
+
     Datatype({ name: "TemperatureDifference", type: "int16" }),
     Datatype({ name: "SignedTemperature", type: "int8" }),
     Datatype({ name: "UnsignedTemperature", type: "uint8" }),

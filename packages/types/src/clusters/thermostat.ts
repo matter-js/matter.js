@@ -27,6 +27,8 @@ import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
 import { TlvByteString, TlvString } from "../tlv/TlvString.js";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
+import { TlvAttributeId } from "../datatype/AttributeId.js";
+import { Status } from "../globals/Status.js";
 import { Identity } from "#general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
@@ -1394,6 +1396,49 @@ export namespace Thermostat {
     export interface SetpointRaiseLowerRequest extends TypeFromSchema<typeof TlvSetpointRaiseLowerRequest> {}
 
     /**
+     * The value of Thermostat.requestType
+     */
+    export enum RequestType {
+        BeginWrite = 0,
+        CommitWrite = 1,
+        RollbackWrite = 2
+    }
+
+    /**
+     * Input to the Thermostat atomicRequest command
+     */
+    export const TlvAtomicRequest = TlvObject({
+        requestType: TlvField(0, TlvEnum<RequestType>()),
+        attributeRequests: TlvField(1, TlvArray(TlvAttributeId)),
+        timeout: TlvOptionalField(2, TlvUInt16)
+    });
+
+    /**
+     * Input to the Thermostat atomicRequest command
+     */
+    export interface AtomicRequest extends TypeFromSchema<typeof TlvAtomicRequest> {}
+
+    /**
+     * The value of Thermostat.entry
+     */
+    export const TlvEntry = TlvObject({
+        attributeId: TlvField(0, TlvAttributeId),
+        statusCode: TlvField(1, TlvEnum<Status>())
+    });
+
+    /**
+     * The value of Thermostat.entry
+     */
+    export interface Entry extends TypeFromSchema<typeof TlvEntry> {}
+
+    export const TlvAtomicResponse = TlvObject({
+        statusCode: TlvField(0, TlvEnum<Status>()),
+        attributeStatus: TlvField(1, TlvArray(TlvEntry)),
+        timeout: TlvOptionalField(2, TlvUInt16)
+    });
+    export interface AtomicResponse extends TypeFromSchema<typeof TlvAtomicResponse> {}
+
+    /**
      * A ThermostatCluster supports these elements if it supports feature Occupancy.
      */
     export const OccupancyComponent = MutableCluster.Component({
@@ -2600,7 +2645,9 @@ export namespace Thermostat {
             /**
              * @see {@link MatterSpecification.v141.Cluster} § 4.3.10.1
              */
-            setpointRaiseLower: Command(0x0, TlvSetpointRaiseLowerRequest, 0x0, TlvNoResponse)
+            setpointRaiseLower: Command(0x0, TlvSetpointRaiseLowerRequest, 0x0, TlvNoResponse),
+
+            atomicRequest: Command(0xfe, TlvAtomicRequest, 0xfd, TlvAtomicResponse)
         },
 
         /**
