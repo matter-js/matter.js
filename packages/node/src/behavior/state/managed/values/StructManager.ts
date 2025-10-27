@@ -279,7 +279,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
     };
 
     if (manage === PrimitiveManager) {
-        // For primitives we don't need a manager so just proxy reads directly
+        // For primitives, we don't need a manager so just proxy reads directly
         descriptor.get = function (this: Struct) {
             if (access.mayRead(this[Internal.session], this[Internal.reference].location)) {
                 const struct = this[Internal.reference].value as Val.Dynamic;
@@ -310,7 +310,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
             }
         };
     } else {
-        // For collections we create a managed value
+        // For collections, we create a managed value
         let cloneContainer: (container: Val) => Val;
         switch (schema.effectiveMetatype) {
             case Metatype.array:
@@ -341,6 +341,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
             const pk = this[Internal.reference].primaryKey;
             const struct = this[Internal.reference].value;
             const key = pk === "id" ? (id ?? name) : name;
+            let valueFromProperties = false;
             if ((struct as Val.Dynamic)[Val.properties]) {
                 const properties = (struct as Val.Dynamic)[Val.properties](
                     this[Internal.reference].rootOwner,
@@ -348,6 +349,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 );
                 if (name in properties) {
                     value = properties[name];
+                    valueFromProperties = true;
                 } else {
                     value = struct[name];
                 }
@@ -373,7 +375,9 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 return defaultReader?.(this);
             }
 
-            if (value === null) {
+            // Value is null or a dynamic property, so just return it
+            // TODO Consider to also use Management for dynamic properties
+            if (value === null || valueFromProperties) {
                 return value;
             }
 
