@@ -1431,7 +1431,7 @@ export namespace ThermostatBaseServer {
          */
         [Val.properties](endpoint: Endpoint, session: ValueSupervisor.Session) {
             // Only return remaining time if the attribute is defined in the endpoint
-            let properties = {};
+            const properties = {};
             if (
                 (endpoint.behaviors.optionsFor(ThermostatBaseServer) as Record<string, unknown>)?.presets !==
                     undefined ||
