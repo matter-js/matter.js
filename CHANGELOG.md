@@ -62,6 +62,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: matter.js now natively supports remote access to Matter nodes via non-Matter protocols. You can add `HttpServer`, `WebSocketServer` and/or `MqttServer` to your `ServerNode` to enable HTTP, WebSocket and MQTT access respectively
     - Feature: You can now use Ecma TC39 stage 3 decorators to customize the schema associated with a `Behavior` implementation
     - Feature: New `StateStream` component offers a high-level API for monitoring changes across multiple nodes
+    - Feature: Add default implementation for the `Thermostat` cluster according to Matter 1.4.2 specification. All features except MSCH (which is considered provisional) are implemented. See the `ThermostatServer` class for details.
 
 - @matter/nodejs
     - Enhancement: Uses "stat" to determine storage file existence instead of reading all content
