@@ -26,9 +26,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Adds Blob support to the Storage interface
     - Feature: Add BDX (Bulk Data eXchange) protocol support according to Matter specification
     - Enhancement: Allows SHA 256 generation using async iterator or readable stream reader as input
-    - Fix: Ensures that StandaloneAck messages are always considering the corresponding Secure channel protocol ID
     - Enhancement: Added platform abstractions for of HTTP, WebSockets and MQTT
     - Enhancement: Added polyfills and additional types for decorators
+    - Fix: Ensures that StandaloneAck messages are always considering the corresponding Secure channel protocol ID
 
 - @matter/model
     - Feature: You can now use Ecma TC39 stage 3 decorators to associate assign Matter semantics to JavaScript classes
@@ -63,6 +63,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: You can now use Ecma TC39 stage 3 decorators to customize the schema associated with a `Behavior` implementation
     - Feature: New `StateStream` component offers a high-level API for monitoring changes across multiple nodes
     - Feature: Add default implementation for the `Thermostat` cluster according to Matter 1.4.2 specification. All features except MSCH (which is considered provisional) are implemented. See the `ThermostatServer` class for details.
+    - Enhancement: Adds "maybeReactTo" which only registers the listener when the event exists.
+    - Enhancement: Enhances Endpoint#eventsOf and Endpoint#setStateOf with overrides to use with just a behavior Id in an untyped variant
 
 - @matter/nodejs
     - Enhancement: Uses "stat" to determine storage file existence instead of reading all content
