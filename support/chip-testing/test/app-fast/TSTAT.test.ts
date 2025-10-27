@@ -8,6 +8,7 @@ import { edit } from "@matter/testing";
 
 describe("TSTAT", () => {
     before(async () => {
+        // Patches can be removed when https://github.com/project-chip/connectedhomeip/pull/41639 was merged and image rebuilt
         await chip.testFor("TSTAT/2.2").edit(
             edit.sed(
                 // Current tests do not respect updated Deadband limits, which now allow values up to 127, so tweak test
@@ -22,9 +23,16 @@ describe("TSTAT", () => {
                 },
             ),
         );
+        // Patch can be removed when https://github.com/project-chip/connectedhomeip/pull/41636 was merged and image rebuilt
+        await chip.testFor("TSTAT/4.2").edit(
+            edit.sed(
+                // Current tests do not respect updated Deadband limits, which now allow values up to 127, so tweak test
+                "s/test_presets = list(preset for preset in current_presets if preset.presetHandle is not activePresetHandle)/test_presets = list(preset for preset in current_presets if preset.presetHandle != activePresetHandle)/",
+            ),
+        );
     });
 
     chip("TSTAT/*")
-        // Presets not yet supported
-        .exclude("TSTAT/4.2");
+        // TSTAT/4.3 is Thermostat suggestions
+        .exclude("TSTAT/4.3");
 });

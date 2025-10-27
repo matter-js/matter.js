@@ -15,6 +15,8 @@ export namespace ThermostatInterface {
          * @see {@link MatterSpecification.v141.Cluster} § 4.3.10.1
          */
         setpointRaiseLower(request: Thermostat.SetpointRaiseLowerRequest): MaybePromise;
+
+        atomicRequest(request: Thermostat.AtomicRequest): MaybePromise<Thermostat.AtomicResponse>;
     }
 
     export interface ScheduleConfiguration {
