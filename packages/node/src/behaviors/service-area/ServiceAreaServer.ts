@@ -40,9 +40,9 @@ export class ServiceAreaBaseServer extends ServiceAreaBase {
         this.reactTo(this.events.supportedMaps$Changing, this.#assertSupportedMaps);
         this.#assertSelectedAreas(this.state.selectedAreas);
         this.reactTo(this.events.selectedAreas$Changing, this.#assertSelectedAreas);
-        if (this.state.currentArea !== undefined && this.events.currentArea$Changing !== undefined) {
+        if (this.state.currentArea !== undefined) {
             this.#assertCurrentArea(this.state.currentArea);
-            this.reactTo(this.events.currentArea$Changing, this.#assertCurrentArea);
+            this.maybeReactTo(this.events.currentArea$Changing, this.#assertCurrentArea);
         }
         if (this.state.progress !== undefined) {
             this.#assertProgress(this.state.progress);

@@ -85,15 +85,11 @@ export class GeneralDiagnosticsServer extends Base {
         this.reactTo(lifecycle.online, this.#online, { lock: true });
         this.reactTo(lifecycle.goingOffline, this.#goingOffline, { lock: true });
 
-        if (this.events.activeHardwareFaults$Changed !== undefined) {
-            this.reactTo(this.events.activeHardwareFaults$Changed, this.#triggerActiveHardwareFaultsChangedEvent);
-        }
-        if (this.events.activeRadioFaults$Changed !== undefined) {
-            this.reactTo(this.events.activeRadioFaults$Changed, this.#triggerActiveRadioFaultsChangedEvent);
-        }
-        if (this.events.activeNetworkFaults$Changed !== undefined) {
-            this.reactTo(this.events.activeNetworkFaults$Changed, this.#triggerActiveNetworkFaultsChangedEvent);
-        }
+        this.maybeReactTo(this.events.activeHardwareFaults$Changed, this.#triggerActiveHardwareFaultsChangedEvent);
+
+        this.maybeReactTo(this.events.activeRadioFaults$Changed, this.#triggerActiveRadioFaultsChangedEvent);
+
+        this.maybeReactTo(this.events.activeNetworkFaults$Changed, this.#triggerActiveNetworkFaultsChangedEvent);
     }
 
     #validateTestEnabledKey(enableKey: Bytes) {

@@ -52,13 +52,9 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
     override initialize(): MaybePromise {
         this.reactTo(this.events.acl$Changing, this.#validateAccessControlListChanges); // Enhanced Validation
         this.reactTo(this.events.acl$Changed, this.#handleAccessControlListChange); // Event handling for changes
-        if (
-            this.state.extension !== undefined &&
-            this.events.extension$Changing !== undefined &&
-            this.events.extension$Changed !== undefined
-        ) {
-            this.reactTo(this.events.extension$Changing, this.#validateAccessControlExtensionChanges); // Enhanced Validation
-            this.reactTo(this.events.extension$Changed, this.#handleAccessControlExtensionChange); // Event handling for changes
+        if (this.state.extension !== undefined) {
+            this.maybeReactTo(this.events.extension$Changing, this.#validateAccessControlExtensionChanges); // Enhanced Validation
+            this.maybeReactTo(this.events.extension$Changed, this.#handleAccessControlExtensionChange); // Event handling for changes
         }
 
         const lifecycle = this.endpoint.lifecycle as NodeLifecycle;

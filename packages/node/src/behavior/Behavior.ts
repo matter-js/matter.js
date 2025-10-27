@@ -193,6 +193,16 @@ export abstract class Behavior {
         (this as unknown as Internal)[BACKING].reactTo(observable, reactor, options);
     }
 
+    protected maybeReactTo<O extends Observable<any[], any>>(
+        observable: O | undefined,
+        reactor: Reactor<Parameters<O["emit"]>, ReturnType<O["emit"]>>,
+        options?: Reactor.Options,
+    ) {
+        if (observable) {
+            this.reactTo(observable, reactor, options);
+        }
+    }
+
     /**
      * Stop reacting to specified conditions.
      *
