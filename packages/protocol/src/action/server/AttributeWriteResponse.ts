@@ -10,7 +10,7 @@ import { Write } from "#action/request/Write.js";
 import { WriteResult } from "#action/response/WriteResult.js";
 import { AccessControl, hasRemoteActor } from "#action/server/AccessControl.js";
 import { DataResponse, FallbackLimits } from "#action/server/DataResponse.js";
-import { Diagnostic, InternalError, Logger } from "#general";
+import { Diagnostic, InternalError, Logger, serialize, toHex } from "#general";
 import { AttributeModel, DataModelPath, ElementTag, FabricIndex as FabricIndexField } from "#model";
 import {
     ArraySchema,
@@ -361,7 +361,7 @@ export class AttributeWriteResponse<
         if (status !== Status.Success) {
             logger.debug(
                 () =>
-                    `Error writing attribute ${this.node.inspectPath(path)}: Status=${StatusCode[status]}(${status}), ClusterStatus=${clusterStatus}`,
+                    `Error writing attribute ${this.node.inspectPath(path)}: Status=${StatusCode[status]}(${toHex(status)}), ClusterStatus=${clusterStatus !== undefined ? toHex(clusterStatus) : undefined}`,
             );
         }
 
@@ -424,7 +424,7 @@ export class AttributeWriteResponse<
                 const writeState = await this.#guardedCurrentCluster.openForWrite(this.session);
                 const decoded = this.#decodeWithSchema(tlv.elementSchema, value);
                 logger.debug(
-                    () => `Writing attribute chunk ${this.node.inspectPath(path)} adding ${Diagnostic.json(decoded)}`,
+                    () => `Writing attribute chunk ${this.node.inspectPath(path)} adding ${serialize(decoded)}`,
                 );
                 (writeState[attributeId] as any[]).push(decoded);
                 await this.session.transaction?.commit();

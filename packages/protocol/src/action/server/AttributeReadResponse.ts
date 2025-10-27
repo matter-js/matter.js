@@ -11,7 +11,7 @@ import { ReadResult } from "#action/response/ReadResult.js";
 import { AccessControl, hasLocalActor, hasRemoteActor } from "#action/server/AccessControl.js";
 import { DataResponse, FallbackLimits, WildcardPathFlagsCodec } from "#action/server/DataResponse.js";
 import { Val } from "#action/Val.js";
-import { Diagnostic, InternalError, Logger } from "#general";
+import { InternalError, Logger, serialize } from "#general";
 import { AttributeModel, DataModelPath, ElementTag } from "#model";
 import {
     AttributePath,
@@ -280,7 +280,7 @@ export class AttributeReadResponse<
             const value = this.#currentState[attributeId];
             const version = cluster.version;
             logger.debug(
-                () => `Reading attribute ${this.node.inspectPath(path)}=${Diagnostic.json(value)} (version=${version})`,
+                () => `Reading attribute ${this.node.inspectPath(path)}=${serialize(value)} (version=${version})`,
             );
             // Perform actual read of one attribute
             this.#addValue(path, value, version, this.#currentCluster.type.attributes[attributeId]!.tlv);
