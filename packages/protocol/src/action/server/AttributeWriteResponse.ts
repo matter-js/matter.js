@@ -426,7 +426,7 @@ export class AttributeWriteResponse<
                 logger.debug(
                     () => `Writing attribute chunk ${this.node.inspectPath(path)} adding ${serialize(decoded)}`,
                 );
-                (writeState[attributeId] as any[]) = [...(writeState[attributeId] as any[]), decoded];
+                (writeState[attributeId] as any[]).push(decoded);
                 await this.session.transaction?.commit();
             }
         } catch (error) {
