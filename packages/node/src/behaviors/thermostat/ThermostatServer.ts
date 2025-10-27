@@ -874,7 +874,6 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                 `max${scope} (${max}) must be less than or equal to absMax${scope} (${absMax})`,
             );
         }
-
     }
 
     get heatSetpointMinimum() {
