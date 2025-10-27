@@ -8,8 +8,17 @@ import { ActionContext, Behavior, ClusterBehavior, type ClusterState, ValueSuper
 import { Thermostat } from "#clusters/thermostat";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { BasicSet, Environment, Environmental, InternalError, Logger, ObserverGroup, serialize } from "#general";
-import { ClusterModel } from "#model";
-import { assertRemoteActor, Fabric, FabricManager, hasRemoteActor, PeerAddress, Subject, Val } from "#protocol";
+import { ClusterModel, DataModelPath } from "#model";
+import {
+    AccessControl,
+    assertRemoteActor,
+    Fabric,
+    FabricManager,
+    hasRemoteActor,
+    PeerAddress,
+    Subject,
+    Val,
+} from "#protocol";
 import { AttributeId, NodeId, Status, StatusResponse, StatusResponseError } from "#types";
 import { AtomicWriteState } from "./AtomicWriteState.js";
 
@@ -28,6 +37,9 @@ const logger = Logger.get("AtomicWriteHandler");
  *
  * TODO: Move out of thermostat behavior into a more generic behavior handler once used by other clusters too. Then we
  *  also need to adjust how it is handled.
+ *  Proper solution might be to add the handling of the atomic Request command on interaction level and leave the
+ *  transaction open until it is rolled back or committed. This might have side effects on other parts of the system though.
+ *  So lets do that later when we have more clusters using it.
  */
 export class AtomicWriteHandler {
     #observers = new ObserverGroup();
@@ -147,20 +159,33 @@ export class AtomicWriteHandler {
         endpoint: Endpoint,
         cluster: Behavior.Type,
     ): Thermostat.AtomicResponse {
+        if (!hasRemoteActor(context)) {
+            throw new StatusResponse.InvalidCommandError("AtomicRequest requires a remote actor");
+        }
+        if (!ClusterBehavior.is(cluster) || !cluster.schema) {
+            throw new InternalError("Cluster behavior expected for atomic write handler");
+        }
         let commandStatusCode = Status.Success;
         const attributeStatus = request.attributeRequests.map(attr => {
             let statusCode = Status.Success;
-            if (
-                !((cluster as ClusterBehavior.Type).schema!.conformant as ClusterModel.Conformant).attributes.for(attr)
-                    ?.quality.atomic
-            ) {
+            const attributeModel = (
+                (cluster as ClusterBehavior.Type).schema!.conformant as ClusterModel.Conformant
+            ).attributes.for(attr);
+            if (!attributeModel?.quality.atomic) {
                 statusCode = Status.InvalidAction;
+            } else if (this.#pendingWriteStateForAttribute(endpoint, cluster, attr) !== undefined) {
+                statusCode = Status.Busy;
             } else {
-                const writeStateForAttribute = this.#pendingWriteStateForAttribute(endpoint, cluster, attr);
-                if (writeStateForAttribute !== undefined) {
-                    statusCode = Status.Busy;
+                const { writeLevel } = cluster.supervisor.get(attributeModel).access.limits;
+                const location = {
+                    path: DataModelPath.none,
+                    endpoint: endpoint.number,
+                    cluster: cluster.cluster.id,
+                    owningFabric: context.fabric,
+                };
+                if (context.authorityAt(writeLevel, location) !== AccessControl.Authority.Granted) {
+                    statusCode = Status.UnsupportedAccess;
                 }
-                // TODO check ACL
             }
 
             if (statusCode !== Status.Success) {
