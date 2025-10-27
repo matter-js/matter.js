@@ -39,7 +39,7 @@ describe("AttributeWriteRequest", () => {
 
     it("writes endpoint wildcard attribute", async () => {
         const node = await MockServerNode.createOnline();
-        const response = await writeAttr(
+        const response = await writeAttrAsAdmin(
             node,
             Write.Attribute({
                 cluster: BasicInformationCluster,
@@ -61,6 +61,48 @@ describe("AttributeWriteRequest", () => {
             },
         ]);
         expect(response.counts).deep.equals({ status: 0, success: 1, existent: 1 });
+    });
+
+    it("writes concrete attribute with ACL error", async () => {
+        const node = await MockServerNode.createOnline();
+        const response = await writeAttr(
+            node,
+            Write.Attribute({
+                endpoint: node,
+                cluster: BasicInformationCluster,
+                attributes: "nodeLabel",
+                value: "Test Label",
+            }),
+        );
+
+        expect(response.data).deep.equals([
+            {
+                kind: "attr-status",
+                path: {
+                    attributeId: 5,
+                    clusterId: 40,
+                    endpointId: 0,
+                },
+                status: StatusCode.UnsupportedAccess,
+                clusterStatus: undefined,
+            },
+        ]);
+        expect(response.counts).deep.equals({ status: 1, success: 0, existent: 0 });
+    });
+
+    it("writes endpoint wildcard attribute with ACL issue", async () => {
+        const node = await MockServerNode.createOnline();
+        const response = await writeAttr(
+            node,
+            Write.Attribute({
+                cluster: BasicInformationCluster,
+                attributes: "nodeLabel",
+                value: "Test Label 2",
+            }),
+        );
+
+        expect(response.data).deep.equals([]);
+        expect(response.counts).deep.equals({ status: 0, success: 0, existent: 0 });
     });
 
     it("writes non-writable concrete attribute with error", async () => {
@@ -92,7 +134,7 @@ describe("AttributeWriteRequest", () => {
 
     it("writes non-writable wildcard attribute with no error returned", async () => {
         const node = await MockServerNode.createOnline();
-        const response = await writeAttr(
+        const response = await writeAttrAsAdmin(
             node,
             Write.Attribute({
                 cluster: BasicInformationCluster,
@@ -135,7 +177,7 @@ describe("AttributeWriteRequest", () => {
 
     it("writes version mismatch wildcard attribute where mismatch got ignored", async () => {
         const node = await MockServerNode.createOnline();
-        const response = await writeAttr(
+        const response = await writeAttrAsAdmin(
             node,
             Write.Attribute({
                 cluster: BasicInformationCluster,
@@ -189,7 +231,7 @@ describe("AttributeWriteRequest", () => {
 
     it("writes wildcard attribute with constraint error", async () => {
         const node = await MockServerNode.createOnline();
-        const response = await writeAttr(
+        const response = await writeAttrAsAdmin(
             node,
             Write.Attribute({
                 cluster: BasicInformationCluster,
