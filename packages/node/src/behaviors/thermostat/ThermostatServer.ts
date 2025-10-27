@@ -1127,11 +1127,10 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         const oldPresetsMap = new Map<string, Thermostat.Preset>();
         if (oldPresets !== undefined) {
             for (const preset of oldPresets) {
-                if (preset.presetHandle === null) {
-                    throw new InternalError("Old preset is missing presetHandle, this must not happen");
+                if (preset.presetHandle !== null) {
+                    const presetHex = Bytes.toHex(preset.presetHandle);
+                    oldPresetsMap.set(presetHex, preset);
                 }
-                const presetHex = Bytes.toHex(preset.presetHandle);
-                oldPresetsMap.set(presetHex, preset);
             }
         }
 

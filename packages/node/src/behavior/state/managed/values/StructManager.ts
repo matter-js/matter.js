@@ -341,7 +341,6 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
             const pk = this[Internal.reference].primaryKey;
             const struct = this[Internal.reference].value;
             const key = pk === "id" ? (id ?? name) : name;
-            let valueFromProperties = false;
             if ((struct as Val.Dynamic)[Val.properties]) {
                 const properties = (struct as Val.Dynamic)[Val.properties](
                     this[Internal.reference].rootOwner,
@@ -349,7 +348,6 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 );
                 if (name in properties) {
                     value = properties[name];
-                    valueFromProperties = true;
                 } else {
                     value = struct[name];
                 }
@@ -377,7 +375,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
 
             // Value is null or a dynamic property, so just return it
             // TODO Consider to also use Management for dynamic properties
-            if (value === null || valueFromProperties) {
+            if (value === null) {
                 return value;
             }
 
@@ -398,7 +396,15 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
             };
 
             // Clone the container before write
-            const ref = ManagedReference(this[Internal.reference], pk, name, id, assertWriteOk, cloneContainer);
+            const ref = ManagedReference(
+                this[Internal.reference],
+                pk,
+                name,
+                id,
+                assertWriteOk,
+                cloneContainer,
+                this[Internal.session],
+            );
 
             ref.owner = manage(ref, this[Internal.session]);
 

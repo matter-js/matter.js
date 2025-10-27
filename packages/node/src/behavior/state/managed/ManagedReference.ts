@@ -31,6 +31,7 @@ type Container = Record<string | number, Val>;
  * @param id the lookup ID in the case of structs
  * @param assertWriteOk enforces ACLs and read-only
  * @param clone clones the container prior to write; undefined if not transactional
+ * @param session the access control session
  *
  * @returns a reference to the property
  */
@@ -41,6 +42,7 @@ export function ManagedReference(
     id: number | undefined,
     assertWriteOk: (value: Val) => void,
     clone: (container: Val) => Val,
+    session: AccessControl.Session,
 ) {
     let expired = false;
     let location = {
@@ -51,10 +53,24 @@ export function ManagedReference(
     const key = primaryKey === "id" ? (id ?? name) : name;
     const altKey = primaryKey === "id" ? (key === name ? undefined : name) : id;
     let value: unknown;
-    if (key in (parent.value as Container)) {
-        value = (parent.value as Container)[key];
-    } else if (altKey !== undefined) {
-        value = (parent.value as Container)[altKey];
+
+    let properties: Val.Struct | undefined;
+    if ((parent.value as Val.Dynamic)[Val.properties]) {
+        properties = (parent.value as Val.Dynamic)[Val.properties](parent.rootOwner, session);
+        if (key in (properties as Container)) {
+            value = (properties as Container)[key];
+        } else if (altKey !== undefined && altKey in (properties as Container)) {
+            value = (properties as Container)[altKey];
+        } else {
+            properties = undefined;
+        }
+    }
+    if (properties === undefined) {
+        if (key in (parent.value as Container)) {
+            value = (parent.value as Container)[key];
+        } else if (altKey !== undefined) {
+            value = (parent.value as Container)[altKey];
+        }
     }
 
     const reference: Val.Reference = {
@@ -97,9 +113,16 @@ export function ManagedReference(
 
             // Now use change to complete the update
             this.change(() => {
-                (parent.value as Container)[key] = newValue;
-                if (altKey !== undefined && altKey in parent.value) {
-                    delete (parent.value as Container)[altKey];
+                if (properties) {
+                    (properties as Container)[key] = newValue;
+                    if (altKey !== undefined && altKey in properties) {
+                        delete (properties as Container)[altKey];
+                    }
+                } else {
+                    (parent.value as Container)[key] = newValue;
+                    if (altKey !== undefined && altKey in parent.value) {
+                        delete (parent.value as Container)[altKey];
+                    }
                 }
             });
         },
@@ -108,11 +131,21 @@ export function ManagedReference(
             if (!parent.original) {
                 return undefined;
             }
-            if (key in parent.original) {
-                return (parent.original as Container)[key];
-            }
-            if (altKey !== undefined) {
-                return (parent.original as Container)[altKey];
+            if (properties !== undefined) {
+                const origProperties = (parent.original as Val.Dynamic)[Val.properties](parent.rootOwner, session);
+                if (key in (origProperties as Container)) {
+                    return (origProperties as Container)[key];
+                }
+                if (altKey !== undefined) {
+                    return (origProperties as Container)[altKey];
+                }
+            } else {
+                if (key in parent.original) {
+                    return (parent.original as Container)[key];
+                }
+                if (altKey !== undefined) {
+                    return (parent.original as Container)[altKey];
+                }
             }
         },
 
@@ -125,9 +158,16 @@ export function ManagedReference(
                 // In transactions, clone the value if we haven't done so yet
                 if (clone && value === this.original) {
                     const newValue = clone(value);
-                    (parent.value as Container)[key] = newValue;
-                    if (altKey !== undefined && altKey in (parent.value as Container)) {
-                        delete (parent.value as Container)[altKey];
+                    if (properties !== undefined) {
+                        (properties as Container)[key] = newValue;
+                        if (altKey !== undefined && altKey in properties) {
+                            delete (properties as Container)[altKey];
+                        }
+                    } else {
+                        (parent.value as Container)[key] = newValue;
+                        if (altKey !== undefined && altKey in (parent.value as Container)) {
+                            delete (parent.value as Container)[altKey];
+                        }
                     }
                     replaceValue(newValue);
                 }
@@ -149,10 +189,18 @@ export function ManagedReference(
             }
 
             let value;
-            if (key in parent.value) {
-                value = (parent.value as Container)[key];
-            } else if (altKey !== undefined && altKey in parent.value) {
-                value = (parent.value as Container)[altKey];
+            if (properties !== undefined) {
+                if (key in properties) {
+                    value = (properties as Container)[key];
+                } else if (altKey !== undefined && altKey in properties) {
+                    value = (properties as Container)[altKey];
+                }
+            } else {
+                if (key in parent.value) {
+                    value = (parent.value as Container)[key];
+                } else if (altKey !== undefined && altKey in parent.value) {
+                    value = (parent.value as Container)[altKey];
+                }
             }
 
             replaceValue(value);

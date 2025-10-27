@@ -223,7 +223,7 @@ export class AtomicWriteHandler {
     ) {
         const state = this.#assertPendingWriteForAttributeAndPeer(context, endpoint, cluster, attribute);
         const attributeName = state.attributeNames.get(attribute)!;
-        logger.info(`Writing pending value for attribute ${attributeName}, ${attribute} in atomic write`);
+        logger.debug(`Writing pending value for attribute ${attributeName}, ${attribute} in atomic write`, value);
         // TODO currently we only handle this one changing, so checking other state within the event potentially use
         //  older values. We need to tweak the state for a complete solution. But ok for now!
         endpoint
