@@ -28,7 +28,7 @@ import { Subject } from "./Subject.js";
 const logger = Logger.get("AttributeWriteResponse");
 
 /**
- * Implements read of attribute data for Matter "read" and "subscribe" interactions.
+ * Implements write of attribute data for Matter "write" interactions.
  *
  * TODO - profile; ensure nested functions are properly JITed and/or inlined
  */
@@ -293,7 +293,7 @@ export class AttributeWriteResponse<
     }
 
     /**
-     * Read values from a specific {@link cluster} for a wildcard path.
+     * Write values for a specific {@link cluster} for a wildcard path.
      *
      * Depends on state initialized by {@link #writeEndpointForWildcard}.
      *
@@ -316,7 +316,7 @@ export class AttributeWriteResponse<
     }
 
     /**
-     * Read values from a specific {@link attribute} for a wildcard path.
+     * Write values to a specific {@link attribute} for a wildcard path.
      *
      * Depends on state initialized by {@link #writeClusterForWildcard}.
      */
@@ -331,7 +331,7 @@ export class AttributeWriteResponse<
 
         if (hasRemoteActor(this.session)) {
             if (
-                this.session.authorityAt(attribute.limits.readLevel, this.#guardedCurrentCluster.location) !==
+                this.session.authorityAt(attribute.limits.writeLevel, this.#guardedCurrentCluster.location) !==
                 AccessControl.Authority.Granted
             ) {
                 return;
