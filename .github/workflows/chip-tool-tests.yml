@@ -170,10 +170,10 @@ jobs:
               --target-glob "{TestSelfFabricRemoval}" \
               run \
               --iterations 1 \
-              --all-clusters-app ../support/chip-testing/dist/esm/AllClustersTestApp.js \
+              --all-clusters-app ../support/chip-testing/AllClustersTestApp.sh \
               --bridge-app ../support/chip-testing/dist/esm/BridgeTestApp.js \
               --tv-app ../support/chip-testing/dist/esm/TvTestApp.js \
-            '
+             || (cat ./test_allclusters.log && exit 1)'
           ./scripts/run_in_build_env.sh  \
             './scripts/tests/run_test_suite.py \
               --runner chip_tool_python \
