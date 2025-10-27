@@ -18,6 +18,7 @@ import {
     Lifecycle,
     Logger,
     MaybePromise,
+    Observable,
     toHex,
     UninitializedDependencyError,
 } from "#general";
@@ -174,11 +175,18 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
 
     /**
      * Current state for a specific behavior ID.
+     *
+     * Be aware that using a string type does not provide type checking and does not enforce the correctness of the used
+     * Behavior type including all enabled features. Because of this the returned state is typed as a plain string
+     * indexed record (Val.Struct). Please ensure to have proper checks in place when using this method with string type.
      */
     stateOf(type: string): Immutable<Val.Struct>;
 
     /**
      * Current state for a specific behavior.
+     *
+     * This is the recommended way to access state for a specific behavior because it provides proper type checking
+     * and enforces the correctness of the used Behavior type including all enabled features.
      */
     stateOf<T extends Behavior.Type>(type: T): Immutable<Behavior.StateOf<T>>;
 
@@ -256,10 +264,37 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      *
      * The patch semantics used here are identical to {@link set}.
      *
+     * This is the recommended way to set state for a single behavior because it provides proper type checking and
+     * enforces the correctness of the used Behavior type including all enabled features.
+     *
      * @param type the {@link Behavior} to patch
      * @param values the values to change
      */
-    async setStateOf<T extends Behavior.Type>(type: T, values: Behavior.PatchStateOf<T>) {
+    async setStateOf<T extends Behavior.Type>(type: T, values: Behavior.PatchStateOf<T>): Promise<void>;
+
+    /**
+     * Update state values for a single behavior ID.
+     *
+     * The patch semantics used here are identical to {@link set}.
+     *
+     * Be aware that using a string type does not provide type checking and does not enforce the correctness of the used
+     * Behavior type including all enabled features. Expect runtime errors if the provided values are not compatible
+     * with the actual Behavior type.
+     *
+     * @param type the {@link Behavior} to patch
+     * @param values the values to change
+     */
+    async setStateOf(type: string, values: Val.Struct): Promise<void>;
+
+    async setStateOf(type: Behavior.Type | string, values: Val.Struct) {
+        if (typeof type === "string") {
+            const foundType = this.behaviors.active.find(b => b.id === type);
+            if (foundType === undefined) {
+                throw new ImplementationError(`Behavior ${type} is not active on by this endpoint`);
+            }
+            type = foundType;
+        }
+
         await this.act(`setStateOf<${this}>`, async agent => {
             const behavior = agent.get(type);
 
@@ -313,13 +348,34 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     }
 
     /**
-     * Events for a specific behavior.
+     * Events for a specific behavior ID.
+     *
+     * Be aware that using a string type does not provide type checking and does not enforce the correctness of the used
+     * Behavior type including all enabled features. Because of this each event is typed as Observable | undefined.
+     * Please ensure to have proper checks in place when using this method with string type.
      */
-    eventsOf<T extends Behavior.Type>(type: T) {
-        if (!this.behaviors.has(type)) {
-            throw new ImplementationError(`Behavior ${type.id} is not supported by this endpoint`);
+    eventsOf(type: string): Immutable<Record<string, Observable | undefined>>;
+
+    /**
+     * Events for a specific behavior.
+     *
+     * This is the recommended way to access events for a specific behavior because it provides proper type checking
+     * and enforces the correctness of the used Behavior type including all enabled features.
+     */
+    eventsOf<T extends Behavior.Type>(type: T | string): Behavior.EventsOf<T>;
+
+    eventsOf(type: Behavior.Type | string): unknown {
+        if (typeof type === "string") {
+            if (!(type in this.#stateView)) {
+                throw new ImplementationError(`Behavior ${type} is not supported by ${this}`);
+            }
+        } else {
+            if (!this.behaviors.has(type)) {
+                throw new ImplementationError(`Behavior ${type.id} is not supported by this endpoint`);
+            }
+            type = type.id;
         }
-        return this.#events[type.id] as Behavior.EventsOf<T>;
+        return this.#events[type];
     }
 
     get construction() {
