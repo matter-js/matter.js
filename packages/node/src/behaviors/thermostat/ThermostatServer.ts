@@ -874,11 +874,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                 `max${scope} (${max}) must be less than or equal to absMax${scope} (${absMax})`,
             );
         }
-        if (absMax < min) {
-            throw new StatusResponse.ConstraintErrorError(
-                `absMax${scope} (${absMax}) must be greater than or equal to min${scope} (${min})`,
-            );
-        }
+
     }
 
     get heatSetpointMinimum() {
