@@ -29,7 +29,9 @@ const logger = Logger.get("AtomicWriteHandler");
  * The implementation tries to be generic, but is currently only used by the Thermostat cluster, so the atomic write
  * types are imported from there.
  *
- * The logic requires that the cluster behavior implements the following additional events:
+ * The logic requires that the cluster behavior implements the following additional events as "pure Observable()" events,
+ * because the current implementation logic requires error thrown by the event handlers to signal validation failures to
+ * be thrown back to te emitter. This is not the case for official state events.
  * * `${attributeName}$AtomicChanging` - emitted when an attribute is changed as part of an atomic write, before the value
  *   is actually changed. Receives the new value, the old value and the action context as parameters.
  * * `${attributeName}$AtomicChanged` - emitted when an attribute is changed as part of an atomic write, after the value

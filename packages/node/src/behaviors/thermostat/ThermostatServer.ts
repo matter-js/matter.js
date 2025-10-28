@@ -84,6 +84,9 @@ const schema = ThermostatBehaviorLogicBase.schema!.extend({
  * Important note: To access the current local temperature (including all calibrations applied) please use
  * this.internal.localTemperature because the localTemperature attribute in state might be null depending on the
  * configured features.
+ *
+ * TODO: Currently the general purpose "atomic write" Matter feature is only implemented in this specific cluster because
+ *  only used here so far. Also see information in AtomicWriteHandler.ts.
  */
 export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     declare protected internal: ThermostatBaseServer.Internal;
@@ -1508,12 +1511,16 @@ export namespace ThermostatBaseServer {
 
         /**
          * Custom event emitted when the Presets attribute is "virtually" changing as part of an atomic write operation.
+         * Info: The events is currently needed to be a pure Observable to get errors thrown in the event handler be
+         *  reported back to the emitter.
          */
         presets$AtomicChanging =
             Observable<[value: Thermostat.Preset[], oldValue: Thermostat.Preset[], context: ActionContext]>();
 
         /**
          * Custom event emitted when the Presets attribute has "virtually" changed as part of an atomic write operation.
+         * Info: The events is currently needed to be a pure Observable to get errors thrown in the event handler be
+         * reported back to the emitter.
          */
         presets$AtomicChanged =
             Observable<[value: Thermostat.Preset[], oldValue: Thermostat.Preset[], context: ActionContext]>();

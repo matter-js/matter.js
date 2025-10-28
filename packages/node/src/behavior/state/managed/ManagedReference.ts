@@ -54,18 +54,18 @@ export function ManagedReference(
     const altKey = primaryKey === "id" ? (key === name ? undefined : name) : id;
     let value: unknown;
 
-    let properties: Val.Struct | undefined;
+    let dynamicContainer: Val.Struct | undefined;
     if ((parent.value as Val.Dynamic)[Val.properties]) {
-        properties = (parent.value as Val.Dynamic)[Val.properties](parent.rootOwner, session);
-        if (key in (properties as Container)) {
-            value = (properties as Container)[key];
-        } else if (altKey !== undefined && altKey in (properties as Container)) {
-            value = (properties as Container)[altKey];
+        dynamicContainer = (parent.value as Val.Dynamic)[Val.properties](parent.rootOwner, session);
+        if (key in (dynamicContainer as Container)) {
+            value = (dynamicContainer as Container)[key];
+        } else if (altKey !== undefined && altKey in (dynamicContainer as Container)) {
+            value = (dynamicContainer as Container)[altKey];
         } else {
-            properties = undefined;
+            dynamicContainer = undefined;
         }
     }
-    if (properties === undefined) {
+    if (dynamicContainer === undefined) {
         if (key in (parent.value as Container)) {
             value = (parent.value as Container)[key];
         } else if (altKey !== undefined) {
@@ -113,10 +113,10 @@ export function ManagedReference(
 
             // Now use change to complete the update
             this.change(() => {
-                if (properties) {
-                    (properties as Container)[key] = newValue;
-                    if (altKey !== undefined && altKey in properties) {
-                        delete (properties as Container)[altKey];
+                if (dynamicContainer) {
+                    (dynamicContainer as Container)[key] = newValue;
+                    if (altKey !== undefined && altKey in dynamicContainer) {
+                        delete (dynamicContainer as Container)[altKey];
                     }
                 } else {
                     (parent.value as Container)[key] = newValue;
@@ -131,7 +131,7 @@ export function ManagedReference(
             if (!parent.original) {
                 return undefined;
             }
-            if (properties !== undefined) {
+            if (dynamicContainer !== undefined) {
                 const origProperties = (parent.original as Val.Dynamic)[Val.properties](parent.rootOwner, session);
                 if (key in (origProperties as Container)) {
                     return (origProperties as Container)[key];
@@ -158,10 +158,10 @@ export function ManagedReference(
                 // In transactions, clone the value if we haven't done so yet
                 if (clone && value === this.original) {
                     const newValue = clone(value);
-                    if (properties !== undefined) {
-                        (properties as Container)[key] = newValue;
-                        if (altKey !== undefined && altKey in properties) {
-                            delete (properties as Container)[altKey];
+                    if (dynamicContainer !== undefined) {
+                        (dynamicContainer as Container)[key] = newValue;
+                        if (altKey !== undefined && altKey in dynamicContainer) {
+                            delete (dynamicContainer as Container)[altKey];
                         }
                     } else {
                         (parent.value as Container)[key] = newValue;
@@ -189,11 +189,11 @@ export function ManagedReference(
             }
 
             let value;
-            if (properties !== undefined) {
-                if (key in properties) {
-                    value = (properties as Container)[key];
-                } else if (altKey !== undefined && altKey in properties) {
-                    value = (properties as Container)[altKey];
+            if (dynamicContainer !== undefined) {
+                if (key in dynamicContainer) {
+                    value = (dynamicContainer as Container)[key];
+                } else if (altKey !== undefined && altKey in dynamicContainer) {
+                    value = (dynamicContainer as Container)[altKey];
                 }
             } else {
                 if (key in parent.value) {

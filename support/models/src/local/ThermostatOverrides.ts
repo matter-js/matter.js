@@ -28,6 +28,8 @@ LocalMatter.children.push({
             default: FieldValue.None,
         },
 
+        // TODO This is temporary and should be in a new "Global Commands" section later because in fact it is generically
+        //  defined in the Matter Spec. Right now this is only used by Thermostat so we place it here for now.
         {
             tag: "command",
             name: "AtomicRequest",

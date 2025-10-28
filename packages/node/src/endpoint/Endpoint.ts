@@ -288,11 +288,11 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
 
     async setStateOf(type: Behavior.Type | string, values: Val.Struct) {
         if (typeof type === "string") {
-            const foundType = this.behaviors.active.find(b => b.id === type);
-            if (foundType === undefined) {
-                throw new ImplementationError(`Behavior ${type} is not active on by this endpoint`);
+            const typeName = type;
+            type = this.behaviors.supported[type];
+            if (type === undefined) {
+                throw new ImplementationError(`Behavior ${typeName} is not supported by ${this}`);
             }
-            type = foundType;
         }
 
         await this.act(`setStateOf<${this}>`, async agent => {
