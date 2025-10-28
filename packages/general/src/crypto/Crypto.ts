@@ -12,6 +12,7 @@ import { MaybePromise } from "#util/Promises.js";
 import * as mod from "@noble/curves/abstract/modular.js";
 import { p256 } from "@noble/curves/nist.js";
 import * as utils from "@noble/curves/utils.js";
+import { Entropy } from "../util/Entropy.js";
 import type { PrivateKey, PublicKey } from "./Key.js";
 
 export const ec = {
@@ -41,7 +42,7 @@ const logger = Logger.get("Crypto");
  *
  * WARNING: The standard implementation is unaudited.  See relevant warnings in StandardCrypto.ts.
  */
-export abstract class Crypto {
+export abstract class Crypto extends Entropy {
     /**
      * The name used in log messages.
      */
@@ -56,11 +57,6 @@ export abstract class Crypto {
      * Decrypt using AES-CCM with constants limited to those required by Matter.
      */
     abstract decrypt(key: Bytes, data: Bytes, nonce: Bytes, aad?: Bytes): Bytes;
-
-    /**
-     * Create a random buffer from the most cryptographically-appropriate source available.
-     */
-    abstract randomBytes(length: number): Bytes;
 
     /**
      * Compute the SHA-256 hash of a buffer.
@@ -112,33 +108,6 @@ export abstract class Crypto {
      * Compute the shared secret for a Diffie-Hellman exchange.
      */
     abstract generateDhSecret(key: PrivateKey, peerKey: PublicKey): MaybePromise<Bytes>;
-
-    get randomUint8() {
-        return Bytes.of(this.randomBytes(1))[0];
-    }
-
-    get randomUint16() {
-        return Bytes.dataViewOf(this.randomBytes(2)).getUint16(0);
-    }
-
-    get randomUint32() {
-        return Bytes.dataViewOf(this.randomBytes(4)).getUint32(0);
-    }
-
-    get randomBigUint64() {
-        return Bytes.dataViewOf(this.randomBytes(8)).getBigUint64(0);
-    }
-
-    randomBigInt(size: number, maxValue?: bigint) {
-        if (maxValue === undefined) {
-            return Bytes.asBigInt(this.randomBytes(size));
-        }
-
-        while (true) {
-            const random = Bytes.asBigInt(this.randomBytes(size));
-            if (random < maxValue) return random;
-        }
-    }
 
     reportUsage(component?: string) {
         const message = ["Using", Diagnostic.strong(this.implementationName), "crypto implementation"];

@@ -7,6 +7,7 @@
 import { OnOffLightDevice } from "#devices/on-off-light";
 import {
     Crypto,
+    Entropy,
     Environment,
     Logger,
     MatterAggregateError,
@@ -56,7 +57,9 @@ export class MockSite {
         const id = (config.id ??= `node${index.toString(16).padStart(2, "0")}`);
         const env = (config.environment ??= new Environment(id));
         if (!env.has(Crypto)) {
-            env.set(Crypto, MockCrypto(index));
+            const crypto = MockCrypto(index);
+            env.set(Entropy, crypto);
+            env.set(Crypto, crypto);
         }
         if (!env.has(Network)) {
             env.set(Network, (config.simulator ?? this.#simulator).addHost(index));

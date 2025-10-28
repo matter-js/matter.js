@@ -17,6 +17,7 @@ export * from "./DataWriter.js";
 export * from "./Decorator.js";
 export * from "./DeepCopy.js";
 export * from "./DeepEqual.js";
+export * from "./Entropy.js";
 export * from "./Error.js";
 export * from "./FormattedText.js";
 export * from "./GeneratedClass.js";

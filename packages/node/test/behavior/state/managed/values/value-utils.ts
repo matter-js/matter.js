@@ -83,7 +83,7 @@ export function TestStruct(fields: Record<string, string | Partial<FieldElement>
     }
 
     const datasource = Datasource({
-        crypto: MockCrypto(),
+        entropy: MockCrypto(),
         location: {
             endpoint: EndpointNumber(1),
             cluster: ClusterId(1),

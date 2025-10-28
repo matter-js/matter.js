@@ -51,7 +51,7 @@ function createDatasource<const T extends StateType = typeof MyState>(
     options: Partial<Datasource.Options<T>> = {},
 ): Datasource<T> {
     return Datasource({
-        crypto: MockCrypto(),
+        entropy: MockCrypto(),
         location: {
             endpoint: EndpointNumber(1),
             path: DataModelPath("TestDatasource"),

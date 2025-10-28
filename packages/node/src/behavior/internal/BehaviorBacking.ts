@@ -13,7 +13,7 @@ import type { SupportedElements } from "#endpoint/properties/Behaviors.js";
 import {
     camelize,
     Construction,
-    Crypto,
+    Entropy,
     EventEmitter,
     ImplementationError,
     InternalError,
@@ -212,7 +212,7 @@ export abstract class BehaviorBacking {
 
     protected get datasourceOptions(): Datasource.Options {
         return {
-            crypto: this.#endpoint.env.get(Crypto),
+            entropy: this.#endpoint.env.get(Entropy),
             location: {
                 path: this.#endpoint.path.at(this.#type.id).at("state"),
                 endpoint: this.#endpoint.number,

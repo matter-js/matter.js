@@ -9,6 +9,7 @@ import {
     Crypto,
     CRYPTO_HASH_LEN_BYTES,
     CRYPTO_SYMMETRIC_KEY_LENGTH,
+    Entropy,
     Environment,
     Key,
     NodeJsCryptoApiLike,
@@ -122,4 +123,8 @@ export class ReactNativeCrypto extends StandardCrypto {
     override signHmac = nodeJsCrypto.signHmac.bind(nodeJsCrypto);
 }
 
-Environment.default.set(Crypto, new ReactNativeCrypto(crypto as unknown as WebCrypto));
+{
+    const rnCrypto = new ReactNativeCrypto(crypto as unknown as WebCrypto);
+    Environment.default.set(Entropy, rnCrypto);
+    Environment.default.set(Crypto, rnCrypto);
+}

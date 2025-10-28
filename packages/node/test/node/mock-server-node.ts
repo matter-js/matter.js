@@ -12,6 +12,7 @@ import {
     AsyncObservable,
     Crypto,
     DataReadQueue,
+    Entropy,
     Environment,
     MaybePromise,
     MockCrypto,
@@ -51,7 +52,9 @@ export class MockServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootE
         }
 
         // Stabilize random numbers
-        environment.set(Crypto, MockCrypto(options?.index));
+        const crypto = MockCrypto(options?.index);
+        environment.set(Entropy, crypto);
+        environment.set(Crypto, crypto);
 
         const storage = environment.get(StorageService);
         if (storage.location !== "(memory-for-test)") {

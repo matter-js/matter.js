@@ -10,6 +10,7 @@ import {
     asError,
     Boot,
     Crypto,
+    Entropy,
     Environment,
     HttpEndpointFactory,
     ImplementationError,
@@ -139,9 +140,16 @@ function rootDirOf(env: Environment) {
 function configureCrypto(env: Environment) {
     Boot.init(() => {
         if (config.installCrypto || (env.vars.boolean("nodejs.crypto") ?? true)) {
-            env.set(Crypto, new NodeJsCrypto());
-        } else if (Environment.default.has(Crypto)) {
-            env.set(Crypto, Environment.default.get(Crypto));
+            const crypto = new NodeJsCrypto();
+            env.set(Entropy, crypto);
+            env.set(Crypto, crypto);
+        } else {
+            if (Environment.default.has(Entropy)) {
+                env.set(Entropy, Environment.default.get(Entropy));
+            }
+            if (Environment.default.has(Crypto)) {
+                env.set(Crypto, Environment.default.get(Crypto));
+            }
         }
     });
 }

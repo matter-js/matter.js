@@ -79,7 +79,7 @@ async function testDuality(life: boolean, actor: (struct: { alive?: boolean }) =
     const supervisor = RootSupervisor.for(schema);
 
     const datasource = Datasource({
-        crypto: MockCrypto(),
+        entropy: MockCrypto(),
         type: SchrödingersCatsState,
         supervisor,
         location: { endpoint: EndpointNumber(1), path: DataModelPath(0) },

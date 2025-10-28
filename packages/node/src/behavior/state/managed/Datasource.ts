@@ -6,8 +6,8 @@
 
 import {
     camelize,
-    Crypto,
     deepCopy,
+    Entropy,
     ImplementationError,
     InternalError,
     isDeepEqual,
@@ -153,9 +153,9 @@ export namespace Datasource {
         location: AccessControl.Location;
 
         /**
-         * Used for random data.
+         * Used to generate initial version numbers.
          */
-        crypto: Crypto;
+        entropy: Entropy;
 
         /**
          * Events triggered automatically.
@@ -327,7 +327,7 @@ function configure(options: Datasource.Options): Internals {
         ...options,
         primaryKey: options.primaryKey === "id" ? "id" : "name",
         events,
-        version: options.crypto.randomUint32,
+        version: options.entropy.randomUint32,
         values,
         featuresKey,
         manageVersion: true,

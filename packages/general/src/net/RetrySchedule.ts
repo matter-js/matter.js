@@ -4,19 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Crypto } from "#crypto/Crypto.js";
 import { Duration } from "#time/Duration.js";
 import { Instant, Millis, Seconds } from "#time/TimeUnit.js";
+import { Entropy } from "#util/Entropy.js";
 
 /**
  * An iterable of retry values based on a scheduling configuration.
  */
 export class RetrySchedule {
-    #crypto: Crypto;
+    #entropy: Entropy;
     readonly config: RetrySchedule.Configuration;
 
-    constructor(crypto: Crypto, config: RetrySchedule.Configuration) {
-        this.#crypto = crypto;
+    constructor(entropy: Entropy, config: RetrySchedule.Configuration) {
+        this.#entropy = entropy;
         this.config = config;
     }
 
@@ -42,7 +42,7 @@ export class RetrySchedule {
         while ((timeout === undefined || timeSoFar < timeout) && (maximumCount === undefined || maximumCount > count)) {
             count++;
             const maxJitter = jitterFactor * baseInterval;
-            const jitter = Millis.floor(Millis((maxJitter * this.#crypto.randomUint32) / Math.pow(2, 32)));
+            const jitter = Millis.floor(Millis((maxJitter * this.#entropy.randomUint32) / Math.pow(2, 32)));
             let interval = Millis(baseInterval + jitter);
 
             if (timeout !== undefined && timeSoFar + interval > timeout) {

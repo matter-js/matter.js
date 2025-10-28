@@ -10,8 +10,8 @@ import {
     Channel,
     ConnectionlessTransport,
     ConnectionlessTransportSet,
-    Crypto,
     Diagnostic,
+    Entropy,
     Environment,
     Environmental,
     ImplementationError,
@@ -48,7 +48,7 @@ const MAXIMUM_CONCURRENT_EXCHANGES_PER_SESSION = 5;
  * Interfaces {@link ExchangeManager} with other components.
  */
 export interface ExchangeManagerContext {
-    crypto: Crypto;
+    entropy: Entropy;
     netInterface: ConnectionlessTransportSet;
     sessionManager: SessionManager;
     channelManager: ChannelManager;
@@ -70,7 +70,7 @@ export class ExchangeManager {
         this.#transports = context.netInterface;
         this.#sessionManager = context.sessionManager;
         this.#channelManager = context.channelManager;
-        this.#exchangeCounter = new ExchangeCounter(context.crypto);
+        this.#exchangeCounter = new ExchangeCounter(context.entropy);
 
         for (const netInterface of this.#transports) {
             this.#addListener(netInterface);
@@ -89,7 +89,7 @@ export class ExchangeManager {
 
     static [Environmental.create](env: Environment) {
         const instance = new ExchangeManager({
-            crypto: env.get(Crypto),
+            entropy: env.get(Entropy),
             netInterface: env.get(ConnectionlessTransportSet),
             sessionManager: env.get(SessionManager),
             channelManager: env.get(ChannelManager),
@@ -480,8 +480,8 @@ export class ExchangeManager {
 export class ExchangeCounter {
     #exchangeCounter: number;
 
-    constructor(crypto: Crypto) {
-        this.#exchangeCounter = crypto.randomUint16;
+    constructor(entropy: Entropy) {
+        this.#exchangeCounter = entropy.randomUint16;
     }
 
     getIncrementedCounter() {
