@@ -82,7 +82,9 @@ export class MockSite {
 
         await node.start();
 
-        node.lifecycle.destroyed.then(() => this.#nodes.delete(node));
+        node.lifecycle.destroyed.once(() => {
+            this.#nodes.delete(node);
+        });
 
         return node;
     }

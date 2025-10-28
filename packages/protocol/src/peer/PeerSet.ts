@@ -197,6 +197,10 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
         return this.#peers.deleted;
     }
 
+    get empty() {
+        return this.#peers.empty;
+    }
+
     get disconnected() {
         return this.#disconnected;
     }

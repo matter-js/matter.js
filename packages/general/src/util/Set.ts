@@ -5,7 +5,7 @@
  */
 
 import { ImplementationError } from "#MatterError.js";
-import { Observable } from "./Observable.js";
+import { Observable, ObservableValue } from "./Observable.js";
 
 /**
  * A read-only set.
@@ -34,6 +34,7 @@ export interface MutableSet<T, AddT = T> {
 export interface ObservableSet<T> {
     get added(): Observable<[T]>;
     get deleted(): Observable<[T]>;
+    get empty(): ObservableValue;
 }
 
 /**
@@ -63,6 +64,7 @@ export class BasicSet<T, AddT = T> implements ImmutableSet<T>, MutableSet<T, Add
     #entries = new Set<T>();
     #added?: Observable<[T]>;
     #deleted?: Observable<[T]>;
+    #empty?: ObservableValue;
     #indices?: {
         [field in keyof T]?: Map<T[field], T>;
     };
@@ -211,6 +213,10 @@ export class BasicSet<T, AddT = T> implements ImmutableSet<T>, MutableSet<T, Add
 
         this.#deleted?.emit(item);
 
+        if (this.#empty && !this.size) {
+            this.#empty.emit(true);
+        }
+
         return true;
     }
 
@@ -232,6 +238,13 @@ export class BasicSet<T, AddT = T> implements ImmutableSet<T>, MutableSet<T, Add
             this.#deleted = Observable();
         }
         return this.#deleted;
+    }
+
+    get empty() {
+        if (this.#empty === undefined) {
+            this.#empty = ObservableValue();
+        }
+        return this.#empty;
     }
 
     protected create(definition: AddT) {

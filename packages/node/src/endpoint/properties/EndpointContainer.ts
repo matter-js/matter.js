@@ -72,6 +72,10 @@ export class EndpointContainer<T extends Endpoint = Endpoint>
         return this.#children.deleted;
     }
 
+    get empty() {
+        return this.#children.empty;
+    }
+
     get size() {
         return this.#children.size;
     }
