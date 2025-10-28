@@ -7,6 +7,7 @@
 import { TimeoutError } from "#MatterError.js";
 import { Duration } from "#time/Duration.js";
 import { Time, Timer } from "#time/Time.js";
+import { SafePromise } from "./Promises.js";
 
 /**
  * Utilities for implementing abort logic.
@@ -61,14 +62,14 @@ export namespace Abort {
                 off = () => (signal as AbortSignal).removeEventListener("abort", onabort);
             });
 
-            return Promise.race([aborted, ...promises]).finally(off!);
+            return SafePromise.race([aborted, ...promises]).finally(off!);
         }
 
         if (promises.length === 1) {
             return Promise.resolve(promises[0]);
         }
 
-        return Promise.race(promises);
+        return SafePromise.race(promises);
     }
 
     /**

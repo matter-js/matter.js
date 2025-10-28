@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError, Logger } from "@matter/main";
+import { InternalError, Logger, SafePromise } from "@matter/main";
 import { afterRun } from "@matter/testing";
 import { ChildProcess, fork } from "node:child_process";
 import { join } from "node:path";
@@ -55,7 +55,7 @@ export class ParentProcess {
     protected send<T extends Message.Acknowledged>(message: Omit<T, "exchangeNo">) {
         const exchangeNo = ++this.#nextExchangeNo;
 
-        return Promise.race([
+        return SafePromise.race([
             new Promise<void>((resolve, reject) => {
                 this.#child.process.send({ ...message, exchangeNo }, error => {
                     if (error) {

@@ -13,6 +13,7 @@ import {
     LogFormat,
     MaybePromise,
     Observable,
+    SafePromise,
 } from "#general";
 import { bin, globals as defaultGlobals } from "#globals.js";
 import { Location, undefinedValue } from "#location.js";
@@ -423,7 +424,7 @@ export async function Domain(context: DomainContext): Promise<Domain> {
                     };
                 });
 
-                const returnValue = await Promise.race([discarded, result]);
+                const returnValue = await SafePromise.race([discarded, result]);
 
                 if (isDiscarded) {
                     result.then(

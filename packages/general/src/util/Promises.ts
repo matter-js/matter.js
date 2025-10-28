@@ -400,3 +400,112 @@ export class Gate<T = void> implements Promise<T> {
 }
 
 MaybePromise.toString = () => "MaybePromise";
+
+/**
+ * Replacements for standard promise functionality that avoid spec pitfalls.
+ */
+export namespace SafePromise {
+    /**
+     * A version of {@link Promise.race} that won't leak memory with long-lived promises.
+     *
+     * See:
+     *
+     *     https://github.com/nodejs/node/issues/17469#issuecomment-685216777
+     *
+     * ...although this isn't an issue specific to Node.
+     */
+    export function race<T>(values: Iterable<T>): Promise<Awaited<T>> {
+        let listener!: SettlementListener;
+        let registered: undefined | Set<SettlementListener>[];
+
+        let race = new Promise<Awaited<T>>((resolve, reject) => {
+            listener = { resolve, reject };
+
+            for (const value of values) {
+                // If this is not a promise we can safely use Promise#resolve
+                if (!MaybePromise.is<any>(value)) {
+                    Promise.resolve(value).then(resolve, reject);
+                    continue;
+                }
+
+                // We only use Promise#then once per promise and dispatch to a set of listeners from there
+                const settlement = settlementOf(value);
+                if (settlement.isSettled) {
+                    value.then(resolve, reject);
+                    continue;
+                }
+
+                // Register our listener
+                settlement.listeners.add(listener);
+
+                // Save the listener set so we can unregister our listener
+                if (registered) {
+                    registered.push(settlement.listeners);
+                } else {
+                    registered = [settlement.listeners];
+                }
+            }
+        });
+
+        // If there were any unsettled promises, unregister our listener when settled
+        if (registered) {
+            race = race.finally(() => {
+                for (const listeners of registered!) {
+                    listeners.delete(listener);
+                }
+            });
+        }
+
+        return race;
+    }
+
+    interface SettlementListener {
+        resolve?: (result: any) => any;
+        reject?: (cause: any) => any;
+    }
+
+    interface Settlement {
+        isSettled: boolean;
+        listeners: Set<SettlementListener>;
+    }
+
+    const settlements = new WeakMap<PromiseLike<any>, Settlement>();
+
+    /**
+     * Component of {@link race}.
+     *
+     * Creates a {@link Settlement} that dispatches settlement to {@link SettlementListener}s for each raced promise.
+     */
+    function settlementOf(promise: PromiseLike<any>) {
+        const existing = settlements.get(promise);
+        if (existing) {
+            return existing;
+        }
+
+        const settlement: Settlement = { isSettled: false, listeners: new Set() };
+        settlements.set(promise, settlement);
+
+        promise.then(
+            value => {
+                settlement.isSettled = true;
+
+                for (const listener of settlement.listeners) {
+                    listener.resolve?.(value);
+                }
+
+                settlement.listeners.clear();
+            },
+            cause => {
+                settlement.isSettled = true;
+
+                for (const listener of settlement.listeners) {
+                    listener.reject?.(cause);
+                }
+
+                settlement.listeners.clear();
+            },
+        );
+
+        return settlement;
+    }
+}
