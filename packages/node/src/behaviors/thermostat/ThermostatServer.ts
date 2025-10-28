@@ -14,8 +14,8 @@ import { Endpoint } from "#endpoint/Endpoint.js";
 import {
     Bytes,
     cropValueRange,
-    Crypto,
     deepCopy,
+    Entropy,
     ImplementationError,
     InternalError,
     Logger,
@@ -36,7 +36,6 @@ const ThermostatBehaviorLogicBase = ThermostatBehavior.with(
     Thermostat.Feature.Occupancy,
     Thermostat.Feature.AutoMode,
     Thermostat.Feature.Presets,
-    Thermostat.Feature.Setback,
 );
 
 // Enhance Schema to define conformance for some of the additional state attributes
@@ -60,6 +59,7 @@ const schema = ThermostatBehaviorLogicBase.schema!.extend({
  * We implement all features beside the following:
  * * MatterScheduleConfiguration: This feature is provisional.
  * * ScheduleConfiguration: This feature is deprecated and not allowed to be enabled.
+ * * Setback: This feature is considered deprecated.
  * * The use of the "setpointHoldExpiryTimestamp" attribute is currently not supported.
  *
  * This implementation mainly provides all validation and base logic required by the Matter specification.
@@ -98,6 +98,9 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         if (this.features.scheduleConfiguration) {
             throw new ImplementationError("ScheduleConfiguration features is deprecated and not allowed to be enabled");
         }
+        if (this.features.setback) {
+            throw new ImplementationError("Setback feature is deprecated and not allowed to be enabled");
+        }
         if (this.features.matterScheduleConfiguration) {
             logger.warn("MatterScheduleConfiguration feature is not yet implemented. Please do not activate it");
         }
@@ -126,7 +129,6 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         this.#setupOccupancyIntegration();
         this.#setupModeHandling();
         this.#setupThermostatLogic();
-        this.#setupSetback();
         this.#setupPresets();
 
         // We store these values internally because we need to restore them after any write try
@@ -349,54 +351,6 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         }
     }*/
 
-    #setupSetback() {
-        if (!this.features.setback) {
-            return;
-        }
-
-        if (this.state.useAutomaticModeManagement && this.state.thermostatRunningMode !== undefined) {
-            this.reactTo(this.events.calibratedTemperature$Changed, this.#handleTemperatureChangeForSetback);
-            this.#handleTemperatureChangeForSetback(this.internal.localTemperature); // And initialize once
-        }
-        this.reactTo(this.events.occupiedSetback$Changing, this.#handleOccupiedSetbackChanging);
-        if (this.features.occupancy) {
-            this.reactTo(this.events.unoccupiedSetback$Changing, this.#handleUnoccupiedSetbackChanging);
-        }
-    }
-
-    #handleOccupiedSetbackChanging(value: number | null) {
-        this.state.occupiedSetback = this.#cropSetbackChange(value, "occupied");
-    }
-
-    #handleUnoccupiedSetbackChanging(value: number | null) {
-        this.state.unoccupiedSetback = this.#cropSetbackChange(value, "unoccupied");
-    }
-
-    /**
-     * Handle temperature changes to adjust the system mode when the Setback feature is supported.
-     * This is a very basic implementation which only switches back to Cool and Heat modes based on need when in
-     * non-Auto mode.
-     * This logic is disabled by default and will be enabled by setting useAutomaticModeManagement to true.
-     */
-    #handleTemperatureChangeForSetback(newValue: number | null): void {
-        if (this.state.systemMode === Thermostat.SystemMode.Auto) {
-            // Setback only makes sense when in a fixed mode
-            return;
-        }
-        const setBackValue = this.occupied ? this.state.occupiedSetback : this.state.unoccupiedSetback;
-        if (newValue === null || setBackValue === null || setBackValue === 0) {
-            return;
-        }
-        const coolingSetPoint = this.coolingSetpoint;
-        const heatingSetPoint = this.heatingSetpoint;
-
-        if (newValue > coolingSetPoint + setBackValue && this.coolingAllowed) {
-            this.adjustRunningMode(Thermostat.ThermostatRunningMode.Cool);
-        } else if (newValue < heatingSetPoint - setBackValue && this.heatingAllowed) {
-            this.adjustRunningMode(Thermostat.ThermostatRunningMode.Heat);
-        }
-    }
-
     /** Whether heating is allowed in the current ControlSequenceOfOperation and features */
     protected get heatingAllowed() {
         return (
@@ -439,18 +393,6 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                 break;
         }
         this.state.thermostatRunningMode = newState;
-    }
-
-    /** Crop the setback change to the allowed min/max range */
-    #cropSetbackChange(newValue: number | null, state: "occupied" | "unoccupied") {
-        if (newValue === null) {
-            return null;
-        }
-        return cropValueRange(
-            newValue,
-            this.state[`${state}SetbackMin`] ?? -1270,
-            this.state[`${state}SetbackMax`] ?? 1270,
-        );
     }
 
     /**
@@ -1296,13 +1238,13 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             );
         }
 
-        const crypto = this.endpoint.env.get(Crypto);
+        const entropy = this.endpoint.env.get(Entropy);
         let changed = false;
         const newPresetHandles = new Set<string>();
         for (const preset of newPresets) {
             if (preset.presetHandle === null) {
                 logger.error("Preset is missing presetHandle, generating a new one");
-                preset.presetHandle = crypto.randomBytes(16);
+                preset.presetHandle = entropy.randomBytes(16);
                 changed = true;
             }
             newPresetHandles.add(Bytes.toHex(preset.presetHandle));

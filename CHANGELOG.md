@@ -19,7 +19,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Upgraded to Matter specification version 1.4.2
 
 - @matter/general
-    - Breaking: Our time API is upgraded, most notably with proper typing for time intervals. This makes time handling more consistent and safer but it does change how you convey intervals to matter.js. For example: `delay: Seconds(1)` rather than `delayMs: 1000`.
+    - Breaking: Our time API is upgraded, most notably with proper typing for time intervals. This makes time handling more consistent and safer, but it does change how you convey intervals to matter.js. For example: `delay: Seconds(1)` rather than `delayMs: 1000`.
     - Breaking: There are other small time changes such as converting `nowMs()` (a function) to `nowMs` (a property).
     - Breaking: SyncStorage interface got removed
     - Breaking: MaybeAsyncStorage got renamed to Storage because it is the only interface from now on
@@ -28,6 +28,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Allows SHA 256 generation using async iterator or readable stream reader as input
     - Enhancement: Added platform abstractions for of HTTP, WebSockets and MQTT
     - Enhancement: Added polyfills and additional types for decorators
+    - Enhancement: Split out access to random values from Crypto interface to an Entropy interface
     - Fix: Ensures that StandaloneAck messages are always considering the corresponding Secure channel protocol ID
 
 - @matter/model
