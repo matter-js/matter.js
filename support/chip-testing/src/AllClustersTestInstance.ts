@@ -489,7 +489,6 @@ export class AllClustersTestInstance extends NodeTestInstance {
                     Thermostat.Feature.Cooling,
                     Thermostat.Feature.AutoMode,
                     Thermostat.Feature.Occupancy,
-                    //Thermostat.Feature.Setback,
                     Thermostat.Feature.Presets,
                 ),
                 ThermostatUserInterfaceConfigurationServer,
@@ -945,12 +944,6 @@ export class AllClustersTestInstance extends NodeTestInstance {
                     temperatureSetpointHoldDuration: 40,
                     thermostatProgrammingOperationMode: { economy: true },
                     thermostatRunningState: {},
-                    //occupiedSetback: 10,
-                    //occupiedSetbackMin: null,
-                    //occupiedSetbackMax: null,
-                    //unoccupiedSetback: 10,
-                    //unoccupiedSetbackMin: null,
-                    //unoccupiedSetbackMax: null,
                     emergencyHeatDelta: 20,
                     presetTypes: [
                         {
