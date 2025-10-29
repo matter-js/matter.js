@@ -92,6 +92,7 @@ export interface AttributeStatus {
 export class InteractionClientProvider {
     readonly #peers: PeerSet;
     readonly #clients = new PeerAddressMap<InteractionClient>();
+    readonly #subscriptionClient = new SubscriptionClient();
 
     constructor(peers: PeerSet) {
         this.#peers = peers;
@@ -107,6 +108,10 @@ export class InteractionClientProvider {
 
     get peers() {
         return this.#peers;
+    }
+
+    get subscriptionClient() {
+        return this.#subscriptionClient;
     }
 
     async connect(
@@ -126,7 +131,7 @@ export class InteractionClientProvider {
 
         return new InteractionClient(
             exchangeProvider,
-            this.#peers.subscriptionClient,
+            this.#subscriptionClient,
             undefined,
             this.#peers.interactionQueue,
         );
@@ -146,7 +151,7 @@ export class InteractionClientProvider {
 
         client = new InteractionClient(
             exchangeProvider,
-            this.#peers.subscriptionClient,
+            this.#subscriptionClient,
             address,
             this.#peers.interactionQueue,
             nodeStore,
@@ -169,14 +174,21 @@ export class InteractionClient {
     readonly #exchangeProvider: ExchangeProvider;
     readonly #nodeStore?: PeerDataStore;
     readonly #ownSubscriptionIds = new Set<number>();
-    readonly #subscriptionClient: SubscriptionClient;
     readonly #queue?: PromiseQueue;
     readonly #address?: PeerAddress;
     readonly isGroupAddress: boolean;
 
+    // TODO - SubscriptionClient is used by CommissioningController but not ClientNode.  However InteractionClient *is*
+    // used by ClientNode to perform commissioning, during which time SubscriptionClient is unnecessary. So this should
+    // be set after commissioning
+    //
+    // If we remove CommissioningController then this entire class goes away; if we first move commissioning to
+    // ClientInteraction then this should become required
+    readonly #subscriptionClient?: SubscriptionClient;
+
     constructor(
         exchangeProvider: ExchangeProvider,
-        subscriptionClient: SubscriptionClient,
+        subscriptionClient?: SubscriptionClient,
         address?: PeerAddress,
         queue?: PromiseQueue,
         nodeStore?: PeerDataStore,
@@ -214,7 +226,7 @@ export class InteractionClient {
 
     removeSubscription(subscriptionId: number) {
         this.#ownSubscriptionIds.delete(subscriptionId);
-        this.#subscriptionClient.delete(subscriptionId);
+        this.#subscriptionClient?.delete(subscriptionId);
     }
 
     async getAllAttributes(
@@ -892,7 +904,7 @@ export class InteractionClient {
 
     async #registerSubscription(subscription: RegisteredSubscription, initialReport: DecodedDataReport) {
         this.#ownSubscriptionIds.add(subscription.id);
-        this.#subscriptionClient.add(subscription);
+        this.#subscriptionClient?.add(subscription);
         await subscription.onData(initialReport);
     }
 

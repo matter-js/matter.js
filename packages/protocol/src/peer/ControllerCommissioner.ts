@@ -467,7 +467,7 @@ export class ControllerCommissioner {
             // Use the created secure session to do the commissioning
             new InteractionClient(
                 new DedicatedChannelExchangeProvider(this.#context.exchanges, paseSecureMessageChannel),
-                this.#context.clients.peers.subscriptionClient,
+                undefined,
                 address,
             ),
             this.#context.ca,

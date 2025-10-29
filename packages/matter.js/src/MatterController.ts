@@ -57,7 +57,6 @@ import {
     RetransmissionLimitReachedError,
     ScannerSet,
     SessionManager,
-    SubscriptionClient,
 } from "#protocol";
 import {
     CaseAuthenticatedTag,
@@ -549,7 +548,8 @@ export class MatterController {
     async start() {
         this.#construction.assert();
         await this.#node!.start();
-        this.#node!.env.get(InteractionServer).clientHandler = this.#node!.env.get(SubscriptionClient);
+        this.#node!.env.get(InteractionServer).clientHandler =
+            this.#node!.env.get(InteractionClientProvider).subscriptionClient;
     }
 
     async close() {

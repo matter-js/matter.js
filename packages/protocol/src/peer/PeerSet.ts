@@ -32,7 +32,6 @@ import {
     Time,
     Timer,
 } from "#general";
-import { SubscriptionClient } from "#interaction/SubscriptionClient.js";
 import { MdnsClient } from "#mdns/MdnsClient.js";
 import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
 import { ChannelManager } from "#protocol/ChannelManager.js";
@@ -107,7 +106,6 @@ export interface PeerSetContext {
     sessions: SessionManager;
     channels: ChannelManager;
     exchanges: ExchangeManager;
-    subscriptionClient: SubscriptionClient;
     scanners: ScannerSet;
     transports: ConnectionlessTransportSet;
     store: PeerAddressStore;
@@ -120,7 +118,6 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
     readonly #sessions: SessionManager;
     readonly #channels: ChannelManager;
     readonly #exchanges: ExchangeManager;
-    readonly #subscriptionClient: SubscriptionClient;
     readonly #scanners: ScannerSet;
     readonly #transports: ConnectionlessTransportSet;
     readonly #caseClient: CaseClient;
@@ -138,20 +135,11 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
     readonly #disconnected = AsyncObservable<[address: PeerAddress]>();
 
     constructor(context: PeerSetContext) {
-        const {
-            sessions,
-            channels,
-            exchanges,
-            subscriptionClient,
-            scanners,
-            transports: netInterfaces,
-            store,
-        } = context;
+        const { sessions, channels, exchanges, scanners, transports: netInterfaces, store } = context;
 
         this.#sessions = sessions;
         this.#channels = channels;
         this.#exchanges = exchanges;
-        this.#subscriptionClient = subscriptionClient;
         this.#scanners = scanners;
         this.#transports = netInterfaces;
         this.#store = store;
@@ -241,7 +229,6 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
             sessions: env.get(SessionManager),
             channels: env.get(ChannelManager),
             exchanges: env.get(ExchangeManager),
-            subscriptionClient: env.get(SubscriptionClient),
             scanners: env.get(ScannerSet),
             transports: env.get(ConnectionlessTransportSet),
             store: env.get(PeerAddressStore),
@@ -252,10 +239,6 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
 
     get peers() {
         return this.#peers;
-    }
-
-    get subscriptionClient() {
-        return this.#subscriptionClient;
     }
 
     get interactionQueue() {
