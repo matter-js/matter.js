@@ -6,7 +6,7 @@
 
 import { Bytes, isObject } from "#general";
 import { SchemaErrorPath } from "#model";
-import { DatatypeError, Val } from "#protocol";
+import { DatatypeError, IntegerRangeError, Val } from "#protocol";
 
 export function assertNumber(value: Val, path: SchemaErrorPath): asserts value is number {
     if (Number.isFinite(value)) {
@@ -61,4 +61,56 @@ export function assertArray(value: Val, path: SchemaErrorPath): asserts value is
     if (!Array.isArray(value)) {
         throw new DatatypeError(path, "an array", value);
     }
+}
+
+export const assertInt = {
+    /**
+     * Assertions for each integer type that is not nullable.
+     */
+    notNullable: {} as Record<string, typeof assertNumeric | undefined>,
+
+    /**
+     * Assertions for nullable integer types.
+     *
+     * These are separate from the "not nullable" assertions because Matter reserves a high or low value (for unsigned
+     * and signed, respectively) to indicate the field is null.
+     */
+    nullable: {} as Record<string, typeof assertNumeric | undefined>,
+};
+
+for (let i = 1n; i < 9n; i++) {
+    const intName = `int${i * 8n}`;
+    const uintName = `u${intName}`;
+
+    const numValues = 2n ** (i * 8n);
+    const unsignedMax = numValues - 1n;
+    assertInt.notNullable[uintName] = createIntAssertion(uintName, 0n, unsignedMax);
+    assertInt.nullable[uintName] = createIntAssertion(`nullable ${uintName}`, 0n, unsignedMax - 1n);
+
+    const signedMax = numValues / 2n - 1n;
+    const signedMin = -signedMax;
+    assertInt.notNullable[intName] = createIntAssertion(intName, signedMin, signedMax);
+    assertInt.nullable[intName] = createIntAssertion(`nullable ${intName}`, signedMin + 1n, signedMax);
+}
+
+function createIntAssertion(name: string, lowerBoundInclusive: bigint, upperBoundExclusive: bigint) {
+    if (lowerBoundInclusive < Number.MIN_SAFE_INTEGER || upperBoundExclusive > Number.MAX_SAFE_INTEGER) {
+        return createVarIntAssertion(name, lowerBoundInclusive, upperBoundExclusive);
+    }
+
+    return createVarIntAssertion(name, Number(lowerBoundInclusive), Number(upperBoundExclusive));
+}
+
+function createVarIntAssertion(name: string, min: bigint | number, max: bigint | number): typeof assertNumeric {
+    return function assertInt(value, path) {
+        assertNumeric(value, path);
+
+        if (value < min) {
+            throw new IntegerRangeError(path, `Value ${value} is below the ${name} minimum of ${min}`);
+        }
+
+        if (value > max) {
+            throw new IntegerRangeError(path, `Value ${value} is above the ${name} maximum of ${max}`);
+        }
+    };
 }

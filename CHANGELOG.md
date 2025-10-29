@@ -66,7 +66,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: New `StateStream` component offers a high-level API for monitoring changes across multiple nodes
     - Feature: Add default implementation for the `Thermostat` cluster according to Matter 1.4.2 specification. All features except MSCH (which is considered provisional) are implemented. See the `ThermostatServer` class for details.
     - Enhancement: Adds "maybeReactTo" which only registers the listener when the event exists.
-    - Enhancement: Enhances Endpoint#eventsOf and Endpoint#setStateOf with overrides to use with just a behavior Id in an untyped variant
+    - Enhancement: Enhances Endpoint#eventsOf and Endpoint#setStateOf with overrides so you can use the ID to obtain variants with generic typing
+    - Enhancement: We now enforce bounds for integer types even if not specified explicitly by constraint
 
 - @matter/nodejs
     - Enhancement: Uses "stat" to determine storage file existence instead of reading all content

@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize } from "#general";
+import { camelize, InternalError } from "#general";
 import type { Schema } from "#model";
 import { AttributeModel, ClusterModel, DataModelPath, FeatureMap, Metatype, ValueModel } from "#model";
 import { ConformanceError, DatatypeError, SchemaImplementationError, Val } from "#protocol";
-import { StatusCode } from "#types";
+import { Status } from "#types";
 import { RootSupervisor } from "../../supervision/RootSupervisor.js";
 import type { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
 import { Internal } from "../managed/Internal.js";
@@ -16,6 +16,7 @@ import {
     assertArray,
     assertBoolean,
     assertBytes,
+    assertInt,
     assertNumber,
     assertNumeric,
     assertObject,
@@ -37,8 +38,8 @@ export function ValueValidator(schema: Schema, supervisor: RootSupervisor): Valu
     }
 
     let validator: ValueSupervisor.Validate | undefined;
-    const metatype = schema.effectiveMetatype;
-    switch (metatype) {
+    const metabase = schema.metabase;
+    switch (metabase?.metatype) {
         case Metatype.enum:
             validator = createEnumValidator(schema, supervisor);
             break;
@@ -48,6 +49,9 @@ export function ValueValidator(schema: Schema, supervisor: RootSupervisor): Valu
             break;
 
         case Metatype.integer:
+            validator = createIntegerValidator(schema, supervisor, metabase.name);
+            break;
+
         case Metatype.float:
             validator = createSimpleValidator(schema, supervisor, assertNumeric);
             break;
@@ -95,7 +99,7 @@ export function ValueValidator(schema: Schema, supervisor: RootSupervisor): Valu
         default:
             throw new SchemaImplementationError(
                 DataModelPath((schema as unknown as Schema).path),
-                `Unsupported validation metatype ${metatype}`,
+                `Unsupported validation metatype ${metabase?.metatype}`,
             );
     }
 
@@ -138,7 +142,7 @@ function createEnumValidator(schema: ValueModel, supervisor: RootSupervisor): Va
     return (value, session, location) => {
         assertNumber(value, location);
         if (!valid.has(value)) {
-            throw new DatatypeError(location, "defined in enum", value, StatusCode.ConstraintError);
+            throw new DatatypeError(location, "defined in enum", value, Status.ConstraintError);
         }
 
         constraintValidator?.(value, session, location);
@@ -214,6 +218,21 @@ function createSimpleValidator(
 
         validateConstraint?.(value, session, location);
     };
+}
+
+function createIntegerValidator(schema: ValueModel, supervisor: RootSupervisor, name: string) {
+    let assertion;
+    if (schema.effectiveQuality.nullable) {
+        assertion = assertInt.nullable[name];
+    } else {
+        assertion = assertInt.notNullable[name];
+    }
+
+    if (assertion === undefined) {
+        throw new InternalError(`No integer assertion implemented for integer type ${name}`);
+    }
+
+    return createSimpleValidator(schema, supervisor, assertion);
 }
 
 function createStructValidator(schema: Schema, supervisor: RootSupervisor): ValueSupervisor.Validate {

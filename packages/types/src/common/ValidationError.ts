@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { StatusCode } from "./StatusCode.js";
+import { Status } from "#globals/Status.js";
 import { StatusResponseError } from "./StatusResponseError.js";
 
 /**
@@ -17,7 +17,7 @@ export class ValidationError extends StatusResponseError {
     public constructor(
         message: string,
         public fieldName?: string,
-        errorCode = StatusCode.ConstraintError,
+        errorCode = Status.ConstraintError,
     ) {
         super(message, errorCode);
 
@@ -34,7 +34,7 @@ export class ValidationOutOfBoundsError extends ValidationError {}
  */
 export class ValidationDatatypeMismatchError extends ValidationError {
     public constructor(message: string, fieldName?: string) {
-        super(message, fieldName, StatusCode.InvalidAction);
+        super(message, fieldName, Status.InvalidAction);
     }
 }
 
@@ -44,7 +44,7 @@ export class ValidationDatatypeMismatchError extends ValidationError {
  */
 export class ValidationMandatoryFieldMissingError extends ValidationError {
     public constructor(message: string, fieldName?: string) {
-        super(message, fieldName, StatusCode.InvalidAction);
+        super(message, fieldName, Status.InvalidAction);
     }
 }
 
