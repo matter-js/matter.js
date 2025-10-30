@@ -138,6 +138,10 @@ export class BasicSet<T, AddT = T> implements ImmutableSet<T>, MutableSet<T, Add
         }
 
         this.#added?.emit(created);
+
+        if (this.#empty && this.#empty.value) {
+            this.#empty.emit(false);
+        }
     }
 
     get<F extends keyof T>(field: F, value: T[F]) {
@@ -242,7 +246,7 @@ export class BasicSet<T, AddT = T> implements ImmutableSet<T>, MutableSet<T, Add
 
     get empty() {
         if (this.#empty === undefined) {
-            this.#empty = ObservableValue();
+            this.#empty = ObservableValue(!this.#entries.size);
         }
         return this.#empty;
     }

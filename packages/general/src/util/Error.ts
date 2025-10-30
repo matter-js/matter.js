@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { AbortedError } from "#MatterError.js";
 import type { Constructable } from "./Construction.js";
 import { ClassExtends } from "./Type.js";
 
@@ -14,6 +15,14 @@ function considerAsError(error: unknown): error is Error {
 
 export function asError(e: any): Error {
     if (considerAsError(e)) {
+        // AbortController defaults to a DOMException which isn't ideal; translate here
+        if (e instanceof DOMException && e.name === "AbortError") {
+            const aborted = new AbortedError(e.message);
+            aborted.stack = e.stack;
+            aborted.cause = e.cause;
+            return aborted;
+        }
+
         return e;
     }
     return new Error(e?.toString() ?? "Unknown error");
