@@ -10,11 +10,11 @@ import type { ClientNode } from "#node/ClientNode.js";
 import {
     ClientInteraction,
     ClientInvoke,
+    ClientSubscribe,
     DecodedInvokeResult,
     Interactable,
     Read,
     ReadResult,
-    Subscribe,
     SubscribeResult,
     Write,
     WriteResult,
@@ -45,12 +45,18 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
     }
 
     /**
-     * Subscribe to chosen attributes remotely from the node. Data are automatically updated in the storage and not
-     * returned. The subscription response message with the subscription id and the maxInterval is returned.
+     * Subscribe to remote events and attributes as defined by {@link request}.
+     *
+     * matter.js updates local state
+     *
+     * By default matter.js subscribes to all attributes and events of the peer and updates {@link ClientNode} state
+     * automatically.  So you normally do not need to subscribe manually.
      */
-    async subscribe(request: Subscribe, context?: ActionContext): SubscribeResult {
-        const intermediateRequest: Subscribe = {
+    async subscribe(request: ClientSubscribe, context?: ActionContext): SubscribeResult {
+        const intermediateRequest: ClientSubscribe = {
             ...this.structure.injectVersionFilters(request),
+
+            sustain: request.sustain === undefined ? true : request.sustain,
 
             updated: async data => {
                 const result = this.structure.mutate(request, data);
@@ -61,20 +67,10 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
                 }
             },
 
-            closed(cause) {
-                // TODO - log cause?
-                request.closed?.(cause);
-            },
+            closed: request.closed?.bind(request),
         };
-        const interaction = await this.#connect();
-        return interaction.subscribe(intermediateRequest, context);
-    }
 
-    cancelSubscription(id: number): void {
-        if (!this.#node.lifecycle.isOnline) {
-            return;
-        }
-        this.#node.env.get(ClientInteraction).cancelSubscription(id);
+        return (await this.#connect()).subscribe(intermediateRequest, context);
     }
 
     /**

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Construction, ImplementationError } from "#general";
+import { Abort, Construction, ImplementationError } from "#general";
 import type { Node } from "#node/Node.js";
 import { NodeActivity } from "../../context/NodeActivity.js";
 import { NetworkBehavior } from "./NetworkBehavior.js";
@@ -15,6 +15,11 @@ import { NetworkBehavior } from "./NetworkBehavior.js";
 export abstract class NetworkRuntime {
     #construction: Construction<NetworkRuntime>;
     #owner: Node;
+    #abort = new Abort();
+
+    get abortSignal() {
+        return this.#abort.signal;
+    }
 
     get construction() {
         return this.#construction;
@@ -37,7 +42,7 @@ export abstract class NetworkRuntime {
     }
 
     async [Construction.destruct]() {
-        this.blockNewActivity();
+        this.#abort();
         const activity = this.#owner.env.get(NodeActivity);
         if (activity.isActive) {
             await activity.inactive;
@@ -58,8 +63,6 @@ export abstract class NetworkRuntime {
     protected abstract start(): Promise<void>;
 
     protected abstract stop(): Promise<void>;
-
-    protected abstract blockNewActivity(): void;
 
     protected get owner() {
         return this.#owner;

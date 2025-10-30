@@ -294,12 +294,15 @@ export class ServerNetworkRuntime extends NetworkRuntime {
 
         await env.load(PeerSet);
 
+        // Prevent new connections when aborted
+        this.abortSignal.addEventListener("abort", () =>
+            this.owner.env.maybeGet(InteractionServer)?.blockNewActivity(),
+        );
+
         await this.owner.act(agent => this.owner.lifecycle.online.emit(agent.context));
     }
 
     protected override async stop() {
-        this.blockNewActivity();
-
         this.#observers.close();
 
         const { env } = this.owner;
@@ -325,10 +328,6 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         await env.close(ConnectionlessTransportSet);
         await env.close(InteractionServer);
         await env.close(PeerSet);
-    }
-
-    protected override blockNewActivity() {
-        this.owner.env.maybeGet(InteractionServer)?.blockNewActivity();
     }
 
     async #initializeGroupNetworking() {

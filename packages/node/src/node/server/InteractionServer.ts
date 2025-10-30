@@ -518,7 +518,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             );
         } catch (error) {
             logger.error(
-                `Subscription ${subscriptionId} for Session ${session.id}: Error while sending initial data reports`,
+                `Subscription ${subscriptionId} for Session ${session.id}: Error while sending initial data reports:`,
                 error instanceof MatterError ? error.message : error,
             );
             if (error instanceof StatusResponseError && !(error instanceof ReceivedStatusResponseError)) {

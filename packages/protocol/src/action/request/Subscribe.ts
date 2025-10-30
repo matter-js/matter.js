@@ -5,7 +5,7 @@
  */
 
 import type { ReadResult } from "#action/response/ReadResult.js";
-import { CanceledError, Duration, Seconds, TimeoutError, UINT16_MAX } from "#general";
+import { Duration, Seconds, UINT16_MAX } from "#general";
 import { MalformedRequestError } from "./MalformedRequestError.js";
 import { Read } from "./Read.js";
 
@@ -29,7 +29,7 @@ export interface Subscribe extends Read {
     /**
      * Invoked when the subscription is no longer active.
      */
-    closed?: (cause: CanceledError | TimeoutError) => void;
+    closed?: () => void;
 }
 
 export function Subscribe(options: Subscribe.Options, ...selectors: Read.Selector[]): Subscribe {

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AppAddress, BasicMultiplex, ImplementationError, Logger } from "#general";
+import { Abort, AppAddress, BasicMultiplex, ImplementationError, Logger } from "#general";
 import type { ServerNode } from "#node/ServerNode.js";
 import { ApiPath } from "./api/ApiPath.js";
 
@@ -16,7 +16,7 @@ const logger = Logger.get("RemoteAdapter");
 export abstract class RemoteInterface {
     #node: ServerNode;
     #address: AppAddress;
-    #abort = new AbortController();
+    #abort = new Abort();
     #root: ApiPath;
     #workers = new BasicMultiplex();
 
@@ -48,7 +48,7 @@ export abstract class RemoteInterface {
     }
 
     get isAborted() {
-        return this.#abort.signal.aborted;
+        return this.#abort.aborted;
     }
 
     get abort() {
@@ -75,7 +75,7 @@ export abstract class RemoteInterface {
             return;
         }
 
-        this.#abort.abort();
+        this.#abort();
 
         try {
             await this.stop();

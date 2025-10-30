@@ -17,6 +17,7 @@ import { AccessControl } from "./server/AccessControl.js";
 
 export type InteractionSession = AccessControl.Session & {
     transaction?: Transaction;
+    abort?: AbortSignal;
 };
 
 /**

@@ -11,9 +11,10 @@ import { IncomingInteractionClientMessenger } from "#interaction/InteractionMess
 import { SubscriptionId } from "#interaction/Subscription.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { ProtocolHandler } from "#protocol/ProtocolHandler.js";
+import { SecureSession } from "#session/SecureSession.js";
 import { DataReport, INTERACTION_PROTOCOL_ID, Status } from "#types";
+import { InputChunk } from "../InputChunk.js";
 import { ClientSubscriptions } from "./ClientSubscriptions.js";
-import { InputChunk } from "./InputChunk.js";
 
 const logger = Logger.get("ClientSubscriptionHandler");
 
@@ -50,7 +51,9 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
         }
 
         // Ensure the subscription ID is valid
-        const subscription = this.#subscriptions.get(subscriptionId);
+        const { session } = exchange.channel;
+        SecureSession.assert(session);
+        const subscription = this.#subscriptions.getPeer(session.peerAddress, subscriptionId);
         if (subscription === undefined) {
             logger.debug("Ignoring data report for unknown subscription ID", Diagnostic.strong(subscriptionId));
             await sendInvalid(messenger, subscriptionId);

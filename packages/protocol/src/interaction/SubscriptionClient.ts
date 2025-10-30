@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Environment, Environmental, Logger, MaybePromise, Millis, Time, Timer } from "#general";
+import type { ClientSubscriptionHandler } from "#action/client/subscription/ClientSubscriptionHandler.js";
+import { Duration, Logger, MaybePromise, Millis, Time, Timer } from "#general";
 import { DecodedDataReport } from "#interaction/DecodedDataReport.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { ProtocolHandler } from "#protocol/ProtocolHandler.js";
@@ -25,20 +26,14 @@ export interface RegisteredSubscription {
  * A simple protocol handler that handles exchanges starting with data reports.
  *
  * Incoming data reports must match to a subscription registered with {@link add} or the exchange is invalid.
+ *
+ * @deprecated new code uses {@link ClientSubscriptionHandler}
  */
 export class SubscriptionClient implements ProtocolHandler {
     readonly id = INTERACTION_PROTOCOL_ID;
     readonly requiresSecureSession = true;
     readonly #listeners = new Map<number, (dataReport: DecodedDataReport) => MaybePromise<void>>();
     readonly #timeouts = new Map<number, Timer>();
-
-    constructor() {}
-
-    static [Environmental.create](env: Environment) {
-        const client = new SubscriptionClient();
-        env.set(SubscriptionClient, client);
-        return client;
-    }
 
     /**
      * Register a subscription.

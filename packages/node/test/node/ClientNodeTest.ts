@@ -5,13 +5,15 @@
  */
 
 import { DiscoveryError } from "#behavior/system/controller/discovery/DiscoveryError.js";
+import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { BasicInformationBehavior } from "#behaviors/basic-information";
 import { IdentifyClient } from "#behaviors/identify";
 import { OnOffClient } from "#behaviors/on-off";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import { b$, deepCopy, Seconds, Time, TimeoutError } from "#general";
+import { b$, Crypto, deepCopy, MockCrypto, Seconds, Time, TimeoutError } from "#general";
 import { Specification } from "#model";
+import { SustainedSubscription } from "#protocol";
 import { MockSite } from "./mock-site.js";
 
 describe("ClientNode", () => {
@@ -113,7 +115,7 @@ describe("ClientNode", () => {
         expect(ep1b).not.undefined;
         expect(ep1b.construction.status).equals("active");
         expect(ep1b.state).deep.equals(expectedEp1State);
-    }).timeout(1e9);
+    });
 
     it("invokes, receives state updates and emits changed events", async () => {
         // *** SETUP ***
@@ -214,6 +216,65 @@ describe("ClientNode", () => {
         await MockTime.resolve(toggle);
     });
 
+    it("resubscribes on timeout", async () => {
+        // *** SETUP ***
+
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer1 = controller.peers.get("peer1")!;
+        const ep1 = peer1.parts.get("ep1")!;
+
+        // *** INITIAL SUBSCRIPTION ***
+
+        const subscription = peer1.behaviors.internalsOf(NetworkClient).activeSubscription!;
+        expect(subscription).not.undefined;
+        const initialSubscriptionId = subscription.subscriptionId;
+        expect(initialSubscriptionId).not.equals(SustainedSubscription.NO_SUBSCRIPTION);
+
+        SustainedSubscription.assert(subscription);
+        expect(subscription.active.value).equals(true);
+
+        // *** SUBSCRIPTION TIMEOUT ***
+
+        // Close peer
+        await MockTime.resolve(device.cancel());
+
+        // Wait for subscription to timeout
+        await MockTime.resolve(subscription.inactive);
+
+        // Ensure subscription ID is gone
+        expect(subscription.subscriptionId).equals(SustainedSubscription.NO_SUBSCRIPTION);
+
+        // *** NEW SUBSCRIPTION ***
+
+        // Need entropy for this bit so we can verify we have a new subscription ID
+        const crypto = device.env.get(Crypto) as MockCrypto;
+        crypto.entropic = true;
+
+        // Bring peer back online
+        await MockTime.resolve(device.start());
+
+        // Wait for subscription to stablish
+        await MockTime.resolve(subscription.active);
+        crypto.entropic = false;
+
+        expect(subscription.subscriptionId).not.equals(SustainedSubscription.NO_SUBSCRIPTION);
+        expect(subscription.subscriptionId).not.equals(initialSubscriptionId);
+
+        // *** CONFIRM SUBSCRIPTION FUNCTIONS ***
+
+        expect(ep1.stateOf(OnOffClient).onOff).false;
+        const toggled = new Promise(resolve => {
+            ep1.eventsOf(OnOffClient).onOff$Changed.once(resolve);
+        });
+
+        await ep1.commandsOf(OnOffClient).toggle();
+
+        await MockTime.resolve(toggled);
+
+        expect(ep1.stateOf(OnOffClient).onOff).true;
+    });
+
     it("emits Matter events", async () => {
         // *** SETUP ***
 
@@ -234,10 +295,6 @@ describe("ClientNode", () => {
         // *** VALIDATE ***
 
         expect(payload).deep.equals({ softwareVersion: 12 });
-    });
-
-    it("detects lack of ping and reestablishes connection", async () => {
-        // TODO
     });
 
     it("handles shutdown event and reestablishes connection", () => {
@@ -297,12 +354,12 @@ const PEER1_STATE = {
         tcpSupport: 0,
     },
     network: {
+        autoSubscribe: true,
         isDisabled: false,
         port: 0x15a4,
         operationalPort: -1,
         defaultSubscription: undefined,
         caseAuthenticatedTags: undefined,
-        autoSubscribe: true,
     },
     basicInformation: {
         clusterRevision: 5,

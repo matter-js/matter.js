@@ -5,11 +5,11 @@
  */
 
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
-import { ImplementationError, Observable, ServerAddress, ServerAddressUdp } from "#general";
+import { Observable, ServerAddress, ServerAddressUdp } from "#general";
 import { DatatypeModel, FieldElement } from "#model";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
-import { ClientInteraction, DEFAULT_MIN_INTERVAL_FLOOR, PeerSet, Subscribe } from "#protocol";
+import { ActiveSubscription, DEFAULT_MIN_INTERVAL_FLOOR, PeerSet, Subscribe } from "#protocol";
 import { CaseAuthenticatedTag } from "#types";
 import { ClientNetworkRuntime } from "./ClientNetworkRuntime.js";
 import { NetworkBehavior } from "./NetworkBehavior.js";
@@ -25,8 +25,8 @@ export class NetworkClient extends NetworkBehavior {
             this.state.autoSubscribe = false;
             this.state.defaultSubscription = undefined;
         } else {
-            this.reactTo(this.events.autoSubscribe$Changed, this.#handleSubscription, { offline: true });
-            this.reactTo(this.events.defaultSubscription$Changed, this.#handleChangedDefaultSubscription);
+            this.reactTo(this.events.autoSubscribe$Changed, this.#handleAutoSubscribeChanged, { offline: true });
+            this.reactTo(this.events.defaultSubscription$Changed, this.#handleDefaultSubscriptionChange);
         }
     }
 
@@ -48,36 +48,23 @@ export class NetworkClient extends NetworkBehavior {
             }
         }
 
-        await this.#handleSubscription();
+        await this.#handleAutoSubscribeChanged();
     }
 
-    /**
-     * Manually activate the subscription for the node, if not already active. This will fail if the node is disabled.
-     *
-     * If you want to disable subscription, set the isDisabled state to true or set autoSubscribe to false.
-     */
-    subscribe() {
-        if (this.state.isDisabled) {
-            throw new ImplementationError("Cannot subscribe when node is disabled");
+    async #handleDefaultSubscriptionChange() {
+        // Terminate any existing subscription
+        await this.#handleAutoSubscribeChanged(false);
+
+        if (this.state.autoSubscribe && !this.state.isDisabled) {
+            await this.#handleAutoSubscribeChanged(true);
         }
-        return this.#handleSubscription(true);
     }
 
-    async #handleChangedDefaultSubscription() {
-        if (!this.internal.subscriptionActivated) {
-            return;
-        }
-
-        // Restart the subscription with the new parameters
-        await this.#handleSubscription(false);
-        await this.#handleSubscription(true);
-    }
-
-    async #handleSubscription(desiredState = this.state.autoSubscribe) {
+    async #handleAutoSubscribeChanged(desiredState = this.state.autoSubscribe) {
         const { isDisabled } = this.state;
         const subscriptionDesired = desiredState && !isDisabled;
 
-        if (subscriptionDesired === this.internal.subscriptionActivated) {
+        if (subscriptionDesired === !!this.internal.activeSubscription) {
             return;
         }
 
@@ -93,22 +80,17 @@ export class NetworkClient extends NetworkBehavior {
                 ...this.state.defaultSubscription,
             });
 
-            // First, read.  This allows us to retrieve attributes that do not support subscription
+            // First, read.  This allows us to retrieve attributes that do not support subscription and gives us
+            // physical device information required to optimize subscription parameters
             for await (const _chunk of this.#node.interaction.read(subscribe));
 
             // Now subscribe for subsequent updates
-            const { subscriptionId } = await this.#node.interaction.subscribe(subscribe);
+            const subscription = await this.#node.interaction.subscribe(subscribe);
 
-            this.internal.subscriptionActivated = true;
-            this.internal.defaultSubscriptionId = subscriptionId;
+            this.internal.activeSubscription = subscription;
         } else {
-            if (this.internal.defaultSubscriptionId !== undefined) {
-                (this.#node.interaction as ClientInteraction).subscriptions
-                    .get(this.internal.defaultSubscriptionId)
-                    ?.close();
-                this.internal.defaultSubscriptionId = undefined;
-            }
-            this.internal.subscriptionActivated = false;
+            this.internal.activeSubscription?.close();
+            this.internal.activeSubscription = undefined;
         }
     }
 
@@ -167,13 +149,9 @@ export namespace NetworkClient {
         declare runtime?: ClientNetworkRuntime;
 
         /**
-         * Contains the subscription target state.  It will also be true if a subscription is in the process of being
-         * established, or we wait for the node to be rediscovered.
+         * The active default subscription.
          */
-        subscriptionActivated = false;
-
-        /** The ID of the current active default subscription, if any */
-        defaultSubscriptionId?: number;
+        activeSubscription?: ActiveSubscription;
     }
 
     export class State extends NetworkBehavior.State {
@@ -184,7 +162,7 @@ export namespace NetworkClient {
          * The default subscription is a wildcard for all attributes of the node.  You can set to undefined or filter
          * the fields and values but only values selected by this subscription will update automatically.
          *
-         * Set to null to disable automatic subscription.
+         * The default subscription updates automatically if you change this property.
          */
         defaultSubscription?: Subscribe;
 
@@ -199,6 +177,10 @@ export namespace NetworkClient {
         /**
          * If true, automatically subscribe to the provided default subscription (or all attributes and events) when
          * the node is started. If false, do not automatically subscribe.
+         *
+         * The subscription will activate or deactivate automatically if you change this property.
+         *
+         * Newly commissioned nodes default to true.
          */
         autoSubscribe = false;
 

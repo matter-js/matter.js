@@ -35,10 +35,6 @@ export class OnlineServerInteraction implements Interactable<RemoteActorContext.
         throw new NotImplementedError("subscribe not implemented");
     }
 
-    cancelSubscription(_id: number): void {
-        throw new NotImplementedError("cancelSubscription not implemented");
-    }
-
     async write<T extends Write>(request: T, context: RemoteActorContext.Options): WriteResult<T> {
         return RemoteActorContext(context).act(session => this.#interaction.write(request, session));
     }

@@ -4,10 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { MaybePromise } from "#general";
 import { SubscribeResponse } from "#types";
 
 export type SubscribeResult = Promise<ActiveSubscription>;
 
 export interface ActiveSubscription extends SubscribeResponse {
-    close(): void;
+    close(): MaybePromise<void>;
 }

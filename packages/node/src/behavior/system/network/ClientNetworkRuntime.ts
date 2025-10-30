@@ -61,10 +61,12 @@ export class ClientNetworkRuntime extends NetworkRuntime {
         });
         env.set(ExchangeProvider, exchangeProvider);
 
+        this.#client = new ClientInteraction({ environment: env, abort: this.abortSignal });
+        env.set(ClientInteraction, this.#client);
+
         // Monitor sessions to maintain online state.  We consider the node "online" if there is an active session.  If
         // not, we consider the node offline.  This is the only real way we have of determining whether the node is
         // healthy without actively polling
-        this.#client = env.get(ClientInteraction);
         const { sessions } = env.get(SessionManager);
 
         if (sessions.find(session => session.peerIs(address))) {
@@ -105,6 +107,8 @@ export class ClientNetworkRuntime extends NetworkRuntime {
     protected async stop() {
         await this.construction;
 
+        this.owner.env.delete(ClientInteraction, this.#client);
+
         try {
             await this.#client?.close();
         } catch (e) {
@@ -112,9 +116,5 @@ export class ClientNetworkRuntime extends NetworkRuntime {
         }
 
         this.#observers.close();
-    }
-
-    blockNewActivity() {
-        this.owner.env.delete(ClientInteraction, this.#client);
     }
 }

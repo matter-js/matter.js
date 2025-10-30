@@ -206,7 +206,7 @@ export class SubscriptionsBehavior extends Behavior {
         const { formerSubscriptions } = this.internal;
 
         if (!formerSubscriptions.length) {
-            logger.info("No former subscriptions to re-establish");
+            logger.debug("No former subscriptions to re-establish");
             return;
         } else {
             this.internal.formerSubscriptions = [];

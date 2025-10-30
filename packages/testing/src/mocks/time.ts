@@ -28,7 +28,7 @@ class MockTimer {
     #duration: number;
 
     isRunning = false;
-    private readonly callback: TimerCallback;
+    readonly #callback: TimerCallback;
 
     constructor(mockTime: MockTime, name: string, duration: number, callback: TimerCallback) {
         this.name = name;
@@ -37,10 +37,10 @@ class MockTimer {
         this.#duration = duration;
 
         if (this instanceof MockInterval) {
-            this.callback = callback;
+            this.#callback = callback;
         } else {
-            this.callback = () => {
-                this.isRunning = false;
+            this.#callback = () => {
+                this.#close();
                 callback();
             };
         }
@@ -48,16 +48,20 @@ class MockTimer {
 
     start() {
         registry.register(this);
-        this.#mockTime.callbackAtTime(this.#mockTime.nowMs + this.#duration, this.callback);
+        this.#mockTime.callbackAtTime(this.#mockTime.nowMs + this.#duration, this.#callback);
         this.isRunning = true;
         return this;
     }
 
     stop() {
-        registry.unregister(this);
-        this.#mockTime.removeCallback(this.callback);
-        this.isRunning = false;
+        this.#close();
         return this;
+    }
+
+    #close() {
+        registry.unregister(this);
+        this.#mockTime.removeCallback(this.#callback);
+        this.isRunning = false;
     }
 }
 

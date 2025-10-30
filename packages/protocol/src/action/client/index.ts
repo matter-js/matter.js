@@ -5,8 +5,6 @@
  */
 
 export * from "./ClientInteraction.js";
-export * from "./ClientSubscription.js";
-export * from "./ClientSubscriptionHandler.js";
-export * from "./ClientSubscriptions.js";
 export * from "./InputChunk.js";
 export * from "./ReadScope.js";
+export * from "./subscription/index.js";

@@ -75,6 +75,11 @@ export namespace ValueSupervisor {
         transaction: Transaction;
 
         /**
+         * Signal for terminating asynchronous processes.
+         */
+        abort?: AbortSignal;
+
+        /**
          * If this is true, data validation is disabled.  This should only be used in contexts where data validation is
          * deferred.
          */

@@ -285,7 +285,7 @@ interface CommitChanges {
  * Initialize the internal version of the datasource.
  */
 function configure(options: Datasource.Options): Internals {
-    const values = new options.type() as Val.Struct;
+    let values = new options.type() as Val.Struct;
 
     let storedValues = options.store?.initialValues;
 
@@ -328,10 +328,25 @@ function configure(options: Datasource.Options): Internals {
         primaryKey: options.primaryKey === "id" ? "id" : "name",
         events,
         version: options.entropy.randomUint32,
-        values,
         featuresKey,
         manageVersion: true,
         persistentFields,
+
+        get values() {
+            return values;
+        },
+
+        set values(newValues: Val.Struct) {
+            const oldValues = this.values;
+
+            values = newValues;
+
+            if (this.sessions) {
+                for (const context of this.sessions.values()) {
+                    context.onChange(oldValues);
+                }
+            }
+        },
 
         interactionObserver(session?: ValueSupervisor.Session) {
             function handleObserverError(error: any) {
@@ -424,12 +439,6 @@ function configureExternalChanges(internals: Internals) {
             ...internals.values,
             ...changes,
         };
-
-        if (internals.sessions) {
-            for (const context of internals.sessions.values()) {
-                context.onChange(oldValues!);
-            }
-        }
 
         const changedProps = Object.keys(changes);
 
@@ -825,13 +834,7 @@ function createReference(resource: Transaction.Resource, internals: Internals, s
             return;
         }
 
-        const oldValues = internals.values;
         internals.values = values;
-        if (internals.sessions) {
-            for (const context of internals.sessions.values()) {
-                context.onChange(oldValues);
-            }
-        }
     }
 
     /**

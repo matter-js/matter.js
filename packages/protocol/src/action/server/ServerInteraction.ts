@@ -65,11 +65,6 @@ export class ServerInteraction<SessionT extends InteractionSession = Interaction
         throw new NotImplementedError();
     }
 
-    cancelSubscription(_id: number): void {
-        // TODO
-        throw new NotImplementedError();
-    }
-
     write<T extends Write>(request: T, session: SessionT): WriteResult<T> {
         // TODO - validate request
 

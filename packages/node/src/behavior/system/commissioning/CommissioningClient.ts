@@ -521,15 +521,15 @@ export namespace CommissioningClient {
          * ```
          *
          * Note that certain clusters like Descriptor and Basic Information contain critical operational data. If your
-         * read omits them then the node will only be partially functional once initialized or relevant clusters and
-         * endpoints need to be enabled manually.
+         * read omits them then the node will only be partially functional once initialized.
          */
         defaultSubscription?: Subscribe;
 
         /**
          * By default, nodes we commission are automatically subscribed to using the {@link defaultSubscription} (or a
          * full wildcard subscription if that is undefined).
-         * When set to false, the node will not be automatically subscribed.
+         *
+         * Matter.js will not subscribe automatically if set to false.
          */
         autoSubscribe?: boolean;
 
