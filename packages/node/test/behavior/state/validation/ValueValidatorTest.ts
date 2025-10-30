@@ -13,9 +13,9 @@ describe("ValueValidator", () => {
     implementInt("uint8", 0, 0xff);
     implementInt("uint32", 0, 0xffffffff);
     implementInt("uint64", 0, 0xffffffffffffffffn);
-    implementInt("int8", -127, 127);
-    implementInt("int32", -2147483647, 2147483647);
-    implementInt("int64", -9223372036854775807n, 9223372036854775807n);
+    implementInt("int8", -128, 127);
+    implementInt("int32", -2147483648, 2147483647);
+    implementInt("int64", -9223372036854775808n, 9223372036854775807n);
 });
 
 function implementInt(type: string, min: number | bigint, max: number | bigint) {

@@ -87,8 +87,9 @@ for (let i = 1n; i < 9n; i++) {
     assertInt.notNullable[uintName] = createIntAssertion(uintName, 0n, unsignedMax);
     assertInt.nullable[uintName] = createIntAssertion(`nullable ${uintName}`, 0n, unsignedMax - 1n);
 
-    const signedMax = numValues / 2n - 1n;
-    const signedMin = -signedMax;
+    const halfNumValues = numValues / 2n;
+    const signedMax = halfNumValues - 1n;
+    const signedMin = -halfNumValues;
     assertInt.notNullable[intName] = createIntAssertion(intName, signedMin, signedMax);
     assertInt.nullable[intName] = createIntAssertion(`nullable ${intName}`, signedMin + 1n, signedMax);
 }
