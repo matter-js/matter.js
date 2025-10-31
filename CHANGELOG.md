@@ -66,7 +66,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: You can now use Ecma TC39 stage 3 decorators to customize the schema associated with a `Behavior` implementation
     - Feature: New `StateStream` component offers a high-level API for monitoring changes across multiple nodes
     - Feature: Add default implementation for the `Thermostat` cluster according to Matter 1.4.2 specification. All features except MSCH and SB (which is considered provisional) are implemented. See the `ThermostatServer` class for details.
-    - Feature: Added feature complete default implementation for the `Scenes Managemnt` cluster according to Matter 1.4.2 specification.
+    - Feature: Added feature complete default implementation for the `Scenes Management` cluster according to Matter 1.4.2 specification.
     - Enhancement: Adds "maybeReactTo" which only registers the listener when the event exists.
     - Enhancement: Enhances Endpoint#eventsOf and Endpoint#setStateOf with overrides so you can use the ID to obtain variants with generic typing
     - Enhancement: We now enforce bounds for integer types even if not specified explicitly by constraint
