@@ -466,7 +466,7 @@ function computeCanonicalNames(revision: Specification.Revision, sourceNames: st
         inferEquivalentDatatypes(revision, sourceNames, variants, datatypeNameMap);
     } while (numberOfMappings !== datatypeNameMap.size);
 
-    // Now that we generally what what equals what, go through the names and choose the name for the final model
+    // Now that we generally know what equals what, go through the names and choose the name for the final model
     const canonicalNames = chooseCanonicalNames(revision, sourceNames, variants, datatypeNameMap);
 
     return canonicalNames;
