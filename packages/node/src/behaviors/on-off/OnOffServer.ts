@@ -5,10 +5,12 @@
  */
 
 import { GeneralDiagnosticsBehavior } from "#behaviors/general-diagnostics";
+import { ScenesManagementServer } from "#behaviors/scenes-management";
 import { GeneralDiagnostics } from "#clusters/general-diagnostics";
 import { OnOff } from "#clusters/on-off";
 import { MaybePromise, Millis, Time, Timer } from "#general";
 import { ServerNode } from "#node/ServerNode.js";
+import { hasRemoteActor, Val } from "#protocol";
 import { OnOffBehavior } from "./OnOffBehavior.js";
 
 const OnOffLogicBase = OnOffBehavior.with(OnOff.Feature.Lighting);
@@ -40,6 +42,11 @@ export class OnOffBaseServer extends OnOffLogicBase {
                     this.state.onOff = targetOnOffValue;
                 }
             }
+        }
+
+        if (this.agent.has(ScenesManagementServer)) {
+            this.agent.get(ScenesManagementServer).implementScenes(this, this.#applySceneValues);
+            this.reactTo(this.events.onOff$Changed, this.#clearDelayedSceneApplyData);
         }
     }
 
@@ -91,30 +98,44 @@ export class OnOffBaseServer extends OnOffLogicBase {
     /**
      * Default implementation notes:
      * * This implementation ignores the effect and just calls off().
-     * * Global Scene Control is not supported yet.
      */
     override offWithEffect(): MaybePromise {
         if (this.state.globalSceneControl) {
-            // TODO Store state in global scene
+            if (
+                hasRemoteActor(this.context) &&
+                this.context.session.fabric !== undefined &&
+                this.agent.has(ScenesManagementServer)
+            ) {
+                this.endpoint
+                    .agentFor(this.context)
+                    .get(ScenesManagementServer)
+                    .storeGlobalScene(this.context.session.fabric.fabricIndex);
+            }
             this.state.globalSceneControl = false;
         }
         return this.off();
     }
 
-    /**
-     * Default implementation notes:
-     * * Global Scene Control is not supported yet, so the device is just turned on.
-     */
-    override onWithRecallGlobalScene(): MaybePromise {
+    override async onWithRecallGlobalScene() {
         if (this.state.globalSceneControl) {
             return;
         }
-        // TODO Recall global scene to set onOff accordingly
+        if (
+            hasRemoteActor(this.context) &&
+            this.context.session.fabric !== undefined &&
+            this.agent.has(ScenesManagementServer)
+        ) {
+            await this.endpoint
+                .agentFor(this.context)
+                .get(ScenesManagementServer)
+                .recallGlobalScene(this.context.session.fabric.fabricIndex);
+        }
+
         this.state.globalSceneControl = true;
         if (this.state.onTime === 0) {
             this.state.offWaitTime = 0;
         }
-        return this.on();
+        await this.on();
     }
 
     /**
@@ -177,6 +198,45 @@ export class OnOffBaseServer extends OnOffLogicBase {
         return timer;
     }
 
+    /** Apply Scene values when requested from ScenesManagement cluster */
+    #applySceneValues(values: Val.Struct, transitionTime: number): MaybePromise {
+        this.#clearDelayedSceneApplyData();
+
+        const onOff = values.onOff;
+        // If no number (including null) or outside our range, ignore
+        if (typeof onOff !== "boolean" || this.state.onOff === onOff) {
+            return;
+        }
+
+        if (transitionTime === 0) {
+            this.state.onOff = onOff;
+        } else {
+            this.internal.applyScenePendingOnOff = onOff;
+            this.internal.applySceneDelayTimer = Time.getPeriodicTimer(
+                "delayed scene apply",
+                Millis(transitionTime),
+                this.callback(this.#applyDelayedSceneOnOffValue),
+            ).start();
+        }
+    }
+
+    #clearDelayedSceneApplyData() {
+        if (this.internal.applySceneDelayTimer?.isRunning) {
+            this.internal.applySceneDelayTimer.stop();
+        }
+        this.internal.applySceneDelayTimer = undefined;
+        this.internal.applyScenePendingOnOff = undefined;
+    }
+
+    #applyDelayedSceneOnOffValue() {
+        const onOff = this.internal.applyScenePendingOnOff;
+        this.#clearDelayedSceneApplyData();
+        if (onOff === undefined) {
+            return;
+        }
+        this.state.onOff = onOff;
+    }
+
     #delayedOffTick() {
         let time = (this.state.offWaitTime ?? 0) - 1;
         if (time <= 0) {
@@ -198,6 +258,8 @@ export namespace OnOffBaseServer {
     export class Internal {
         timedOnTimer?: Timer;
         delayedOffTimer?: Timer;
+        applySceneDelayTimer?: Timer;
+        applyScenePendingOnOff?: boolean;
     }
 }
 

@@ -39,6 +39,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/types
     - Enhancement: The duplicate event priority definition `EventPriority` is deprecated; use the generated `Priority` enum instead
+    - Fix: Ensures correct Number ranges for nullable and non-nullable numbers on TLV level
 
 - @matter/protocol
     - Breaking: The platform-specific BLE abstraction has changed so that higher-level logic may be shared across platforms
@@ -64,10 +65,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: matter.js now natively supports remote access to Matter nodes via non-Matter protocols. You can add `HttpServer`, `WebSocketServer` and/or `MqttServer` to your `ServerNode` to enable HTTP, WebSocket and MQTT access respectively
     - Feature: You can now use Ecma TC39 stage 3 decorators to customize the schema associated with a `Behavior` implementation
     - Feature: New `StateStream` component offers a high-level API for monitoring changes across multiple nodes
-    - Feature: Add default implementation for the `Thermostat` cluster according to Matter 1.4.2 specification. All features except MSCH (which is considered provisional) are implemented. See the `ThermostatServer` class for details.
+    - Feature: Add default implementation for the `Thermostat` cluster according to Matter 1.4.2 specification. All features except MSCH and SB (which is considered provisional) are implemented. See the `ThermostatServer` class for details.
+    - Feature: Added feature complete default implementation for the `Scenes Managemnt` cluster according to Matter 1.4.2 specification.
     - Enhancement: Adds "maybeReactTo" which only registers the listener when the event exists.
     - Enhancement: Enhances Endpoint#eventsOf and Endpoint#setStateOf with overrides so you can use the ID to obtain variants with generic typing
     - Enhancement: We now enforce bounds for integer types even if not specified explicitly by constraint
+    - Enhancement: Also allow to use the `Endpoint#set()` method with attribute ids instead of attributeNames
+    - Fix: Ensures that the InLevel does not interfere with *WithOnOff commands in the Level Control cluster
 
 - @matter/nodejs
     - Enhancement: Uses "stat" to determine storage file existence instead of reading all content

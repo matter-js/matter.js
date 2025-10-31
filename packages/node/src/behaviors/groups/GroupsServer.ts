@@ -6,6 +6,7 @@
 
 import { GroupKeyManagementServer } from "#behaviors/group-key-management";
 import { IdentifyBehavior } from "#behaviors/identify";
+import { ScenesManagementServer } from "#behaviors/scenes-management";
 import { Groups } from "#clusters/groups";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { RootEndpoint } from "#endpoints/root";
@@ -164,11 +165,17 @@ export class GroupsServer extends GroupsBase {
         }
 
         try {
+            assertRemoteActor(this.context);
             if (
                 await this.#actOnGroupKeyManagement((fabric, gkm) =>
                     gkm.removeEndpoint(fabric, this.endpoint.number, groupId),
                 )
             ) {
+                if (this.agent.has(ScenesManagementServer)) {
+                    this.agent
+                        .get(ScenesManagementServer)
+                        .removeScenesForGroupOnFabric(this.context.session.associatedFabric.fabricIndex, groupId);
+                }
                 return { status: StatusCode.Success, groupId };
             }
             return { status: StatusCode.NotFound, groupId };
@@ -178,10 +185,15 @@ export class GroupsServer extends GroupsBase {
         }
     }
 
-    // TODO ScenesManagement cluster is also affected by this command
     override async removeAllGroups() {
         try {
+            assertRemoteActor(this.context);
             await this.#actOnGroupKeyManagement((fabric, gkm) => gkm.removeEndpoint(fabric, this.endpoint.number));
+            if (this.agent.has(ScenesManagementServer)) {
+                this.agent
+                    .get(ScenesManagementServer)
+                    .removeScenesForAllGroupsForFabric(this.context.session.associatedFabric.fabricIndex);
+            }
         } catch (error) {
             StatusResponseError.accept(error);
             throw error;

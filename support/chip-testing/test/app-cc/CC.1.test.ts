@@ -12,9 +12,6 @@ describe("CC", () => {
         "CC/7.*",
         "CC/8.*",
 
-        // Requires scenes management features
-        "CC/10.1",
-
         // has too exact, expectations on transition results
         "CC/9.1",
         "CC/9.2",

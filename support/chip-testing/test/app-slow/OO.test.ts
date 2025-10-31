@@ -17,8 +17,5 @@ describe("OO", () => {
             edit.sed("s/value: 30000/value: 30500/"),
         );
     });
-    chip("OO/*").exclude(
-        // TODO - requires scenes management features we do not yet offer
-        "OO/2.7",
-    );
+    chip("OO/*");
 });
