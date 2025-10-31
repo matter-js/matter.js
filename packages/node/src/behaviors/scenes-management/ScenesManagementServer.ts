@@ -823,7 +823,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
     }
 
     /**
-     * Main method for CLusters to Register themselves with their "Apply Scenes Callback".
+     * Main method for Clusters to Register themselves with their "Apply Scenes Callback".
      *
      * @param behavior ClusterBehavior implementing a cluster with sceneable attributes
      * @param applyFunc Function that applies scene values for that cluster
