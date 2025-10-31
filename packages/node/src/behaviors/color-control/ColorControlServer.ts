@@ -9,6 +9,7 @@ import { ActionContext } from "#behavior/context/ActionContext.js";
 import { Transitions } from "#behavior/Transitions.js";
 import { GeneralDiagnosticsBehavior } from "#behaviors/general-diagnostics";
 import { OnOffServer } from "#behaviors/on-off";
+import { ScenesManagementServer } from "#behaviors/scenes-management";
 import { ColorControl } from "#clusters/color-control";
 import { GeneralDiagnostics } from "#clusters/general-diagnostics";
 import { Endpoint } from "#endpoint/Endpoint.js";
@@ -360,6 +361,10 @@ export class ColorControlBaseServer extends ColorControlBase {
         // Configure Color Temperature Feature
         if (this.features.colorTemperature) {
             this.initializeColorTemperature();
+        }
+
+        if (this.agent.has(ScenesManagementServer)) {
+            this.agent.get(ScenesManagementServer).implementScenes(this, this.#applySceneValues);
         }
     }
 
@@ -1759,6 +1764,116 @@ export class ColorControlBaseServer extends ColorControlBase {
             this.minimumColorTemperatureMireds,
             this.maximumColorTemperatureMireds,
         );
+    }
+
+    #supportsColorMode(targetMode: ColorControl.EnhancedColorMode) {
+        switch (targetMode) {
+            case ColorControl.EnhancedColorMode.EnhancedCurrentHueAndCurrentSaturation:
+                return this.features.enhancedHue;
+            case ColorControl.EnhancedColorMode.CurrentHueAndCurrentSaturation:
+                return this.features.hueSaturation;
+            case ColorControl.EnhancedColorMode.CurrentXAndCurrentY:
+                return this.features.xy;
+            case ColorControl.EnhancedColorMode.ColorTemperatureMireds:
+                return this.features.colorTemperature;
+        }
+        return false;
+    }
+
+    /** Apply Scene values when requested from ScenesManagement cluster */
+    #applySceneValues(values: Val.Struct, transitionTime: number): MaybePromise {
+        let targetEnhancedColorMode = ColorControl.EnhancedColorMode.CurrentHueAndCurrentSaturation;
+        let targetColorLoopActive = ColorControl.ColorLoopActive.Inactive;
+        let targetColorLoopDirection = ColorControl.ColorLoopDirection.Decrement;
+        let targetColorLoopTime = 25; // Default or 0??
+
+        let targetCurrentX: number | undefined; // 0
+        let targetCurrentY: number | undefined; // 0
+        let targetEnhancedCurrentHue: number | undefined; // null
+        let targetCurrentSaturation: number | undefined; // null
+        let targetColorTemperatureMireds: number | undefined; // null
+
+        if (this.features.xy) {
+            if (typeof values.currentX === "number") {
+                targetCurrentX = cropValueRange(values.currentX, 0, MAX_CIE_XY_VALUE);
+            }
+            if (typeof values.currentY === "number") {
+                targetCurrentY = cropValueRange(values.currentY, 0, MAX_CIE_XY_VALUE);
+            }
+        }
+
+        if (this.features.enhancedHue && typeof values.enhancedCurrentHue === "number") {
+            targetEnhancedCurrentHue = values.enhancedCurrentHue;
+        }
+        if (this.features.hueSaturation && typeof values.currentSaturation === "number") {
+            targetCurrentSaturation = cropValueRange(values.currentSaturation, 0, MAX_SATURATION_VALUE);
+        }
+        if (this.features.colorLoop) {
+            if (typeof values.colorLoopActive === "number") {
+                targetColorLoopActive = values.colorLoopActive;
+            }
+            if (typeof values.colorLoopDirection === "number") {
+                targetColorLoopDirection = values.colorLoopDirection;
+            }
+            if (typeof values.colorLoopTime === "number") {
+                targetColorLoopTime = values.colorLoopTime;
+            }
+        }
+        if (this.features.colorTemperature && typeof values.colorTemperatureMireds === "number") {
+            targetColorTemperatureMireds = cropValueRange(values.colorTemperatureMireds, 0, MAX_TEMPERATURE_VALUE);
+        }
+        if (
+            this.features.enhancedHue &&
+            typeof values.enhancedColorMode === "number" &&
+            values.enhancedColorMode <= ColorControl.EnhancedColorMode.EnhancedCurrentHueAndCurrentSaturation
+        ) {
+            targetEnhancedColorMode = values.enhancedColorMode;
+        }
+
+        if (!this.#supportsColorMode(targetEnhancedColorMode)) {
+            logger.info(
+                `Can not apply scene with unsupported color mode: ${ColorControl.EnhancedColorMode[targetEnhancedColorMode]} (${targetEnhancedColorMode})`,
+            );
+        }
+
+        if (this.features.colorLoop && targetColorLoopActive === ColorControl.ColorLoopActive.Active) {
+            return this.colorLoopSet({
+                updateFlags: { updateDirection: true, updateTime: true, updateAction: true },
+                action: ColorControl.ColorLoopAction.ActivateFromEnhancedCurrentHue,
+                direction: targetColorLoopDirection,
+                time: targetColorLoopTime,
+                optionsMask: { executeIfOff: true },
+                optionsOverride: { executeIfOff: true },
+                startHue: this.state.colorLoopStartEnhancedHue, // Will be ignored
+            });
+        }
+
+        switch (targetEnhancedColorMode) {
+            case ColorControl.EnhancedColorMode.CurrentHueAndCurrentSaturation:
+                if (targetEnhancedCurrentHue !== undefined && targetCurrentSaturation !== undefined) {
+                    return this.moveToSaturationLogic(targetCurrentSaturation, transitionTime / 100);
+                }
+                break;
+            case ColorControl.EnhancedColorMode.CurrentXAndCurrentY:
+                if (targetCurrentX !== undefined && targetCurrentY !== undefined) {
+                    return this.moveToColorLogic(targetCurrentX, targetCurrentY, transitionTime);
+                }
+                break;
+            case ColorControl.EnhancedColorMode.ColorTemperatureMireds:
+                if (targetColorTemperatureMireds !== undefined) {
+                    return this.moveToColorTemperatureLogic(targetColorTemperatureMireds, transitionTime);
+                }
+                break;
+            case ColorControl.EnhancedColorMode.EnhancedCurrentHueAndCurrentSaturation:
+                if (targetEnhancedCurrentHue !== undefined && targetCurrentSaturation !== undefined) {
+                    return this.moveToEnhancedHueAndSaturationLogic(
+                        targetEnhancedCurrentHue,
+                        targetCurrentSaturation,
+                        transitionTime,
+                    );
+                }
+                break;
+        }
     }
 
     override async [Symbol.asyncDispose]() {
