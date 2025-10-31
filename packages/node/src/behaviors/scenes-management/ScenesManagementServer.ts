@@ -1116,7 +1116,7 @@ export namespace ScenesManagementServer {
     ) => MaybePromise;
 
     export class Internal {
-        /** Oberservergroup for all $Changed events of sceneable attributes */
+        /** ObserverGroup for all $Changed events of sceneable attributes */
         endpointSceneAttributeObservers = new ObserverGroup();
 
         /** Fabric index where a scene is currently valid, if any */
