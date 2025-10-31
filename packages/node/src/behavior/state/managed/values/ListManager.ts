@@ -65,8 +65,8 @@ function createConfig(owner: RootSupervisor, schema: Schema): ListConfig {
 
     return {
         schema,
-        fabricScoped: schema.effectiveAccess.fabric == Access.Fabric.Scoped,
-        fabricSensitive: schema.effectiveAccess.fabric == Access.Fabric.Sensitive,
+        fabricScoped: schema.effectiveAccess.fabric === Access.Fabric.Scoped,
+        fabricSensitive: schema.effectiveAccess.fabric === Access.Fabric.Sensitive,
         manageEntries: entryManager.manage !== PrimitiveManager,
         manageEntry: entryManager.manage,
         validateEntry: entryManager.validate,

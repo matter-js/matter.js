@@ -34,7 +34,7 @@ export abstract class InboundFlow extends Flow {
         // Method to be used by main close() method to make sure all streams are correctly closed or cancelled
         this.#closeStreams = async (error?: unknown) => {
             if (writeController !== undefined) {
-                if (error != undefined) {
+                if (error !== undefined) {
                     // When this is called, we are either done successfully or failed, error the write controller in error case
                     writeController.error(error);
                     try {

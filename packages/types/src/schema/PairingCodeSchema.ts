@@ -222,7 +222,7 @@ class ManualPairingCodeSchema extends Schema<ManualPairingData, string> {
 
     protected decodeInternal(encoded: string): ManualPairingData {
         encoded = encoded.replace(/\D/g, ""); // we SHALL be robust against other characters
-        if (encoded.length !== 11 && encoded.length != 21) {
+        if (encoded.length !== 11 && encoded.length !== 21) {
             throw new UnexpectedDataError("Invalid pairing code");
         }
         if (new Verhoeff().computeChecksum(encoded.slice(0, -1)) !== parseInt(encoded.slice(-1))) {

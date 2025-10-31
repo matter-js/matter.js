@@ -417,7 +417,7 @@ export namespace Conformance {
     }
 
     export function precedenceOf(operator: Ast["type"] | Operator) {
-        const index = Parser.BinaryOperatorPrecedence.findIndex(ops => ops.indexOf(operator as any) != -1);
+        const index = Parser.BinaryOperatorPrecedence.findIndex(ops => ops.indexOf(operator as any) !== -1);
         return index === -1 ? undefined : index;
     }
 

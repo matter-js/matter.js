@@ -278,7 +278,7 @@
                 if (typeof event.data === 'string') {
                     const message = event.data;
                     let trimmed = message.slice(0, 5000); // don't let message to log get too long
-                    if (trimmed.length != message.length) trimmed += ' ...';
+                    if (trimmed.length !== message.length) trimmed += ' ...';
                     logMessage(`Received: "${trimmed}"`, trimmed.toLowerCase().includes('error') ? 'error' : 'received');
 
                     // result of nodes log command
@@ -342,7 +342,7 @@
 
                     matches = message.match(/(\d+): Attribute (\w+|\d+)\/(\d+)\/(\d+)\/(\w+) changed to (.+)/); // attribute changed
                     if (matches) {
-                        if (matches[4] == ON_OFF) styleContainer(matches[1], matches[3], matches[6]);
+                        if (matches[4] === ON_OFF) styleContainer(matches[1], matches[3], matches[6]);
                         else if ([ILLUMINANCE, TEMPERATURE, PRESSURE, HUMIDITY, VOLTAGE].includes(Number(matches[4]))) {
                             const formatter = valueFormat[matches[4]];
                             const value = typeof formatter === 'function' ? formatter(matches[6]) : matches[6];

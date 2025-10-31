@@ -325,7 +325,7 @@ export class AtomicWriteHandler {
      */
     #pendingWriteStateForAttribute(endpoint: Endpoint, cluster: Behavior.Type, attribute: AttributeId) {
         const writeStates = this.#pendingWrites.filter(
-            s => s.endpoint.number == endpoint.number && s.clusterId === (cluster as ClusterBehavior.Type).cluster.id,
+            s => s.endpoint.number === endpoint.number && s.clusterId === (cluster as ClusterBehavior.Type).cluster.id,
         );
         if (writeStates.length === 0) {
             return undefined;

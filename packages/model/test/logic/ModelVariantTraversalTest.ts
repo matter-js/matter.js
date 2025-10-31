@@ -82,7 +82,7 @@ function traverseClusters(children1: AnyElement[], children2: AnyElement[]) {
 
     const traversal = new (class extends ModelVariantTraversal {
         visit(variants: VariantDetail, recurse: () => void) {
-            if (variants.name != "matter 2" && variants.name != "cluster1") {
+            if (variants.name !== "matter 2" && variants.name !== "cluster1") {
                 traversalResult.push(variants);
             }
             recurse();

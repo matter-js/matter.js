@@ -1480,7 +1480,7 @@ export class PairedNode {
         }
 
         const basicInformationCluster = this.getRootClusterClient(BasicInformation.Cluster);
-        if (basicInformationCluster == undefined) {
+        if (basicInformationCluster === undefined) {
             throw new ImplementationError(`BasicInformationCluster for node ${this.nodeId} not found.`);
         }
 

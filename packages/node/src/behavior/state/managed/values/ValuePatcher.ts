@@ -70,7 +70,7 @@ function StructPatcher(schema: ValueModel, supervisor: RootSupervisor): ValueSup
     // An object mapping name to default value (if any) for sub-structs
     const memberDefaults = {} as Record<string, Val.Struct>;
 
-    // An object mapping name to true iff member is an array
+    // An object mapping name to true if member is an array
     const memberArrays = {} as Record<string, boolean>;
 
     // An object mapping alt keys (numeric IDs) to member names, if numeric IDs are defined
@@ -146,7 +146,7 @@ function StructPatcher(schema: ValueModel, supervisor: RootSupervisor): ValueSup
                 continue;
             }
 
-            // Patch existing container.  Casts to collection here may be incorrect but we the subpatcher will validate
+            // Patch existing container.  Casts to collection here may be incorrect but the subpatcher will validate
             // input and throw for non-collections
             subpatch(newValue as Val.Collection, target[key] as Val.Collection, path.at(key));
         }

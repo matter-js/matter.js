@@ -220,7 +220,7 @@ export class Transitions<B extends Behavior> {
             return;
         }
 
-        // Only report if it changes, with a delta larger than 10, caused by the invoke of a command
+        // Only report if it changes, with a delta larger than 10, caused by an invoke of a command
         if (fromCommand && Math.abs(this.#prevPublishedRemainingTime - newRemainingTime) <= 10) {
             return;
         }

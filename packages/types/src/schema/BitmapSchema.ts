@@ -204,7 +204,7 @@ export function BitFlags<T extends BitSchema, F extends Capitalize<Extract<keyof
     return Object.fromEntries(
         Object.keys(bitSchemas).map(name => [
             name,
-            !(flags.indexOf(capitalize(name as Extract<keyof T, string>)) == -1),
+            !(flags.indexOf(capitalize(name as Extract<keyof T, string>)) === -1),
         ]),
     ) as BitFlags<T, F>;
 }

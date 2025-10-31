@@ -185,8 +185,7 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
 
                     case "maxOf":
                     case "minOf": {
-                        Functions[type](value.args.map(value => valueOf(value)));
-                        return undefined;
+                        return Functions[type](value.args.map(value => valueOf(value)));
                     }
                 }
             }

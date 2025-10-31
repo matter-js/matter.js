@@ -227,7 +227,7 @@ function formatBlock(block: Block, width: number) {
 
     function formatLevel(block: Block, parentPrefix: string) {
         for (const entry of block.entries) {
-            if (typeof entry == "string") {
+            if (typeof entry === "string") {
                 let prefix, text;
                 if (block.kind === BlockKind.Simple) {
                     prefix = "";

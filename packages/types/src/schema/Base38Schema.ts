@@ -66,7 +66,7 @@ class Base38Schema extends Schema<Bytes, string> {
                 result[decodedOffset++] = (value >> 8) & 0xff;
                 result[decodedOffset++] = (value >> 16) & 0xff;
                 encodedOffset += 5;
-            } else if (remaining == 4) {
+            } else if (remaining === 4) {
                 const value = this.decodeBase38(encoded, encodedOffset, 4);
                 result[decodedOffset++] = value & 0xff;
                 result[decodedOffset++] = (value >> 8) & 0xff;
