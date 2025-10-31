@@ -73,6 +73,9 @@ function StructPatcher(schema: ValueModel, supervisor: RootSupervisor): ValueSup
     // An object mapping name to true iff member is an array
     const memberArrays = {} as Record<string, boolean>;
 
+    // An object mapping alt keys (numeric IDs) to member names, if numeric IDs are defined
+    const memberAltKeys = {} as Record<string, string>;
+
     for (const member of supervisor.membersOf(schema)) {
         const metatype = member.effectiveMetatype;
 
@@ -82,6 +85,9 @@ function StructPatcher(schema: ValueModel, supervisor: RootSupervisor): ValueSup
         }
 
         const key = camelize(member.name);
+        if (member.id !== undefined) {
+            memberAltKeys[member.id.toString()] = key;
+        }
 
         memberPatchers[key] = handler;
 
@@ -105,13 +111,16 @@ function StructPatcher(schema: ValueModel, supervisor: RootSupervisor): ValueSup
             throw new WriteError(path, `cannot patch ${target} because it is not an object`);
         }
 
-        for (const key in changes as Val.Struct) {
+        for (let key in changes as Val.Struct) {
+            let newValue = (changes as Val.Struct)[key];
+
             // Validate the key
             if (!(key in memberPatchers)) {
-                throw new WriteError(path, `${key} is not a property of ${schema.name}`);
+                if (!(key in memberAltKeys)) {
+                    throw new WriteError(path, `${key} is not a property of ${schema.name}`);
+                }
+                key = memberAltKeys[key];
             }
-
-            let newValue = (changes as Val.Struct)[key];
 
             // If this is not a subcollection or the new value is not an object, just do direct set
             const subpatch = memberPatchers[key];
