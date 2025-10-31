@@ -1122,7 +1122,7 @@ export namespace ScenesManagementServer {
         /** Fabric index where a scene is currently valid, if any */
         monitorSceneAttributesForFabric: FabricIndex | null = null;
 
-        /** Map of sceneable beaviors/clusters and their sceneable attributes on the endpoint */
+        /** Map of sceneable behaviors/clusters and their sceneable attributes on the endpoint */
         endpointSceneableBehaviors = new BasicSet<{
             id: ClusterId;
             name: string;
