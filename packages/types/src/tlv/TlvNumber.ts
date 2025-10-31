@@ -6,6 +6,8 @@
 import {
     FLOAT32_MAX,
     FLOAT32_MIN,
+    FLOAT64_MAX,
+    FLOAT64_MIN,
     INT16_MAX,
     INT16_MIN,
     INT32_MAX,
@@ -36,13 +38,32 @@ import { TlvWrapper } from "./TlvWrapper.js";
  * @see {@link MatterSpecification.v10.Core} § A.11.1
  */
 export class TlvNumericSchema<T extends bigint | number> extends TlvSchema<T> {
+    #min?: T;
+    #max?: T;
+
     constructor(
-        protected readonly type: TlvType.UnsignedInt | TlvType.SignedInt | TlvType.Float,
+        readonly type: TlvType.UnsignedInt | TlvType.SignedInt | TlvType.Float,
         protected readonly lengthProvider: (value: T) => TlvLength,
-        protected readonly min?: T,
-        protected readonly max?: T,
+        readonly baseTypeMin: T,
+        readonly baseTypeMax: T,
+        min?: T,
+        max?: T,
     ) {
         super();
+        if (min !== undefined && min > baseTypeMin) {
+            this.#min = min;
+        }
+        if (max !== undefined && max < baseTypeMax) {
+            this.#max = max;
+        }
+    }
+
+    get min() {
+        return this.#min ?? this.baseTypeMin;
+    }
+
+    get max() {
+        return this.#max ?? this.baseTypeMax;
     }
 
     override encodeTlvInternal(writer: TlvWriter, value: T, tag?: TlvTag): void {
@@ -90,10 +111,12 @@ export class TlvNumberSchema extends TlvNumericSchema<number> {
     constructor(
         type: TlvType.UnsignedInt | TlvType.SignedInt | TlvType.Float,
         lengthProvider: (value: number) => TlvLength,
+        baseTypeMin: number,
+        baseTypeMax: number,
         min?: number,
         max?: number,
     ) {
-        super(type, lengthProvider, min, max);
+        super(type, lengthProvider, baseTypeMin, baseTypeMax, min, max);
     }
 
     override decodeTlvInternalValue(reader: TlvReader, typeLength: TlvTypeLength) {
@@ -102,7 +125,14 @@ export class TlvNumberSchema extends TlvNumericSchema<number> {
     }
 
     override bound({ min, max }: NumericConstraints<number>): TlvNumericSchema<number> {
-        return new TlvNumberSchema(this.type, this.lengthProvider, maxValue(min, this.min), minValue(max, this.max));
+        return new TlvNumberSchema(
+            this.type,
+            this.lengthProvider,
+            this.baseTypeMin,
+            this.baseTypeMax,
+            maxValue(min, this.min),
+            minValue(max, this.max),
+        );
     }
 
     override validate(value: number): void {
@@ -116,7 +146,7 @@ export const TlvLongNumberSchema = TlvNumericSchema<number | bigint>;
 
 /** Unsigned integer TLV schema. */
 export const TlvFloat = new TlvNumberSchema(TlvType.Float, _value => TlvLength.FourBytes, FLOAT32_MIN, FLOAT32_MAX);
-export const TlvDouble = new TlvNumberSchema(TlvType.Float, _value => TlvLength.EightBytes);
+export const TlvDouble = new TlvNumberSchema(TlvType.Float, _value => TlvLength.EightBytes, FLOAT64_MIN, FLOAT64_MAX);
 export const TlvInt8 = new TlvNumberSchema(
     TlvType.SignedInt,
     value => TlvCodec.getIntTlvLength(value),

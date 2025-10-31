@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { TlvNumericSchema } from "#tlv/TlvNumber.js";
 import { ArraySchema } from "./TlvArray.js";
 import { TlvTag, TlvType, TlvTypeLength } from "./TlvCodec.js";
 import { TlvEncodingOptions, TlvReader, TlvSchema, TlvWriter } from "./TlvSchema.js";
@@ -15,8 +16,32 @@ import { StringSchema } from "./TlvString.js";
  * @see {@link MatterSpecification.v10.Core} § A.11.6
  */
 export class NullableSchema<T> extends TlvSchema<T | null> {
-    constructor(private readonly schema: TlvSchema<T>) {
+    readonly schema: TlvSchema<T>;
+
+    constructor(schema: TlvSchema<T>) {
         super();
+
+        // According to Matter specification, nullable numeric types cannot use the full range of the base type.
+        // They use one value to represent null in some cases.
+        // That's why adjust the max value accordingly if needed.
+        if (schema instanceof TlvNumericSchema && schema.type !== TlvType.Float) {
+            // Unsigned integers use the max value of the base type to represent null
+            if (schema.baseTypeMin === 0 && schema.max === schema.baseTypeMax) {
+                if (typeof schema.baseTypeMax === "number") {
+                    schema = schema.bound({ min: schema.min, max: schema.baseTypeMax - 1 });
+                } else {
+                    schema = schema.bound({ min: schema.min, max: schema.baseTypeMax - BigInt(1) });
+                }
+            } else if (schema.baseTypeMin < 0 && schema.min === schema.baseTypeMin) {
+                // Signed integers use the min value of the base type to represent null
+                if (typeof schema.baseTypeMin === "number") {
+                    schema = schema.bound({ min: schema.baseTypeMin + 1, max: schema.max });
+                } else {
+                    schema = schema.bound({ min: schema.baseTypeMin + BigInt(1), max: schema.max });
+                }
+            }
+        }
+        this.schema = schema;
     }
 
     override encodeTlvInternal(writer: TlvWriter, value: T | null, tag?: TlvTag, options?: TlvEncodingOptions): void {
