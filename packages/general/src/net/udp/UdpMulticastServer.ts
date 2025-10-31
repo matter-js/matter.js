@@ -137,7 +137,7 @@ export class UdpMulticastServer {
                         ips.map(async ip => {
                             const iPv4 = ipV4.includes(ip);
                             const broadcastTarget = iPv4 ? this.broadcastAddressIpv4 : this.broadcastAddressIpv6;
-                            if (broadcastTarget == undefined) {
+                            if (broadcastTarget === undefined) {
                                 // IPv4 but disabled, so just resolve
                                 return;
                             }

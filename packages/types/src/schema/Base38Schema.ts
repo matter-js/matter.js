@@ -20,7 +20,7 @@ class Base38Schema extends Schema<Bytes, string> {
             const remaining = length - offset;
             if (remaining > 2) {
                 result.push(this.encodeBase38(bytes[offset++] | (bytes[offset++] << 8) | (bytes[offset++] << 16), 5));
-            } else if (remaining == 2) {
+            } else if (remaining === 2) {
                 result.push(this.encodeBase38(bytes[offset++] | (bytes[offset++] << 8), 4));
                 break;
             } else {

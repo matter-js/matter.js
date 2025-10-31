@@ -687,7 +687,7 @@ export class MessageExchange {
     }
 
     get via() {
-        if (this.session == undefined || !this.session.isSecure) {
+        if (this.session === undefined || !this.session.isSecure) {
             return this.channel.name; // already formatted as "via"
         }
 

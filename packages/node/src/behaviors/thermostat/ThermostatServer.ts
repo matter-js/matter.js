@@ -999,7 +999,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
      * true.
      */
     #handleTemperatureChangeForMode(temperature: number | null) {
-        if (temperature == null) {
+        if (temperature === null) {
             return;
         }
         const consideration = this.temperatureConsideration;

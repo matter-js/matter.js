@@ -172,8 +172,8 @@ export function rgbToXy(r: number, g: number, b: number): [number, number] {
     const Z = r * 0.000088 + g * 0.07231 + b * 0.986039;
     const sum = X + Y + Z;
 
-    const retX = sum == 0 ? 0 : X / sum;
-    const retY = sum == 0 ? 0 : Y / sum;
+    const retX = sum === 0 ? 0 : X / sum;
+    const retY = sum === 0 ? 0 : Y / sum;
 
     return [retX, retY];
 }

@@ -71,7 +71,7 @@ export class ChangeNotificationService {
                         kind: "delete",
                         endpoint,
                     });
-                    if (endpoint == node) {
+                    if (endpoint === node) {
                         observers.close();
                         this.#observers.delete(node);
                     }

@@ -134,7 +134,7 @@ async function executeCommand(
         console.log(`ERROR: Cluster ${node.nodeId.toString()}/${endpointId}/${clusterId} not found.`);
         return;
     }
-    if (clusterClient.commands[commandName] == undefined) {
+    if (clusterClient.commands[commandName] === undefined) {
         console.log(`ERROR: Command ${node.nodeId.toString()}/${endpointId}/${clusterId}/${command.id} not supported.`);
         return;
     }

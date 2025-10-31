@@ -102,7 +102,7 @@ export function commandlineParser(line: string) {
             s = "";
 
             consumeWhitespace(r);
-        } else if (r.current == "\\") {
+        } else if (r.current === "\\") {
             s += escaped(r);
             r.next();
         } else if (r.current === "'" || r.current === '"') {

@@ -103,7 +103,7 @@ export class AtomicWriteHandler {
         const existingState = this.#pendingWrites.find(
             s =>
                 PeerAddress.is(s.peerAddress, peerAddress) &&
-                s.endpoint.number == endpoint.number &&
+                s.endpoint.number === endpoint.number &&
                 s.clusterId === (cluster as ClusterBehavior.Type).cluster.id,
         );
 

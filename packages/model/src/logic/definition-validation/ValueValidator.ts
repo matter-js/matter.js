@@ -193,7 +193,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
                     this.error(`CHILDLESS_${metatype.toUpperCase()}`, `${this.model.type} with no children`);
                 }
 
-                if (metatype == Metatype.enum) {
+                if (metatype === Metatype.enum) {
                     this.#validateEnumKeys();
                 } else {
                     this.#validateBitFields();

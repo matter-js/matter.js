@@ -194,7 +194,7 @@ export class StandardTimer implements Timer {
         }
 
         // Support node.js-style environments to control whether the timer blocks process exit
-        if (this.#timerId != undefined) {
+        if (this.#timerId !== undefined) {
             const timerId = this.#timerId as { ref?: () => void; unref?: () => void };
             if (utility) {
                 timerId.unref?.();
