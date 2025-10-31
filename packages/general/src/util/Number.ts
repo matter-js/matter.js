@@ -21,6 +21,8 @@ export const INT64_MAX = BigInt("9223372036854775807");
 
 export const FLOAT32_MIN = -340282346638528859811704183484516925440.0;
 export const FLOAT32_MAX = 340282346638528859811704183484516925440.0;
+export const FLOAT64_MIN = -Number.MAX_VALUE;
+export const FLOAT64_MAX = Number.MAX_VALUE;
 
 export function toNumber(value: bigint | number): number {
     return typeof value === "bigint" ? Number(value) : value;
