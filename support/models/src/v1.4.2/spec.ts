@@ -37373,7 +37373,7 @@ export const SpecMatter = Matter(
             xref: "device§2.1.5"
         }),
         Requirement({
-            name: "WiFiNetworkDiagnostics", id: 0x36, conformance: "[Wi, Fi]", element: "serverCluster",
+            name: "WiFiNetworkDiagnostics", id: 0x36, conformance: "[WiFi]", element: "serverCluster",
             xref: "device§2.1.5"
         }),
         Requirement({
@@ -37559,7 +37559,7 @@ export const SpecMatter = Matter(
             xref: "device§2.8.3"
         }),
         Requirement({
-            name: "WiFiNetworkDiagnostics", id: 0x36, conformance: "[Wi, Fi]", element: "serverCluster",
+            name: "WiFiNetworkDiagnostics", id: 0x36, conformance: "[WiFi]", element: "serverCluster",
             xref: "device§2.8.3"
         }),
         Requirement({

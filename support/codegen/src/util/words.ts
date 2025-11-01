@@ -25,6 +25,7 @@ Words.add("arl");
 Words.add("passcode");
 Words.add("led");
 Words.add("url");
+Words.add("wifi");
 
 // Acronym for "micro reciprocal degrees" used by color cluster
 Words.add("mireds");

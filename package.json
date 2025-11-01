@@ -42,6 +42,13 @@
     "matter-composeddevice": "matter-run packages/examples/src/device-composed-onoff/ComposedDeviceNode.ts",
     "matter-multidevice": "matter-run packages/examples/src/device-multiple-onoff/MultiDeviceNode.ts",
     "matter-controller": "matter-run packages/examples/src/controller/ControllerNode.ts",
+    "generate-spec": "matter-run --max-old-space-size=6144 support/codegen/bin/generate-spec.js",
+    "generate-chip": "matter-run support/codegen/bin/generate-chip.js",
+    "generate-model": "matter-run support/codegen/bin/generate-model.js",
+    "generate-clusters": "matter-run support/codegen/bin/generate-clusters.js",
+    "generate-endpoints": "matter-run support/codegen/bin/generate-endpoints.js",
+    "generate-forwards": "matter-run support/codegen/bin/generate-forwards.js",
+    "generate-vscode": "matter-run support/codegen/bin/generate-vscode.js",
     "shell": "matter-run packages/nodejs-shell/src/app.ts",
     "relock": "node packages/tools/bin/relock.js && npm install",
     "cycles": "matter-build cycles"

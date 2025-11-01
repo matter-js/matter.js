@@ -68,6 +68,9 @@ export function repairConformanceRule(conformance?: string) {
     // Words separated by space is illegal and we can safely assume should be joined
     conformance = conformance.replace(/([a-z])\s+([a-z])/gi, "$1$2");
 
+    // Core uses "Wi-Fi" as an informal feature name in RootEndpoint's requirements
+    conformance = conformance.replace(/Wi-Fi/, "WiFi");
+
     // "Status == SUCCESS" should be "Status == Success" (cluster 1.4.2)
     conformance = conformance.replace(/status == success/gi, "Status == Success");
 

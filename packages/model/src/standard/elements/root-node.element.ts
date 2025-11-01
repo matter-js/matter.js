@@ -45,7 +45,7 @@ export const RootNodeDt = DeviceType(
     Requirement({ name: "DiagnosticLogs", id: 0x32, conformance: "O", element: "serverCluster", quality: "I" }),
     Requirement({ name: "SoftwareDiagnostics", id: 0x34, conformance: "O", element: "serverCluster", quality: "I" }),
     Requirement({ name: "EthernetNetworkDiagnostics", id: 0x37, conformance: "[Ethernet]", element: "serverCluster" }),
-    Requirement({ name: "WiFiNetworkDiagnostics", id: 0x36, conformance: "[Wi, Fi]", element: "serverCluster" }),
+    Requirement({ name: "WiFiNetworkDiagnostics", id: 0x36, conformance: "[WiFi]", element: "serverCluster" }),
     Requirement({ name: "ThreadNetworkDiagnostics", id: 0x35, conformance: "[Thread]", element: "serverCluster" }),
     Requirement(
         { name: "IcdManagement", id: 0x46, conformance: "SIT | LIT", element: "serverCluster", quality: "I" },

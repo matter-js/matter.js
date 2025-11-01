@@ -17,7 +17,7 @@ export const SecondaryNetworkInterfaceDt = DeviceType(
     ),
     Requirement({ name: "NetworkCommissioning", id: 0x31, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "EthernetNetworkDiagnostics", id: 0x37, conformance: "[Ethernet]", element: "serverCluster" }),
-    Requirement({ name: "WiFiNetworkDiagnostics", id: 0x36, conformance: "[Wi, Fi]", element: "serverCluster" }),
+    Requirement({ name: "WiFiNetworkDiagnostics", id: 0x36, conformance: "[WiFi]", element: "serverCluster" }),
     Requirement({ name: "ThreadNetworkDiagnostics", id: 0x35, conformance: "[Thread]", element: "serverCluster" })
 );
 
