@@ -87,6 +87,16 @@ export class Agent {
     }
 
     /**
+     * Optionally obtain a behavior supported by this agent.  Returns `undefined` if the {@link Behavior.Type} isn't
+     * supported or yet installed
+     */
+    maybeGet<T extends Behavior.Type>(type: T): InstanceType<T> | undefined {
+        if (this.has(type)) {
+            return this.get(type);
+        }
+    }
+
+    /**
      * Obtain a behavior supported by this agent.  Throws an error if the {@link Behavior.Type} isn't supported.  Waits
      * if the behavior is not yet initialized.
      */

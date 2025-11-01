@@ -363,9 +363,7 @@ export class ColorControlBaseServer extends ColorControlBase {
             this.initializeColorTemperature();
         }
 
-        if (this.agent.has(ScenesManagementServer)) {
-            this.agent.get(ScenesManagementServer).implementScenes(this, this.#applySceneValues);
-        }
+        this.agent.maybeGet(ScenesManagementServer)?.implementScenes(this, this.#applySceneValues);
     }
 
     /**
@@ -597,6 +595,7 @@ export class ColorControlBaseServer extends ColorControlBase {
         if (!this.#optionsAllowExecution(optionsMask, optionsOverride)) {
             return;
         }
+        this.#invalidateScenes();
         return MaybePromise.then(this.setColorMode(ColorControl.ColorMode.CurrentHueAndCurrentSaturation), () =>
             this.moveToSaturationLogic(saturation, transitionTime),
         );
@@ -731,6 +730,7 @@ export class ColorControlBaseServer extends ColorControlBase {
         if (!this.#optionsAllowExecution(optionsMask, optionsOverride)) {
             return;
         }
+        this.#invalidateScenes();
         return MaybePromise.then(this.setColorMode(ColorControl.ColorMode.CurrentHueAndCurrentSaturation), () =>
             this.moveToHueAndSaturationLogic(hue, saturation, transitionTime),
         );
@@ -739,7 +739,7 @@ export class ColorControlBaseServer extends ColorControlBase {
     /**
      * Default implementation of the moveToHueAndSaturation logic.
      * If the managed transition time handling is disabled the method directly sets the new hue and saturation values.
-     * Otherwise the method initiates a transition with the given rate.
+     * Otherwise, the method initiates a transition with the given rate.
      * This method internally uses {@link moveToHueLogic} and {@link moveToSaturationLogic} to handle the hue and
      * saturation changes, so if you have implemented them already you might not need to override this method.
      *
@@ -777,6 +777,7 @@ export class ColorControlBaseServer extends ColorControlBase {
         if (!this.#optionsAllowExecution(optionsMask, optionsOverride)) {
             return;
         }
+        this.#invalidateScenes();
         return MaybePromise.then(this.setColorMode(ColorControl.ColorMode.CurrentXAndCurrentY), () =>
             this.moveToColorLogic(colorX, colorY, transitionTime),
         );
@@ -785,7 +786,7 @@ export class ColorControlBaseServer extends ColorControlBase {
     /**
      * Default implementation of the moveToColor logic.
      * If the managed transition time handling is disabled the method directly sets the new x and y values.
-     * Otherwise the method initiates a transition with the given rate.
+     * Otherwise, the method initiates a transition with the given rate.
      * This method internally uses {@link moveToColorLogic} to handle the x and y changes, so if you have implemented it
      * already you might not need to override this method.
      *
@@ -850,7 +851,7 @@ export class ColorControlBaseServer extends ColorControlBase {
     /**
      * Default implementation of the moveColor logic.
      * If the managed transition time handling is disabled the method directly sets the new x and y values.
-     * Otherwise the method initiates a transition with the given rate.
+     * Otherwise, the method initiates a transition with the given rate.
      *
      * @param rateX The rate to move the x value up or down (positive values mean up, negative down)
      * @param rateY The rate to move the y value up or down (positive values mean up, negative down)
@@ -1076,6 +1077,7 @@ export class ColorControlBaseServer extends ColorControlBase {
         if (!this.#optionsAllowExecution(optionsMask, optionsOverride)) {
             return;
         }
+        this.#invalidateScenes();
         return MaybePromise.then(
             this.setEnhancedColorMode(ColorControl.EnhancedColorMode.EnhancedCurrentHueAndCurrentSaturation),
             () => this.moveToEnhancedHueAndSaturationLogic(enhancedHue, saturation, transitionTime),
@@ -1140,6 +1142,8 @@ export class ColorControlBaseServer extends ColorControlBase {
         if (updateFlags.updateStartHue) {
             this.state.colorLoopStartEnhancedHue = startHue;
         }
+
+        this.#invalidateScenes();
         if (updateFlags.updateAction) {
             if (action === ColorControl.ColorLoopAction.Deactivate) {
                 if (this.state.colorLoopActive === ColorControl.ColorLoopActive.Active) {
@@ -1879,6 +1883,11 @@ export class ColorControlBaseServer extends ColorControlBase {
                 );
                 break;
         }
+    }
+
+    /** Invalidate all stored scenes manually for this endpoint in the Scenesmanagement cluster because SDK behavior. */
+    #invalidateScenes() {
+        this.agent.maybeGet(ScenesManagementServer)?.makeAllFabricSceneInfoEntriesInvalid();
     }
 
     override async [Symbol.asyncDispose]() {

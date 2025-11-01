@@ -873,10 +873,12 @@ export class ScenesManagementServer extends ScenesManagementBase {
             }
 
             // Register observer to reset scene validity on attribute changes
-            this.internal.endpointSceneAttributeObservers.on(
+            // Ideally we would do it right but SDK implementation is different, so for now we mimic SDK.
+            // This means that certain commands will reset the state manually
+            /*this.internal.endpointSceneAttributeObservers.on(
                 event,
-                this.callback(this.#makeAllFabricSceneInfoEntriesInvalid),
-            );
+                this.callback(this.makeAllFabricSceneInfoEntriesInvalid),
+            );*/
             if (!sceneClusterDetails) {
                 sceneClusterDetails = this.internal.endpointSceneableBehaviors.get("id", clusterId) ?? {
                     id: clusterId,
@@ -983,8 +985,11 @@ export class ScenesManagementServer extends ScenesManagementBase {
         this.internal.monitorSceneAttributesForFabric = null;
     }
 
-    /** Invalidate all fabric scene info entries. */
-    #makeAllFabricSceneInfoEntriesInvalid() {
+    /**
+     * Invalidate all fabric scene info entries.
+     * Method will be called by relevant clusters when commands change the state.
+     */
+    makeAllFabricSceneInfoEntriesInvalid() {
         if (this.internal.monitorSceneAttributesForFabric === null) {
             return;
         }

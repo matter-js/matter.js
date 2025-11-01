@@ -107,9 +107,7 @@ export class LevelControlBaseServer extends LevelControlBase {
             this.initializeOnOff();
         }
 
-        if (this.agent.has(ScenesManagementServer)) {
-            this.agent.get(ScenesManagementServer).implementScenes(this, this.#applySceneValues);
-        }
+        this.agent.maybeGet(ScenesManagementServer)?.implementScenes(this, this.#applySceneValues);
     }
 
     /**
@@ -237,6 +235,7 @@ export class LevelControlBaseServer extends LevelControlBase {
 
         level = cropValueRange(level, this.minLevel, this.maxLevel);
 
+        this.#invalidateScenes();
         return this.moveToLevelLogic(level, transitionTime, false, effectiveOptions);
     }
 
@@ -248,6 +247,7 @@ export class LevelControlBaseServer extends LevelControlBase {
     override moveToLevelWithOnOff({ level, transitionTime }: LevelControl.MoveToLevelRequest): MaybePromise {
         level = cropValueRange(level, this.minLevel, this.maxLevel);
 
+        this.#invalidateScenes();
         return this.moveToLevelLogic(level, transitionTime, true);
     }
 
@@ -289,6 +289,7 @@ export class LevelControlBaseServer extends LevelControlBase {
             effectiveRate = (currentLevel: number) => ((level - currentLevel) / effectiveTransitionTime) * 10;
         }
 
+        this.#invalidateScenes();
         return this.transition(level, effectiveRate, withOnOff, options);
     }
 
@@ -307,6 +308,7 @@ export class LevelControlBaseServer extends LevelControlBase {
             return;
         }
 
+        this.#invalidateScenes();
         return this.moveLogic(moveMode, rate, false, effectiveOptions);
     }
 
@@ -320,6 +322,7 @@ export class LevelControlBaseServer extends LevelControlBase {
     override moveWithOnOff({ moveMode, rate }: LevelControl.MoveRequest): MaybePromise {
         rate = this.#assertRateValue(rate);
 
+        this.#invalidateScenes();
         return this.moveLogic(moveMode, rate, true);
     }
 
@@ -371,6 +374,8 @@ export class LevelControlBaseServer extends LevelControlBase {
         if (!this.#optionsAllowExecution(effectiveOptions)) {
             return;
         }
+
+        this.#invalidateScenes();
         return this.stepLogic(stepMode, stepSize, transitionTime, false, effectiveOptions);
     }
 
@@ -380,6 +385,7 @@ export class LevelControlBaseServer extends LevelControlBase {
      * To replace default beahavior, override {@link stepLogic} which also implements {@link step}.
      */
     override stepWithOnOff({ stepMode, stepSize, transitionTime }: LevelControl.StepRequest): MaybePromise {
+        this.#invalidateScenes();
         return this.stepLogic(stepMode, stepSize, transitionTime, true);
     }
 
@@ -418,6 +424,7 @@ export class LevelControlBaseServer extends LevelControlBase {
             return;
         }
 
+        this.#invalidateScenes();
         return this.stopLogic(effectiveOptions);
     }
 
@@ -606,6 +613,11 @@ export class LevelControlBaseServer extends LevelControlBase {
             return;
         }
         return this.moveToLevelLogic(level, transitionTime / 100, false, { executeIfOff: true });
+    }
+
+    /** Invalidate all stored scenes manually for this endpoint in the Scenesmanagement cluster because SDK behavior. */
+    #invalidateScenes() {
+        this.agent.maybeGet(ScenesManagementServer)?.makeAllFabricSceneInfoEntriesInvalid();
     }
 
     override async [Symbol.asyncDispose]() {

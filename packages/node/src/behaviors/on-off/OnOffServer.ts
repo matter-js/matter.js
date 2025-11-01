@@ -57,6 +57,9 @@ export class OnOffBaseServer extends OnOffLogicBase {
     }
 
     override on(): MaybePromise {
+        if (!this.state.onOff) {
+            this.#invalidateScenes();
+        }
         this.state.onOff = true;
         if (this.features.lighting) {
             this.state.globalSceneControl = true;
@@ -69,7 +72,15 @@ export class OnOffBaseServer extends OnOffLogicBase {
         }
     }
 
+    /** Invalidate all stored scenes manually for this endpoint in the Scenesmanagement cluster because SDK behavior. */
+    #invalidateScenes() {
+        this.agent.maybeGet(ScenesManagementServer)?.makeAllFabricSceneInfoEntriesInvalid();
+    }
+
     override off(): MaybePromise {
+        if (this.state.onOff) {
+            this.#invalidateScenes();
+        }
         this.state.onOff = false;
         if (this.features.lighting) {
             if (this.timedOnTimer.isRunning) {
@@ -101,15 +112,11 @@ export class OnOffBaseServer extends OnOffLogicBase {
      */
     override offWithEffect(): MaybePromise {
         if (this.state.globalSceneControl) {
-            if (
-                hasRemoteActor(this.context) &&
-                this.context.session.fabric !== undefined &&
-                this.agent.has(ScenesManagementServer)
-            ) {
+            if (hasRemoteActor(this.context) && this.context.session.fabric !== undefined) {
                 this.endpoint
                     .agentFor(this.context)
-                    .get(ScenesManagementServer)
-                    .storeGlobalScene(this.context.session.fabric.fabricIndex);
+                    .maybeGet(ScenesManagementServer)
+                    ?.storeGlobalScene(this.context.session.fabric.fabricIndex);
             }
             this.state.globalSceneControl = false;
         }
@@ -127,8 +134,8 @@ export class OnOffBaseServer extends OnOffLogicBase {
         ) {
             await this.endpoint
                 .agentFor(this.context)
-                .get(ScenesManagementServer)
-                .recallGlobalScene(this.context.session.fabric.fabricIndex);
+                .maybeGet(ScenesManagementServer)
+                ?.recallGlobalScene(this.context.session.fabric.fabricIndex);
         }
 
         this.state.globalSceneControl = true;
