@@ -1085,7 +1085,7 @@ export namespace ScenesManagementServer {
     export type SceneAttributeData = { [key: string]: { [key: string]: boolean | number | bigint | null } };
 
     /** Scene Table Entry as decorated class for persistence */
-    export class ScenesTableEntry {
+    export class ScenesTableEntry implements Omit<ScenesManagement.LogicalSceneTable, "extensionFields"> {
         @field(groupId, mandatory)
         sceneGroupId!: GroupId;
 
