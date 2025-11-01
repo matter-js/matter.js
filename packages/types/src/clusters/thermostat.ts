@@ -1662,7 +1662,7 @@ export namespace Thermostat {
             localTemperatureCalibration: OptionalWritableAttribute(
                 0x10,
                 TlvInt8,
-                { persistent: true, writeAcl: AccessLevel.Manage }
+                { persistent: true, default: 0, writeAcl: AccessLevel.Manage }
             )
         }
     });
@@ -1747,8 +1747,8 @@ export namespace Thermostat {
              */
             minSetpointDeadBand: WritableAttribute(
                 0x19,
-                TlvInt8.bound({ min: 0 }),
-                { persistent: true, writeAcl: AccessLevel.Manage }
+                TlvInt8.bound({ min: 0, max: 127 }),
+                { persistent: true, default: 20, writeAcl: AccessLevel.Manage }
             ),
 
             /**
@@ -1886,7 +1886,7 @@ export namespace Thermostat {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 4.3.9.38
              */
-            occupiedSetbackMax: FixedAttribute(0x36, TlvNullable(TlvUInt8), { default: null })
+            occupiedSetbackMax: FixedAttribute(0x36, TlvNullable(TlvUInt8.bound({ max: 254 })), { default: null })
         }
     });
 
@@ -1943,7 +1943,7 @@ export namespace Thermostat {
              *
              * @see {@link MatterSpecification.v141.Cluster} § 4.3.9.41
              */
-            unoccupiedSetbackMax: FixedAttribute(0x39, TlvNullable(TlvUInt8), { default: null })
+            unoccupiedSetbackMax: FixedAttribute(0x39, TlvNullable(TlvUInt8.bound({ max: 254 })), { default: null })
         }
     });
 
@@ -2532,7 +2532,7 @@ export namespace Thermostat {
             emergencyHeatDelta: OptionalWritableAttribute(
                 0x3a,
                 TlvUInt8,
-                { persistent: true, writeAcl: AccessLevel.Manage }
+                { persistent: true, default: 250, writeAcl: AccessLevel.Manage }
             ),
 
             /**

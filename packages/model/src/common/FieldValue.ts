@@ -204,11 +204,14 @@ export namespace FieldValue {
         if (is(value, celsius)) {
             switch (typeName) {
                 case "temperature":
-                case "temp-diff":
+                case "temp-diff": // Thermostat < 1.2
+                case "TemperatureDifference": // Thermostat 1.2+
                     return (value as Celsius).value * 100;
 
-                case "temp-u8":
-                case "temp-s8":
+                case "temp-u8": // Thermostat < 1.2
+                case "UnsignedTemperature": // Thermostat 1.2+
+                case "temp-s8": // Thermostat < 1.2
+                case "SignedTemperature": // Thermostat 1.2+
                     return (value as Celsius).value * 10;
             }
 
