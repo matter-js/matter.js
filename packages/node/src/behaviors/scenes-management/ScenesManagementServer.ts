@@ -12,16 +12,33 @@ import { BasicSet, camelize, deepCopy, InternalError, Logger, ObserverGroup, ser
 import {
     AccessLevel,
     any,
+    bool,
     ClusterModel,
-    Datatype,
     fabricIdx,
     field,
     groupId,
+    int16,
+    int32,
+    int40,
+    int48,
+    int56,
+    int64,
+    int8,
     listOf,
     mandatory,
+    map16,
+    map32,
+    map64,
+    map8,
     nonvolatile,
     string,
+    uint16,
+    uint24,
     uint32,
+    uint40,
+    uint48,
+    uint56,
+    uint64,
     uint8,
 } from "#model";
 import { assertRemoteActor, Fabric, FabricManager, GroupSession, Val } from "#protocol";
@@ -66,7 +83,7 @@ type AttributeDetails = {
     id: AttributeId;
     name: string;
     schema: TlvSchema<any>;
-    type: Datatype;
+    type: string;
     mappedType: AttributeValuePairDataFields;
     nullable: boolean;
 };
@@ -85,26 +102,26 @@ const enum AttributeValuePairDataFields {
 
 /** Mapping from Datatypes to the AttributeValuePair field to use and expect */
 export const DataTypeToSceneAttributeDataMap: Record<string, AttributeValuePairDataFields | undefined> = {
-    [Datatype.bool]: AttributeValuePairDataFields.ValueUnsigned8,
-    [Datatype.map8]: AttributeValuePairDataFields.ValueUnsigned8,
-    [Datatype.uint8]: AttributeValuePairDataFields.ValueUnsigned8,
-    [Datatype.int8]: AttributeValuePairDataFields.ValueSigned8,
-    [Datatype.uint16]: AttributeValuePairDataFields.ValueUnsigned16,
-    [Datatype.map16]: AttributeValuePairDataFields.ValueUnsigned16,
-    [Datatype.int16]: AttributeValuePairDataFields.ValueSigned16,
-    [Datatype.uint24]: AttributeValuePairDataFields.ValueUnsigned32,
-    [Datatype.uint32]: AttributeValuePairDataFields.ValueUnsigned32,
-    [Datatype.map32]: AttributeValuePairDataFields.ValueUnsigned32,
-    [Datatype.int32]: AttributeValuePairDataFields.ValueSigned32,
-    [Datatype.uint40]: AttributeValuePairDataFields.ValueUnsigned64,
-    [Datatype.uint48]: AttributeValuePairDataFields.ValueUnsigned64,
-    [Datatype.uint56]: AttributeValuePairDataFields.ValueUnsigned64,
-    [Datatype.uint64]: AttributeValuePairDataFields.ValueUnsigned64,
-    [Datatype.map64]: AttributeValuePairDataFields.ValueUnsigned64,
-    [Datatype.int40]: AttributeValuePairDataFields.ValueSigned64,
-    [Datatype.int48]: AttributeValuePairDataFields.ValueSigned64,
-    [Datatype.int56]: AttributeValuePairDataFields.ValueSigned64,
-    [Datatype.int64]: AttributeValuePairDataFields.ValueSigned64,
+    [bool.name]: AttributeValuePairDataFields.ValueUnsigned8,
+    [map8.name]: AttributeValuePairDataFields.ValueUnsigned8,
+    [uint8.name]: AttributeValuePairDataFields.ValueUnsigned8,
+    [int8.name]: AttributeValuePairDataFields.ValueSigned8,
+    [uint16.name]: AttributeValuePairDataFields.ValueUnsigned16,
+    [map16.name]: AttributeValuePairDataFields.ValueUnsigned16,
+    [int16.name]: AttributeValuePairDataFields.ValueSigned16,
+    [uint24.name]: AttributeValuePairDataFields.ValueUnsigned32,
+    [uint32.name]: AttributeValuePairDataFields.ValueUnsigned32,
+    [map32.name]: AttributeValuePairDataFields.ValueUnsigned32,
+    [int32.name]: AttributeValuePairDataFields.ValueSigned32,
+    [uint40.name]: AttributeValuePairDataFields.ValueUnsigned64,
+    [uint48.name]: AttributeValuePairDataFields.ValueUnsigned64,
+    [uint56.name]: AttributeValuePairDataFields.ValueUnsigned64,
+    [uint64.name]: AttributeValuePairDataFields.ValueUnsigned64,
+    [map64.name]: AttributeValuePairDataFields.ValueUnsigned64,
+    [int40.name]: AttributeValuePairDataFields.ValueSigned64,
+    [int48.name]: AttributeValuePairDataFields.ValueSigned64,
+    [int56.name]: AttributeValuePairDataFields.ValueSigned64,
+    [int64.name]: AttributeValuePairDataFields.ValueSigned64,
 };
 
 /**
@@ -195,12 +212,14 @@ export class ScenesManagementServer extends ScenesManagementBase {
             this.state.sceneTableSize = 128; // Let's use that as a meaningful max for now if not specified by the developer
         }
 
-        // When fabrics are removed we need to clean up our scenes accordingly
         const fabricManager = this.endpoint.env.get(FabricManager);
-        this.reactTo(fabricManager.events.deleted, this.#handleDeleteFabric);
 
         // Initialize fabric scene info field to match to the current state of the scene table
         this.#initializeFabricSceneInfo(fabricManager);
+
+        // When a fabric git removed we need to check if the active scene is considered from that fabric
+        // Data cleanup happens automatically
+        this.reactTo(fabricManager.events.deleted, this.#handleDeleteFabric);
     }
 
     /**
@@ -304,14 +323,14 @@ export class ScenesManagementServer extends ScenesManagementBase {
         }
 
         return this.#addOrReplaceSceneEntry(
-            new ScenesManagementServer.ScenesTableEntry({
+            {
                 sceneGroupId: groupId,
                 sceneId,
                 sceneName,
                 sceneTransitionTime: transitionTime,
                 sceneValues,
                 fabricIndex,
-            }),
+            },
             existingSceneIndex,
         );
     }
@@ -420,16 +439,14 @@ export class ScenesManagementServer extends ScenesManagementBase {
             // Otherwise, a new entry SHALL be added to the scene table, using the provided GroupID and
             // SceneID, with SceneTransitionTime set to 0, with SceneName set to the empty string, and with
             // ExtensionFieldSets corresponding to the current state of other clusters on the same endpoint.
-            result = this.#addOrReplaceSceneEntry(
-                new ScenesManagementServer.ScenesTableEntry({
-                    sceneGroupId: groupId,
-                    sceneId,
-                    sceneName: "",
-                    sceneTransitionTime: 0,
-                    sceneValues,
-                    fabricIndex,
-                }),
-            );
+            result = this.#addOrReplaceSceneEntry({
+                sceneGroupId: groupId,
+                sceneId,
+                sceneName: "",
+                sceneTransitionTime: 0,
+                sceneValues,
+                fabricIndex,
+            });
         }
 
         // IF scene was successfully added it is also the active one now
@@ -672,7 +689,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
         }
 
         // Handle Boolean values
-        if (type === Datatype.bool) {
+        if (type === bool.name) {
             let boolValue: boolean | null;
             if (value === 0 || value === 1) {
                 boolValue = !!value;
@@ -773,7 +790,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
         { id: attributeId, schema, type, mappedType }: AttributeDetails,
         value: number | bigint | boolean | null,
     ): ScenesManagement.AttributeValuePair | undefined {
-        if (type === Datatype.bool) {
+        if (type === bool.name) {
             if (value === null) {
                 return { attributeId, [mappedType]: 0xff };
             }
@@ -856,7 +873,10 @@ export class ScenesManagementServer extends ScenesManagementBase {
             }
 
             // Register observer to reset scene validity on attribute changes
-            this.internal.endpointSceneAttributeObservers.on(event, this.#makeAllFabricSceneInfoEntriesInvalid);
+            this.internal.endpointSceneAttributeObservers.on(
+                event,
+                this.callback(this.#makeAllFabricSceneInfoEntriesInvalid),
+            );
             if (!sceneClusterDetails) {
                 sceneClusterDetails = this.internal.endpointSceneableBehaviors.get("id", clusterId) ?? {
                     id: clusterId,
@@ -866,7 +886,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
                     applyFunc,
                 };
             }
-            const attrType = attribute.primitiveBase?.name as Datatype | undefined;
+            const attrType = attribute.primitiveBase?.name;
             if (attrType === undefined || DataTypeToSceneAttributeDataMap[attrType] === undefined) {
                 logger.warn(
                     `Scene Attribute ${attribute.name} on Cluster ${clusterName} has unsupported datatype ${attrType} for scene management on Endpoint ${this.endpoint.id}`,
@@ -1049,8 +1069,6 @@ export class ScenesManagementServer extends ScenesManagementBase {
 
     /** Removes all scenes for a given fabric when the fabric is deleted */
     #handleDeleteFabric({ fabricIndex }: Fabric) {
-        this.state.sceneTable = deepCopy(this.state.sceneTable).filter(s => s.fabricIndex !== fabricIndex);
-        this.state.fabricSceneInfo = deepCopy(this.state.fabricSceneInfo).filter(s => s.fabricIndex !== fabricIndex);
         if (this.internal.monitorSceneAttributesForFabric === fabricIndex) {
             this.internal.monitorSceneAttributesForFabric = null;
         }
@@ -1062,46 +1080,30 @@ export namespace ScenesManagementServer {
     export type SceneAttributeData = { [key: string]: { [key: string]: boolean | number | bigint | null } };
 
     /** Scene Table Entry including scene values and fabric index */
-    export interface ScenesTableEntry extends Omit<ScenesManagement.LogicalSceneTable, "extensionFields"> {
+    export interface ScenesTableEntryI extends Omit<ScenesManagement.LogicalSceneTable, "extensionFields"> {
         sceneValues: SceneAttributeData;
         fabricIndex: FabricIndex;
     }
 
     /** Scene Table Entry as decorated class for persistence */
-    export class ScenesTableEntry {
+    export class ScenesTableEntry implements ScenesTableEntryI {
         @field(groupId, mandatory)
-        sceneGroupId: GroupId;
+        sceneGroupId!: GroupId;
 
         @field(uint8.extend({ constraint: "max 254" }), mandatory)
-        sceneId: number;
+        sceneId!: number;
 
         @field(string.extend({ constraint: "max 16" }))
         sceneName?: string;
 
         @field(uint32.extend({ constraint: "max 60000000" }), mandatory)
-        sceneTransitionTime: number;
+        sceneTransitionTime!: number;
 
         @field(any, mandatory)
-        sceneValues: SceneAttributeData;
+        sceneValues!: SceneAttributeData;
 
         @field(fabricIdx, mandatory)
-        fabricIndex: FabricIndex;
-
-        constructor({
-            sceneGroupId,
-            sceneId,
-            sceneName,
-            sceneTransitionTime,
-            sceneValues,
-            fabricIndex,
-        }: ScenesTableEntry) {
-            this.sceneGroupId = sceneGroupId;
-            this.sceneId = sceneId;
-            this.sceneName = sceneName;
-            this.sceneTransitionTime = sceneTransitionTime;
-            this.sceneValues = sceneValues;
-            this.fabricIndex = fabricIndex;
-        }
+        fabricIndex!: FabricIndex;
     }
 
     export class State extends ScenesManagementBase.State {

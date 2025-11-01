@@ -61,7 +61,7 @@ LocalMatter.children.push({
             tag: "attribute",
             id: 0x4002,
             name: "ColorLoopActive",
-            type: "enum16",
+            type: "enum8",
             children: [
                 { tag: "field", name: "Inactive", id: 0 },
                 { tag: "field", name: "Active", id: 1 },

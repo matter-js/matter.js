@@ -505,11 +505,11 @@ export class LevelControlBaseServer extends LevelControlBase {
                     if (this.state.onLevel !== null) {
                         // Ensure we move to "on" level before initiating any transition
                         result = this.handleOnOffChange(true);
-                        this.state.blockOnOffCouplingOnce = true; // But block the second call by listener
+                        this.internal.blockOnOffCouplingOnce = true; // But block the second call by listener
                         this.context.transaction.addParticipants({
                             postCommit: () => {
-                                if (this.state.blockOnOffCouplingOnce) {
-                                    this.state.blockOnOffCouplingOnce = false;
+                                if (this.internal.blockOnOffCouplingOnce) {
+                                    this.internal.blockOnOffCouplingOnce = false;
                                 }
                             },
                         });
@@ -549,8 +549,8 @@ export class LevelControlBaseServer extends LevelControlBase {
      * @param onOff The new onOff state
      */
     protected handleOnOffChange(onOff: boolean): MaybePromise {
-        if (this.state.blockOnOffCouplingOnce) {
-            this.state.blockOnOffCouplingOnce = false;
+        if (this.internal.blockOnOffCouplingOnce) {
+            this.internal.blockOnOffCouplingOnce = false;
             return;
         }
 
@@ -619,10 +619,11 @@ export class LevelControlBaseServer extends LevelControlBase {
 
 export namespace LevelControlBaseServer {
     export class Internal {
-        /**
-         * Transition management.
-         */
+        /** Transition management. */
         transitions?: Transitions<LevelControlBaseServer>;
+
+        /** Internal flag to avoid on/off coupling during transitions */
+        blockOnOffCouplingOnce = false;
     }
 
     export class State extends LevelControlBase.State {
@@ -645,9 +646,6 @@ export namespace LevelControlBaseServer {
          * When managing transitions, this is the interval at which steps occur in ms.
          */
         transitionStepInterval = Millis(100);
-
-        /** Internal flag to avoid on/off coupling during transitions */
-        blockOnOffCouplingOnce = false;
 
         [Val.properties](endpoint: Endpoint) {
             // Only return remaining time if the attribute is defined in the endpoint

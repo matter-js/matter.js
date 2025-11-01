@@ -5,7 +5,6 @@
  */
 
 export * from "./DataModelPath.js";
-export * from "./Datatype.js";
 export * from "./DefinitionError.js";
 export * from "./DeviceClassification.js";
 export * from "./ElementTag.js";

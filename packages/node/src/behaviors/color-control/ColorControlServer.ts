@@ -1850,7 +1850,7 @@ export class ColorControlBaseServer extends ColorControlBase {
 
         switch (targetEnhancedColorMode) {
             case ColorControl.EnhancedColorMode.CurrentHueAndCurrentSaturation:
-                if (targetEnhancedCurrentHue !== undefined && targetCurrentSaturation !== undefined) {
+                if (targetCurrentSaturation !== undefined) {
                     return this.moveToSaturationLogic(targetCurrentSaturation, transitionTime / 100);
                 }
                 break;
@@ -1872,6 +1872,11 @@ export class ColorControlBaseServer extends ColorControlBase {
                         transitionTime,
                     );
                 }
+                break;
+            default:
+                logger.info(
+                    `No supported color mode found to apply scene: ${ColorControl.EnhancedColorMode[targetEnhancedColorMode]} (${targetEnhancedColorMode})`,
+                );
                 break;
         }
     }
