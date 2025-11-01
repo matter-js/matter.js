@@ -1084,14 +1084,8 @@ export namespace ScenesManagementServer {
     /** Scene Attribute Data format used internally to store scene attribute values */
     export type SceneAttributeData = { [key: string]: { [key: string]: boolean | number | bigint | null } };
 
-    /** Scene Table Entry including scene values and fabric index */
-    export interface ScenesTableEntryI extends Omit<ScenesManagement.LogicalSceneTable, "extensionFields"> {
-        sceneValues: SceneAttributeData;
-        fabricIndex: FabricIndex;
-    }
-
     /** Scene Table Entry as decorated class for persistence */
-    export class ScenesTableEntry implements ScenesTableEntryI {
+    export class ScenesTableEntry {
         @field(groupId, mandatory)
         sceneGroupId!: GroupId;
 
