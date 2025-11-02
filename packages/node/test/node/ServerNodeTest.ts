@@ -601,7 +601,7 @@ describe("ServerNode", () => {
             expect(ep0.deviceTypes).deep.equals([22]);
             expect(ep0.wildcardPathFlags).equals(0x1);
             expect([...ep0]).length(
-                [...node.behaviors].filter(behavior => behavior.schema?.tag === ElementTag.Cluster).length,
+                [...node.behaviors].filter(behavior => behavior.schema.tag === ElementTag.Cluster).length,
             );
 
             const ep1 = protocol[1]!;
@@ -609,8 +609,7 @@ describe("ServerNode", () => {
             expect(ep1.deviceTypes).deep.equals([256]);
             expect(ep1.wildcardPathFlags).equals(0);
             expect([...ep1]).length(
-                [...[...node.parts][0].behaviors].filter(behavior => behavior.schema?.tag === ElementTag.Cluster)
-                    .length,
+                [...[...node.parts][0].behaviors].filter(behavior => behavior.schema.tag === ElementTag.Cluster).length,
             );
 
             const id = BasicInformation.id as number;

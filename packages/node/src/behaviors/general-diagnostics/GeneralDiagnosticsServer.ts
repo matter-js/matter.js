@@ -38,7 +38,7 @@ const logger = Logger.get("GeneralDiagnosticsServer");
 const Base = GeneralDiagnosticsBehavior.with(GeneralDiagnostics.Feature.DataModelTest);
 
 // Enhance the Schema to store the real operational hours counter we internally use and persist this
-const schema = Base.schema!.extend(
+const schema = Base.schema.extend(
     {},
     FieldElement({ name: "totalOperationalHoursCounter", type: "uint64", quality: "N", conformance: "M" }),
 );

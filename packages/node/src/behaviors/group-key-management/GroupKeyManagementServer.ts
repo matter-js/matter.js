@@ -18,14 +18,14 @@ const logger = Logger.get("GroupKeyManagementServer");
 const MAX_64BIT_TIME = BigInt("0xffffffffffffffff");
 
 // Enhance the schema by a fabric scoped structure for the GroupKeySetStruct to enable persistence
-const groupKeySetStruct = GroupKeyManagementBehavior.schema!.get(DatatypeModel, "GroupKeySetStruct")!;
+const groupKeySetStruct = GroupKeyManagementBehavior.schema.get(DatatypeModel, "GroupKeySetStruct")!;
 const groupKeySetStructFS = groupKeySetStruct.extend(
     {
         name: "GroupKeySetStructFS",
     },
     FieldElement({ name: "FabricIndex", id: 0xfe, type: "FabricIndex", conformance: "M" }),
 );
-const schema = GroupKeyManagementBehavior.schema!.extend(
+const schema = GroupKeyManagementBehavior.schema.extend(
     {},
     groupKeySetStructFS,
     FieldElement(

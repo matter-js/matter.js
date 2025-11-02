@@ -7,7 +7,7 @@
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { OnlineEvent } from "#behavior/Events.js";
 import { BasicInformation } from "#clusters/basic-information";
-import { Diagnostic, ImplementationError, InternalError, Logger, MaybePromise } from "#general";
+import { Diagnostic, ImplementationError, Logger, MaybePromise } from "#general";
 import { AttributeModel, EventModel, Schema, Specification } from "#model";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
 import { Fabric, FabricManager } from "#protocol";
@@ -68,7 +68,7 @@ export class BasicInformationServer extends Base {
         this.reactTo(lifecycle.goingOffline, this.#goingOffline);
 
         if (this.state.reachable !== undefined && this.events.reachable$Changed !== undefined) {
-            const reachableChangedSchema = BasicInformationBehavior.schema!.get(
+            const reachableChangedSchema = BasicInformationBehavior.schema.get(
                 EventModel,
                 BasicInformation.Cluster.events.reachableChanged.id,
             );
@@ -99,11 +99,7 @@ export class BasicInformationServer extends Base {
 
     static override readonly schema = this.enableUniqueIdPersistence(Base.schema);
 
-    static enableUniqueIdPersistence(schema?: Schema): Schema {
-        if (schema === undefined) {
-            throw new InternalError("Basic information schema is undefined");
-        }
-
+    static enableUniqueIdPersistence(schema: Schema.Cluster): Schema.Cluster {
         return schema.extend({}, schema.require(AttributeModel, "uniqueId").extend({ quality: "FN" }));
     }
 

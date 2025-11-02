@@ -102,7 +102,7 @@ export class ProtocolService {
      * This optimized path allows us to broadcast state changes without registering observers for every change.
      */
     handleChange(backing: BehaviorBacking, props: string[]) {
-        const clusterId = backing.type.schema?.id as ClusterId | undefined;
+        const clusterId = backing.type.schema.id as ClusterId | undefined;
         if (clusterId === undefined) {
             return;
         }

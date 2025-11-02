@@ -319,7 +319,7 @@ describe("ClusterBehavior", () => {
             };
 
             expect(AwesomeBehavior.cluster.supportedFeatures).deep.equals({ awesome: true });
-            expect((AwesomeBehavior.schema as ClusterModel).supportedFeatures).deep.equals(new Set(["AWE"]));
+            expect(AwesomeBehavior.schema.supportedFeatures).deep.equals(new Set(["AWE"]));
         });
 
         it("allows extension and base command overrides", () => {

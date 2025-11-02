@@ -643,7 +643,7 @@ export class MyLevelControlServer extends LevelControlServer {
     declare state: LevelControlServerLogic.State;
 
     static {
-        MyLevelControlServer.schema?.children.push(
+        MyLevelControlServer.schema.children.push(
             FieldElement({ name: "mySpecialDeviceAttribute", type: "int16", quality: "N" }),
         );
     }

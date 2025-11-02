@@ -223,7 +223,7 @@ export class MqttInterface extends RemoteInterface {
         const behaviorRoot = this.#nodeRoot(node.id).at([endpoint.number.toString(), decamelize(behavior.id)]);
         for (const name in changes) {
             const value = changes[name];
-            const schema = behavior.schema?.conformant.properties.for(name);
+            const schema = behavior.schema.conformant.properties.for(name);
             const payload = jsToPayload(schema ?? any, value);
 
             const topic = behaviorRoot.at([name]).toString();

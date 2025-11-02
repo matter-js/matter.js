@@ -54,10 +54,20 @@ export function Schema(source: Model.Source) {
         throw new ImplementationError(`Model ${model.name} tag ${model.tag} is not legal for schema`);
     }
 
-    return model as Schema;
+    return model as Schema.Struct;
 }
 
 export namespace Schema {
+    /**
+     * Schema that defines an object with named properties.
+     */
+    export type Struct = ClusterModel | DatatypeModel;
+
+    /**
+     * Schema that defines a cluster.
+     */
+    export type Cluster = ClusterModel;
+
     /**
      * Obtain {@link Schema} that is required for operation.
      */
@@ -74,4 +84,6 @@ export namespace Schema {
     export type Source = Schema | NewableFunction;
 
     export const empty = new DatatypeModel({ name: "Empty", type: "struct" });
+
+    empty.finalize();
 }

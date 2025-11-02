@@ -8,7 +8,7 @@ import { ActionContext, Behavior, ClusterBehavior, type ClusterState, ValueSuper
 import { Thermostat } from "#clusters/thermostat";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { BasicSet, Environment, Environmental, InternalError, Logger, ObserverGroup, serialize } from "#general";
-import { ClusterModel, DataModelPath } from "#model";
+import { DataModelPath } from "#model";
 import {
     AccessControl,
     assertRemoteActor,
@@ -74,7 +74,7 @@ export class AtomicWriteHandler {
         endpoint: Endpoint,
         cluster: B,
     ) {
-        if (!ClusterBehavior.is(cluster) || !cluster.schema) {
+        if (!ClusterBehavior.is(cluster)) {
             throw new InternalError("Cluster behavior expected for atomic write handler");
         }
 
@@ -164,13 +164,13 @@ export class AtomicWriteHandler {
         if (!hasRemoteActor(context)) {
             throw new StatusResponse.InvalidCommandError("AtomicRequest requires a remote actor");
         }
-        if (!ClusterBehavior.is(cluster) || !cluster.schema) {
+        if (!ClusterBehavior.is(cluster)) {
             throw new InternalError("Cluster behavior expected for atomic write handler");
         }
         let commandStatusCode = Status.Success;
         const attributeStatus = request.attributeRequests.map(attr => {
             let statusCode = Status.Success;
-            const attributeModel = (cluster.schema!.conformant as ClusterModel.Conformant).attributes.for(attr);
+            const attributeModel = cluster.schema.conformant.attributes.for(attr);
             if (!attributeModel?.quality.atomic) {
                 statusCode = Status.InvalidAction;
             } else if (this.#pendingWriteStateForAttribute(endpoint, cluster, attr) !== undefined) {

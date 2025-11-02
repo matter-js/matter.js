@@ -216,7 +216,7 @@ export abstract class BehaviorBacking {
             location: {
                 path: this.#endpoint.path.at(this.#type.id).at("state"),
                 endpoint: this.#endpoint.number,
-                cluster: this.type.schema?.tag === "cluster" ? (this.type.schema.id as ClusterId) : undefined,
+                cluster: this.type.schema.tag === "cluster" ? (this.type.schema.id as ClusterId) : undefined,
             },
             supervisor: this.type.supervisor,
             type: this.type.State,

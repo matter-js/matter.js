@@ -110,7 +110,7 @@ export class Endpoint {
     }
 
     #clusterClientForBehaviorType<T extends Behavior.Type>(type: T): ClusterClientObj {
-        const clusterId = type.schema?.tag === "cluster" ? (type.schema.id as ClusterId) : undefined;
+        const clusterId = type.schema.tag === "cluster" ? (type.schema.id as ClusterId) : undefined;
         if (clusterId === undefined) {
             throw new ImplementationError(`Behavior ${type.id} is not backed by a cluster`);
         }

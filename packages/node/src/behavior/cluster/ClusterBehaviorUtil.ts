@@ -57,7 +57,7 @@ export function createType<const C extends ClusterType>(
     name?: string,
 ) {
     if (schema === undefined) {
-        if (base.schema) {
+        if (base.schema.tag === ElementTag.Cluster) {
             schema = base.schema;
         }
         if (!schema) {

@@ -173,7 +173,7 @@ export class OnlineEvent<T extends any[] = any[], S extends ValueModel = ValueMo
         ) {
             this.#baseOccurrence = {
                 eventId: EventId(this.schema.id),
-                clusterId: ClusterId(this.owner.behavior.schema!.id!),
+                clusterId: ClusterId(this.owner.behavior.schema.id!),
                 endpointId: this.owner.endpoint.number,
                 priority: EventElement.PriorityId[eventSchema.priority] as unknown as Priority,
             };

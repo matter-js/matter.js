@@ -68,7 +68,7 @@ export abstract class Behavior {
      * control.
      */
     static get schema() {
-        return Schema(this);
+        return Schema(this) ?? Schema.empty;
     }
 
     /**
@@ -371,7 +371,7 @@ export namespace Behavior {
         readonly supports: typeof Behavior.supports;
         readonly defaults: Record<string, any>;
 
-        readonly schema?: Schema;
+        readonly schema: Schema.Struct;
         readonly early: boolean;
         readonly supervisor: RootSupervisor;
         readonly dependencies?: Iterable<Behavior.Type>;

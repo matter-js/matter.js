@@ -34,6 +34,8 @@ import type { ClusterState } from "./ClusterState.js";
  * in a runtime error but it will not cause a type error during development.
  */
 export class ClusterBehavior extends Behavior {
+    declare static readonly schema: Schema.Cluster;
+
     /**
      * The ID of ClusterBehavior implementations is the uncapitalized cluster name.
      */
@@ -99,7 +101,7 @@ export class ClusterBehavior extends Behavior {
     static for<This extends ClusterBehavior.Type, const ClusterT extends ClusterType>(
         this: This,
         cluster: ClusterT,
-        schema?: Schema,
+        schema?: Schema.Cluster,
         name?: string,
     ) {
         return createType(cluster, this, schema, name) as ClusterBehavior.Type<ClusterT, This>;
@@ -241,7 +243,7 @@ export namespace ClusterBehavior {
         readonly Internal: B["Internal"];
         readonly Interface: I;
 
-        readonly schema?: Schema;
+        readonly schema: Schema.Cluster;
         readonly early: boolean;
         readonly defaults: ClusterState.Type<C, B>;
         readonly supervisor: RootSupervisor;

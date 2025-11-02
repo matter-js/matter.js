@@ -26,7 +26,7 @@ const SwitchServerBase = SwitchBehavior.for(Switch.Complete).with(
 );
 
 // Enhance Schema to define conformance for some of the additional state attributes
-const schema = SwitchServerBase.schema!.extend({
+const schema = SwitchServerBase.schema.extend({
     children: [
         FieldElement({
             name: "longPressDelay",

@@ -13,7 +13,6 @@ import {
     AccessLevel,
     any,
     bool,
-    ClusterModel,
     fabricIdx,
     field,
     groupId,
@@ -854,7 +853,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
 
         const clusterId = ClusterId(type.schema.id);
         let sceneClusterDetails;
-        for (const attribute of (type.schema.conformant as ClusterModel.Conformant).attributes) {
+        for (const attribute of type.schema.conformant.attributes) {
             if (!attribute.effectiveQuality.scene) {
                 continue; // Ignore non sceneable attributes
             }

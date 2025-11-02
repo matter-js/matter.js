@@ -682,7 +682,7 @@ export class Behaviors {
     #augmentEndpoint(type: Behavior.Type) {
         const get = () => this.#backingFor(type).stateView;
         Object.defineProperty(this.#endpoint.state, type.id, { get, enumerable: true });
-        if (type.schema?.id !== undefined) {
+        if (type.schema.id !== undefined) {
             Object.defineProperty(this.#endpoint.state, type.schema.id, { get });
         }
 

@@ -11,7 +11,7 @@ const AutoThermo = ThermostatBehavior.with("Heating", "Cooling", "AutoMode");
 
 describe("ThermostatBehavior", () => {
     it("has correct Thermostat-specific celsius defaults in schema", () => {
-        const msd = AutoThermo.schema?.get(AttributeModel, "MinSetpointDeadBand");
+        const msd = AutoThermo.schema.get(AttributeModel, "MinSetpointDeadBand");
         expect(msd?.default).deep.equals({ type: "celsius", value: 2 });
     });
 

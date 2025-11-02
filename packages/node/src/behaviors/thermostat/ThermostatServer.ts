@@ -39,7 +39,7 @@ const ThermostatBehaviorLogicBase = ThermostatBehavior.with(
 );
 
 // Enhance Schema to define conformance for some of the additional state attributes
-const schema = ThermostatBehaviorLogicBase.schema!.extend({
+const schema = ThermostatBehaviorLogicBase.schema.extend({
     children: [
         FieldElement({
             name: "PersistedPresets",
