@@ -35,6 +35,7 @@ export function* translateDevice(deviceRef: DeviceReference) {
     addDocumentation(device, deviceRef);
     addConditions(device, deviceRef);
     addClusters(device, deviceRef);
+    addComposing(device, deviceRef);
 
     yield device;
 }
@@ -234,7 +235,7 @@ function addClusters(device: DeviceTypeElement, deviceRef: DeviceReference) {
             }
             cluster.children.push(
                 RequirementElement({
-                    element: element,
+                    element,
                     name: record.name,
                     constraint: record.constraint,
                     access: record.access,
@@ -242,5 +243,76 @@ function addClusters(device: DeviceTypeElement, deviceRef: DeviceReference) {
                 }),
             );
         }
+    }
+}
+
+function addComposing(device: DeviceTypeElement, deviceRef: DeviceReference) {
+    const composingTypeRecords = translateTable("composingTypes", deviceRef.composingTypes, {
+        id: Integer,
+        name: Identifier,
+        element: Constant("deviceType"),
+        quality: Optional(Str),
+        conformance: Optional(ConformanceCode),
+    });
+
+    const composingTypes = translateRecordsToMatter("clusters", composingTypeRecords, RequirementElement);
+    if (!composingTypes?.length) {
+        return;
+    }
+
+    if (!device.children) {
+        device.children = [];
+    }
+    device.children.push(...composingTypes);
+
+    const composingElementRecords = translateTable("composingElements", deviceRef.composingElements, {
+        deviceid: Integer,
+        device: Identifier,
+        clusterid: Integer,
+        cluster: Identifier,
+        element: LowerIdentifier,
+        name: Identifier,
+        constraint: Optional(ConstraintStr),
+        access: Optional(Str),
+        conformance: Optional(Str),
+    });
+
+    if (!composingElementRecords?.length) {
+        return;
+    }
+
+    for (const record of composingElementRecords) {
+        const composingType = composingTypes.find(ct => ct.id === record.deviceid);
+        if (!composingType) {
+            logger.error(
+                `No device ${record.deviceid} for ${record.cluster} ${record.element} requirement ${record.name}`,
+            );
+            continue;
+        }
+
+        let cluster = composingType.children?.find(child => child.id === record.clusterid) as
+            | RequirementElement
+            | undefined;
+        if (!cluster) {
+            cluster = RequirementElement({ id: record.clusterid, name: record.cluster, element: "serverCluster" });
+            if (composingType.children) {
+                composingType.children.push(cluster);
+            } else {
+                composingType.children = [cluster];
+            }
+        }
+
+        if (!cluster.children) {
+            cluster.children = [];
+        }
+        cluster.children.push(
+            RequirementElement({
+                element: camelize(record.element) as RequirementElement.ElementType,
+                name: record.name,
+                constraint: record.constraint,
+                access: record.access,
+                conformance: record.conformance,
+            }),
+        );
     }
 }

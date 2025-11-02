@@ -26,7 +26,8 @@ export const RefrigeratorDt = DeviceType(
         Requirement({ name: "ONOFF", conformance: "X", element: "feature" })
     ),
 
-    Requirement({ name: "RefrigeratorAlarm", id: 0x57, conformance: "O", element: "serverCluster" })
+    Requirement({ name: "RefrigeratorAlarm", id: 0x57, conformance: "O", element: "serverCluster" }),
+    Requirement({ name: "TemperatureControlledCabinet", id: 0x71, conformance: "M", element: "deviceType" })
 );
 
 MatterDefinition.children.push(RefrigeratorDt);

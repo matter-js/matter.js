@@ -21,7 +21,8 @@ export const FanDt = DeviceType(
     Requirement(
         { name: "FanControl", id: 0x202, conformance: "M", element: "serverCluster" },
         Requirement({ name: "FanModeSequence", access: "R V", conformance: "Matter", element: "attribute" })
-    )
+    ),
+    Requirement({ name: "Thermostat", id: 0x301, conformance: "O", element: "deviceType" })
 );
 
 MatterDefinition.children.push(FanDt);

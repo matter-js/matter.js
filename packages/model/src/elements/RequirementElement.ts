@@ -51,5 +51,6 @@ export namespace RequirementElement {
         Command = "command",
         Event = "event",
         CommandField = "commandField",
+        DeviceType = "deviceType",
     }
 }

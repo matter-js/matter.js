@@ -29,7 +29,9 @@ export const RoomAirConditionerDt = DeviceType(
         Requirement({ name: "KeypadLockout", conformance: "O", element: "attribute" })
     ),
     Requirement({ name: "TemperatureMeasurement", id: 0x402, conformance: "O", element: "serverCluster" }),
-    Requirement({ name: "RelativeHumidityMeasurement", id: 0x405, conformance: "O", element: "serverCluster" })
+    Requirement({ name: "RelativeHumidityMeasurement", id: 0x405, conformance: "O", element: "serverCluster" }),
+    Requirement({ name: "TemperatureSensor", id: 0x302, conformance: "O", element: "deviceType" }),
+    Requirement({ name: "HumiditySensor", id: 0x307, conformance: "O", element: "deviceType" })
 );
 
 MatterDefinition.children.push(RoomAirConditionerDt);

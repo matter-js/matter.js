@@ -15,6 +15,7 @@ Resource.add({
         "placed above or through traditional gas or electric burners.",
     children: [
         { tag: "requirement", name: "Identify", xref: "device§13.8.5" },
-        { tag: "requirement", name: "OnOff", xref: "device§13.8.5" }
+        { tag: "requirement", name: "OnOff", xref: "device§13.8.5" },
+        { tag: "requirement", name: "CookSurface", xref: "device§13.8.4" }
     ]
 });

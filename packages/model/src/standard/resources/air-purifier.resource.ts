@@ -21,6 +21,10 @@ Resource.add({
         { tag: "requirement", name: "OnOff", xref: "device§9.3.5" },
         { tag: "requirement", name: "FanControl", xref: "device§9.3.5" },
         { tag: "requirement", name: "HepaFilterMonitoring", xref: "device§9.3.5" },
-        { tag: "requirement", name: "ActivatedCarbonFilterMonitoring", xref: "device§9.3.5" }
+        { tag: "requirement", name: "ActivatedCarbonFilterMonitoring", xref: "device§9.3.5" },
+        { tag: "requirement", name: "Thermostat", xref: "device§9.3.4" },
+        { tag: "requirement", name: "TemperatureSensor", xref: "device§9.3.4" },
+        { tag: "requirement", name: "HumiditySensor", xref: "device§9.3.4" },
+        { tag: "requirement", name: "AirQualitySensor", xref: "device§9.3.4" }
     ]
 });

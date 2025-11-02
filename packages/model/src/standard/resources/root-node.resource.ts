@@ -43,6 +43,7 @@ Resource.add({
         { tag: "requirement", name: "WiFiNetworkDiagnostics", xref: "device§2.1.5" },
         { tag: "requirement", name: "ThreadNetworkDiagnostics", xref: "device§2.1.5" },
         { tag: "requirement", name: "IcdManagement", xref: "device§2.1.5" },
+        { tag: "requirement", name: "PowerSource", xref: "device§2.1.4" },
 
         {
             tag: "field", name: "conditions",

@@ -25,10 +25,15 @@ ModelValidator.validators[RequirementElement.Tag] = class RequirementValidator e
             switch (this.model.element) {
                 case RequirementElement.ElementType.ClientCluster:
                 case RequirementElement.ElementType.ServerCluster:
-                    if (parentTag !== ElementTag.DeviceType) {
+                    if (
+                        parentTag !== ElementTag.DeviceType &&
+                        (parentTag !== ElementTag.Requirement ||
+                            (this.model.parent as RequirementModel).element !==
+                                RequirementElement.ElementType.DeviceType)
+                    ) {
                         this.error(
                             "ILLEGAL_REQUIREMENT_PARENT",
-                            `Requirement type ${this.model.type} must be parented by device type`,
+                            `Requirement type ${this.model.type} must be parented by device type or device requirement`,
                         );
                     }
                     break;

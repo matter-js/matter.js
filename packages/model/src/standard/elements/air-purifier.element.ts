@@ -20,7 +20,11 @@ export const AirPurifierDt = DeviceType(
     Requirement({ name: "OnOff", id: 0x6, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "FanControl", id: 0x202, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "HepaFilterMonitoring", id: 0x71, conformance: "O", element: "serverCluster" }),
-    Requirement({ name: "ActivatedCarbonFilterMonitoring", id: 0x72, conformance: "O", element: "serverCluster" })
+    Requirement({ name: "ActivatedCarbonFilterMonitoring", id: 0x72, conformance: "O", element: "serverCluster" }),
+    Requirement({ name: "Thermostat", id: 0x301, conformance: "O", element: "deviceType" }),
+    Requirement({ name: "TemperatureSensor", id: 0x302, conformance: "O", element: "deviceType" }),
+    Requirement({ name: "HumiditySensor", id: 0x307, conformance: "O", element: "deviceType" }),
+    Requirement({ name: "AirQualitySensor", id: 0x2c, conformance: "O", element: "deviceType" })
 );
 
 MatterDefinition.children.push(AirPurifierDt);

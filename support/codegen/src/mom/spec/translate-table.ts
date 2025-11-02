@@ -29,7 +29,7 @@ export const Alias = <T>(wrapped: Translator<T>, ...sources: string[]): Alias<T>
 
 /** Injects a column with a fixed value */
 type Constant<T> = { option: "constant"; value: T };
-export const Constant = <T>(value: T): Constant<T> => ({ option: "constant", value });
+export const Constant = <const T>(value: T): Constant<T> => ({ option: "constant", value });
 
 /** Process detail section associated with table record */
 type DetailTranslator = (tag: string, parentRecord: Record<string, unknown>, definition: HtmlReference) => unknown;

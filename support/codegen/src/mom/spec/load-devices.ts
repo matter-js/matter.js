@@ -49,6 +49,16 @@ function augmentDevice(device: DeviceReference, content: HtmlReference) {
             device.elements = content;
             break;
 
+        case "device type requirements":
+            what = "composingTypes";
+            device.composingTypes = content;
+            break;
+
+        case "cluster requirements on composing device types":
+            what = "composingElements";
+            device.composingElements = content;
+            break;
+
         default:
             logger.debug(`ignore ${content.name}`);
             break;
