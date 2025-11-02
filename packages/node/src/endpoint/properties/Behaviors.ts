@@ -41,6 +41,7 @@ import type { SupportedBehaviors } from "./SupportedBehaviors.js";
 const logger = Logger.get("Behaviors");
 
 export interface SupportedElements {
+    features: Set<string>;
     attributes: Set<string>;
     commands: Set<string>;
     events: Set<string>;
@@ -61,6 +62,23 @@ export class Behaviors {
      */
     get supported() {
         return this.#supported;
+    }
+
+    /**
+     * Obtain the specific {@link Behavior.Type} used by the endpoint for implementation if the endpoint supports
+     * {@link type}.
+     */
+    typeFor<T extends Behavior.Type>(type: T): T | undefined {
+        const supported = this.#supported[type.id];
+        if (!supported) {
+            return;
+        }
+
+        if (!supported.supports(type)) {
+            return undefined;
+        }
+
+        return supported as T;
     }
 
     /**

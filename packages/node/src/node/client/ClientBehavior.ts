@@ -7,7 +7,7 @@
 import { Behavior } from "#behavior/Behavior.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { camelize, capitalize, InternalError } from "#general";
-import { AttributeModel, ClusterModel, CommandModel, FeatureBitmap, Matter } from "#model";
+import { AttributeModel, ClusterModel, CommandModel, Conformance, FeatureBitmap, Matter } from "#model";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
 import { ClientInteraction, Invoke } from "#protocol";
@@ -75,7 +75,7 @@ function generateType(analysis: ShapeAnalysis, baseType: Behavior.Type): Cluster
 
     let { schema } = analysis;
     let isCloned = false;
-    const { extraAttrs, extraCommands } = analysis;
+    const { attrSupportOverrides, extraAttrs, commandSupportOverrides, extraCommands } = analysis;
 
     // Obtain a ClusterType.  This provides TLV for known elements
     let { cluster } = baseType;
@@ -107,7 +107,13 @@ function generateType(analysis: ShapeAnalysis, baseType: Behavior.Type): Cluster
 
     // If the schema does not match what the device actually returned, further augment both the ClusterModel and
     // ClusterType with unknown attributes and/or commands
-    if (schema.revision !== analysis.shape.revision || extraAttrs.size || extraCommands.size) {
+    if (
+        schema.revision !== analysis.shape.revision ||
+        extraAttrs.size ||
+        extraCommands.size ||
+        Object.keys(attrSupportOverrides).length ||
+        Object.keys(commandSupportOverrides).length
+    ) {
         cloneSchema();
 
         cluster = {
@@ -117,10 +123,22 @@ function generateType(analysis: ShapeAnalysis, baseType: Behavior.Type): Cluster
             commands: { ...cluster.commands },
         };
 
+        if (attrSupportOverrides) {
+            for (const [attr, isSupported] of attrSupportOverrides.entries()) {
+                schema.children.push(attr.extend({ operationalIsSupported: isSupported }));
+            }
+        }
+
         for (const id of extraAttrs) {
             const name = createUnknownName("attr", id);
             cluster.attributes[camelize(name, false)] = Attribute(id, TlvAny);
             schema.children.push(new AttributeModel({ id, name, type: "any" }));
+        }
+
+        if (commandSupportOverrides) {
+            for (const [command, isSupported] of commandSupportOverrides.entries()) {
+                schema.children.push(command.extend({ operationalIsSupported: isSupported }));
+            }
         }
 
         for (const id of extraCommands) {
@@ -233,29 +251,86 @@ function createUnknownName(prefix: string, id: number) {
 interface ShapeAnalysis {
     schema: ClusterModel & { id: ClusterId };
     shape: ClientBehavior.ClusterShape;
+    attrSupportOverrides: Map<AttributeModel, boolean>;
     extraAttrs: Set<number>;
+    commandSupportOverrides: Map<CommandModel, boolean>;
     extraCommands: Set<number>;
 }
 
+/**
+ * Analyze the cluster shape to determine how we should override the behavior and schema.
+ */
 function ShapeAnalysis(shape: ClientBehavior.ClusterShape): ShapeAnalysis {
+    const standardCluster = Matter.get(ClusterModel, shape.id);
     const schema =
-        Matter.get(ClusterModel, shape.id) ??
+        standardCluster ??
         new ClusterModel({ id: shape.id, name: createUnknownName("Cluster", shape.id), revision: shape.revision });
 
-    const extraAttrs = new Set(shape.attributes);
+    const attrSupportOverrides = new Map<AttributeModel, boolean>();
+    const extraAttrs = new Set<number>(shape.attributes);
     for (const attr of schema.attributes) {
+        maybeOverrideSupport(standardCluster, attr, extraAttrs, attrSupportOverrides);
+        if (standardCluster) {
+            const supported = extraAttrs.has(attr.id);
+            const applicability = attr.conformance.applicabilityFor(standardCluster);
+            if (!supported) {
+                if (applicability) {
+                    attrSupportOverrides.set(attr, false);
+                }
+            } else {
+                if (applicability !== Conformance.Applicability.Mandatory) {
+                    attrSupportOverrides.set(attr, true);
+                }
+            }
+        }
         extraAttrs.delete(attr.id as AttributeId);
     }
 
+    const commandSupportOverrides = new Map<CommandModel, boolean>();
     const extraCommands = new Set(shape.commands);
     for (const command of schema.commands) {
+        maybeOverrideSupport(standardCluster, command, extraCommands, commandSupportOverrides);
         extraCommands.delete(command.id as CommandId);
     }
 
     return {
         schema: schema as ClusterModel & { id: ClusterId },
         shape,
+        attrSupportOverrides,
         extraAttrs,
+        commandSupportOverrides,
         extraCommands,
     };
+}
+
+/**
+ * Determine whether we need to override {@link ClusterModel#operationalIsSupported}.
+ *
+ * We do this if:
+ *
+ * * The element may be present according to the standard but is not implemented on the peer, or
+ *
+ * * the element is optional according to the standard and is implemented on the peer
+ */
+function maybeOverrideSupport<T extends AttributeModel | CommandModel>(
+    standardCluster: ClusterModel | undefined,
+    element: T,
+    supported: Set<number>,
+    overrides: Map<T, boolean>,
+) {
+    if (!standardCluster) {
+        return;
+    }
+
+    const isSupported = supported.has(element.id);
+    const applicability = element.conformance.applicabilityFor(standardCluster);
+    if (!isSupported) {
+        if (applicability) {
+            overrides.set(element, false);
+        }
+    } else {
+        if (applicability !== Conformance.Applicability.Mandatory) {
+            overrides.set(element, true);
+        }
+    }
 }

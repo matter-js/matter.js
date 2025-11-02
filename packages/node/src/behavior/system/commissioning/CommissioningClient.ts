@@ -324,7 +324,7 @@ export namespace CommissioningClient {
      */
     export class NetworkAddress implements ServerAddress.Definition {
         @field(string, mandatory)
-        type: "udp" | "tcp" | "ble";
+        type!: "udp" | "tcp" | "ble";
 
         @field(string)
         ip?: string;

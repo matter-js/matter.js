@@ -9,7 +9,6 @@ import { camelize, EventEmitter, GeneratedClass, ImplementationError, Observable
 import {
     ClassSemantics,
     ClusterModel,
-    Conformance,
     DecodedBitmap,
     DefaultValue,
     ElementTag,
@@ -53,7 +52,7 @@ export function introspectionInstanceOf(type: Behavior.Type) {
 export function createType<const C extends ClusterType>(
     cluster: C,
     base: Behavior.Type,
-    schema?: Schema,
+    schema?: Schema.Cluster,
     name?: string,
 ) {
     if (schema === undefined) {
@@ -144,30 +143,14 @@ export type ExtensionInterfaceOf<B extends Behavior.Type> = B extends { Extensio
 interface DerivationContext {
     cluster: ClusterType;
     scope: Scope;
-    featuresAvailable: FeatureSet;
-    featuresSupported: FeatureSet;
     base: Behavior.Type;
     newProps: Record<string, ValueModel>;
 }
 
 function DerivationContext(schema: Schema, cluster: ClusterType, base: Behavior.Type): DerivationContext {
-    const scope = Scope(schema);
-    // Determine the set of features so we can test element applicability
-    let featuresAvailable, featuresSupported;
-    if (scope.owner instanceof ClusterModel) {
-        const normalized = FeatureSet.normalize(scope.owner.featureMap, scope.owner.supportedFeatures);
-        featuresAvailable = normalized.featuresAvailable;
-        featuresSupported = normalized.featuresSupported;
-    } else {
-        featuresAvailable = new FeatureSet();
-        featuresSupported = new FeatureSet();
-    }
-
     return {
         cluster,
         scope: Scope(schema),
-        featuresAvailable,
-        featuresSupported,
         base,
         newProps: {},
     };
@@ -179,14 +162,7 @@ function DerivationContext(schema: Schema, cluster: ClusterType, base: Behavior.
  *
  * Note - we only use the cluster here for default values
  */
-function createDerivedState({
-    cluster,
-    scope,
-    base,
-    newProps,
-    featuresAvailable,
-    featuresSupported,
-}: DerivationContext) {
+function createDerivedState({ cluster, scope, base, newProps }: DerivationContext) {
     const BaseState = base["State"];
     if (BaseState === undefined) {
         throw new ImplementationError(`No state class defined for behavior class ${base.name}`);
@@ -215,12 +191,9 @@ function createDerivedState({
         let propSchema: ValueModel | undefined;
 
         // Determine whether the attribute applies
-        let applicability;
         for (const attr of attrs) {
-            applicability = attr.effectiveConformance.applicabilityOf(featuresAvailable, featuresSupported);
-
-            // Inapplicable; ignore
-            if (!applicability) {
+            // Ignore if inapplicable
+            if (!attr.effectiveConformance.applicabilityFor(scope)) {
                 continue;
             }
 
@@ -265,7 +238,6 @@ function createDerivedState({
             scope,
             oldDefaults[name] === undefined ? knownDefaults?.[name] : oldDefaults[name],
             propSchema,
-            applicability,
         );
     }
 
@@ -285,7 +257,7 @@ function createDerivedState({
 /**
  * Extend events with additional implementations.
  */
-function createDerivedEvents({ scope, base, newProps, featuresAvailable, featuresSupported }: DerivationContext) {
+function createDerivedEvents({ scope, base, newProps }: DerivationContext) {
     const instanceDescriptors = {} as PropertyDescriptorMap;
 
     const baseInstance = new base.Events() as unknown as Record<string, unknown>;
@@ -300,12 +272,7 @@ function createDerivedEvents({ scope, base, newProps, featuresAvailable, feature
     })) {
         const name = camelize(event.name);
         applicableClusterEvents.add(name);
-        if (
-            (event.conformance.applicabilityOf(featuresAvailable, featuresSupported) ===
-                Conformance.Applicability.Mandatory ||
-                event.isSupported) &&
-            baseInstance[name] === undefined
-        ) {
+        if (scope.hasOperationalSupport(event) && baseInstance[name] === undefined) {
             eventNames.add(name);
             instanceDescriptors[name] = createEventDescriptor(
                 name,
@@ -385,16 +352,12 @@ function schemaForCluster(cluster: ClusterType) {
  * We cache schema for clusters configured for certain features.  This in turn enables the RootSupervisor cache which
  * keys off of the schema.
  */
-const configuredSchemaCache = new Map<Schema, Record<string, Schema>>();
+const configuredSchemaCache = new Map<Schema.Cluster, Record<string, Schema.Cluster>>();
 
 /**
  * Ensure the supported features enumerated by schema align with a cluster definition.
  */
-function syncFeatures(schema: Schema, cluster: ClusterType) {
-    if (!(schema instanceof ClusterModel)) {
-        return schema;
-    }
-
+function syncFeatures(schema: Schema.Cluster, cluster: ClusterType) {
     // If features are unchanged, return original schema
     const incomingFeatures = new FeatureSet(cluster.supportedFeatures);
     if (new FeatureSet(cluster.supportedFeatures).is(schema.supportedFeatures)) {
@@ -439,18 +402,13 @@ function createDefaultCommandDescriptors(cluster: ClusterType, base: Behavior.Ty
     return result;
 }
 
-function selectDefaultValue(
-    scope: Scope,
-    oldDefault: Val,
-    member: ValueModel,
-    applicability?: Conformance.Applicability,
-) {
+function selectDefaultValue(scope: Scope, oldDefault: Val, member: ValueModel) {
     if (oldDefault !== undefined) {
         return oldDefault;
     }
 
     // No default unless mandatory or explicitly marked as implemented
-    if (applicability !== Conformance.Applicability.Mandatory && !member.isSupported) {
+    if (!scope.hasOperationalSupport(member)) {
         return;
     }
 

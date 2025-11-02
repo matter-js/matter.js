@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Conformance } from "#aspects/Conformance.js";
 import { ElementTag } from "#common/ElementTag.js";
 import { SchemaImplementationError } from "#common/errors.js";
-import { FeatureSet } from "#common/FeatureSet.js";
 import { ImplementationError } from "#general";
+import { ModelIndex, MutableModelIndex } from "./ModelIndex.js";
 import { ModelTraversal } from "./ModelTraversal.js";
 
 // These must be types to avoid circular references
 import type { ClusterModel, Model, ScopeModel, ValueModel } from "#models/index.js";
-import { ModelIndex, MutableModelIndex } from "./ModelIndex.js";
 
 const DEFAULT_TAGS = new Set([ElementTag.Field, ElementTag.Attribute]);
 const GLOBAL_IDS = new Set([0xfffd, 0xfffc, 0xfffb, 0xfffa, 0xfff9, 0xfff8]);
@@ -37,7 +37,7 @@ const cache = new WeakMap<Model, Scope>();
  *
  * TODO - currently we only consider shadows at scope root but shadows of nested children is possible with this approach
  */
-export interface Scope {
+export interface Scope extends Conformance.FeatureContext {
     /**
      * The model analyzed.
      */
@@ -63,6 +63,14 @@ export interface Scope {
      * Identify members (child properties) of the designated model in this scope.
      */
     membersOf<T extends Model>(parent: T, options?: Scope.MemberOptions): ModelIndex<Model.ChildOf<T>>;
+
+    /**
+     * Test whether an element is supported in this scope.
+     *
+     * We define "supported" as an element that is mandatory given active features or has
+     * {@link Model#operationalIsSupported} set.
+     */
+    hasOperationalSupport(model: Model): boolean;
 }
 
 /**
@@ -91,13 +99,10 @@ export function Scope(subject: Model, options: Scope.ScopeOptions = {}) {
     let deconflictedMemberCache: Map<Model, Map<ElementTag, Set<Model>>> | undefined;
     let conformantMemberCache: Map<Model, Map<ElementTag, Set<Model>>> | undefined;
 
-    let { featureNames, supportedFeatures } = owner as ClusterModel;
-    if (!featureNames) {
-        featureNames = new FeatureSet();
-    }
-    if (!supportedFeatures) {
-        supportedFeatures = new FeatureSet();
-    }
+    const features: Conformance.FeatureContext = {
+        definedFeatures: (owner as ClusterModel).definedFeatures ?? new Set(),
+        supportedFeatures: (owner as ClusterModel).supportedFeatures ?? new Set(),
+    };
 
     if (useCache && !options.disableCache) {
         const cached = cache.get(owner);
@@ -135,8 +140,9 @@ export function Scope(subject: Model, options: Scope.ScopeOptions = {}) {
         }
     });
 
-    const result: Scope = {
+    const scope: Scope = {
         owner,
+        ...features,
         isShadow: shadows ? model => shadows!.has(model as ValueModel) : () => false,
         extensionOf: shadows
             ? <T extends Model>(model?: T) => shadows!.get(model as unknown as ValueModel)?.[0] as T | undefined
@@ -146,6 +152,7 @@ export function Scope(subject: Model, options: Scope.ScopeOptions = {}) {
                   (shadows!.get(model as unknown as ValueModel)?.[0] as T | undefined) ?? model
             : <T extends Model>(model: T) => model,
         membersOf,
+        hasOperationalSupport,
     };
 
     function membersOf<T extends Model>(parent: T, options: Scope.MemberOptions = {}) {
@@ -154,7 +161,7 @@ export function Scope(subject: Model, options: Scope.ScopeOptions = {}) {
         if (Array.isArray(tags)) {
             tags = new Set(tags);
         }
-        const allMembers = findAllMembers(parent, tags, result);
+        const allMembers = findAllMembers(parent, tags, scope);
 
         if (parent.tag === ElementTag.Cluster && tags.has(ElementTag.Attribute)) {
             injectGlobalAttributes(
@@ -177,18 +184,30 @@ export function Scope(subject: Model, options: Scope.ScopeOptions = {}) {
             parent,
             tags,
             allMembers,
-            featureNames,
-            supportedFeatures,
+            features,
             conformantOnly,
             conformantOnly ? deconflictedMemberCache : conformantMemberCache,
         );
     }
 
-    if (useCache) {
-        cache.set(owner, result);
+    function hasOperationalSupport(model: Model) {
+        model = scope.modelFor(model);
+
+        const operational = model.effectiveIsSupported;
+        if (operational !== undefined) {
+            return operational;
+        }
+
+        const conformance = (model as { effectiveConformance?: Conformance }).effectiveConformance;
+
+        return conformance?.applicabilityFor(scope) === Conformance.Applicability.Mandatory;
     }
 
-    return result;
+    if (useCache) {
+        cache.set(owner, scope);
+    }
+
+    return scope;
 }
 
 export namespace Scope {
@@ -350,8 +369,7 @@ function filterWithConformance<T extends Model>(
     parent: T,
     tags: Set<ElementTag>,
     members: Model[],
-    features: FeatureSet,
-    supportedFeatures: FeatureSet,
+    features: Conformance.FeatureContext,
     conformantOnly: boolean,
     cache?: Map<Model, Map<ElementTag, Set<Model>>>,
 ) {
@@ -388,13 +406,13 @@ function filterWithConformance<T extends Model>(
             );
         }
 
-        if (conformantOnly && !conformance.applicabilityOf(features, supportedFeatures)) {
+        if (conformantOnly && !conformance.applicabilityFor(features)) {
             continue;
         }
 
         const other = selectedMembers[tag][member.name];
         if (other !== undefined) {
-            if (!conformantOnly && !conformance.applicabilityOf(features, supportedFeatures)) {
+            if (!conformantOnly && !conformance.applicabilityFor(features)) {
                 continue;
             }
 
@@ -405,7 +423,7 @@ function filterWithConformance<T extends Model>(
                 );
             }
 
-            if (otherConformance.applicabilityOf(features, supportedFeatures)) {
+            if (otherConformance.applicabilityFor(features)) {
                 throw new SchemaImplementationError(
                     parent,
                     `There are multiple definitions of "${member.name}" that cannot be differentiated by conformance`,

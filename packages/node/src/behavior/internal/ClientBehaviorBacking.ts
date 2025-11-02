@@ -42,11 +42,10 @@ export class ClientBehaviorBacking extends BehaviorBacking {
         }
 
         return (this.#elements = {
+            features: schema.supportedFeatures,
             attributes,
             commands,
-
-            // TODO
-            events: new Set(),
+            events: new Set(), // Not published
         });
     }
 

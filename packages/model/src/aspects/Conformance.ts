@@ -67,10 +67,10 @@ export class Conformance extends Aspect<Conformance.Definition> {
         return Conformance.validateReferences(this, this.ast, errorTarget, lookup);
     }
 
-    validateComputation(errorTarget: Conformance.ErrorTarget, featuresAvailable?: FeatureSet) {
+    validateComputation(errorTarget: Conformance.ErrorTarget, features?: FeatureSet) {
         try {
             // This validation only confirms we can perform computation; we ignore the result
-            this.applicabilityOf(featuresAvailable ?? new Set(), new Set());
+            this.applicabilityFor({ definedFeatures: features ?? new Set(), supportedFeatures: new Set() });
         } catch (e) {
             errorTarget.error("CANNOT_COMPUTE_CONFORMANCE", `Error computing conformance: ${asError(e).message}`);
         }
@@ -106,11 +106,8 @@ export class Conformance extends Aspect<Conformance.Definition> {
      * This is useful for filtering elements at compile time.  For complete accuracy you then need to filter at runtime
      * once field values are known.
      */
-    applicabilityOf(features: Iterable<string>, supportedFeatures: Iterable<string>) {
-        const fset = features instanceof Set ? (features as Set<string>) : new Set(features);
-        const sfset =
-            supportedFeatures instanceof Set ? (supportedFeatures as Set<string>) : new Set(supportedFeatures);
-        return computeApplicability(fset, sfset, this);
+    applicabilityFor({ definedFeatures: features, supportedFeatures }: Conformance.FeatureContext) {
+        return computeApplicability(features, supportedFeatures, this);
     }
 
     override toString() {
@@ -124,6 +121,11 @@ export class Conformance extends Aspect<Conformance.Definition> {
 }
 
 export namespace Conformance {
+    export interface FeatureContext {
+        definedFeatures: Set<string>;
+        supportedFeatures: Set<string>;
+    }
+
     export enum Applicability {
         None = 0,
         Optional = 1,

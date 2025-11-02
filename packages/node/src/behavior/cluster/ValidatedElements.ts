@@ -4,13 +4,42 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic, ImplementationError, Logger, Observable } from "#general";
+import { Diagnostic, ImplementationError, Logger, MatterAggregateError, Observable } from "#general";
 import { ClusterType } from "#types";
 import { Behavior } from "../Behavior.js";
 import { ClusterBehavior } from "./ClusterBehavior.js";
 import { introspectionInstanceOf } from "./ClusterBehaviorUtil.js";
 
 const logger = Logger.get("ValidatedElements");
+
+/**
+ * Thrown when a {@link ClusterBehavior} cannot be constructed due to fatal errors.
+ */
+export class ClusterImplementationError extends MatterAggregateError {
+    constructor(name: string, errors: ClusterElementError[]) {
+        super(
+            errors,
+            Diagnostic.upgrade(
+                `Cluster behavior ${name} has fatal implementation errors`,
+                Diagnostic.squash("Cluster behavior", Diagnostic.strong(name), "has fatal implementation errors"),
+            ),
+        );
+    }
+}
+
+/**
+ * Thrown when a {@link ClusterBehavior} element is implemented incorrectly.
+ */
+export class ClusterElementError extends ImplementationError {
+    constructor(element: string, message: string) {
+        super(
+            Diagnostic.upgrade(
+                `Error in ${element}: ${message}`,
+                Diagnostic.squash("Error in ", Diagnostic.strong(element), ": ", message),
+            ),
+        );
+    }
+}
 
 /**
  * Analyzes a ClusterBehavior implementation to ensure it conforms to the Matter specification.
@@ -89,25 +118,23 @@ export class ValidatedElements {
             return;
         }
 
-        let crashed = false;
+        let fatalErrors: undefined | ClusterElementError[];
 
-        for (const error of this.errors) {
-            const diagnostic = Diagnostic.squash("Error in ", Diagnostic.strong(error.element), ": ", error.message);
+        for (const { element, message, fatal } of this.errors) {
+            const error = new ClusterElementError(element, message);
 
-            if (error.fatal) {
-                crashed = true;
-                logger.error(diagnostic);
+            if (fatal) {
+                if (!fatalErrors) {
+                    fatalErrors = [];
+                }
+                fatalErrors.push(error);
             } else {
-                logger.warn(diagnostic);
+                logger.warn(error.message);
             }
         }
 
-        if (crashed) {
-            throw new ImplementationError(
-                `There ${
-                    this.errors.length > 1 ? `are ${this.errors.length} errors` : `is 1 error`
-                } in a ClusterBehavior implementation for property ${this.#name} (see log for details)`,
-            );
+        if (fatalErrors) {
+            throw new ClusterImplementationError(this.#type.name, fatalErrors);
         }
     }
 

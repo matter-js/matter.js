@@ -73,14 +73,14 @@ export namespace ClusterModifier {
      */
     export function applyPresence(target: ClusterModel, modifications: ClusterModifier.PresenceModifications) {
         return apply(target, modifications, (element, isSupported) => {
-            if (element.isSupported === isSupported) {
+            if (element.effectiveIsSupported === isSupported) {
                 return;
             }
 
             if (element.isFinal) {
                 element = element.clone();
             }
-            element.isSupported = isSupported;
+            element.operationalIsSupported = isSupported;
 
             return element;
         });
@@ -116,7 +116,7 @@ export namespace ClusterModifier {
 
                 const replacement = apply(member, mod as T);
                 if (replacement === member || replacement === undefined) {
-                    return;
+                    continue;
                 }
 
                 if (model === undefined) {

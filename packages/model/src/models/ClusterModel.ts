@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { Conformance } from "#aspects/Conformance.js";
 import { camelize, describeList } from "#general";
 import { ModelIndex } from "#logic/ModelIndex.js";
 import { ModelTraversal } from "#logic/ModelTraversal.js";
@@ -21,7 +22,10 @@ import type { FieldModel } from "./FieldModel.js";
 import { Model } from "./Model.js";
 import { ScopeModel } from "./ScopeModel.js";
 
-export class ClusterModel extends ScopeModel<ClusterElement, ClusterModel.Child> implements ClusterElement {
+export class ClusterModel
+    extends ScopeModel<ClusterElement, ClusterModel.Child>
+    implements ClusterElement, Conformance.FeatureContext
+{
     override tag: ClusterElement.Tag = ClusterElement.Tag;
 
     #quality: Quality;
@@ -106,7 +110,7 @@ export class ClusterModel extends ScopeModel<ClusterElement, ClusterModel.Child>
         return (this.member(FeatureMap.id, [ElementTag.Attribute]) as AttributeModel) ?? new AttributeModel(FeatureMap);
     }
 
-    get featureNames(): FeatureSet {
+    get definedFeatures(): FeatureSet {
         return new FeatureSet(this.features.map(feature => feature.name));
     }
 
