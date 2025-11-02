@@ -18,9 +18,13 @@ Resource.add({
     children: [
         { tag: "requirement", name: "BridgedDeviceBasicInformation", xref: "device§2.5.5" },
         { tag: "requirement", name: "PowerSourceConfiguration", xref: "device§2.5.5" },
-        { tag: "requirement", name: "PowerSource", xref: "device§2.5.5" },
+        {
+            tag: "requirement", name: "PowerSource", discriminator: "BridgedPowerSourceInfo:serverCluster",
+            xref: "device§2.5.5"
+        },
         { tag: "requirement", name: "EcosystemInformation", xref: "device§2.5.5" },
         { tag: "requirement", name: "AdministratorCommissioning", xref: "device§2.5.5" },
+        { tag: "requirement", name: "PowerSource", discriminator: "O:deviceType", xref: "device§2.5.4" },
 
         {
             tag: "field", name: "conditions",

@@ -19,7 +19,8 @@ export const CooktopDt = DeviceType(
     Requirement(
         { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster" },
         Requirement({ name: "OFFONLY", conformance: "M", element: "feature" })
-    )
+    ),
+    Requirement({ name: "CookSurface", id: 0x77, conformance: "O", element: "deviceType" })
 );
 
 MatterDefinition.children.push(CooktopDt);

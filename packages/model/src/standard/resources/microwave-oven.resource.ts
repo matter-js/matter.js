@@ -20,6 +20,7 @@ Resource.add({
         { tag: "requirement", name: "OperationalState", xref: "device§13.11.6" },
         { tag: "requirement", name: "FanControl", xref: "device§13.11.6" },
         { tag: "requirement", name: "MicrowaveOvenMode", xref: "device§13.11.6" },
-        { tag: "requirement", name: "MicrowaveOvenControl", xref: "device§13.11.6" }
+        { tag: "requirement", name: "MicrowaveOvenControl", xref: "device§13.11.6" },
+        { tag: "requirement", name: "OnOffLight", xref: "device§13.11.5" }
     ]
 });

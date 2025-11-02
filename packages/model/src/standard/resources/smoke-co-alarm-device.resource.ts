@@ -29,6 +29,7 @@ Resource.add({
         { tag: "requirement", name: "SmokeCoAlarm", xref: "device§7.9.5" },
         { tag: "requirement", name: "RelativeHumidityMeasurement", xref: "device§7.9.5" },
         { tag: "requirement", name: "TemperatureMeasurement", xref: "device§7.9.5" },
-        { tag: "requirement", name: "CarbonMonoxideConcentrationMeasurement", xref: "device§7.9.5" }
+        { tag: "requirement", name: "CarbonMonoxideConcentrationMeasurement", xref: "device§7.9.5" },
+        { tag: "requirement", name: "PowerSource", xref: "device§7.9.4" }
     ]
 });

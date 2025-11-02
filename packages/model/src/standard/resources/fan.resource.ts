@@ -17,6 +17,7 @@ Resource.add({
         { tag: "requirement", name: "Identify", xref: "device§9.2.5" },
         { tag: "requirement", name: "Groups", xref: "device§9.2.5" },
         { tag: "requirement", name: "OnOff", xref: "device§9.2.5" },
-        { tag: "requirement", name: "FanControl", xref: "device§9.2.5" }
+        { tag: "requirement", name: "FanControl", xref: "device§9.2.5" },
+        { tag: "requirement", name: "Thermostat", xref: "device§9.2.4" }
     ]
 });

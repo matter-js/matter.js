@@ -51,6 +51,7 @@ export const RootNodeDt = DeviceType(
         { name: "IcdManagement", id: 0x46, conformance: "SIT | LIT", element: "serverCluster", quality: "I" },
         Requirement({ name: "LONGIDLETIMESUPPORT", conformance: "LIT", element: "feature" })
     ),
+    Requirement({ name: "PowerSource", id: 0x11, conformance: "O", element: "deviceType" }),
     Field(
         { name: "conditions", type: "enum8" },
         Field({ name: "CustomNetworkConfig" }),

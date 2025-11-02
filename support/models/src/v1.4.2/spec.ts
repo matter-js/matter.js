@@ -37387,7 +37387,9 @@ export const SpecMatter = Matter(
                 xref: "device§2.1.5"
             },
             Requirement({ name: "LONGIDLETIMESUPPORT", conformance: "LIT", element: "feature" })
-        )
+        ),
+
+        Requirement({ name: "PowerSource", id: 0x11, conformance: "O", element: "deviceType", xref: "device§2.1.4" })
     ),
 
     DeviceType(
@@ -37474,7 +37476,8 @@ export const SpecMatter = Matter(
         Requirement({
             name: "AdministratorCommissioning", id: 0x3c, conformance: "FabricSynchronizedNode",
             element: "serverCluster", xref: "device§2.5.5"
-        })
+        }),
+        Requirement({ name: "PowerSource", id: 0x11, conformance: "O", element: "deviceType", xref: "device§2.5.4" })
     ),
 
     DeviceType(
@@ -38333,7 +38336,8 @@ export const SpecMatter = Matter(
         Requirement({
             name: "CarbonMonoxideConcentrationMeasurement", id: 0x40c, conformance: "O",
             element: "serverCluster", xref: "device§7.9.5"
-        })
+        }),
+        Requirement({ name: "PowerSource", id: 0x11, conformance: "M", element: "deviceType", xref: "device§7.9.4" })
     ),
 
     DeviceType(
@@ -38594,7 +38598,8 @@ export const SpecMatter = Matter(
         Requirement(
             { name: "FanControl", id: 0x202, conformance: "M", element: "serverCluster", xref: "device§9.2.5" },
             Requirement({ name: "FanModeSequence", access: "R V", conformance: "Matter", element: "attribute" })
-        )
+        ),
+        Requirement({ name: "Thermostat", id: 0x301, conformance: "O", element: "deviceType", xref: "device§9.2.4" })
     ),
 
     DeviceType(
@@ -38618,7 +38623,13 @@ export const SpecMatter = Matter(
         Requirement({
             name: "ActivatedCarbonFilterMonitoring", id: 0x72, conformance: "O", element: "serverCluster",
             xref: "device§9.3.5"
-        })
+        }),
+        Requirement({ name: "Thermostat", id: 0x301, conformance: "O", element: "deviceType", xref: "device§9.3.4" }),
+        Requirement(
+            { name: "TemperatureSensor", id: 0x302, conformance: "O", element: "deviceType", xref: "device§9.3.4" }
+        ),
+        Requirement({ name: "HumiditySensor", id: 0x307, conformance: "O", element: "deviceType", xref: "device§9.3.4" }),
+        Requirement({ name: "AirQualitySensor", id: 0x2c, conformance: "O", element: "deviceType", xref: "device§9.3.4" })
     ),
 
     DeviceType(
@@ -39044,7 +39055,11 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "RefrigeratorAlarm", id: 0x57, conformance: "O", element: "serverCluster", xref: "device§13.2.6" }
-        )
+        ),
+        Requirement({
+            name: "TemperatureControlledCabinet", id: 0x71, conformance: "M", element: "deviceType",
+            xref: "device§13.2.5"
+        })
     ),
 
     DeviceType(
@@ -39087,7 +39102,11 @@ export const SpecMatter = Matter(
         Requirement({
             name: "RelativeHumidityMeasurement", id: 0x405, conformance: "O", element: "serverCluster",
             xref: "device§13.3.6"
-        })
+        }),
+        Requirement(
+            { name: "TemperatureSensor", id: 0x302, conformance: "O", element: "deviceType", xref: "device§13.3.5" }
+        ),
+        Requirement({ name: "HumiditySensor", id: 0x307, conformance: "O", element: "deviceType", xref: "device§13.3.5" })
     ),
 
     DeviceType(
@@ -39254,7 +39273,8 @@ export const SpecMatter = Matter(
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§13.8.5" },
             Requirement({ name: "OFFONLY", conformance: "M", element: "feature" })
-        )
+        ),
+        Requirement({ name: "CookSurface", id: 0x77, conformance: "O", element: "deviceType", xref: "device§13.8.4" })
     ),
 
     DeviceType(
@@ -39269,7 +39289,12 @@ export const SpecMatter = Matter(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 123, revision: 2 } ], element: "attribute" })
         ),
-        Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§13.9.6" })
+        Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§13.9.6" }),
+        Requirement({
+            name: "TemperatureControlledCabinet", id: 0x71, conformance: "M", element: "deviceType",
+            xref: "device§13.9.5"
+        }),
+        Requirement({ name: "Cooktop", id: 0x78, conformance: "O", element: "deviceType", xref: "device§13.9.5" })
     ),
 
     DeviceType(
@@ -39312,7 +39337,9 @@ export const SpecMatter = Matter(
             Requirement({ name: "ROCKING", conformance: "X", element: "feature" }),
             Requirement({ name: "WIND", conformance: "X", element: "feature" }),
             Requirement({ name: "AIRFLOWDIRECTION", conformance: "X", element: "feature" })
-        )
+        ),
+
+        Requirement({ name: "OnOffLight", id: 0x100, conformance: "O", element: "deviceType", xref: "device§13.10.4" })
     ),
 
     DeviceType(
@@ -39342,7 +39369,8 @@ export const SpecMatter = Matter(
         Requirement(
             { name: "MicrowaveOvenMode", id: 0x5e, conformance: "M", element: "serverCluster", xref: "device§13.11.6" }
         ),
-        Requirement({ name: "MicrowaveOvenControl", id: 0x5f, conformance: "M", element: "serverCluster", xref: "device§13.11.6" })
+        Requirement({ name: "MicrowaveOvenControl", id: 0x5f, conformance: "M", element: "serverCluster", xref: "device§13.11.6" }),
+        Requirement({ name: "OnOffLight", id: 0x100, conformance: "O", element: "deviceType", xref: "device§13.11.5" })
     ),
 
     DeviceType(
@@ -39365,7 +39393,12 @@ export const SpecMatter = Matter(
         Requirement({
             name: "TemperatureMeasurement", id: 0x402, conformance: "O", element: "serverCluster",
             xref: "device§14.1.6"
-        })
+        }),
+        Requirement({ name: "PowerSource", id: 0x11, conformance: "M", element: "deviceType", xref: "device§14.1.5" }),
+        Requirement(
+            { name: "ElectricalSensor", id: 0x510, conformance: "M", element: "deviceType", xref: "device§14.1.5" }
+        ),
+        Requirement({ name: "DeviceEnergyManagement", id: 0x50d, conformance: "M", element: "deviceType", xref: "device§14.1.5" })
     ),
 
     DeviceType(
@@ -39386,7 +39419,15 @@ export const SpecMatter = Matter(
         Requirement({ name: "WaterHeaterManagement", id: 0x94, conformance: "M", element: "serverCluster", xref: "device§14.2.6" }),
         Requirement(
             { name: "WaterHeaterMode", id: 0x9e, conformance: "M", element: "serverCluster", xref: "device§14.2.6" }
-        )
+        ),
+        Requirement({ name: "PowerSource", id: 0x11, conformance: "O", element: "deviceType", xref: "device§14.2.5" }),
+        Requirement(
+            { name: "TemperatureSensor", id: 0x302, conformance: "O", element: "deviceType", xref: "device§14.2.5" }
+        ),
+        Requirement(
+            { name: "ElectricalSensor", id: 0x510, conformance: "desc", element: "deviceType", xref: "device§14.2.5" }
+        ),
+        Requirement({ name: "DeviceEnergyManagement", id: 0x50d, conformance: "O", element: "deviceType", xref: "device§14.2.5" })
     ),
 
     DeviceType(
@@ -39401,7 +39442,51 @@ export const SpecMatter = Matter(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 23, revision: 1 } ], element: "attribute" })
         ),
-        Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§14.3.6" })
+        Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§14.3.6" }),
+
+        Requirement(
+            { name: "PowerSource", id: 0x11, conformance: "M", element: "deviceType", xref: "device§14.3.5" },
+            Requirement(
+                { name: "PowerSource", id: 0x2f, element: "serverCluster" },
+                Requirement({ name: "Wired", conformance: "M", element: "feature" })
+            ),
+            Requirement(
+                { name: "Descriptor", id: 0x1d, element: "serverCluster" },
+                Requirement({ name: "TagList", conformance: "M", element: "feature" })
+            )
+        ),
+
+        Requirement(
+            { name: "ElectricalSensor", id: 0x510, conformance: "M", element: "deviceType", xref: "device§14.3.5" },
+            Requirement(
+                { name: "ElectricalPowerMeasurement", id: 0x90, element: "serverCluster" },
+                Requirement({ name: "Voltage", conformance: "M", element: "attribute" }),
+                Requirement({ name: "ActiveCurrent", conformance: "M", element: "attribute" })
+            ),
+            Requirement(
+                { name: "ElectricalEnergyMeasurement", id: 0x91, element: "serverCluster" },
+                Requirement({ name: "ExportedEnergy", conformance: "M", element: "feature" })
+            )
+        ),
+
+        Requirement(
+            {
+                name: "DeviceEnergyManagement", id: 0x50d, conformance: "O", element: "deviceType",
+                xref: "device§14.3.5"
+            },
+            Requirement(
+                { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
+                Requirement({ name: "PowerAdjustment", conformance: "M", element: "feature" })
+            )
+        ),
+
+        Requirement(
+            { name: "TemperatureSensor", id: 0x302, conformance: "O", element: "deviceType", xref: "device§14.3.5" },
+            Requirement(
+                { name: "Descriptor", id: 0x1d, element: "serverCluster" },
+                Requirement({ name: "TagList", conformance: "M", element: "feature" })
+            )
+        )
     ),
 
     DeviceType(
@@ -39418,7 +39503,67 @@ export const SpecMatter = Matter(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 24, revision: 1 } ], element: "attribute" })
         ),
-        Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§14.4.7" })
+        Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§14.4.7" }),
+
+        Requirement(
+            { name: "PowerSource", id: 0x11, conformance: "M", element: "deviceType", xref: "device§14.4.5" },
+
+            Requirement(
+                { name: "PowerSource", id: 0x2f, element: "serverCluster" },
+                Requirement({ name: "Wired", conformance: "M", element: "feature" }),
+                Requirement({ name: "Battery", conformance: "M", element: "feature" }),
+                Requirement({ name: "BatVoltage", conformance: "M", element: "attribute" }),
+                Requirement({ name: "BatPercentRemaining", conformance: "M", element: "attribute" }),
+                Requirement({ name: "BatTimeRemaining", conformance: "M", element: "attribute" }),
+                Requirement({ name: "ActiveBatFaults", conformance: "M", element: "attribute" }),
+                Requirement({ name: "BatCapacity", conformance: "M", element: "attribute" }),
+                Requirement({ name: "BatTimeToFullCharge", conformance: "M", element: "attribute" }),
+                Requirement({ name: "BatChargingCurrent", conformance: "M", element: "attribute" }),
+                Requirement({ name: "ActiveBatChargeFaults", conformance: "M", element: "attribute" })
+            ),
+
+            Requirement(
+                { name: "Descriptor", id: 0x1d, element: "serverCluster" },
+                Requirement({ name: "TagList", conformance: "M", element: "feature" })
+            )
+        ),
+
+        Requirement(
+            { name: "ElectricalSensor", id: 0x510, conformance: "M", element: "deviceType", xref: "device§14.4.5" },
+
+            Requirement(
+                { name: "ElectricalPowerMeasurement", id: 0x90, element: "serverCluster" },
+                Requirement({ name: "AlternatingCurrent", conformance: "M", element: "feature" }),
+                Requirement({ name: "Voltage", conformance: "M", element: "attribute" }),
+                Requirement({ name: "ActiveCurrent", conformance: "M", element: "attribute" })
+            ),
+
+            Requirement(
+                { name: "ElectricalEnergyMeasurement", id: 0x91, element: "serverCluster" },
+                Requirement({ name: "ExportedEnergy", conformance: "M", element: "feature" })
+            )
+        ),
+
+        Requirement(
+            {
+                name: "DeviceEnergyManagement", id: 0x50d, conformance: "M", element: "deviceType",
+                xref: "device§14.4.5"
+            },
+            Requirement(
+                { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
+                Requirement({ name: "PowerAdjustment", conformance: "M", element: "feature" })
+            )
+        ),
+
+        Requirement(
+            { name: "TemperatureSensor", id: 0x302, conformance: "O", element: "deviceType", xref: "device§14.4.5" },
+            Requirement(
+                { name: "Descriptor", id: 0x1d, element: "serverCluster" },
+                Requirement({ name: "TagList", conformance: "M", element: "feature" })
+            )
+        ),
+
+        Requirement({ name: "SolarPower", id: 0x17, conformance: "O", element: "deviceType", xref: "device§14.4.5" })
     ),
 
     DeviceType(
@@ -39439,7 +39584,59 @@ export const SpecMatter = Matter(
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 777, revision: 1 } ], element: "attribute" })
         ),
         Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§14.5.7" }),
-        Requirement({ name: "Thermostat", id: 0x201, conformance: "O", element: "clientCluster", xref: "device§14.5.7" })
+        Requirement({ name: "Thermostat", id: 0x201, conformance: "O", element: "clientCluster", xref: "device§14.5.7" }),
+
+        Requirement(
+            { name: "PowerSource", id: 0x11, conformance: "M", element: "deviceType", xref: "device§14.5.5" },
+            Requirement(
+                { name: "PowerSource", id: 0x2f, element: "serverCluster" },
+                Requirement({ name: "Wired", conformance: "M", element: "feature" })
+            ),
+            Requirement(
+                { name: "Descriptor", id: 0x1d, element: "serverCluster" },
+                Requirement({ name: "TagList", conformance: "M", element: "feature" })
+            )
+        ),
+
+        Requirement(
+            { name: "ElectricalSensor", id: 0x510, conformance: "M", element: "deviceType", xref: "device§14.5.5" },
+
+            Requirement(
+                { name: "ElectricalPowerMeasurement", id: 0x90, element: "serverCluster" },
+                Requirement({ name: "AlternatingCurrent", conformance: "M", element: "feature" }),
+                Requirement({ name: "Voltage", conformance: "M", element: "attribute" }),
+                Requirement({ name: "ActiveCurrent", conformance: "M", element: "attribute" })
+            )
+        ),
+
+        Requirement(
+            {
+                name: "DeviceEnergyManagement", id: 0x50d, conformance: "M", element: "deviceType",
+                xref: "device§14.5.5"
+            },
+            Requirement(
+                { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
+                Requirement({ name: "PowerAdjustment", conformance: "M", element: "feature" })
+            )
+        ),
+
+        Requirement(
+            { name: "Thermostat", id: 0x301, conformance: "O", element: "deviceType", xref: "device§14.5.5" },
+            Requirement(
+                { name: "Descriptor", id: 0x1d, element: "serverCluster" },
+                Requirement({ name: "TagList", conformance: "M", element: "feature" })
+            )
+        ),
+
+        Requirement({ name: "WaterHeater", id: 0x50f, conformance: "O", element: "deviceType", xref: "device§14.5.5" }),
+
+        Requirement(
+            { name: "TemperatureSensor", id: 0x302, conformance: "O", element: "deviceType", xref: "device§14.5.5" },
+            Requirement(
+                { name: "Descriptor", id: 0x1d, element: "serverCluster" },
+                Requirement({ name: "TagList", conformance: "M", element: "feature" })
+            )
+        )
     ),
 
     DeviceType(

@@ -27,7 +27,8 @@ export const MicrowaveOvenDt = DeviceType(
         Requirement({ name: "AIRFLOWDIRECTION", conformance: "X", element: "feature" })
     ),
     Requirement({ name: "MicrowaveOvenMode", id: 0x5e, conformance: "M", element: "serverCluster" }),
-    Requirement({ name: "MicrowaveOvenControl", id: 0x5f, conformance: "M", element: "serverCluster" })
+    Requirement({ name: "MicrowaveOvenControl", id: 0x5f, conformance: "M", element: "serverCluster" }),
+    Requirement({ name: "OnOffLight", id: 0x100, conformance: "O", element: "deviceType" })
 );
 
 MatterDefinition.children.push(MicrowaveOvenDt);

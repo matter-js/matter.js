@@ -24,7 +24,9 @@ export const ExtractorHoodDt = DeviceType(
         Requirement({ name: "ROCKING", conformance: "X", element: "feature" }),
         Requirement({ name: "WIND", conformance: "X", element: "feature" }),
         Requirement({ name: "AIRFLOWDIRECTION", conformance: "X", element: "feature" })
-    )
+    ),
+
+    Requirement({ name: "OnOffLight", id: 0x100, conformance: "O", element: "deviceType" })
 );
 
 MatterDefinition.children.push(ExtractorHoodDt);

@@ -18,6 +18,9 @@ Resource.add({
         { tag: "requirement", name: "Identify", xref: "device§14.1.6" },
         { tag: "requirement", name: "EnergyEvse", xref: "device§14.1.6" },
         { tag: "requirement", name: "EnergyEvseMode", xref: "device§14.1.6" },
-        { tag: "requirement", name: "TemperatureMeasurement", xref: "device§14.1.6" }
+        { tag: "requirement", name: "TemperatureMeasurement", xref: "device§14.1.6" },
+        { tag: "requirement", name: "PowerSource", xref: "device§14.1.5" },
+        { tag: "requirement", name: "ElectricalSensor", xref: "device§14.1.5" },
+        { tag: "requirement", name: "DeviceEnergyManagement", xref: "device§14.1.5" }
     ]
 });

@@ -34,6 +34,7 @@ Resource.add({
         { tag: "requirement", name: "Identify", xref: "device§13.10.5" },
         { tag: "requirement", name: "HepaFilterMonitoring", xref: "device§13.10.5" },
         { tag: "requirement", name: "ActivatedCarbonFilterMonitoring", xref: "device§13.10.5" },
-        { tag: "requirement", name: "FanControl", xref: "device§13.10.5" }
+        { tag: "requirement", name: "FanControl", xref: "device§13.10.5" },
+        { tag: "requirement", name: "OnOffLight", xref: "device§13.10.4" }
     ]
 });

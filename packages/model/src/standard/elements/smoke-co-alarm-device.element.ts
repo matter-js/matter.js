@@ -20,7 +20,8 @@ export const SmokeCoAlarmDt = DeviceType(
     Requirement({ name: "SmokeCoAlarm", id: 0x5c, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "RelativeHumidityMeasurement", id: 0x405, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "TemperatureMeasurement", id: 0x402, conformance: "O", element: "serverCluster" }),
-    Requirement({ name: "CarbonMonoxideConcentrationMeasurement", id: 0x40c, conformance: "O", element: "serverCluster" })
+    Requirement({ name: "CarbonMonoxideConcentrationMeasurement", id: 0x40c, conformance: "O", element: "serverCluster" }),
+    Requirement({ name: "PowerSource", id: 0x11, conformance: "M", element: "deviceType" })
 );
 
 MatterDefinition.children.push(SmokeCoAlarmDt);

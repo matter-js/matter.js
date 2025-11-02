@@ -73,4 +73,6 @@ export interface DeviceReference extends HtmlReference {
     conditionSets?: HtmlReference[];
     clusters?: HtmlReference;
     elements?: HtmlReference;
+    composingTypes?: HtmlReference;
+    composingElements?: HtmlReference;
 }
