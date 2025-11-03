@@ -9,7 +9,7 @@ import { Observable, ServerAddress, ServerAddressUdp } from "#general";
 import { DatatypeModel, FieldElement } from "#model";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
-import { ActiveSubscription, DEFAULT_MIN_INTERVAL_FLOOR, PeerSet, Subscribe } from "#protocol";
+import { ActiveSubscription, PeerSet, Subscribe } from "#protocol";
 import { CaseAuthenticatedTag } from "#types";
 import { ClientNetworkRuntime } from "./ClientNetworkRuntime.js";
 import { NetworkBehavior } from "./NetworkBehavior.js";
@@ -69,12 +69,8 @@ export class NetworkClient extends NetworkBehavior {
         }
 
         if (subscriptionDesired) {
-            // TODO - configure subscription min/max timing based on physical device properties
-            // TODO run whole process including reconnections in a "mutex" like process
             const subscribe = Subscribe({
                 fabricFilter: true,
-                minIntervalFloor: DEFAULT_MIN_INTERVAL_FLOOR,
-                maxIntervalCeiling: 0,
                 attributes: [{}],
                 events: [{ isUrgent: true }],
                 ...this.state.defaultSubscription,

@@ -13,7 +13,7 @@ import {
     ThreadNetworkDiagnostics,
 } from "#clusters";
 import { RetransmissionLimitReachedError } from "#protocol";
-import { Logger, SupportedStorageTypes } from "@matter/general";
+import { Logger, Seconds, SupportedStorageTypes } from "@matter/general";
 import { InteractionClient, PhysicalDeviceProperties, SupportedAttributeClient } from "@matter/protocol";
 import { EndpointNumber, GlobalAttributes, NodeId, TypeFromPartialBitSchema, TypeFromSchema } from "@matter/types";
 import { Endpoint } from "./Endpoint.js";
@@ -70,6 +70,7 @@ export class DeviceInformation {
             wifiConnected: false,
             threadConnected: false,
             rootEndpointServerList: [] as number[],
+            isMainsPowered: false,
             isBatteryPowered: false,
             isIntermittentlyConnected: false,
             isThreadSleepyEndDevice: false,
@@ -211,6 +212,7 @@ export class DeviceInformation {
             wifiConnected: false,
             threadConnected: false,
             rootEndpointServerList: [] as number[],
+            isMainsPowered: false,
             isBatteryPowered: false,
             isIntermittentlyConnected: false,
             isThreadSleepyEndDevice: false,
@@ -302,15 +304,26 @@ export class DeviceInformation {
         this.#deviceMeta = deviceData;
     }
 
-    determineSubscriptionParameters(options: {
+    determineSubscriptionParameters({
+        subscribeMinIntervalFloorSeconds,
+        subscribeMaxIntervalCeilingSeconds,
+    }: {
         subscribeMinIntervalFloorSeconds?: number;
         subscribeMaxIntervalCeilingSeconds?: number;
     }) {
-        return PhysicalDeviceProperties.determineSubscriptionParameters({
+        const { minIntervalFloor, maxIntervalCeiling } = PhysicalDeviceProperties.subscriptionIntervalBoundsFor({
             properties: this.#deviceMeta,
             description: `Node ${this.nodeId}`,
-            ...options,
+            request: {
+                minIntervalFloor: subscribeMinIntervalFloorSeconds && Seconds(subscribeMinIntervalFloorSeconds),
+                maxIntervalCeiling: subscribeMaxIntervalCeilingSeconds && Seconds(subscribeMaxIntervalCeilingSeconds),
+            },
         });
+
+        return {
+            minIntervalFloorSeconds: Seconds.of(minIntervalFloor),
+            maxIntervalCeilingSeconds: Seconds.of(maxIntervalCeiling),
+        };
     }
 
     toStorageData(): DeviceInformationData {

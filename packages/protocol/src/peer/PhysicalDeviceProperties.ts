@@ -4,77 +4,94 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger } from "#general";
+import { Duration, Instant, Logger, Minutes, Seconds } from "#general";
 
 const logger = Logger.get("PhysicalDeviceProperties");
 
-const DEFAULT_SUBSCRIPTION_FLOOR_DEFAULT_S = 1;
-const DEFAULT_SUBSCRIPTION_FLOOR_ICD_S = 0;
-const DEFAULT_SUBSCRIPTION_CEILING_WIFI_S = 60;
-const DEFAULT_SUBSCRIPTION_CEILING_THREAD_S = 60;
-const DEFAULT_SUBSCRIPTION_CEILING_THREAD_SLEEPY_S = 180;
-const DEFAULT_SUBSCRIPTION_CEILING_BATTERY_POWERED_S = 600;
+const DEFAULT_SUBSCRIPTION_FLOOR_DEFAULT = Seconds(1);
+const DEFAULT_SUBSCRIPTION_FLOOR_ICD = Instant;
+const DEFAULT_SUBSCRIPTION_CEILING_WIFI = Minutes(1);
+const DEFAULT_SUBSCRIPTION_CEILING_THREAD = Minutes(1);
+const DEFAULT_SUBSCRIPTION_CEILING_THREAD_SLEEPY = Minutes(3);
+const DEFAULT_SUBSCRIPTION_CEILING_BATTERY_POWERED = Minutes(10);
 
 export interface PhysicalDeviceProperties {
     threadConnected: boolean;
     wifiConnected: boolean;
     ethernetConnected: boolean;
     rootEndpointServerList: number[];
+    isMainsPowered: boolean;
     isBatteryPowered: boolean;
     isIntermittentlyConnected: boolean;
     isThreadSleepyEndDevice: boolean;
 }
 
 export namespace PhysicalDeviceProperties {
-    export function determineSubscriptionParameters(options?: {
+    export function subscriptionIntervalBoundsFor(options?: {
         properties?: PhysicalDeviceProperties;
         description?: string;
-        subscribeMinIntervalFloorSeconds?: number;
-        subscribeMaxIntervalCeilingSeconds?: number;
-    }) {
-        const { properties } = options ?? {};
+        request?: Partial<PhysicalDeviceProperties.IntervalBounds>;
+    }): PhysicalDeviceProperties.IntervalBounds {
+        const { properties, request } = options ?? {};
 
-        let {
-            description,
-            subscribeMinIntervalFloorSeconds: minIntervalFloorSeconds,
-            subscribeMaxIntervalCeilingSeconds: maxIntervalCeilingSeconds,
-        } = options ?? {};
+        let { description } = options ?? {};
+
+        let minIntervalFloor, maxIntervalCeiling;
+        if (request) {
+            ({ minIntervalFloor, maxIntervalCeiling } = request);
+        }
 
         if (description === undefined) {
             description = "Node";
         }
 
-        const { isBatteryPowered, isIntermittentlyConnected, threadConnected, isThreadSleepyEndDevice } =
-            properties ?? {};
+        const {
+            isMainsPowered,
+            isBatteryPowered,
+            isIntermittentlyConnected,
+            threadConnected,
+            isThreadSleepyEndDevice,
+        } = properties ?? {};
 
         if (isIntermittentlyConnected) {
-            if (minIntervalFloorSeconds !== undefined && minIntervalFloorSeconds !== DEFAULT_SUBSCRIPTION_FLOOR_ICD_S) {
+            if (minIntervalFloor !== undefined && minIntervalFloor !== DEFAULT_SUBSCRIPTION_FLOOR_ICD) {
                 logger.info(
-                    `${description}: Overwriting minIntervalFloorSeconds for intermittently connected device to ${DEFAULT_SUBSCRIPTION_FLOOR_ICD_S}`,
+                    `${description}: Overwriting minIntervalFloorSeconds for intermittently connected device to ${Duration.format(DEFAULT_SUBSCRIPTION_FLOOR_ICD)}`,
                 );
-                minIntervalFloorSeconds = DEFAULT_SUBSCRIPTION_FLOOR_ICD_S;
+                minIntervalFloor = DEFAULT_SUBSCRIPTION_FLOOR_ICD;
             }
         }
-
-        const defaultCeiling = isBatteryPowered
-            ? DEFAULT_SUBSCRIPTION_CEILING_BATTERY_POWERED_S
-            : isThreadSleepyEndDevice
-              ? DEFAULT_SUBSCRIPTION_CEILING_THREAD_SLEEPY_S
-              : threadConnected
-                ? DEFAULT_SUBSCRIPTION_CEILING_THREAD_S
-                : DEFAULT_SUBSCRIPTION_CEILING_WIFI_S;
-        if (maxIntervalCeilingSeconds === undefined) {
-            maxIntervalCeilingSeconds = defaultCeiling;
+        if (minIntervalFloor === undefined) {
+            minIntervalFloor = DEFAULT_SUBSCRIPTION_FLOOR_DEFAULT;
         }
-        if (maxIntervalCeilingSeconds < defaultCeiling) {
+
+        const defaultCeiling =
+            isBatteryPowered && !isMainsPowered
+                ? DEFAULT_SUBSCRIPTION_CEILING_BATTERY_POWERED
+                : isThreadSleepyEndDevice
+                  ? DEFAULT_SUBSCRIPTION_CEILING_THREAD_SLEEPY
+                  : threadConnected
+                    ? DEFAULT_SUBSCRIPTION_CEILING_THREAD
+                    : DEFAULT_SUBSCRIPTION_CEILING_WIFI;
+        if (maxIntervalCeiling === undefined) {
+            maxIntervalCeiling = defaultCeiling;
+        }
+        if (maxIntervalCeiling < defaultCeiling) {
             logger.debug(
-                `${description}: maxIntervalCeilingSeconds ideally is ${defaultCeiling}s instead of ${maxIntervalCeilingSeconds}s due to device type`,
+                `${description}: maxIntervalCeilingSeconds ideally is ${defaultCeiling}s instead of ${maxIntervalCeiling}s due to device type`,
             );
         }
 
         return {
-            minIntervalFloorSeconds: minIntervalFloorSeconds ?? DEFAULT_SUBSCRIPTION_FLOOR_DEFAULT_S,
-            maxIntervalCeilingSeconds,
+            minIntervalFloor,
+            maxIntervalCeiling,
         };
+    }
+}
+
+export namespace PhysicalDeviceProperties {
+    export interface IntervalBounds {
+        minIntervalFloor: Duration;
+        maxIntervalCeiling: Duration;
     }
 }

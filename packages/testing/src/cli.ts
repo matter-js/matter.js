@@ -79,7 +79,7 @@ export async function main(argv = process.argv) {
         .command("esm", "run tests on node (ES6 modules)", () => testTypes.add(TestType.esm))
         .command("cjs", "run tests on node (CommonJS modules)", () => testTypes.add(TestType.cjs))
         .command("web", "run tests in web browser", () => testTypes.add(TestType.web))
-        .command("report", "display details about tests", () => (ls = true))
+        .command("inspect", "display details about tests", () => (ls = true))
         .command("manual", "start web test server and print URL for manual testing", () => {
             testTypes.add(TestType.web);
             manual = true;

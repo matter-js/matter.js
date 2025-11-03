@@ -7,12 +7,14 @@
 import type { ActionContext } from "#behavior/context/ActionContext.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import type { ClientNode } from "#node/ClientNode.js";
+import { NodePhysicalProperties } from "#node/NodePhysicalProperties.js";
 import {
     ClientInteraction,
     ClientInvoke,
     ClientSubscribe,
     DecodedInvokeResult,
     Interactable,
+    PhysicalDeviceProperties,
     Read,
     ReadResult,
     SubscribeResult,
@@ -62,8 +64,15 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
      * automatically.  So you normally do not need to subscribe manually.
      */
     async subscribe(request: ClientSubscribe, context?: ActionContext): SubscribeResult {
+        const physicalProps = NodePhysicalProperties(this.#node);
+
         const intermediateRequest: ClientSubscribe = {
             ...this.structure.injectVersionFilters(request),
+            ...PhysicalDeviceProperties.subscriptionIntervalBoundsFor({
+                description: this.#node.toString(),
+                properties: physicalProps,
+                request,
+            }),
 
             sustain: request.sustain === undefined ? true : request.sustain,
 

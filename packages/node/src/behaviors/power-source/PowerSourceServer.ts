@@ -7,6 +7,7 @@
 import { DescriptorServer } from "#behaviors/descriptor";
 import { PowerSource } from "#clusters/power-source";
 import { Seconds } from "#general";
+import type { Val } from "#protocol";
 import { ClusterType } from "#types";
 import { PowerSourceBehavior } from "./PowerSourceBehavior.js";
 
@@ -29,6 +30,34 @@ export class PowerSourceBaseServer extends PowerSourceLevelBase {
                 event.quiet.minimumEmitInterval = Seconds(10);
             }
         });
+
+        if (this.state.status === undefined) {
+            this.state.status = PowerSource.PowerSourceStatus.Unspecified;
+        }
+
+        if (this.state.description === undefined) {
+            if (this.features.wired) {
+                this.state.description = "Mains power";
+            } else if (this.features.battery) {
+                this.state.description = "Battery power";
+            }
+        }
+
+        if (this.features.battery) {
+            if (this.state.batChargeLevel === undefined) {
+                this.state.batChargeLevel = PowerSource.BatChargeLevel.Ok;
+            }
+            if (this.state.batReplaceability === undefined) {
+                this.state.batReplaceability = PowerSource.BatReplaceability.Unspecified;
+            }
+        }
+
+        if (this.features.wired) {
+            const state = this.state as Val.Struct;
+            if (state.wiredCurrentType === undefined) {
+                state.wiredCurrentType = PowerSource.WiredCurrentType.Ac;
+            }
+        }
     }
 }
 
