@@ -101,7 +101,7 @@ export namespace VendorIdVerification {
         node: ClientNode,
         options: {
             noc: OperationalCredentials.Noc; // Noc entry read from device for the relevant fabric index
-            rcac: Bytes; // Trusted Root Certificate , TODO: Allow to provide multiple and find the needed ine
+            rcac: Bytes; // Trusted Root Certificate , TODO: Allow to provide multiple and find the needed one
             fabric: OperationalCredentials.FabricDescriptor; // Fabric entry read from device for the relevant fabric index
         },
     ) {
