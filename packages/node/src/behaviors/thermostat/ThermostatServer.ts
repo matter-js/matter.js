@@ -154,12 +154,11 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
 
         amount *= 10; // Convert to same base as the setpoints
 
-        // We only care about Occupied setpoints as by SDK implementation
         if (mode === Thermostat.SetpointRaiseLowerMode.Both) {
             if (this.features.heating && this.features.cooling) {
-                let desiredCoolingSetpoint = this.state.occupiedCoolingSetpoint + amount;
+                let desiredCoolingSetpoint = this.coolingSetpoint + amount;
                 const coolLimit = desiredCoolingSetpoint - this.#clampSetpointToLimits("Cool", desiredCoolingSetpoint);
-                let desiredHeatingSetpoint = this.state.occupiedHeatingSetpoint + amount;
+                let desiredHeatingSetpoint = this.heatingSetpoint + amount;
                 const heatLimit = desiredHeatingSetpoint - this.#clampSetpointToLimits("Heat", desiredHeatingSetpoint);
                 if (coolLimit !== 0 || heatLimit !== 0) {
                     if (Math.abs(coolLimit) <= Math.abs(heatLimit)) {
@@ -172,36 +171,27 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                         desiredCoolingSetpoint = desiredCoolingSetpoint - coolLimit;
                     }
                 }
-                this.state.occupiedCoolingSetpoint = desiredCoolingSetpoint;
-                this.state.occupiedHeatingSetpoint = desiredHeatingSetpoint;
+                this.coolingSetpoint = desiredCoolingSetpoint;
+                this.heatingSetpoint = desiredHeatingSetpoint;
             } else if (this.features.cooling) {
-                this.state.occupiedCoolingSetpoint = this.#clampSetpointToLimits(
-                    "Cool",
-                    this.state.occupiedCoolingSetpoint + amount,
-                );
+                this.coolingSetpoint = this.#clampSetpointToLimits("Cool", this.coolingSetpoint + amount);
             } else {
-                this.state.occupiedHeatingSetpoint = this.#clampSetpointToLimits(
-                    "Heat",
-                    this.state.occupiedHeatingSetpoint + amount,
-                );
+                this.heatingSetpoint = this.#clampSetpointToLimits("Heat", this.heatingSetpoint + amount);
             }
             return;
         }
 
         if (mode === Thermostat.SetpointRaiseLowerMode.Cool) {
-            const desiredCoolingSetpoint = this.#clampSetpointToLimits(
-                "Cool",
-                this.state.occupiedCoolingSetpoint + amount,
-            );
+            const desiredCoolingSetpoint = this.#clampSetpointToLimits("Cool", this.coolingSetpoint + amount);
             if (this.features.autoMode) {
-                let heatingSetpoint = this.state.occupiedHeatingSetpoint;
+                let heatingSetpoint = this.heatingSetpoint;
                 if (desiredCoolingSetpoint - heatingSetpoint < this.setpointDeadBand) {
                     // We are limited by the Heating Setpoint
                     heatingSetpoint = desiredCoolingSetpoint - this.setpointDeadBand;
                     if (heatingSetpoint === this.#clampSetpointToLimits("Heat", heatingSetpoint)) {
                         // Desired cooling setpoint is enforceable
                         // Set the new cooling and heating setpoints
-                        this.state.occupiedHeatingSetpoint = heatingSetpoint;
+                        this.heatingSetpoint = heatingSetpoint;
                     } else {
                         throw new StatusResponse.InvalidCommandError(
                             "Could Not adjust heating setpoint to maintain dead band!",
@@ -209,24 +199,21 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                     }
                 }
             }
-            this.state.occupiedCoolingSetpoint = desiredCoolingSetpoint;
+            this.coolingSetpoint = desiredCoolingSetpoint;
             return;
         }
 
         if (mode === Thermostat.SetpointRaiseLowerMode.Heat) {
-            const desiredHeatingSetpoint = this.#clampSetpointToLimits(
-                "Heat",
-                this.state.occupiedHeatingSetpoint + amount,
-            );
+            const desiredHeatingSetpoint = this.#clampSetpointToLimits("Heat", this.heatingSetpoint + amount);
             if (this.features.autoMode) {
-                let coolingSetpoint = this.state.occupiedCoolingSetpoint;
+                let coolingSetpoint = this.coolingSetpoint;
                 if (coolingSetpoint - desiredHeatingSetpoint < this.setpointDeadBand) {
                     // We are limited by the Cooling Setpoint
                     coolingSetpoint = desiredHeatingSetpoint + this.setpointDeadBand;
                     if (coolingSetpoint === this.#clampSetpointToLimits("Cool", coolingSetpoint)) {
                         // Desired cooling setpoint is enforceable
                         // Set the new cooling and heating setpoints
-                        this.state.occupiedCoolingSetpoint = coolingSetpoint;
+                        this.coolingSetpoint = coolingSetpoint;
                     } else {
                         throw new StatusResponse.InvalidCommandError(
                             "Could Not adjust cooling setpoint to maintain dead band!",
@@ -234,7 +221,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                     }
                 }
             }
-            this.state.occupiedHeatingSetpoint = desiredHeatingSetpoint;
+            this.heatingSetpoint = desiredHeatingSetpoint;
             return;
         }
 
@@ -264,7 +251,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
 
     /**
      * This default implementation of the SetActivePresetRequest command handler sets the active preset and
-     * (additionally to specification requirements!) adjusts the occupied setpoints to the preset values if defined.
+     * (additionally to specification requirements!) adjusts the setpoints to the preset values if defined.
      *
      * If you do not want this behavior, you can override this method but should call handleSetActivePresetRequest to
      * ensure compliance with the specification.
@@ -275,10 +262,10 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         if (preset !== undefined) {
             const { heatingSetpoint, coolingSetpoint } = preset;
             if (this.features.heating && heatingSetpoint !== null && heatingSetpoint !== undefined) {
-                this.state.occupiedHeatingSetpoint = this.#clampSetpointToLimits("Heat", heatingSetpoint);
+                this.heatingSetpoint = this.#clampSetpointToLimits("Heat", heatingSetpoint);
             }
             if (this.features.cooling && coolingSetpoint !== null && coolingSetpoint !== undefined) {
-                this.state.occupiedCoolingSetpoint = this.#clampSetpointToLimits("Cool", coolingSetpoint);
+                this.coolingSetpoint = this.#clampSetpointToLimits("Cool", coolingSetpoint);
             }
         }
     }
@@ -304,12 +291,28 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         return this.state.unoccupiedHeatingSetpoint;
     }
 
+    protected set heatingSetpoint(value: number) {
+        if (this.occupied) {
+            this.state.occupiedHeatingSetpoint = value;
+        } else {
+            this.state.unoccupiedHeatingSetpoint = value;
+        }
+    }
+
     /** The current cooling setpoint depending on occupancy */
     protected get coolingSetpoint() {
         if (this.occupied) {
             return this.state.occupiedCoolingSetpoint;
         }
         return this.state.unoccupiedCoolingSetpoint;
+    }
+
+    protected set coolingSetpoint(value: number) {
+        if (this.occupied) {
+            this.state.occupiedCoolingSetpoint = value;
+        } else {
+            this.state.unoccupiedCoolingSetpoint = value;
+        }
     }
 
     /** Setup basic Thermostat state and logic */
