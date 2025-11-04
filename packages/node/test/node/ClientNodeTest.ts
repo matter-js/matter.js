@@ -479,8 +479,8 @@ const PEER1_STATE = {
         featureMap: {},
         attributeList: [0, 1, 2, 3, 4, 5, 0xfffd, 0xfffc, 0xfffb, 0xfff9, 0xfff8],
         eventList: undefined,
-        acceptedCommandList: [0, 2, 4, 6, 7, 9, 10, 0xb],
-        generatedCommandList: [1, 3, 5, 8],
+        acceptedCommandList: [0, 2, 4, 6, 7, 9, 10, 0xb, 0xc, 0xd],
+        generatedCommandList: [1, 3, 5, 8, 0xe],
     },
     generalDiagnostics: {
         clusterRevision: 2,
