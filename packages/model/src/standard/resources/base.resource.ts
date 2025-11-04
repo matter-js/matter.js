@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "Base", classification: "base", xref: "device§1.1",
+    tag: "deviceType", name: "Base", xref: "device§1.1",
 
     children: [
         {

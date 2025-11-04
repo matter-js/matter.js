@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "WiFiNetworkManagement", classification: "application", pics: "WIFINM",
-    xref: "cluster§10.2",
+    tag: "cluster", name: "WiFiNetworkManagement", pics: "WIFINM", xref: "cluster§10.2",
     details: "This cluster provides an interface for getting information about the Wi-Fi network that a Network " +
         "Infrastructure Manager device type provides. Privileged nodes within the same fabric as a Network " +
         "Infrastructure Manager can use these interfaces to request information related to the Wi-Fi Network " +

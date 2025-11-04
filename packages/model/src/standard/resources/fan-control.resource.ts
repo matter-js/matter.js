@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "FanControl", classification: "application", pics: "FAN", xref: "cluster§4.4",
+    tag: "cluster", name: "FanControl", pics: "FAN", xref: "cluster§4.4",
     details: "This cluster specifies an interface to control the speed of a fan.",
 
     children: [

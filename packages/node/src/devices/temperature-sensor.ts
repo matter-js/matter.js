@@ -53,4 +53,5 @@ export const TemperatureSensorDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(TemperatureSensorDeviceDefinition);
 export const TemperatureSensorDevice: TemperatureSensorDevice = TemperatureSensorDeviceDefinition;

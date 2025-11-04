@@ -15,7 +15,7 @@ import {
 } from "../../elements/index.js";
 
 export const LaundryDryerControls = Cluster(
-    { name: "LaundryDryerControls", id: 0x4a },
+    { name: "LaundryDryerControls", id: 0x4a, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
 
     Attribute(

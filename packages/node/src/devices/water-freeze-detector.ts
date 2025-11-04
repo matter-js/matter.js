@@ -64,4 +64,5 @@ export const WaterFreezeDetectorDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(WaterFreezeDetectorDeviceDefinition);
 export const WaterFreezeDetectorDevice: WaterFreezeDetectorDevice = WaterFreezeDetectorDeviceDefinition;

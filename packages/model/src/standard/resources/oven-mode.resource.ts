@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "OvenMode", classification: "application", pics: "OTCCM",
-    xref: "cluster§8.11",
+    tag: "cluster", name: "OvenMode", pics: "OTCCM", xref: "cluster§8.11",
     details: "This cluster is derived from the Mode Base cluster and defines additional mode tags and namespaced " +
         "enumerated values for oven devices.",
 

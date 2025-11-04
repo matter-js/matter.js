@@ -102,4 +102,5 @@ export const LaundryWasherDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors(LaundryWasherRequirements.server.mandatory.OperationalState)
 });
 
+Object.freeze(LaundryWasherDeviceDefinition);
 export const LaundryWasherDevice: LaundryWasherDevice = LaundryWasherDeviceDefinition;

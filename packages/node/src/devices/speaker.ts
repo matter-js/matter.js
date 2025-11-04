@@ -62,4 +62,5 @@ export const SpeakerDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(SpeakerDeviceDefinition);
 export const SpeakerDevice: SpeakerDevice = SpeakerDeviceDefinition;

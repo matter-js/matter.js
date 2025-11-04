@@ -10,8 +10,7 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add(
     {
-        tag: "cluster", name: "NetworkCommissioning", classification: "node", pics: "CNET",
-        xref: "core§11.9",
+        tag: "cluster", name: "NetworkCommissioning", pics: "CNET", xref: "core§11.9",
 
         details: "Network commissioning is part of the overall Node commissioning. The main goal of Network " +
             "Commissioning Cluster is to associate a Node with or manage a Node’s one or more network interfaces. " +

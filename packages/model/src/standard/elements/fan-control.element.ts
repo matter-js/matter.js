@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const FanControl = Cluster(
-    { name: "FanControl", id: 0x202 },
+    { name: "FanControl", id: 0x202, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 5 }),
 
     Attribute(

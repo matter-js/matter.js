@@ -215,3 +215,5 @@ export namespace ServerNode {
 
     export interface RootEndpoint extends Identity<typeof RootEndpoint> {}
 }
+
+Object.freeze(ServerNode.RootEndpoint);

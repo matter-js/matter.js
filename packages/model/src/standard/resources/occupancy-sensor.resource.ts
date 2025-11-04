@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "OccupancySensor", classification: "simple", xref: "device§7.3",
+    tag: "deviceType", name: "OccupancySensor", xref: "device§7.3",
     details: "An Occupancy Sensor is a measurement and sensing device that is capable of measuring and reporting " +
         "the occupancy state in a designated area.",
     children: [

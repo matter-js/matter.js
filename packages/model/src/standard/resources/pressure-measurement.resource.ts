@@ -10,8 +10,7 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add(
     {
-        tag: "cluster", name: "PressureMeasurement", classification: "application", pics: "PRS",
-        xref: "cluster§2.4",
+        tag: "cluster", name: "PressureMeasurement", pics: "PRS", xref: "cluster§2.4",
         details: "This cluster provides an interface to pressure measurement functionality, including configuration " +
             "and provision of notifications of pressure measurements.",
 

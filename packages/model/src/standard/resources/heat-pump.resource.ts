@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "HeatPump", classification: "simple", xref: "device§14.5",
+    tag: "deviceType", name: "HeatPump", xref: "device§14.5",
 
     details: "A Heat Pump device is a device that uses electrical energy to heat either spaces or water tanks " +
         "using ground, water or air as the heat source. These typically can heat the air or can pump water " +

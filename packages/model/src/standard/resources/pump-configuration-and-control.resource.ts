@@ -10,8 +10,7 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add(
     {
-        tag: "cluster", name: "PumpConfigurationAndControl", classification: "application", pics: "PCC",
-        xref: "cluster§4.2",
+        tag: "cluster", name: "PumpConfigurationAndControl", pics: "PCC", xref: "cluster§4.2",
 
         details: "The Pump Configuration and Control cluster provides an interface for the setup and control of pump " +
             "devices, and the automatic reporting of pump status information. Note that control of pump speed is " +

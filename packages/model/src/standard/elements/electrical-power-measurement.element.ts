@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const ElectricalPowerMeasurement = Cluster(
-    { name: "ElectricalPowerMeasurement", id: 0x90 },
+    { name: "ElectricalPowerMeasurement", id: 0x90, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
 
     Attribute(

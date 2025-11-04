@@ -125,4 +125,5 @@ export const OnOffPlugInUnitDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(OnOffPlugInUnitDeviceDefinition);
 export const OnOffPlugInUnitDevice: OnOffPlugInUnitDevice = OnOffPlugInUnitDeviceDefinition;

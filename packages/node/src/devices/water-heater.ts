@@ -81,4 +81,5 @@ export const WaterHeaterDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(WaterHeaterDeviceDefinition);
 export const WaterHeaterDevice: WaterHeaterDevice = WaterHeaterDeviceDefinition;

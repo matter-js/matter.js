@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const AudioOutput = Cluster(
-    { name: "AudioOutput", id: 0x50b },
+    { name: "AudioOutput", id: 0x50b, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

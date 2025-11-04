@@ -62,4 +62,5 @@ export const DeviceEnergyManagementEndpointDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors()
 });
 
+Object.freeze(DeviceEnergyManagementEndpointDefinition);
 export const DeviceEnergyManagementEndpoint: DeviceEnergyManagementEndpoint = DeviceEnergyManagementEndpointDefinition;

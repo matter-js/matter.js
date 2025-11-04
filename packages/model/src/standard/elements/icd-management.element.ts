@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const IcdManagement = Cluster(
-    { name: "IcdManagement", id: 0x46 },
+    { name: "IcdManagement", id: 0x46, classification: "node" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
 
     Attribute(

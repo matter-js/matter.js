@@ -10,7 +10,7 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add(
     {
-        tag: "cluster", name: "DoorLock", classification: "application", pics: "DRLK", xref: "cluster§5.2",
+        tag: "cluster", name: "DoorLock", pics: "DRLK", xref: "cluster§5.2",
         details: "The door lock cluster provides an interface to a generic way to secure a door. The physical object " +
             "that provides the locking functionality is abstracted from the cluster. The cluster has a small list " +
             "of mandatory attributes and functions and a list of optional features.",

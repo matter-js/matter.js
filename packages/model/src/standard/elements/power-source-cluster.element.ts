@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const PowerSource = Cluster(
-    { name: "PowerSource", id: 0x2f },
+    { name: "PowerSource", id: 0x2f, classification: "node" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
 
     Attribute(

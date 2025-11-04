@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const Identify = Cluster(
-    { name: "Identify", id: 0x3 },
+    { name: "Identify", id: 0x3, classification: "endpoint" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 6 }),
     Attribute({ name: "IdentifyTime", id: 0x0, type: "uint16", access: "RW VO", conformance: "M", quality: "Q" }),
     Attribute({ name: "IdentifyType", id: 0x1, type: "IdentifyTypeEnum", access: "R V", conformance: "M", constraint: "desc" }),

@@ -15,7 +15,7 @@ import {
 } from "../../elements/index.js";
 
 export const RvcRunMode = Cluster(
-    { name: "RvcRunMode", id: 0x54, type: "ModeBase" },
+    { name: "RvcRunMode", id: 0x54, type: "ModeBase", classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

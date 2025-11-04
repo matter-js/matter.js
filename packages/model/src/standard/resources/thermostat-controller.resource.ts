@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "ThermostatController", classification: "simple", xref: "device§9.4",
+    tag: "deviceType", name: "ThermostatController", xref: "device§9.4",
     details: "A Thermostat Controller is a device capable of controlling a Thermostat.",
 
     children: [

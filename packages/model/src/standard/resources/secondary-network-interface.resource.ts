@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "SecondaryNetworkInterface", classification: "utility", xref: "device§2.8",
+    tag: "deviceType", name: "SecondaryNetworkInterface", xref: "device§2.8",
 
     details: "A Secondary Network Interface device provides an additional network interface supported by the Node, " +
         "supplementing the primary interface hosted by the Root Node endpoint." +

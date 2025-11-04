@@ -12,6 +12,8 @@ import { NetworkRuntime } from "#behavior/system/network/NetworkRuntime.js";
 import { Agent } from "#endpoint/Agent.js";
 import { ClientNodeEndpoints } from "#endpoint/properties/ClientNodeEndpoints.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
+import { EndpointType } from "#endpoint/type/EndpointType.js";
+import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { Diagnostic, Identity, Lifecycle, Logger, MaybePromise } from "#general";
 import { Matter, MatterModel } from "#model";
 import { Interactable, OccurrenceManager, PeerAddress } from "#protocol";
@@ -39,7 +41,9 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         const opts = {
             ...options,
             number: 0,
-            type: ClientNode.RootEndpoint,
+
+            // Create an unfrozen type so we can set the revision when we see the descriptor
+            type: MutableEndpoint(ClientNode.RootEndpoint),
         };
 
         super(opts);
@@ -234,7 +238,12 @@ export namespace ClientNode {
         matter?: MatterModel;
     }
 
-    export const RootEndpoint = Node.CommonRootEndpoint.with(CommissioningClient, NetworkClient);
+    export const RootEndpoint = MutableEndpoint({
+        ...Node.CommonRootEndpoint,
+        deviceRevision: EndpointType.UNKNOWN_DEVICE_REVISION,
+    }).with(CommissioningClient, NetworkClient);
 
     export interface RootEndpoint extends Identity<typeof RootEndpoint> {}
 }
+
+Object.freeze(ClientNode.RootEndpoint);

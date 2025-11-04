@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "WaterHeater", classification: "simple", xref: "device§14.2",
+    tag: "deviceType", name: "WaterHeater", xref: "device§14.2",
     details: "A water heater is a device that is generally installed in properties to heat water for showers, " +
         "baths etc.",
 

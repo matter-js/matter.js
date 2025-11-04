@@ -10,8 +10,7 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add(
     {
-        tag: "cluster", name: "JointFabricAdministrator", classification: "node", pics: "JFPKI",
-        xref: "core§11.25",
+        tag: "cluster", name: "JointFabricAdministrator", pics: "JFPKI", xref: "core§11.25",
         details: "An instance of the Joint Fabric Administrator Cluster only applies to Joint Fabric Administrator " +
             "nodes fulfilling the role of Anchor CA." +
             "\n" +

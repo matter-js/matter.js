@@ -14,7 +14,7 @@ import {
 } from "../../elements/index.js";
 
 export const AggregatorDt = DeviceType(
-    { name: "Aggregator", id: 0xe },
+    { name: "Aggregator", id: 0xe, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 14, revision: 2 } ], element: "attribute" })

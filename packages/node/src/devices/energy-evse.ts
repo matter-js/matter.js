@@ -74,4 +74,5 @@ export const EnergyEvseDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(EnergyEvseDeviceDefinition);
 export const EnergyEvseDevice: EnergyEvseDevice = EnergyEvseDeviceDefinition;

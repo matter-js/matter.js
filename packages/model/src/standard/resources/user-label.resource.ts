@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "UserLabel", classification: "endpoint", pics: "ULABEL", xref: "core§9.9",
+    tag: "cluster", name: "UserLabel", pics: "ULABEL", xref: "core§9.9",
     details: "This cluster is derived from the Label cluster and provides a feature to tag an endpoint with zero " +
         "or more writable labels.",
     children: [{

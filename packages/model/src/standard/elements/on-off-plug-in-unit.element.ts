@@ -10,7 +10,7 @@ import { MatterDefinition } from "../MatterDefinition.js";
 import { DeviceTypeElement as DeviceType, RequirementElement as Requirement } from "../../elements/index.js";
 
 export const OnOffPlugInUnitDt = DeviceType(
-    { name: "OnOffPlugInUnit", id: 0x10a },
+    { name: "OnOffPlugInUnit", id: 0x10a, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 266, revision: 4 } ], element: "attribute" })

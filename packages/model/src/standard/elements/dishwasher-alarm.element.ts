@@ -15,7 +15,7 @@ import {
 } from "../../elements/index.js";
 
 export const DishwasherAlarm = Cluster(
-    { name: "DishwasherAlarm", id: 0x5d, type: "AlarmBase" },
+    { name: "DishwasherAlarm", id: 0x5d, type: "AlarmBase", classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
 
     Datatype(

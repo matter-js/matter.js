@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "CastingVideoPlayer", classification: "simple", xref: "device§10.3",
+    tag: "deviceType", name: "CastingVideoPlayer", xref: "device§10.3",
 
     details: "This defines conformance to the Casting Video Player device type." +
         "\n" +

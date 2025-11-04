@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "RefrigeratorAlarm", classification: "application", pics: "REFALM",
-    xref: "cluster§8.8",
+    tag: "cluster", name: "RefrigeratorAlarm", pics: "REFALM", xref: "cluster§8.8",
     details: "This cluster is a derived cluster of Alarm Base cluster and provides the alarm definition related to " +
         "refrigerator and temperature controlled cabinet devices.",
 

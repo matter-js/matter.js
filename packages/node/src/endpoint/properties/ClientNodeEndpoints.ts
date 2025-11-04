@@ -26,7 +26,7 @@ export class ClientNodeEndpoints extends Endpoints {
             id: `ep${endpointId}`,
             number: endpointId,
             type: EndpointType({
-                name: "ClientEndpoint",
+                name: "Unknown",
                 deviceType: EndpointType.UNKNOWN_DEVICE_TYPE,
                 deviceRevision: EndpointType.UNKNOWN_DEVICE_REVISION,
                 ...type,

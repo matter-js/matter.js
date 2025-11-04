@@ -129,4 +129,5 @@ export const ExtendedColorLightDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(ExtendedColorLightDeviceDefinition);
 export const ExtendedColorLightDevice: ExtendedColorLightDevice = ExtendedColorLightDeviceDefinition;

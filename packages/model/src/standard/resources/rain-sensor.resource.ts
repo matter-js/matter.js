@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "RainSensor", classification: "simple", xref: "device§7.13",
+    tag: "deviceType", name: "RainSensor", xref: "device§7.13",
     details: "This defines conformance to the Rain Sensor device type.",
     children: [
         { tag: "requirement", name: "Identify", xref: "device§7.13.4" },

@@ -10,7 +10,7 @@ import { MatterDefinition } from "../MatterDefinition.js";
 import { DeviceTypeElement as DeviceType, RequirementElement as Requirement } from "../../elements/index.js";
 
 export const PumpControllerDt = DeviceType(
-    { name: "PumpController", id: 0x304 },
+    { name: "PumpController", id: 0x304, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 772, revision: 4 } ], element: "attribute" })

@@ -94,4 +94,5 @@ export const MicrowaveOvenDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(MicrowaveOvenDeviceDefinition);
 export const MicrowaveOvenDevice: MicrowaveOvenDevice = MicrowaveOvenDeviceDefinition;

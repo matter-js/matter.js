@@ -14,7 +14,7 @@ import {
 } from "../../elements/index.js";
 
 export const FixedLabel = Cluster(
-    { name: "FixedLabel", id: 0x40, type: "Label" },
+    { name: "FixedLabel", id: 0x40, type: "Label", classification: "endpoint" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute(
         { name: "LabelList", id: 0x0, type: "list", access: "R V", conformance: "M", default: [], quality: "N" },

@@ -17,7 +17,7 @@ import {
 } from "../../elements/index.js";
 
 export const Actions = Cluster(
-    { name: "Actions", id: 0x25 },
+    { name: "Actions", id: 0x25, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
 
     Attribute(

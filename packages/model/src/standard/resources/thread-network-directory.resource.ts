@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "ThreadNetworkDirectory", classification: "application", pics: "THNETDIR",
-    xref: "cluster§10.4",
+    tag: "cluster", name: "ThreadNetworkDirectory", pics: "THNETDIR", xref: "cluster§10.4",
     details: "This cluster stores a list of Thread networks (including the credentials required to access each " +
         "network), as well as a designation of the user’s preferred network, to facilitate the sharing of " +
         "Thread networks across fabrics.",

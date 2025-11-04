@@ -40,4 +40,5 @@ export const ModeSelectDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors(ModeSelectRequirements.server.mandatory.ModeSelect)
 });
 
+Object.freeze(ModeSelectDeviceDefinition);
 export const ModeSelectDevice: ModeSelectDevice = ModeSelectDeviceDefinition;

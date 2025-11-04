@@ -55,4 +55,5 @@ export const HumiditySensorDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(HumiditySensorDeviceDefinition);
 export const HumiditySensorDevice: HumiditySensorDevice = HumiditySensorDeviceDefinition;

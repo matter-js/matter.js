@@ -9,8 +9,8 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "RefrigeratorAndTemperatureControlledCabinetMode",
-    classification: "application", pics: "TCCM", xref: "cluster§8.7",
+    tag: "cluster", name: "RefrigeratorAndTemperatureControlledCabinetMode", pics: "TCCM",
+    xref: "cluster§8.7",
     details: "This cluster is derived from the Mode Base cluster and defines additional mode tags and namespaced " +
         "enumerated values for refrigerator and temperature controlled cabinet devices.",
 

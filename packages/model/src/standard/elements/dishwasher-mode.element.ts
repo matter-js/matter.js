@@ -15,7 +15,7 @@ import {
 } from "../../elements/index.js";
 
 export const DishwasherMode = Cluster(
-    { name: "DishwasherMode", id: 0x59, type: "ModeBase" },
+    { name: "DishwasherMode", id: 0x59, type: "ModeBase", classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

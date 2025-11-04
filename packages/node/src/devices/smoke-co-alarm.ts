@@ -108,4 +108,5 @@ export const SmokeCoAlarmDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors(SmokeCoAlarmRequirements.server.mandatory.Identify)
 });
 
+Object.freeze(SmokeCoAlarmDeviceDefinition);
 export const SmokeCoAlarmDevice: SmokeCoAlarmDevice = SmokeCoAlarmDeviceDefinition;

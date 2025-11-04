@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "ValveConfigurationAndControl", classification: "application", pics: "VALCC",
-    xref: "cluster§4.6",
+    tag: "cluster", name: "ValveConfigurationAndControl", pics: "VALCC", xref: "cluster§4.6",
     details: "This cluster is used to configure a valve.",
 
     children: [

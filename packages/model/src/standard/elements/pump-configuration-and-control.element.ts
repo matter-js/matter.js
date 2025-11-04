@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const PumpConfigurationAndControl = Cluster(
-    { name: "PumpConfigurationAndControl", id: 0x200 },
+    { name: "PumpConfigurationAndControl", id: 0x200, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 4 }),
 
     Attribute(

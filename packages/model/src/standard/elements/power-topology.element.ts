@@ -14,7 +14,7 @@ import {
 } from "../../elements/index.js";
 
 export const PowerTopology = Cluster(
-    { name: "PowerTopology", id: 0x9c },
+    { name: "PowerTopology", id: 0x9c, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
 
     Attribute(

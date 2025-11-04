@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const JointFabricAdministrator = Cluster(
-    { name: "JointFabricAdministrator", id: 0x753 },
+    { name: "JointFabricAdministrator", id: 0x753, classification: "node" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute({
         name: "AdministratorFabricIndex", id: 0x0, type: "fabric-idx", access: "A", conformance: "P, M",

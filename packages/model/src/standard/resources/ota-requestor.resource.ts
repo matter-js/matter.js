@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "OtaRequestor", classification: "utility", xref: "device§2.3",
+    tag: "deviceType", name: "OtaRequestor", xref: "device§2.3",
     details: "An OTA Requestor is a device that is capable of receiving an OTA software update.",
     children: [
         { tag: "requirement", name: "OtaSoftwareUpdateRequestor", xref: "device§2.3.3" },

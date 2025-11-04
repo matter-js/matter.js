@@ -100,4 +100,5 @@ export const AirPurifierDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(AirPurifierDeviceDefinition);
 export const AirPurifierDevice: AirPurifierDevice = AirPurifierDeviceDefinition;

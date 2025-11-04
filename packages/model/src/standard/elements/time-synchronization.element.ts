@@ -17,7 +17,7 @@ import {
 } from "../../elements/index.js";
 
 export const TimeSynchronization = Cluster(
-    { name: "TimeSynchronization", id: 0x38 },
+    { name: "TimeSynchronization", id: 0x38, classification: "node" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
 
     Attribute(

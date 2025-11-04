@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "GeneralDiagnostics", classification: "node", pics: "DGGEN",
-    xref: "core§11.12",
+    tag: "cluster", name: "GeneralDiagnostics", pics: "DGGEN", xref: "core§11.12",
     details: "The General Diagnostics Cluster, along with other diagnostics clusters, provide a means to acquire " +
         "standardized diagnostics metrics that may be used by a Node to assist a user or Administrator in " +
         "diagnosing potential problems. The General Diagnostics Cluster attempts to centralize all metrics " +

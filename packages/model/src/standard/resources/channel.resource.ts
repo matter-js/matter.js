@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "Channel", classification: "application", pics: "CHANNEL",
-    xref: "cluster§6.6",
+    tag: "cluster", name: "Channel", pics: "CHANNEL", xref: "cluster§6.6",
 
     details: "This cluster provides an interface for controlling the current Channel on a device or endpoint." +
         "\n" +

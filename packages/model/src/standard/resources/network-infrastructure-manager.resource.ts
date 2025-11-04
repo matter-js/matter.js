@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "NetworkInfrastructureManager", classification: "simple",
-    xref: "device§15.3",
+    tag: "deviceType", name: "NetworkInfrastructureManager", xref: "device§15.3",
 
     details: "A Network Infrastructure Manager provides interfaces that allow for the management of the Wi-Fi, " +
         "Thread, and Ethernet networks underlying a Matter deployment, realizing the Star Network Topology " +

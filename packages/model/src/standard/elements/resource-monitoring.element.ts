@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const ResourceMonitoring = Cluster(
-    { name: "ResourceMonitoring" },
+    { name: "ResourceMonitoring", classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
 
     Attribute(

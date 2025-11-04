@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const ApplicationLauncher = Cluster(
-    { name: "ApplicationLauncher", id: 0x50c },
+    { name: "ApplicationLauncher", id: 0x50c, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "ServiceArea", classification: "application", pics: "SEAR",
-    xref: "cluster§1.17",
+    tag: "cluster", name: "ServiceArea", pics: "SEAR", xref: "cluster§1.17",
 
     details: "This cluster provides an interface for controlling the areas where a device should operate, for " +
         "reporting the status at each area, and for querying the current area." +

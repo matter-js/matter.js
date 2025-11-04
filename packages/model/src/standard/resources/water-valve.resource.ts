@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "WaterValve", classification: "simple", xref: "device§5.6",
+    tag: "deviceType", name: "WaterValve", xref: "device§5.6",
     details: "This defines conformance to the Water Valve device type.",
 
     children: [

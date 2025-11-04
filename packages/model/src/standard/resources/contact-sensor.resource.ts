@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "ContactSensor", classification: "simple", xref: "device§7.1",
+    tag: "deviceType", name: "ContactSensor", xref: "device§7.1",
     details: "This defines conformance to the Contact Sensor device type.",
     children: [
         { tag: "requirement", name: "Identify", xref: "device§7.1.4" },

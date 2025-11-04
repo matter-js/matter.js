@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "OvenCavityOperationalState", classification: "application",
-    pics: "OVENOPSTATE", xref: "cluster§8.10",
+    tag: "cluster", name: "OvenCavityOperationalState", pics: "OVENOPSTATE", xref: "cluster§8.10",
     details: "This cluster is derived from the Operational State cluster and provides an interface for monitoring " +
         "the operational state of an oven.",
 

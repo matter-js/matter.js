@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const ThreadNetworkDirectory = Cluster(
-    { name: "ThreadNetworkDirectory", id: 0x453 },
+    { name: "ThreadNetworkDirectory", id: 0x453, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute({
         name: "PreferredExtendedPanId", id: 0x0, type: "octstr", access: "RW VM", conformance: "M",

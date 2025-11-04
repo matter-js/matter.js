@@ -14,7 +14,7 @@ import {
 } from "../../elements/index.js";
 
 export const BaseDt = DeviceType(
-    { name: "Base" },
+    { name: "Base", classification: "base" },
 
     Field(
         { name: "conditions", type: "enum8" },

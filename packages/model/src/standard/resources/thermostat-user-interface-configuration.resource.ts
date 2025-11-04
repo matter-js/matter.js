@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "ThermostatUserInterfaceConfiguration", classification: "application",
-    pics: "TSUIC", xref: "cluster§4.5",
+    tag: "cluster", name: "ThermostatUserInterfaceConfiguration", pics: "TSUIC", xref: "cluster§4.5",
     details: "This cluster provides an interface to allow configuration of the user interface for a thermostat, or " +
         "a thermostat controller device, that supports a keypad and LCD screen.",
 

@@ -17,7 +17,7 @@ import {
 } from "../../elements/index.js";
 
 export const BooleanStateConfiguration = Cluster(
-    { name: "BooleanStateConfiguration", id: 0x80 },
+    { name: "BooleanStateConfiguration", id: 0x80, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
 
     Attribute(

@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "JointFabricDatastore", classification: "node", pics: "JFDS",
-    xref: "core§11.24",
+    tag: "cluster", name: "JointFabricDatastore", pics: "JFDS", xref: "core§11.24",
 
     details: "The Joint Fabric Datastore Cluster is a cluster that provides a mechanism for the Joint Fabric " +
         "Administrators to manage the set of Nodes, Groups, and Group membership among Nodes in the Joint " +

@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "DishwasherAlarm", classification: "application", pics: "DISHALM",
-    xref: "cluster§8.4",
+    tag: "cluster", name: "DishwasherAlarm", pics: "DISHALM", xref: "cluster§8.4",
     details: "This cluster is a derived cluster of the Alarm Base cluster and provides the alarm definition " +
         "related to dishwasher devices.",
 

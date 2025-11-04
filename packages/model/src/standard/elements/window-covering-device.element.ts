@@ -10,7 +10,7 @@ import { MatterDefinition } from "../MatterDefinition.js";
 import { DeviceTypeElement as DeviceType, RequirementElement as Requirement } from "../../elements/index.js";
 
 export const WindowCoveringDt = DeviceType(
-    { name: "WindowCovering", id: 0x202 },
+    { name: "WindowCovering", id: 0x202, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 514, revision: 4 } ], element: "attribute" })

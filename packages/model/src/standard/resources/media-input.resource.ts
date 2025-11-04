@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "MediaInput", classification: "application", pics: "MEDIAINPUT",
-    xref: "cluster§6.9",
+    tag: "cluster", name: "MediaInput", pics: "MEDIAINPUT", xref: "cluster§6.9",
 
     details: "This cluster provides an interface for controlling the Input Selector on a media device such as a " +
         "Video Player." +

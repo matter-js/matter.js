@@ -10,8 +10,7 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add(
     {
-        tag: "cluster", name: "DeviceEnergyManagement", classification: "application", pics: "DEM",
-        xref: "cluster§9.2",
+        tag: "cluster", name: "DeviceEnergyManagement", pics: "DEM", xref: "cluster§9.2",
 
         details: "This cluster allows a client to manage the power draw of a device. An example of such a client could " +
             "be an Energy Management System (EMS) which controls an Energy Smart Appliance (ESA)." +

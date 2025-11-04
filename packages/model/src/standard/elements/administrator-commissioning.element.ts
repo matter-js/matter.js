@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const AdministratorCommissioning = Cluster(
-    { name: "AdministratorCommissioning", id: 0x3c },
+    { name: "AdministratorCommissioning", id: 0x3c, classification: "node" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

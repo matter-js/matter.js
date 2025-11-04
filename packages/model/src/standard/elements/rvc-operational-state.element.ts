@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const RvcOperationalState = Cluster(
-    { name: "RvcOperationalState", id: 0x61, type: "OperationalState" },
+    { name: "RvcOperationalState", id: 0x61, type: "OperationalState", classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
     Command({ name: "Pause", id: 0x0 }),
     Command({ name: "Stop", id: 0x1, conformance: "X" }),

@@ -15,7 +15,7 @@ import {
 } from "../../elements/index.js";
 
 export const EcosystemInformation = Cluster(
-    { name: "EcosystemInformation", id: 0x750 },
+    { name: "EcosystemInformation", id: 0x750, classification: "endpoint" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute(
         { name: "DeviceDirectory", id: 0x0, type: "list", access: "R F M", conformance: "M", quality: "N" },

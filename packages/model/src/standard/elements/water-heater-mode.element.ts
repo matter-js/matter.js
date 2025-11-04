@@ -15,7 +15,7 @@ import {
 } from "../../elements/index.js";
 
 export const WaterHeaterMode = Cluster(
-    { name: "WaterHeaterMode", id: 0x9e, type: "ModeBase" },
+    { name: "WaterHeaterMode", id: 0x9e, type: "ModeBase", classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

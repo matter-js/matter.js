@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "GroupKeyManagement", classification: "node", pics: "GRPKEY",
-    xref: "core§11.2",
+    tag: "cluster", name: "GroupKeyManagement", pics: "GRPKEY", xref: "core§11.2",
 
     details: "The Group Key Management cluster manages group keys for the node. The cluster is scoped to the node " +
         "and is a singleton for the node. This cluster maintains a list of groups supported by the node. Each " +

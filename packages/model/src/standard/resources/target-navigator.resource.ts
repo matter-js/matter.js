@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "TargetNavigator", classification: "application", pics: "TGTNAV",
-    xref: "cluster§6.11",
+    tag: "cluster", name: "TargetNavigator", pics: "TGTNAV", xref: "cluster§6.11",
 
     details: "This cluster provides an interface for UX navigation within a set of targets on a device or " +
         "endpoint." +

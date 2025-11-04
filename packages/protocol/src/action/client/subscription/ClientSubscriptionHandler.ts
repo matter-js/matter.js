@@ -119,11 +119,9 @@ async function* processReports(
         const decoded = DecodedDataReport(report);
 
         if (decoded.subscriptionId === undefined) {
-            logger.debug(
-                "Ignoring data report for incorrect subscription id",
-                Diagnostic.strong(decoded.subscriptionId),
-            );
+            logger.debug("Ignoring data report with missing subscription id");
             await sendInvalid(messenger, decoded.subscriptionId);
+            continue;
         }
 
         if (decoded.subscriptionId !== subscriptionId) {

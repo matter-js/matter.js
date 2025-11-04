@@ -265,4 +265,5 @@ export const RootEndpointDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(RootEndpointDefinition);
 export const RootEndpoint: RootEndpoint = RootEndpointDefinition;

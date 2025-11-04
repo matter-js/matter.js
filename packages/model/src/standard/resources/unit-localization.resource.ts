@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "UnitLocalization", classification: "node", pics: "LUNIT", xref: "core§11.5",
+    tag: "cluster", name: "UnitLocalization", pics: "LUNIT", xref: "core§11.5",
 
     details: "Nodes should be expected to be deployed to any and all regions of the world. These global regions " +
         "may have differing preferences for the units in which values are conveyed in communication to a " +

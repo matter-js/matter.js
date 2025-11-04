@@ -17,7 +17,7 @@ import {
 } from "../../elements/index.js";
 
 export const SoftwareDiagnostics = Cluster(
-    { name: "SoftwareDiagnostics", id: 0x34, quality: "K" },
+    { name: "SoftwareDiagnostics", id: 0x34, classification: "node", quality: "K" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

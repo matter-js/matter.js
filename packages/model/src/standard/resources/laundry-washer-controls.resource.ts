@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "LaundryWasherControls", classification: "application", pics: "WASHERCTRL",
-    xref: "cluster§8.6",
+    tag: "cluster", name: "LaundryWasherControls", pics: "WASHERCTRL", xref: "cluster§8.6",
     details: "This cluster provides a way to access options associated with the operation of a laundry washer " +
         "device type.",
 

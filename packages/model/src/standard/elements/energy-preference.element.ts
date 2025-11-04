@@ -15,7 +15,7 @@ import {
 } from "../../elements/index.js";
 
 export const EnergyPreference = Cluster(
-    { name: "EnergyPreference", id: 0x9b },
+    { name: "EnergyPreference", id: 0x9b, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

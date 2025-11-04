@@ -7,21 +7,31 @@
 import { Behavior } from "#behavior/Behavior.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
-import { DescriptorCluster } from "#clusters/descriptor";
+import { Descriptor } from "#clusters/descriptor";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
-import { AcceptedCommandList, AttributeList, ClusterRevision, FeatureMap, type FeatureBitmap } from "#model";
+import { RootEndpoint } from "#endpoints/root";
+import {
+    AcceptedCommandList,
+    AttributeList,
+    ClusterRevision,
+    DeviceClassification,
+    DeviceTypeModel,
+    FeatureMap,
+    Matter,
+    type FeatureBitmap,
+} from "#model";
 import type { ClientNode } from "#node/ClientNode.js";
 import { ReadScope, type Read, type ReadResult } from "#protocol";
 import { DatasourceCache } from "#storage/client/DatasourceCache.js";
 import { ClientNodeStore } from "#storage/index.js";
-import type { AttributeId, ClusterId, ClusterType, CommandId, DeviceTypeId, EndpointNumber } from "#types";
+import type { AttributeId, ClusterId, ClusterType, CommandId, EndpointNumber } from "#types";
 import { ClientBehavior } from "./ClientBehavior.js";
 import { ClientEventEmitter } from "./ClientEventEmitter.js";
 
-const DEVICE_TYPE_LIST_ATTR_ID = DescriptorCluster.attributes.deviceTypeList.id;
-const SERVER_LIST_ATTR_ID = DescriptorCluster.attributes.serverList.id;
-const PARTS_LIST_ATTR_ID = DescriptorCluster.attributes.partsList.id;
+const DEVICE_TYPE_LIST_ATTR_ID = Descriptor.Cluster.attributes.deviceTypeList.id;
+const SERVER_LIST_ATTR_ID = Descriptor.Cluster.attributes.serverList.id;
+const PARTS_LIST_ATTR_ID = Descriptor.Cluster.attributes.partsList.id;
 
 /**
  * Manages endpoint and behavior structure for a single client node.
@@ -291,20 +301,46 @@ export class ClientStructure {
         }
 
         // Special handling for descriptor cluster
-        if (cluster.id === DescriptorCluster.id) {
+        if (cluster.id === Descriptor.Cluster.id) {
             this.#synchronizeDescriptor(endpoint, attrs);
         }
     }
 
     #synchronizeDescriptor(endpoint: EndpointStructure, attrs: Record<number, unknown>) {
-        const deviceTypeList = attrs[DEVICE_TYPE_LIST_ATTR_ID];
-        if (Array.isArray(deviceTypeList) && deviceTypeList?.[0]) {
-            const [{ deviceType, revision }] = deviceTypeList;
-            if (typeof deviceType === "number") {
-                endpoint.endpoint.type.deviceType = deviceType as DeviceTypeId;
-            }
-            if (typeof revision === "number") {
-                endpoint.endpoint.type.deviceRevision = revision;
+        const deviceTypeList = attrs[DEVICE_TYPE_LIST_ATTR_ID] as Descriptor.DeviceType[];
+        if (Array.isArray(deviceTypeList)) {
+            const endpointType = endpoint.endpoint.type;
+            for (const dt of deviceTypeList) {
+                if (typeof dt?.deviceType !== "number") {
+                    continue;
+                }
+
+                let isApp = false;
+                const model = Matter.get(DeviceTypeModel, dt.deviceType);
+                if (model !== undefined) {
+                    isApp = DeviceClassification.isApplication(model.classification);
+                }
+
+                // Root endpoint really needs to be a root endpoint so ignore any noise that would disrupt that
+                if (!endpoint.endpoint.number && endpointType.deviceType !== RootEndpoint.deviceType) {
+                    endpointType.deviceRevision = dt.revision;
+                    break;
+                }
+
+                // Skip this device type if we've already found one and this one is not an application type
+                if (endpointType.deviceType !== undefined && !isApp) {
+                    continue;
+                }
+
+                endpointType.deviceType = dt.deviceType;
+                endpointType.deviceRevision = dt.revision;
+                endpointType.deviceClass = model?.classification ?? DeviceClassification.Simple;
+
+                // If we found a known application device type we stop because this is the classification we want to
+                // report
+                if (isApp) {
+                    break;
+                }
             }
         }
 
@@ -360,7 +396,7 @@ export class ClientStructure {
                 id: `ep${number}`,
                 number,
                 type: EndpointType({
-                    name: "ClientEndpoint",
+                    name: "Unknown",
                     deviceType: EndpointType.UNKNOWN_DEVICE_TYPE,
                     deviceRevision: EndpointType.UNKNOWN_DEVICE_REVISION,
                 }),

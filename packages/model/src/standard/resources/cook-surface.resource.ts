@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "CookSurface", classification: "simple", xref: "device§13.7",
+    tag: "deviceType", name: "CookSurface", xref: "device§13.7",
     details: "A Cook Surface device type represents a heating object on a cooktop or other similar device. It " +
         "shall only be used when composed as part of another device type.",
     children: [

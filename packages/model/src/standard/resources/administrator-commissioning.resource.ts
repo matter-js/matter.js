@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "AdministratorCommissioning", classification: "node", pics: "CADMIN",
-    xref: "core§11.19",
+    tag: "cluster", name: "AdministratorCommissioning", pics: "CADMIN", xref: "core§11.19",
 
     details: "This cluster is used to trigger a Node to allow a new Administrator to commission it. It defines " +
         "Attributes, Commands and Responses needed for this purpose." +

@@ -17,7 +17,7 @@ import {
 } from "../../elements/index.js";
 
 export const Messages = Cluster(
-    { name: "Messages", id: 0x97 },
+    { name: "Messages", id: 0x97, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
 
     Attribute(

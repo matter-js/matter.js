@@ -14,7 +14,7 @@ import {
 } from "../../elements/index.js";
 
 export const TemperatureControlledCabinetDt = DeviceType(
-    { name: "TemperatureControlledCabinet", id: 0x71 },
+    { name: "TemperatureControlledCabinet", id: 0x71, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 113, revision: 5 } ], element: "attribute" })

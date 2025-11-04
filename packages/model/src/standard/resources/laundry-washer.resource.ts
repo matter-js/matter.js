@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "LaundryWasher", classification: "simple", xref: "device§13.1",
+    tag: "deviceType", name: "LaundryWasher", xref: "device§13.1",
     details: "A Laundry Washer represents a device that is capable of laundering consumer items. Any laundry " +
         "washer product may utilize this device type." +
         "\n" +

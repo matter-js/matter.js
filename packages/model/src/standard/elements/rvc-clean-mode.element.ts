@@ -15,7 +15,7 @@ import {
 } from "../../elements/index.js";
 
 export const RvcCleanMode = Cluster(
-    { name: "RvcCleanMode", id: 0x55, type: "ModeBase" },
+    { name: "RvcCleanMode", id: 0x55, type: "ModeBase", classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 4 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

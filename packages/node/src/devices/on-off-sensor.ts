@@ -105,4 +105,5 @@ export const OnOffSensorDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors(OnOffSensorRequirements.server.mandatory.Identify)
 });
 
+Object.freeze(OnOffSensorDeviceDefinition);
 export const OnOffSensorDevice: OnOffSensorDevice = OnOffSensorDeviceDefinition;

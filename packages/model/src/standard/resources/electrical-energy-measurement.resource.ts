@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "ElectricalEnergyMeasurement", classification: "application", pics: "EEM",
-    xref: "cluster§2.12",
+    tag: "cluster", name: "ElectricalEnergyMeasurement", pics: "EEM", xref: "cluster§2.12",
     details: "This cluster provides a mechanism for querying data about the electrical energy imported or provided " +
         "by the server.",
 

@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "OnOffPlugInUnit", classification: "simple", xref: "device§5.1",
+    tag: "deviceType", name: "OnOffPlugInUnit", xref: "device§5.1",
 
     details: "An On/Off Plug-in Unit is a device that provides power to another device that is plugged into it, " +
         "and is capable of switching that provided power on or off." +

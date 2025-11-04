@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "ColorTemperatureLight", classification: "simple", xref: "device§4.3",
+    tag: "deviceType", name: "ColorTemperatureLight", xref: "device§4.3",
     details: "A Color Temperature Light is a lighting device that is capable of being switched on or off, the " +
         "intensity of its light adjusted, and its color temperature adjusted by means of a bound controller " +
         "device such as a Color Dimmer Switch.",

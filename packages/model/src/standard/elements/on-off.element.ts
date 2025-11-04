@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const OnOff = Cluster(
-    { name: "OnOff", id: 0x6 },
+    { name: "OnOff", id: 0x6, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 6 }),
 
     Attribute(

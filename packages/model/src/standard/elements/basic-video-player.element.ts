@@ -14,7 +14,7 @@ import {
 } from "../../elements/index.js";
 
 export const BasicVideoPlayerDt = DeviceType(
-    { name: "BasicVideoPlayer", id: 0x28 },
+    { name: "BasicVideoPlayer", id: 0x28, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 40, revision: 2 } ], element: "attribute" })

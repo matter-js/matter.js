@@ -127,4 +127,5 @@ export const ColorTemperatureLightDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(ColorTemperatureLightDeviceDefinition);
 export const ColorTemperatureLightDevice: ColorTemperatureLightDevice = ColorTemperatureLightDeviceDefinition;

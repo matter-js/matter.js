@@ -17,7 +17,7 @@ import {
 } from "../../elements/index.js";
 
 export const MediaPlayback = Cluster(
-    { name: "MediaPlayback", id: 0x506 },
+    { name: "MediaPlayback", id: 0x506, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
 
     Attribute(

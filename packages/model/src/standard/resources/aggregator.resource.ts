@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "Aggregator", classification: "simple", xref: "device§11.2",
+    tag: "deviceType", name: "Aggregator", xref: "device§11.2",
 
     details: "This device type aggregates endpoints as a collection. Clusters on the endpoint indicating this " +
         "device type provide functionality for the collection of descendant endpoints present in the " +

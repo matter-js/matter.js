@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "AlarmBase", classification: "application", pics: "ALARM",
-    xref: "cluster§1.15",
+    tag: "cluster", name: "AlarmBase", pics: "ALARM", xref: "cluster§1.15",
     details: "This cluster is a base cluster from which clusters for particular alarms for a device type can be " +
         "derived. Each derivation shall define the values for the AlarmBitmap data type used in this cluster. " +
         "Each derivation shall define which alarms are latched.",

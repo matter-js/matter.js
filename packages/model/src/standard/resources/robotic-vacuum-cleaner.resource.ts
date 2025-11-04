@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "RoboticVacuumCleaner", classification: "simple", xref: "device§12.1",
+    tag: "deviceType", name: "RoboticVacuumCleaner", xref: "device§12.1",
     details: "This defines conformance for the Robotic Vacuum Cleaner device type.",
 
     children: [

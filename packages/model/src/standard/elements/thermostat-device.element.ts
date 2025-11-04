@@ -10,7 +10,7 @@ import { MatterDefinition } from "../MatterDefinition.js";
 import { DeviceTypeElement as DeviceType, RequirementElement as Requirement } from "../../elements/index.js";
 
 export const ThermostatDt = DeviceType(
-    { name: "Thermostat", id: 0x301 },
+    { name: "Thermostat", id: 0x301, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 769, revision: 4 } ], element: "attribute" })

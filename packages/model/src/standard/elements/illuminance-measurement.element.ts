@@ -15,7 +15,7 @@ import {
 } from "../../elements/index.js";
 
 export const IlluminanceMeasurement = Cluster(
-    { name: "IlluminanceMeasurement", id: 0x400 },
+    { name: "IlluminanceMeasurement", id: 0x400, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
     Attribute({
         name: "MeasuredValue", id: 0x0, type: "uint16", access: "R V", conformance: "M",

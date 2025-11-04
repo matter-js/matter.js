@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "PowerSourceConfiguration", classification: "node", pics: "PSCFG",
-    xref: "core§11.6",
+    tag: "cluster", name: "PowerSourceConfiguration", pics: "PSCFG", xref: "core§11.6",
     details: "This cluster is used to describe the configuration and capabilities of a Device’s power system. It " +
         "provides an ordering overview as well as linking to the one or more endpoints each supporting a " +
         "Power Source cluster.",

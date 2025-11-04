@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "OtaProvider", classification: "utility", xref: "device§2.4",
+    tag: "deviceType", name: "OtaProvider", xref: "device§2.4",
     details: "An OTA Provider is a node that is capable of providing an OTA software update to other nodes on the " +
         "same fabric.",
     children: [

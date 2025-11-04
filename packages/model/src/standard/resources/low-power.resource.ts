@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "LowPower", classification: "application", pics: "LOWPOWER",
-    xref: "cluster§1.11",
+    tag: "cluster", name: "LowPower", pics: "LOWPOWER", xref: "cluster§1.11",
 
     details: "This cluster provides an interface for managing low power mode on a device." +
         "\n" +

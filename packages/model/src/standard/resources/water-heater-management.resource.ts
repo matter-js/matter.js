@@ -10,8 +10,7 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add(
     {
-        tag: "cluster", name: "WaterHeaterManagement", classification: "application", pics: "EWATERHTR",
-        xref: "cluster§9.5",
+        tag: "cluster", name: "WaterHeaterManagement", pics: "EWATERHTR", xref: "cluster§9.5",
 
         details: "This cluster is used to allow clients to control the operation of a hot water heating appliance so " +
             "that it can be used with energy management." +

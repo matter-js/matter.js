@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const GroupKeyManagement = Cluster(
-    { name: "GroupKeyManagement", id: 0x3f },
+    { name: "GroupKeyManagement", id: 0x3f, classification: "node" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

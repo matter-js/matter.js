@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const Thermostat = Cluster(
-    { name: "Thermostat", id: 0x201 },
+    { name: "Thermostat", id: 0x201, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 9 }),
 
     Attribute(

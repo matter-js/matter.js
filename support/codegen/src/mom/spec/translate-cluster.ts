@@ -178,7 +178,7 @@ function translateMetadata(definition: ClusterReference, children: Array<Cluster
     }
 
     function translateClassification() {
-        const classifications = translateTable("classfication", definition.classifications, {
+        const classifications = translateTable("classification", definition.classifications, {
             hierarchy: Optional(Str),
             role: Optional(LowerIdentifier),
             scope: Optional(Alias(LowerIdentifier, "context")),

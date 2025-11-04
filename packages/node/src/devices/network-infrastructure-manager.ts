@@ -97,4 +97,5 @@ export const NetworkInfrastructureManagerDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(NetworkInfrastructureManagerDeviceDefinition);
 export const NetworkInfrastructureManagerDevice: NetworkInfrastructureManagerDevice = NetworkInfrastructureManagerDeviceDefinition;

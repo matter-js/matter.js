@@ -126,4 +126,5 @@ export const DimmablePlugInUnitDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(DimmablePlugInUnitDeviceDefinition);
 export const DimmablePlugInUnitDevice: DimmablePlugInUnitDevice = DimmablePlugInUnitDeviceDefinition;

@@ -10,7 +10,7 @@ import { MatterDefinition } from "../MatterDefinition.js";
 import { DeviceTypeElement as DeviceType, RequirementElement as Requirement } from "../../elements/index.js";
 
 export const VideoRemoteControlDt = DeviceType(
-    { name: "VideoRemoteControl", id: 0x2a },
+    { name: "VideoRemoteControl", id: 0x2a, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 42, revision: 2 } ], element: "attribute" })

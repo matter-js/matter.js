@@ -10,8 +10,7 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add(
     {
-        tag: "cluster", name: "ColorControl", classification: "application", pics: "CC",
-        xref: "cluster§3.2",
+        tag: "cluster", name: "ColorControl", pics: "CC", xref: "cluster§3.2",
 
         details: "This cluster provides an interface for changing the color of a light. Color is specified according " +
             "to the CIE 1931 Color space. Color control is carried out in terms of x,y values, as defined by this " +

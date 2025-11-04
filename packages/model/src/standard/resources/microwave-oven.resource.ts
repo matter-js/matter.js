@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "MicrowaveOven", classification: "simple", xref: "device§13.11",
+    tag: "deviceType", name: "MicrowaveOven", xref: "device§13.11",
     details: "This defines conformance to the Microwave Oven device type." +
         "\n" +
         "A Microwave Oven is a device with the primary function of heating foods and beverages using a " +

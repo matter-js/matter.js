@@ -139,4 +139,5 @@ export const PumpControllerDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors(PumpControllerRequirements.server.mandatory.Identify)
 });
 
+Object.freeze(PumpControllerDeviceDefinition);
 export const PumpControllerDevice: PumpControllerDevice = PumpControllerDeviceDefinition;

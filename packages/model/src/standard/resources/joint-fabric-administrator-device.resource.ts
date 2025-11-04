@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "JointFabricAdministrator", classification: "utility", xref: "device§2.9",
+    tag: "deviceType", name: "JointFabricAdministrator", xref: "device§2.9",
 
     details: "A Joint Fabric Administrator device provides capabilities to manage the Joint Fabric Datastore and " +
         "issue an ICAC signed by the Joint Fabric Anchor Root CA." +

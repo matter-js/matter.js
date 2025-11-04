@@ -126,4 +126,5 @@ export const MountedOnOffControlDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(MountedOnOffControlDeviceDefinition);
 export const MountedOnOffControlDevice: MountedOnOffControlDevice = MountedOnOffControlDeviceDefinition;

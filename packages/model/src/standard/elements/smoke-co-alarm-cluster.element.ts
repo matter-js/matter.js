@@ -17,7 +17,7 @@ import {
 } from "../../elements/index.js";
 
 export const SmokeCoAlarm = Cluster(
-    { name: "SmokeCoAlarm", id: 0x5c },
+    { name: "SmokeCoAlarm", id: 0x5c, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

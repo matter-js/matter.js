@@ -91,4 +91,5 @@ export const DimmerSwitchDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors(DimmerSwitchRequirements.server.mandatory.Identify)
 });
 
+Object.freeze(DimmerSwitchDeviceDefinition);
 export const DimmerSwitchDevice: DimmerSwitchDevice = DimmerSwitchDeviceDefinition;

@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const WindowCovering = Cluster(
-    { name: "WindowCovering", id: 0x102 },
+    { name: "WindowCovering", id: 0x102, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 6 }),
 
     Attribute(

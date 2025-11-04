@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "OperationalState", classification: "application", pics: "OPSTATE",
-    xref: "cluster§1.14",
+    tag: "cluster", name: "OperationalState", pics: "OPSTATE", xref: "cluster§1.14",
 
     details: "This cluster supports remotely monitoring and, where supported, changing the operational state of " +
         "any device where a state machine is a part of the operation." +

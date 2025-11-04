@@ -17,7 +17,7 @@ import {
 } from "../../elements/index.js";
 
 export const ContentControl = Cluster(
-    { name: "ContentControl", id: 0x50f },
+    { name: "ContentControl", id: 0x50f, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
 
     Attribute(

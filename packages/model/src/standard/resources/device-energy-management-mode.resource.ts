@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "DeviceEnergyManagementMode", classification: "application", pics: "DEMM",
-    xref: "cluster§9.8",
+    tag: "cluster", name: "DeviceEnergyManagementMode", pics: "DEMM", xref: "cluster§9.8",
     details: "This cluster is derived from the Mode Base cluster and defines additional mode tags and namespaced " +
         "enumerated values for Device Energy Management devices.",
 

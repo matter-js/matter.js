@@ -51,4 +51,5 @@ export const FlowSensorDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(FlowSensorDeviceDefinition);
 export const FlowSensorDevice: FlowSensorDevice = FlowSensorDeviceDefinition;

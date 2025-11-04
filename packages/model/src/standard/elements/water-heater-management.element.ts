@@ -17,7 +17,7 @@ import {
 } from "../../elements/index.js";
 
 export const WaterHeaterManagement = Cluster(
-    { name: "WaterHeaterManagement", id: 0x94 },
+    { name: "WaterHeaterManagement", id: 0x94, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

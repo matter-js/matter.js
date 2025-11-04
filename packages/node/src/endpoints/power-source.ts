@@ -43,4 +43,5 @@ export const PowerSourceEndpointDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors()
 });
 
+Object.freeze(PowerSourceEndpointDefinition);
 export const PowerSourceEndpoint: PowerSourceEndpoint = PowerSourceEndpointDefinition;

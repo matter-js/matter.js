@@ -15,7 +15,7 @@ import {
 } from "../../elements/index.js";
 
 export const UnitLocalization = Cluster(
-    { name: "UnitLocalization", id: 0x2d },
+    { name: "UnitLocalization", id: 0x2d, classification: "node" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

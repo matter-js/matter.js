@@ -64,4 +64,5 @@ export const RainSensorDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(RainSensorDeviceDefinition);
 export const RainSensorDevice: RainSensorDevice = RainSensorDeviceDefinition;

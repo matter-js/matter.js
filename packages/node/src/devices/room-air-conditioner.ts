@@ -132,4 +132,5 @@ export const RoomAirConditionerDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(RoomAirConditionerDeviceDefinition);
 export const RoomAirConditionerDevice: RoomAirConditionerDevice = RoomAirConditionerDeviceDefinition;

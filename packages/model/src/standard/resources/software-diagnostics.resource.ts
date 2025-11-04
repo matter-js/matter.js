@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "SoftwareDiagnostics", classification: "node", pics: "DGSW",
-    xref: "core§11.13",
+    tag: "cluster", name: "SoftwareDiagnostics", pics: "DGSW", xref: "core§11.13",
     details: "The Software Diagnostics Cluster provides a means to acquire standardized diagnostics metrics that " +
         "may be used by a Node to assist a user or Administrator in diagnosing potential problems. The " +
         "Software Diagnostics Cluster attempts to centralize all metrics that are relevant to the software " +

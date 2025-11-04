@@ -15,7 +15,7 @@ import {
 } from "../../elements/index.js";
 
 export const Switch = Cluster(
-    { name: "Switch", id: 0x3b },
+    { name: "Switch", id: 0x3b, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
 
     Attribute(

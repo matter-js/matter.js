@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "ContentAppObserver", classification: "application", pics: "APPOBSERVER",
-    xref: "cluster§6.12",
+    tag: "cluster", name: "ContentAppObserver", pics: "APPOBSERVER", xref: "cluster§6.12",
 
     details: "This cluster provides an interface for sending targeted commands to an Observer of a Content App on " +
         "a Video Player device such as a Streaming Media Player, Smart TV or Smart Screen." +

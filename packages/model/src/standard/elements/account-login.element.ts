@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const AccountLogin = Cluster(
-    { name: "AccountLogin", id: 0x50e },
+    { name: "AccountLogin", id: 0x50e, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
     Event(
         { name: "LoggedOut", id: 0x0, access: "S A", conformance: "O", priority: "critical" },

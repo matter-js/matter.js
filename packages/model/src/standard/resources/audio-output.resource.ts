@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "AudioOutput", classification: "application", pics: "AUDIOOUTPUT",
-    xref: "cluster§6.5",
+    tag: "cluster", name: "AudioOutput", pics: "AUDIOOUTPUT", xref: "cluster§6.5",
 
     details: "This cluster provides an interface for controlling the Output on a Video Player device such as a TV." +
         "\n" +

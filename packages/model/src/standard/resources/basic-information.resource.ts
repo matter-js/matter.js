@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "BasicInformation", classification: "node", pics: "BINFO", xref: "core§11.1",
+    tag: "cluster", name: "BasicInformation", pics: "BINFO", xref: "core§11.1",
     details: "This cluster provides attributes and events for determining basic information about Nodes, which " +
         "supports both Commissioning and operational determination of Node characteristics, such as Vendor " +
         "ID, Product ID and serial number, which apply to the whole Node.",

@@ -142,4 +142,5 @@ export const ThermostatDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors(ThermostatRequirements.server.mandatory.Identify)
 });
 
+Object.freeze(ThermostatDeviceDefinition);
 export const ThermostatDevice: ThermostatDevice = ThermostatDeviceDefinition;

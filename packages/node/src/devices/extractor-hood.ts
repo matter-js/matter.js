@@ -93,4 +93,5 @@ export const ExtractorHoodDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors(ExtractorHoodRequirements.server.mandatory.FanControl)
 });
 
+Object.freeze(ExtractorHoodDeviceDefinition);
 export const ExtractorHoodDevice: ExtractorHoodDevice = ExtractorHoodDeviceDefinition;

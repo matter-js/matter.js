@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "DimmablePlugInUnit", classification: "simple", xref: "device§5.2",
+    tag: "deviceType", name: "DimmablePlugInUnit", xref: "device§5.2",
 
     details: "A Dimmable Plug-In Unit is a device that provides power to another device that is plugged into it, " +
         "and is capable of being switched on or off and have its level adjusted. The Dimmable Plug-in Unit is " +

@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const BasicInformation = Cluster(
-    { name: "BasicInformation", id: 0x28 },
+    { name: "BasicInformation", id: 0x28, classification: "node" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 5 }),
     Attribute({
         name: "DataModelRevision", id: 0x0, type: "uint16", access: "R V", conformance: "M",

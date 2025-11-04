@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "VideoRemoteControl", classification: "simple", xref: "device§10.7",
+    tag: "deviceType", name: "VideoRemoteControl", xref: "device§10.7",
     details: "This defines conformance to the Video Remote Control device type." +
         "\n" +
         "A Video Remote Control is a client that can control a Video Player, for example, a traditional " +

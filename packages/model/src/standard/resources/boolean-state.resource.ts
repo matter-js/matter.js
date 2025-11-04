@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "BooleanState", classification: "application", pics: "BOOL",
-    xref: "cluster§1.7",
+    tag: "cluster", name: "BooleanState", pics: "BOOL", xref: "cluster§1.7",
     details: "This cluster provides an interface to a boolean state.",
 
     children: [

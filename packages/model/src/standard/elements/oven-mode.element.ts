@@ -15,7 +15,7 @@ import {
 } from "../../elements/index.js";
 
 export const OvenMode = Cluster(
-    { name: "OvenMode", id: 0x49, type: "ModeBase" },
+    { name: "OvenMode", id: 0x49, type: "ModeBase", classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

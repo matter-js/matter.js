@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "CommissionerControl", classification: "node", pics: "CCTRL",
-    xref: "core§11.26",
+    tag: "cluster", name: "CommissionerControl", pics: "CCTRL", xref: "core§11.26",
 
     details: "The Commissioner Control Cluster supports the ability for clients to request the commissioning of " +
         "themselves or other nodes onto a fabric which the cluster server can commission onto. An example use " +

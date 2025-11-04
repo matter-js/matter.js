@@ -184,4 +184,5 @@ export const CastingVideoPlayerDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(CastingVideoPlayerDeviceDefinition);
 export const CastingVideoPlayerDevice: CastingVideoPlayerDevice = CastingVideoPlayerDeviceDefinition;

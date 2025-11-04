@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const OperationalCredentials = Cluster(
-    { name: "OperationalCredentials", id: 0x3e },
+    { name: "OperationalCredentials", id: 0x3e, classification: "node" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
 
     Attribute(

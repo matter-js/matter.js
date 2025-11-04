@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "ElectricalSensor", classification: "utility", xref: "device§2.6",
+    tag: "deviceType", name: "ElectricalSensor", xref: "device§2.6",
     details: "An Electrical Sensor device measures the electrical power and/or energy being imported and/or " +
         "exported.",
     children: [

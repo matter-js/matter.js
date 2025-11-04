@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "MicrowaveOvenControl", classification: "application", pics: "MWOCTRL",
-    xref: "cluster§8.13",
+    tag: "cluster", name: "MicrowaveOvenControl", pics: "MWOCTRL", xref: "cluster§8.13",
     details: "This cluster defines the requirements for the Microwave Oven Control cluster." +
         "\n" +
         "This cluster has dependencies with the Operational State and Microwave Oven Mode clusters. The " +

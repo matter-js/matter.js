@@ -10,7 +10,7 @@ import { MatterDefinition } from "../MatterDefinition.js";
 import { DeviceTypeElement as DeviceType, RequirementElement as Requirement } from "../../elements/index.js";
 
 export const DimmablePlugInUnitDt = DeviceType(
-    { name: "DimmablePlugInUnit", id: 0x10b },
+    { name: "DimmablePlugInUnit", id: 0x10b, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 267, revision: 5 } ], element: "attribute" })

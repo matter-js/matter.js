@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "ApplicationLauncher", classification: "application", pics: "APPLAUNCHER",
-    xref: "cluster§6.4",
+    tag: "cluster", name: "ApplicationLauncher", pics: "APPLAUNCHER", xref: "cluster§6.4",
 
     details: "This cluster provides an interface for launching applications on a Video Player device such as a TV." +
         "\n" +

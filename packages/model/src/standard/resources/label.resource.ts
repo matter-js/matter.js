@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "Label", classification: "endpoint", pics: "LABEL", xref: "core§9.7",
+    tag: "cluster", name: "Label", pics: "LABEL", xref: "core§9.7",
     details: "This cluster provides a feature to tag an endpoint with zero or more labels. This is a base cluster " +
         "that requires a derived cluster to create an instance.",
 

@@ -10,8 +10,7 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add(
     {
-        tag: "cluster", name: "FlowMeasurement", classification: "application", pics: "FLW",
-        xref: "cluster§2.5",
+        tag: "cluster", name: "FlowMeasurement", pics: "FLW", xref: "cluster§2.5",
         details: "This cluster provides an interface to flow measurement functionality, including configuration and " +
             "provision of notifications of flow measurements.",
 

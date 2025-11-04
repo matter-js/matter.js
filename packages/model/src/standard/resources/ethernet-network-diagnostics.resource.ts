@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "EthernetNetworkDiagnostics", classification: "node", pics: "DGETH",
-    xref: "core§11.16",
+    tag: "cluster", name: "EthernetNetworkDiagnostics", pics: "DGETH", xref: "core§11.16",
     details: "The Ethernet Network Diagnostics Cluster provides a means to acquire standardized diagnostics " +
         "metrics that may be used by a Node to assist a user or Administrator in diagnosing potential " +
         "problems. The Ethernet Network Diagnostics Cluster attempts to centralize all metrics that are " +

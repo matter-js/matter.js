@@ -17,7 +17,7 @@ import {
 } from "../../elements/index.js";
 
 export const AccessControl = Cluster(
-    { name: "AccessControl", id: 0x1f },
+    { name: "AccessControl", id: 0x1f, classification: "node" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

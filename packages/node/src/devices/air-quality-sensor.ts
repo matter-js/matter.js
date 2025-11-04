@@ -196,4 +196,5 @@ export const AirQualitySensorDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(AirQualitySensorDeviceDefinition);
 export const AirQualitySensorDevice: AirQualitySensorDevice = AirQualitySensorDeviceDefinition;

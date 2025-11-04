@@ -42,4 +42,5 @@ export const OvenDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors()
 });
 
+Object.freeze(OvenDeviceDefinition);
 export const OvenDevice: OvenDevice = OvenDeviceDefinition;

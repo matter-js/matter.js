@@ -79,4 +79,5 @@ export const WaterValveDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(WaterValveDeviceDefinition);
 export const WaterValveDevice: WaterValveDevice = WaterValveDeviceDefinition;

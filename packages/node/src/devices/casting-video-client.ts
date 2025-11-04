@@ -210,4 +210,5 @@ export const CastingVideoClientDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors()
 });
 
+Object.freeze(CastingVideoClientDeviceDefinition);
 export const CastingVideoClientDevice: CastingVideoClientDevice = CastingVideoClientDeviceDefinition;

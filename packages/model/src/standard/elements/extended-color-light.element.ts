@@ -10,7 +10,7 @@ import { MatterDefinition } from "../MatterDefinition.js";
 import { DeviceTypeElement as DeviceType, RequirementElement as Requirement } from "../../elements/index.js";
 
 export const ExtendedColorLightDt = DeviceType(
-    { name: "ExtendedColorLight", id: 0x10d },
+    { name: "ExtendedColorLight", id: 0x10d, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 269, revision: 4 } ], element: "attribute" })

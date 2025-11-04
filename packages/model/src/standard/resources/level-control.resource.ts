@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "LevelControl", classification: "application", pics: "LVL",
-    xref: "cluster§1.6",
+    tag: "cluster", name: "LevelControl", pics: "LVL", xref: "cluster§1.6",
     details: "This cluster provides an interface for controlling a characteristic of a device that can be set to a " +
         "level, for example the brightness of a light, the degree of closure of a door, or the power output " +
         "of a heater.",

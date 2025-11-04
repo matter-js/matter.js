@@ -59,4 +59,5 @@ export const OtaRequestorEndpointDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors(OtaRequestorRequirements.server.mandatory.OtaSoftwareUpdateRequestor)
 });
 
+Object.freeze(OtaRequestorEndpointDefinition);
 export const OtaRequestorEndpoint: OtaRequestorEndpoint = OtaRequestorEndpointDefinition;

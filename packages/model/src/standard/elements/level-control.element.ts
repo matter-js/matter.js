@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const LevelControl = Cluster(
-    { name: "LevelControl", id: 0x8 },
+    { name: "LevelControl", id: 0x8, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 6 }),
 
     Attribute(

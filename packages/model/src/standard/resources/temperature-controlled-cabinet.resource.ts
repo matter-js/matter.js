@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "TemperatureControlledCabinet", classification: "simple",
-    xref: "device§13.4",
+    tag: "deviceType", name: "TemperatureControlledCabinet", xref: "device§13.4",
     details: "A Temperature Controlled Cabinet only exists composed as part of another device type. It represents " +
         "a single cabinet that is capable of having its temperature controlled. Such a cabinet may be " +
         "chilling or freezing food, for example as part of a refrigerator, freezer, wine chiller, or other " +

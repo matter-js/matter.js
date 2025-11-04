@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "Identify", classification: "endpoint", pics: "I", xref: "cluster§1.2",
+    tag: "cluster", name: "Identify", pics: "I", xref: "cluster§1.2",
 
     details: "This cluster supports an endpoint identification state (e.g., flashing a light), that indicates to " +
         "an observer (e.g., an installer) which of several nodes and/or endpoints it is. It also supports a " +

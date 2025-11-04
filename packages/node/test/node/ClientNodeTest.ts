@@ -297,11 +297,11 @@ describe("ClientNode", () => {
         expect(payload).deep.equals({ softwareVersion: 12 });
     });
 
-    it("handles shutdown event and reestablishes connection", () => {
+    it("removes node after leave event", () => {
         // TODO
     });
 
-    it("removes node after leave event", () => {
+    it("handles shutdown event and reestablishes connection", () => {
         // TODO
     });
 

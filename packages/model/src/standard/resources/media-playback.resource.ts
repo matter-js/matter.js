@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "MediaPlayback", classification: "application", pics: "MEDIAPLAYBACK",
-    xref: "cluster§6.10",
+    tag: "cluster", name: "MediaPlayback", pics: "MEDIAPLAYBACK", xref: "cluster§6.10",
     details: "This cluster provides an interface for controlling Media Playback (PLAY, PAUSE, etc) on a media " +
         "device such as a TV, Set-top Box, or Smart Speaker." +
         "\n" +

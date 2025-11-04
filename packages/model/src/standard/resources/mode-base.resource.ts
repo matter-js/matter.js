@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "ModeBase", classification: "application", pics: "MODB", xref: "cluster§1.10",
+    tag: "cluster", name: "ModeBase", pics: "MODB", xref: "cluster§1.10",
 
     details: "This cluster provides an interface for controlling a characteristic of a device that can be set to " +
         "one of several predefined values. For example, the light pattern of a disco ball, the mode of a " +

@@ -15,7 +15,7 @@ import {
 } from "../../elements/index.js";
 
 export const AirQuality = Cluster(
-    { name: "AirQuality", id: 0x5b },
+    { name: "AirQuality", id: 0x5b, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
 
     Attribute(

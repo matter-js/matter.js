@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "OnOff", classification: "application", pics: "OO", xref: "cluster§1.5",
+    tag: "cluster", name: "OnOff", pics: "OO", xref: "cluster§1.5",
     details: "Attributes and commands for turning devices on and off.",
 
     children: [

@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "ScenesManagement", classification: "application", pics: "S",
-    xref: "cluster§1.4",
+    tag: "cluster", name: "ScenesManagement", pics: "S", xref: "cluster§1.4",
 
     details: "The Scenes Management cluster provides attributes and commands for setting up and recalling scenes. " +
         "Each scene corresponds to a set of stored values of specified attributes for one or more clusters on " +

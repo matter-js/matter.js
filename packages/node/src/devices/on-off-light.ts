@@ -115,4 +115,5 @@ export const OnOffLightDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(OnOffLightDeviceDefinition);
 export const OnOffLightDevice: OnOffLightDevice = OnOffLightDeviceDefinition;
