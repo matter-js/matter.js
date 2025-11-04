@@ -10,8 +10,7 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add(
     {
-        tag: "cluster", name: "EnergyEvse", classification: "application", pics: "EEVSE",
-        xref: "cluster§9.3",
+        tag: "cluster", name: "EnergyEvse", pics: "EEVSE", xref: "cluster§9.3",
 
         details: "Electric Vehicle Supply Equipment (EVSE) is equipment used to charge an Electric Vehicle (EV) or " +
             "Plug-In Hybrid Electric Vehicle. This cluster provides an interface to the functionality of Electric " +

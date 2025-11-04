@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "SolarPower", classification: "simple", xref: "device§14.3",
+    tag: "deviceType", name: "SolarPower", xref: "device§14.3",
     details: "A Solar Power device is a device that allows a solar panel array, which can optionally be comprised " +
         "of a set parallel strings of solar panels, and its associated controller and, if appropriate, " +
         "inverter, to be monitored and controlled by an Energy Management System.",

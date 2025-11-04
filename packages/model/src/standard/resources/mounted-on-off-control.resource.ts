@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "MountedOnOffControl", classification: "simple", xref: "device§5.3",
+    tag: "deviceType", name: "MountedOnOffControl", xref: "device§5.3",
 
     details: "A Mounted On/Off Control is a fixed device that provides power to another device or power circuit " +
         "that is connected to it, and is capable of switching that provided power on or off." +

@@ -90,4 +90,5 @@ export const SecondaryNetworkInterfaceEndpointDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors()
 });
 
+Object.freeze(SecondaryNetworkInterfaceEndpointDefinition);
 export const SecondaryNetworkInterfaceEndpoint: SecondaryNetworkInterfaceEndpoint = SecondaryNetworkInterfaceEndpointDefinition;

@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "ContentApp", classification: "simple", xref: "device§10.5",
+    tag: "deviceType", name: "ContentApp", xref: "device§10.5",
     details: "This defines conformance to the Content App device type." +
         "\n" +
         "A Content App is usually an application built by a Content Provider. A Casting Video Player with a " +

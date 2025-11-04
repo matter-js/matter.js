@@ -64,4 +64,5 @@ export const ContactSensorDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(ContactSensorDeviceDefinition);
 export const ContactSensorDevice: ContactSensorDevice = ContactSensorDeviceDefinition;

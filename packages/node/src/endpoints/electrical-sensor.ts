@@ -71,4 +71,5 @@ export const ElectricalSensorEndpointDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors()
 });
 
+Object.freeze(ElectricalSensorEndpointDefinition);
 export const ElectricalSensorEndpoint: ElectricalSensorEndpoint = ElectricalSensorEndpointDefinition;

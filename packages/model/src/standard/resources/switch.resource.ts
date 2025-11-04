@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "Switch", classification: "application", pics: "SWTCH", xref: "cluster§1.13",
+    tag: "cluster", name: "Switch", pics: "SWTCH", xref: "cluster§1.13",
 
     details: "This cluster exposes interactions with a switch device, for the purpose of using those interactions " +
         "by other devices." +

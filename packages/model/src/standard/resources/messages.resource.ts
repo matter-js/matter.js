@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "Messages", classification: "application", pics: "MESS", xref: "cluster§1.16",
+    tag: "cluster", name: "Messages", pics: "MESS", xref: "cluster§1.16",
     details: "This cluster provides an interface for passing messages to be presented by a device.",
 
     children: [

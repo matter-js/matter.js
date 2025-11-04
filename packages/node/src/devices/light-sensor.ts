@@ -54,4 +54,5 @@ export const LightSensorDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(LightSensorDeviceDefinition);
 export const LightSensorDevice: LightSensorDevice = LightSensorDeviceDefinition;

@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "AccountLogin", classification: "application", pics: "ALOGIN",
-    xref: "cluster§6.2",
+    tag: "cluster", name: "AccountLogin", pics: "ALOGIN", xref: "cluster§6.2",
 
     details: "This cluster provides commands that facilitate user account login on a Content App or a node. For " +
         "example, a Content App running on a Video Player device, which is represented as an endpoint (see " +

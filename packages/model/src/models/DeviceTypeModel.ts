@@ -12,6 +12,7 @@ import { RequirementModel } from "./RequirementModel.js";
 
 export class DeviceTypeModel extends Model<DeviceTypeElement, DeviceTypeModel.Child> implements DeviceTypeElement {
     override tag: DeviceTypeElement.Tag = DeviceTypeElement.Tag;
+    classification?: DeviceClassification;
 
     get requirements() {
         return this.all(RequirementModel);
@@ -23,31 +24,13 @@ export class DeviceTypeModel extends Model<DeviceTypeElement, DeviceTypeModel.Ch
         );
     }
 
-    get classification() {
-        return this.hasLocalResource
-            ? (this.localResource.classification as DeviceClassification)
-            : DeviceClassification.Simple;
-    }
-
-    set classification(classification: DeviceClassification) {
-        if (classification || this.hasLocalResource) {
-            this.localResource.classification = classification;
-        }
-    }
-
     constructor(definition: Model.Definition<DeviceTypeModel>, ...children: Model.ChildDefinition<DeviceTypeModel>[]) {
         super(definition, ...children);
 
-        if (!(definition instanceof Model)) {
-            this.classification = definition.classification as DeviceClassification;
-        }
+        this.classification = definition.classification as DeviceClassification;
     }
 
     override toElement(omitResources = false, extra?: Record<string, unknown>) {
-        if (omitResources) {
-            return super.toElement(omitResources, extra);
-        }
-
         return super.toElement(omitResources, {
             classification: this.classification,
             ...extra,

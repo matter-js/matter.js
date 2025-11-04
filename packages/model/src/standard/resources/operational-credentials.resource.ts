@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "OperationalCredentials", classification: "node", pics: "OPCREDS",
-    xref: "core§11.18",
+    tag: "cluster", name: "OperationalCredentials", pics: "OPCREDS", xref: "core§11.18",
     details: "This cluster is used to add or remove Node Operational credentials on a Commissionee or " +
         "already-configured Node, as well as manage the associated Fabrics.",
 

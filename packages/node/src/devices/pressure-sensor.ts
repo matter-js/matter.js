@@ -53,4 +53,5 @@ export const PressureSensorDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(PressureSensorDeviceDefinition);
 export const PressureSensorDevice: PressureSensorDevice = PressureSensorDeviceDefinition;

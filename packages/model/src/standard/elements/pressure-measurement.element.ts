@@ -14,7 +14,7 @@ import {
 } from "../../elements/index.js";
 
 export const PressureMeasurement = Cluster(
-    { name: "PressureMeasurement", id: 0x403 },
+    { name: "PressureMeasurement", id: 0x403, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

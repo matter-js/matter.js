@@ -28,7 +28,6 @@ export class Resource {
         id?: string | number;
         name?: string;
     };
-    classification?: string;
     pics?: string;
     description?: string;
     xref?: Specification.CrossReference;
@@ -46,7 +45,6 @@ export class Resource {
         this.asOf = resources.asOf;
         this.until = resources.until;
         this.matchTo = resources.matchTo;
-        this.classification = resources.classification;
         this.pics = resources.pics;
     }
 }

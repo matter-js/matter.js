@@ -15,7 +15,7 @@ import {
 } from "../../elements/index.js";
 
 export const Descriptor = Cluster(
-    { name: "Descriptor", id: 0x1d },
+    { name: "Descriptor", id: 0x1d, classification: "endpoint" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

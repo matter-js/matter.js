@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "WiFiNetworkDiagnostics", classification: "node", pics: "DGWIFI",
-    xref: "core§11.15",
+    tag: "cluster", name: "WiFiNetworkDiagnostics", pics: "DGWIFI", xref: "core§11.15",
     details: "The Wi-Fi Network Diagnostics Cluster provides a means to acquire standardized diagnostics metrics " +
         "that may be used by a Node to assist a user or Administrator in diagnosing potential problems. The " +
         "Wi-Fi Network Diagnostics Cluster attempts to centralize all metrics that are relevant to a " +

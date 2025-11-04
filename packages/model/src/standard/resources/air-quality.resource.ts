@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "AirQuality", classification: "application", pics: "AIRQUAL",
-    xref: "cluster§2.9",
+    tag: "cluster", name: "AirQuality", pics: "AIRQUAL", xref: "cluster§2.9",
     details: "This cluster provides an interface to air quality classification using distinct levels with " +
         "human-readable labels.",
 

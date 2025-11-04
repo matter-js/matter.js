@@ -10,8 +10,7 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add(
     {
-        tag: "cluster", name: "TemperatureControl", classification: "application", pics: "TCTL",
-        xref: "cluster§8.2",
+        tag: "cluster", name: "TemperatureControl", pics: "TCTL", xref: "cluster§8.2",
 
         details: "This cluster provides an interface to the setpoint temperature on devices such as washers, " +
             "refrigerators, and water heaters. The setpoint temperature is the temperature to which a device " +

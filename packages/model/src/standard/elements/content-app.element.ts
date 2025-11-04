@@ -14,7 +14,7 @@ import {
 } from "../../elements/index.js";
 
 export const ContentAppDt = DeviceType(
-    { name: "ContentApp", id: 0x24 },
+    { name: "ContentApp", id: 0x24, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 36, revision: 2 } ], element: "attribute" })

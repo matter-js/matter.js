@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const Channel = Cluster(
-    { name: "Channel", id: 0x504 },
+    { name: "Channel", id: 0x504, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
 
     Attribute(

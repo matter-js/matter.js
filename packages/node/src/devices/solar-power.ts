@@ -42,4 +42,5 @@ export const SolarPowerDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors()
 });
 
+Object.freeze(SolarPowerDeviceDefinition);
 export const SolarPowerDevice: SolarPowerDevice = SolarPowerDeviceDefinition;

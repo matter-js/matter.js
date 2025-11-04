@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "ExtendedColorLight", classification: "simple", xref: "device§4.4",
+    tag: "deviceType", name: "ExtendedColorLight", xref: "device§4.4",
     details: "An Extended Color Light is a lighting device that is capable of being switched on or off, the " +
         "intensity of its light adjusted, and its color adjusted by means of a bound controller device such " +
         "as a Color Dimmer Switch or Control Bridge. The device supports adjustment of color by means of " +

@@ -15,7 +15,7 @@ import {
 } from "../../elements/index.js";
 
 export const ThreadBorderRouterManagement = Cluster(
-    { name: "ThreadBorderRouterManagement", id: 0x452 },
+    { name: "ThreadBorderRouterManagement", id: 0x452, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

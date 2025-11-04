@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "DiagnosticLogs", classification: "node", pics: "DLOG", xref: "core§11.11",
+    tag: "cluster", name: "DiagnosticLogs", pics: "DLOG", xref: "core§11.11",
     details: "This Cluster supports an interface to a Node. It provides commands for retrieving unstructured " +
         "diagnostic logs from a Node that may be used to aid in diagnostics. It will often be the case that " +
         "unstructured diagnostic logs will be Node-wide and not specific to any subset of Endpoints. When " +

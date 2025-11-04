@@ -17,7 +17,7 @@ import {
 } from "../../elements/index.js";
 
 export const DoorLock = Cluster(
-    { name: "DoorLock", id: 0x101 },
+    { name: "DoorLock", id: 0x101, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 9 }),
 
     Attribute(

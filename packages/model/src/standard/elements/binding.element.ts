@@ -15,7 +15,7 @@ import {
 } from "../../elements/index.js";
 
 export const Binding = Cluster(
-    { name: "Binding", id: 0x1e },
+    { name: "Binding", id: 0x1e, classification: "endpoint" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
 
     Attribute(

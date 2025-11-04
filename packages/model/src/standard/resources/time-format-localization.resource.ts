@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "TimeFormatLocalization", classification: "node", pics: "LTIME",
-    xref: "core§11.4",
+    tag: "cluster", name: "TimeFormatLocalization", pics: "LTIME", xref: "core§11.4",
 
     details: "Nodes should be expected to be deployed to any and all regions of the world. These global regions " +
         "may have differing preferences for how dates and times are conveyed. As such, Nodes that visually or " +

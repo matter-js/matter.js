@@ -10,8 +10,7 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add(
     {
-        tag: "cluster", name: "WindowCovering", classification: "application", pics: "WNCV",
-        xref: "cluster§5.3",
+        tag: "cluster", name: "WindowCovering", pics: "WNCV", xref: "cluster§5.3",
         details: "The window covering cluster provides an interface for controlling and adjusting automatic window " +
             "coverings such as drapery motors, automatic shades, curtains and blinds.",
 

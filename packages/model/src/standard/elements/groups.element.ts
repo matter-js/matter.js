@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const Groups = Cluster(
-    { name: "Groups", id: 0x4 },
+    { name: "Groups", id: 0x4, classification: "endpoint" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 4 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

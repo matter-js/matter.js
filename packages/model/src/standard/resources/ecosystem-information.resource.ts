@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "EcosystemInformation", classification: "endpoint", pics: "ECOINFO",
-    xref: "core§9.17",
+    tag: "cluster", name: "EcosystemInformation", pics: "ECOINFO", xref: "core§9.17",
 
     details: "The Ecosystem Information Cluster provides extended device information for all the logical devices " +
         "represented by a Bridged Node. The Ecosystem Information Cluster presents the view of device name " +

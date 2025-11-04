@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "BridgedDeviceBasicInformation", classification: "endpoint", pics: "BRBINFO",
-    xref: "core§9.13",
+    tag: "cluster", name: "BridgedDeviceBasicInformation", pics: "BRBINFO", xref: "core§9.13",
 
     details: "This cluster provides attributes and events for determining basic information about Bridged Nodes." +
         "\n" +

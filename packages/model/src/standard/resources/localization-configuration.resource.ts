@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "LocalizationConfiguration", classification: "node", pics: "LCFG",
-    xref: "core§11.3",
+    tag: "cluster", name: "LocalizationConfiguration", pics: "LCFG", xref: "core§11.3",
 
     details: "Nodes should be expected to be deployed to any and all regions of the world. These global regions " +
         "may have differing common languages, units of measurements, and numerical formatting standards. As " +

@@ -17,7 +17,7 @@ import {
 } from "../../elements/index.js";
 
 export const ThreadNetworkDiagnostics = Cluster(
-    { name: "ThreadNetworkDiagnostics", id: 0x35, quality: "K" },
+    { name: "ThreadNetworkDiagnostics", id: 0x35, classification: "node", quality: "K" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
 
     Attribute(

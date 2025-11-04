@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const ScenesManagement = Cluster(
-    { name: "ScenesManagement", id: 0x62 },
+    { name: "ScenesManagement", id: 0x62, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

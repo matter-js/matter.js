@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "TemperatureMeasurement", classification: "application", pics: "TMP",
-    xref: "cluster§2.3",
+    tag: "cluster", name: "TemperatureMeasurement", pics: "TMP", xref: "cluster§2.3",
     details: "This cluster provides an interface to temperature measurement functionality, including configuration " +
         "and provision of notifications of temperature measurements.",
 

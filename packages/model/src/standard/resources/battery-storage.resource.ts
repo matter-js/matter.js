@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "BatteryStorage", classification: "simple", xref: "device§14.4",
+    tag: "deviceType", name: "BatteryStorage", xref: "device§14.4",
     details: "A Battery Storage device is a device that allows a DC battery, which can optionally be comprised of " +
         "a set parallel strings of battery packs and associated controller, and an AC inverter, to be " +
         "monitored and controlled by an Energy Management System in order to manage the peaks and troughs of " +

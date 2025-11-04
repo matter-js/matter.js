@@ -10,7 +10,7 @@ import { MatterDefinition } from "../MatterDefinition.js";
 import { DeviceTypeElement as DeviceType, RequirementElement as Requirement } from "../../elements/index.js";
 
 export const OtaProviderDt = DeviceType(
-    { name: "OtaProvider", id: 0x14 },
+    { name: "OtaProvider", id: 0x14, classification: "utility" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 20, revision: 1 } ], element: "attribute" })

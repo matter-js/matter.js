@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "RvcCleanMode", classification: "application", pics: "RVCCLEANM",
-    xref: "cluster§7.3",
+    tag: "cluster", name: "RvcCleanMode", pics: "RVCCLEANM", xref: "cluster§7.3",
     details: "This cluster is derived from the Mode Base cluster and defines additional mode tags and namespaced " +
         "enumerated values for the cleaning type of robotic vacuum cleaner devices.",
 

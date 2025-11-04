@@ -44,4 +44,5 @@ export const BatteryStorageDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors()
 });
 
+Object.freeze(BatteryStorageDeviceDefinition);
 export const BatteryStorageDevice: BatteryStorageDevice = BatteryStorageDeviceDefinition;

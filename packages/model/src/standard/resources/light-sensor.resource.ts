@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "LightSensor", classification: "simple", xref: "device§7.2",
+    tag: "deviceType", name: "LightSensor", xref: "device§7.2",
     details: "A Light Sensor device is a measurement and sensing device that is capable of measuring and reporting " +
         "the intensity of light (illuminance) to which the sensor is being subjected.",
     children: [

@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const ServiceArea = Cluster(
-    { name: "ServiceArea", id: 0x150 },
+    { name: "ServiceArea", id: 0x150, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
 
     Attribute(

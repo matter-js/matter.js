@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const NetworkCommissioning = Cluster(
-    { name: "NetworkCommissioning", id: 0x31 },
+    { name: "NetworkCommissioning", id: 0x31, classification: "node" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
 
     Attribute(

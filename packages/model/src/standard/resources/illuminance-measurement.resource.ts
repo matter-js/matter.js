@@ -10,8 +10,7 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add(
     {
-        tag: "cluster", name: "IlluminanceMeasurement", classification: "application", pics: "ILL",
-        xref: "cluster§2.2",
+        tag: "cluster", name: "IlluminanceMeasurement", pics: "ILL", xref: "cluster§2.2",
         details: "The Illuminance Measurement cluster provides an interface to illuminance measurement functionality, " +
             "including configuration and provision of notifications of illuminance measurements.",
 

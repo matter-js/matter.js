@@ -17,7 +17,7 @@ import {
 } from "../../elements/index.js";
 
 export const ValveConfigurationAndControl = Cluster(
-    { name: "ValveConfigurationAndControl", id: 0x81 },
+    { name: "ValveConfigurationAndControl", id: 0x81, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

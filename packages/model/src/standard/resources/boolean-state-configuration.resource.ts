@@ -10,8 +10,7 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add(
     {
-        tag: "cluster", name: "BooleanStateConfiguration", classification: "application", pics: "BOOLCFG",
-        xref: "cluster§1.8",
+        tag: "cluster", name: "BooleanStateConfiguration", pics: "BOOLCFG", xref: "cluster§1.8",
         details: "This cluster is used to configure a boolean sensor, including optional state change alarm features " +
             "and configuration of the sensitivity level associated with the sensor.",
 

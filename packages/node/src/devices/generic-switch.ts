@@ -51,4 +51,5 @@ export const GenericSwitchDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors(GenericSwitchRequirements.server.mandatory.Identify)
 });
 
+Object.freeze(GenericSwitchDeviceDefinition);
 export const GenericSwitchDevice: GenericSwitchDevice = GenericSwitchDeviceDefinition;

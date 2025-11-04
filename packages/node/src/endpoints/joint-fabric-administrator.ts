@@ -67,4 +67,5 @@ export const JointFabricAdministratorEndpointDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(JointFabricAdministratorEndpointDefinition);
 export const JointFabricAdministratorEndpoint: JointFabricAdministratorEndpoint = JointFabricAdministratorEndpointDefinition;

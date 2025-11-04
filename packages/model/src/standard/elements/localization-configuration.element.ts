@@ -14,7 +14,7 @@ import {
 } from "../../elements/index.js";
 
 export const LocalizationConfiguration = Cluster(
-    { name: "LocalizationConfiguration", id: 0x2b },
+    { name: "LocalizationConfiguration", id: 0x2b, classification: "node" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute({
         name: "ActiveLocale", id: 0x0, type: "string", access: "RW VM", conformance: "M",

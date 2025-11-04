@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "OnOffLightSwitch", classification: "simple", xref: "device§6.1",
+    tag: "deviceType", name: "OnOffLightSwitch", xref: "device§6.1",
     details: "An On/Off Light Switch is a controller device that, when bound to a lighting device such as an " +
         "On/Off Light, is capable of being used to switch the device on or off.",
 

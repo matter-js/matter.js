@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const ModeSelect = Cluster(
-    { name: "ModeSelect", id: 0x50 },
+    { name: "ModeSelect", id: 0x50, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

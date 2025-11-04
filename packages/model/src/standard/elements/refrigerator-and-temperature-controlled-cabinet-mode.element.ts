@@ -15,7 +15,10 @@ import {
 } from "../../elements/index.js";
 
 export const RefrigeratorAndTemperatureControlledCabinetMode = Cluster(
-    { name: "RefrigeratorAndTemperatureControlledCabinetMode", id: 0x52, type: "ModeBase" },
+    {
+        name: "RefrigeratorAndTemperatureControlledCabinetMode", id: 0x52, type: "ModeBase",
+        classification: "application"
+    },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

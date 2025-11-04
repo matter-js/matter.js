@@ -10,7 +10,7 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add(
     {
-        tag: "cluster", name: "AccessControl", classification: "node", pics: "ACL", xref: "core§9.10",
+        tag: "cluster", name: "AccessControl", pics: "ACL", xref: "core§9.10",
 
         details: "The Access Control Cluster exposes a data model view of a Node’s Access Control List (ACL), which " +
             "codifies the rules used to manage and enforce Access Control for the Node’s endpoints and their " +

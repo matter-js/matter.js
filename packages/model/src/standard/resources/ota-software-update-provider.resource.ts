@@ -10,8 +10,7 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add(
     {
-        tag: "cluster", name: "OtaSoftwareUpdateProvider", classification: "node", pics: "OTAP",
-        xref: "core§11.20.6",
+        tag: "cluster", name: "OtaSoftwareUpdateProvider", pics: "OTAP", xref: "core§11.20.6",
 
         children: [
             {

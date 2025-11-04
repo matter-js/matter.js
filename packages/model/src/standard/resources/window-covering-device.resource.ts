@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "WindowCovering", classification: "simple", xref: "device§8.3",
+    tag: "deviceType", name: "WindowCovering", xref: "device§8.3",
     details: "This defines conformance to the Window Covering device type.",
     children: [
         { tag: "requirement", name: "Identify", xref: "device§8.3.4" },

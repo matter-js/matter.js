@@ -15,7 +15,7 @@ import {
 } from "../../elements/index.js";
 
 export const ConcentrationMeasurement = Cluster(
-    { name: "ConcentrationMeasurement" },
+    { name: "ConcentrationMeasurement", classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
 
     Attribute(

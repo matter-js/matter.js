@@ -15,7 +15,7 @@ import {
 } from "../../elements/index.js";
 
 export const ApplicationBasic = Cluster(
-    { name: "ApplicationBasic", id: 0x50d },
+    { name: "ApplicationBasic", id: 0x50d, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute({
         name: "VendorName", id: 0x0, type: "string", access: "R V", conformance: "O", constraint: "max 32",

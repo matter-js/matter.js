@@ -74,4 +74,5 @@ export const WindowCoveringControllerDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors()
 });
 
+Object.freeze(WindowCoveringControllerDeviceDefinition);
 export const WindowCoveringControllerDevice: WindowCoveringControllerDevice = WindowCoveringControllerDeviceDefinition;

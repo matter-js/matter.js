@@ -131,4 +131,5 @@ export const ControlBridgeDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors(ControlBridgeRequirements.server.mandatory.Identify)
 });
 
+Object.freeze(ControlBridgeDeviceDefinition);
 export const ControlBridgeDevice: ControlBridgeDevice = ControlBridgeDeviceDefinition;

@@ -15,7 +15,7 @@ import {
 } from "../../elements/index.js";
 
 export const TemperatureControl = Cluster(
-    { name: "TemperatureControl", id: 0x56 },
+    { name: "TemperatureControl", id: 0x56, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
 
     Attribute(

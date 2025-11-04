@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "LaundryDryer", classification: "simple", xref: "device§13.6",
+    tag: "deviceType", name: "LaundryDryer", xref: "device§13.6",
     details: "A Laundry Dryer represents a device that is capable of drying laundry items.",
 
     children: [

@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "ThreadBorderRouterManagement", classification: "application", pics: "TBRM",
-    xref: "cluster§10.3",
+    tag: "cluster", name: "ThreadBorderRouterManagement", pics: "TBRM", xref: "cluster§10.3",
     details: "This cluster provides an interface for managing a Thread Border Router and the Thread network that " +
         "it belongs to. Privileged nodes within the same fabric as a Thread Border Router can use these " +
         "interfaces to request and set credentials information to the Thread network.",

@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "ResourceMonitoring", classification: "application", pics: "REPM",
-    xref: "cluster§2.8",
+    tag: "cluster", name: "ResourceMonitoring", pics: "REPM", xref: "cluster§2.8",
 
     details: "This generic cluster provides an interface to the current condition of a resource. A resource is a " +
         "component of a device that is designed to be replaced, refilled, or emptied when exhausted or full. " +

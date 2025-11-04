@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "ThreadNetworkDiagnostics", classification: "node", pics: "DGTHREAD",
-    xref: "core§11.14",
+    tag: "cluster", name: "ThreadNetworkDiagnostics", pics: "DGTHREAD", xref: "core§11.14",
     details: "The Thread Network Diagnostics Cluster provides a means to acquire standardized diagnostics metrics " +
         "that may be used by a Node to assist a user or Administrator in diagnosing potential problems. The " +
         "Thread Network Diagnostics Cluster attempts to centralize all metrics that are relevant to a " +

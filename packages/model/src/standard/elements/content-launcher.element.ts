@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const ContentLauncher = Cluster(
-    { name: "ContentLauncher", id: 0x50a },
+    { name: "ContentLauncher", id: 0x50a, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
 
     Attribute(

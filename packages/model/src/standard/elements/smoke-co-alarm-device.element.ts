@@ -10,7 +10,7 @@ import { MatterDefinition } from "../MatterDefinition.js";
 import { DeviceTypeElement as DeviceType, RequirementElement as Requirement } from "../../elements/index.js";
 
 export const SmokeCoAlarmDt = DeviceType(
-    { name: "SmokeCoAlarm", id: 0x76 },
+    { name: "SmokeCoAlarm", id: 0x76, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 118, revision: 1 } ], element: "attribute" })

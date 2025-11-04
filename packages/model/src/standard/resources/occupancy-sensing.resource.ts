@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "OccupancySensing", classification: "application", pics: "OCC",
-    xref: "cluster§2.7",
+    tag: "cluster", name: "OccupancySensing", pics: "OCC", xref: "cluster§2.7",
     details: "The server cluster provides an interface to occupancy sensing functionality based on one or more " +
         "sensing modalities, including configuration and provision of notifications of occupancy status.",
 

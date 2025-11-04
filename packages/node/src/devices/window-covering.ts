@@ -62,4 +62,5 @@ export const WindowCoveringDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors(WindowCoveringRequirements.server.mandatory.Identify)
 });
 
+Object.freeze(WindowCoveringDeviceDefinition);
 export const WindowCoveringDevice: WindowCoveringDevice = WindowCoveringDeviceDefinition;

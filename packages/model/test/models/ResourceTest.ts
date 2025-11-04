@@ -32,7 +32,6 @@ const LandingGearResource = new Resource({
     asOf: "1.1",
     until: "1.2",
     matchTo: { id: 1234 },
-    classification: "application",
     pics: "PLNWHL",
     description: "You need this to land",
     details: "You usually also need this to take off",
@@ -80,7 +79,7 @@ describe("Resource", () => {
             (cluster as any)[key] = LandingGearResource[key as keyof Resource];
         }
         expect(cluster.resource).deep.equals(LandingGearResource);
-        expect(Object.keys(cluster.resource!).length).equals(9);
+        expect(Object.keys(cluster.resource!).length).equals(8);
     });
 
     it("sets locally from resource", () => {

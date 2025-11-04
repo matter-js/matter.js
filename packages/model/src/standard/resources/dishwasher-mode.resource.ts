@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "DishwasherMode", classification: "application", pics: "DISHM",
-    xref: "cluster§8.3",
+    tag: "cluster", name: "DishwasherMode", pics: "DISHM", xref: "cluster§8.3",
     details: "This cluster is derived from the Mode Base cluster and defines additional mode tags and namespaced " +
         "enumerated values for dishwasher devices.",
 

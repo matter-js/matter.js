@@ -17,7 +17,7 @@ import {
 } from "../../elements/index.js";
 
 export const TargetNavigator = Cluster(
-    { name: "TargetNavigator", id: 0x505 },
+    { name: "TargetNavigator", id: 0x505, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
     Attribute(
         { name: "TargetList", id: 0x0, type: "list", access: "R V", conformance: "M" },

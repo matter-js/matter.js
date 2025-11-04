@@ -15,7 +15,7 @@ import {
 } from "../../elements/index.js";
 
 export const WiFiNetworkManagement = Cluster(
-    { name: "WiFiNetworkManagement", id: 0x451 },
+    { name: "WiFiNetworkManagement", id: 0x451, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute({ name: "Ssid", id: 0x0, type: "octstr", access: "R V", conformance: "M", constraint: "1 to 32", quality: "X N" }),
     Attribute({ name: "PassphraseSurrogate", id: 0x1, type: "uint64", access: "R M", conformance: "M", quality: "X N" }),

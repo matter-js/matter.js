@@ -50,4 +50,5 @@ export const CooktopDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors(CooktopRequirements.server.mandatory.OnOff)
 });
 
+Object.freeze(CooktopDeviceDefinition);
 export const CooktopDevice: CooktopDevice = CooktopDeviceDefinition;

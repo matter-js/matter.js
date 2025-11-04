@@ -97,4 +97,5 @@ export const DishwasherDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors(DishwasherRequirements.server.mandatory.OperationalState)
 });
 
+Object.freeze(DishwasherDeviceDefinition);
 export const DishwasherDevice: DishwasherDevice = DishwasherDeviceDefinition;

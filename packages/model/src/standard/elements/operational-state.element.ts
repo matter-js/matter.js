@@ -17,7 +17,7 @@ import {
 } from "../../elements/index.js";
 
 export const OperationalState = Cluster(
-    { name: "OperationalState", id: 0x60 },
+    { name: "OperationalState", id: 0x60, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
 
     Attribute(

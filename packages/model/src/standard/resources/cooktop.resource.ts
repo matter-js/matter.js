@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "Cooktop", classification: "simple", xref: "device§13.8",
+    tag: "deviceType", name: "Cooktop", xref: "device§13.8",
     details: "A cooktop is a cooking surface that heats food either by transferring currents from an " +
         "electromagnetic field located below the glass surface directly to the magnetic induction cookware " +
         "placed above or through traditional gas or electric burners.",

@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const OtaSoftwareUpdateProvider = Cluster(
-    { name: "OtaSoftwareUpdateProvider", id: 0x29 },
+    { name: "OtaSoftwareUpdateProvider", id: 0x29, classification: "node" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
 
     Command(

@@ -70,4 +70,5 @@ export const RefrigeratorDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors()
 });
 
+Object.freeze(RefrigeratorDeviceDefinition);
 export const RefrigeratorDevice: RefrigeratorDevice = RefrigeratorDeviceDefinition;

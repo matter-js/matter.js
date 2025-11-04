@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "SmokeCoAlarm", classification: "application", pics: "SMOKECO",
-    xref: "cluster§2.11",
+    tag: "cluster", name: "SmokeCoAlarm", pics: "SMOKECO", xref: "cluster§2.11",
     details: "This cluster provides an interface for observing and managing the state of smoke and CO alarms.",
 
     children: [

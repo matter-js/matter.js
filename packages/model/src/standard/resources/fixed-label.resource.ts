@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "FixedLabel", classification: "endpoint", pics: "FLABEL", xref: "core§9.8",
+    tag: "cluster", name: "FixedLabel", pics: "FLABEL", xref: "core§9.8",
 
     details: "This cluster is derived from the Label cluster and provides a feature for the device to tag an " +
         "endpoint with zero or more read-only labels." +

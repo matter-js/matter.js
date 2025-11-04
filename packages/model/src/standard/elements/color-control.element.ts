@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const ColorControl = Cluster(
-    { name: "ColorControl", id: 0x300 },
+    { name: "ColorControl", id: 0x300, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 7 }),
 
     Attribute(

@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const KeypadInput = Cluster(
-    { name: "KeypadInput", id: 0x509 },
+    { name: "KeypadInput", id: 0x509, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
 
     Attribute(

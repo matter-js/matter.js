@@ -15,7 +15,7 @@ import {
 } from "../../elements/index.js";
 
 export const DeviceEnergyManagementMode = Cluster(
-    { name: "DeviceEnergyManagementMode", id: 0x9f, type: "ModeBase" },
+    { name: "DeviceEnergyManagementMode", id: 0x9f, type: "ModeBase", classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

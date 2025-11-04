@@ -47,3 +47,20 @@ export enum DeviceClassification {
      */
     Node = "node",
 }
+
+export namespace DeviceClassification {
+    export function isUtility(classification: DeviceClassification | undefined) {
+        switch (classification) {
+            case DeviceClassification.Node:
+            case DeviceClassification.Utility:
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    export function isApplication(classification: DeviceClassification | undefined) {
+        return !isUtility(classification);
+    }
+}

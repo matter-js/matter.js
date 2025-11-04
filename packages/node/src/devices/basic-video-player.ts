@@ -150,4 +150,5 @@ export const BasicVideoPlayerDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(BasicVideoPlayerDeviceDefinition);
 export const BasicVideoPlayerDevice: BasicVideoPlayerDevice = BasicVideoPlayerDeviceDefinition;

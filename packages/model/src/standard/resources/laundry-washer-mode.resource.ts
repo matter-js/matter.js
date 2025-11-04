@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "LaundryWasherMode", classification: "application", pics: "LWM",
-    xref: "cluster§8.5",
+    tag: "cluster", name: "LaundryWasherMode", pics: "LWM", xref: "cluster§8.5",
     details: "This cluster is derived from the Mode Base cluster and defines additional mode tags and namespaced " +
         "enumerated values for laundry washer as well as laundry dryer devices.",
 

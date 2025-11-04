@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "TimeSynchronization", classification: "node", pics: "TIMESYNC",
-    xref: "core§11.17",
+    tag: "cluster", name: "TimeSynchronization", pics: "TIMESYNC", xref: "core§11.17",
 
     details: "Accurate time is required for a number of reasons, including scheduling, display and validating " +
         "security materials." +

@@ -74,4 +74,5 @@ export const AggregatorEndpointDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(AggregatorEndpointDefinition);
 export const AggregatorEndpoint: AggregatorEndpoint = AggregatorEndpointDefinition;

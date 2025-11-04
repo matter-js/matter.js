@@ -10,7 +10,7 @@ import { MatterDefinition } from "../MatterDefinition.js";
 import { ClusterElement as Cluster, AttributeElement as Attribute } from "../../elements/index.js";
 
 export const TemperatureMeasurement = Cluster(
-    { name: "TemperatureMeasurement", id: 0x402 },
+    { name: "TemperatureMeasurement", id: 0x402, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 4 }),
     Attribute({
         name: "MeasuredValue", id: 0x0, type: "temperature", access: "R V", conformance: "M",

@@ -115,4 +115,5 @@ export const DimmableLightDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(DimmableLightDeviceDefinition);
 export const DimmableLightDevice: DimmableLightDevice = DimmableLightDeviceDefinition;

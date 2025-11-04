@@ -83,4 +83,5 @@ export const OnOffLightSwitchDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors(OnOffLightSwitchRequirements.server.mandatory.Identify)
 });
 
+Object.freeze(OnOffLightSwitchDeviceDefinition);
 export const OnOffLightSwitchDevice: OnOffLightSwitchDevice = OnOffLightSwitchDeviceDefinition;

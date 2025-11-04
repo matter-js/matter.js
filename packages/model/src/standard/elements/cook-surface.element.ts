@@ -10,7 +10,7 @@ import { MatterDefinition } from "../MatterDefinition.js";
 import { DeviceTypeElement as DeviceType, RequirementElement as Requirement } from "../../elements/index.js";
 
 export const CookSurfaceDt = DeviceType(
-    { name: "CookSurface", id: 0x77 },
+    { name: "CookSurface", id: 0x77, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 119, revision: 2 } ], element: "attribute" })

@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "MicrowaveOvenMode", classification: "application", pics: "MWOM",
-    xref: "cluster§8.12",
+    tag: "cluster", name: "MicrowaveOvenMode", pics: "MWOM", xref: "cluster§8.12",
     details: "This cluster is derived from the Mode Base cluster and defines additional mode tags and namespaced " +
         "enumerated values for microwave oven devices.",
 

@@ -14,7 +14,7 @@ import {
 } from "../../elements/index.js";
 
 export const UserLabel = Cluster(
-    { name: "UserLabel", id: 0x41, type: "Label" },
+    { name: "UserLabel", id: 0x41, type: "Label", classification: "endpoint" },
 
     Attribute(
         {

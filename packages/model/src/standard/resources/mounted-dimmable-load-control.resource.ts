@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "MountedDimmableLoadControl", classification: "simple", xref: "device§5.4",
+    tag: "deviceType", name: "MountedDimmableLoadControl", xref: "device§5.4",
 
     details: "A Mounted Dimmable Load Control is a fixed device that provides power to a load connected to it, and " +
         "is capable of being switched on or off and have its level adjusted. The Mounted Dimmable Load " +

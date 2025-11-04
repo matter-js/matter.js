@@ -17,7 +17,7 @@ import {
 } from "../../elements/index.js";
 
 export const CommissionerControl = Cluster(
-    { name: "CommissionerControl", id: 0x751 },
+    { name: "CommissionerControl", id: 0x751, classification: "node" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute({
         name: "SupportedDeviceCategories", id: 0x0, type: "SupportedDeviceCategoryBitmap", access: "R M",

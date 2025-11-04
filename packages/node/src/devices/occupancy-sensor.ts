@@ -67,4 +67,5 @@ export const OccupancySensorDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors(OccupancySensorRequirements.server.mandatory.Identify)
 });
 
+Object.freeze(OccupancySensorDeviceDefinition);
 export const OccupancySensorDevice: OccupancySensorDevice = OccupancySensorDeviceDefinition;

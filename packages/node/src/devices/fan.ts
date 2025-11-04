@@ -71,4 +71,5 @@ export const FanDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(FanDeviceDefinition);
 export const FanDevice: FanDevice = FanDeviceDefinition;

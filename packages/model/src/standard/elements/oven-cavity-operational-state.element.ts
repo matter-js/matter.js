@@ -14,7 +14,7 @@ import {
 } from "../../elements/index.js";
 
 export const OvenCavityOperationalState = Cluster(
-    { name: "OvenCavityOperationalState", id: 0x48, type: "OperationalState" },
+    { name: "OvenCavityOperationalState", id: 0x48, type: "OperationalState", classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
     Command({ name: "Pause", id: 0x0, conformance: "X" }),
     Command({ name: "Stop", id: 0x1 }),

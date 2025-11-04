@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "KeypadInput", classification: "application", pics: "KEYPADINPUT",
-    xref: "cluster§6.8",
+    tag: "cluster", name: "KeypadInput", pics: "KEYPADINPUT", xref: "cluster§6.8",
 
     details: "This cluster provides an interface for key code based input and control on a device like a Video " +
         "Player or an endpoint like a Content App. This may include text or action commands such as UP, DOWN, " +

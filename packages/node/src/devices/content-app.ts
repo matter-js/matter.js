@@ -145,4 +145,5 @@ export const ContentAppDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(ContentAppDeviceDefinition);
 export const ContentAppDevice: ContentAppDevice = ContentAppDeviceDefinition;

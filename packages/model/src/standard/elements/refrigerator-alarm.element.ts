@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const RefrigeratorAlarm = Cluster(
-    { name: "RefrigeratorAlarm", id: 0x57, type: "AlarmBase" },
+    { name: "RefrigeratorAlarm", id: 0x57, type: "AlarmBase", classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

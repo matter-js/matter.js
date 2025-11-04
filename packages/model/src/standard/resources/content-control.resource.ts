@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "ContentControl", classification: "application", pics: "CONCON",
-    xref: "cluster§6.13",
+    tag: "cluster", name: "ContentControl", pics: "CONCON", xref: "cluster§6.13",
 
     details: "This cluster is used for managing the content control (including \"parental control\") settings on a " +
         "media device such as a TV, or Set-top Box." +

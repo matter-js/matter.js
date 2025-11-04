@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "EnergyEvseMode", classification: "application", pics: "EEVSEM",
-    xref: "cluster§9.4",
+    tag: "cluster", name: "EnergyEvseMode", pics: "EEVSEM", xref: "cluster§9.4",
     details: "This cluster is derived from the Mode Base cluster and defines additional mode tags and namespaced " +
         "enumerated values for EVSE devices.",
 

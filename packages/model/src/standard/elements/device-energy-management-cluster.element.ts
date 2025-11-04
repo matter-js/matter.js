@@ -17,7 +17,7 @@ import {
 } from "../../elements/index.js";
 
 export const DeviceEnergyManagement = Cluster(
-    { name: "DeviceEnergyManagement", id: 0x98 },
+    { name: "DeviceEnergyManagement", id: 0x98, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 4 }),
 
     Attribute(

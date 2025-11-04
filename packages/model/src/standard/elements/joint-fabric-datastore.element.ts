@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const JointFabricDatastore = Cluster(
-    { name: "JointFabricDatastore", id: 0x752 },
+    { name: "JointFabricDatastore", id: 0x752, classification: "node" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute({ name: "AnchorRootCa", id: 0x0, type: "octstr", access: "R A", conformance: "P, M" }),
     Attribute({ name: "AnchorNodeId", id: 0x1, type: "node-id", access: "R A", conformance: "P, M" }),

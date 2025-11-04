@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "Descriptor", classification: "endpoint", pics: "DESC", xref: "core§9.5",
+    tag: "cluster", name: "Descriptor", pics: "DESC", xref: "core§9.5",
 
     details: "> [!NOTE]" +
         "\n" +

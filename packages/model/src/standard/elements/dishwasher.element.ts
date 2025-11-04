@@ -10,7 +10,7 @@ import { MatterDefinition } from "../MatterDefinition.js";
 import { DeviceTypeElement as DeviceType, RequirementElement as Requirement } from "../../elements/index.js";
 
 export const DishwasherDt = DeviceType(
-    { name: "Dishwasher", id: 0x75 },
+    { name: "Dishwasher", id: 0x75, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 117, revision: 2 } ], element: "attribute" })

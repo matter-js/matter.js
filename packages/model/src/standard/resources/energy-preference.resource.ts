@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "EnergyPreference", classification: "application", pics: "EPREF",
-    xref: "cluster§9.7",
+    tag: "cluster", name: "EnergyPreference", pics: "EPREF", xref: "cluster§9.7",
     details: "This cluster provides an interface to specify preferences for how devices should consume energy." +
         "\n" +
         "NOTE Support for Energy Preference cluster is provisional.",

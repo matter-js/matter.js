@@ -58,4 +58,5 @@ export const HeatPumpDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors()
 });
 
+Object.freeze(HeatPumpDeviceDefinition);
 export const HeatPumpDevice: HeatPumpDevice = HeatPumpDeviceDefinition;

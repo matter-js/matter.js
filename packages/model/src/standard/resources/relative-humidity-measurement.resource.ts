@@ -10,8 +10,7 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add(
     {
-        tag: "cluster", name: "RelativeHumidityMeasurement", classification: "application", pics: "RH",
-        xref: "cluster§2.6",
+        tag: "cluster", name: "RelativeHumidityMeasurement", pics: "RH", xref: "cluster§2.6",
         details: "This is a base cluster. The server cluster provides an interface to water content measurement " +
             "functionality. The measurement is reportable and may be configured for reporting. Water content " +
             "measurements currently is, but are not limited to relative humidity.",

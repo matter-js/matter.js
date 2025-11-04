@@ -128,4 +128,5 @@ export const MountedDimmableLoadControlDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(MountedDimmableLoadControlDeviceDefinition);
 export const MountedDimmableLoadControlDevice: MountedDimmableLoadControlDevice = MountedDimmableLoadControlDeviceDefinition;

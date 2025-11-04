@@ -171,4 +171,5 @@ export const VideoRemoteControlDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors()
 });
 
+Object.freeze(VideoRemoteControlDeviceDefinition);
 export const VideoRemoteControlDevice: VideoRemoteControlDevice = VideoRemoteControlDeviceDefinition;

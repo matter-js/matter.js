@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "ControlBridge", classification: "simple", xref: "device§6.4",
+    tag: "deviceType", name: "ControlBridge", xref: "device§6.4",
     details: "A Control Bridge is a controller device that, when bound to a lighting device such as an Extended " +
         "Color Light, is capable of being used to switch the device on or off, adjust the intensity of the " +
         "light being emitted and adjust the color of the light being emitted. In addition, a Control Bridge " +

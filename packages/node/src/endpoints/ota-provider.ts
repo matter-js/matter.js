@@ -62,4 +62,5 @@ export const OtaProviderEndpointDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors(OtaProviderRequirements.server.mandatory.OtaSoftwareUpdateProvider)
 });
 
+Object.freeze(OtaProviderEndpointDefinition);
 export const OtaProviderEndpoint: OtaProviderEndpoint = OtaProviderEndpointDefinition;

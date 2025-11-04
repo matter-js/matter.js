@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "DimmerSwitch", classification: "simple", xref: "device§6.2",
+    tag: "deviceType", name: "DimmerSwitch", xref: "device§6.2",
     details: "A Dimmer Switch is a controller device that, when bound to a lighting device such as a Dimmable " +
         "Light, is capable of being used to switch the device on or off and adjust the intensity of the light " +
         "being emitted.",

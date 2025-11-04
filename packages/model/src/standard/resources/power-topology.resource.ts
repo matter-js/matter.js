@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "PowerTopology", classification: "application", pics: "PWRTL",
-    xref: "core§11.8",
+    tag: "cluster", name: "PowerTopology", pics: "PWRTL", xref: "core§11.8",
     details: "The Power Topology Cluster provides a mechanism for expressing how power is flowing between " +
         "endpoints.",
 

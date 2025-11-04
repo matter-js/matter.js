@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "WakeOnLan", classification: "application", pics: "WAKEONLAN",
-    xref: "cluster§1.12",
+    tag: "cluster", name: "WakeOnLan", pics: "WAKEONLAN", xref: "cluster§1.12",
 
     details: "This cluster provides an interface for managing low power mode on a device that supports the Wake On " +
         "LAN or Wake On Wireless LAN (WLAN) protocol (see [Wake On LAN])." +

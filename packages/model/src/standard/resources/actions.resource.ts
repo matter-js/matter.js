@@ -10,7 +10,7 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add(
     {
-        tag: "cluster", name: "Actions", classification: "application", pics: "ACT", xref: "core§9.14",
+        tag: "cluster", name: "Actions", pics: "ACT", xref: "core§9.14",
 
         details: "This cluster provides a standardized way for a Node (typically a Bridge, but could be any Node) to " +
             "expose logical grouping and actions." +

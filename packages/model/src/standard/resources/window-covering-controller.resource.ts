@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "WindowCoveringController", classification: "simple", xref: "device§8.4",
+    tag: "deviceType", name: "WindowCoveringController", xref: "device§8.4",
     details: "A Window Covering Controller is a device that controls an automatic window covering.",
 
     children: [

@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "ModeSelect", classification: "application", pics: "MOD", xref: "cluster§1.9",
+    tag: "cluster", name: "ModeSelect", pics: "MOD", xref: "cluster§1.9",
 
     details: "This cluster provides an interface for controlling a characteristic of a device that can be set to " +
         "one of several predefined values. For example, the light pattern of a disco ball, the mode of a " +

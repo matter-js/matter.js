@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "DeviceEnergyManagement", classification: "utility", xref: "device§2.7",
+    tag: "deviceType", name: "DeviceEnergyManagement", xref: "device§2.7",
     details: "A Device Energy Management device provides reporting and optionally adjustment of the electrical " +
         "power planned on being consumed or produced by the device.",
 

@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "RvcOperationalState", classification: "application", pics: "RVCOPSTATE",
-    xref: "cluster§7.4",
+    tag: "cluster", name: "RvcOperationalState", pics: "RVCOPSTATE", xref: "cluster§7.4",
     details: "This cluster is derived from the Operational State cluster and provides an interface for monitoring " +
         "the operational state of a robotic vacuum cleaner.",
 

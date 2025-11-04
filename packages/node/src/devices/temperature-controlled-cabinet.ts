@@ -98,4 +98,5 @@ export const TemperatureControlledCabinetDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors()
 });
 
+Object.freeze(TemperatureControlledCabinetDeviceDefinition);
 export const TemperatureControlledCabinetDevice: TemperatureControlledCabinetDevice = TemperatureControlledCabinetDeviceDefinition;

@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const MediaInput = Cluster(
-    { name: "MediaInput", id: 0x507 },
+    { name: "MediaInput", id: 0x507, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

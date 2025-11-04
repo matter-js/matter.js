@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "WaterHeaterMode", classification: "application", pics: "WHM",
-    xref: "cluster§9.6",
+    tag: "cluster", name: "WaterHeaterMode", pics: "WHM", xref: "cluster§9.6",
     details: "This cluster is derived from the Mode Base cluster and defines additional mode tags and namespaced " +
         "enumerated values for water heater devices.",
 

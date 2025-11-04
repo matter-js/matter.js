@@ -14,7 +14,7 @@ import {
 } from "../../elements/index.js";
 
 export const LowPower = Cluster(
-    { name: "LowPower", id: 0x508 },
+    { name: "LowPower", id: 0x508, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Command({ name: "Sleep", id: 0x0, access: "O", conformance: "M", direction: "request", response: "status" })
 );

@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const OccupancySensing = Cluster(
-    { name: "OccupancySensing", id: 0x406 },
+    { name: "OccupancySensing", id: 0x406, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 5 }),
 
     Attribute(

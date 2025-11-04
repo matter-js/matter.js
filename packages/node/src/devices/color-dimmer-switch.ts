@@ -105,4 +105,5 @@ export const ColorDimmerSwitchDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors(ColorDimmerSwitchRequirements.server.mandatory.Identify)
 });
 
+Object.freeze(ColorDimmerSwitchDeviceDefinition);
 export const ColorDimmerSwitchDevice: ColorDimmerSwitchDevice = ColorDimmerSwitchDeviceDefinition;

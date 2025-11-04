@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const EthernetNetworkDiagnostics = Cluster(
-    { name: "EthernetNetworkDiagnostics", id: 0x37, quality: "K" },
+    { name: "EthernetNetworkDiagnostics", id: 0x37, classification: "node", quality: "K" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

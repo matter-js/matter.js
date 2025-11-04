@@ -15,7 +15,7 @@ import {
 } from "../../elements/index.js";
 
 export const MicrowaveOvenControl = Cluster(
-    { name: "MicrowaveOvenControl", id: 0x5f },
+    { name: "MicrowaveOvenControl", id: 0x5f, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
 
     Attribute(

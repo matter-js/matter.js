@@ -68,4 +68,5 @@ export const CookSurfaceDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors()
 });
 
+Object.freeze(CookSurfaceDeviceDefinition);
 export const CookSurfaceDevice: CookSurfaceDevice = CookSurfaceDeviceDefinition;

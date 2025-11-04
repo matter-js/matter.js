@@ -103,4 +103,5 @@ export const BridgedNodeEndpointDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(BridgedNodeEndpointDefinition);
 export const BridgedNodeEndpoint: BridgedNodeEndpoint = BridgedNodeEndpointDefinition;

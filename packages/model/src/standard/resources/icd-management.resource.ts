@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "IcdManagement", classification: "node", pics: "ICDM", xref: "core§9.16",
+    tag: "cluster", name: "IcdManagement", pics: "ICDM", xref: "core§9.16",
     details: "ICD Management Cluster enables configuration of the ICD’s behavior and ensuring that listed clients " +
         "can be notified when an intermittently connected device, ICD, is available for communication." +
         "\n" +

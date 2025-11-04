@@ -16,7 +16,7 @@ import {
 } from "../../elements/index.js";
 
 export const BridgedDeviceBasicInformation = Cluster(
-    { name: "BridgedDeviceBasicInformation", id: 0x39, type: "BasicInformation" },
+    { name: "BridgedDeviceBasicInformation", id: 0x39, type: "BasicInformation", classification: "endpoint" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 5 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

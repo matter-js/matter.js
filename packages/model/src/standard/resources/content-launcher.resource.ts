@@ -10,8 +10,7 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add(
     {
-        tag: "cluster", name: "ContentLauncher", classification: "application", pics: "CONTENTLAUNCHER",
-        xref: "cluster§6.7",
+        tag: "cluster", name: "ContentLauncher", pics: "CONTENTLAUNCHER", xref: "cluster§6.7",
 
         details: "This cluster provides an interface for launching content on a Video Player device such as a " +
             "Streaming Media Player, Smart TV or Smart Screen." +

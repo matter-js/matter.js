@@ -76,4 +76,5 @@ export const DoorLockControllerDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors()
 });
 
+Object.freeze(DoorLockControllerDeviceDefinition);
 export const DoorLockControllerDevice: DoorLockControllerDevice = DoorLockControllerDeviceDefinition;

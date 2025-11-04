@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "deviceType", name: "Speaker", classification: "simple", xref: "device§10.4",
+    tag: "deviceType", name: "Speaker", xref: "device§10.4",
 
     details: "This defines conformance to the Speaker device type. This feature controls the speaker volume of the " +
         "device." +

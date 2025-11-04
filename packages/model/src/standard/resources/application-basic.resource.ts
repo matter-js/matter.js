@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "ApplicationBasic", classification: "application", pics: "APBSC",
-    xref: "cluster§6.3",
+    tag: "cluster", name: "ApplicationBasic", pics: "APBSC", xref: "cluster§6.3",
 
     details: "This cluster provides information about a Content App running on a Video Player device which is " +
         "represented as an endpoint (see Device Type Library document)." +

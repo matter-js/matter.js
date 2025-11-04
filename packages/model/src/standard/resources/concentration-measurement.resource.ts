@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "ConcentrationMeasurement", classification: "application", pics: "CONC",
-    xref: "cluster§2.10",
+    tag: "cluster", name: "ConcentrationMeasurement", pics: "CONC", xref: "cluster§2.10",
     details: "The server cluster provides an interface to concentration measurement functionality. This cluster " +
         "shall to be used via an alias to a specific substance (see Cluster IDs).",
 

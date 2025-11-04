@@ -9,8 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "cluster", name: "GeneralCommissioning", classification: "node", pics: "CGEN",
-    xref: "core§11.10",
+    tag: "cluster", name: "GeneralCommissioning", pics: "CGEN", xref: "core§11.10",
     details: "This cluster is used to manage basic commissioning lifecycle." +
         "\n" +
         "This cluster also represents responsibilities related to commissioning that don’t well fit other " +

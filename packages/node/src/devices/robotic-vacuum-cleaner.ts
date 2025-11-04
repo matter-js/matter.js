@@ -86,4 +86,5 @@ export const RoboticVacuumCleanerDeviceDefinition = MutableEndpoint({
     )
 });
 
+Object.freeze(RoboticVacuumCleanerDeviceDefinition);
 export const RoboticVacuumCleanerDevice: RoboticVacuumCleanerDevice = RoboticVacuumCleanerDeviceDefinition;
