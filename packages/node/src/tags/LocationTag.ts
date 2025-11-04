@@ -12,7 +12,7 @@ import { SemanticNamespace } from "../endpoint/type/SemanticNamespace.js";
  * The tags contained in this namespace may be used in any domain or context, to indicate an association with a location
  * of a device (e.g. an outdoor temperature sensor).
  *
- * @see {@link MatterSpecification.v141.Namespace} § 7
+ * @see {@link MatterSpecification.v142.Namespace} § 7
  */
 export const LocationTag = SemanticNamespace({
     id: 0x6,

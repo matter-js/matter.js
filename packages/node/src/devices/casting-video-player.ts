@@ -41,7 +41,7 @@ import { Identity } from "#general";
  * See Section 10.1, “Video Player Architecture” for additional Casting Video Player requirements relating to Video
  * Player device endpoint composition, commissioning, feature representation in clusters, and UI context.
  *
- * @see {@link MatterSpecification.v141.Device} § 10.3
+ * @see {@link MatterSpecification.v142.Device} § 10.3
  */
 export interface CastingVideoPlayerDevice extends Identity<typeof CastingVideoPlayerDeviceDefinition> {}
 

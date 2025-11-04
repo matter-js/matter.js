@@ -23,7 +23,7 @@ export namespace ElectricalPowerMeasurement {
     /**
      * These are optional features supported by ElectricalPowerMeasurementCluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.13.4
+     * @see {@link MatterSpecification.v142.Cluster} § 2.13.4
      */
     export enum Feature {
         /**
@@ -31,7 +31,7 @@ export namespace ElectricalPowerMeasurement {
          *
          * This feature indicates the cluster can measure a direct current.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.13.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.4.1
          */
         DirectCurrent = "DirectCurrent",
 
@@ -40,7 +40,7 @@ export namespace ElectricalPowerMeasurement {
          *
          * This feature indicates the cluster can measure an alternating current.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.13.4.2
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.4.2
          */
         AlternatingCurrent = "AlternatingCurrent",
 
@@ -49,7 +49,7 @@ export namespace ElectricalPowerMeasurement {
          *
          * This feature indicates the cluster represents the collective measurements for a Polyphase power supply.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.13.4.3
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.4.3
          */
         PolyphasePower = "PolyphasePower",
 
@@ -58,7 +58,7 @@ export namespace ElectricalPowerMeasurement {
          *
          * This feature indicates the cluster can measure the harmonics of an alternating current.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.13.4.4
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.4.4
          */
         Harmonics = "Harmonics",
 
@@ -67,20 +67,20 @@ export namespace ElectricalPowerMeasurement {
          *
          * This feature indicates the cluster can measure the harmonic phases of an alternating current.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.13.4.5
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.4.5
          */
         PowerQuality = "PowerQuality"
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 2.13.5.4
+     * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.4
      */
     export const TlvHarmonicMeasurement = TlvObject({
         /**
          * This field shall be the order of the harmonic being measured. Typically this is an odd number, but servers
          * may choose to report even harmonics.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.13.5.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.4.1
          */
         order: TlvField(0, TlvUInt8.bound({ min: 1 })),
 
@@ -97,18 +97,18 @@ export namespace ElectricalPowerMeasurement {
          *
          * If this measurement is not currently available, a value of null shall be returned.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.13.5.4.2
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.4.2
          */
         measurement: TlvField(1, TlvNullable(TlvInt64))
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 2.13.5.4
+     * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.4
      */
     export interface HarmonicMeasurement extends TypeFromSchema<typeof TlvHarmonicMeasurement> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 2.13.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.1
      */
     export enum PowerMode {
         Unknown = 0,
@@ -125,7 +125,7 @@ export namespace ElectricalPowerMeasurement {
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 2.13.5.2
+     * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.2
      */
     export enum MeasurementType {
         Unspecified = 0,
@@ -223,13 +223,13 @@ export namespace ElectricalPowerMeasurement {
      * since boot for a given timestamp; this allows for client-side resolution of UTC time for previous reports that
      * only included systime.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.13.5.3
+     * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.3
      */
     export const TlvMeasurementRange = TlvObject({
         /**
          * This field shall be the type of measurement for the range provided.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.13.5.3.1
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.3.1
          */
         measurementType: TlvField(0, TlvEnum<MeasurementType>()),
 
@@ -237,7 +237,7 @@ export namespace ElectricalPowerMeasurement {
          * This field shall be the smallest measured value for the associated measurement over either the period between
          * StartTimestamp and EndTimestamp, or the period between StartSystime and EndSystime, or both.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.13.5.3.2
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.3.2
          */
         min: TlvField(1, TlvInt64),
 
@@ -245,7 +245,7 @@ export namespace ElectricalPowerMeasurement {
          * This field shall be the largest measured value for the associated measurement over the period between either
          * StartTimestamp and EndTimestamp or the period between StartSystime and EndSystime, or both.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.13.5.3.3
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.3.3
          */
         max: TlvField(2, TlvInt64),
 
@@ -255,7 +255,7 @@ export namespace ElectricalPowerMeasurement {
          * If the server had not yet determined the time in UTC at or before the beginning of the measurement period, or
          * does not have the capability of determining the time in UTC, this field shall be omitted.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.13.5.3.4
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.3.4
          */
         startTimestamp: TlvOptionalField(3, TlvEpochS),
 
@@ -265,7 +265,7 @@ export namespace ElectricalPowerMeasurement {
          * If the server had not yet determined the time in UTC at or before the beginning of the measurement period, or
          * does not have the capability of determining the time in UTC, this field shall be omitted.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.13.5.3.5
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.3.5
          */
         endTimestamp: TlvOptionalField(4, TlvEpochS),
 
@@ -275,7 +275,7 @@ export namespace ElectricalPowerMeasurement {
          * This field shall be greater than or equal to the value of the StartTimestamp field. This field shall be less
          * than or equal to the value of the EndTimestamp field.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.13.5.3.6
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.3.6
          */
         minTimestamp: TlvOptionalField(5, TlvEpochS),
 
@@ -284,7 +284,7 @@ export namespace ElectricalPowerMeasurement {
          * greater than or equal to the value of the StartTimestamp field. This field shall be less than or equal to the
          * value of the EndTimestamp field.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.13.5.3.7
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.3.7
          */
         maxTimestamp: TlvOptionalField(6, TlvEpochS),
 
@@ -294,7 +294,7 @@ export namespace ElectricalPowerMeasurement {
          * If the server had determined the time in UTC at or before the start of the measurement period, this field may
          * be omitted along with the EndSystime, MinSystime, and MaxSystime fields.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.13.5.3.8
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.3.8
          */
         startSystime: TlvOptionalField(7, TlvSysTimeMS),
 
@@ -304,7 +304,7 @@ export namespace ElectricalPowerMeasurement {
          * If the server had determined the time in UTC at the end of the measurement period, this field may be omitted
          * along with the StartSystime field, MinSystime, and MaxSystime fields.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.13.5.3.9
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.3.9
          */
         endSystime: TlvOptionalField(8, TlvSysTimeMS),
 
@@ -314,7 +314,7 @@ export namespace ElectricalPowerMeasurement {
          *
          * This field shall be less than or equal to the value of the EndSystime field.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.13.5.3.10
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.3.10
          */
         minSystime: TlvOptionalField(9, TlvSysTimeMS),
 
@@ -324,7 +324,7 @@ export namespace ElectricalPowerMeasurement {
          *
          * This field shall be less than or equal to the value of the EndSystime field.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.13.5.3.11
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.3.11
          */
         maxSystime: TlvOptionalField(10, TlvSysTimeMS)
     });
@@ -341,20 +341,20 @@ export namespace ElectricalPowerMeasurement {
      * since boot for a given timestamp; this allows for client-side resolution of UTC time for previous reports that
      * only included systime.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.13.5.3
+     * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.3
      */
     export interface MeasurementRange extends TypeFromSchema<typeof TlvMeasurementRange> {}
 
     /**
      * Body of the ElectricalPowerMeasurement measurementPeriodRanges event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.13.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 2.13.7.1
      */
     export const TlvMeasurementPeriodRangesEvent = TlvObject({
         /**
          * This shall indicate the value of the Ranges attribute at the time of event generation.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.13.7.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.7.1.1
          */
         ranges: TlvField(0, TlvArray(TlvMeasurementRange, { minLength: 1 }))
     });
@@ -362,7 +362,7 @@ export namespace ElectricalPowerMeasurement {
     /**
      * Body of the ElectricalPowerMeasurement measurementPeriodRanges event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.13.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 2.13.7.1
      */
     export interface MeasurementPeriodRangesEvent extends TypeFromSchema<typeof TlvMeasurementPeriodRangesEvent> {}
 
@@ -388,7 +388,7 @@ export namespace ElectricalPowerMeasurement {
              *
              * If the current cannot be measured, a value of null shall be returned.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.6.7
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.7
              */
             reactiveCurrent: OptionalAttribute(0x6, TlvNullable(TlvInt64), { default: null }),
 
@@ -410,7 +410,7 @@ export namespace ElectricalPowerMeasurement {
              *
              * If the active or reactive currents cannot be measured, a value of null shall be returned.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.6.8
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.8
              */
             apparentCurrent: OptionalAttribute(0x7, TlvNullable(TlvInt64), { default: null }),
 
@@ -432,7 +432,7 @@ export namespace ElectricalPowerMeasurement {
              * If the Polyphase Power feature is supported, this value represents the combined reactive power imported
              * or exported.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.6.10
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.10
              */
             reactivePower: OptionalAttribute(0x9, TlvNullable(TlvInt64), { default: null }),
 
@@ -452,7 +452,7 @@ export namespace ElectricalPowerMeasurement {
              *
              * If the apparent power cannot be measured, a value of null shall be returned.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.6.11
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.11
              */
             apparentPower: OptionalAttribute(0xa, TlvNullable(TlvInt64), { default: null }),
 
@@ -470,7 +470,7 @@ export namespace ElectricalPowerMeasurement {
              *
              * If the RMS voltage cannot be measured, a value of null shall be returned.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.6.12
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.12
              */
             rmsVoltage: OptionalAttribute(0xb, TlvNullable(TlvInt64), { default: null }),
 
@@ -491,7 +491,7 @@ export namespace ElectricalPowerMeasurement {
              *
              * If the RMS current cannot be measured, a value of null shall be returned.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.6.13
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.13
              */
             rmsCurrent: OptionalAttribute(0xc, TlvNullable(TlvInt64), { default: null }),
 
@@ -511,7 +511,7 @@ export namespace ElectricalPowerMeasurement {
              *
              * If the RMS power cannot be measured, a value of null shall be returned.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.6.14
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.14
              */
             rmsPower: OptionalAttribute(0xd, TlvNullable(TlvInt64), { default: null }),
 
@@ -529,7 +529,7 @@ export namespace ElectricalPowerMeasurement {
              *
              * If the frequency cannot be measured, a value of null shall be returned.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.6.15
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.15
              */
             frequency: OptionalAttribute(0xe, TlvNullable(TlvInt64.bound({ min: 0, max: 1000000 })), { default: null }),
 
@@ -545,7 +545,7 @@ export namespace ElectricalPowerMeasurement {
              * The server may delay marking this attribute ready for report for longer periods if needed, however the
              * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.6.18
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.18
              */
             powerFactor: OptionalAttribute(
                 0x11,
@@ -573,7 +573,7 @@ export namespace ElectricalPowerMeasurement {
              * The server may delay marking this attribute ready for report for longer periods if needed, however the
              * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.6.16
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.16
              */
             harmonicCurrents: Attribute(0xf, TlvNullable(TlvArray(TlvHarmonicMeasurement, { maxLength: 25 })))
         }
@@ -598,7 +598,7 @@ export namespace ElectricalPowerMeasurement {
              * The server may delay marking this attribute ready for report for longer periods if needed, however the
              * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.6.17
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.17
              */
             harmonicPhases: Attribute(0x10, TlvNullable(TlvArray(TlvHarmonicMeasurement, { maxLength: 25 })))
         }
@@ -627,7 +627,7 @@ export namespace ElectricalPowerMeasurement {
              * The server may delay marking this attribute ready for report for longer periods if needed, however the
              * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.6.19
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.19
              */
             neutralCurrent: OptionalAttribute(0x12, TlvNullable(TlvInt64), { default: null })
         }
@@ -645,35 +645,35 @@ export namespace ElectricalPowerMeasurement {
             /**
              * This feature indicates the cluster can measure a direct current.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.4.1
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.4.1
              */
             directCurrent: BitFlag(0),
 
             /**
              * This feature indicates the cluster can measure an alternating current.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.4.2
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.4.2
              */
             alternatingCurrent: BitFlag(1),
 
             /**
              * This feature indicates the cluster represents the collective measurements for a Polyphase power supply.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.4.3
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.4.3
              */
             polyphasePower: BitFlag(2),
 
             /**
              * This feature indicates the cluster can measure the harmonics of an alternating current.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.4.4
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.4.4
              */
             harmonics: BitFlag(3),
 
             /**
              * This feature indicates the cluster can measure the harmonic phases of an alternating current.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.4.5
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.4.5
              */
             powerQuality: BitFlag(4)
         },
@@ -683,14 +683,14 @@ export namespace ElectricalPowerMeasurement {
              * This shall indicate the current mode of the server. For some servers, such as an EV, this may change
              * depending on the mode of charging or discharging.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.6.1
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.1
              */
             powerMode: Attribute(0x0, TlvEnum<PowerMode>()),
 
             /**
              * This shall indicate the maximum number of measurement types the server is capable of reporting.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.6.2
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.2
              */
             numberOfMeasurementTypes: FixedAttribute(0x1, TlvUInt8.bound({ max: 32 })),
 
@@ -699,7 +699,7 @@ export namespace ElectricalPowerMeasurement {
              * There shall be an entry for ActivePower, as well as any other measurement types implemented by this
              * server.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.6.3
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.3
              */
             accuracy: FixedAttribute(0x2, TlvArray(TlvMeasurementAccuracy, { minLength: 1 })),
 
@@ -717,7 +717,7 @@ export namespace ElectricalPowerMeasurement {
              * The server may delay marking this attribute ready for report for longer periods if needed, however the
              * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.6.4
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.4
              */
             ranges: OptionalAttribute(0x3, TlvArray(TlvMeasurementRange, { minLength: 0 }), { default: [] }),
 
@@ -735,7 +735,7 @@ export namespace ElectricalPowerMeasurement {
              *
              * If the voltage cannot be measured, a value of null shall be returned.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.6.5
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.5
              */
             voltage: OptionalAttribute(0x4, TlvNullable(TlvInt64), { default: null }),
 
@@ -756,7 +756,7 @@ export namespace ElectricalPowerMeasurement {
              *
              * If the current cannot be measured, a value of null shall be returned.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.6.6
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.6
              */
             activeCurrent: OptionalAttribute(0x5, TlvNullable(TlvInt64), { default: null }),
 
@@ -778,7 +778,7 @@ export namespace ElectricalPowerMeasurement {
              * If the Polyphase Power feature is set, this value represents the combined active power imported or
              * exported.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.6.9
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.9
              */
             activePower: Attribute(0x8, TlvNullable(TlvInt64))
         },
@@ -788,7 +788,7 @@ export namespace ElectricalPowerMeasurement {
              * If supported, this event shall be generated at the end of a measurement period. The start and end times
              * for measurement periods shall be determined by the server, and may represent overlapping periods.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.13.7.1
+             * @see {@link MatterSpecification.v142.Cluster} § 2.13.7.1
              */
             measurementPeriodRanges: OptionalEvent(0x0, Priority.Info, TlvMeasurementPeriodRangesEvent)
         },
@@ -820,7 +820,7 @@ export namespace ElectricalPowerMeasurement {
      * Per the Matter specification you cannot use {@link ElectricalPowerMeasurementCluster} without enabling certain
      * feature combinations. You must use the {@link with} factory method to obtain a working cluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.13
+     * @see {@link MatterSpecification.v142.Cluster} § 2.13
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

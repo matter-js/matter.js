@@ -43,7 +43,7 @@ export namespace AdministratorCommissioningInterface {
          *
          * In case of any other parameter error, this command shall fail with a status code of COMMAND_INVALID.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.19.8.1
+         * @see {@link MatterSpecification.v142.Core} § 11.19.8.1
          */
         openCommissioningWindow(request: AdministratorCommissioning.OpenCommissioningWindowRequest): MaybePromise;
 
@@ -61,7 +61,7 @@ export namespace AdministratorCommissioningInterface {
          * shall immediately expire the fail-safe and perform the cleanup steps outlined in Section 11.10.7.2.2,
          * “Behavior on expiry of Fail-Safe timer”.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.19.8.3
+         * @see {@link MatterSpecification.v142.Core} § 11.19.8.3
          */
         revokeCommissioning(): MaybePromise;
     }
@@ -86,7 +86,7 @@ export namespace AdministratorCommissioningInterface {
          * command, see Section 5.5, “Commissioning Flows”. The new Administrator shall discover the Node on the IP
          * network using DNS-based Service Discovery (DNS-SD) for commissioning.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.19.8.2
+         * @see {@link MatterSpecification.v142.Core} § 11.19.8.2
          */
         openBasicCommissioningWindow(request: AdministratorCommissioning.OpenBasicCommissioningWindowRequest): MaybePromise;
     }

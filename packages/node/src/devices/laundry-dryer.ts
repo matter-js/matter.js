@@ -27,7 +27,7 @@ import { Identity } from "#general";
 /**
  * A Laundry Dryer represents a device that is capable of drying laundry items.
  *
- * @see {@link MatterSpecification.v141.Device} § 13.6
+ * @see {@link MatterSpecification.v142.Device} § 13.6
  */
 export interface LaundryDryerDevice extends Identity<typeof LaundryDryerDeviceDefinition> {}
 

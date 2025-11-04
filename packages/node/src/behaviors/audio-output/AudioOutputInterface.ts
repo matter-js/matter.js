@@ -18,7 +18,7 @@ export namespace AudioOutputInterface {
          * Note that when the current output is set to an output of type HDMI, adjustments to volume via a Speaker
          * endpoint on the same node may cause HDMI volume up/down commands to be sent to the given HDMI output.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.5.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.5.7.1
          */
         selectOutput(request: AudioOutput.SelectOutputRequest): MaybePromise;
     }
@@ -30,7 +30,7 @@ export namespace AudioOutputInterface {
          * Updates to the output name shall appear in the device’s settings menus. Name updates may automatically be
          * sent to the actual device to which the output connects.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.5.7.2
+         * @see {@link MatterSpecification.v142.Cluster} § 6.5.7.2
          */
         renameOutput(request: AudioOutput.RenameOutputRequest): MaybePromise;
     }

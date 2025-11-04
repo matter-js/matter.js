@@ -22,7 +22,7 @@ export namespace SmokeCoAlarmInterface {
          * shall be generated, the TestInProgress attribute shall be set to False and ExpressedState attribute shall be
          * updated to reflect the current state of the server.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.11.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 2.11.7.1
          */
         selfTestRequest(): MaybePromise;
     }

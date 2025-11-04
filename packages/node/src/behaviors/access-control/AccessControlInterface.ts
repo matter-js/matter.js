@@ -29,7 +29,7 @@ export namespace AccessControlInterface {
          * The ARL attribute may change at any time due to actions taken by the user, or the service associated with the
          * device vendor.
          *
-         * @see {@link MatterSpecification.v141.Core} § 9.10.8.1
+         * @see {@link MatterSpecification.v142.Core} § 9.10.8.1
          */
         reviewFabricRestrictions(request: AccessControl.ReviewFabricRestrictionsRequest): MaybePromise<AccessControl.ReviewFabricRestrictionsResponse>;
     }

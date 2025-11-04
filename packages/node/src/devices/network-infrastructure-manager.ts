@@ -37,7 +37,7 @@ import { Identity } from "#general";
  * Device feature of the Access Control Cluster (see Section 15.3.5.1, “Access Control MNGD Conformance”). Consequently,
  * Commissioners of this device type should be aware of this feature and its use.
  *
- * @see {@link MatterSpecification.v141.Device} § 15.3
+ * @see {@link MatterSpecification.v142.Device} § 15.3
  */
 export interface NetworkInfrastructureManagerDevice extends Identity<typeof NetworkInfrastructureManagerDeviceDefinition> {}
 

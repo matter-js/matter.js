@@ -19,13 +19,13 @@ export namespace BooleanState {
     /**
      * Body of the BooleanState stateChange event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.7.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.7.5.1
      */
     export const TlvStateChangeEvent = TlvObject({
         /**
          * This field shall indicate the new value of the StateValue attribute.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.7.5.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.7.5.1.1
          */
         stateValue: TlvField(0, TlvBoolean)
     });
@@ -33,7 +33,7 @@ export namespace BooleanState {
     /**
      * Body of the BooleanState stateChange event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.7.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.7.5.1
      */
     export interface StateChangeEvent extends TypeFromSchema<typeof TlvStateChangeEvent> {}
 
@@ -53,7 +53,7 @@ export namespace BooleanState {
              *
              * For example, in a Contact Sensor device type, FALSE=open or no contact, TRUE=closed or contact.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.7.4.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.7.4.1
              */
             stateValue: Attribute(0x0, TlvBoolean)
         },
@@ -62,7 +62,7 @@ export namespace BooleanState {
             /**
              * If this event is supported, it shall be generated when the StateValue attribute changes.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.7.5.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.7.5.1
              */
             stateChange: OptionalEvent(0x0, Priority.Info, TlvStateChangeEvent)
         }
@@ -71,7 +71,7 @@ export namespace BooleanState {
     /**
      * This cluster provides an interface to a boolean state.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.7
+     * @see {@link MatterSpecification.v142.Cluster} § 1.7
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

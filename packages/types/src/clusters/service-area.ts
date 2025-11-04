@@ -23,7 +23,7 @@ export namespace ServiceArea {
     /**
      * These are optional features supported by ServiceAreaCluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.17.4
+     * @see {@link MatterSpecification.v142.Cluster} § 1.17.4
      */
     export enum Feature {
         /**
@@ -32,7 +32,7 @@ export namespace ServiceArea {
          * This feature indicates whether this device allows changing the selected areas, by using the SelectAreas
          * command, while operating.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.17.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.17.4.1
          */
         SelectWhileRunning = "SelectWhileRunning",
 
@@ -54,13 +54,13 @@ export namespace ServiceArea {
     /**
      * This is a struct representing a map.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.3
+     * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.3
      */
     export const TlvMap = TlvObject({
         /**
          * This field shall represent the map’s identifier.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.3.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.3.1
          */
         mapId: TlvField(0, TlvUInt32),
 
@@ -68,7 +68,7 @@ export namespace ServiceArea {
          * This field shall represent a human understandable map description. For example: "Main Floor", or "Second
          * Level".
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.3.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.3.2
          */
         name: TlvField(1, TlvString.bound({ maxLength: 64 }))
     });
@@ -76,14 +76,14 @@ export namespace ServiceArea {
     /**
      * This is a struct representing a map.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.3
+     * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.3
      */
     export interface Map extends TypeFromSchema<typeof TlvMap> {}
 
     /**
      * The following table defines the status values.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.6
+     * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.6
      */
     export enum OperationalStatus {
         /**
@@ -113,14 +113,14 @@ export namespace ServiceArea {
     /**
      * This is a struct indicating the progress.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.5
+     * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.5
      */
     export const TlvProgress = TlvObject({
         /**
          * This field shall indicate the identifier of the area, and the identifier shall be an entry in the
          * SupportedAreas attribute’s list.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.5.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.5.1
          */
         areaId: TlvField(0, TlvUInt32),
 
@@ -128,7 +128,7 @@ export namespace ServiceArea {
          * This field shall indicate the operational status of the device regarding the area indicated by the AreaID
          * field.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.5.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.5.2
          */
         status: TlvField(1, TlvEnum<OperationalStatus>()),
 
@@ -144,7 +144,7 @@ export namespace ServiceArea {
          *
          * Null if the Status field is not set to Completed or Skipped.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.5.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.5.3
          */
         totalOperationalTime: TlvOptionalField(2, TlvNullable(TlvUInt32)),
 
@@ -159,7 +159,7 @@ export namespace ServiceArea {
          * After initializing the ProgressStruct instance, the server SHOULD NOT change the value of this field, except
          * when repopulating the entire instance, to avoid excessive reporting of the Progress attribute changes.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.5.4
+         * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.5.4
          */
         estimatedTime: TlvOptionalField(3, TlvNullable(TlvUInt32))
     });
@@ -167,14 +167,14 @@ export namespace ServiceArea {
     /**
      * This is a struct indicating the progress.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.5
+     * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.5
      */
     export interface Progress extends TypeFromSchema<typeof TlvProgress> {}
 
     /**
      * The data from this structure indicates a landmark and position relative to the landmark.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.1
      */
     export const TlvLandmarkInfo = TlvObject({
         /**
@@ -183,7 +183,7 @@ export namespace ServiceArea {
          * This field shall be the ID of a landmark semantic tag, located within the Common Landmark Namespace. For
          * example, this tag may indicate that the area refers to an area next to a table.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.1.1
          */
         landmarkTag: TlvField(0, TlvUInt8),
 
@@ -200,7 +200,7 @@ export namespace ServiceArea {
          * LandmarkTag field. For example, this tag, in conjunction with the LandmarkTag field, may indicate that the
          * area refers to a zone under a table.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.1.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.1.2
          */
         relativePositionTag: TlvField(1, TlvNullable(TlvUInt8))
     });
@@ -208,7 +208,7 @@ export namespace ServiceArea {
     /**
      * The data from this structure indicates a landmark and position relative to the landmark.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.1
      */
     export interface LandmarkInfo extends TypeFromSchema<typeof TlvLandmarkInfo> {}
 
@@ -245,7 +245,7 @@ export namespace ServiceArea {
      *
      *   • LandmarkInfo field
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.2
      */
     export const TlvAreaInfo = TlvObject({
         /**
@@ -261,7 +261,7 @@ export namespace ServiceArea {
          *     semantic tag. With such an area indication, the client can request the device to operate in (or service)
          *     the area located under the table.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.2.1
          */
         locationInfo: TlvField(0, TlvNullable(TlvLocationdesc)),
 
@@ -273,7 +273,7 @@ export namespace ServiceArea {
          * located, as indicated by the LandmarkTag and, if not null, by the RelativePositionTag fields, rather than to
          * the entire room or floor where the landmark is located, if those are indicated by the LocationInfo field.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.2.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.2.2
          */
         landmarkInfo: TlvField(1, TlvNullable(TlvLandmarkInfo))
     });
@@ -311,20 +311,20 @@ export namespace ServiceArea {
      *
      *   • LandmarkInfo field
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.2
      */
     export interface AreaInfo extends TypeFromSchema<typeof TlvAreaInfo> {}
 
     /**
      * This is a struct representing an area known to the server.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.4
+     * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.4
      */
     export const TlvArea = TlvObject({
         /**
          * This field shall represent the identifier of the area.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.4.1
          */
         areaId: TlvField(0, TlvUInt32),
 
@@ -335,7 +335,7 @@ export namespace ServiceArea {
          * If the SupportedMaps attribute is not empty, this field shall match the MapID field of an entry from the
          * SupportedMaps attribute’s list. If the SupportedMaps attribute is empty, this field shall be null.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.4.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.4.2
          */
         mapId: TlvField(1, TlvNullable(TlvUInt32)),
 
@@ -350,7 +350,7 @@ export namespace ServiceArea {
          * > If any entries on the SupportedAreas attribute’s list have the AreaInfo field missing the semantic data,
          *   the client may remind the user to assign the respective data.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.4.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.4.3
          */
         areaInfo: TlvField(2, TlvAreaInfo)
     });
@@ -358,14 +358,14 @@ export namespace ServiceArea {
     /**
      * This is a struct representing an area known to the server.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.4
+     * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.4
      */
     export interface Area extends TypeFromSchema<typeof TlvArea> {}
 
     /**
      * Input to the ServiceArea selectAreas command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.17.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.17.7.1
      */
     export const TlvSelectAreasRequest = TlvObject({
         /**
@@ -375,7 +375,7 @@ export namespace ServiceArea {
          * specific areas, and the operation will not allow skipping using the SkipArea Command, otherwise the field
          * shall be a list of unique values that match the AreaID field of entries on the SupportedAreas list.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.17.7.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.17.7.1.1
          */
         newAreas: TlvField(0, TlvArray(TlvUInt32))
     });
@@ -383,12 +383,12 @@ export namespace ServiceArea {
     /**
      * Input to the ServiceArea selectAreas command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.17.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.17.7.1
      */
     export interface SelectAreasRequest extends TypeFromSchema<typeof TlvSelectAreasRequest> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.6.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.6.1
      */
     export enum SelectAreasStatus {
         /**
@@ -418,7 +418,7 @@ export namespace ServiceArea {
     /**
      * This command is sent by the device on receipt of the SelectAreas command.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.17.7.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.17.7.2
      */
     export const TlvSelectAreasResponse = TlvObject({
         /**
@@ -431,7 +431,7 @@ export namespace ServiceArea {
          * Status field is set to InvalidInMode, the StatusText field SHOULD indicate why the request is not allowed,
          * given the current mode of the device, which may involve other clusters.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.17.7.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.17.7.2.1
          */
         status: TlvField(0, TlvEnum<SelectAreasStatus>()),
 
@@ -441,14 +441,14 @@ export namespace ServiceArea {
     /**
      * This command is sent by the device on receipt of the SelectAreas command.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.17.7.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.17.7.2
      */
     export interface SelectAreasResponse extends TypeFromSchema<typeof TlvSelectAreasResponse> {}
 
     /**
      * Input to the ServiceArea skipArea command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.17.7.3
+     * @see {@link MatterSpecification.v142.Cluster} § 1.17.7.3
      */
     export const TlvSkipAreaRequest = TlvObject({
         /**
@@ -456,7 +456,7 @@ export namespace ServiceArea {
          *
          * The SkippedArea field shall match an entry in the SupportedAreas list.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.17.7.3.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.17.7.3.1
          */
         skippedArea: TlvField(0, TlvUInt32)
     });
@@ -464,12 +464,12 @@ export namespace ServiceArea {
     /**
      * Input to the ServiceArea skipArea command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.17.7.3
+     * @see {@link MatterSpecification.v142.Cluster} § 1.17.7.3
      */
     export interface SkipAreaRequest extends TypeFromSchema<typeof TlvSkipAreaRequest> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.17.5.6.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.6.2
      */
     export enum SkipAreaStatus {
         /**
@@ -498,7 +498,7 @@ export namespace ServiceArea {
     /**
      * This command is sent by the device on receipt of the SkipArea command.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.17.7.4
+     * @see {@link MatterSpecification.v142.Cluster} § 1.17.7.4
      */
     export const TlvSkipAreaResponse = TlvObject({
         /**
@@ -511,7 +511,7 @@ export namespace ServiceArea {
          * field is set to InvalidInMode, the StatusText field SHOULD indicate why the request is not allowed, given the
          * current mode of the device, which may involve other clusters.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.17.7.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.17.7.4.1
          */
         status: TlvField(0, TlvEnum<SkipAreaStatus>()),
 
@@ -521,7 +521,7 @@ export namespace ServiceArea {
     /**
      * This command is sent by the device on receipt of the SkipArea command.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.17.7.4
+     * @see {@link MatterSpecification.v142.Cluster} § 1.17.7.4
      */
     export interface SkipAreaResponse extends TypeFromSchema<typeof TlvSkipAreaResponse> {}
 
@@ -575,7 +575,7 @@ export namespace ServiceArea {
              * The SupportedMaps attribute list changes mentioned above SHOULD NOT be allowed while the device is
              * operating, to reduce the impact on the clients, and the potential confusion for the users.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.17.6.2
+             * @see {@link MatterSpecification.v142.Cluster} § 1.17.6.2
              */
             supportedMaps: Attribute(0x1, TlvArray(TlvMap, { maxLength: 255 }), { default: [] })
         }
@@ -625,7 +625,7 @@ export namespace ServiceArea {
              *   UnableToCompleteOperation error from that cluster specification). The clients SHOULD then read the
              *   Progress attribute, and indicate which areas have been successfully serviced (marked as completed).
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.17.6.6
+             * @see {@link MatterSpecification.v142.Cluster} § 1.17.6.6
              */
             progress: Attribute(0x5, TlvArray(TlvProgress, { maxLength: 255 }), { default: [] })
         }
@@ -644,7 +644,7 @@ export namespace ServiceArea {
              * This feature indicates whether this device allows changing the selected areas, by using the SelectAreas
              * command, while operating.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.17.4.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.17.4.1
              */
             selectWhileRunning: BitFlag(0),
 
@@ -704,7 +704,7 @@ export namespace ServiceArea {
              *
              *   • AreaID=3, LocationName="hallway", MapID=2
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.17.6.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.17.6.1
              */
             supportedAreas: Attribute(0x0, TlvArray(TlvArea, { maxLength: 255 }), { default: [] }),
 
@@ -723,7 +723,7 @@ export namespace ServiceArea {
              *
              *   • each entry in this list shall have a unique value
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.17.6.3
+             * @see {@link MatterSpecification.v142.Cluster} § 1.17.6.3
              */
             selectedAreas: Attribute(0x2, TlvArray(TlvUInt32), { default: [] }),
 
@@ -752,7 +752,7 @@ export namespace ServiceArea {
              * If not null, the value of this attribute shall match the AreaID field of an entry on the SupportedAreas
              * attribute’s list.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.17.6.4
+             * @see {@link MatterSpecification.v142.Cluster} § 1.17.6.4
              */
             currentArea: OptionalAttribute(0x3, TlvNullable(TlvUInt32), { default: null }),
 
@@ -785,7 +785,7 @@ export namespace ServiceArea {
              *     > If the device is capable of pausing its operation, this attribute may be set to null, to indicate
              *       that completion time is unknown, or increment the value while being in the paused state.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.17.6.5
+             * @see {@link MatterSpecification.v142.Cluster} § 1.17.6.5
              */
             estimatedEndTime: OptionalAttribute(0x4, TlvNullable(TlvEpochS), { default: null })
         },
@@ -796,7 +796,7 @@ export namespace ServiceArea {
              *
              * On receipt of this command the device shall respond with a SelectAreasResponse command.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.17.7.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.17.7.1
              */
             selectAreas: Command(0x0, TlvSelectAreasRequest, 0x1, TlvSelectAreasResponse),
 
@@ -806,7 +806,7 @@ export namespace ServiceArea {
              *
              * On receipt of this command the device shall respond with a SkipAreaResponse command.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.17.7.3
+             * @see {@link MatterSpecification.v142.Cluster} § 1.17.7.3
              */
             skipArea: OptionalCommand(0x2, TlvSkipAreaRequest, 0x3, TlvSkipAreaResponse)
         },
@@ -845,7 +845,7 @@ export namespace ServiceArea {
      * ServiceAreaCluster supports optional features that you can enable with the ServiceAreaCluster.with() factory
      * method.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.17
+     * @see {@link MatterSpecification.v142.Cluster} § 1.17
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

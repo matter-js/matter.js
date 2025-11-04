@@ -19,7 +19,7 @@ export namespace OperationalCredentialsInterface {
          * command with a Status Code of INVALID_COMMAND. The AttestationNonce field shall be used in the computation of
          * the Attestation Information.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.18.6.1
+         * @see {@link MatterSpecification.v142.Core} § 11.18.6.1
          */
         attestationRequest(request: OperationalCredentials.AttestationRequest): MaybePromise<OperationalCredentials.AttestationResponse>;
 
@@ -29,7 +29,7 @@ export namespace OperationalCredentialsInterface {
          * If the CertificateType is not a valid value per CertificateChainTypeEnum then the command shall fail with a
          * Status Code of INVALID_COMMAND.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.18.6.3
+         * @see {@link MatterSpecification.v142.Core} § 11.18.6.3
          */
         certificateChainRequest(request: OperationalCredentials.CertificateChainRequest): MaybePromise<OperationalCredentials.CertificateChainResponse>;
 
@@ -61,7 +61,7 @@ export namespace OperationalCredentialsInterface {
          * to collide with an existing key pair already previously generated and installed, and that check had been
          * executed, then this command shall fail with a FAILURE status code sent back to the initiator.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.18.6.5
+         * @see {@link MatterSpecification.v142.Core} § 11.18.6.5
          */
         csrRequest(request: OperationalCredentials.CsrRequest): MaybePromise<OperationalCredentials.CsrResponse>;
 
@@ -78,7 +78,7 @@ export namespace OperationalCredentialsInterface {
          *
          * A Commissioner or Administrator SHOULD issue this command after performing the Attestation Procedure.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.18.6.8
+         * @see {@link MatterSpecification.v142.Core} § 11.18.6.8
          */
         addNoc(request: OperationalCredentials.AddNocRequest): MaybePromise<OperationalCredentials.NocResponse>;
 
@@ -139,7 +139,7 @@ export namespace OperationalCredentialsInterface {
          * Thereafter, the Node shall respond with an NOCResponse with a StatusCode of OK and a FabricIndex field
          * matching the FabricIndex under which the updated NOC is scoped.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.18.6.9
+         * @see {@link MatterSpecification.v142.Core} § 11.18.6.9
          */
         updateNoc(request: OperationalCredentials.UpdateNocRequest): MaybePromise<OperationalCredentials.NocResponse>;
 
@@ -159,7 +159,7 @@ export namespace OperationalCredentialsInterface {
          * Administrators to provide additional per-fabric context when operations such as RemoveFabric are considered
          * or used.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.18.6.11
+         * @see {@link MatterSpecification.v142.Core} § 11.18.6.11
          */
         updateFabricLabel(request: OperationalCredentials.UpdateFabricLabelRequest): MaybePromise<OperationalCredentials.NocResponse>;
 
@@ -182,7 +182,7 @@ export namespace OperationalCredentialsInterface {
          * to notify the other Administrative Domain’s party of the removal. Otherwise, users may only observe the
          * removal of a Fabric association as persistently failing attempts to reach a Node operationally.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.18.6.12
+         * @see {@link MatterSpecification.v142.Core} § 11.18.6.12
          */
         removeFabric(request: OperationalCredentials.RemoveFabricRequest): MaybePromise<OperationalCredentials.NocResponse>;
 
@@ -213,7 +213,7 @@ export namespace OperationalCredentialsInterface {
          * Note that the only method of removing a trusted root is by removing the Fabric that uses it as its root of
          * trust using the RemoveFabric command.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.18.6.13
+         * @see {@link MatterSpecification.v142.Core} § 11.18.6.13
          */
         addTrustedRootCertificate(request: OperationalCredentials.AddTrustedRootCertificateRequest): MaybePromise;
 
@@ -270,7 +270,7 @@ export namespace OperationalCredentialsInterface {
          * a CommissioningComplete command. In other words, field updates apply to the state of the Fabrics Attribute as
          * currently visible, even for an existing fabric currently in process of being updated.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.18.6.14
+         * @see {@link MatterSpecification.v142.Core} § 11.18.6.14
          */
         setVidVerificationStatement(request: OperationalCredentials.SetVidVerificationStatementRequest): MaybePromise;
 
@@ -293,7 +293,7 @@ export namespace OperationalCredentialsInterface {
          *
          * Otherwise, if no other errors have occurred, the command shall generate a SignVIDVerificationResponse.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.18.6.15
+         * @see {@link MatterSpecification.v142.Core} § 11.18.6.15
          */
         signVidVerificationRequest(request: OperationalCredentials.SignVidVerificationRequest): MaybePromise<OperationalCredentials.SignVidVerificationResponse>;
     }

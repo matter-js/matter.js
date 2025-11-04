@@ -35,7 +35,7 @@ import { Identity } from "#general";
  * default because you must select the features your device supports. You can add manually using
  * SecondaryNetworkInterfaceEndpoint.with().
  *
- * @see {@link MatterSpecification.v141.Device} § 2.8
+ * @see {@link MatterSpecification.v142.Device} § 2.8
  */
 export interface SecondaryNetworkInterfaceEndpoint extends Identity<typeof SecondaryNetworkInterfaceEndpointDefinition> {}
 

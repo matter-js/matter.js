@@ -30,7 +30,7 @@ export namespace BooleanStateConfiguration {
     /**
      * These are optional features supported by BooleanStateConfigurationCluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.8.4
+     * @see {@link MatterSpecification.v142.Cluster} § 1.8.4
      */
     export enum Feature {
         /**
@@ -67,7 +67,7 @@ export namespace BooleanStateConfiguration {
          * is intended to stop the physical alarming, e.g. emitting a sound or blinking a light; it does not impact
          * alarm reporting in AlarmsActive.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.8.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.8.4.1
          */
         AlarmSuppress = "AlarmSuppress",
 
@@ -80,7 +80,7 @@ export namespace BooleanStateConfiguration {
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.8.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.8.5.1
      */
     export const AlarmMode = {
         /**
@@ -97,14 +97,14 @@ export namespace BooleanStateConfiguration {
     /**
      * Input to the BooleanStateConfiguration enableDisableAlarm command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.8.7.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.2
      */
     export const TlvEnableDisableAlarmRequest = TlvObject({
         /**
          * This field shall indicate the alarm modes to either enable or disable depending on the bit status, as
          * specified for the AlarmsEnabled attribute.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.8.7.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.2.1
          */
         alarmsToEnableDisable: TlvField(0, TlvBitmap(TlvUInt8, AlarmMode))
     });
@@ -112,21 +112,21 @@ export namespace BooleanStateConfiguration {
     /**
      * Input to the BooleanStateConfiguration enableDisableAlarm command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.8.7.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.2
      */
     export interface EnableDisableAlarmRequest extends TypeFromSchema<typeof TlvEnableDisableAlarmRequest> {}
 
     /**
      * Body of the BooleanStateConfiguration alarmsStateChanged event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.8.8.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.8.8.1
      */
     export const TlvAlarmsStateChangedEvent = TlvObject({
         /**
          * This field shall indicate the state of active alarm modes, as indicated by the AlarmsActive attribute, at the
          * time the event was generated.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.8.8.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.8.8.1.1
          */
         alarmsActive: TlvField(0, TlvBitmap(TlvUInt8, AlarmMode)),
 
@@ -134,7 +134,7 @@ export namespace BooleanStateConfiguration {
          * This field shall indicate the state of suppressed alarm modes, as indicated by the AlarmsSuppressed
          * attribute, at the time the event was generated.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.8.8.1.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.8.8.1.2
          */
         alarmsSuppressed: TlvOptionalField(1, TlvBitmap(TlvUInt8, AlarmMode))
     });
@@ -142,20 +142,20 @@ export namespace BooleanStateConfiguration {
     /**
      * Body of the BooleanStateConfiguration alarmsStateChanged event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.8.8.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.8.8.1
      */
     export interface AlarmsStateChangedEvent extends TypeFromSchema<typeof TlvAlarmsStateChangedEvent> {}
 
     /**
      * Input to the BooleanStateConfiguration suppressAlarm command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.8.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.1
      */
     export const TlvSuppressAlarmRequest = TlvObject({
         /**
          * This field shall indicate the alarm modes to suppress.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.8.7.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.1.1
          */
         alarmsToSuppress: TlvField(0, TlvBitmap(TlvUInt8, AlarmMode))
     });
@@ -163,12 +163,12 @@ export namespace BooleanStateConfiguration {
     /**
      * Input to the BooleanStateConfiguration suppressAlarm command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.8.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.1
      */
     export interface SuppressAlarmRequest extends TypeFromSchema<typeof TlvSuppressAlarmRequest> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.8.5.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.8.5.2
      */
     export const SensorFault = {
         /**
@@ -180,13 +180,13 @@ export namespace BooleanStateConfiguration {
     /**
      * Body of the BooleanStateConfiguration sensorFault event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.8.8.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.8.8.2
      */
     export const TlvSensorFaultEvent = TlvObject({
         /**
          * This field shall indicate the value of the SensorFault attribute, at the time this event is generated.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.8.8.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.8.8.2.1
          */
         sensorFault: TlvField(0, TlvBitmap(TlvUInt16, SensorFault))
     });
@@ -194,7 +194,7 @@ export namespace BooleanStateConfiguration {
     /**
      * Body of the BooleanStateConfiguration sensorFault event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.8.8.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.8.8.2
      */
     export interface SensorFaultEvent extends TypeFromSchema<typeof TlvSensorFaultEvent> {}
 
@@ -209,7 +209,7 @@ export namespace BooleanStateConfiguration {
              * If a write interaction to this attribute contains an unsupported sensitivity value, a CONSTRAINT_ERROR
              * status shall be returned.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.8.6.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.8.6.1
              */
             currentSensitivityLevel: WritableAttribute(0x0, TlvUInt8, { persistent: true }),
 
@@ -223,14 +223,14 @@ export namespace BooleanStateConfiguration {
              * The number of supported sensitivity levels SHOULD represent unique sensitivity levels supported by the
              * device.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.8.6.2
+             * @see {@link MatterSpecification.v142.Cluster} § 1.8.6.2
              */
             supportedSensitivityLevels: FixedAttribute(0x1, TlvUInt8.bound({ min: 2, max: 10 })),
 
             /**
              * Indicates the default sensitivity level selected by the manufacturer.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.8.6.3
+             * @see {@link MatterSpecification.v142.Cluster} § 1.8.6.3
              */
             defaultSensitivityLevel: OptionalFixedAttribute(0x2, TlvUInt8)
         }
@@ -253,7 +253,7 @@ export namespace BooleanStateConfiguration {
              *
              *   • 1 = Active
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.8.6.4
+             * @see {@link MatterSpecification.v142.Cluster} § 1.8.6.4
              */
             alarmsActive: Attribute(0x3, TlvBitmap(TlvUInt8, AlarmMode)),
 
@@ -267,7 +267,7 @@ export namespace BooleanStateConfiguration {
              *
              *   • 1 = Enabled
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.8.6.6
+             * @see {@link MatterSpecification.v142.Cluster} § 1.8.6.6
              */
             alarmsEnabled: OptionalAttribute(0x5, TlvBitmap(TlvUInt8, AlarmMode), { persistent: true }),
 
@@ -278,14 +278,14 @@ export namespace BooleanStateConfiguration {
              *
              *   • 1 = Supported
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.8.6.7
+             * @see {@link MatterSpecification.v142.Cluster} § 1.8.6.7
              */
             alarmsSupported: FixedAttribute(0x6, TlvBitmap(TlvUInt8, AlarmMode))
         },
 
         commands: {
             /**
-             * @see {@link MatterSpecification.v141.Cluster} § 1.8.7.2
+             * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.2
              */
             enableDisableAlarm: Command(0x1, TlvEnableDisableAlarmRequest, 0x1, TlvNoResponse)
         },
@@ -300,7 +300,7 @@ export namespace BooleanStateConfiguration {
              * If several alarm modes change state at the same time, a single event combining multiple changes may be
              * emitted instead of multiple events each representing a single change.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.8.8.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.8.8.1
              */
             alarmsStateChanged: Event(0x0, Priority.Info, TlvAlarmsStateChangedEvent)
         }
@@ -323,14 +323,14 @@ export namespace BooleanStateConfiguration {
              *
              *   • 1 = Suppressed
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.8.6.5
+             * @see {@link MatterSpecification.v142.Cluster} § 1.8.6.5
              */
             alarmsSuppressed: Attribute(0x4, TlvBitmap(TlvUInt8, AlarmMode))
         },
 
         commands: {
             /**
-             * @see {@link MatterSpecification.v141.Cluster} § 1.8.7.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.1
              */
             suppressAlarm: Command(0x0, TlvSuppressAlarmRequest, 0x0, TlvNoResponse)
         }
@@ -374,7 +374,7 @@ export namespace BooleanStateConfiguration {
              * and is intended to stop the physical alarming, e.g. emitting a sound or blinking a light; it does not
              * impact alarm reporting in AlarmsActive.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.8.4.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.8.4.1
              */
             alarmSuppress: BitFlag(2),
 
@@ -388,7 +388,7 @@ export namespace BooleanStateConfiguration {
             /**
              * Indicates any faults registered by the device.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.8.6.8
+             * @see {@link MatterSpecification.v142.Cluster} § 1.8.6.8
              */
             sensorFault: OptionalAttribute(0x7, TlvBitmap(TlvUInt16, SensorFault))
         },
@@ -397,7 +397,7 @@ export namespace BooleanStateConfiguration {
             /**
              * This event shall be generated when the device registers or clears a fault.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.8.8.2
+             * @see {@link MatterSpecification.v142.Cluster} § 1.8.8.2
              */
             sensorFault: OptionalEvent(0x1, Priority.Info, TlvSensorFaultEvent)
         },
@@ -427,7 +427,7 @@ export namespace BooleanStateConfiguration {
      * BooleanStateConfigurationCluster supports optional features that you can enable with the
      * BooleanStateConfigurationCluster.with() factory method.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.8
+     * @see {@link MatterSpecification.v142.Cluster} § 1.8
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

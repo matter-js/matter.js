@@ -20,7 +20,7 @@ import { Identity } from "#general";
  * Note that the Water Heater device type can also be heated by a heat pump and has similar requirements, but that
  * cannot be used for space heating.
  *
- * @see {@link MatterSpecification.v141.Device} § 14.5
+ * @see {@link MatterSpecification.v142.Device} § 14.5
  */
 export interface HeatPumpDevice extends Identity<typeof HeatPumpDeviceDefinition> {}
 

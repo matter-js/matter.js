@@ -23,7 +23,7 @@ export namespace OvenMode {
     /**
      * These are optional features supported by OvenModeCluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 8.11.4
+     * @see {@link MatterSpecification.v142.Cluster} § 8.11.4
      */
     export enum Feature {
         /**
@@ -36,59 +36,59 @@ export namespace OvenMode {
 
     export enum ModeTag {
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
          */
         Auto = 0,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
          */
         Quick = 1,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
          */
         Quiet = 2,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
          */
         LowNoise = 3,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
          */
         LowEnergy = 4,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
          */
         Vacation = 5,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
          */
         Min = 6,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
          */
         Max = 7,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
          */
         Night = 8,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
          */
         Day = 9,
 
         /**
          * This mode sets the device into baking mode for baking food items.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 8.11.7.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1.1
          */
         Bake = 16384,
 
@@ -96,7 +96,7 @@ export namespace OvenMode {
          * This mode sets the device into convection mode which creates an airflow within the device during the cooking
          * duration.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 8.11.7.1.2
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1.2
          */
         Convection = 16385,
 
@@ -104,50 +104,50 @@ export namespace OvenMode {
          * This mode sets the device into grill mode for grilling food items. This is the same as Broil for many
          * regions.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 8.11.7.1.3
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1.3
          */
         Grill = 16386,
 
         /**
          * This mode sets the device into roast mode for roasting food items.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 8.11.7.1.4
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1.4
          */
         Roast = 16387,
 
         /**
          * This mode sets the device into cleaning mode to clean the internal components of the appliance.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 8.11.7.1.5
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1.5
          */
         Clean = 16388,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
          */
         ConvectionBake = 16389,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
          */
         ConvectionRoast = 16390,
 
         /**
          * This mode sets the device into a warming mode which begins warming the cavity.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 8.11.7.1.8
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1.8
          */
         Warming = 16391,
 
         /**
          * This mode sets the device into proofing mode which creates an environment ready for proofing.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 8.11.7.1.9
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1.9
          */
         Proofing = 16392,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
          */
         Steam = 16393
     }
@@ -155,7 +155,7 @@ export namespace OvenMode {
     /**
      * A Mode Tag is meant to be interpreted by the client for the purpose the cluster serves.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1
      */
     export const TlvModeTagStruct = TlvObject({
         /**
@@ -169,7 +169,7 @@ export namespace OvenMode {
          * whose purpose is to choose the amount of sugar, or in a cluster whose purpose is to choose the amount of
          * salt.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1.1
          */
         mfgCode: TlvOptionalField(0, TlvVendorId),
 
@@ -177,7 +177,7 @@ export namespace OvenMode {
          * This field shall indicate the mode tag within a mode tag namespace which is either manufacturer specific or
          * standard.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.1.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1.2
          */
         value: TlvField(1, TlvEnum<ModeTag | ModeBase.ModeTag>())
     });
@@ -185,7 +185,7 @@ export namespace OvenMode {
     /**
      * A Mode Tag is meant to be interpreted by the client for the purpose the cluster serves.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1
      */
     export interface ModeTagStruct extends TypeFromSchema<typeof TlvModeTagStruct> {}
 
@@ -193,7 +193,7 @@ export namespace OvenMode {
      * The table below lists the changes relative to the Mode Base cluster for the fields of the ModeOptionStruct type.
      * A blank field indicates no change.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 8.11.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 8.11.5.1
      */
     export const TlvModeOption = TlvObject({
         /**
@@ -201,14 +201,14 @@ export namespace OvenMode {
          * the user to indicate what this option means. This field is meant to be readable and understandable by the
          * user.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.1
          */
         label: TlvField(0, TlvString.bound({ maxLength: 64 })),
 
         /**
          * This field is used to identify the mode option.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.2.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.2
          */
         mode: TlvField(1, TlvUInt8),
 
@@ -248,7 +248,7 @@ export namespace OvenMode {
          *   • A mode that includes both a generic Quick tag (defined here), and Vacuum and Mop tags, (defined in the
          *     RVC Clean cluster that is a derivation of this cluster).
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.2.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.3
          */
         modeTags: TlvField(2, TlvArray(TlvModeTagStruct, { maxLength: 8 }))
     });
@@ -257,7 +257,7 @@ export namespace OvenMode {
      * The table below lists the changes relative to the Mode Base cluster for the fields of the ModeOptionStruct type.
      * A blank field indicates no change.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 8.11.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 8.11.5.1
      */
     export interface ModeOption extends TypeFromSchema<typeof TlvModeOption> {}
 
@@ -281,7 +281,7 @@ export namespace OvenMode {
              * At least one entry in the SupportedModes attribute shall include the Bake mode tag in the ModeTags field
              * list.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 8.11.6.1
+             * @see {@link MatterSpecification.v142.Cluster} § 8.11.6.1
              */
             supportedModes: FixedAttribute(
                 0x0,
@@ -290,7 +290,7 @@ export namespace OvenMode {
             ),
 
             /**
-             * @see {@link MatterSpecification.v141.Cluster} § 8.11.6
+             * @see {@link MatterSpecification.v142.Cluster} § 8.11.6
              */
             currentMode: Attribute(0x1, TlvUInt8, { persistent: true })
         },
@@ -301,7 +301,7 @@ export namespace OvenMode {
              *
              * On receipt of this command the device shall respond with a ChangeToModeResponse command.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.10.7.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
              */
             changeToMode: Command(0x0, ModeBase.TlvChangeToModeRequest, 0x1, ModeBase.TlvChangeToModeResponse)
         },
@@ -323,7 +323,7 @@ export namespace OvenMode {
      *
      * OvenModeCluster supports optional features that you can enable with the OvenModeCluster.with() factory method.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 8.11
+     * @see {@link MatterSpecification.v142.Cluster} § 8.11
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

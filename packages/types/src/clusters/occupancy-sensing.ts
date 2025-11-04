@@ -27,7 +27,7 @@ export namespace OccupancySensing {
     /**
      * These are optional features supported by OccupancySensingCluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.7.4
+     * @see {@link MatterSpecification.v142.Cluster} § 2.7.4
      */
     export enum Feature {
         /**
@@ -89,7 +89,7 @@ export namespace OccupancySensing {
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 2.7.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 2.7.5.1
      */
     export const Occupancy = {
         /**
@@ -98,7 +98,7 @@ export namespace OccupancySensing {
          * If this bit is set, it shall indicate the occupied state else if the bit if not set, it shall indicate the
          * unoccupied state.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.7.5.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.5.1.1
          */
         occupied: BitFlag(0)
     };
@@ -109,7 +109,7 @@ export namespace OccupancySensing {
      * > This enum is as defined in ClusterRevision 4 and its definition shall NOT be extended; the feature flags
      *   provide the sensor modality (or modalities) for later cluster revisions. See Backward Compatibility section.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.7.5.3
+     * @see {@link MatterSpecification.v142.Cluster} § 2.7.5.3
      */
     export enum OccupancySensorType {
         /**
@@ -139,7 +139,7 @@ export namespace OccupancySensing {
      * > This enum is as defined in ClusterRevision 4 and its definition shall NOT be extended; the feature flags
      *   provide the sensor modality (or modalities) for later cluster revisions. See Backward Compatibility section.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.7.5.2
+     * @see {@link MatterSpecification.v142.Cluster} § 2.7.5.2
      */
     export const OccupancySensorTypeBitmap = {
         /**
@@ -161,14 +161,14 @@ export namespace OccupancySensing {
     /**
      * This structure provides information on the server’s supported values for the HoldTime attribute.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.7.5.4
+     * @see {@link MatterSpecification.v142.Cluster} § 2.7.5.4
      */
     export const TlvHoldTimeLimits = TlvObject({
         /**
          * This field shall specify the minimum value of the server’s supported value for the HoldTime attribute, in
          * seconds.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.7.5.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.5.4.1
          */
         holdTimeMin: TlvField(0, TlvUInt16.bound({ min: 1 })),
 
@@ -176,7 +176,7 @@ export namespace OccupancySensing {
          * This field shall specify the maximum value of the server’s supported value for the HoldTime attribute, in
          * seconds.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.7.5.4.2
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.5.4.2
          */
         holdTimeMax: TlvField(1, TlvUInt16),
 
@@ -184,7 +184,7 @@ export namespace OccupancySensing {
          * This field shall specify the (manufacturer-determined) default value of the server’s HoldTime attribute, in
          * seconds. This is the value that a client who wants to reset the settings to a valid default SHOULD use.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.7.5.4.3
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.5.4.3
          */
         holdTimeDefault: TlvField(2, TlvUInt16)
     });
@@ -192,20 +192,20 @@ export namespace OccupancySensing {
     /**
      * This structure provides information on the server’s supported values for the HoldTime attribute.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.7.5.4
+     * @see {@link MatterSpecification.v142.Cluster} § 2.7.5.4
      */
     export interface HoldTimeLimits extends TypeFromSchema<typeof TlvHoldTimeLimits> {}
 
     /**
      * Body of the OccupancySensing occupancyChanged event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.7.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 2.7.7.1
      */
     export const TlvOccupancyChangedEvent = TlvObject({
         /**
          * This field shall indicate the new value of the Occupancy attribute.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.7.7.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.7.1.1
          */
         occupancy: TlvField(0, TlvBitmap(TlvUInt8, Occupancy))
     });
@@ -213,7 +213,7 @@ export namespace OccupancySensing {
     /**
      * Body of the OccupancySensing occupancyChanged event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.7.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 2.7.7.1
      */
     export interface OccupancyChangedEvent extends TypeFromSchema<typeof TlvOccupancyChangedEvent> {}
 
@@ -226,7 +226,7 @@ export namespace OccupancySensing {
              * This attribute shall specify the time delay, in seconds, before the PIR sensor changes to its unoccupied
              * state after the last detection of occupancy in the sensed area.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.7.6.6
+             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.6
              */
             pirOccupiedToUnoccupiedDelay: OptionalWritableAttribute(
                 0x10,
@@ -238,7 +238,7 @@ export namespace OccupancySensing {
              * This attribute shall specify the time delay, in seconds, before the PIR sensor changes to its occupied
              * state after the first detection of occupancy in the sensed area.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.7.6.7
+             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.7
              */
             pirUnoccupiedToOccupiedDelay: OptionalWritableAttribute(
                 0x11,
@@ -250,7 +250,7 @@ export namespace OccupancySensing {
              * This attribute shall specify the number of occupancy detection events that must occur in the period
              * PIRUnoccupiedToOccupiedDelay, before the PIR sensor changes to its occupied state.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.7.6.8
+             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.8
              */
             pirUnoccupiedToOccupiedThreshold: OptionalWritableAttribute(
                 0x12,
@@ -269,7 +269,7 @@ export namespace OccupancySensing {
              * This attribute shall specify the time delay, in seconds, before the Ultrasonic sensor changes to its
              * unoccupied state after the last detection of occupancy in the sensed area.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.7.6.9
+             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.9
              */
             ultrasonicOccupiedToUnoccupiedDelay: OptionalWritableAttribute(
                 0x20,
@@ -281,7 +281,7 @@ export namespace OccupancySensing {
              * This attribute shall specify the time delay, in seconds, before the Ultrasonic sensor changes to its
              * occupied state after the first detection of occupancy in the sensed area.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.7.6.10
+             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.10
              */
             ultrasonicUnoccupiedToOccupiedDelay: OptionalWritableAttribute(
                 0x21,
@@ -293,7 +293,7 @@ export namespace OccupancySensing {
              * This attribute shall specify the number of occupancy detection events that must occur in the period
              * UltrasonicUnoccupiedToOccupiedDelay, before the Ultrasonic sensor changes to its occupied state.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.7.6.11
+             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.11
              */
             ultrasonicUnoccupiedToOccupiedThreshold: OptionalWritableAttribute(
                 0x22,
@@ -312,7 +312,7 @@ export namespace OccupancySensing {
              * This attribute shall specify the time delay, in seconds, before the physical contact occupancy sensor
              * changes to its unoccupied state after detecting the unoccupied event.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.7.6.12
+             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.12
              */
             physicalContactOccupiedToUnoccupiedDelay: OptionalWritableAttribute(
                 0x30,
@@ -324,7 +324,7 @@ export namespace OccupancySensing {
              * This attribute shall specify the time delay, in seconds, before the physical contact sensor changes to
              * its occupied state after the first detection of the occupied event.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.7.6.13
+             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.13
              */
             physicalContactUnoccupiedToOccupiedDelay: OptionalWritableAttribute(
                 0x31,
@@ -337,7 +337,7 @@ export namespace OccupancySensing {
              * PhysicalContactUnoccupiedToOccupiedDelay, before the PhysicalContact sensor changes to its occupied
              * state.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.7.6.14
+             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.14
              */
             physicalContactUnoccupiedToOccupiedThreshold: OptionalWritableAttribute(
                 0x32,
@@ -404,17 +404,17 @@ export namespace OccupancySensing {
              * bitmap where the status is indicated in bit 0: a value of 1 means occupied, and 0 means unoccupied, with
              * the other bits set to 0; this can be considered equivalent to a boolean.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.7.6.1
+             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.1
              */
             occupancy: Attribute(0x0, TlvBitmap(TlvUInt8, Occupancy)),
 
             /**
-             * @see {@link MatterSpecification.v141.Cluster} § 2.7.6
+             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6
              */
             occupancySensorType: FixedAttribute(0x1, TlvEnum<OccupancySensorType>()),
 
             /**
-             * @see {@link MatterSpecification.v141.Cluster} § 2.7.6
+             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6
              */
             occupancySensorTypeBitmap: FixedAttribute(0x2, TlvBitmap(TlvUInt8, OccupancySensorTypeBitmap)),
 
@@ -439,14 +439,14 @@ export namespace OccupancySensing {
              * the Occupancy attribute will be set to 1 from the start of the first period where the PIR signal exceeds
              * the threshold until HoldTime after the last moment where the PIR exceeded the threshold.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.7.6.3
+             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.3
              */
             holdTime: OptionalWritableAttribute(0x3, TlvUInt16, { persistent: true, writeAcl: AccessLevel.Manage }),
 
             /**
              * Indicates the server’s limits, and default value, for the HoldTime attribute.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.7.6.4
+             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.4
              */
             holdTimeLimits: OptionalFixedAttribute(0x4, TlvHoldTimeLimits)
         },
@@ -455,7 +455,7 @@ export namespace OccupancySensing {
             /**
              * If this event is supported, it shall be generated when the Occupancy attribute changes.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.7.7.1
+             * @see {@link MatterSpecification.v142.Cluster} § 2.7.7.1
              */
             occupancyChanged: OptionalEvent(0x0, Priority.Info, TlvOccupancyChangedEvent)
         },
@@ -498,7 +498,7 @@ export namespace OccupancySensing {
      * Per the Matter specification you cannot use {@link OccupancySensingCluster} without enabling certain feature
      * combinations. You must use the {@link with} factory method to obtain a working cluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.7
+     * @see {@link MatterSpecification.v142.Cluster} § 2.7
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

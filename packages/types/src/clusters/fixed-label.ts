@@ -24,7 +24,7 @@ export namespace FixedLabel {
 
         attributes: {
             /**
-             * @see {@link MatterSpecification.v141.Core} § 9.8.4
+             * @see {@link MatterSpecification.v142.Core} § 9.8.4
              */
             labelList: Attribute(0x0, TlvArray(Label.TlvLabelStruct), { persistent: true, default: [] })
         }
@@ -49,7 +49,7 @@ export namespace FixedLabel {
      * defined in the various namespaces. The second example above can be implemented using semantic tags
      * Direction.Upward and Direction.Downward instead of (or in addition to) the Fixed Label cluster.
      *
-     * @see {@link MatterSpecification.v141.Core} § 9.8
+     * @see {@link MatterSpecification.v142.Core} § 9.8
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

@@ -24,7 +24,7 @@ export namespace OnOff {
     /**
      * These are optional features supported by OnOffCluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.5.4
+     * @see {@link MatterSpecification.v142.Cluster} § 1.5.4
      */
     export enum Feature {
         /**
@@ -38,7 +38,7 @@ export namespace OnOff {
          * On receipt of a Level Control cluster command that causes the OnOff attribute to be set to TRUE, if the value
          * of the OnTime attribute is equal to 0, the server shall set the OffWaitTime attribute to 0.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.5.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.5.4.1
          */
         Lighting = "Lighting",
 
@@ -74,7 +74,7 @@ export namespace OnOff {
          * null on "dead front" behavior due to an Off command being received, this change shall be processed for
          * reporting and subscriptions.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.5.4.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.5.4.2
          */
         DeadFrontBehavior = "DeadFrontBehavior",
 
@@ -88,13 +88,13 @@ export namespace OnOff {
          * this cluster but cannot be turned on via commands received by an instance of this cluster due to regulatory
          * requirements.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.5.4.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.5.4.3
          */
         OffOnly = "OffOnly"
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.5.5.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.5.5.2
      */
     export enum StartUpOnOff {
         /**
@@ -115,7 +115,7 @@ export namespace OnOff {
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.5.5.3
+     * @see {@link MatterSpecification.v142.Cluster} § 1.5.5.3
      */
     export enum EffectIdentifier {
         /**
@@ -132,14 +132,14 @@ export namespace OnOff {
     /**
      * Input to the OnOff offWithEffect command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.5.7.4
+     * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.4
      */
     export const TlvOffWithEffectRequest = TlvObject({
         /**
          * This field specifies the fading effect to use when turning the device off. This field shall contain one of
          * the non-reserved values listed in EffectIdentifierEnum.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.5.7.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.4.1
          */
         effectIdentifier: TlvField(0, TlvEnum<EffectIdentifier>()),
 
@@ -149,7 +149,7 @@ export namespace OnOff {
          * is dependent on the value of the EffectIdentifier field and shall contain one of the non-reserved values
          * listed in either DelayedAllOffEffectVariantEnum or DyingLightEffectVariantEnum.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.5.7.4.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.4.2
          */
         effectVariant: TlvField(1, TlvUInt8)
     });
@@ -157,12 +157,12 @@ export namespace OnOff {
     /**
      * Input to the OnOff offWithEffect command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.5.7.4
+     * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.4
      */
     export interface OffWithEffectRequest extends TypeFromSchema<typeof TlvOffWithEffectRequest> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.5.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.5.5.1
      */
     export const OnOffControl = {
         /**
@@ -174,27 +174,27 @@ export namespace OnOff {
     /**
      * Input to the OnOff onWithTimedOff command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.5.7.6
+     * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.6
      */
     export const TlvOnWithTimedOffRequest = TlvObject({
         /**
          * This field contains information on how the server is to be operated.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.5.7.6.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.6.1
          */
         onOffControl: TlvField(0, TlvBitmap(TlvUInt8, OnOffControl)),
 
         /**
          * This field is used to adjust the value of the OnTime attribute.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.5.7.6.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.6.2
          */
         onTime: TlvField(1, TlvUInt16.bound({ max: 65534 })),
 
         /**
          * This field is used to adjust the value of the OffWaitTime attribute.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.5.7.6.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.6.3
          */
         offWaitTime: TlvField(2, TlvUInt16.bound({ max: 65534 }))
     });
@@ -202,12 +202,12 @@ export namespace OnOff {
     /**
      * Input to the OnOff onWithTimedOff command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.5.7.6
+     * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.6
      */
     export interface OnWithTimedOffRequest extends TypeFromSchema<typeof TlvOnWithTimedOffRequest> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.5.5.4
+     * @see {@link MatterSpecification.v142.Cluster} § 1.5.5.4
      */
     export enum DelayedAllOffEffectVariant {
         /**
@@ -227,7 +227,7 @@ export namespace OnOff {
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.5.5.5
+     * @see {@link MatterSpecification.v142.Cluster} § 1.5.5.5
      */
     export enum DyingLightEffectVariant {
         /**
@@ -257,7 +257,7 @@ export namespace OnOff {
              *
              * This attribute is set to FALSE after reception of a OffWithEffect command.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.5.6.3
+             * @see {@link MatterSpecification.v142.Cluster} § 1.5.6.3
              */
             globalSceneControl: Attribute(0x4000, TlvBoolean),
 
@@ -267,7 +267,7 @@ export namespace OnOff {
              * can be written at any time, but writing a value only has effect when in the Timed On state. See
              * OnWithTimedOff for more details.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.5.6.4
+             * @see {@link MatterSpecification.v142.Cluster} § 1.5.6.4
              */
             onTime: WritableAttribute(0x4001, TlvUInt16),
 
@@ -279,7 +279,7 @@ export namespace OnOff {
              * when in the Timed On state followed by a transition to the Delayed Off state, or in the Delayed Off
              * state. See OnWithTimedOff for more details.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.5.6.5
+             * @see {@link MatterSpecification.v142.Cluster} § 1.5.6.5
              */
             offWaitTime: WritableAttribute(0x4002, TlvUInt16),
 
@@ -291,7 +291,7 @@ export namespace OnOff {
              * This behavior does not apply to reboots associated with OTA. After an OTA restart, the OnOff attribute
              * shall return to its value prior to the restart.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.5.6.6
+             * @see {@link MatterSpecification.v142.Cluster} § 1.5.6.6
              */
             startUpOnOff: WritableAttribute(
                 0x4003,
@@ -304,14 +304,14 @@ export namespace OnOff {
             /**
              * The OffWithEffect command allows devices to be turned off using enhanced ways of fading.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.5.7.4
+             * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.4
              */
             offWithEffect: Command(0x40, TlvOffWithEffectRequest, 0x40, TlvNoResponse),
 
             /**
              * This command allows the recall of the settings when the device was turned off.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.5.7.5
+             * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.5
              */
             onWithRecallGlobalScene: Command(0x41, TlvNoArguments, 0x41, TlvNoResponse),
 
@@ -321,7 +321,7 @@ export namespace OnOff {
              * are prevented from turning the devices back on. Further OnWithTimedOff commands received while the server
              * is turned on, will update the period that the device is turned on.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.5.7.6
+             * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.6
              */
             onWithTimedOff: Command(0x42, TlvOnWithTimedOffRequest, 0x42, TlvNoResponse)
         }
@@ -333,12 +333,12 @@ export namespace OnOff {
     export const NotOffOnlyComponent = MutableCluster.Component({
         commands: {
             /**
-             * @see {@link MatterSpecification.v141.Cluster} § 1.5.7.2
+             * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.2
              */
             on: Command(0x1, TlvNoArguments, 0x1, TlvNoResponse),
 
             /**
-             * @see {@link MatterSpecification.v141.Cluster} § 1.5.7.3
+             * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.3
              */
             toggle: Command(0x2, TlvNoArguments, 0x2, TlvNoResponse)
         }
@@ -362,7 +362,7 @@ export namespace OnOff {
              * On receipt of a Level Control cluster command that causes the OnOff attribute to be set to TRUE, if the
              * value of the OnTime attribute is equal to 0, the server shall set the OffWaitTime attribute to 0.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.5.4.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.5.4.1
              */
             lighting: BitFlag(0),
 
@@ -398,7 +398,7 @@ export namespace OnOff {
              * from value 4 to null on "dead front" behavior due to an Off command being received, this change shall be
              * processed for reporting and subscriptions.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.5.4.2
+             * @see {@link MatterSpecification.v142.Cluster} § 1.5.4.2
              */
             deadFrontBehavior: BitFlag(1),
 
@@ -410,7 +410,7 @@ export namespace OnOff {
              * this cluster but cannot be turned on via commands received by an instance of this cluster due to
              * regulatory requirements.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.5.4.3
+             * @see {@link MatterSpecification.v142.Cluster} § 1.5.4.3
              */
             offOnly: BitFlag(2)
         },
@@ -420,14 +420,14 @@ export namespace OnOff {
              * This attribute indicates whether the device type implemented on the endpoint is turned off or turned on,
              * in these cases the value of the OnOff attribute equals FALSE, or TRUE respectively.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.5.6.2
+             * @see {@link MatterSpecification.v142.Cluster} § 1.5.6.2
              */
             onOff: Attribute(0x0, TlvBoolean, { scene: true, persistent: true })
         },
 
         commands: {
             /**
-             * @see {@link MatterSpecification.v141.Cluster} § 1.5.7.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.1
              */
             off: Command(0x0, TlvNoArguments, 0x0, TlvNoResponse)
         },
@@ -454,7 +454,7 @@ export namespace OnOff {
      *
      * OnOffCluster supports optional features that you can enable with the OnOffCluster.with() factory method.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.5
+     * @see {@link MatterSpecification.v142.Cluster} § 1.5
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

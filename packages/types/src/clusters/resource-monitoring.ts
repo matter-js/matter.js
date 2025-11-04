@@ -30,7 +30,7 @@ export namespace ResourceMonitoring {
     /**
      * These are optional features supported by ResourceMonitoringCluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.8.4
+     * @see {@link MatterSpecification.v142.Cluster} § 2.8.4
      */
     export enum Feature {
         /**
@@ -58,7 +58,7 @@ export namespace ResourceMonitoring {
     /**
      * Indicates the direction in which the condition of the resource changes over time.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.8.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 2.8.5.1
      */
     export enum DegradationDirection {
         /**
@@ -76,7 +76,7 @@ export namespace ResourceMonitoring {
      * Indicate the type of identifier used to describe the product. Devices SHOULD use globally-recognized IDs over OEM
      * specific ones.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.8.5.3
+     * @see {@link MatterSpecification.v142.Cluster} § 2.8.5.3
      */
     export enum ProductIdentifierType {
         /**
@@ -108,7 +108,7 @@ export namespace ResourceMonitoring {
     /**
      * Indicates the product identifier that can be used as a replacement for the resource.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.8.5.4
+     * @see {@link MatterSpecification.v142.Cluster} § 2.8.5.4
      */
     export const TlvReplacementProduct = TlvObject({
         productIdentifierType: TlvField(0, TlvEnum<ProductIdentifierType>()),
@@ -118,12 +118,12 @@ export namespace ResourceMonitoring {
     /**
      * Indicates the product identifier that can be used as a replacement for the resource.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.8.5.4
+     * @see {@link MatterSpecification.v142.Cluster} § 2.8.5.4
      */
     export interface ReplacementProduct extends TypeFromSchema<typeof TlvReplacementProduct> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 2.8.5.2
+     * @see {@link MatterSpecification.v142.Cluster} § 2.8.5.2
      */
     export enum ChangeIndication {
         /**
@@ -150,7 +150,7 @@ export namespace ResourceMonitoring {
             /**
              * Indicates the current condition of the resource in percent.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.8.6.1
+             * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.1
              */
             condition: Attribute(0x0, TlvPercent),
 
@@ -158,7 +158,7 @@ export namespace ResourceMonitoring {
              * Indicates the direction of change for the condition of the resource over time, which helps to determine
              * whether a higher or lower condition value is considered optimal.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.8.6.2
+             * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.2
              */
             degradationDirection: FixedAttribute(0x1, TlvEnum<DegradationDirection>())
         }
@@ -173,7 +173,7 @@ export namespace ResourceMonitoring {
              * Indicates the list of supported products that may be used as replacements for the current resource. Each
              * item in this list represents a unique ReplacementProductStruct.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.8.6.6
+             * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.6
              */
             replacementProductList: FixedAttribute(
                 0x5,
@@ -213,7 +213,7 @@ export namespace ResourceMonitoring {
              * This attribute shall be populated with a value from ChangeIndicationEnum that is indicative of the
              * current requirement to change the resource.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.8.6.3
+             * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.3
              */
             changeIndication: Attribute(0x2, TlvEnum<ChangeIndication>()),
 
@@ -221,7 +221,7 @@ export namespace ResourceMonitoring {
              * Indicates whether a resource is currently installed. A value of true shall indicate that a resource is
              * installed. A value of false shall indicate that a resource is not installed.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.8.6.4
+             * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.4
              */
             inPlaceIndicator: OptionalAttribute(0x3, TlvBoolean),
 
@@ -229,7 +229,7 @@ export namespace ResourceMonitoring {
              * This attribute may indicates the time at which the resource has been changed, if supported by the server.
              * The attribute shall be null if it was never set or is unknown.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.8.6.5
+             * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.5
              */
             lastChangedTime: OptionalWritableAttribute(
                 0x4,
@@ -245,7 +245,7 @@ export namespace ResourceMonitoring {
              * cause the LastChangedTime to be updated automatically based on the clock of the server, if the server
              * supports setting the attribute.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.8.7.1
+             * @see {@link MatterSpecification.v142.Cluster} § 2.8.7.1
              */
             resetCondition: OptionalCommand(0x0, TlvNoArguments, 0x0, TlvNoResponse)
         },

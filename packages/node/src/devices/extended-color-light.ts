@@ -28,7 +28,7 @@ import { Identity } from "#general";
  * coordinates, and color temperature. In addition, the extended color light is also capable of being switched by means
  * of a bound occupancy sensor.
  *
- * @see {@link MatterSpecification.v141.Device} § 4.4
+ * @see {@link MatterSpecification.v142.Device} § 4.4
  */
 export interface ExtendedColorLightDevice extends Identity<typeof ExtendedColorLightDeviceDefinition> {}
 

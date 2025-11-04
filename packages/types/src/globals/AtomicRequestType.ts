@@ -7,7 +7,7 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 /**
- * @see {@link MatterSpecification.v141.Core} § 7.15.4
+ * @see {@link MatterSpecification.v142.Core} § 7.15.4
  */
 export enum AtomicRequestType {
     /**

@@ -12,75 +12,75 @@ import { ColorControl } from "#clusters/color-control";
 export namespace ColorControlInterface {
     export interface HueSaturation {
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 3.2.8.4
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.4
          */
         moveToHue(request: ColorControl.MoveToHueRequest): MaybePromise;
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 3.2.8.5
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.5
          */
         moveHue(request: ColorControl.MoveHueRequest): MaybePromise;
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 3.2.8.6
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.6
          */
         stepHue(request: ColorControl.StepHueRequest): MaybePromise;
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 3.2.8.7
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.7
          */
         moveToSaturation(request: ColorControl.MoveToSaturationRequest): MaybePromise;
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 3.2.8.8
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.8
          */
         moveSaturation(request: ColorControl.MoveSaturationRequest): MaybePromise;
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 3.2.8.9
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.9
          */
         stepSaturation(request: ColorControl.StepSaturationRequest): MaybePromise;
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 3.2.8.10
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.10
          */
         moveToHueAndSaturation(request: ColorControl.MoveToHueAndSaturationRequest): MaybePromise;
     }
 
     export interface Xy {
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 3.2.8.11
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.11
          */
         moveToColor(request: ColorControl.MoveToColorRequest): MaybePromise;
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 3.2.8.12
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.12
          */
         moveColor(request: ColorControl.MoveColorRequest): MaybePromise;
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 3.2.8.13
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.13
          */
         stepColor(request: ColorControl.StepColorRequest): MaybePromise;
     }
 
     export interface ColorTemperature {
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 3.2.8.14
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.14
          */
         moveToColorTemperature(request: ColorControl.MoveToColorTemperatureRequest): MaybePromise;
 
         /**
          * This command allows the color temperature of the light to be moved at a specified rate.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 3.2.8.21
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.21
          */
         moveColorTemperature(request: ColorControl.MoveColorTemperatureRequest): MaybePromise;
 
         /**
          * This command allows the color temperature of the light to be stepped with a specified step size.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 3.2.8.22
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.22
          */
         stepColorTemperature(request: ColorControl.StepColorTemperatureRequest): MaybePromise;
     }
@@ -90,14 +90,14 @@ export namespace ColorControlInterface {
          * This command allows the light to be moved in a smooth continuous transition from their current hue to a
          * target hue.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 3.2.8.15
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.15
          */
         enhancedMoveToHue(request: ColorControl.EnhancedMoveToHueRequest): MaybePromise;
 
         /**
          * This command allows the light to start a continuous transition starting from their current hue.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 3.2.8.16
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.16
          */
         enhancedMoveHue(request: ColorControl.EnhancedMoveHueRequest): MaybePromise;
 
@@ -105,7 +105,7 @@ export namespace ColorControlInterface {
          * This command allows the light to be moved in a stepped transition from their current hue, resulting in a
          * linear transition through XY space.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 3.2.8.17
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.17
          */
         enhancedStepHue(request: ColorControl.EnhancedStepHueRequest): MaybePromise;
 
@@ -113,7 +113,7 @@ export namespace ColorControlInterface {
          * This command allows the light to be moved in a smooth continuous transition from their current hue to a
          * target hue and from their current saturation to a target saturation.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 3.2.8.18
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.18
          */
         enhancedMoveToHueAndSaturation(request: ColorControl.EnhancedMoveToHueAndSaturationRequest): MaybePromise;
     }
@@ -122,7 +122,7 @@ export namespace ColorControlInterface {
         /**
          * This command allows a color loop to be activated such that the color light cycles through its range of hues.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 3.2.8.19
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.19
          */
         colorLoopSet(request: ColorControl.ColorLoopSetRequest): MaybePromise;
     }
@@ -135,7 +135,7 @@ export namespace ColorControlInterface {
          *
          * NOTE The StopMoveStep command has no effect on an active color loop.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 3.2.8.20
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.20
          */
         stopMoveStep(request: ColorControl.StopMoveStepRequest): MaybePromise;
     }

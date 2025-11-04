@@ -37,7 +37,7 @@ import { Identity } from "#general";
  * See Section 10.1, “Video Player Architecture” for additional Basic Video Player requirements relating to Video Player
  * device endpoint composition, commissioning, feature representation in clusters, and UI context.
  *
- * @see {@link MatterSpecification.v141.Device} § 10.2
+ * @see {@link MatterSpecification.v142.Device} § 10.2
  */
 export interface BasicVideoPlayerDevice extends Identity<typeof BasicVideoPlayerDeviceDefinition> {}
 

@@ -20,7 +20,7 @@ import { Identity } from "#general";
 /**
  * An OTA Provider is a node that is capable of providing an OTA software update to other nodes on the same fabric.
  *
- * @see {@link MatterSpecification.v141.Device} § 2.4
+ * @see {@link MatterSpecification.v142.Device} § 2.4
  */
 export interface OtaProviderEndpoint extends Identity<typeof OtaProviderEndpointDefinition> {}
 

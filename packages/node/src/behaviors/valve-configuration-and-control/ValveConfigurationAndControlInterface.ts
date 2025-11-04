@@ -14,14 +14,14 @@ export namespace ValveConfigurationAndControlInterface {
         /**
          * This command is used to set the valve to its open position.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 4.6.8.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.6.8.1
          */
         open(request: ValveConfigurationAndControl.OpenRequest): MaybePromise;
 
         /**
          * This command is used to set the valve to its closed position.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 4.6.8.2
+         * @see {@link MatterSpecification.v142.Cluster} § 4.6.8.2
          */
         close(): MaybePromise;
     }

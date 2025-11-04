@@ -36,7 +36,7 @@ export namespace BridgedDeviceBasicInformation {
     /**
      * These are optional features supported by BridgedDeviceBasicInformationCluster.
      *
-     * @see {@link MatterSpecification.v141.Core} § 9.13.4
+     * @see {@link MatterSpecification.v142.Core} § 9.13.4
      */
     export enum Feature {
         /**
@@ -50,7 +50,7 @@ export namespace BridgedDeviceBasicInformation {
     /**
      * Input to the BridgedDeviceBasicInformation keepActive command
      *
-     * @see {@link MatterSpecification.v141.Core} § 9.13.6.1
+     * @see {@link MatterSpecification.v142.Core} § 9.13.6.1
      */
     export const TlvKeepActiveRequest = TlvObject({
         /**
@@ -64,7 +64,7 @@ export namespace BridgedDeviceBasicInformation {
          * The client may slightly overestimate the duration it wants the bridged device to be active for, in order to
          * account for network delays.
          *
-         * @see {@link MatterSpecification.v141.Core} § 9.13.6.1.1
+         * @see {@link MatterSpecification.v142.Core} § 9.13.6.1.1
          */
         stayActiveDuration: TlvField(0, TlvUInt32),
 
@@ -78,7 +78,7 @@ export namespace BridgedDeviceBasicInformation {
          *   up to TimeoutMs for the device. If after TimeoutMs the ICD device does NOT check-in, the server will not
          *   perform any actions.
          *
-         * @see {@link MatterSpecification.v141.Core} § 9.13.6.1.2
+         * @see {@link MatterSpecification.v142.Core} § 9.13.6.1.2
          */
         timeoutMs: TlvField(1, TlvUInt32.bound({ min: 30000, max: 3600000 }))
     });
@@ -86,14 +86,14 @@ export namespace BridgedDeviceBasicInformation {
     /**
      * Input to the BridgedDeviceBasicInformation keepActive command
      *
-     * @see {@link MatterSpecification.v141.Core} § 9.13.6.1
+     * @see {@link MatterSpecification.v142.Core} § 9.13.6.1
      */
     export interface KeepActiveRequest extends TypeFromSchema<typeof TlvKeepActiveRequest> {}
 
     /**
      * Body of the BridgedDeviceBasicInformation activeChanged event
      *
-     * @see {@link MatterSpecification.v141.Core} § 9.13.7.3
+     * @see {@link MatterSpecification.v142.Core} § 9.13.7.3
      */
     export const TlvActiveChangedEvent = TlvObject({
         /**
@@ -106,7 +106,7 @@ export namespace BridgedDeviceBasicInformation {
          * If the bridged device is not a Matter Intermittently Connected Device, the implementation of this is
          * best-effort since it may interact with non-native protocol.
          *
-         * @see {@link MatterSpecification.v141.Core} § 9.13.7.3.1
+         * @see {@link MatterSpecification.v142.Core} § 9.13.7.3.1
          */
         promisedActiveDuration: TlvField(0, TlvUInt32)
     });
@@ -114,20 +114,20 @@ export namespace BridgedDeviceBasicInformation {
     /**
      * Body of the BridgedDeviceBasicInformation activeChanged event
      *
-     * @see {@link MatterSpecification.v141.Core} § 9.13.7.3
+     * @see {@link MatterSpecification.v142.Core} § 9.13.7.3
      */
     export interface ActiveChangedEvent extends TypeFromSchema<typeof TlvActiveChangedEvent> {}
 
     /**
      * Body of the BridgedDeviceBasicInformation startUp event
      *
-     * @see {@link MatterSpecification.v141.Core} § 9.13.7
+     * @see {@link MatterSpecification.v142.Core} § 9.13.7
      */
     export const TlvStartUpEvent = TlvObject({
         /**
          * This field shall be set to the same value as the one available in the SoftwareVersion attribute.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.1.6.1.1
+         * @see {@link MatterSpecification.v142.Core} § 11.1.6.1.1
          */
         softwareVersion: TlvField(0, TlvUInt32)
     });
@@ -135,20 +135,20 @@ export namespace BridgedDeviceBasicInformation {
     /**
      * Body of the BridgedDeviceBasicInformation startUp event
      *
-     * @see {@link MatterSpecification.v141.Core} § 9.13.7
+     * @see {@link MatterSpecification.v142.Core} § 9.13.7
      */
     export interface StartUpEvent extends TypeFromSchema<typeof TlvStartUpEvent> {}
 
     /**
      * Body of the BridgedDeviceBasicInformation reachableChanged event
      *
-     * @see {@link MatterSpecification.v141.Core} § 9.13.7.2
+     * @see {@link MatterSpecification.v142.Core} § 9.13.7.2
      */
     export const TlvReachableChangedEvent = TlvObject({
         /**
          * This field shall indicate the value of the Reachable attribute after it was changed.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.1.6.4.1
+         * @see {@link MatterSpecification.v142.Core} § 11.1.6.4.1
          */
         reachableNewValue: TlvField(0, TlvBoolean)
     });
@@ -156,7 +156,7 @@ export namespace BridgedDeviceBasicInformation {
     /**
      * Body of the BridgedDeviceBasicInformation reachableChanged event
      *
-     * @see {@link MatterSpecification.v141.Core} § 9.13.7.2
+     * @see {@link MatterSpecification.v142.Core} § 9.13.7.2
      */
     export interface ReachableChangedEvent extends TypeFromSchema<typeof TlvReachableChangedEvent> {}
 
@@ -193,7 +193,7 @@ export namespace BridgedDeviceBasicInformation {
              *   • The server shall only keep the bridged device active once for a request. (The server shall only
              *     consider the operation performed if an associated ActiveChanged event was generated.)
              *
-             * @see {@link MatterSpecification.v141.Core} § 9.13.6.1
+             * @see {@link MatterSpecification.v142.Core} § 9.13.6.1
              */
             keepActive: Command(0x80, TlvKeepActiveRequest, 0x80, TlvNoResponse)
         },
@@ -205,7 +205,7 @@ export namespace BridgedDeviceBasicInformation {
              *
              * See KeepActive for more details.
              *
-             * @see {@link MatterSpecification.v141.Core} § 9.13.7.3
+             * @see {@link MatterSpecification.v142.Core} § 9.13.7.3
              */
             activeChanged: Event(0x80, Priority.Info, TlvActiveChangedEvent)
         }
@@ -228,27 +228,27 @@ export namespace BridgedDeviceBasicInformation {
 
         attributes: {
             /**
-             * @see {@link MatterSpecification.v141.Core} § 9.13.5
+             * @see {@link MatterSpecification.v142.Core} § 9.13.5
              */
             vendorName: OptionalFixedAttribute(0x1, TlvString.bound({ maxLength: 32 })),
 
             /**
-             * @see {@link MatterSpecification.v141.Core} § 9.13.5
+             * @see {@link MatterSpecification.v142.Core} § 9.13.5
              */
             vendorId: OptionalFixedAttribute(0x2, TlvVendorId),
 
             /**
-             * @see {@link MatterSpecification.v141.Core} § 9.13.5
+             * @see {@link MatterSpecification.v142.Core} § 9.13.5
              */
             productName: OptionalFixedAttribute(0x3, TlvString.bound({ maxLength: 32 })),
 
             /**
-             * @see {@link MatterSpecification.v141.Core} § 9.13.5
+             * @see {@link MatterSpecification.v142.Core} § 9.13.5
              */
             productId: OptionalFixedAttribute(0x4, TlvUInt16),
 
             /**
-             * @see {@link MatterSpecification.v141.Core} § 9.13.5
+             * @see {@link MatterSpecification.v142.Core} § 9.13.5
              */
             nodeLabel: OptionalWritableAttribute(
                 0x5,
@@ -257,47 +257,47 @@ export namespace BridgedDeviceBasicInformation {
             ),
 
             /**
-             * @see {@link MatterSpecification.v141.Core} § 9.13.5
+             * @see {@link MatterSpecification.v142.Core} § 9.13.5
              */
             hardwareVersion: OptionalFixedAttribute(0x7, TlvUInt16),
 
             /**
-             * @see {@link MatterSpecification.v141.Core} § 9.13.5
+             * @see {@link MatterSpecification.v142.Core} § 9.13.5
              */
             hardwareVersionString: OptionalFixedAttribute(0x8, TlvString.bound({ minLength: 1, maxLength: 64 })),
 
             /**
-             * @see {@link MatterSpecification.v141.Core} § 9.13.5
+             * @see {@link MatterSpecification.v142.Core} § 9.13.5
              */
             softwareVersion: OptionalFixedAttribute(0x9, TlvUInt32),
 
             /**
-             * @see {@link MatterSpecification.v141.Core} § 9.13.5
+             * @see {@link MatterSpecification.v142.Core} § 9.13.5
              */
             softwareVersionString: OptionalFixedAttribute(0xa, TlvString.bound({ minLength: 1, maxLength: 64 })),
 
             /**
-             * @see {@link MatterSpecification.v141.Core} § 9.13.5
+             * @see {@link MatterSpecification.v142.Core} § 9.13.5
              */
             manufacturingDate: OptionalFixedAttribute(0xb, TlvString.bound({ minLength: 8, maxLength: 16 })),
 
             /**
-             * @see {@link MatterSpecification.v141.Core} § 9.13.5
+             * @see {@link MatterSpecification.v142.Core} § 9.13.5
              */
             partNumber: OptionalFixedAttribute(0xc, TlvString.bound({ maxLength: 32 })),
 
             /**
-             * @see {@link MatterSpecification.v141.Core} § 9.13.5
+             * @see {@link MatterSpecification.v142.Core} § 9.13.5
              */
             productUrl: OptionalFixedAttribute(0xd, TlvString.bound({ maxLength: 256 })),
 
             /**
-             * @see {@link MatterSpecification.v141.Core} § 9.13.5
+             * @see {@link MatterSpecification.v142.Core} § 9.13.5
              */
             productLabel: OptionalFixedAttribute(0xe, TlvString.bound({ maxLength: 64 })),
 
             /**
-             * @see {@link MatterSpecification.v141.Core} § 9.13.5
+             * @see {@link MatterSpecification.v142.Core} § 9.13.5
              */
             serialNumber: OptionalFixedAttribute(0xf, TlvString.bound({ maxLength: 32 })),
 
@@ -311,7 +311,7 @@ export namespace BridgedDeviceBasicInformation {
              * reachable may be delayed due to the technique employed (e.g. detecting that a number of expected messages
              * from the bridged device did not arrive). Also see event ReachableChanged below.
              *
-             * @see {@link MatterSpecification.v141.Core} § 9.13.5.2
+             * @see {@link MatterSpecification.v142.Core} § 9.13.5.2
              */
             reachable: Attribute(0x11, TlvBoolean),
 
@@ -323,12 +323,12 @@ export namespace BridgedDeviceBasicInformation {
              *
              * NOTE The UniqueID attribute was optional in cluster revisions prior to revision 4.
              *
-             * @see {@link MatterSpecification.v141.Core} § 9.13.5.3
+             * @see {@link MatterSpecification.v142.Core} § 9.13.5.3
              */
             uniqueId: FixedAttribute(0x12, TlvString.bound({ maxLength: 32 })),
 
             /**
-             * @see {@link MatterSpecification.v141.Core} § 9.13.5
+             * @see {@link MatterSpecification.v142.Core} § 9.13.5
              */
             productAppearance: OptionalFixedAttribute(0x14, BasicInformation.TlvProductAppearance),
 
@@ -341,19 +341,19 @@ export namespace BridgedDeviceBasicInformation {
              *
              * The ability and the method used to detect such a change on a bridged device is manufacturer specific.
              *
-             * @see {@link MatterSpecification.v141.Core} § 9.13.5.4
+             * @see {@link MatterSpecification.v142.Core} § 9.13.5.4
              */
             configurationVersion: OptionalAttribute(0x18, TlvUInt32.bound({ min: 1 }), { persistent: true })
         },
 
         events: {
             /**
-             * @see {@link MatterSpecification.v141.Core} § 9.13.7
+             * @see {@link MatterSpecification.v142.Core} § 9.13.7
              */
             startUp: OptionalEvent(0x0, Priority.Critical, TlvStartUpEvent),
 
             /**
-             * @see {@link MatterSpecification.v141.Core} § 9.13.7
+             * @see {@link MatterSpecification.v142.Core} § 9.13.7
              */
             shutDown: OptionalEvent(0x1, Priority.Critical, TlvNoArguments),
 
@@ -367,7 +367,7 @@ export namespace BridgedDeviceBasicInformation {
              *   context of Bridged Device Basic Information cluster, has no usable fields, but the original Basic
              *   Information cluster’s field definition is kept for completeness.
              *
-             * @see {@link MatterSpecification.v141.Core} § 9.13.7.1
+             * @see {@link MatterSpecification.v142.Core} § 9.13.7.1
              */
             leave: OptionalEvent(0x2, Priority.Critical, TlvNoArguments),
 
@@ -378,7 +378,7 @@ export namespace BridgedDeviceBasicInformation {
              *
              * After (re)start of a bridge this event may be generated.
              *
-             * @see {@link MatterSpecification.v141.Core} § 9.13.7.2
+             * @see {@link MatterSpecification.v142.Core} § 9.13.7.2
              */
             reachableChanged: Event(0x3, Priority.Critical, TlvReachableChangedEvent)
         },
@@ -426,7 +426,7 @@ export namespace BridgedDeviceBasicInformation {
      * BridgedDeviceBasicInformationCluster supports optional features that you can enable with the
      * BridgedDeviceBasicInformationCluster.with() factory method.
      *
-     * @see {@link MatterSpecification.v141.Core} § 9.13
+     * @see {@link MatterSpecification.v142.Core} § 9.13
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

@@ -24,7 +24,7 @@ export namespace Messages {
     /**
      * These are optional features supported by MessagesCluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.16.4
+     * @see {@link MatterSpecification.v142.Cluster} § 1.16.4
      */
     export enum Feature {
         /**
@@ -32,7 +32,7 @@ export namespace Messages {
          *
          * This feature shall indicate that the device can get confirmation from a user that the message was received.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.4.1
          */
         ReceivedConfirmation = "ReceivedConfirmation",
 
@@ -42,7 +42,7 @@ export namespace Messages {
          * This feature shall indicate that the device is capable of presenting a list of responses to the user and
          * recording the user’s choice of response.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.4.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.4.2
          */
         ConfirmationResponse = "ConfirmationResponse",
 
@@ -51,7 +51,7 @@ export namespace Messages {
          *
          * This feature shall indicate that the device is capable of collecting a free-form text response to a message.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.4.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.4.3
          */
         ConfirmationReply = "ConfirmationReply",
 
@@ -61,7 +61,7 @@ export namespace Messages {
          * This feature shall indicate that the device is capable of requiring the user to authenticate before viewing a
          * message; e.g. entering a PIN or password before viewing a message with billing information.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.4.4
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.4.4
          */
         ProtectedMessages = "ProtectedMessages"
     }
@@ -70,7 +70,7 @@ export namespace Messages {
      * Priority SHOULD be used to decide which messages to show when the number of eligible messages is larger than the
      * device’s capacity to present them.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.16.5.4
+     * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.4
      */
     export enum MessagePriority {
         /**
@@ -97,7 +97,7 @@ export namespace Messages {
     /**
      * This data type is derived from map16, and indicates control information related to a message.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.16.5.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.2
      */
     export const MessageControl = {
         /**
@@ -107,7 +107,7 @@ export namespace Messages {
          * confirmation is required, the device SHOULD present the message until it is either confirmed by the user
          * selecting a confirmation option, or the message expires.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.5.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.2.1
          */
         confirmationRequired: BitFlag(0),
 
@@ -117,7 +117,7 @@ export namespace Messages {
          * This bit shall indicate that a MessagePresented event SHOULD be generated based on the response of the user
          * to the message.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.5.2.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.2.2
          */
         responseRequired: BitFlag(1),
 
@@ -126,7 +126,7 @@ export namespace Messages {
          *
          * This bit shall indicate that a free-form user reply is to be included in the confirmation of receipt.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.5.2.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.2.3
          */
         replyMessage: BitFlag(2),
 
@@ -136,7 +136,7 @@ export namespace Messages {
          * This bit shall indicate the current confirmation state of a message, which is useful in the event that there
          * are multiple Messages cluster client devices on a network.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.5.2.4
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.2.4
          */
         messageConfirmed: BitFlag(3),
 
@@ -146,7 +146,7 @@ export namespace Messages {
          * This bit shall indicate that user authentication (e.g. by password or PIN) is required before viewing a
          * message.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.5.2.5
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.2.5
          */
         messageProtected: BitFlag(4)
     };
@@ -154,20 +154,20 @@ export namespace Messages {
     /**
      * This represents a possible response to a message.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.16.5.6
+     * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.6
      */
     export const TlvMessageResponseOption = TlvObject({
         /**
          * This field shall indicate a unique unsigned 32-bit number identifier for this message response option.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.5.6.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.6.1
          */
         messageResponseId: TlvField(0, TlvUInt32.bound({ min: 1 })),
 
         /**
          * This field shall indicate the text for this option; e.g. "Yes", "No", etc.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.5.6.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.6.2
          */
         label: TlvField(1, TlvString.bound({ maxLength: 32 }))
     });
@@ -175,34 +175,34 @@ export namespace Messages {
     /**
      * This represents a possible response to a message.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.16.5.6
+     * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.6
      */
     export interface MessageResponseOption extends TypeFromSchema<typeof TlvMessageResponseOption> {}
 
     /**
      * This represents a single message.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.16.5.5
+     * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.5
      */
     export const TlvMessage = TlvObject({
         /**
          * This field shall indicate a globally unique ID for this message.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.5.5.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.5.1
          */
         messageId: TlvField(0, TlvByteString.bound({ length: 16 })),
 
         /**
          * This field shall indicate the priority level for this message.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.5.5.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.5.2
          */
         priority: TlvField(1, TlvEnum<MessagePriority>()),
 
         /**
          * This field shall indicate control information related to the message.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.5.5.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.5.3
          */
         messageControl: TlvField(2, TlvBitmap(TlvUInt16, MessageControl)),
 
@@ -210,7 +210,7 @@ export namespace Messages {
          * This field shall indicate the time in UTC at which the message becomes available to be presented. A null
          * value shall indicate "now."
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.5.5.4
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.5.4
          */
         startTime: TlvField(3, TlvNullable(TlvEpochS)),
 
@@ -218,14 +218,14 @@ export namespace Messages {
          * This field shall indicate the amount of time, in milliseconds, after the StartTime during which the message
          * is available to be presented. A null value shall indicate "until changed".
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.5.5.5
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.5.5
          */
         duration: TlvField(4, TlvNullable(TlvUInt64)),
 
         /**
          * This field shall indicate a string containing the message to be presented.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.5.5.6
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.5.6
          */
         messageText: TlvField(5, TlvString.bound({ maxLength: 256 })),
 
@@ -238,7 +238,7 @@ export namespace Messages {
          *
          * If the ResponseRequired bit is not set on the message, this list shall be ignored.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.5.5.7
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.5.7
          */
         responses: TlvOptionalField(6, TlvArray(TlvMessageResponseOption, { maxLength: 4 })),
 
@@ -248,34 +248,34 @@ export namespace Messages {
     /**
      * This represents a single message.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.16.5.5
+     * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.5
      */
     export interface Message extends TypeFromSchema<typeof TlvMessage> {}
 
     /**
      * Input to the Messages presentMessagesRequest command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.16.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1
      */
     export const TlvPresentMessagesRequest = TlvObject({
         /**
          * This field shall indicate a globally unique ID for this message. See MessageID.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.7.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1.1
          */
         messageId: TlvField(0, TlvByteString.bound({ length: 16 })),
 
         /**
          * This field shall indicate the priority level for this message. See Priority.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.7.1.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1.2
          */
         priority: TlvField(1, TlvEnum<MessagePriority>()),
 
         /**
          * This field shall indicate control information related to the message. See MessageControl.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.7.1.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1.3
          */
         messageControl: TlvField(2, TlvBitmap(TlvUInt16, MessageControl)),
 
@@ -283,7 +283,7 @@ export namespace Messages {
          * This field shall indicate the time in UTC at which the message becomes available to be presented. A null
          * value shall indicate "now." See StartTime.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.7.1.4
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1.4
          */
         startTime: TlvField(3, TlvNullable(TlvEpochS)),
 
@@ -291,14 +291,14 @@ export namespace Messages {
          * This field shall indicate the amount of time, in milliseconds, after the StartTime during which the message
          * is available to be presented. A null value shall indicate "until changed". See Duration.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.7.1.5
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1.5
          */
         duration: TlvField(4, TlvNullable(TlvUInt64)),
 
         /**
          * This field shall indicate a string containing the message to be presented. See MessageText.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.7.1.6
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1.6
          */
         messageText: TlvField(5, TlvString.bound({ maxLength: 256 })),
 
@@ -311,7 +311,7 @@ export namespace Messages {
          *
          * If the ResponseRequired bit is not set on the message, this list shall be ignored. See Responses.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.7.1.7
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1.7
          */
         responses: TlvOptionalField(6, TlvArray(TlvMessageResponseOption, { maxLength: 4 }))
     });
@@ -319,14 +319,14 @@ export namespace Messages {
     /**
      * Input to the Messages presentMessagesRequest command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.16.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1
      */
     export interface PresentMessagesRequest extends TypeFromSchema<typeof TlvPresentMessagesRequest> {}
 
     /**
      * Input to the Messages cancelMessagesRequest command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.16.7.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.2
      */
     export const TlvCancelMessagesRequest = TlvObject({
         /**
@@ -338,7 +338,7 @@ export namespace Messages {
          * Message IDs in this command that indicate messages that do not exist in Messages, or that are not scoped to
          * the fabric of the sender, shall be ignored.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.7.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.2.1
          */
         messageIDs: TlvField(0, TlvArray(TlvByteString.bound({ length: 16 }), { maxLength: 8 }))
     });
@@ -346,20 +346,20 @@ export namespace Messages {
     /**
      * Input to the Messages cancelMessagesRequest command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.16.7.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.2
      */
     export interface CancelMessagesRequest extends TypeFromSchema<typeof TlvCancelMessagesRequest> {}
 
     /**
      * Body of the Messages messageQueued event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.16.8.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.1
      */
     export const TlvMessageQueuedEvent = TlvObject({
         /**
          * This field shall indicate the MessageID for newly added message.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.8.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.1.1
          */
         messageId: TlvField(0, TlvByteString.bound({ length: 16 })),
 
@@ -369,20 +369,20 @@ export namespace Messages {
     /**
      * Body of the Messages messageQueued event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.16.8.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.1
      */
     export interface MessageQueuedEvent extends TypeFromSchema<typeof TlvMessageQueuedEvent> {}
 
     /**
      * Body of the Messages messagePresented event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.16.8.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.2
      */
     export const TlvMessagePresentedEvent = TlvObject({
         /**
          * This field shall indicate the MessageID for the message being presented.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.8.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.2.1
          */
         messageId: TlvField(0, TlvByteString.bound({ length: 16 })),
 
@@ -392,7 +392,7 @@ export namespace Messages {
     /**
      * Body of the Messages messagePresented event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.16.8.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.2
      */
     export interface MessagePresentedEvent extends TypeFromSchema<typeof TlvMessagePresentedEvent> {}
 
@@ -400,7 +400,7 @@ export namespace Messages {
      * A display device may include this preference in the MessageComplete event as a hint to clients about how to
      * handle future similar messages.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.16.5.3
+     * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.3
      */
     export enum FutureMessagePreference {
         /**
@@ -432,13 +432,13 @@ export namespace Messages {
     /**
      * Body of the Messages messageComplete event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.16.8.3
+     * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.3
      */
     export const TlvMessageCompleteEvent = TlvObject({
         /**
          * This field shall indicate the MessageID for the message being confirmed.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.8.3.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.3.1
          */
         messageId: TlvField(0, TlvByteString.bound({ length: 16 })),
 
@@ -446,7 +446,7 @@ export namespace Messages {
          * This field shall indicate the MessageResponseID selected by the user. If there was no response before the
          * Duration field of the message has elapsed, this field shall be null.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.8.3.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.3.2
          */
         responseId: TlvOptionalField(1, TlvNullable(TlvUInt32)),
 
@@ -454,7 +454,7 @@ export namespace Messages {
          * This field shall indicate a user-provided reply to the message. If there was no reply, or the message did not
          * have the ReplyRequired bit set, this field shall be null.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.8.3.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.3.3
          */
         reply: TlvOptionalField(2, TlvNullable(TlvString.bound({ maxLength: 256 }))),
 
@@ -465,7 +465,7 @@ export namespace Messages {
     /**
      * Body of the Messages messageComplete event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.16.8.3
+     * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.3
      */
     export interface MessageCompleteEvent extends TypeFromSchema<typeof TlvMessageCompleteEvent> {}
 
@@ -482,7 +482,7 @@ export namespace Messages {
              * This feature shall indicate that the device can get confirmation from a user that the message was
              * received.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.16.4.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.16.4.1
              */
             receivedConfirmation: BitFlag(0),
 
@@ -490,7 +490,7 @@ export namespace Messages {
              * This feature shall indicate that the device is capable of presenting a list of responses to the user and
              * recording the user’s choice of response.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.16.4.2
+             * @see {@link MatterSpecification.v142.Cluster} § 1.16.4.2
              */
             confirmationResponse: BitFlag(1),
 
@@ -498,7 +498,7 @@ export namespace Messages {
              * This feature shall indicate that the device is capable of collecting a free-form text response to a
              * message.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.16.4.3
+             * @see {@link MatterSpecification.v142.Cluster} § 1.16.4.3
              */
             confirmationReply: BitFlag(2),
 
@@ -506,7 +506,7 @@ export namespace Messages {
              * This feature shall indicate that the device is capable of requiring the user to authenticate before
              * viewing a message; e.g. entering a PIN or password before viewing a message with billing information.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.16.4.4
+             * @see {@link MatterSpecification.v142.Cluster} § 1.16.4.4
              */
             protectedMessages: BitFlag(3)
         },
@@ -519,7 +519,7 @@ export namespace Messages {
              * set of messages returned in a read request. At minimum, the server shall return to a client those
              * messages that the client itself created/submitted.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.16.6.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.16.6.1
              */
             messages: FabricScopedAttribute(0x0, TlvArray(TlvMessage, { maxLength: 8 }), { default: [] }),
 
@@ -530,7 +530,7 @@ export namespace Messages {
              * This list shall NOT be fabric-scoped; it shall contain MessageIDs for all Messages being presented, no
              * matter what fabric the client that queued them is on.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.16.6.2
+             * @see {@link MatterSpecification.v142.Cluster} § 1.16.6.2
              */
             activeMessageIDs: Attribute(
                 0x1,
@@ -563,12 +563,12 @@ export namespace Messages {
              * The device SHOULD make it possible for the user to view which nodes have access to this cluster and to
              * individually remove privileges for each node.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.16.7.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1
              */
             presentMessagesRequest: Command(0x0, TlvPresentMessagesRequest, 0x0, TlvNoResponse),
 
             /**
-             * @see {@link MatterSpecification.v141.Cluster} § 1.16.7.2
+             * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.2
              */
             cancelMessagesRequest: Command(0x1, TlvCancelMessagesRequest, 0x1, TlvNoResponse)
         },
@@ -577,14 +577,14 @@ export namespace Messages {
             /**
              * This event shall be generated when a message is added to the messages attribute.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.16.8.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.1
              */
             messageQueued: Event(0x0, Priority.Info, TlvMessageQueuedEvent),
 
             /**
              * This event shall be generated when the message is presented to the user.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.16.8.2
+             * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.2
              */
             messagePresented: Event(0x1, Priority.Info, TlvMessagePresentedEvent),
 
@@ -592,7 +592,7 @@ export namespace Messages {
              * This event shall be generated when the message is confirmed by the user, or when the Duration field of
              * the message has elapsed without confirmation.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.16.8.3
+             * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.3
              */
             messageComplete: Event(0x2, Priority.Info, TlvMessageCompleteEvent)
         },
@@ -616,7 +616,7 @@ export namespace Messages {
      *
      * MessagesCluster supports optional features that you can enable with the MessagesCluster.with() factory method.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.16
+     * @see {@link MatterSpecification.v142.Cluster} § 1.16
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

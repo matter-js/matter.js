@@ -26,7 +26,7 @@ export namespace Groups {
     /**
      * These are optional features supported by GroupsCluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.3.4
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3.4
      */
     export enum Feature {
         /**
@@ -34,7 +34,7 @@ export namespace Groups {
          *
          * The Group Names feature indicates the ability to store a name for a group when a group is added.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.3.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.3.4.1
          */
         GroupNames = "GroupNames"
     }
@@ -42,21 +42,21 @@ export namespace Groups {
     /**
      * The value of the Groups nameSupport attribute
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.3.6.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3.6.1
      */
     export const NameSupportAttribute = { groupNames: BitFlag(7) };
 
     /**
      * Input to the Groups addGroup command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.1
      */
     export const TlvAddGroupRequest = TlvObject({
         /**
          * This field shall be used to identify the group and any associated key material to which the server endpoint
          * is to be added.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.1.1
          */
         groupId: TlvField(0, TlvGroupId),
 
@@ -66,7 +66,7 @@ export namespace Groups {
          *
          * Support of group names is optional and is indicated by the FeatureMap and NameSupport attribute.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.1.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.1.2
          */
         groupName: TlvField(1, TlvString.bound({ maxLength: 16 }))
     });
@@ -74,27 +74,27 @@ export namespace Groups {
     /**
      * Input to the Groups addGroup command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.1
      */
     export interface AddGroupRequest extends TypeFromSchema<typeof TlvAddGroupRequest> {}
 
     /**
      * The AddGroupResponse is sent by the Groups cluster server in response to an AddGroup command.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.7
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.7
      */
     export const TlvAddGroupResponse = TlvObject({
         /**
          * This field is set according to the Effect on Receipt section of the AddGroup command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.7.1
          */
         status: TlvField(0, TlvEnum<Status>()),
 
         /**
          * This field is set to the GroupID field of the received AddGroup command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.7.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.7.2
          */
         groupId: TlvField(1, TlvGroupId)
     });
@@ -102,41 +102,41 @@ export namespace Groups {
     /**
      * The AddGroupResponse is sent by the Groups cluster server in response to an AddGroup command.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.7
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.7
      */
     export interface AddGroupResponse extends TypeFromSchema<typeof TlvAddGroupResponse> {}
 
     /**
      * Input to the Groups viewGroup command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.2
      */
     export const TlvViewGroupRequest = TlvObject({ groupId: TlvField(0, TlvGroupId) });
 
     /**
      * Input to the Groups viewGroup command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.2
      */
     export interface ViewGroupRequest extends TypeFromSchema<typeof TlvViewGroupRequest> {}
 
     /**
      * The ViewGroupResponse command is sent by the Groups cluster server in response to a ViewGroup command.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.8
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.8
      */
     export const TlvViewGroupResponse = TlvObject({
         /**
          * This field is according to the Effect on Receipt section of the ViewGroup command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.8.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.8.1
          */
         status: TlvField(0, TlvEnum<Status>()),
 
         /**
          * This field is set to the GroupID field of the received ViewGroup command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.8.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.8.2
          */
         groupId: TlvField(1, TlvGroupId),
 
@@ -144,7 +144,7 @@ export namespace Groups {
          * If the status is SUCCESS, and group names are supported, this field is set to the group name associated with
          * that group in the Group Table; otherwise it is set to the empty string.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.8.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.8.3
          */
         groupName: TlvField(2, TlvString.bound({ maxLength: 16 }))
     });
@@ -152,21 +152,21 @@ export namespace Groups {
     /**
      * The ViewGroupResponse command is sent by the Groups cluster server in response to a ViewGroup command.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.8
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.8
      */
     export interface ViewGroupResponse extends TypeFromSchema<typeof TlvViewGroupResponse> {}
 
     /**
      * Input to the Groups getGroupMembership command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.3
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.3
      */
     export const TlvGetGroupMembershipRequest = TlvObject({ groupList: TlvField(0, TlvArray(TlvGroupId)) });
 
     /**
      * Input to the Groups getGroupMembership command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.3
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.3
      */
     export interface GetGroupMembershipRequest extends TypeFromSchema<typeof TlvGetGroupMembershipRequest> {}
 
@@ -174,7 +174,7 @@ export namespace Groups {
      * The GetGroupMembershipResponse command is sent by the Groups cluster server in response to a GetGroupMembership
      * command.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.9
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.9
      */
     export const TlvGetGroupMembershipResponse = TlvObject({
         /**
@@ -188,7 +188,7 @@ export namespace Groups {
          *
          *   • null - It is unknown if any further groups may be added.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.9.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.9.1
          */
         capacity: TlvField(0, TlvNullable(TlvUInt8)),
 
@@ -203,7 +203,7 @@ export namespace Groups {
          * Zigbee: If the total number of groups will cause the maximum payload length of a frame to be exceeded, then
          * the GroupList field shall contain only as many groups as will fit.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.9.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.9.2
          */
         groupList: TlvField(1, TlvArray(TlvGroupId))
     });
@@ -212,41 +212,41 @@ export namespace Groups {
      * The GetGroupMembershipResponse command is sent by the Groups cluster server in response to a GetGroupMembership
      * command.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.9
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.9
      */
     export interface GetGroupMembershipResponse extends TypeFromSchema<typeof TlvGetGroupMembershipResponse> {}
 
     /**
      * Input to the Groups removeGroup command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.4
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.4
      */
     export const TlvRemoveGroupRequest = TlvObject({ groupId: TlvField(0, TlvGroupId) });
 
     /**
      * Input to the Groups removeGroup command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.4
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.4
      */
     export interface RemoveGroupRequest extends TypeFromSchema<typeof TlvRemoveGroupRequest> {}
 
     /**
      * The RemoveGroupResponse command is generated by the server in response to the receipt of a RemoveGroup command.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.10
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.10
      */
     export const TlvRemoveGroupResponse = TlvObject({
         /**
          * This field is according to the Effect on Receipt section of the RemoveGroup command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.10.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.10.1
          */
         status: TlvField(0, TlvEnum<Status>()),
 
         /**
          * This field is set to the GroupID field of the received RemoveGroup command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.10.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.10.2
          */
         groupId: TlvField(1, TlvGroupId)
     });
@@ -254,21 +254,21 @@ export namespace Groups {
     /**
      * The RemoveGroupResponse command is generated by the server in response to the receipt of a RemoveGroup command.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.10
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.10
      */
     export interface RemoveGroupResponse extends TypeFromSchema<typeof TlvRemoveGroupResponse> {}
 
     /**
      * Input to the Groups addGroupIfIdentifying command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.6
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.6
      */
     export const TlvAddGroupIfIdentifyingRequest = TlvObject({
         /**
          * This field shall be used to identify the group and any associated key material to which the server endpoint
          * is to be added.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.6.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.6.1
          */
         groupId: TlvField(0, TlvGroupId),
 
@@ -278,7 +278,7 @@ export namespace Groups {
          *
          * Support of group names is optional and is indicated by the FeatureMap and NameSupport attribute.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.6.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.6.2
          */
         groupName: TlvField(1, TlvString.bound({ maxLength: 16 }))
     });
@@ -286,12 +286,12 @@ export namespace Groups {
     /**
      * Input to the Groups addGroupIfIdentifying command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.6
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.6
      */
     export interface AddGroupIfIdentifyingRequest extends TypeFromSchema<typeof TlvAddGroupIfIdentifyingRequest> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.3.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3.5.1
      */
     export const NameSupport = {
         /**
@@ -312,7 +312,7 @@ export namespace Groups {
             /**
              * The Group Names feature indicates the ability to store a name for a group when a group is added.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.3.4.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.3.4.1
              */
             groupNames: BitFlag(0)
         },
@@ -323,7 +323,7 @@ export namespace Groups {
              * most significant bit, bit 7 (GroupNames), shall be equal to bit 0 of the FeatureMap attribute (GN
              * Feature). All other bits shall be 0.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.3.6.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.3.6.1
              */
             nameSupport: FixedAttribute(0x0, TlvBitmap(TlvUInt8, NameSupportAttribute))
         },
@@ -333,7 +333,7 @@ export namespace Groups {
              * The AddGroup command allows a client to add group membership in a particular group for the server
              * endpoint.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.1
              */
             addGroup: Command(0x0, TlvAddGroupRequest, 0x0, TlvAddGroupResponse, { invokeAcl: AccessLevel.Manage }),
 
@@ -341,7 +341,7 @@ export namespace Groups {
              * The ViewGroup command allows a client to request that the server responds with a ViewGroupResponse
              * command containing the name string for a particular group.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.2
+             * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.2
              */
             viewGroup: Command(0x1, TlvViewGroupRequest, 0x1, TlvViewGroupResponse),
 
@@ -349,7 +349,7 @@ export namespace Groups {
              * The GetGroupMembership command allows a client to inquire about the group membership of the server
              * endpoint, in a number of ways.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.3
+             * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.3
              */
             getGroupMembership: Command(0x2, TlvGetGroupMembershipRequest, 0x2, TlvGetGroupMembershipResponse),
 
@@ -357,7 +357,7 @@ export namespace Groups {
              * The RemoveGroup command allows a client to request that the server removes the membership for the server
              * endpoint, if any, in a particular group.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.4
+             * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.4
              */
             removeGroup: Command(
                 0x3,
@@ -371,7 +371,7 @@ export namespace Groups {
              * The RemoveAllGroups command allows a client to direct the server to remove all group associations for the
              * server endpoint.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.5
+             * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.5
              */
             removeAllGroups: Command(0x4, TlvNoArguments, 0x4, TlvNoResponse, { invokeAcl: AccessLevel.Manage }),
 
@@ -385,7 +385,7 @@ export namespace Groups {
              *
              * This command might be used to assist configuring group membership in the absence of a commissioning tool.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.3.7.6
+             * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.6
              */
             addGroupIfIdentifying: Command(
                 0x5,
@@ -426,7 +426,7 @@ export namespace Groups {
      *
      * GroupsCluster supports optional features that you can enable with the GroupsCluster.with() factory method.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.3
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

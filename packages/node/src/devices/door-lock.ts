@@ -20,7 +20,7 @@ import { Identity } from "#general";
  * A Door Lock is a device used to secure a door. It is possible to actuate a door lock either by means of a manual or a
  * remote method.
  *
- * @see {@link MatterSpecification.v141.Device} § 8.1
+ * @see {@link MatterSpecification.v142.Device} § 8.1
  */
 export interface DoorLockDevice extends Identity<typeof DoorLockDeviceDefinition> {}
 

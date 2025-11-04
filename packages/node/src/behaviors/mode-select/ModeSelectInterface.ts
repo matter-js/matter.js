@@ -16,7 +16,7 @@ export namespace ModeSelectInterface {
          * the server shall set the CurrentMode attribute to the NewMode value, otherwise, the server shall respond with
          * an INVALID_COMMAND status response.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.9.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.9.7.1
          */
         changeToMode(request: ModeSelect.ChangeToModeRequest): MaybePromise;
     }

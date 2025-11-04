@@ -25,7 +25,7 @@ export namespace LowPower {
             /**
              * This command shall put the device into low power mode.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.11.4.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.11.4.1
              */
             sleep: Command(0x0, TlvNoArguments, 0x0, TlvNoResponse)
         }
@@ -47,7 +47,7 @@ export namespace LowPower {
      * > We have considered a “DisableLowPowerMode” command but have not added it due to suspected issues with energy
      *   consumption regulations. This can be added in the future.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.11
+     * @see {@link MatterSpecification.v142.Cluster} § 1.11
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

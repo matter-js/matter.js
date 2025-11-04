@@ -23,7 +23,7 @@ export namespace ThreadBorderRouterManagementInterface {
          *
          * Otherwise, this shall generate a DatasetResponse command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 10.3.6.1
+         * @see {@link MatterSpecification.v142.Cluster} § 10.3.6.1
          */
         getActiveDatasetRequest(): MaybePromise<ThreadBorderRouterManagement.DatasetResponse>;
 
@@ -39,7 +39,7 @@ export namespace ThreadBorderRouterManagementInterface {
          *
          * Otherwise, this shall generate a DatasetResponse command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 10.3.6.2
+         * @see {@link MatterSpecification.v142.Cluster} § 10.3.6.2
          */
         getPendingDatasetRequest(): MaybePromise<ThreadBorderRouterManagement.DatasetResponse>;
 
@@ -47,7 +47,7 @@ export namespace ThreadBorderRouterManagementInterface {
          * This command shall be used to set the active Dataset of the Thread network to which the Border Router is
          * connected, when there is no active dataset already.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 10.3.6.4
+         * @see {@link MatterSpecification.v142.Cluster} § 10.3.6.4
          */
         setActiveDatasetRequest(request: ThreadBorderRouterManagement.SetActiveDatasetRequest): MaybePromise;
     }
@@ -71,7 +71,7 @@ export namespace ThreadBorderRouterManagementInterface {
          * is connected, with the value given in the PendingDataset parameter. The Border Router will manage activation
          * of the pending dataset as defined in the Thread specification.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 10.3.6.5
+         * @see {@link MatterSpecification.v142.Cluster} § 10.3.6.5
          */
         setPendingDatasetRequest(request: ThreadBorderRouterManagement.SetPendingDatasetRequest): MaybePromise;
     }

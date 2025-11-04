@@ -73,7 +73,7 @@ export namespace GroupKeyManagementInterface {
          *
          *   • Otherwise, this status code shall be set to FAILURE.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.2.7.1
+         * @see {@link MatterSpecification.v142.Core} § 11.2.7.1
          */
         keySetWrite(request: GroupKeyManagement.KeySetWriteRequest): MaybePromise;
 
@@ -89,7 +89,7 @@ export namespace GroupKeyManagementInterface {
          * Otherwise, if the GroupKeySetID does not refer to a Group Key Set associated with the accessing fabric, then
          * this command shall fail with a NOT_FOUND status code.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.2.7.2
+         * @see {@link MatterSpecification.v142.Core} § 11.2.7.2
          */
         keySetRead(request: GroupKeyManagement.KeySetReadRequest): MaybePromise<GroupKeyManagement.KeySetReadResponse>;
 
@@ -113,7 +113,7 @@ export namespace GroupKeyManagementInterface {
          * This command shall send a SUCCESS status code back to the initiator on success, or NOT_FOUND if the
          * GroupKeySetID requested did not exist.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.2.7.4
+         * @see {@link MatterSpecification.v142.Core} § 11.2.7.4
          */
         keySetRemove(request: GroupKeyManagement.KeySetRemoveRequest): MaybePromise;
 
@@ -127,7 +127,7 @@ export namespace GroupKeyManagementInterface {
          * and generate a KeySetReadAllIndicesResponse command containing the list of GroupKeySetID values from those
          * structs.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.2.7.5
+         * @see {@link MatterSpecification.v142.Core} § 11.2.7.5
          */
         keySetReadAllIndices(): MaybePromise<GroupKeyManagement.KeySetReadAllIndicesResponse>;
     }

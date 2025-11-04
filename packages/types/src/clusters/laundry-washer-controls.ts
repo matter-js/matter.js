@@ -20,7 +20,7 @@ export namespace LaundryWasherControls {
     /**
      * These are optional features supported by LaundryWasherControlsCluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 8.6.4
+     * @see {@link MatterSpecification.v142.Cluster} § 8.6.4
      */
     export enum Feature {
         /**
@@ -29,7 +29,7 @@ export namespace LaundryWasherControls {
          * This feature indicates multiple spin speeds are supported in at least one supported mode. Note that some
          * modes may not support multiple spin speeds even if this feature is supported.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 8.6.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.6.4.1
          */
         Spin = "Spin",
 
@@ -39,7 +39,7 @@ export namespace LaundryWasherControls {
          * This feature indicates multiple rinse cycles are supported in at least one supported mode. Note that some
          * modes may not support selection of the number of rinse cycles even if this feature is supported.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 8.6.4.2
+         * @see {@link MatterSpecification.v142.Cluster} § 8.6.4.2
          */
         Rinse = "Rinse"
     }
@@ -49,7 +49,7 @@ export namespace LaundryWasherControls {
      * mode. NumberOfRinsesEnum is derived from enum8. It is up to the device manufacturer to determine the mapping
      * between the enum values and the corresponding numbers of rinses.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 8.6.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 8.6.5.1
      */
     export enum NumberOfRinses {
         /**
@@ -84,7 +84,7 @@ export namespace LaundryWasherControls {
              * SpinSpeeds list. The list of spin speeds may change depending on the currently selected Laundry Washer
              * mode. For example, Quick mode might have a completely different list of SpinSpeeds than Delicates mode.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 8.6.6.1
+             * @see {@link MatterSpecification.v142.Cluster} § 8.6.6.1
              */
             spinSpeeds: Attribute(0x0, TlvArray(TlvString, { maxLength: 16 }), { default: [] }),
 
@@ -98,7 +98,7 @@ export namespace LaundryWasherControls {
              * sent as the response. If null is written to this attribute, there will be no spin speed for the selected
              * cycle. If the value is null, there will be no spin speed on the current mode.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 8.6.6.2
+             * @see {@link MatterSpecification.v142.Cluster} § 8.6.6.2
              */
             spinSpeedCurrent: WritableAttribute(0x1, TlvNullable(TlvUInt8.bound({ max: 15 })))
         }
@@ -116,7 +116,7 @@ export namespace LaundryWasherControls {
              * in a compatible state to accept the provided value, an INVALID_IN_STATE error shall be sent as the
              * response.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 8.6.6.3
+             * @see {@link MatterSpecification.v142.Cluster} § 8.6.6.3
              */
             numberOfRinses: WritableAttribute(0x2, TlvEnum<NumberOfRinses>()),
 
@@ -125,7 +125,7 @@ export namespace LaundryWasherControls {
              * NumberOfRinsesEnum value that is possible in the selected mode on the device. The value of this attribute
              * may change at runtime based on the currently selected mode. Each entry shall be distinct.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 8.6.6.4
+             * @see {@link MatterSpecification.v142.Cluster} § 8.6.6.4
              */
             supportedRinses: Attribute(0x3, TlvArray(TlvEnum<NumberOfRinses>(), { maxLength: 4 }), { default: [] })
         }
@@ -144,7 +144,7 @@ export namespace LaundryWasherControls {
              * This feature indicates multiple spin speeds are supported in at least one supported mode. Note that some
              * modes may not support multiple spin speeds even if this feature is supported.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 8.6.4.1
+             * @see {@link MatterSpecification.v142.Cluster} § 8.6.4.1
              */
             spin: BitFlag(0),
 
@@ -152,7 +152,7 @@ export namespace LaundryWasherControls {
              * This feature indicates multiple rinse cycles are supported in at least one supported mode. Note that some
              * modes may not support selection of the number of rinse cycles even if this feature is supported.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 8.6.4.2
+             * @see {@link MatterSpecification.v142.Cluster} § 8.6.4.2
              */
             rinse: BitFlag(1)
         },
@@ -179,7 +179,7 @@ export namespace LaundryWasherControls {
      * Per the Matter specification you cannot use {@link LaundryWasherControlsCluster} without enabling certain feature
      * combinations. You must use the {@link with} factory method to obtain a working cluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 8.6
+     * @see {@link MatterSpecification.v142.Cluster} § 8.6
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

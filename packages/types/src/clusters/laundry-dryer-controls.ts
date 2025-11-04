@@ -21,7 +21,7 @@ export namespace LaundryDryerControls {
      * It is up to the device manufacturer to determine the mapping between the enum values and the corresponding
      * temperature level.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 8.9.4.1
+     * @see {@link MatterSpecification.v142.Cluster} § 8.9.4.1
      */
     export enum DrynessLevel {
         /**
@@ -60,7 +60,7 @@ export namespace LaundryDryerControls {
              * provided in the SupportedDrynessLevels list. The list of dryness levels may change depending on the
              * currently-selected Laundry Dryer mode.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 8.9.5.1
+             * @see {@link MatterSpecification.v142.Cluster} § 8.9.5.1
              */
             supportedDrynessLevels: Attribute(0x0, TlvArray(TlvEnum<DrynessLevel>(), { minLength: 1, maxLength: 4 })),
 
@@ -74,7 +74,7 @@ export namespace LaundryDryerControls {
              * INVALID_IN_STATE error shall be sent as the response. A value of null shall indicate that there will be
              * no dryness level setting for the current mode.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 8.9.5.2
+             * @see {@link MatterSpecification.v142.Cluster} § 8.9.5.2
              */
             selectedDrynessLevel: WritableAttribute(0x1, TlvNullable(TlvEnum<DrynessLevel>()))
         }
@@ -83,7 +83,7 @@ export namespace LaundryDryerControls {
     /**
      * This cluster provides a way to access options associated with the operation of a laundry dryer device type.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 8.9
+     * @see {@link MatterSpecification.v142.Cluster} § 8.9
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

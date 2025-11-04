@@ -15,7 +15,7 @@ export namespace RefrigeratorAlarmInterface {
          * This command resets active and latched alarms (if possible). Any generated Notify event shall contain fields
          * that represent the state of the server after the command has been processed.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.15.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.15.7.1
          */
         reset(request: RefrigeratorAlarm.ResetRequest): MaybePromise;
     }

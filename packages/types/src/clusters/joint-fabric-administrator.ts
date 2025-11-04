@@ -27,14 +27,14 @@ export namespace JointFabricAdministrator {
      * This command shall be generated in response to a ICACCSRRequest command. Check ICAC Cross Signing for details
      * about the generation of the ICACCSR.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.25.7.2
+     * @see {@link MatterSpecification.v142.Core} § 11.25.7.2
      */
     export const TlvIcaccsrResponse = TlvObject({
         /**
          * This field shall be a DER-encoded octet string of a properly encoded PKCS #10 Certificate Signing Request
          * (CSR).
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.25.7.2.1
+         * @see {@link MatterSpecification.v142.Core} § 11.25.7.2.1
          */
         icaccsr: TlvField(0, TlvByteString.bound({ maxLength: 600 }))
     });
@@ -43,14 +43,14 @@ export namespace JointFabricAdministrator {
      * This command shall be generated in response to a ICACCSRRequest command. Check ICAC Cross Signing for details
      * about the generation of the ICACCSR.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.25.7.2
+     * @see {@link MatterSpecification.v142.Core} § 11.25.7.2
      */
     export interface IcaccsrResponse extends TypeFromSchema<typeof TlvIcaccsrResponse> {}
 
     /**
      * Input to the JointFabricAdministrator addIcac command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.25.7.3
+     * @see {@link MatterSpecification.v142.Core} § 11.25.7.3
      */
     export const TlvAddIcacRequest = TlvObject({
         /**
@@ -83,7 +83,7 @@ export namespace JointFabricAdministrator {
          *
          * If all the checks succeed, then the ICACValue shall be used as described in the Joint Commissioning Method.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.25.7.3.1
+         * @see {@link MatterSpecification.v142.Core} § 11.25.7.3.1
          */
         icacValue: TlvField(1, TlvByteString.bound({ maxLength: 400 }))
     });
@@ -91,14 +91,14 @@ export namespace JointFabricAdministrator {
     /**
      * Input to the JointFabricAdministrator addIcac command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.25.7.3
+     * @see {@link MatterSpecification.v142.Core} § 11.25.7.3
      */
     export interface AddIcacRequest extends TypeFromSchema<typeof TlvAddIcacRequest> {}
 
     /**
      * This enumeration is used by the ICACResponse command to convey the outcome of this cluster’s operations.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.25.4.1
+     * @see {@link MatterSpecification.v142.Core} § 11.25.4.1
      */
     export enum IcacResponseStatus {
         /**
@@ -120,13 +120,13 @@ export namespace JointFabricAdministrator {
     /**
      * This command shall be generated in response to the AddICAC command.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.25.7.4
+     * @see {@link MatterSpecification.v142.Core} § 11.25.7.4
      */
     export const TlvIcacResponse = TlvObject({
         /**
          * This field shall contain an ICACResponseStatusEnum value representing the status of the AddICAC operation.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.25.7.4.1
+         * @see {@link MatterSpecification.v142.Core} § 11.25.7.4.1
          */
         statusCode: TlvField(0, TlvEnum<IcacResponseStatus>())
     });
@@ -134,14 +134,14 @@ export namespace JointFabricAdministrator {
     /**
      * This command shall be generated in response to the AddICAC command.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.25.7.4
+     * @see {@link MatterSpecification.v142.Core} § 11.25.7.4
      */
     export interface IcacResponse extends TypeFromSchema<typeof TlvIcacResponse> {}
 
     /**
      * Input to the JointFabricAdministrator openJointCommissioningWindow command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.25.7.5
+     * @see {@link MatterSpecification.v142.Core} § 11.25.7.5
      */
     export const TlvOpenJointCommissioningWindowRequest = TlvObject({
         commissioningTimeout: TlvField(0, TlvUInt16),
@@ -154,7 +154,7 @@ export namespace JointFabricAdministrator {
     /**
      * Input to the JointFabricAdministrator openJointCommissioningWindow command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.25.7.5
+     * @see {@link MatterSpecification.v142.Core} § 11.25.7.5
      */
     export interface OpenJointCommissioningWindowRequest extends TypeFromSchema<typeof TlvOpenJointCommissioningWindowRequest> {}
 
@@ -162,7 +162,7 @@ export namespace JointFabricAdministrator {
      * This enumeration is used by the TransferAnchorResponse command to convey the detailed outcome of this cluster’s
      * TransferAnchorRequest command.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.25.4.2
+     * @see {@link MatterSpecification.v142.Core} § 11.25.4.2
      */
     export enum TransferAnchorResponseStatus {
         /**
@@ -184,7 +184,7 @@ export namespace JointFabricAdministrator {
     /**
      * This command shall be generated in response to the Transfer Anchor Request command.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.25.7.7
+     * @see {@link MatterSpecification.v142.Core} § 11.25.7.7
      */
     export const TlvTransferAnchorResponse = TlvObject({
         statusCode: TlvField(0, TlvEnum<TransferAnchorResponseStatus>())
@@ -193,26 +193,26 @@ export namespace JointFabricAdministrator {
     /**
      * This command shall be generated in response to the Transfer Anchor Request command.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.25.7.7
+     * @see {@link MatterSpecification.v142.Core} § 11.25.7.7
      */
     export interface TransferAnchorResponse extends TypeFromSchema<typeof TlvTransferAnchorResponse> {}
 
     /**
      * Input to the JointFabricAdministrator announceJointFabricAdministrator command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.25.7.9
+     * @see {@link MatterSpecification.v142.Core} § 11.25.7.9
      */
     export const TlvAnnounceJointFabricAdministratorRequest = TlvObject({ endpointId: TlvField(0, TlvEndpointNumber) });
 
     /**
      * Input to the JointFabricAdministrator announceJointFabricAdministrator command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.25.7.9
+     * @see {@link MatterSpecification.v142.Core} § 11.25.7.9
      */
     export interface AnnounceJointFabricAdministratorRequest extends TypeFromSchema<typeof TlvAnnounceJointFabricAdministratorRequest> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.25.5.1
+     * @see {@link MatterSpecification.v142.Core} § 11.25.5.1
      */
     export enum StatusCode {
         /**
@@ -246,7 +246,7 @@ export namespace JointFabricAdministrator {
     /**
      * Thrown for cluster status code {@link StatusCode.Busy}.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.25.5.1
+     * @see {@link MatterSpecification.v142.Core} § 11.25.5.1
      */
     export class BusyError extends StatusResponseError {
         constructor(
@@ -261,7 +261,7 @@ export namespace JointFabricAdministrator {
     /**
      * Thrown for cluster status code {@link StatusCode.PakeParameterError}.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.25.5.1
+     * @see {@link MatterSpecification.v142.Core} § 11.25.5.1
      */
     export class PakeParameterError extends StatusResponseError {
         constructor(
@@ -276,7 +276,7 @@ export namespace JointFabricAdministrator {
     /**
      * Thrown for cluster status code {@link StatusCode.WindowNotOpen}.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.25.5.1
+     * @see {@link MatterSpecification.v142.Core} § 11.25.5.1
      */
     export class WindowNotOpenError extends StatusResponseError {
         constructor(
@@ -291,7 +291,7 @@ export namespace JointFabricAdministrator {
     /**
      * Thrown for cluster status code {@link StatusCode.VidNotVerified}.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.25.5.1
+     * @see {@link MatterSpecification.v142.Core} § 11.25.5.1
      */
     export class VidNotVerifiedError extends StatusResponseError {
         constructor(
@@ -306,7 +306,7 @@ export namespace JointFabricAdministrator {
     /**
      * Thrown for cluster status code {@link StatusCode.InvalidAdministratorFabricIndex}.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.25.5.1
+     * @see {@link MatterSpecification.v142.Core} § 11.25.5.1
      */
     export class InvalidAdministratorFabricIndexError extends StatusResponseError {
         constructor(
@@ -332,7 +332,7 @@ export namespace JointFabricAdministrator {
              * Cluster Fabrics attribute (i.e. the Fabric Table) which is associated with the JointFabric. This field
              * shall have the value of null if there is no fabric associated with the JointFabric.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.25.6.1
+             * @see {@link MatterSpecification.v142.Core} § 11.25.6.1
              */
             administratorFabricIndex: WritableAttribute(
                 0x0,
@@ -355,7 +355,7 @@ export namespace JointFabricAdministrator {
              * If a prior AddICAC command was successfully executed within the fail-safe timer period, then this command
              * shall fail with a CONSTRAINT_ERROR status code sent back to the initiator.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.25.7.1
+             * @see {@link MatterSpecification.v142.Core} § 11.25.7.1
              */
             icaccsrRequest: Command(
                 0x0,
@@ -378,7 +378,7 @@ export namespace JointFabricAdministrator {
              *
              * Check ICA Cross Signing for details about the generation of ICACValue.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.25.7.3
+             * @see {@link MatterSpecification.v142.Core} § 11.25.7.3
              */
             addIcac: Command(0x2, TlvAddIcacRequest, 0x3, TlvIcacResponse, { invokeAcl: AccessLevel.Administer }),
 
@@ -394,7 +394,7 @@ export namespace JointFabricAdministrator {
              *
              * The parameters for OpenJointCommissioningWindow command are as follows:
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.25.7.5
+             * @see {@link MatterSpecification.v142.Core} § 11.25.7.5
              */
             openJointCommissioningWindow: Command(
                 0x4,
@@ -408,7 +408,7 @@ export namespace JointFabricAdministrator {
              * This command shall be sent by a candidate Joint Fabric Anchor Administrator to the current Joint Fabric
              * Anchor Administrator to request transfer of the Anchor Fabric.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.25.7.6
+             * @see {@link MatterSpecification.v142.Core} § 11.25.7.6
              */
             transferAnchorRequest: Command(
                 0x5,
@@ -422,7 +422,7 @@ export namespace JointFabricAdministrator {
              * This command shall indicate the completion of the transfer of the Anchor Fabric to another Joint Fabric
              * Ecosystem Administrator.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.25.7.8
+             * @see {@link MatterSpecification.v142.Core} § 11.25.7.8
              */
             transferAnchorComplete: Command(
                 0x7,
@@ -439,7 +439,7 @@ export namespace JointFabricAdministrator {
              * ### This field shall contain the unique identifier for the endpoint that holds the Joint Fabric
              * Administrator Cluster.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.25.7.9
+             * @see {@link MatterSpecification.v142.Core} § 11.25.7.9
              */
             announceJointFabricAdministrator: Command(
                 0x8,
@@ -457,7 +457,7 @@ export namespace JointFabricAdministrator {
      *
      * NOTE Support for Joint Fabric Administrator Cluster is provisional.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.25
+     * @see {@link MatterSpecification.v142.Core} § 11.25
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

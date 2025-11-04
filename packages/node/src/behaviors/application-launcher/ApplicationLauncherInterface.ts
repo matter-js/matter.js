@@ -27,7 +27,7 @@ export namespace ApplicationLauncherInterface {
          *
          * This command returns a Launcher Response.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.4.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.1
          */
         launchApp(request: ApplicationLauncher.LaunchAppRequest): MaybePromise<ApplicationLauncher.LauncherResponse>;
 
@@ -45,7 +45,7 @@ export namespace ApplicationLauncherInterface {
          *
          * This command returns a Launcher Response.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.4.7.2
+         * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.2
          */
         stopApp(request: ApplicationLauncher.StopAppRequest): MaybePromise<ApplicationLauncher.LauncherResponse>;
 
@@ -64,7 +64,7 @@ export namespace ApplicationLauncherInterface {
          *
          * This command returns a Launcher Response.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.4.7.3
+         * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.3
          */
         hideApp(request: ApplicationLauncher.HideAppRequest): MaybePromise<ApplicationLauncher.LauncherResponse>;
     }

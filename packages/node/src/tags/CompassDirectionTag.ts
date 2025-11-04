@@ -12,7 +12,7 @@ import { SemanticNamespace } from "../endpoint/type/SemanticNamespace.js";
  * The tags contained in this namespace may be used in any domain or context, to indicate an association with a movement
  * into a certain compass direction. Note the difference with Chapter 4, Common Compass Location Semantic Tag Namespace.
  *
- * @see {@link MatterSpecification.v141.Namespace} § 3
+ * @see {@link MatterSpecification.v142.Namespace} § 3
  */
 export const CompassDirectionTag = SemanticNamespace({
     id: 0x2,

@@ -33,7 +33,7 @@ export namespace GroupKeyManagement {
     /**
      * These are optional features supported by GroupKeyManagementCluster.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.2.4
+     * @see {@link MatterSpecification.v142.Core} § 11.2.4
      */
     export enum Feature {
         /**
@@ -45,13 +45,13 @@ export namespace GroupKeyManagement {
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.2.5.3
+     * @see {@link MatterSpecification.v142.Core} § 11.2.5.3
      */
     export const TlvGroupKeyMap = TlvObject({
         /**
          * This field uniquely identifies the group within the scope of the given Fabric.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.2.5.3.1
+         * @see {@link MatterSpecification.v142.Core} § 11.2.5.3.1
          */
         groupId: TlvField(1, TlvGroupId),
 
@@ -61,7 +61,7 @@ export namespace GroupKeyManagement {
          *
          * A GroupKeyMapStruct shall NOT accept GroupKeySetID of 0, which is reserved for the IPK.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.2.5.3.2
+         * @see {@link MatterSpecification.v142.Core} § 11.2.5.3.2
          */
         groupKeySetId: TlvField(2, TlvUInt16.bound({ min: 1 })),
 
@@ -69,25 +69,25 @@ export namespace GroupKeyManagement {
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.2.5.3
+     * @see {@link MatterSpecification.v142.Core} § 11.2.5.3
      */
     export interface GroupKeyMap extends TypeFromSchema<typeof TlvGroupKeyMap> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.2.5.5
+     * @see {@link MatterSpecification.v142.Core} § 11.2.5.5
      */
     export const TlvGroupInfoMap = TlvObject({
         /**
          * This field uniquely identifies the group within the scope of the given Fabric.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.2.5.5.1
+         * @see {@link MatterSpecification.v142.Core} § 11.2.5.5.1
          */
         groupId: TlvField(1, TlvGroupId),
 
         /**
          * This field provides the list of Endpoint IDs on the Node to which messages to this group shall be forwarded.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.2.5.5.2
+         * @see {@link MatterSpecification.v142.Core} § 11.2.5.5.2
          */
         endpoints: TlvField(2, TlvArray(TlvEndpointNumber, { minLength: 1 })),
 
@@ -95,7 +95,7 @@ export namespace GroupKeyManagement {
          * This field provides a name for the group. This field shall contain the last GroupName written for a given
          * GroupId on any Endpoint via the Groups cluster.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.2.5.5.3
+         * @see {@link MatterSpecification.v142.Core} § 11.2.5.5.3
          */
         groupName: TlvOptionalField(3, TlvString.bound({ maxLength: 16 })),
 
@@ -103,12 +103,12 @@ export namespace GroupKeyManagement {
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.2.5.5
+     * @see {@link MatterSpecification.v142.Core} § 11.2.5.5
      */
     export interface GroupInfoMap extends TypeFromSchema<typeof TlvGroupInfoMap> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.2.5.1
+     * @see {@link MatterSpecification.v142.Core} § 11.2.5.1
      */
     export enum GroupKeySecurityPolicy {
         /**
@@ -123,7 +123,7 @@ export namespace GroupKeyManagement {
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.2.5.2
+     * @see {@link MatterSpecification.v142.Core} § 11.2.5.2
      */
     export enum GroupKeyMulticastPolicy {
         /**
@@ -131,7 +131,7 @@ export namespace GroupKeyManagement {
          *
          * The 16-bit Group Identifier of the Multicast Address shall be the Group ID of the group.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.2.5.2.1
+         * @see {@link MatterSpecification.v142.Core} § 11.2.5.2.1
          */
         PerGroupId = 0,
 
@@ -140,20 +140,20 @@ export namespace GroupKeyManagement {
          *
          * The 16-bit Group Identifier of the Multicast Address shall be 0xFFFF.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.2.5.2.2
+         * @see {@link MatterSpecification.v142.Core} § 11.2.5.2.2
          */
         AllNodes = 1
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.2.5.4
+     * @see {@link MatterSpecification.v142.Core} § 11.2.5.4
      */
     export const TlvGroupKeySet = TlvObject({
         /**
          * This field shall provide the fabric-unique index for the associated group key set, as specified in Section
          * 4.17.3.5.1, “Group Key Set ID”.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.2.5.4.1
+         * @see {@link MatterSpecification.v142.Core} § 11.2.5.4.1
          */
         groupKeySetId: TlvField(0, TlvUInt16),
 
@@ -163,7 +163,7 @@ export namespace GroupKeyManagement {
          * When CacheAndSync is not supported in the FeatureMap of this cluster, any action attempting to set
          * CacheAndSync in the GroupKeySecurityPolicy field shall fail with an INVALID_COMMAND error.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.2.5.4.2
+         * @see {@link MatterSpecification.v142.Core} § 11.2.5.4.2
          */
         groupKeySecurityPolicy: TlvField(1, TlvEnum<GroupKeySecurityPolicy>()),
 
@@ -171,7 +171,7 @@ export namespace GroupKeyManagement {
          * This field, if not null, shall be the root credential used in the derivation of an operational group key for
          * epoch slot 0 of the given group key set. If EpochKey0 is not null, EpochStartTime0 shall NOT be null.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.2.5.4.3
+         * @see {@link MatterSpecification.v142.Core} § 11.2.5.4.3
          */
         epochKey0: TlvField(2, TlvNullable(TlvByteString.bound({ length: 16 }))),
 
@@ -179,7 +179,7 @@ export namespace GroupKeyManagement {
          * This field, if not null, shall define when EpochKey0 becomes valid as specified by Section 4.17.3, “Epoch
          * Keys”. Units are absolute UTC time in microseconds encoded using the epoch-us representation.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.2.5.4.4
+         * @see {@link MatterSpecification.v142.Core} § 11.2.5.4.4
          */
         epochStartTime0: TlvField(3, TlvNullable(TlvEpochUs)),
 
@@ -187,7 +187,7 @@ export namespace GroupKeyManagement {
          * This field, if not null, shall be the root credential used in the derivation of an operational group key for
          * epoch slot 1 of the given group key set. If EpochKey1 is not null, EpochStartTime1 shall NOT be null.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.2.5.4.5
+         * @see {@link MatterSpecification.v142.Core} § 11.2.5.4.5
          */
         epochKey1: TlvField(4, TlvNullable(TlvByteString.bound({ length: 16 }))),
 
@@ -195,7 +195,7 @@ export namespace GroupKeyManagement {
          * This field, if not null, shall define when EpochKey1 becomes valid as specified by Section 4.17.3, “Epoch
          * Keys”. Units are absolute UTC time in microseconds encoded using the epoch-us representation.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.2.5.4.6
+         * @see {@link MatterSpecification.v142.Core} § 11.2.5.4.6
          */
         epochStartTime1: TlvField(5, TlvNullable(TlvEpochUs)),
 
@@ -203,7 +203,7 @@ export namespace GroupKeyManagement {
          * This field, if not null, shall be the root credential used in the derivation of an operational group key for
          * epoch slot 2 of the given group key set. If EpochKey2 is not null, EpochStartTime2 shall NOT be null.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.2.5.4.7
+         * @see {@link MatterSpecification.v142.Core} § 11.2.5.4.7
          */
         epochKey2: TlvField(6, TlvNullable(TlvByteString.bound({ length: 16 }))),
 
@@ -211,7 +211,7 @@ export namespace GroupKeyManagement {
          * This field, if not null, shall define when EpochKey2 becomes valid as specified by Section 4.17.3, “Epoch
          * Keys”. Units are absolute UTC time in microseconds encoded using the epoch-us representation.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.2.5.4.8
+         * @see {@link MatterSpecification.v142.Core} § 11.2.5.4.8
          */
         epochStartTime2: TlvField(7, TlvNullable(TlvEpochUs)),
 
@@ -229,41 +229,41 @@ export namespace GroupKeyManagement {
          * > Support for GroupKeyMulticastPolicy is provisional. Correct default behavior is that implied by value
          *   PerGroupID.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.2.5.4.9
+         * @see {@link MatterSpecification.v142.Core} § 11.2.5.4.9
          */
         groupKeyMulticastPolicy: TlvOptionalField(8, TlvEnum<GroupKeyMulticastPolicy>())
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.2.5.4
+     * @see {@link MatterSpecification.v142.Core} § 11.2.5.4
      */
     export interface GroupKeySet extends TypeFromSchema<typeof TlvGroupKeySet> {}
 
     /**
      * Input to the GroupKeyManagement keySetWrite command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.2.7.1
+     * @see {@link MatterSpecification.v142.Core} § 11.2.7.1
      */
     export const TlvKeySetWriteRequest = TlvObject({ groupKeySet: TlvField(0, TlvGroupKeySet) });
 
     /**
      * Input to the GroupKeyManagement keySetWrite command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.2.7.1
+     * @see {@link MatterSpecification.v142.Core} § 11.2.7.1
      */
     export interface KeySetWriteRequest extends TypeFromSchema<typeof TlvKeySetWriteRequest> {}
 
     /**
      * Input to the GroupKeyManagement keySetRead command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.2.7.2
+     * @see {@link MatterSpecification.v142.Core} § 11.2.7.2
      */
     export const TlvKeySetReadRequest = TlvObject({ groupKeySetId: TlvField(0, TlvUInt16) });
 
     /**
      * Input to the GroupKeyManagement keySetRead command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.2.7.2
+     * @see {@link MatterSpecification.v142.Core} § 11.2.7.2
      */
     export interface KeySetReadRequest extends TypeFromSchema<typeof TlvKeySetReadRequest> {}
 
@@ -272,7 +272,7 @@ export namespace GroupKeyManagement {
      * shall contain the configuration of the requested Group Key Set, with the EpochKey0, EpochKey1 and EpochKey2 key
      * contents replaced by null.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.2.7.3
+     * @see {@link MatterSpecification.v142.Core} § 11.2.7.3
      */
     export const TlvKeySetReadResponse = TlvObject({ groupKeySet: TlvField(0, TlvGroupKeySet) });
 
@@ -281,21 +281,21 @@ export namespace GroupKeyManagement {
      * shall contain the configuration of the requested Group Key Set, with the EpochKey0, EpochKey1 and EpochKey2 key
      * contents replaced by null.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.2.7.3
+     * @see {@link MatterSpecification.v142.Core} § 11.2.7.3
      */
     export interface KeySetReadResponse extends TypeFromSchema<typeof TlvKeySetReadResponse> {}
 
     /**
      * Input to the GroupKeyManagement keySetRemove command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.2.7.4
+     * @see {@link MatterSpecification.v142.Core} § 11.2.7.4
      */
     export const TlvKeySetRemoveRequest = TlvObject({ groupKeySetId: TlvField(0, TlvUInt16) });
 
     /**
      * Input to the GroupKeyManagement keySetRemove command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.2.7.4
+     * @see {@link MatterSpecification.v142.Core} § 11.2.7.4
      */
     export interface KeySetRemoveRequest extends TypeFromSchema<typeof TlvKeySetRemoveRequest> {}
 
@@ -303,7 +303,7 @@ export namespace GroupKeyManagement {
      * This command shall be generated in response to KeySetReadAllIndices and it shall contain the list of
      * GroupKeySetID for all Group Key Sets associated with the scoped Fabric.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.2.7.6
+     * @see {@link MatterSpecification.v142.Core} § 11.2.7.6
      */
     export const TlvKeySetReadAllIndicesResponse = TlvObject({
         /**
@@ -312,7 +312,7 @@ export namespace GroupKeyManagement {
          *
          * Each entry in GroupKeySetIDs is a GroupKeySetID field.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.2.7.6.1
+         * @see {@link MatterSpecification.v142.Core} § 11.2.7.6.1
          */
         groupKeySetIDs: TlvField(0, TlvArray(TlvUInt16))
     });
@@ -321,7 +321,7 @@ export namespace GroupKeyManagement {
      * This command shall be generated in response to KeySetReadAllIndices and it shall contain the list of
      * GroupKeySetID for all Group Key Sets associated with the scoped Fabric.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.2.7.6
+     * @see {@link MatterSpecification.v142.Core} § 11.2.7.6
      */
     export interface KeySetReadAllIndicesResponse extends TypeFromSchema<typeof TlvKeySetReadAllIndicesResponse> {}
 
@@ -345,7 +345,7 @@ export namespace GroupKeyManagement {
              * This attribute is a list of GroupKeyMapStruct entries. Each entry associates a logical Group Id with a
              * particular group key set.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.2.6.1
+             * @see {@link MatterSpecification.v142.Core} § 11.2.6.1
              */
             groupKeyMap: WritableFabricScopedAttribute(
                 0x0,
@@ -364,7 +364,7 @@ export namespace GroupKeyManagement {
              * RemoveGroup or RemoveAllGroups command causes the removal of a group mapping from its last mapped
              * endpoint, the entire GroupTable entry for that given GroupId shall be removed.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.2.6.2
+             * @see {@link MatterSpecification.v142.Core} § 11.2.6.2
              */
             groupTable: FabricScopedAttribute(0x1, TlvArray(TlvGroupInfoMap), { default: [] }),
 
@@ -374,7 +374,7 @@ export namespace GroupKeyManagement {
              * “Group Limits”. The length of the GroupKeyMap and GroupTable list attributes shall NOT exceed the value
              * of the MaxGroupsPerFabric attribute multiplied by the number of supported fabrics.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.2.6.3
+             * @see {@link MatterSpecification.v142.Core} § 11.2.6.3
              */
             maxGroupsPerFabric: FixedAttribute(0x2, TlvUInt16, { default: 0 }),
 
@@ -383,7 +383,7 @@ export namespace GroupKeyManagement {
              * shall be set according to the minimum number of group key sets to support as specified in Section
              * 2.11.1.2, “Group Limits”.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.2.6.4
+             * @see {@link MatterSpecification.v142.Core} § 11.2.6.4
              */
             maxGroupKeysPerFabric: FixedAttribute(0x3, TlvUInt16.bound({ min: 1 }), { default: 1 })
         },
@@ -453,7 +453,7 @@ export namespace GroupKeyManagement {
              *
              *   • Otherwise, this status code shall be set to FAILURE.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.2.7.1
+             * @see {@link MatterSpecification.v142.Core} § 11.2.7.1
              */
             keySetWrite: Command(0x0, TlvKeySetWriteRequest, 0x0, TlvNoResponse, { invokeAcl: AccessLevel.Administer }),
 
@@ -469,7 +469,7 @@ export namespace GroupKeyManagement {
              * Otherwise, if the GroupKeySetID does not refer to a Group Key Set associated with the accessing fabric,
              * then this command shall fail with a NOT_FOUND status code.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.2.7.2
+             * @see {@link MatterSpecification.v142.Core} § 11.2.7.2
              */
             keySetRead: Command(
                 0x1,
@@ -499,7 +499,7 @@ export namespace GroupKeyManagement {
              * This command shall send a SUCCESS status code back to the initiator on success, or NOT_FOUND if the
              * GroupKeySetID requested did not exist.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.2.7.4
+             * @see {@link MatterSpecification.v142.Core} § 11.2.7.4
              */
             keySetRemove: Command(
                 0x3,
@@ -519,7 +519,7 @@ export namespace GroupKeyManagement {
              * fabric and generate a KeySetReadAllIndicesResponse command containing the list of GroupKeySetID values
              * from those structs.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.2.7.5
+             * @see {@link MatterSpecification.v142.Core} § 11.2.7.5
              */
             keySetReadAllIndices: Command(
                 0x4,
@@ -556,7 +556,7 @@ export namespace GroupKeyManagement {
      * GroupKeyManagementCluster supports optional features that you can enable with the
      * GroupKeyManagementCluster.with() factory method.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.2
+     * @see {@link MatterSpecification.v142.Core} § 11.2
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

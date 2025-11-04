@@ -36,7 +36,7 @@ import { Identity } from "#general";
  * use the following heuristic to distinguish the type of physical device based on the device type revision found on an
  * endpoint ("--" means the device type is not listed).
  *
- * @see {@link MatterSpecification.v141.Device} § 5.2
+ * @see {@link MatterSpecification.v142.Device} § 5.2
  */
 export interface DimmablePlugInUnitDevice extends Identity<typeof DimmablePlugInUnitDeviceDefinition> {}
 

@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
-
 import { UnitLocalizationServer } from "#behaviors/unit-localization";
 import { ThermostatUserInterfaceConfiguration } from "@matter/types/clusters/thermostat-user-interface-configuration";
 import { UnitLocalization } from "@matter/types/clusters/unit-localization";

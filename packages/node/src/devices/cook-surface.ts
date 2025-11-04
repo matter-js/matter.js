@@ -21,7 +21,7 @@ import { Identity } from "#general";
  * A Cook Surface device type represents a heating object on a cooktop or other similar device. It shall only be used
  * when composed as part of another device type.
  *
- * @see {@link MatterSpecification.v141.Device} § 13.7
+ * @see {@link MatterSpecification.v142.Device} § 13.7
  */
 export interface CookSurfaceDevice extends Identity<typeof CookSurfaceDeviceDefinition> {}
 

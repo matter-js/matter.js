@@ -26,7 +26,7 @@ export namespace GeneralDiagnostics {
     /**
      * These are optional features supported by GeneralDiagnosticsCluster.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.12.4
+     * @see {@link MatterSpecification.v142.Core} § 11.12.4
      */
     export enum Feature {
         /**
@@ -38,7 +38,7 @@ export namespace GeneralDiagnostics {
          * This feature shall be supported if the MaxPathsPerInvoke attribute of the Basic Information Cluster has a
          * value > 1.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.12.4.1
+         * @see {@link MatterSpecification.v142.Core} § 11.12.4.1
          */
         DataModelTest = "DataModelTest"
     }
@@ -46,20 +46,20 @@ export namespace GeneralDiagnostics {
     /**
      * Input to the GeneralDiagnostics payloadTestRequest command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.12.7.4
+     * @see {@link MatterSpecification.v142.Core} § 11.12.7.4
      */
     export const TlvPayloadTestRequest = TlvObject({
         /**
          * This field shall have the same meaning and usage as the TestEventTrigger EnableKey field.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.12.7.4.1
+         * @see {@link MatterSpecification.v142.Core} § 11.12.7.4.1
          */
         enableKey: TlvField(0, TlvByteString.bound({ length: 16 })),
 
         /**
          * This field shall indicate the value to use in every byte of the PayloadTestResponse’s Payload field.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.12.7.4.2
+         * @see {@link MatterSpecification.v142.Core} § 11.12.7.4.2
          */
         value: TlvField(1, TlvUInt8),
 
@@ -86,7 +86,7 @@ export namespace GeneralDiagnostics {
          *     content whose hexadecimal representation would be A5A5A5A5A5A5A5A5A5A5, and base64 representation would
          *     be paWlpaWlpaWlpQ==.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.12.7.4.3
+         * @see {@link MatterSpecification.v142.Core} § 11.12.7.4.3
          */
         count: TlvField(2, TlvUInt16.bound({ max: 2048 }))
     });
@@ -94,20 +94,20 @@ export namespace GeneralDiagnostics {
     /**
      * Input to the GeneralDiagnostics payloadTestRequest command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.12.7.4
+     * @see {@link MatterSpecification.v142.Core} § 11.12.7.4
      */
     export interface PayloadTestRequest extends TypeFromSchema<typeof TlvPayloadTestRequest> {}
 
     /**
      * This command is sent by the server on receipt of the PayloadTestRequest command.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.12.7.5
+     * @see {@link MatterSpecification.v142.Core} § 11.12.7.5
      */
     export const TlvPayloadTestResponse = TlvObject({
         /**
          * This field shall contain the computed response of the PayloadTestRequest command.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.12.7.5.1
+         * @see {@link MatterSpecification.v142.Core} § 11.12.7.5.1
          */
         payload: TlvField(0, TlvByteString.bound({ maxLength: 2048 }))
     });
@@ -115,12 +115,12 @@ export namespace GeneralDiagnostics {
     /**
      * This command is sent by the server on receipt of the PayloadTestRequest command.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.12.7.5
+     * @see {@link MatterSpecification.v142.Core} § 11.12.7.5
      */
     export interface PayloadTestResponse extends TypeFromSchema<typeof TlvPayloadTestResponse> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.12.5.4
+     * @see {@link MatterSpecification.v142.Core} § 11.12.5.4
      */
     export enum InterfaceType {
         /**
@@ -153,14 +153,14 @@ export namespace GeneralDiagnostics {
      * This structure describes a network interface supported by the Node, as provided in the NetworkInterfaces
      * attribute.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.12.5.6
+     * @see {@link MatterSpecification.v142.Core} § 11.12.5.6
      */
     export const TlvNetworkInterface = TlvObject({
         /**
          * This field shall indicate a human-readable (displayable) name for the network interface, that is different
          * from all other interfaces.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.12.5.6.1
+         * @see {@link MatterSpecification.v142.Core} § 11.12.5.6.1
          */
         name: TlvField(0, TlvString.bound({ maxLength: 32 })),
 
@@ -168,7 +168,7 @@ export namespace GeneralDiagnostics {
          * This field shall indicate if the Node is currently advertising itself operationally on this network interface
          * and is capable of successfully receiving incoming traffic from other Nodes.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.12.5.6.2
+         * @see {@link MatterSpecification.v142.Core} § 11.12.5.6.2
          */
         isOperational: TlvField(1, TlvBoolean),
 
@@ -177,7 +177,7 @@ export namespace GeneralDiagnostics {
          * utilizing IPv4. The value shall be null if the Node does not use such services or does not know whether it
          * can reach them.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.12.5.6.3
+         * @see {@link MatterSpecification.v142.Core} § 11.12.5.6.3
          */
         offPremiseServicesReachableIPv4: TlvField(2, TlvNullable(TlvBoolean)),
 
@@ -186,7 +186,7 @@ export namespace GeneralDiagnostics {
          * utilizing IPv6. The value shall be null if the Node does not use such services or does not know whether it
          * can reach them.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.12.5.6.4
+         * @see {@link MatterSpecification.v142.Core} § 11.12.5.6.4
          */
         offPremiseServicesReachableIPv6: TlvField(3, TlvNullable(TlvBoolean)),
 
@@ -195,14 +195,14 @@ export namespace GeneralDiagnostics {
          * contain the current extended MAC address for a 802.15.4 interface. The byte order of the octstr shall be in
          * wire byte order. For addresses values less than 64 bits, the first two bytes shall be zero.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.12.5.6.5
+         * @see {@link MatterSpecification.v142.Core} § 11.12.5.6.5
          */
         hardwareAddress: TlvField(4, TlvByteString),
 
         /**
          * This field shall provide a list of the IPv4 addresses that are currently assigned to the network interface.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.12.5.6.6
+         * @see {@link MatterSpecification.v142.Core} § 11.12.5.6.6
          */
         iPv4Addresses: TlvField(5, TlvArray(TlvByteString, { maxLength: 4 })),
 
@@ -211,14 +211,14 @@ export namespace GeneralDiagnostics {
          * interface. This list shall include the Node’s link-local address and SHOULD include any assigned GUA and ULA
          * addresses. This list shall NOT include any multicast group addresses to which the Node is subscribed.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.12.5.6.7
+         * @see {@link MatterSpecification.v142.Core} § 11.12.5.6.7
          */
         iPv6Addresses: TlvField(6, TlvArray(TlvByteString, { maxLength: 8 })),
 
         /**
          * This field shall indicate the type of the interface using the InterfaceTypeEnum.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.12.5.6.8
+         * @see {@link MatterSpecification.v142.Core} § 11.12.5.6.8
          */
         type: TlvField(7, TlvEnum<InterfaceType>())
     });
@@ -227,12 +227,12 @@ export namespace GeneralDiagnostics {
      * This structure describes a network interface supported by the Node, as provided in the NetworkInterfaces
      * attribute.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.12.5.6
+     * @see {@link MatterSpecification.v142.Core} § 11.12.5.6
      */
     export interface NetworkInterface extends TypeFromSchema<typeof TlvNetworkInterface> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.12.5.5
+     * @see {@link MatterSpecification.v142.Core} § 11.12.5.5
      */
     export enum BootReason {
         /**
@@ -272,7 +272,7 @@ export namespace GeneralDiagnostics {
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.12.5.1
+     * @see {@link MatterSpecification.v142.Core} § 11.12.5.1
      */
     export enum HardwareFault {
         /**
@@ -332,7 +332,7 @@ export namespace GeneralDiagnostics {
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.12.5.2
+     * @see {@link MatterSpecification.v142.Core} § 11.12.5.2
      */
     export enum RadioFault {
         /**
@@ -372,7 +372,7 @@ export namespace GeneralDiagnostics {
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.12.5.3
+     * @see {@link MatterSpecification.v142.Core} § 11.12.5.3
      */
     export enum NetworkFault {
         /**
@@ -399,7 +399,7 @@ export namespace GeneralDiagnostics {
     /**
      * Input to the GeneralDiagnostics testEventTrigger command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.12.7.1
+     * @see {@link MatterSpecification.v142.Core} § 11.12.7.1
      */
     export const TlvTestEventTriggerRequest = TlvObject({
         /**
@@ -416,7 +416,7 @@ export namespace GeneralDiagnostics {
          * In order to prevent unwittingly actuating a particular trigger, this command shall respond with a response
          * status of CONSTRAINT_ERROR if the EnableKey field does not match the a-priori value configured on the device.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.12.7.1.1
+         * @see {@link MatterSpecification.v142.Core} § 11.12.7.1.1
          */
         enableKey: TlvField(0, TlvByteString.bound({ length: 16 })),
 
@@ -443,7 +443,7 @@ export namespace GeneralDiagnostics {
          * INVALID_COMMAND status, equivalent to the situation of receiving an unknown EventTrigger, for all possible
          * EventTrigger values.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.12.7.1.2
+         * @see {@link MatterSpecification.v142.Core} § 11.12.7.1.2
          */
         eventTrigger: TlvField(1, TlvUInt64)
     });
@@ -451,7 +451,7 @@ export namespace GeneralDiagnostics {
     /**
      * Input to the GeneralDiagnostics testEventTrigger command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.12.7.1
+     * @see {@link MatterSpecification.v142.Core} § 11.12.7.1
      */
     export interface TestEventTriggerRequest extends TypeFromSchema<typeof TlvTestEventTriggerRequest> {}
 
@@ -464,7 +464,7 @@ export namespace GeneralDiagnostics {
      * If the Time Synchronization cluster is supported by the node, the PosixTimeMs field shall NOT be null unless the
      * UTCTime attribute in the Time Synchronization cluster is also null.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.12.7.3
+     * @see {@link MatterSpecification.v142.Core} § 11.12.7.3
      */
     export const TlvTimeSnapshotResponse = TlvObject({
         /**
@@ -474,7 +474,7 @@ export namespace GeneralDiagnostics {
          * The value shall be taken from the same clock which populates the Timestamp field in events when using System
          * Time for the field.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.12.7.3.1
+         * @see {@link MatterSpecification.v142.Core} § 11.12.7.3.1
          */
         systemTimeMs: TlvField(0, TlvSysTimeMS),
 
@@ -487,7 +487,7 @@ export namespace GeneralDiagnostics {
          *
          *   • The node’s Time Synchronization cluster instance’s UTCTime attribute is null.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.12.7.3.2
+         * @see {@link MatterSpecification.v142.Core} § 11.12.7.3.2
          */
         posixTimeMs: TlvField(1, TlvNullable(TlvPosixMs))
     });
@@ -501,27 +501,27 @@ export namespace GeneralDiagnostics {
      * If the Time Synchronization cluster is supported by the node, the PosixTimeMs field shall NOT be null unless the
      * UTCTime attribute in the Time Synchronization cluster is also null.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.12.7.3
+     * @see {@link MatterSpecification.v142.Core} § 11.12.7.3
      */
     export interface TimeSnapshotResponse extends TypeFromSchema<typeof TlvTimeSnapshotResponse> {}
 
     /**
      * Body of the GeneralDiagnostics hardwareFaultChange event
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.12.8.1
+     * @see {@link MatterSpecification.v142.Core} § 11.12.8.1
      */
     export const TlvHardwareFaultChangeEvent = TlvObject({
         /**
          * This field shall represent the set of faults currently detected, as per HardwareFaultEnum.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.12.8.1.1
+         * @see {@link MatterSpecification.v142.Core} § 11.12.8.1.1
          */
         current: TlvField(0, TlvArray(TlvEnum<HardwareFault>(), { maxLength: 11 })),
 
         /**
          * This field shall represent the set of faults detected prior to this change event, as per HardwareFaultEnum.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.12.8.1.2
+         * @see {@link MatterSpecification.v142.Core} § 11.12.8.1.2
          */
         previous: TlvField(1, TlvArray(TlvEnum<HardwareFault>(), { maxLength: 11 }))
     });
@@ -529,27 +529,27 @@ export namespace GeneralDiagnostics {
     /**
      * Body of the GeneralDiagnostics hardwareFaultChange event
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.12.8.1
+     * @see {@link MatterSpecification.v142.Core} § 11.12.8.1
      */
     export interface HardwareFaultChangeEvent extends TypeFromSchema<typeof TlvHardwareFaultChangeEvent> {}
 
     /**
      * Body of the GeneralDiagnostics radioFaultChange event
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.12.8.2
+     * @see {@link MatterSpecification.v142.Core} § 11.12.8.2
      */
     export const TlvRadioFaultChangeEvent = TlvObject({
         /**
          * This field shall represent the set of faults currently detected, as per RadioFaultEnum.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.12.8.2.1
+         * @see {@link MatterSpecification.v142.Core} § 11.12.8.2.1
          */
         current: TlvField(0, TlvArray(TlvEnum<RadioFault>(), { maxLength: 7 })),
 
         /**
          * This field shall represent the set of faults detected prior to this change event, as per RadioFaultEnum.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.12.8.2.2
+         * @see {@link MatterSpecification.v142.Core} § 11.12.8.2.2
          */
         previous: TlvField(1, TlvArray(TlvEnum<RadioFault>(), { maxLength: 7 }))
     });
@@ -557,27 +557,27 @@ export namespace GeneralDiagnostics {
     /**
      * Body of the GeneralDiagnostics radioFaultChange event
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.12.8.2
+     * @see {@link MatterSpecification.v142.Core} § 11.12.8.2
      */
     export interface RadioFaultChangeEvent extends TypeFromSchema<typeof TlvRadioFaultChangeEvent> {}
 
     /**
      * Body of the GeneralDiagnostics networkFaultChange event
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.12.8.3
+     * @see {@link MatterSpecification.v142.Core} § 11.12.8.3
      */
     export const TlvNetworkFaultChangeEvent = TlvObject({
         /**
          * This field shall represent the set of faults currently detected, as per NetworkFaultEnum.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.12.8.3.1
+         * @see {@link MatterSpecification.v142.Core} § 11.12.8.3.1
          */
         current: TlvField(0, TlvArray(TlvEnum<NetworkFault>(), { maxLength: 4 })),
 
         /**
          * This field shall represent the set of faults detected prior to this change event, as per NetworkFaultEnum.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.12.8.3.2
+         * @see {@link MatterSpecification.v142.Core} § 11.12.8.3.2
          */
         previous: TlvField(1, TlvArray(TlvEnum<NetworkFault>(), { maxLength: 4 }))
     });
@@ -585,20 +585,20 @@ export namespace GeneralDiagnostics {
     /**
      * Body of the GeneralDiagnostics networkFaultChange event
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.12.8.3
+     * @see {@link MatterSpecification.v142.Core} § 11.12.8.3
      */
     export interface NetworkFaultChangeEvent extends TypeFromSchema<typeof TlvNetworkFaultChangeEvent> {}
 
     /**
      * Body of the GeneralDiagnostics bootReason event
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.12.8.4
+     * @see {@link MatterSpecification.v142.Core} § 11.12.8.4
      */
     export const TlvBootReasonEvent = TlvObject({
         /**
          * This field shall contain the reason for this BootReason event.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.12.8.4.1
+         * @see {@link MatterSpecification.v142.Core} § 11.12.8.4.1
          */
         bootReason: TlvField(0, TlvEnum<BootReason>())
     });
@@ -606,7 +606,7 @@ export namespace GeneralDiagnostics {
     /**
      * Body of the GeneralDiagnostics bootReason event
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.12.8.4
+     * @see {@link MatterSpecification.v142.Core} § 11.12.8.4
      */
     export interface BootReasonEvent extends TypeFromSchema<typeof TlvBootReasonEvent> {}
 
@@ -625,7 +625,7 @@ export namespace GeneralDiagnostics {
              *
              * The fields for the PayloadTestRequest command are as follows:
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.12.7.4
+             * @see {@link MatterSpecification.v142.Core} § 11.12.7.4
              */
             payloadTestRequest: Command(
                 0x3,
@@ -653,7 +653,7 @@ export namespace GeneralDiagnostics {
              * This feature shall be supported if the MaxPathsPerInvoke attribute of the Basic Information Cluster has a
              * value > 1.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.12.4.1
+             * @see {@link MatterSpecification.v142.Core} § 11.12.4.1
              */
             dataModelTest: BitFlag(0)
         },
@@ -663,7 +663,7 @@ export namespace GeneralDiagnostics {
              * The NetworkInterfaces attribute shall be a list of NetworkInterface structs. Each logical network
              * interface on the Node shall be represented by a single entry within the NetworkInterfaces attribute.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.12.6.1
+             * @see {@link MatterSpecification.v142.Core} § 11.12.6.1
              */
             networkInterfaces: Attribute(0x0, TlvArray(TlvNetworkInterface, { maxLength: 8 }), { default: [] }),
 
@@ -673,7 +673,7 @@ export namespace GeneralDiagnostics {
              * attribute shall NOT be incremented when a Node wakes from a low-power or sleep state. The RebootCount
              * attribute shall only be reset to 0 upon a factory reset of the Node.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.12.6.2
+             * @see {@link MatterSpecification.v142.Core} § 11.12.6.2
              */
             rebootCount: Attribute(0x1, TlvUInt16, { persistent: true }),
 
@@ -684,7 +684,7 @@ export namespace GeneralDiagnostics {
              * shall be based on the same System Time source as those used to fulfill any usage of the systime-us and
              * systime-ms data types within the server.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.12.6.3
+             * @see {@link MatterSpecification.v142.Core} § 11.12.6.3
              */
             upTime: Attribute(0x2, TlvUInt64, { omitChanges: true }),
 
@@ -694,14 +694,14 @@ export namespace GeneralDiagnostics {
              * to account for the periods of time that a Node is in a low-power or sleep state. The
              * TotalOperationalHours attribute shall only be reset upon a factory reset of the Node.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.12.6.4
+             * @see {@link MatterSpecification.v142.Core} § 11.12.6.4
              */
             totalOperationalHours: OptionalAttribute(0x3, TlvUInt32, { persistent: true, omitChanges: true }),
 
             /**
              * The BootReason attribute shall indicate the reason for the Node’s most recent boot.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.12.6.5
+             * @see {@link MatterSpecification.v142.Core} § 11.12.6.5
              */
             bootReason: OptionalAttribute(0x4, TlvEnum<BootReason>()),
 
@@ -714,7 +714,7 @@ export namespace GeneralDiagnostics {
              * no active faults. The order of this list SHOULD have no significance. Clients interested in monitoring
              * changes in active faults may subscribe to this attribute, or they may subscribe to HardwareFaultChange.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.12.6.6
+             * @see {@link MatterSpecification.v142.Core} § 11.12.6.6
              */
             activeHardwareFaults: OptionalAttribute(
                 0x5,
@@ -731,7 +731,7 @@ export namespace GeneralDiagnostics {
              * The order of this list SHOULD have no significance. Clients interested in monitoring changes in active
              * faults may subscribe to this attribute, or they may subscribe to RadioFaultChange.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.12.6.7
+             * @see {@link MatterSpecification.v142.Core} § 11.12.6.7
              */
             activeRadioFaults: OptionalAttribute(
                 0x6,
@@ -748,7 +748,7 @@ export namespace GeneralDiagnostics {
              * no active faults. The order of this list SHOULD have no significance. Clients interested in monitoring
              * changes in active faults may subscribe to this attribute, or they may subscribe to NetworkFaultChange.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.12.6.8
+             * @see {@link MatterSpecification.v142.Core} § 11.12.6.8
              */
             activeNetworkFaults: OptionalAttribute(
                 0x7,
@@ -764,7 +764,7 @@ export namespace GeneralDiagnostics {
              * device was inadvertently commissioned with test event trigger mode enabled, and take appropriate action
              * (e.g. warn the user and/or offer to remove all fabrics on the Node).
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.12.6.9
+             * @see {@link MatterSpecification.v142.Core} § 11.12.6.9
              */
             testEventTriggersEnabled: Attribute(0x8, TlvBoolean)
         },
@@ -778,7 +778,7 @@ export namespace GeneralDiagnostics {
              *
              * The fields for the TestEventTrigger command are as follows:
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.12.7.1
+             * @see {@link MatterSpecification.v142.Core} § 11.12.7.1
              */
             testEventTrigger: Command(
                 0x0,
@@ -796,7 +796,7 @@ export namespace GeneralDiagnostics {
              *
              * Upon command invocation, the server shall respond with a TimeSnapshotResponse.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.12.7.2
+             * @see {@link MatterSpecification.v142.Core} § 11.12.7.2
              */
             timeSnapshot: Command(0x1, TlvNoArguments, 0x2, TlvTimeSnapshotResponse)
         },
@@ -806,7 +806,7 @@ export namespace GeneralDiagnostics {
              * The HardwareFaultChange Event shall indicate a change in the set of hardware faults currently detected by
              * the Node.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.12.8.1
+             * @see {@link MatterSpecification.v142.Core} § 11.12.8.1
              */
             hardwareFaultChange: OptionalEvent(0x0, Priority.Critical, TlvHardwareFaultChangeEvent),
 
@@ -814,7 +814,7 @@ export namespace GeneralDiagnostics {
              * The RadioFaultChange Event shall indicate a change in the set of radio faults currently detected by the
              * Node.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.12.8.2
+             * @see {@link MatterSpecification.v142.Core} § 11.12.8.2
              */
             radioFaultChange: OptionalEvent(0x1, Priority.Critical, TlvRadioFaultChangeEvent),
 
@@ -822,14 +822,14 @@ export namespace GeneralDiagnostics {
              * The NetworkFaultChange Event shall indicate a change in the set of network faults currently detected by
              * the Node.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.12.8.3
+             * @see {@link MatterSpecification.v142.Core} § 11.12.8.3
              */
             networkFaultChange: OptionalEvent(0x2, Priority.Critical, TlvNetworkFaultChangeEvent),
 
             /**
              * The BootReason Event shall indicate the reason that caused the device to start-up.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.12.8.4
+             * @see {@link MatterSpecification.v142.Core} § 11.12.8.4
              */
             bootReason: Event(0x3, Priority.Critical, TlvBootReasonEvent)
         },
@@ -855,7 +855,7 @@ export namespace GeneralDiagnostics {
      * GeneralDiagnosticsCluster supports optional features that you can enable with the
      * GeneralDiagnosticsCluster.with() factory method.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.12
+     * @see {@link MatterSpecification.v142.Core} § 11.12
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

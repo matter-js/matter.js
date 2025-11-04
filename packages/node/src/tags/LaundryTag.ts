@@ -12,7 +12,7 @@ import { SemanticNamespace } from "../endpoint/type/SemanticNamespace.js";
  * The tags contained in this namespace are restricted for use in the laundry domain and shall NOT be used in any other
  * domain or context.
  *
- * @see {@link MatterSpecification.v141.Namespace} § 14
+ * @see {@link MatterSpecification.v142.Namespace} § 14
  */
 export const LaundryTag = SemanticNamespace({
     id: 0xe,

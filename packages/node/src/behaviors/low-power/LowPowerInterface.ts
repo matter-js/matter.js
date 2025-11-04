@@ -13,7 +13,7 @@ export namespace LowPowerInterface {
         /**
          * This command shall put the device into low power mode.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.11.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.11.4.1
          */
         sleep(): MaybePromise;
     }

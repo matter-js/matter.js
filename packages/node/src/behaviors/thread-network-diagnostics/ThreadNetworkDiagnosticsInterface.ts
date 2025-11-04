@@ -19,7 +19,7 @@ export namespace ThreadNetworkDiagnosticsInterface {
          *
          * Upon completion, this command shall send a status code of SUCCESS back to the initiator.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.14.7.1
+         * @see {@link MatterSpecification.v142.Core} § 11.14.7.1
          */
         resetCounts(): MaybePromise;
     }

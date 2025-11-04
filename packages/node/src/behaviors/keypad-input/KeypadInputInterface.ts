@@ -23,7 +23,7 @@ export namespace KeypadInputInterface {
          * consider the first key press to be a press and hold. When such a repeat KeyCode value is not received within
          * 200 ms, then the endpoint will consider the last key press to be a release.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.8.6.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.8.6.1
          */
         sendKey(request: KeypadInput.SendKeyRequest): MaybePromise<KeypadInput.SendKeyResponse>;
     }

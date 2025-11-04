@@ -10,7 +10,7 @@
  * The values 0 through 2 shall correspond to the values 0 through 2 used in certification_type in the Certification
  * Declaration.
  *
- * @see {@link MatterSpecification.v141.Core} § 11.23.8.2
+ * @see {@link MatterSpecification.v142.Core} § 11.23.8.2
  */
 export enum SoftwareVersionCertificationStatus {
     /**

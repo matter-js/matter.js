@@ -25,7 +25,7 @@ export namespace ApplicationLauncher {
     /**
      * These are optional features supported by ApplicationLauncherCluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.4.4
+     * @see {@link MatterSpecification.v142.Cluster} § 6.4.4
      */
     export enum Feature {
         /**
@@ -40,7 +40,7 @@ export namespace ApplicationLauncher {
     /**
      * This indicates a global identifier for an Application given a catalog.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.4.5.2
+     * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.2
      */
     export const TlvApplication = TlvObject({
         /**
@@ -50,7 +50,7 @@ export namespace ApplicationLauncher {
          * Content App Platform providers will have their own catalog vendor ID (set to their own Vendor ID) and will
          * assign an ApplicationID to each Content App.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.4.5.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.2.1
          */
         catalogVendorId: TlvField(0, TlvUInt16),
 
@@ -60,7 +60,7 @@ export namespace ApplicationLauncher {
          *
          * For the DIAL registry catalog, this value shall be the DIAL prefix (see [DIAL Registry]).
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.4.5.2.2
+         * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.2.2
          */
         applicationId: TlvField(1, TlvString)
     });
@@ -68,14 +68,14 @@ export namespace ApplicationLauncher {
     /**
      * This indicates a global identifier for an Application given a catalog.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.4.5.2
+     * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.2
      */
     export interface Application extends TypeFromSchema<typeof TlvApplication> {}
 
     /**
      * This specifies an app along with its corresponding endpoint.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.4.5.3
+     * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.3
      */
     export const TlvApplicationEp = TlvObject({
         application: TlvField(0, TlvApplication),
@@ -85,20 +85,20 @@ export namespace ApplicationLauncher {
     /**
      * This specifies an app along with its corresponding endpoint.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.4.5.3
+     * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.3
      */
     export interface ApplicationEp extends TypeFromSchema<typeof TlvApplicationEp> {}
 
     /**
      * Input to the ApplicationLauncher launchApp command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.4.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.1
      */
     export const TlvLaunchAppRequest = TlvObject({
         /**
          * This field shall specify the Application to launch.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.4.7.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.1.1
          */
         application: TlvOptionalField(0, TlvApplication),
 
@@ -112,7 +112,7 @@ export namespace ApplicationLauncher {
          *   Apps that are not yet Matter aware can be launched via Matter, while retaining the existing ability to
          *   launch with proprietary data.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.4.7.1.2
+         * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.1.2
          */
         data: TlvOptionalField(1, TlvByteString)
     });
@@ -120,12 +120,12 @@ export namespace ApplicationLauncher {
     /**
      * Input to the ApplicationLauncher launchApp command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.4.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.1
      */
     export interface LaunchAppRequest extends TypeFromSchema<typeof TlvLaunchAppRequest> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 6.4.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.1
      */
     export enum Status {
         /**
@@ -162,7 +162,7 @@ export namespace ApplicationLauncher {
     /**
      * Thrown for cluster status code {@link Status.AppNotAvailable}.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.4.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.1
      */
     export class AppNotAvailableError extends StatusResponseError {
         constructor(
@@ -177,7 +177,7 @@ export namespace ApplicationLauncher {
     /**
      * Thrown for cluster status code {@link Status.SystemBusy}.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.4.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.1
      */
     export class SystemBusyError extends StatusResponseError {
         constructor(
@@ -192,7 +192,7 @@ export namespace ApplicationLauncher {
     /**
      * Thrown for cluster status code {@link Status.PendingUserApproval}.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.4.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.1
      */
     export class PendingUserApprovalError extends StatusResponseError {
         constructor(
@@ -207,7 +207,7 @@ export namespace ApplicationLauncher {
     /**
      * Thrown for cluster status code {@link Status.Downloading}.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.4.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.1
      */
     export class DownloadingError extends StatusResponseError {
         constructor(
@@ -222,7 +222,7 @@ export namespace ApplicationLauncher {
     /**
      * Thrown for cluster status code {@link Status.Installing}.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.4.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.1
      */
     export class InstallingError extends StatusResponseError {
         constructor(
@@ -237,20 +237,20 @@ export namespace ApplicationLauncher {
     /**
      * This command shall be generated in response to LaunchApp/StopApp/HideApp commands.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.4.7.4
+     * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.4
      */
     export const TlvLauncherResponse = TlvObject({
         /**
          * This field shall indicate the status of the command which resulted in this response.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.4.7.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.4.1
          */
         status: TlvField(0, TlvEnum<Status>()),
 
         /**
          * This field shall specify Optional app-specific data.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.4.7.4.2
+         * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.4.2
          */
         data: TlvOptionalField(1, TlvByteString)
     });
@@ -258,20 +258,20 @@ export namespace ApplicationLauncher {
     /**
      * This command shall be generated in response to LaunchApp/StopApp/HideApp commands.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.4.7.4
+     * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.4
      */
     export interface LauncherResponse extends TypeFromSchema<typeof TlvLauncherResponse> {}
 
     /**
      * Input to the ApplicationLauncher stopApp command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.4.7.2
+     * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.2
      */
     export const TlvStopAppRequest = TlvObject({
         /**
          * This field shall specify the Application to stop.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.4.7.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.2.1
          */
         application: TlvOptionalField(0, TlvApplication)
     });
@@ -279,20 +279,20 @@ export namespace ApplicationLauncher {
     /**
      * Input to the ApplicationLauncher stopApp command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.4.7.2
+     * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.2
      */
     export interface StopAppRequest extends TypeFromSchema<typeof TlvStopAppRequest> {}
 
     /**
      * Input to the ApplicationLauncher hideApp command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.4.7.3
+     * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.3
      */
     export const TlvHideAppRequest = TlvObject({
         /**
          * This field shall specify the Application to hide.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.4.7.3.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.3.1
          */
         application: TlvOptionalField(0, TlvApplication)
     });
@@ -300,7 +300,7 @@ export namespace ApplicationLauncher {
     /**
      * Input to the ApplicationLauncher hideApp command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.4.7.3
+     * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.3
      */
     export interface HideAppRequest extends TypeFromSchema<typeof TlvHideAppRequest> {}
 
@@ -317,7 +317,7 @@ export namespace ApplicationLauncher {
              * It is expected that Content App Platform providers will have their own catalog vendor ID (set to their
              * own Vendor ID) and will assign an ApplicationID to each Content App.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 6.4.6.1
+             * @see {@link MatterSpecification.v142.Cluster} § 6.4.6.1
              */
             catalogList: Attribute(0x0, TlvArray(TlvUInt16), { persistent: true, default: [] })
         }
@@ -345,7 +345,7 @@ export namespace ApplicationLauncher {
              * catalog vendor ID and the corresponding endpoint number when the application is represented by a Content
              * App endpoint. A null shall be used to indicate there is no current in-focus application.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 6.4.6.2
+             * @see {@link MatterSpecification.v142.Cluster} § 6.4.6.2
              */
             currentApp: OptionalAttribute(0x1, TlvNullable(TlvApplicationEp), { default: null })
         },
@@ -367,7 +367,7 @@ export namespace ApplicationLauncher {
              *
              * This command returns a Launcher Response.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 6.4.7.1
+             * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.1
              */
             launchApp: Command(0x0, TlvLaunchAppRequest, 0x3, TlvLauncherResponse),
 
@@ -385,7 +385,7 @@ export namespace ApplicationLauncher {
              *
              * This command returns a Launcher Response.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 6.4.7.2
+             * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.2
              */
             stopApp: Command(0x1, TlvStopAppRequest, 0x3, TlvLauncherResponse),
 
@@ -404,7 +404,7 @@ export namespace ApplicationLauncher {
              *
              * This command returns a Launcher Response.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 6.4.7.3
+             * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.3
              */
             hideApp: Command(0x2, TlvHideAppRequest, 0x3, TlvLauncherResponse)
         },
@@ -437,7 +437,7 @@ export namespace ApplicationLauncher {
      * ApplicationLauncherCluster supports optional features that you can enable with the
      * ApplicationLauncherCluster.with() factory method.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.4
+     * @see {@link MatterSpecification.v142.Cluster} § 6.4
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

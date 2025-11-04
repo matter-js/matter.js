@@ -14,14 +14,14 @@ export namespace WaterHeaterManagementInterface {
         /**
          * Allows a client to request that the water heater is put into a Boost state.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 9.5.8.1
+         * @see {@link MatterSpecification.v142.Cluster} § 9.5.8.1
          */
         boost(request: WaterHeaterManagement.BoostRequest): MaybePromise;
 
         /**
          * Allows a client to cancel an ongoing Boost operation. This command has no payload.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 9.5.8.2
+         * @see {@link MatterSpecification.v142.Cluster} § 9.5.8.2
          */
         cancelBoost(): MaybePromise;
     }

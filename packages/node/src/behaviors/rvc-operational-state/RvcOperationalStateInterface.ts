@@ -12,12 +12,12 @@ import { RvcOperationalState } from "#clusters/rvc-operational-state";
 export namespace RvcOperationalStateInterface {
     export interface Base {
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 7.4.5
+         * @see {@link MatterSpecification.v142.Cluster} § 7.4.5
          */
         pause(): MaybePromise<RvcOperationalState.OperationalCommandResponse>;
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 7.4.5
+         * @see {@link MatterSpecification.v142.Cluster} § 7.4.5
          */
         resume(): MaybePromise<RvcOperationalState.OperationalCommandResponse>;
 
@@ -39,7 +39,7 @@ export namespace RvcOperationalStateInterface {
          *
          *   • The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 7.4.5.1
+         * @see {@link MatterSpecification.v142.Cluster} § 7.4.5.1
          */
         goHome(): MaybePromise<RvcOperationalState.OperationalCommandResponse>;
     }

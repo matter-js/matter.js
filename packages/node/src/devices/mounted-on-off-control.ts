@@ -36,7 +36,7 @@ import { Identity } from "#general";
  *
  * See [ref_MountedOnOffClientGuidance] for client guidance with these two device types.
  *
- * @see {@link MatterSpecification.v141.Device} § 5.3
+ * @see {@link MatterSpecification.v142.Device} § 5.3
  */
 export interface MountedOnOffControlDevice extends Identity<typeof MountedOnOffControlDeviceDefinition> {}
 

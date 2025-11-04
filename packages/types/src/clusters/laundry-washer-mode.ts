@@ -23,7 +23,7 @@ export namespace LaundryWasherMode {
     /**
      * These are optional features supported by LaundryWasherModeCluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 8.5.4
+     * @see {@link MatterSpecification.v142.Cluster} § 8.5.4
      */
     export enum Feature {
         /**
@@ -36,80 +36,80 @@ export namespace LaundryWasherMode {
 
     export enum ModeTag {
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.5.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1
          */
         Auto = 0,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.5.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1
          */
         Quick = 1,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.5.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1
          */
         Quiet = 2,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.5.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1
          */
         LowNoise = 3,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.5.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1
          */
         LowEnergy = 4,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.5.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1
          */
         Vacation = 5,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.5.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1
          */
         Min = 6,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.5.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1
          */
         Max = 7,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.5.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1
          */
         Night = 8,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.5.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1
          */
         Day = 9,
 
         /**
          * The normal regime of operation.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 8.5.7.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1.1
          */
         Normal = 16384,
 
         /**
          * Mode optimized for washing delicate garments.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 8.5.7.1.2
+         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1.2
          */
         Delicate = 16385,
 
         /**
          * Mode optimized for heavy washing.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 8.5.7.1.3
+         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1.3
          */
         Heavy = 16386,
 
         /**
          * Mode optimized for stain removal on white fabrics.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 8.5.7.1.4
+         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1.4
          */
         Whites = 16387
     }
@@ -117,7 +117,7 @@ export namespace LaundryWasherMode {
     /**
      * A Mode Tag is meant to be interpreted by the client for the purpose the cluster serves.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1
      */
     export const TlvModeTagStruct = TlvObject({
         /**
@@ -131,7 +131,7 @@ export namespace LaundryWasherMode {
          * whose purpose is to choose the amount of sugar, or in a cluster whose purpose is to choose the amount of
          * salt.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1.1
          */
         mfgCode: TlvOptionalField(0, TlvVendorId),
 
@@ -139,7 +139,7 @@ export namespace LaundryWasherMode {
          * This field shall indicate the mode tag within a mode tag namespace which is either manufacturer specific or
          * standard.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.1.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1.2
          */
         value: TlvField(1, TlvEnum<ModeTag | ModeBase.ModeTag>())
     });
@@ -147,7 +147,7 @@ export namespace LaundryWasherMode {
     /**
      * A Mode Tag is meant to be interpreted by the client for the purpose the cluster serves.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1
      */
     export interface ModeTagStruct extends TypeFromSchema<typeof TlvModeTagStruct> {}
 
@@ -155,7 +155,7 @@ export namespace LaundryWasherMode {
      * The table below lists the changes relative to the Mode Base cluster for the fields of the ModeOption Struct type.
      * A blank field indicates no change.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 8.5.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 8.5.5.1
      */
     export const TlvModeOption = TlvObject({
         label: TlvField(0, TlvString.bound({ maxLength: 64 })),
@@ -167,7 +167,7 @@ export namespace LaundryWasherMode {
      * The table below lists the changes relative to the Mode Base cluster for the fields of the ModeOption Struct type.
      * A blank field indicates no change.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 8.5.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 8.5.5.1
      */
     export interface ModeOption extends TypeFromSchema<typeof TlvModeOption> {}
 
@@ -191,7 +191,7 @@ export namespace LaundryWasherMode {
              * At least one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags
              * field list.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 8.5.6.1
+             * @see {@link MatterSpecification.v142.Cluster} § 8.5.6.1
              */
             supportedModes: FixedAttribute(
                 0x0,
@@ -200,7 +200,7 @@ export namespace LaundryWasherMode {
             ),
 
             /**
-             * @see {@link MatterSpecification.v141.Cluster} § 8.5.6
+             * @see {@link MatterSpecification.v142.Cluster} § 8.5.6
              */
             currentMode: Attribute(0x1, TlvUInt8, { persistent: true })
         },
@@ -211,7 +211,7 @@ export namespace LaundryWasherMode {
              *
              * On receipt of this command the device shall respond with a ChangeToModeResponse command.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.10.7.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
              */
             changeToMode: Command(0x0, ModeBase.TlvChangeToModeRequest, 0x1, ModeBase.TlvChangeToModeResponse)
         },
@@ -235,7 +235,7 @@ export namespace LaundryWasherMode {
      * LaundryWasherModeCluster supports optional features that you can enable with the LaundryWasherModeCluster.with()
      * factory method.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 8.5
+     * @see {@link MatterSpecification.v142.Cluster} § 8.5
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
