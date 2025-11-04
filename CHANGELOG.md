@@ -67,11 +67,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: New `StateStream` component offers a high-level API for monitoring changes across multiple nodes
     - Feature: Add default implementation for the `Thermostat` cluster according to Matter 1.4.2 specification. All features except MSCH and SB (which is considered provisional) are implemented. See the `ThermostatServer` class for details.
     - Feature: Added feature complete default implementation for the `Scenes Management` cluster according to Matter 1.4.2 specification.
+    - Feature: Added the VendorIdVerification algorithm on device side according to Matter 1.4.2 specification. Controller side is only partially implemented yet.
     - Enhancement: Adds "maybeReactTo" which only registers the listener when the event exists.
     - Enhancement: Enhances Endpoint#eventsOf and Endpoint#setStateOf with overrides so you can use the ID to obtain variants with generic typing
     - Enhancement: We now enforce bounds for integer types even if not specified explicitly by constraint
     - Enhancement: Also allow to use the `Endpoint#set()` method with attribute ids instead of attributeNames
     - Fix: Ensures that the InLevel does not interfere with *WithOnOff commands in the Level Control cluster
+    - Fix: Ensures correct behavior for announcements and fabric table updates in case of updating fabrics
 
 - @matter/nodejs
     - Enhancement: Uses "stat" to determine storage file existence instead of reading all content
