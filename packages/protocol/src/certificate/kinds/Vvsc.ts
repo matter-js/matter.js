@@ -66,7 +66,7 @@ export class Vvsc extends OperationalBase<OperationalCertificate.Vvsc> {
 
         // The subject DN SHALL NOT encode any matter-noc-cat attribute.
         if ("caseAuthenticatedTags" in subject) {
-            throw new CertificateError(`Ica certificate must not contain a caseAuthenticatedTags.`);
+            throw new CertificateError(`Vvsc certificate must not contain a caseAuthenticatedTags.`);
         }
     }
 }
