@@ -154,7 +154,6 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
 
         amount *= 10; // Convert to same base as the setpoints
 
-        // We only care about Occupied setpoints as by SDK implementation
         if (mode === Thermostat.SetpointRaiseLowerMode.Both) {
             if (this.features.heating && this.features.cooling) {
                 let desiredCoolingSetpoint = this.coolingSetpoint + amount;
