@@ -90,6 +90,9 @@ export const FabricId_Matter = GenericMatterOpCertObject<FabricId>(5);
 /** matter-noc-cat = ASN.1 OID 1.3.6.1.4.1.37244.1.6 */
 export const NocCat_Matter = GenericMatterOpCertObject<number>(6, uInt16To8Chars);
 
+/** matter-vvs-id = ASN.1 OID 1.3.6.1.4.1.37244.1.7 */
+export const VvsId_Matter = GenericMatterOpCertObject<bigint | number>(7);
+
 /** matter-oid-vid = ASN.1 OID 1.3.6.1.4.1.37244.2.1 */
 export const VendorId_Matter = GenericMatterAttCertObject<VendorId>(1, uInt16To4Chars);
 

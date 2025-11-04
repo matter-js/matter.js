@@ -60,6 +60,13 @@ export interface OperationalCertificateDclSchema {
     isRoot: boolean;
 
     /**
+     * This field SHALL indicate whether the associated certificate is a Vendor Verification Signer Certificate
+     * (VVSC) used to sign vid_verification_statement messages as defined in Section 6.4.10, “Fabric
+     * Table Vendor ID Verification Procedure”.
+     */
+    isVidVerificationSigner: boolean;
+
+    /**
      * This field uniquely identifies the DCL key that was used to register the certificate in DCL, pursuant
      * to DCL policies.
      */
@@ -84,7 +91,8 @@ export interface OperationalCertificateDclSchema {
 
     /**
      * The SchemaVersion field value history for this schema is provided below:
-     * * ???
+     * * 0 Initial Release
+     * * 1 Introduction of IsVidVerificationSigner
      */
     schemaVersion: number;
 }

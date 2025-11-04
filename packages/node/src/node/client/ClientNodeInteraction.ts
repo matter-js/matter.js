@@ -32,6 +32,15 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
     }
 
     /**
+     * The current session used for interaction with the node if any session is established, otherwise undefined.
+     */
+    get session() {
+        if (this.#node.env.has(ClientInteraction)) {
+            return this.#node.env.get(ClientInteraction).session;
+        }
+    }
+
+    /**
      * Read chosen attributes remotely from the node. Known data versions are automatically injected into the request to
      * optimize the read.
      * Therefore, the returned data only contains attributes that have changed since the last read or subscription.

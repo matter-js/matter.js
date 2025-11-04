@@ -47,6 +47,36 @@ export class DeviceAdvertiser {
             this.#advertiseFabric(fabric, "startup");
         });
 
+        // When a fabric is updated we might need to adjust announcements
+        this.#observers.on(fabrics.events.updated, async fabric => {
+            if (!this.#isOperational) {
+                return;
+            }
+
+            // Look for update for this fabricIndex because other Ids might have changed and object is different
+            const fabricIndexAdvertisements = this.#advertisements(
+                ad => ad.isOperational() && ad.description.fabric.fabricIndex === fabric.fabricIndex,
+            );
+
+            // If the announcement relevant IDs are unchanged, do nothing
+            if (
+                fabricIndexAdvertisements.every(
+                    ad =>
+                        ad.isOperational() &&
+                        ad.description.fabric.operationalId === fabric.operationalId &&
+                        ad.description.fabric.nodeId === fabric.nodeId,
+                )
+            ) {
+                return;
+            }
+
+            for (const ad of fabricIndexAdvertisements) {
+                await ad.close();
+            }
+
+            this.#advertiseFabric(fabric, "startup");
+        });
+
         // When a fabric is deleted, cancel any active advertisement
         this.#observers.on(fabrics.events.deleted, fabric => {
             Advertisement.cancelAll(this.#advertisements(ad => ad.isOperational() && ad.description.fabric === fabric));

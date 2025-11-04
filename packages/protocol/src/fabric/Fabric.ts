@@ -29,7 +29,7 @@ import { FabricGroups, GROUP_SECURITY_INFO } from "#groups/FabricGroups.js";
 import { FabricAccessControl } from "#interaction/FabricAccessControl.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { Session } from "#session/Session.js";
-import { CaseAuthenticatedTag, FabricId, FabricIndex, GroupId, NodeId, VendorId } from "#types";
+import { CaseAuthenticatedTag, FabricId, FabricIndex, GroupId, NodeId, StatusResponse, VendorId } from "#types";
 
 const logger = Logger.get("Fabric");
 
@@ -54,7 +54,7 @@ export class Fabric {
     readonly rootNodeId: NodeId;
     readonly operationalId: Bytes;
     readonly rootPublicKey: Bytes;
-    readonly rootVendorId: VendorId;
+    #rootVendorId: VendorId;
     readonly rootCert: Bytes;
     readonly identityProtectionKey: Bytes;
     readonly operationalIdentityProtectionKey: Bytes;
@@ -64,6 +64,8 @@ export class Fabric {
     readonly #sessions = new Set<Session>();
     readonly #groups: FabricGroups;
     readonly #accessControl: FabricAccessControl;
+    #vidVerificationStatement?: Bytes;
+    #vvsc?: Bytes;
     #label: string;
     #removeCallbacks = new Array<() => MaybePromise<void>>();
     #persistCallback: ((isUpdate?: boolean) => MaybePromise<void>) | undefined;
@@ -77,12 +79,14 @@ export class Fabric {
         this.rootNodeId = config.rootNodeId;
         this.operationalId = config.operationalId;
         this.rootPublicKey = config.rootPublicKey;
-        this.rootVendorId = config.rootVendorId;
+        this.#rootVendorId = config.rootVendorId;
         this.rootCert = config.rootCert;
         this.identityProtectionKey = config.identityProtectionKey;
         this.operationalIdentityProtectionKey = config.operationalIdentityProtectionKey;
         this.intermediateCACert = config.intermediateCACert;
         this.operationalCert = config.operationalCert;
+        this.#vidVerificationStatement = config.vidVerificationStatement;
+        this.#vvsc = config.vvsc;
         this.#label = config.label;
         this.#keyPair = PrivateKey(config.keyPair);
         this.#accessControl = new FabricAccessControl(this);
@@ -108,6 +112,7 @@ export class Fabric {
             operationalIdentityProtectionKey: this.operationalIdentityProtectionKey,
             intermediateCACert: this.intermediateCACert,
             operationalCert: this.operationalCert,
+            vidVerificationStatement: this.vidVerificationStatement,
             label: this.#label,
         };
     }
@@ -125,6 +130,56 @@ export class Fabric {
         }
         this.#label = label;
         await this.persist();
+    }
+
+    get vidVerificationStatement() {
+        return this.#vidVerificationStatement;
+    }
+
+    async updateVendorVerificationData(
+        vendorId: VendorId | undefined,
+        vidVerificationStatement: Bytes | undefined,
+        vvsc: Bytes | undefined,
+    ) {
+        if (vvsc !== undefined && this.intermediateCACert !== undefined) {
+            throw new StatusResponse.InvalidCommandError("A VVSC is only allowed without an ICAC.");
+        }
+
+        if (vidVerificationStatement !== undefined) {
+            if (vidVerificationStatement.byteLength === 0) {
+                this.#vidVerificationStatement = undefined;
+            } else if (vidVerificationStatement.byteLength === 85) {
+                // VERIFICATION_STATEMENT_SIZE
+                this.#vidVerificationStatement = vidVerificationStatement;
+            } else {
+                throw new StatusResponse.ConstraintErrorError("VID Verification Statement must be 0 or 85 bytes long.");
+            }
+        }
+        if (vendorId !== undefined) {
+            this.#rootVendorId = vendorId;
+        }
+        if (vvsc !== undefined) {
+            if (vvsc.byteLength === 0) {
+                this.#vvsc = undefined;
+            } else {
+                this.#vvsc = vvsc;
+            }
+        }
+        logger.info(
+            "Updated Vendor Verification Data for Fabric",
+            this.#rootVendorId,
+            this.#vidVerificationStatement,
+            this.#vvsc,
+        );
+        await this.persist();
+    }
+
+    get vvsc() {
+        return this.#vvsc;
+    }
+
+    get rootVendorId() {
+        return this.#rootVendorId;
     }
 
     set storage(storage: StorageContext) {
@@ -282,6 +337,8 @@ export class FabricBuilder {
     #rootNodeId?: NodeId;
     #rootPublicKey?: Bytes;
     #identityProtectionKey?: Bytes;
+    #vidVerificationStatement?: Bytes;
+    #vvsc?: Bytes;
     #fabricIndex?: FabricIndex;
     #label = "";
 
@@ -387,6 +444,8 @@ export class FabricBuilder {
         this.#identityProtectionKey = fabric.identityProtectionKey;
         this.#rootCert = fabric.rootCert;
         this.#rootPublicKey = fabric.rootPublicKey;
+        this.#vidVerificationStatement = fabric.vidVerificationStatement;
+        this.#vvsc = fabric.vvsc;
         this.#label = fabric.label;
     }
 
@@ -447,6 +506,8 @@ export class FabricBuilder {
             ),
             intermediateCACert: this.#intermediateCACert,
             operationalCert: this.#operationalCert,
+            vidVerificationStatement: this.#vidVerificationStatement,
+            vvsc: this.#vvsc,
             label: this.#label,
         });
     }
@@ -464,6 +525,8 @@ export namespace Fabric {
         rootVendorId: VendorId;
         rootCert: Bytes;
         identityProtectionKey: Bytes;
+        vidVerificationStatement?: Bytes;
+        vvsc?: Bytes;
         operationalIdentityProtectionKey: Bytes;
         intermediateCACert: Bytes | undefined;
         operationalCert: Bytes;

@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export const MATTER_CRYPTO_PRIMITIVES_VERSION = 1;
+
 /** @see {@link MatterSpecification.v10.Core} § 3.5.1 */
 export const CRYPTO_GROUP_SIZE_BITS = 256;
 export const CRYPTO_GROUP_SIZE_BYTES = 32;

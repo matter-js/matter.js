@@ -34,6 +34,7 @@ import {
     Command,
     FabricIndex,
     StatusCode,
+    StatusResponse,
     StatusResponseError,
     TlvBoolean,
     TlvByteString,
@@ -41,8 +42,10 @@ import {
     TlvObject,
     TlvOptionalField,
     ValidationError,
+    VendorId,
 } from "#types";
 import { OperationalCredentialsBehavior } from "./OperationalCredentialsBehavior.js";
+import { VendorIdVerification } from "./VendorIdVerification.js";
 
 const logger = Logger.get("OperationalCredentials");
 
@@ -85,7 +88,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
     declare state: OperationalCredentialsServer.State;
 
     override initialize(): MaybePromise {
-        // maximum number of fabrics. Also FabricBuilder uses 254 as max!
+        // maximum number of fabrics. Also, FabricBuilder uses 254 as max!
         if (!this.state.supportedFabrics) {
             this.state.supportedFabrics = 254;
         }
@@ -454,6 +457,54 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
         this.state.trustedRootCertificates = trustedRootCertificates;
     }
 
+    override async signVidVerificationRequest({
+        fabricIndex,
+        clientChallenge,
+    }: OperationalCredentials.SignVidVerificationRequest): Promise<OperationalCredentials.SignVidVerificationResponse> {
+        assertRemoteActor(this.context);
+        NodeSession.assert(this.context.session);
+
+        const fabrics = this.env.get(FabricManager);
+        if (!fabrics.has(fabricIndex)) {
+            throw new StatusResponse.ConstraintErrorError(`Fabric with index ${fabricIndex} does not exist`);
+        }
+        const fabric = fabrics.for(fabricIndex);
+
+        const { fabricBindingVersion, signatureData } = VendorIdVerification.dataToSign({
+            attChallenge: this.context.session.attestationChallengeKey,
+            clientChallenge,
+            fabricIndex,
+            fabric: fabric.config,
+        });
+
+        return {
+            fabricIndex,
+            fabricBindingVersion,
+            signature: await fabric.sign(signatureData),
+        };
+    }
+
+    override async setVidVerificationStatement({
+        vendorId,
+        vidVerificationStatement,
+        vvsc,
+    }: OperationalCredentials.SetVidVerificationStatementRequest): Promise<void> {
+        assertRemoteActor(this.context);
+        const fabric = this.context.session.associatedFabric;
+
+        if (vendorId === undefined && vidVerificationStatement === undefined && vvsc === undefined) {
+            throw new StatusResponse.InvalidCommandError(
+                "At least one of vendorId, vidVerificationStatement or vvsc must be provided",
+            );
+        }
+        if (vendorId !== undefined && !VendorId.isValid(vendorId)) {
+            throw new StatusResponse.ConstraintErrorError(`Invalid vendorId: ${vendorId}`);
+        }
+
+        // Error checks included in updateVendorVerificationData method
+        await fabric.updateVendorVerificationData(vendorId, vidVerificationStatement, vvsc);
+    }
+
     async #updateFabrics() {
         const fabrics = this.env.get(FabricManager);
         this.state.fabrics = fabrics.map(fabric => ({
@@ -462,12 +513,14 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
             nodeId: fabric.nodeId,
             rootPublicKey: fabric.rootPublicKey,
             vendorId: fabric.rootVendorId,
+            vidVerificationStatement: fabric.vidVerificationStatement,
             fabricIndex: fabric.fabricIndex,
         }));
 
         this.state.nocs = fabrics.map(fabric => ({
             noc: fabric.operationalCert,
             icac: fabric.intermediateCACert ?? null,
+            vvsc: fabric.vvsc,
             fabricIndex: fabric.fabricIndex,
         }));
 

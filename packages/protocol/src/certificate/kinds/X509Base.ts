@@ -32,6 +32,7 @@ import {
     ProductId_Matter,
     RcacId_Matter,
     VendorId_Matter,
+    VvsId_Matter,
 } from "./definitions/asn.js";
 import { ExtensionKeyUsageBitmap, ExtensionKeyUsageSchema, X509Certificate } from "./definitions/base.js";
 import { CertificateExtension } from "./definitions/operational.js";
@@ -169,6 +170,9 @@ export abstract class X509Base<CT extends X509Certificate> {
                     break;
                 case "rcacId":
                     asn.rcacId = RcacId_Matter(value as number | bigint);
+                    break;
+                case "vvsId":
+                    asn.rcacId = VvsId_Matter(value as number | bigint);
                     break;
                 case "fabricId":
                     asn.fabricId = FabricId_Matter(value as FabricId);

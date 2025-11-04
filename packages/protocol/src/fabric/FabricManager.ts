@@ -12,6 +12,7 @@ import {
     Environmental,
     ImplementationError,
     Key,
+    Logger,
     MatterError,
     MatterFlowError,
     MaybePromise,
@@ -22,6 +23,8 @@ import {
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { FabricIndex } from "#types";
 import { Fabric } from "./Fabric.js";
+
+const logger = Logger.get("FabricManager");
 
 /** Specific Error for when a fabric is not found. */
 export class FabricNotFoundError extends MatterError {}
@@ -63,7 +66,7 @@ export class FabricManager {
 
                 const fabrics = await this.#storage.get<Fabric.Config[]>("fabrics", []);
                 for (const fabricConfig of fabrics) {
-                    this.#addFabric(new Fabric(crypto, fabricConfig));
+                    this.#addNewFabric(new Fabric(crypto, fabricConfig));
                 }
 
                 this.#nextFabricIndex = await this.#storage.get("nextFabricIndex", this.#nextFabricIndex);
@@ -156,18 +159,34 @@ export class FabricManager {
 
     addFabric(fabric: Fabric) {
         this.#construction.assert();
-        this.#addFabric(fabric);
+        this.#addNewFabric(fabric);
     }
 
-    #addFabric(fabric: Fabric) {
+    #addNewFabric(fabric: Fabric) {
         const { fabricIndex } = fabric;
         if (this.#fabrics.has(fabricIndex)) {
             throw new MatterFlowError(`Fabric with index ${fabricIndex} already exists.`);
         }
+
+        this.#addOrUpdateFabricEntry(fabric);
+
+        if (this.#initializationDone) {
+            this.#events.added.emit(fabric);
+        }
+    }
+
+    /** Insert Fabric into the manager without emitting events */
+    #addOrUpdateFabricEntry(fabric: Fabric) {
+        const { fabricIndex } = fabric;
         this.#fabrics.set(fabricIndex, fabric);
         fabric.addRemoveCallback(async () => this.removeFabric(fabricIndex));
         fabric.persistCallback = (isUpdate = true) => {
             if (!this.#storage) {
+                if (isUpdate) {
+                    logger.warn(
+                        "Fabric can not be persisted because FabricManager has no storage but it is a fabric update.",
+                    );
+                }
                 return;
             }
             const persistResult = this.persistFabrics();
@@ -177,11 +196,8 @@ export class FabricManager {
                 }
             });
         };
-        if (this.#storage !== undefined) {
+        if (this.#storage !== undefined && fabric.storage === undefined) {
             fabric.storage = this.#storage.createContext(`fabric-${fabricIndex}`);
-        }
-        if (this.#initializationDone) {
-            this.#events.added.emit(fabric);
         }
     }
 
@@ -264,7 +280,9 @@ export class FabricManager {
                 `Fabric with index ${fabricIndex} cannot be updated because it does not exist.`,
             );
         }
-        this.#fabrics.set(fabricIndex, fabric);
+
+        this.#addOrUpdateFabricEntry(fabric);
+
         if (this.#storage) {
             await this.persistFabrics();
         }

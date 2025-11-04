@@ -59,7 +59,7 @@ export class ClientInteraction<SessionT extends InteractionSession = Interaction
     readonly #exchanges: ExchangeProvider;
     readonly #subscriptions: ClientSubscriptions;
     readonly #interactions = new BasicSet<Read | Write | Invoke | Subscribe>();
-    readonly #abort;
+    readonly #abort: Abort;
     readonly #sustainRetries: RetrySchedule;
 
     constructor({ environment, abort, sustainRetries }: ClientInteractionContext) {
@@ -70,6 +70,10 @@ export class ClientInteraction<SessionT extends InteractionSession = Interaction
             environment.get(Entropy),
             RetrySchedule.Configuration(SustainedSubscription.DefaultRetrySchedule, sustainRetries),
         );
+    }
+
+    get session() {
+        return this.#exchanges.session;
     }
 
     async close() {

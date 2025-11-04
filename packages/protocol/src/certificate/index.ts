@@ -14,4 +14,5 @@ export { CertificateError } from "./kinds/common.js";
 export * from "./kinds/Icac.js";
 export * from "./kinds/Noc.js";
 export * from "./kinds/Rcac.js";
+export * from "./kinds/Vvsc.js";
 export * from "./kinds/X509Base.js";

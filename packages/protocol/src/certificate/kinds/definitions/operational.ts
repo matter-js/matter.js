@@ -173,7 +173,15 @@ export namespace OperationalCertificate {
         issuer: AllowedSubjectAndIssuerMatterFields,
     });
 
+    export const TlvVvsc = BaseMatterCertificate({
+        subject: {
+            vvsId: TlvField(23, TlvUInt64),
+        },
+        issuer: AllowedSubjectAndIssuerMatterFields,
+    });
+
     export type Rcac = TypeFromSchema<typeof TlvRcac>;
     export type Icac = TypeFromSchema<typeof TlvIcac>;
     export type Noc = TypeFromSchema<typeof TlvNoc>;
+    export type Vvsc = TypeFromSchema<typeof TlvVvsc>;
 }

@@ -79,6 +79,11 @@ export class Rcac extends OperationalBase<OperationalCertificate.Rcac> {
             throw new CertificateError(`Root certificate must not contain a caseAuthenticatedTags.`);
         }
 
+        // The subject DN SHALL NOT encode any matter-vsc-id attribute.
+        if ("vvsId" in subject) {
+            throw new CertificateError(`Noc certificate must not contain a vvsId.`);
+        }
+
         // The basic constraints extension SHALL be encoded with is-ca set to true.
         if (basicConstraints.isCa !== true) {
             throw new CertificateError(`Root certificate must have isCa set to true.`);
