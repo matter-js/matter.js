@@ -131,7 +131,7 @@ export class CommissioningServer extends Behavior {
                 // Removed fabric with active Failsafe are ignored but should match the failsafe one
                 if (failsafe.fabricIndex !== fabricIndex) {
                     throw new MatterFlowError(
-                        "Failsafe owns a different fabricIndex then removed: ${failsafe.fabricIndex} vs. ${fabricIndex}",
+                        `Failsafe owns a different fabricIndex then removed: ${failsafe.fabricIndex} vs. ${fabricIndex}`,
                     );
                 }
             }
