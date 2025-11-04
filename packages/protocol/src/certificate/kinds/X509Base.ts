@@ -172,7 +172,7 @@ export abstract class X509Base<CT extends X509Certificate> {
                     asn.rcacId = RcacId_Matter(value as number | bigint);
                     break;
                 case "vvsId":
-                    asn.rcacId = VvsId_Matter(value as number | bigint);
+                    asn.vvsId = VvsId_Matter(value as number | bigint);
                     break;
                 case "fabricId":
                     asn.fabricId = FabricId_Matter(value as FabricId);
