@@ -86,7 +86,7 @@ export class Noc extends OperationalBase<OperationalCertificate.Noc> {
 
         // The subject DN SHALL NOT encode any matter-rcac-id attribute.
         if ("rcacId" in subject) {
-            throw new CertificateError(`Noc certificate must not contain a rcacId.`);
+            throw new CertificateError(`Noc certificate must not contain an rcacId.`);
         }
 
         // The subject DN SHALL NOT encode any matter-vvs-id attribute.

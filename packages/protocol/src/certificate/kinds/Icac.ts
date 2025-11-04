@@ -80,7 +80,7 @@ export class Icac extends OperationalBase<OperationalCertificate.Icac> {
 
         // The subject DN SHALL NOT encode any matter-rcac-id attribute.
         if ("rcacId" in subject) {
-            throw new CertificateError(`Ica certificate must not contain a rcacId.`);
+            throw new CertificateError(`Ica certificate must not contain an rcacId.`);
         }
 
         // The subject DN SHALL NOT encode any matter-noc-cat attribute.

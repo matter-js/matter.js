@@ -275,10 +275,15 @@ export class FabricManager {
         await this.#construction;
 
         const { fabricIndex } = fabric;
-        if (!this.#fabrics.has(fabricIndex)) {
+        const existingFabric = this.#fabrics.get(fabricIndex);
+        if (existingFabric === undefined) {
             throw new FabricNotFoundError(
                 `Fabric with index ${fabricIndex} cannot be updated because it does not exist.`,
             );
+        }
+        if (existingFabric === fabric) {
+            // Nothing changed, so it is a restore without any change
+            return;
         }
 
         this.#addOrUpdateFabricEntry(fabric);

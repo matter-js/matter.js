@@ -123,14 +123,16 @@ export class CommissioningServer extends Behavior {
                         return;
                     } else {
                         throw new MatterFlowError(
-                            `Failsafe owns a different fabricIndex then ${failsafe.forUpdateNoc ? "updated" : "added"}.`,
+                            `Failsafe owns a different fabricIndex then ${failsafe.forUpdateNoc ? "updated" : "added"}: ${failsafe.fabricIndex} vs. ${fabricIndex}`,
                         );
                     }
                 }
             } else if (fabricAction === FabricAction.Removed) {
                 // Removed fabric with active Failsafe are ignored but should match the failsafe one
                 if (failsafe.fabricIndex !== fabricIndex) {
-                    throw new MatterFlowError("Failsafe owns a different fabricIndex then removed.");
+                    throw new MatterFlowError(
+                        "Failsafe owns a different fabricIndex then removed: ${failsafe.fabricIndex} vs. ${fabricIndex}",
+                    );
                 }
             }
         }
