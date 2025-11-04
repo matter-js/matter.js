@@ -28,7 +28,7 @@ export namespace ModeBase {
     /**
      * These are optional features supported by ModeBaseCluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.10.4
+     * @see {@link MatterSpecification.v142.Cluster} § 1.10.4
      */
     export enum Feature {
         /**
@@ -37,59 +37,59 @@ export namespace ModeBase {
          * This feature creates a dependency between an OnOff cluster instance and this cluster instance on the same
          * endpoint. See OnMode for more information.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.4.1
          */
         OnOff = "OnOff"
     }
 
     export enum ModeTag {
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.8
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.8
          */
         Auto = 0,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.8
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.8
          */
         Quick = 1,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.8
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.8
          */
         Quiet = 2,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.8
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.8
          */
         LowNoise = 3,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.8
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.8
          */
         LowEnergy = 4,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.8
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.8
          */
         Vacation = 5,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.8
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.8
          */
         Min = 6,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.8
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.8
          */
         Max = 7,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.8
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.8
          */
         Night = 8,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.8
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.8
          */
         Day = 9
     }
@@ -97,7 +97,7 @@ export namespace ModeBase {
     /**
      * A Mode Tag is meant to be interpreted by the client for the purpose the cluster serves.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1
      */
     export const TlvModeTagStruct = TlvObject({
         /**
@@ -111,7 +111,7 @@ export namespace ModeBase {
          * whose purpose is to choose the amount of sugar, or in a cluster whose purpose is to choose the amount of
          * salt.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1.1
          */
         mfgCode: TlvOptionalField(0, TlvVendorId),
 
@@ -119,7 +119,7 @@ export namespace ModeBase {
          * This field shall indicate the mode tag within a mode tag namespace which is either manufacturer specific or
          * standard.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.1.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1.2
          */
         value: TlvField(1, TlvEnum<ModeTag>())
     });
@@ -127,14 +127,14 @@ export namespace ModeBase {
     /**
      * A Mode Tag is meant to be interpreted by the client for the purpose the cluster serves.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1
      */
     export interface ModeTagStruct extends TypeFromSchema<typeof TlvModeTagStruct> {}
 
     /**
      * This is a struct representing a possible mode of the server.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2
      */
     export const TlvModeOption = TlvObject({
         /**
@@ -142,14 +142,14 @@ export namespace ModeBase {
          * the user to indicate what this option means. This field is meant to be readable and understandable by the
          * user.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.1
          */
         label: TlvField(0, TlvString.bound({ maxLength: 64 })),
 
         /**
          * This field is used to identify the mode option.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.2.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.2
          */
         mode: TlvField(1, TlvUInt8),
 
@@ -189,7 +189,7 @@ export namespace ModeBase {
          *   • A mode that includes both a generic Quick tag (defined here), and Vacuum and Mop tags, (defined in the
          *     RVC Clean cluster that is a derivation of this cluster).
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.2.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.3
          */
         modeTags: TlvField(2, TlvArray(TlvModeTagStruct, { maxLength: 8 }))
     });
@@ -197,14 +197,14 @@ export namespace ModeBase {
     /**
      * This is a struct representing a possible mode of the server.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2
      */
     export interface ModeOption extends TypeFromSchema<typeof TlvModeOption> {}
 
     /**
      * Input to the ModeBase changeToMode command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.10.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
      */
     export const TlvChangeToModeRequest = TlvObject({
         /**
@@ -230,7 +230,7 @@ export namespace ModeBase {
          * shall have the Status field set to Success and the StatusText field may be supplied with a human readable
          * string or include an empty string.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.7.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1.1
          */
         newMode: TlvField(0, TlvUInt8)
     });
@@ -238,7 +238,7 @@ export namespace ModeBase {
     /**
      * Input to the ModeBase changeToMode command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.10.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
      */
     export interface ChangeToModeRequest extends TypeFromSchema<typeof TlvChangeToModeRequest> {}
 
@@ -247,14 +247,14 @@ export namespace ModeBase {
          * Switching to the mode indicated by the NewMode field is allowed and possible. The CurrentMode attribute is
          * set to the value of the NewMode field.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.7.2.1.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.2.1.2
          */
         Success = 0,
 
         /**
          * The value of the NewMode field doesn’t match any entries in the SupportedModes attribute.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.7.2.1.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.2.1.2
          */
         UnsupportedMode = 1,
 
@@ -262,14 +262,14 @@ export namespace ModeBase {
          * Generic failure code, indicating that switching to the mode indicated by the NewMode field is not allowed or
          * not possible.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.7.2.1.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.2.1.2
          */
         GenericFailure = 2,
 
         /**
          * The received request cannot be handled due to the current mode of the device
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.7.2.1.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.2.1.2
          */
         InvalidInMode = 3
     }
@@ -277,11 +277,11 @@ export namespace ModeBase {
     /**
      * This command is sent by the device on receipt of the ChangeToMode command.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.10.7.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.2
      */
     export const TlvChangeToModeResponse = TlvObject({
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.7.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.2.1
          */
         status: TlvField(0, TlvEnum<ModeChangeStatus>()),
 
@@ -291,7 +291,7 @@ export namespace ModeBase {
     /**
      * This command is sent by the device on receipt of the ChangeToMode command.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.10.7.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.2
      */
     export interface ChangeToModeResponse extends TypeFromSchema<typeof TlvChangeToModeResponse> {}
 
@@ -307,7 +307,7 @@ export namespace ModeBase {
              *
              * The value of this field shall match the Mode field of one of the entries in the SupportedModes attribute.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.10.6.4
+             * @see {@link MatterSpecification.v142.Cluster} § 1.10.6.4
              */
             onMode: WritableAttribute(0x3, TlvNullable(TlvUInt8), { persistent: true })
         }
@@ -323,7 +323,7 @@ export namespace ModeBase {
              * This feature creates a dependency between an OnOff cluster instance and this cluster instance on the same
              * endpoint. See OnMode for more information.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.10.4.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.10.4.1
              */
             onOff: BitFlag(0)
         },
@@ -350,7 +350,7 @@ export namespace ModeBase {
              *
              * Simplified examples of disallowed ModeTags lists:
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.10.6.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.10.6.1
              */
             supportedModes: FixedAttribute(0x0, TlvArray(TlvModeOption, { minLength: 2, maxLength: 255 })),
 
@@ -364,7 +364,7 @@ export namespace ModeBase {
              * through a sequence of operations, on system time-outs or idle delays, or via interactions coming from a
              * fabric other than the one which last executed a ChangeToMode.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.10.6.2
+             * @see {@link MatterSpecification.v142.Cluster} § 1.10.6.2
              */
             currentMode: Attribute(0x1, TlvUInt8, { persistent: true }),
 
@@ -382,7 +382,7 @@ export namespace ModeBase {
              *
              * If this attribute is not implemented, or is set to the null value, it shall have no effect.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.10.6.3
+             * @see {@link MatterSpecification.v142.Cluster} § 1.10.6.3
              */
             startUpMode: OptionalWritableAttribute(0x2, TlvNullable(TlvUInt8), { persistent: true })
         },
@@ -393,7 +393,7 @@ export namespace ModeBase {
              *
              * On receipt of this command the device shall respond with a ChangeToModeResponse command.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.10.7.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
              */
             changeToMode: Command(0x0, TlvChangeToModeRequest, 0x1, TlvChangeToModeResponse)
         },

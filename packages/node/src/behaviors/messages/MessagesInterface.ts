@@ -32,12 +32,12 @@ export namespace MessagesInterface {
          * The device SHOULD make it possible for the user to view which nodes have access to this cluster and to
          * individually remove privileges for each node.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1
          */
         presentMessagesRequest(request: Messages.PresentMessagesRequest): MaybePromise;
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 1.16.7.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.2
          */
         cancelMessagesRequest(request: Messages.CancelMessagesRequest): MaybePromise;
     }

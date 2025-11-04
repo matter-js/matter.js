@@ -21,14 +21,14 @@ export namespace AccountLogin {
     /**
      * Input to the AccountLogin getSetupPin command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.2.4.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.1
      */
     export const TlvGetSetupPinRequest = TlvObject({
         /**
          * This field shall specify the client’s Temporary Account Identifier. The length of this field shall be at
          * least 16 characters to protect the account holder against password guessing attacks.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.2.4.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.1.1
          */
         tempAccountIdentifier: TlvField(0, TlvString.bound({ minLength: 16, maxLength: 100 }))
     });
@@ -36,7 +36,7 @@ export namespace AccountLogin {
     /**
      * Input to the AccountLogin getSetupPin command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.2.4.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.1
      */
     export interface GetSetupPinRequest extends TypeFromSchema<typeof TlvGetSetupPinRequest> {}
 
@@ -44,7 +44,7 @@ export namespace AccountLogin {
      * This message is sent in response to the GetSetupPIN command, and contains the Setup PIN, or null when the account
      * identified in the request does not match the active account of the running Content App.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.2.4.2
+     * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.2
      */
     export const TlvGetSetupPinResponse = TlvObject({
         /**
@@ -56,7 +56,7 @@ export namespace AccountLogin {
          * > Newer cluster clients should be aware that AccountLogin cluster version 1 specified an 11 digit minimum
          *   length.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.2.4.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.2.1
          */
         setupPin: TlvField(0, TlvString)
     });
@@ -65,20 +65,20 @@ export namespace AccountLogin {
      * This message is sent in response to the GetSetupPIN command, and contains the Setup PIN, or null when the account
      * identified in the request does not match the active account of the running Content App.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.2.4.2
+     * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.2
      */
     export interface GetSetupPinResponse extends TypeFromSchema<typeof TlvGetSetupPinResponse> {}
 
     /**
      * Input to the AccountLogin login command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.2.4.3
+     * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.3
      */
     export const TlvLoginRequest = TlvObject({
         /**
          * This field shall specify the client’s temporary account identifier.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.2.4.3.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.3.1
          */
         tempAccountIdentifier: TlvField(0, TlvString.bound({ minLength: 16, maxLength: 100 })),
 
@@ -90,7 +90,7 @@ export namespace AccountLogin {
          * > Newer cluster clients should be aware that AccountLogin cluster revision 1 specified an 11 digit minimum
          *   length.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.2.4.3.2
+         * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.3.2
          */
         setupPin: TlvField(1, TlvString.bound({ minLength: 8 })),
 
@@ -98,7 +98,7 @@ export namespace AccountLogin {
          * This optional field shall provide the Node ID of the Client. This field can be used by the Content App to
          * keep track of Nodes which currently have access to it.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.2.4.3.3
+         * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.3.3
          */
         node: TlvOptionalField(2, TlvNodeId)
     });
@@ -106,21 +106,21 @@ export namespace AccountLogin {
     /**
      * Input to the AccountLogin login command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.2.4.3
+     * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.3
      */
     export interface LoginRequest extends TypeFromSchema<typeof TlvLoginRequest> {}
 
     /**
      * Input to the AccountLogin logout command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.2.4.4
+     * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.4
      */
     export const TlvLogoutRequest = TlvObject({
         /**
          * This optional field shall provide the Node ID of the Client. This field can be used by the Content App to
          * keep track of Nodes which currently have access to it.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.2.4.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.4.1
          */
         node: TlvOptionalField(0, TlvNodeId)
     });
@@ -128,21 +128,21 @@ export namespace AccountLogin {
     /**
      * Input to the AccountLogin logout command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.2.4.4
+     * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.4
      */
     export interface LogoutRequest extends TypeFromSchema<typeof TlvLogoutRequest> {}
 
     /**
      * Body of the AccountLogin loggedOut event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.2.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.2.5.1
      */
     export const TlvLoggedOutEvent = TlvObject({
         /**
          * This field shall provide the Node ID corresponding to the user account that has logged out, if that Node ID
          * is available. If it is NOT available, this field shall NOT be present in the event.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.2.5.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.2.5.1.1
          */
         node: TlvOptionalField(0, TlvNodeId)
     });
@@ -150,7 +150,7 @@ export namespace AccountLogin {
     /**
      * Body of the AccountLogin loggedOut event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.2.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.2.5.1
      */
     export interface LoggedOutEvent extends TypeFromSchema<typeof TlvLoggedOutEvent> {}
 
@@ -208,7 +208,7 @@ export namespace AccountLogin {
              * command shall ensure that the Temporary Account Identifier used by its clients is not valid for more than
              * 10 minutes.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 6.2.4.1
+             * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.1
              */
             getSetupPin: Command(
                 0x0,
@@ -257,7 +257,7 @@ export namespace AccountLogin {
              * obstacles to successfully mounting a brute force attack. A Content App that supports this command shall
              * ensure that the Temporary Account Identifier used by its clients is not valid for more than 10 minutes.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 6.2.4.3
+             * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.3
              */
             login: Command(
                 0x2,
@@ -271,7 +271,7 @@ export namespace AccountLogin {
              * The purpose of this command is to instruct the Content App to clear the current user account. This
              * command SHOULD be used by clients of a Content App to indicate the end of a user session.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 6.2.4.4
+             * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.4
              */
             logout: Command(0x3, TlvLogoutRequest, 0x3, TlvNoResponse, { timed: true })
         },
@@ -282,7 +282,7 @@ export namespace AccountLogin {
              * to this event, the Fabric Admin shall remove access to this Content App by the specified Node. If no Node
              * is provided, then the Fabric Admin shall remove access to all non-Admin Nodes.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 6.2.5.1
+             * @see {@link MatterSpecification.v142.Cluster} § 6.2.5.1
              */
             loggedOut: OptionalEvent(0x0, Priority.Critical, TlvLoggedOutEvent, { readAcl: AccessLevel.Administer })
         }
@@ -312,7 +312,7 @@ export namespace AccountLogin {
      * See Device Type Library document for details of how a Content App, represented as an endpoint on the Video Player
      * device, may implement the cluster server for this cluster to simplify account login for its users.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.2
+     * @see {@link MatterSpecification.v142.Cluster} § 6.2
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

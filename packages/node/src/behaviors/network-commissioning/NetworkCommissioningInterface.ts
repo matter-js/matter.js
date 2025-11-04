@@ -54,7 +54,7 @@ export namespace NetworkCommissioningInterface {
          * while the network interface is processing the scan. Clients SHOULD NOT use this command unless actively in
          * the process of re-configuring network connectivity.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.9.7.1
+         * @see {@link MatterSpecification.v142.Core} § 11.9.7.1
          */
         scanNetworks(request: NetworkCommissioning.ScanNetworksRequest): MaybePromise<NetworkCommissioning.ScanNetworksResponse>;
 
@@ -76,7 +76,7 @@ export namespace NetworkCommissioningInterface {
          * the entry in the Networks attribute that was just removed, and a NetworkingStatus status field set to
          * Success.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.9.7.6
+         * @see {@link MatterSpecification.v142.Core} § 11.9.7.6
          */
         removeNetwork(request: NetworkCommissioning.RemoveNetworkRequest): MaybePromise<NetworkCommissioning.NetworkConfigResponse>;
 
@@ -155,7 +155,7 @@ export namespace NetworkCommissioningInterface {
          * determining the reason for a failure after reconnecting over a Commissioning channel, especially in
          * non-concurrent commissioning situations.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.9.7.8
+         * @see {@link MatterSpecification.v142.Core} § 11.9.7.8
          */
         connectNetwork(request: NetworkCommissioning.ConnectNetworkRequest): MaybePromise<NetworkCommissioning.ConnectNetworkResponse>;
 
@@ -165,7 +165,7 @@ export namespace NetworkCommissioningInterface {
          * This command shall set the specific order of the network configuration selected by its NetworkID in the
          * Networks attribute to match the position given by NetworkIndex.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.9.7.10
+         * @see {@link MatterSpecification.v142.Core} § 11.9.7.10
          */
         reorderNetwork(request: NetworkCommissioning.ReorderNetworkRequest): MaybePromise<NetworkCommissioning.NetworkConfigResponse>;
     }
@@ -188,7 +188,7 @@ export namespace NetworkCommissioningInterface {
          * See Section 11.9.7.5, “Common processing of AddOrUpdateWiFiNetwork and AddOrUpdateThreadNetwork” for behavior
          * of addition/update.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.9.7.3
+         * @see {@link MatterSpecification.v142.Core} § 11.9.7.3
          */
         addOrUpdateWiFiNetwork(request: NetworkCommissioning.AddOrUpdateWiFiNetworkRequest): MaybePromise<NetworkCommissioning.NetworkConfigResponse>;
     }
@@ -212,7 +212,7 @@ export namespace NetworkCommissioningInterface {
          * OperationalDataset, the operation shall be considered an addition, otherwise, it shall be considered an
          * update.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.9.7.4
+         * @see {@link MatterSpecification.v142.Core} § 11.9.7.4
          */
         addOrUpdateThreadNetwork(request: NetworkCommissioning.AddOrUpdateThreadNetworkRequest): MaybePromise<NetworkCommissioning.NetworkConfigResponse>;
     }

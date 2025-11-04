@@ -15,20 +15,20 @@ import { TypeFromSchema } from "../tlv/TlvSchema.js";
 /**
  * This struct indicates the status of an attribute during an atomic write.
  *
- * @see {@link MatterSpecification.v141.Core} § 7.15.5
+ * @see {@link MatterSpecification.v142.Core} § 7.15.5
  */
 export const TlvAtomicAttributeStatus = TlvObject({
     /**
      * This field shall indicate the ID of the attribute with the associated StatusCode.
      *
-     * @see {@link MatterSpecification.v141.Core} § 7.15.5.1
+     * @see {@link MatterSpecification.v142.Core} § 7.15.5.1
      */
     attributeId: TlvField(0, TlvAttributeId),
 
     /**
      * This field shall indicate the atomic status of an attribute.
      *
-     * @see {@link MatterSpecification.v141.Core} § 7.15.5.2
+     * @see {@link MatterSpecification.v142.Core} § 7.15.5.2
      */
     statusCode: TlvField(1, TlvEnum<Status>())
 });
@@ -36,6 +36,6 @@ export const TlvAtomicAttributeStatus = TlvObject({
 /**
  * This struct indicates the status of an attribute during an atomic write.
  *
- * @see {@link MatterSpecification.v141.Core} § 7.15.5
+ * @see {@link MatterSpecification.v142.Core} § 7.15.5
  */
 export interface AtomicAttributeStatus extends TypeFromSchema<typeof TlvAtomicAttributeStatus> {}

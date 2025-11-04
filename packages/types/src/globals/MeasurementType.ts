@@ -7,7 +7,7 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 /**
- * @see {@link MatterSpecification.v141.Cluster} § 2.1.3.1
+ * @see {@link MatterSpecification.v142.Cluster} § 2.1.3.1
  */
 export enum MeasurementType {
     Unspecified = 0,

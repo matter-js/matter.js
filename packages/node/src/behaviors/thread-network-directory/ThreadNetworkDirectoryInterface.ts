@@ -18,21 +18,21 @@ export namespace ThreadNetworkDirectoryInterface {
          * replaced. As a result, changes to the network parameters (e.g. Channel, Network Name, PSKc, …) of an existing
          * entry with a given Extended PAN ID can be made using this command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 10.4.6.1
+         * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.1
          */
         addNetwork(request: ThreadNetworkDirectory.AddNetworkRequest): MaybePromise;
 
         /**
          * Removes the network with the given Extended PAN ID from the ThreadNetworks attribute.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 10.4.6.2
+         * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.2
          */
         removeNetwork(request: ThreadNetworkDirectory.RemoveNetworkRequest): MaybePromise;
 
         /**
          * Retrieves the Thread Operational Dataset with the given Extended PAN ID.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 10.4.6.3
+         * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.3
          */
         getOperationalDataset(request: ThreadNetworkDirectory.GetOperationalDatasetRequest): MaybePromise<ThreadNetworkDirectory.OperationalDatasetResponse>;
     }

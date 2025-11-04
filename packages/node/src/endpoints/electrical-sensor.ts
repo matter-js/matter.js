@@ -24,7 +24,7 @@ import { Identity } from "#general";
  * ElectricalSensorEndpoint requires PowerTopology cluster but PowerTopology is not added by default because you must
  * select the features your device supports. You can add manually using ElectricalSensorEndpoint.with().
  *
- * @see {@link MatterSpecification.v141.Device} § 2.6
+ * @see {@link MatterSpecification.v142.Device} § 2.6
  */
 export interface ElectricalSensorEndpoint extends Identity<typeof ElectricalSensorEndpointDefinition> {}
 

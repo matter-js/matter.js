@@ -16,7 +16,7 @@ import { Identity } from "#general";
  * of heating food. Examples of consumer products implementing this device type include ovens, wall ovens, convection
  * ovens, etc.
  *
- * @see {@link MatterSpecification.v141.Device} § 13.9
+ * @see {@link MatterSpecification.v142.Device} § 13.9
  */
 export interface OvenDevice extends Identity<typeof OvenDeviceDefinition> {}
 

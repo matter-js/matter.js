@@ -22,13 +22,13 @@ import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace Binding {
     /**
-     * @see {@link MatterSpecification.v141.Core} § 9.6.5.1
+     * @see {@link MatterSpecification.v142.Core} § 9.6.5.1
      */
     export const TlvTarget = TlvObject({
         /**
          * This field is the remote target node ID. If the Endpoint field is present, this field shall be present.
          *
-         * @see {@link MatterSpecification.v141.Core} § 9.6.5.1.1
+         * @see {@link MatterSpecification.v142.Core} § 9.6.5.1.1
          */
         node: TlvOptionalField(1, TlvNodeId),
 
@@ -36,7 +36,7 @@ export namespace Binding {
          * This field is the target group ID that represents remote endpoints. If the Endpoint field is present, this
          * field shall NOT be present.
          *
-         * @see {@link MatterSpecification.v141.Core} § 9.6.5.1.2
+         * @see {@link MatterSpecification.v142.Core} § 9.6.5.1.2
          */
         group: TlvOptionalField(2, TlvGroupId),
 
@@ -44,7 +44,7 @@ export namespace Binding {
          * This field is the remote endpoint that the local endpoint is bound to. If the Group field is present, this
          * field shall NOT be present.
          *
-         * @see {@link MatterSpecification.v141.Core} § 9.6.5.1.3
+         * @see {@link MatterSpecification.v142.Core} § 9.6.5.1.3
          */
         endpoint: TlvOptionalField(3, TlvEndpointNumber),
 
@@ -53,7 +53,7 @@ export namespace Binding {
          * the client cluster shall also exist on this endpoint (with this Binding cluster). If this field is present,
          * the target shall be this cluster on the target endpoint(s).
          *
-         * @see {@link MatterSpecification.v141.Core} § 9.6.5.1.4
+         * @see {@link MatterSpecification.v142.Core} § 9.6.5.1.4
          */
         cluster: TlvOptionalField(4, TlvClusterId),
 
@@ -61,7 +61,7 @@ export namespace Binding {
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 9.6.5.1
+     * @see {@link MatterSpecification.v142.Core} § 9.6.5.1
      */
     export interface Target extends TypeFromSchema<typeof TlvTarget> {}
 
@@ -77,7 +77,7 @@ export namespace Binding {
             /**
              * Each entry shall represent a binding.
              *
-             * @see {@link MatterSpecification.v141.Core} § 9.6.6.1
+             * @see {@link MatterSpecification.v142.Core} § 9.6.6.1
              */
             binding: WritableFabricScopedAttribute(
                 0x0,
@@ -117,7 +117,7 @@ export namespace Binding {
      * Once a binding entry is created on the Binding cluster, the client endpoint may initiate interactions to the
      * binding target.
      *
-     * @see {@link MatterSpecification.v141.Core} § 9.6
+     * @see {@link MatterSpecification.v142.Core} § 9.6
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

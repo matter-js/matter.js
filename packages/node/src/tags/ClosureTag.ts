@@ -19,7 +19,7 @@ import { SemanticNamespace } from "../endpoint/type/SemanticNamespace.js";
  * Clients SHOULD still have support for these tags, since the tags could be used by a server certified on a previous
  * revision of Matter.
  *
- * @see {@link MatterSpecification.v141.Namespace} § 2
+ * @see {@link MatterSpecification.v142.Namespace} § 2
  */
 export const ClosureTag = SemanticNamespace({
     id: 0x1,

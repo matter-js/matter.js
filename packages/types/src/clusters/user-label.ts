@@ -28,7 +28,7 @@ export namespace UserLabel {
              * An implementation shall support at least 4 list entries per node for all User Label cluster instances on
              * the node.
              *
-             * @see {@link MatterSpecification.v141.Core} § 9.9.4.1
+             * @see {@link MatterSpecification.v142.Core} § 9.9.4.1
              */
             labelList: WritableAttribute(
                 0x0,
@@ -42,7 +42,7 @@ export namespace UserLabel {
      * This cluster is derived from the Label cluster and provides a feature to tag an endpoint with zero or more
      * writable labels.
      *
-     * @see {@link MatterSpecification.v141.Core} § 9.9
+     * @see {@link MatterSpecification.v142.Core} § 9.9
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

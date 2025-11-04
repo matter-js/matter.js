@@ -21,7 +21,7 @@ export namespace TemperatureControl {
     /**
      * These are optional features supported by TemperatureControlCluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 8.2.4
+     * @see {@link MatterSpecification.v142.Cluster} § 8.2.4
      */
     export enum Feature {
         /**
@@ -31,7 +31,7 @@ export namespace TemperatureControl {
          * the feature TN shall be used. Note that this cluster provides and supports temperatures in degrees Celsius
          * via the temperature data type.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 8.2.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.2.4.1
          */
         TemperatureNumber = "TemperatureNumber",
 
@@ -41,7 +41,7 @@ export namespace TemperatureControl {
          * For devices that use vendor-specific temperature levels for the temperature setpoint, such as some washers,
          * the feature TL shall be used.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 8.2.4.2
+         * @see {@link MatterSpecification.v142.Cluster} § 8.2.4.2
          */
         TemperatureLevel = "TemperatureLevel",
 
@@ -51,7 +51,7 @@ export namespace TemperatureControl {
          * For devices that support discrete temperature setpoints that are larger than the temperature resolution
          * imposed via the temperature data type, the Step feature may be used.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 8.2.4.3
+         * @see {@link MatterSpecification.v142.Cluster} § 8.2.4.3
          */
         TemperatureStep = "TemperatureStep"
     }
@@ -59,7 +59,7 @@ export namespace TemperatureControl {
     /**
      * Input to the TemperatureControl setTemperature command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 8.2.6.1
+     * @see {@link MatterSpecification.v142.Cluster} § 8.2.6.1
      */
     export const TlvSetTemperatureRequest = TlvObject({
         /**
@@ -68,7 +68,7 @@ export namespace TemperatureControl {
          * The TargetTemperature shall be from MinTemperature to MaxTemperature inclusive. If the Step attribute is
          * supported, TargetTemperature shall be such that (TargetTemperature - MinTemperature) % Step == 0.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 8.2.6.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.2.6.1.1
          */
         targetTemperature: TlvOptionalField(0, TlvInt16),
 
@@ -77,7 +77,7 @@ export namespace TemperatureControl {
          * the desired temperature level setting of the server. The value of this field shall be between 0 and the
          * length of the SupportedTemperatureLevels list -1.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 8.2.6.1.2
+         * @see {@link MatterSpecification.v142.Cluster} § 8.2.6.1.2
          */
         targetTemperatureLevel: TlvOptionalField(1, TlvUInt8)
     });
@@ -85,7 +85,7 @@ export namespace TemperatureControl {
     /**
      * Input to the TemperatureControl setTemperature command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 8.2.6.1
+     * @see {@link MatterSpecification.v142.Cluster} § 8.2.6.1
      */
     export interface SetTemperatureRequest extends TypeFromSchema<typeof TlvSetTemperatureRequest> {}
 
@@ -97,14 +97,14 @@ export namespace TemperatureControl {
             /**
              * Indicates the desired Temperature Setpoint on the device.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 8.2.5.1
+             * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.1
              */
             temperatureSetpoint: Attribute(0x0, TlvInt16),
 
             /**
              * Indicates the minimum temperature to which the TemperatureSetpoint attribute may be set.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 8.2.5.2
+             * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.2
              */
             minTemperature: FixedAttribute(0x1, TlvInt16),
 
@@ -115,7 +115,7 @@ export namespace TemperatureControl {
              * (Step * n), where n is an integer and n > 0. If the Step attribute is not supported, this attribute shall
              * be such that MaxTemperature > MinTemperature.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 8.2.5.3
+             * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.3
              */
             maxTemperature: FixedAttribute(0x2, TlvInt16)
         }
@@ -135,7 +135,7 @@ export namespace TemperatureControl {
              *
              * (2550), 26.00C (2600), 26.50C (2650), etc.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 8.2.5.4
+             * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.4
              */
             step: FixedAttribute(0x3, TlvInt16.bound({ min: 1 }))
         }
@@ -151,7 +151,7 @@ export namespace TemperatureControl {
              * positional index of the list item in the SupportedTemperatureLevels list that represents the currently
              * selected temperature level setting of the server.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 8.2.5.5
+             * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.5
              */
             selectedTemperatureLevel: Attribute(0x4, TlvUInt8.bound({ max: 31 })),
 
@@ -166,7 +166,7 @@ export namespace TemperatureControl {
              * unique value. The entries in this list shall appear in order of increasing temperature level with list
              * item 0 being the setting with the lowest temperature level.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 8.2.5.6
+             * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.6
              */
             supportedTemperatureLevels: Attribute(0x5, TlvArray(TlvString, { maxLength: 32 }), { default: [] })
         }
@@ -186,7 +186,7 @@ export namespace TemperatureControl {
              * heaters, the feature TN shall be used. Note that this cluster provides and supports temperatures in
              * degrees Celsius via the temperature data type.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 8.2.4.1
+             * @see {@link MatterSpecification.v142.Cluster} § 8.2.4.1
              */
             temperatureNumber: BitFlag(0),
 
@@ -194,7 +194,7 @@ export namespace TemperatureControl {
              * For devices that use vendor-specific temperature levels for the temperature setpoint, such as some
              * washers, the feature TL shall be used.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 8.2.4.2
+             * @see {@link MatterSpecification.v142.Cluster} § 8.2.4.2
              */
             temperatureLevel: BitFlag(1),
 
@@ -202,7 +202,7 @@ export namespace TemperatureControl {
              * For devices that support discrete temperature setpoints that are larger than the temperature resolution
              * imposed via the temperature data type, the Step feature may be used.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 8.2.4.3
+             * @see {@link MatterSpecification.v142.Cluster} § 8.2.4.3
              */
             temperatureStep: BitFlag(2)
         },
@@ -211,7 +211,7 @@ export namespace TemperatureControl {
             /**
              * This command is used to set the temperature setpoint.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 8.2.6.1
+             * @see {@link MatterSpecification.v142.Cluster} § 8.2.6.1
              */
             setTemperature: Command(0x0, TlvSetTemperatureRequest, 0x0, TlvNoResponse)
         },
@@ -249,7 +249,7 @@ export namespace TemperatureControl {
      * Per the Matter specification you cannot use {@link TemperatureControlCluster} without enabling certain feature
      * combinations. You must use the {@link with} factory method to obtain a working cluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 8.2
+     * @see {@link MatterSpecification.v142.Cluster} § 8.2
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

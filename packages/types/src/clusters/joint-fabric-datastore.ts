@@ -28,7 +28,7 @@ import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace JointFabricDatastore {
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.16
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.16
      */
     export enum DatastoreGroupKeySecurityPolicy {
         /**
@@ -38,7 +38,7 @@ export namespace JointFabricDatastore {
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.17
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.17
      */
     export enum DatastoreGroupKeyMulticastPolicy {
         /**
@@ -53,7 +53,7 @@ export namespace JointFabricDatastore {
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.18
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.18
      */
     export const TlvDatastoreGroupKeySet = TlvObject({
         groupKeySetId: TlvField(0, TlvUInt16),
@@ -68,12 +68,12 @@ export namespace JointFabricDatastore {
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.18
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.18
      */
     export interface DatastoreGroupKeySet extends TypeFromSchema<typeof TlvDatastoreGroupKeySet> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.4
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.4
      */
     export enum DatastoreAccessControlEntryPrivilege {
         /**
@@ -103,20 +103,20 @@ export namespace JointFabricDatastore {
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.5
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.5
      */
     export const TlvDatastoreGroupInformationEntry = TlvObject({
         /**
          * The unique identifier for the group.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.5.1
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.5.1
          */
         groupId: TlvField(0, TlvUInt64),
 
         /**
          * The friendly name for the group.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.5.2
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.5.2
          */
         friendlyName: TlvField(1, TlvString.bound({ maxLength: 32 })),
 
@@ -129,7 +129,7 @@ export namespace JointFabricDatastore {
          * A value of 0 is not allowed since this value is reserved for IPK and the group entry for this value is not
          * managed by the Datastore.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.5.3
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.5.3
          */
         groupKeySetId: TlvField(2, TlvNullable(TlvUInt16.bound({ min: 1, max: 65534 }))),
 
@@ -140,7 +140,7 @@ export namespace JointFabricDatastore {
          *
          * This value may be null when unicast communication is not used for the group.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.5.4
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.5.4
          */
         groupCat: TlvField(3, TlvNullable(TlvUInt16)),
 
@@ -149,7 +149,7 @@ export namespace JointFabricDatastore {
          *
          * This value shall be null when GroupCAT value is null.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.5.5
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.5.5
          */
         groupCatVersion: TlvField(4, TlvNullable(TlvUInt16.bound({ min: 1, max: 65534 }))),
 
@@ -157,18 +157,18 @@ export namespace JointFabricDatastore {
          * The permission level associated with ACL entries for this group. There should be only one Administrator group
          * per fabric, and at most one Manage group per Ecosystem (Vendor Entry).
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.5.6
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.5.6
          */
         groupPermission: TlvField(5, TlvEnum<DatastoreAccessControlEntryPrivilege>())
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.5
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.5
      */
     export interface DatastoreGroupInformationEntry extends TypeFromSchema<typeof TlvDatastoreGroupInformationEntry> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.1
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.1
      */
     export enum DatastoreState {
         /**
@@ -193,20 +193,20 @@ export namespace JointFabricDatastore {
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.2
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.2
      */
     export const TlvDatastoreStatusEntry = TlvObject({
         /**
          * This field shall contain the current state of the target device operation.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.2.1
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.2.1
          */
         state: TlvField(0, TlvEnum<DatastoreState>()),
 
         /**
          * This field shall contain the timestamp of the last update.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.2.2
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.2.2
          */
         updateTimestamp: TlvField(1, TlvEpochS),
 
@@ -214,31 +214,31 @@ export namespace JointFabricDatastore {
          * This field shall contain the StatusCode of the last failed operation where the State field is set to
          * CommitFailure.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.2.3
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.2.3
          */
         failureCode: TlvField(2, TlvEnum<Status>())
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.2
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.2
      */
     export interface DatastoreStatusEntry extends TypeFromSchema<typeof TlvDatastoreStatusEntry> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.14
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.14
      */
     export const TlvDatastoreNodeInformationEntry = TlvObject({
         /**
          * The unique identifier for the node.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.14.1
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.14.1
          */
         nodeId: TlvField(1, TlvNodeId),
 
         /**
          * Friendly name for this node which is not propagated to nodes.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.14.2
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.14.2
          */
         friendlyName: TlvField(2, TlvString.bound({ maxLength: 32 })),
 
@@ -246,89 +246,89 @@ export namespace JointFabricDatastore {
          * Set to Pending prior to completing commissioning, set to Committed after commissioning complete is
          * successful, or set to CommitFailed if commissioning failed with the FailureCode Field set to the error.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.14.3
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.14.3
          */
         commissioningStatusEntry: TlvField(3, TlvDatastoreStatusEntry)
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.14
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.14
      */
     export interface DatastoreNodeInformationEntry extends TypeFromSchema<typeof TlvDatastoreNodeInformationEntry> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.15
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.15
      */
     export const TlvDatastoreAdministratorInformationEntry = TlvObject({
         /**
          * The unique identifier for the node.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.15.1
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.15.1
          */
         nodeId: TlvField(1, TlvNodeId),
 
         /**
          * Friendly name for this node which is not propagated to nodes.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.15.2
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.15.2
          */
         friendlyName: TlvField(2, TlvString.bound({ maxLength: 32 })),
 
         /**
          * The Vendor ID for the node.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.15.3
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.15.3
          */
         vendorId: TlvField(3, TlvVendorId),
 
         /**
          * The ICAC used to issue the NOC.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.15.4
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.15.4
          */
         icac: TlvField(4, TlvByteString.bound({ maxLength: 400 }))
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.15
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.15
      */
     export interface DatastoreAdministratorInformationEntry extends TypeFromSchema<typeof TlvDatastoreAdministratorInformationEntry> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.8
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.8
      */
     export const TlvDatastoreEndpointGroupIdEntry = TlvObject({
         /**
          * The unique identifier for the node.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.8.1
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.8.1
          */
         nodeId: TlvField(0, TlvNodeId),
 
         /**
          * The unique identifier for the endpoint.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.8.2
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.8.2
          */
         endpointId: TlvField(1, TlvEndpointNumber),
 
         /**
          * The unique identifier for the group.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.8.3
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.8.3
          */
         groupId: TlvField(2, TlvGroupId),
 
         /**
          * Indicates whether entry in this list is pending, committed, delete-pending, or commit-failed.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.8.4
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.8.4
          */
         statusEntry: TlvField(3, TlvDatastoreStatusEntry)
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.8
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.8
      */
     export interface DatastoreEndpointGroupIdEntry extends TypeFromSchema<typeof TlvDatastoreEndpointGroupIdEntry> {}
 
@@ -338,14 +338,14 @@ export namespace JointFabricDatastore {
      * fabric-scoped to the Joint Fabric are managed by the Datastore. As a result, references to nodes and groups are
      * specific to the Joint Fabric.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.6
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.6
      */
     export const TlvDatastoreBindingTarget = TlvObject({
         /**
          * This field is the binding’s remote target node ID. If the Endpoint field is present, this field shall be
          * present.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.6.1
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.6.1
          */
         node: TlvOptionalField(1, TlvNodeId),
 
@@ -353,7 +353,7 @@ export namespace JointFabricDatastore {
          * This field is the binding’s target group ID that represents remote endpoints. If the Endpoint field is
          * present, this field shall NOT be present.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.6.2
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.6.2
          */
         group: TlvOptionalField(2, TlvGroupId),
 
@@ -361,7 +361,7 @@ export namespace JointFabricDatastore {
          * This field is the binding’s remote endpoint that the local endpoint is bound to. If the Group field is
          * present, this field shall NOT be present.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.6.3
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.6.3
          */
         endpoint: TlvOptionalField(3, TlvEndpointNumber),
 
@@ -370,7 +370,7 @@ export namespace JointFabricDatastore {
          * is present, the client cluster shall also exist on this endpoint (with this Binding cluster). If this field
          * is present, the target shall be this cluster on the target endpoint(s).
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.6.4
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.6.4
          */
         cluster: TlvOptionalField(4, TlvClusterId)
     });
@@ -381,25 +381,25 @@ export namespace JointFabricDatastore {
      * fabric-scoped to the Joint Fabric are managed by the Datastore. As a result, references to nodes and groups are
      * specific to the Joint Fabric.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.6
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.6
      */
     export interface DatastoreBindingTarget extends TypeFromSchema<typeof TlvDatastoreBindingTarget> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.7
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.7
      */
     export const TlvDatastoreEndpointBindingEntry = TlvObject({
         /**
          * The unique identifier for the node.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.7.1
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.7.1
          */
         nodeId: TlvField(0, TlvNodeId),
 
         /**
          * The unique identifier for the endpoint.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.7.2
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.7.2
          */
         endpointId: TlvField(1, TlvEndpointNumber),
 
@@ -410,38 +410,38 @@ export namespace JointFabricDatastore {
          * This field is used to uniquely identify an entry in the EndpointBindingList attribute for the purpose of
          * deletion (RemoveBindingFromEndpointForNode Command).
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.7.3
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.7.3
          */
         listId: TlvField(2, TlvUInt16),
 
         /**
          * The binding target structure.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.7.4
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.7.4
          */
         binding: TlvField(3, TlvDatastoreBindingTarget),
 
         /**
          * Indicates whether entry in this list is pending, committed, delete-pending, or commit-failed.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.7.5
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.7.5
          */
         statusEntry: TlvField(4, TlvDatastoreStatusEntry)
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.7
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.7
      */
     export interface DatastoreEndpointBindingEntry extends TypeFromSchema<typeof TlvDatastoreEndpointBindingEntry> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.3
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.3
      */
     export const TlvDatastoreNodeKeySetEntry = TlvObject({
         /**
          * The unique identifier for the node.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.3.1
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.3.1
          */
         nodeId: TlvField(0, TlvNodeId),
 
@@ -450,18 +450,18 @@ export namespace JointFabricDatastore {
         /**
          * Indicates whether entry in this list is pending, committed, delete-pending, or commit-failed.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.3.3
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.3.3
          */
         statusEntry: TlvField(2, TlvDatastoreStatusEntry)
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.3
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.3
      */
     export interface DatastoreNodeKeySetEntry extends TypeFromSchema<typeof TlvDatastoreNodeKeySetEntry> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.10
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.10
      */
     export enum DatastoreAccessControlEntryAuthMode {
         /**
@@ -481,7 +481,7 @@ export namespace JointFabricDatastore {
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.11
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.11
      */
     export const TlvDatastoreAccessControlTarget = TlvObject({
         cluster: TlvField(0, TlvNullable(TlvClusterId)),
@@ -490,7 +490,7 @@ export namespace JointFabricDatastore {
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.11
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.11
      */
     export interface DatastoreAccessControlTarget extends TypeFromSchema<typeof TlvDatastoreAccessControlTarget> {}
 
@@ -500,7 +500,7 @@ export namespace JointFabricDatastore {
      * to the Joint Fabric are managed by the Datastore. As a result, references to nodes and groups are specific to the
      * Joint Fabric.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.12
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.12
      */
     export const TlvDatastoreAccessControlEntry = TlvObject({
         privilege: TlvField(1, TlvEnum<DatastoreAccessControlEntryPrivilege>()),
@@ -515,7 +515,7 @@ export namespace JointFabricDatastore {
      * to the Joint Fabric are managed by the Datastore. As a result, references to nodes and groups are specific to the
      * Joint Fabric.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.12
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.12
      */
     export interface DatastoreAccessControlEntry extends TypeFromSchema<typeof TlvDatastoreAccessControlEntry> {}
 
@@ -524,34 +524,34 @@ export namespace JointFabricDatastore {
      * is managed by the Datastore. Only ACLs on a specific Node that are fabric-scoped to the Joint Fabric are managed
      * by the Datastore. As a result, references to nodes and groups are specific to the Joint Fabric.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.13
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.13
      */
     export const TlvDatastoreAclEntry = TlvObject({
         /**
          * The unique identifier for the node.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.13.1
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.13.1
          */
         nodeId: TlvField(0, TlvNodeId),
 
         /**
          * The unique identifier for the ACL entry in the Datastore’s list of DatastoreACLEntry.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.13.2
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.13.2
          */
         listId: TlvField(1, TlvUInt16),
 
         /**
          * The Access Control Entry structure.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.13.3
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.13.3
          */
         aclEntry: TlvField(2, TlvDatastoreAccessControlEntry),
 
         /**
          * Indicates whether entry in this list is pending, committed, delete-pending, or commit-failed.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.13.4
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.13.4
          */
         statusEntry: TlvField(3, TlvDatastoreStatusEntry)
     });
@@ -561,7 +561,7 @@ export namespace JointFabricDatastore {
      * is managed by the Datastore. Only ACLs on a specific Node that are fabric-scoped to the Joint Fabric are managed
      * by the Datastore. As a result, references to nodes and groups are specific to the Joint Fabric.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.13
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.13
      */
     export interface DatastoreAclEntry extends TypeFromSchema<typeof TlvDatastoreAclEntry> {}
 
@@ -570,20 +570,20 @@ export namespace JointFabricDatastore {
      * Only Nodes on the Joint Fabric are managed by the Datastore. As a result, references to NodeID are specific to
      * the Joint Fabric.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.9
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.9
      */
     export const TlvDatastoreEndpointEntry = TlvObject({
         /**
          * The unique identifier for the endpoint.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.9.1
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.9.1
          */
         endpointId: TlvField(0, TlvEndpointNumber),
 
         /**
          * The unique identifier for the node.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.9.2
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.9.2
          */
         nodeId: TlvField(1, TlvNodeId),
 
@@ -592,14 +592,14 @@ export namespace JointFabricDatastore {
          * (add/remove entry) must follow the pending→committed workflow with current state reflected in the Status
          * Entry.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.9.3
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.9.3
          */
         friendlyName: TlvField(2, TlvString.bound({ maxLength: 32 })),
 
         /**
          * Indicates whether changes to Friendly Name are pending, committed, or commit-failed.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.5.9.4
+         * @see {@link MatterSpecification.v142.Core} § 11.24.5.9.4
          */
         statusEntry: TlvField(3, TlvDatastoreStatusEntry)
     });
@@ -609,56 +609,56 @@ export namespace JointFabricDatastore {
      * Only Nodes on the Joint Fabric are managed by the Datastore. As a result, references to NodeID are specific to
      * the Joint Fabric.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.5.9
+     * @see {@link MatterSpecification.v142.Core} § 11.24.5.9
      */
     export interface DatastoreEndpointEntry extends TypeFromSchema<typeof TlvDatastoreEndpointEntry> {}
 
     /**
      * Input to the JointFabricDatastore addKeySet command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.1
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.1
      */
     export const TlvAddKeySetRequest = TlvObject({ groupKeySet: TlvField(0, TlvDatastoreGroupKeySet) });
 
     /**
      * Input to the JointFabricDatastore addKeySet command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.1
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.1
      */
     export interface AddKeySetRequest extends TypeFromSchema<typeof TlvAddKeySetRequest> {}
 
     /**
      * Input to the JointFabricDatastore updateKeySet command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.2
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.2
      */
     export const TlvUpdateKeySetRequest = TlvObject({ groupKeySet: TlvField(0, TlvDatastoreGroupKeySet) });
 
     /**
      * Input to the JointFabricDatastore updateKeySet command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.2
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.2
      */
     export interface UpdateKeySetRequest extends TypeFromSchema<typeof TlvUpdateKeySetRequest> {}
 
     /**
      * Input to the JointFabricDatastore removeKeySet command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.3
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.3
      */
     export const TlvRemoveKeySetRequest = TlvObject({ groupKeySetId: TlvField(0, TlvUInt16) });
 
     /**
      * Input to the JointFabricDatastore removeKeySet command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.3
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.3
      */
     export interface RemoveKeySetRequest extends TypeFromSchema<typeof TlvRemoveKeySetRequest> {}
 
     /**
      * Input to the JointFabricDatastore addGroup command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.4
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.4
      */
     export const TlvAddGroupRequest = TlvObject({
         groupId: TlvField(0, TlvGroupId),
@@ -672,14 +672,14 @@ export namespace JointFabricDatastore {
     /**
      * Input to the JointFabricDatastore addGroup command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.4
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.4
      */
     export interface AddGroupRequest extends TypeFromSchema<typeof TlvAddGroupRequest> {}
 
     /**
      * Input to the JointFabricDatastore updateGroup command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.5
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.5
      */
     export const TlvUpdateGroupRequest = TlvObject({
         groupId: TlvField(0, TlvGroupId),
@@ -693,28 +693,28 @@ export namespace JointFabricDatastore {
     /**
      * Input to the JointFabricDatastore updateGroup command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.5
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.5
      */
     export interface UpdateGroupRequest extends TypeFromSchema<typeof TlvUpdateGroupRequest> {}
 
     /**
      * Input to the JointFabricDatastore removeGroup command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.6
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.6
      */
     export const TlvRemoveGroupRequest = TlvObject({ groupId: TlvField(0, TlvGroupId) });
 
     /**
      * Input to the JointFabricDatastore removeGroup command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.6
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.6
      */
     export interface RemoveGroupRequest extends TypeFromSchema<typeof TlvRemoveGroupRequest> {}
 
     /**
      * Input to the JointFabricDatastore addAdmin command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.7
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.7
      */
     export const TlvAddAdminRequest = TlvObject({
         nodeId: TlvField(1, TlvNodeId),
@@ -726,14 +726,14 @@ export namespace JointFabricDatastore {
     /**
      * Input to the JointFabricDatastore addAdmin command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.7
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.7
      */
     export interface AddAdminRequest extends TypeFromSchema<typeof TlvAddAdminRequest> {}
 
     /**
      * Input to the JointFabricDatastore updateAdmin command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.8
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.8
      */
     export const TlvUpdateAdminRequest = TlvObject({
         nodeId: TlvField(0, TlvNullable(TlvNodeId)),
@@ -744,28 +744,28 @@ export namespace JointFabricDatastore {
     /**
      * Input to the JointFabricDatastore updateAdmin command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.8
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.8
      */
     export interface UpdateAdminRequest extends TypeFromSchema<typeof TlvUpdateAdminRequest> {}
 
     /**
      * Input to the JointFabricDatastore removeAdmin command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.9
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.9
      */
     export const TlvRemoveAdminRequest = TlvObject({ nodeId: TlvField(0, TlvNodeId) });
 
     /**
      * Input to the JointFabricDatastore removeAdmin command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.9
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.9
      */
     export interface RemoveAdminRequest extends TypeFromSchema<typeof TlvRemoveAdminRequest> {}
 
     /**
      * Input to the JointFabricDatastore addPendingNode command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.10
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.10
      */
     export const TlvAddPendingNodeRequest = TlvObject({
         nodeId: TlvField(0, TlvNodeId),
@@ -775,28 +775,28 @@ export namespace JointFabricDatastore {
     /**
      * Input to the JointFabricDatastore addPendingNode command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.10
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.10
      */
     export interface AddPendingNodeRequest extends TypeFromSchema<typeof TlvAddPendingNodeRequest> {}
 
     /**
      * Input to the JointFabricDatastore refreshNode command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.11
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.11
      */
     export const TlvRefreshNodeRequest = TlvObject({ nodeId: TlvField(0, TlvNodeId) });
 
     /**
      * Input to the JointFabricDatastore refreshNode command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.11
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.11
      */
     export interface RefreshNodeRequest extends TypeFromSchema<typeof TlvRefreshNodeRequest> {}
 
     /**
      * Input to the JointFabricDatastore updateNode command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.12
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.12
      */
     export const TlvUpdateNodeRequest = TlvObject({
         nodeId: TlvField(0, TlvNodeId),
@@ -806,28 +806,28 @@ export namespace JointFabricDatastore {
     /**
      * Input to the JointFabricDatastore updateNode command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.12
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.12
      */
     export interface UpdateNodeRequest extends TypeFromSchema<typeof TlvUpdateNodeRequest> {}
 
     /**
      * Input to the JointFabricDatastore removeNode command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.13
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.13
      */
     export const TlvRemoveNodeRequest = TlvObject({ nodeId: TlvField(0, TlvNodeId) });
 
     /**
      * Input to the JointFabricDatastore removeNode command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.13
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.13
      */
     export interface RemoveNodeRequest extends TypeFromSchema<typeof TlvRemoveNodeRequest> {}
 
     /**
      * Input to the JointFabricDatastore updateEndpointForNode command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.14
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.14
      */
     export const TlvUpdateEndpointForNodeRequest = TlvObject({
         endpointId: TlvField(0, TlvEndpointNumber),
@@ -838,14 +838,14 @@ export namespace JointFabricDatastore {
     /**
      * Input to the JointFabricDatastore updateEndpointForNode command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.14
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.14
      */
     export interface UpdateEndpointForNodeRequest extends TypeFromSchema<typeof TlvUpdateEndpointForNodeRequest> {}
 
     /**
      * Input to the JointFabricDatastore addGroupIdToEndpointForNode command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.15
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.15
      */
     export const TlvAddGroupIdToEndpointForNodeRequest = TlvObject({
         nodeId: TlvField(0, TlvNodeId),
@@ -856,14 +856,14 @@ export namespace JointFabricDatastore {
     /**
      * Input to the JointFabricDatastore addGroupIdToEndpointForNode command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.15
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.15
      */
     export interface AddGroupIdToEndpointForNodeRequest extends TypeFromSchema<typeof TlvAddGroupIdToEndpointForNodeRequest> {}
 
     /**
      * Input to the JointFabricDatastore removeGroupIdFromEndpointForNode command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.16
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.16
      */
     export const TlvRemoveGroupIdFromEndpointForNodeRequest = TlvObject({
         nodeId: TlvField(0, TlvNodeId),
@@ -874,14 +874,14 @@ export namespace JointFabricDatastore {
     /**
      * Input to the JointFabricDatastore removeGroupIdFromEndpointForNode command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.16
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.16
      */
     export interface RemoveGroupIdFromEndpointForNodeRequest extends TypeFromSchema<typeof TlvRemoveGroupIdFromEndpointForNodeRequest> {}
 
     /**
      * Input to the JointFabricDatastore addBindingToEndpointForNode command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.17
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.17
      */
     export const TlvAddBindingToEndpointForNodeRequest = TlvObject({
         nodeId: TlvField(0, TlvNodeId),
@@ -892,14 +892,14 @@ export namespace JointFabricDatastore {
     /**
      * Input to the JointFabricDatastore addBindingToEndpointForNode command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.17
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.17
      */
     export interface AddBindingToEndpointForNodeRequest extends TypeFromSchema<typeof TlvAddBindingToEndpointForNodeRequest> {}
 
     /**
      * Input to the JointFabricDatastore removeBindingFromEndpointForNode command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.18
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.18
      */
     export const TlvRemoveBindingFromEndpointForNodeRequest = TlvObject({
         listId: TlvField(0, TlvUInt16),
@@ -910,14 +910,14 @@ export namespace JointFabricDatastore {
     /**
      * Input to the JointFabricDatastore removeBindingFromEndpointForNode command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.18
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.18
      */
     export interface RemoveBindingFromEndpointForNodeRequest extends TypeFromSchema<typeof TlvRemoveBindingFromEndpointForNodeRequest> {}
 
     /**
      * Input to the JointFabricDatastore addAclToNode command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.19
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.19
      */
     export const TlvAddAclToNodeRequest = TlvObject({
         nodeId: TlvField(0, TlvNodeId),
@@ -927,14 +927,14 @@ export namespace JointFabricDatastore {
     /**
      * Input to the JointFabricDatastore addAclToNode command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.19
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.19
      */
     export interface AddAclToNodeRequest extends TypeFromSchema<typeof TlvAddAclToNodeRequest> {}
 
     /**
      * Input to the JointFabricDatastore removeAclFromNode command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.20
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.20
      */
     export const TlvRemoveAclFromNodeRequest = TlvObject({
         listId: TlvField(0, TlvUInt16),
@@ -944,7 +944,7 @@ export namespace JointFabricDatastore {
     /**
      * Input to the JointFabricDatastore removeAclFromNode command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24.7.20
+     * @see {@link MatterSpecification.v142.Core} § 11.24.7.20
      */
     export interface RemoveAclFromNodeRequest extends TypeFromSchema<typeof TlvRemoveAclFromNodeRequest> {}
 
@@ -961,7 +961,7 @@ export namespace JointFabricDatastore {
              * This shall indicate the Anchor Root CA used to sign all NOC Issuers in the Joint Fabric for the accessing
              * fabric. A null value indicates that the Joint Fabric is not yet formed.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.6.1
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.1
              */
             anchorRootCa: Attribute(
                 0x0,
@@ -972,7 +972,7 @@ export namespace JointFabricDatastore {
             /**
              * This shall indicate the Node identifier of the Joint Fabric Anchor Root CA for the accessing fabric.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.6.2
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.2
              */
             anchorNodeId: Attribute(
                 0x1,
@@ -983,7 +983,7 @@ export namespace JointFabricDatastore {
             /**
              * This shall indicate the Vendor identifier of the Joint Fabric Anchor Root CA for the accessing fabric.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.6.3
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.3
              */
             anchorVendorId: Attribute(
                 0x2,
@@ -994,7 +994,7 @@ export namespace JointFabricDatastore {
             /**
              * Friendly name for the accessing fabric which can be propagated to nodes.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.6.4
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.4
              */
             friendlyName: Attribute(
                 0x3,
@@ -1008,7 +1008,7 @@ export namespace JointFabricDatastore {
              *
              * This attribute shall contain at least one entry, the IPK, which has GroupKeySetID of 0.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.6.5
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.5
              */
             groupKeySetList: Attribute(
                 0x4,
@@ -1022,7 +1022,7 @@ export namespace JointFabricDatastore {
              * This list must include, at a minimum, one group with GroupCAT value set to Administrator CAT and one
              * group with GroupCAT value set to Anchor CAT.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.6.6
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.6
              */
             groupList: Attribute(
                 0x5,
@@ -1033,7 +1033,7 @@ export namespace JointFabricDatastore {
             /**
              * This shall indicate the list of nodes in the Joint Fabric for the accessing fabric.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.6.7
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.7
              */
             nodeList: Attribute(
                 0x6,
@@ -1049,7 +1049,7 @@ export namespace JointFabricDatastore {
              *
              * A null value or empty list indicates that the Joint Fabric is not yet formed.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.6.8
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.8
              */
             adminList: Attribute(
                 0x7,
@@ -1064,7 +1064,7 @@ export namespace JointFabricDatastore {
              * DataStore is not yet ready for use. The DeletePending status indicates that the DataStore is in the
              * process of being transferred to another Joint Fabric Anchor Administrator.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.6.9
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.9
              */
             status: Attribute(
                 0x8,
@@ -1078,7 +1078,7 @@ export namespace JointFabricDatastore {
              * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
              * reflected in the Status Entry.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.6.10
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.10
              */
             endpointGroupIdList: Attribute(
                 0x9,
@@ -1092,7 +1092,7 @@ export namespace JointFabricDatastore {
              * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
              * reflected in the Status Entry.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.6.11
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.11
              */
             endpointBindingList: Attribute(
                 0xa,
@@ -1106,7 +1106,7 @@ export namespace JointFabricDatastore {
              * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
              * reflected in the Status Entry.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.6.12
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.12
              */
             nodeKeySetList: Attribute(
                 0xb,
@@ -1120,7 +1120,7 @@ export namespace JointFabricDatastore {
              * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
              * reflected in the Status Entry.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.6.13
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.13
              */
             nodeAclList: Attribute(
                 0xc,
@@ -1134,7 +1134,7 @@ export namespace JointFabricDatastore {
              * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
              * reflected in the Status Entry.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.6.14
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.14
              */
             nodeEndpointList: Attribute(
                 0xd,
@@ -1156,7 +1156,7 @@ export namespace JointFabricDatastore {
              *
              *   3. Add the Epoch Key Entry for the KeySet to the KeySetList attribute.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.7.1
+             * @see {@link MatterSpecification.v142.Core} § 11.24.7.1
              */
             addKeySet: Command(0x0, TlvAddKeySetRequest, 0x0, TlvNoResponse, { invokeAcl: AccessLevel.Administer }),
 
@@ -1188,7 +1188,7 @@ export namespace JointFabricDatastore {
              *               DatastoreNodeKeySetEntryStruct to CommitFailed and FailureCode code to the returned error.
              *               The pending change shall be applied in a subsequent Node Refresh.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.7.2
+             * @see {@link MatterSpecification.v142.Core} § 11.24.7.2
              */
             updateKeySet: Command(
                 0x1,
@@ -1221,7 +1221,7 @@ export namespace JointFabricDatastore {
              *   3. Remove the DatastoreGroupKeySetStruct for the given GroupKeySetID from the GroupKeySetList
              *      attribute.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.7.3
+             * @see {@link MatterSpecification.v142.Core} § 11.24.7.3
              */
             removeKeySet: Command(
                 0x2,
@@ -1247,7 +1247,7 @@ export namespace JointFabricDatastore {
              *   2. Add the DatastoreGroupInformationEntryStruct for the Group with the given GroupID to the GroupList
              *      attribute.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.7.4
+             * @see {@link MatterSpecification.v142.Core} § 11.24.7.4
              */
             addGroup: Command(0x3, TlvAddGroupRequest, 0x3, TlvNoResponse, { invokeAcl: AccessLevel.Administer }),
 
@@ -1317,7 +1317,7 @@ export namespace JointFabricDatastore {
              *
              *   2. If not successful, the pending change shall be applied in a subsequent Node Refresh.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.7.5
+             * @see {@link MatterSpecification.v142.Core} § 11.24.7.5
              */
             updateGroup: Command(0x4, TlvUpdateGroupRequest, 0x4, TlvNoResponse, { invokeAcl: AccessLevel.Administer }),
 
@@ -1345,7 +1345,7 @@ export namespace JointFabricDatastore {
              *   3. Remove the DatastoreGroupInformationEntryStruct for the Group with the given GroupID from the
              *      GroupList attribute.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.7.6
+             * @see {@link MatterSpecification.v142.Core} § 11.24.7.6
              */
             removeGroup: Command(0x5, TlvRemoveGroupRequest, 0x5, TlvNoResponse, { invokeAcl: AccessLevel.Administer }),
 
@@ -1355,7 +1355,7 @@ export namespace JointFabricDatastore {
              * NodeID, FriendlyName, VendorID and ICAC represent the admin to be added to the Joint Fabric Datastore
              * Cluster.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.7.7
+             * @see {@link MatterSpecification.v142.Core} § 11.24.7.7
              */
             addAdmin: Command(0x6, TlvAddAdminRequest, 0x6, TlvNoResponse, { invokeAcl: AccessLevel.Administer }),
 
@@ -1368,7 +1368,7 @@ export namespace JointFabricDatastore {
              *
              * If entry is not found, return NOT_FOUND.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.7.8
+             * @see {@link MatterSpecification.v142.Core} § 11.24.7.8
              */
             updateAdmin: Command(0x7, TlvUpdateAdminRequest, 0x7, TlvNoResponse, { invokeAcl: AccessLevel.Administer }),
 
@@ -1381,7 +1381,7 @@ export namespace JointFabricDatastore {
              *
              * If entry is not found, return NOT_FOUND.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.7.9
+             * @see {@link MatterSpecification.v142.Core} § 11.24.7.9
              */
             removeAdmin: Command(0x8, TlvRemoveAdminRequest, 0x8, TlvNoResponse, { invokeAcl: AccessLevel.Administer }),
 
@@ -1395,7 +1395,7 @@ export namespace JointFabricDatastore {
              *
              * If a Node Information Entry exists for the given NodeID, this command shall return INVALID_CONSTRAINT.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.7.10
+             * @see {@link MatterSpecification.v142.Core} § 11.24.7.10
              */
             addPendingNode: Command(
                 0x9,
@@ -1538,7 +1538,7 @@ export namespace JointFabricDatastore {
              *
              * 6. Update the CommissioningStatusEntry for the Node Information Entry to Committed.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.7.11
+             * @see {@link MatterSpecification.v142.Core} § 11.24.7.11
              */
             refreshNode: Command(0xa, TlvRefreshNodeRequest, 0xa, TlvNoResponse, { invokeAcl: AccessLevel.Administer }),
 
@@ -1550,7 +1550,7 @@ export namespace JointFabricDatastore {
              *
              * If a Node Information Entry does not exist for the given NodeID, this command shall return NOT_FOUND.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.7.12
+             * @see {@link MatterSpecification.v142.Core} § 11.24.7.12
              */
             updateNode: Command(0xb, TlvUpdateNodeRequest, 0xb, TlvNoResponse, { invokeAcl: AccessLevel.Administer }),
 
@@ -1563,7 +1563,7 @@ export namespace JointFabricDatastore {
              *
              * If a Node Information Entry does not exist for the given NodeID, this command shall return NOT_FOUND.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.7.13
+             * @see {@link MatterSpecification.v142.Core} § 11.24.7.13
              */
             removeNode: Command(0xc, TlvRemoveNodeRequest, 0xc, TlvNoResponse, { invokeAcl: AccessLevel.Administer }),
 
@@ -1579,7 +1579,7 @@ export namespace JointFabricDatastore {
              * If an Endpoint Information Entry does not exist for the given NodeID and EndpointID, this command shall
              * return NOT_FOUND.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.7.14
+             * @see {@link MatterSpecification.v142.Core} § 11.24.7.14
              */
             updateEndpointForNode: Command(
                 0xd,
@@ -1629,7 +1629,7 @@ export namespace JointFabricDatastore {
              *       ii. If not successful, update the Status to CommitFailed and the FailureCode to the returned error.
              *           The error shall be handled in a subsequent Node Refresh.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.7.15
+             * @see {@link MatterSpecification.v142.Core} § 11.24.7.15
              */
             addGroupIdToEndpointForNode: Command(
                 0xe,
@@ -1679,7 +1679,7 @@ export namespace JointFabricDatastore {
              *       ii. If not successful, update the Status to CommitFailed and the FailureCode to the returned error.
              *           The error shall be handled in a subsequent Node Refresh.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.7.16
+             * @see {@link MatterSpecification.v142.Core} § 11.24.7.16
              */
             removeGroupIdFromEndpointForNode: Command(
                 0xf,
@@ -1717,7 +1717,7 @@ export namespace JointFabricDatastore {
              *       ii. If not successful, update the Status to CommitFailed and the FailureCode to the returned error.
              *           The error shall be handled in a subsequent Node Refresh.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.7.17
+             * @see {@link MatterSpecification.v142.Core} § 11.24.7.17
              */
             addBindingToEndpointForNode: Command(
                 0x10,
@@ -1755,7 +1755,7 @@ export namespace JointFabricDatastore {
              *       ii. If not successful, update the Status to CommitFailed and the FailureCode to the returned error.
              *           The error shall be handled in a subsequent Node Refresh.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.7.18
+             * @see {@link MatterSpecification.v142.Core} § 11.24.7.18
              */
             removeBindingFromEndpointForNode: Command(
                 0x11,
@@ -1788,7 +1788,7 @@ export namespace JointFabricDatastore {
              *       ii. If not successful, update the Status to CommitFailed and the FailureCode to the returned error.
              *           The error shall be handled in a subsequent Node Refresh.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.7.19
+             * @see {@link MatterSpecification.v142.Core} § 11.24.7.19
              */
             addAclToNode: Command(
                 0x12,
@@ -1821,7 +1821,7 @@ export namespace JointFabricDatastore {
              *       ii. If not successful, update the Status to CommitFailed and the FailureCode to the returned error.
              *           The error shall be handled in a subsequent Node Refresh.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.24.7.20
+             * @see {@link MatterSpecification.v142.Core} § 11.24.7.20
              */
             removeAclFromNode: Command(
                 0x13,
@@ -1852,7 +1852,7 @@ export namespace JointFabricDatastore {
      *
      * NOTE Support for Joint Fabric Datastore cluster is provisional.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.24
+     * @see {@link MatterSpecification.v142.Core} § 11.24
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

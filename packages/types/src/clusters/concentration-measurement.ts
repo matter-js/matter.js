@@ -17,7 +17,7 @@ export namespace ConcentrationMeasurement {
     /**
      * These are optional features supported by ConcentrationMeasurementCluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.10.4
+     * @see {@link MatterSpecification.v142.Cluster} § 2.10.4
      */
     export enum Feature {
         /**
@@ -66,7 +66,7 @@ export namespace ConcentrationMeasurement {
     /**
      * Where mentioned, Billion refers to 10, Trillion refers to 1012 (short scale).
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.10.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 2.10.5.1
      */
     export enum MeasurementUnit {
         /**
@@ -111,7 +111,7 @@ export namespace ConcentrationMeasurement {
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 2.10.5.3
+     * @see {@link MatterSpecification.v142.Cluster} § 2.10.5.3
      */
     export enum LevelValue {
         /**
@@ -141,7 +141,7 @@ export namespace ConcentrationMeasurement {
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 2.10.5.2
+     * @see {@link MatterSpecification.v142.Cluster} § 2.10.5.2
      */
     export enum MeasurementMedium {
         /**
@@ -172,7 +172,7 @@ export namespace ConcentrationMeasurement {
              * A value of null indicates that the measurement is unknown or outside the valid range. MinMeasuredValue
              * and MaxMeasuredValue define the valid range for MeasuredValue.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.10.6.1
+             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.1
              */
             measuredValue: Attribute(0x0, TlvNullable(TlvFloat)),
 
@@ -180,7 +180,7 @@ export namespace ConcentrationMeasurement {
              * Indicates the minimum value of MeasuredValue that is capable of being measured. A MinMeasuredValue of
              * null indicates that the MinMeasuredValue is not defined.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.10.6.2
+             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.2
              */
             minMeasuredValue: Attribute(0x1, TlvNullable(TlvFloat)),
 
@@ -188,7 +188,7 @@ export namespace ConcentrationMeasurement {
              * Indicates the maximum value of MeasuredValue that is capable of being measured. A MaxMeasuredValue of
              * null indicates that the MaxMeasuredValue is not defined.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.10.6.3
+             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.3
              */
             maxMeasuredValue: Attribute(0x2, TlvNullable(TlvFloat)),
 
@@ -196,14 +196,14 @@ export namespace ConcentrationMeasurement {
              * Indicates the range of error or deviation that can be found in MeasuredValue and PeakMeasuredValue. This
              * is considered a +/- value and should be considered to be in MeasurementUnit.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.10.6.8
+             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.8
              */
             uncertainty: OptionalAttribute(0x7, TlvFloat),
 
             /**
              * Indicates the unit of MeasuredValue. See MeasurementUnitEnum.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.10.6.9
+             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.9
              */
             measurementUnit: FixedAttribute(0x8, TlvEnum<MeasurementUnit>())
         }
@@ -218,14 +218,14 @@ export namespace ConcentrationMeasurement {
              * Indicates the maximum value of MeasuredValue that has been measured during the PeakMeasuredValueWindow.
              * If this attribute is provided, the PeakMeasuredValueWindow attribute shall also be provided.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.10.6.4
+             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.4
              */
             peakMeasuredValue: Attribute(0x3, TlvNullable(TlvFloat)),
 
             /**
              * Indicates the window of time used for determining the PeakMeasuredValue. The value is in seconds.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.10.6.5
+             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.5
              */
             peakMeasuredValueWindow: Attribute(0x4, TlvUInt32.bound({ max: 604800 }))
         }
@@ -241,14 +241,14 @@ export namespace ConcentrationMeasurement {
              * AverageMeasuredValueWindow. If this attribute is provided, the AverageMeasuredValueWindow attribute shall
              * also be provided.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.10.6.6
+             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.6
              */
             averageMeasuredValue: Attribute(0x5, TlvNullable(TlvFloat)),
 
             /**
              * Indicates the window of time used for determining the AverageMeasuredValue. The value is in seconds.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.10.6.7
+             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.7
              */
             averageMeasuredValueWindow: Attribute(0x6, TlvUInt32.bound({ max: 604800 }))
         }
@@ -262,7 +262,7 @@ export namespace ConcentrationMeasurement {
             /**
              * Indicates the level of the substance detected. See LevelValueEnum.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.10.6.11
+             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.11
              */
             levelValue: Attribute(0xa, TlvEnum<LevelValue>())
         }
@@ -312,7 +312,7 @@ export namespace ConcentrationMeasurement {
             /**
              * Indicates the medium in which MeasuredValue or LevelValue is being measured. See MeasurementMediumEnum.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.10.6.10
+             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.10
              */
             measurementMedium: FixedAttribute(0x9, TlvEnum<MeasurementMedium>())
         },

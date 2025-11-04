@@ -16,7 +16,7 @@ export namespace ResourceMonitoringInterface {
          * LastChangedTime to be updated automatically based on the clock of the server, if the server supports setting
          * the attribute.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.8.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 2.8.7.1
          */
         resetCondition(): MaybePromise;
     }

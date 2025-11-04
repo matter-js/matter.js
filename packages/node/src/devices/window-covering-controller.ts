@@ -19,7 +19,7 @@ import { Identity } from "#general";
 /**
  * A Window Covering Controller is a device that controls an automatic window covering.
  *
- * @see {@link MatterSpecification.v141.Device} § 8.4
+ * @see {@link MatterSpecification.v142.Device} § 8.4
  */
 export interface WindowCoveringControllerDevice extends Identity<typeof WindowCoveringControllerDeviceDefinition> {}
 

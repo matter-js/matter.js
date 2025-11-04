@@ -17,14 +17,14 @@ export namespace MediaPlaybackInterface {
          * Upon receipt, this shall play media. If content is currently in a FastForward or Rewind state. Play shall
          * return media to normal playback speed.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.1
          */
         play(): MaybePromise<MediaPlayback.PlaybackResponse>;
 
         /**
          * This command is used to pause playback of the media. Upon receipt, this shall pause playback of the media.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.2
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.2
          */
         pause(): MaybePromise<MediaPlayback.PlaybackResponse>;
 
@@ -34,7 +34,7 @@ export namespace MediaPlaybackInterface {
          * Upon receipt, this shall stop playback of the media. User-visible outcome is context-specific. This may
          * navigate the user back to the location from where the media was originally launched.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.3
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.3
          */
         stop(): MaybePromise<MediaPlayback.PlaybackResponse>;
 
@@ -42,7 +42,7 @@ export namespace MediaPlaybackInterface {
          * This command is used to start playback of the media from the beginning. Upon receipt, this shall Start Over
          * with the current media playback item.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.4
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.4
          */
         startOver(): MaybePromise<MediaPlayback.PlaybackResponse>;
 
@@ -52,7 +52,7 @@ export namespace MediaPlaybackInterface {
          * Upon receipt, this shall cause the handler to be invoked for "Previous". User experience is context-specific.
          * This will often Go back to the previous media playback item.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.5
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.5
          */
         previous(): MaybePromise<MediaPlayback.PlaybackResponse>;
 
@@ -62,7 +62,7 @@ export namespace MediaPlaybackInterface {
          * Upon receipt, this shall cause the handler to be invoked for "Next". User experience is context-specific.
          * This will often Go forward to the next media playback item.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.6
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.6
          */
         next(): MaybePromise<MediaPlayback.PlaybackResponse>;
 
@@ -71,7 +71,7 @@ export namespace MediaPlaybackInterface {
          *
          * Upon receipt, this shall Skip forward in the media by the given number of milliseconds.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.9
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.9
          */
         skipForward(request: MediaPlayback.SkipForwardRequest): MaybePromise<MediaPlayback.PlaybackResponse>;
 
@@ -80,7 +80,7 @@ export namespace MediaPlaybackInterface {
          *
          * Upon receipt, this shall Skip backward in the media by the given number of milliseconds.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.10
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.10
          */
         skipBackward(request: MediaPlayback.SkipBackwardRequest): MaybePromise<MediaPlayback.PlaybackResponse>;
     }
@@ -91,7 +91,7 @@ export namespace MediaPlaybackInterface {
          *
          * Upon receipt, this shall change the playback position in the media to the given position.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.11
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.11
          */
         seek(request: MediaPlayback.SeekRequest): MaybePromise<MediaPlayback.PlaybackResponse>;
     }
@@ -105,7 +105,7 @@ export namespace MediaPlaybackInterface {
          * to the streaming media OR no media is being streamed at the time of receipt of this command, the server will
          * return an error status of INVALID_ARGUMENT.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.13
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.13
          */
         activateAudioTrack(request: MediaPlayback.ActivateAudioTrackRequest): MaybePromise;
     }
@@ -119,7 +119,7 @@ export namespace MediaPlaybackInterface {
          * to the streaming media OR no media is being streamed at the time of receipt of this command, the server shall
          * return an error status of INVALID_ARGUMENT.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.14
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.14
          */
         activateTextTrack(request: MediaPlayback.ActivateTextTrackRequest): MaybePromise;
 
@@ -129,7 +129,7 @@ export namespace MediaPlaybackInterface {
          * If a Text Track is active (i.e. being displayed), upon receipt of this command, the server shall stop
          * displaying it.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.15
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.15
          */
         deactivateTextTrack(): MaybePromise;
     }
@@ -150,7 +150,7 @@ export namespace MediaPlaybackInterface {
          * speed has reached the maximum supported speed for media playing backwards, the status of SPEED_OUT_OF_RANGE
          * shall be returned.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.7
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.7
          */
         rewind(request: MediaPlayback.RewindRequest): MaybePromise<MediaPlayback.PlaybackResponse>;
 
@@ -169,7 +169,7 @@ export namespace MediaPlaybackInterface {
          * playback speed has reached the maximum supported speed for media playing forward, the status of
          * SPEED_OUT_OF_RANGE shall be returned.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.10.7.8
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.8
          */
         fastForward(request: MediaPlayback.FastForwardRequest): MaybePromise<MediaPlayback.PlaybackResponse>;
     }

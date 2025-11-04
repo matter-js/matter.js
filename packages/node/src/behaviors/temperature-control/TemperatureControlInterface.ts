@@ -14,7 +14,7 @@ export namespace TemperatureControlInterface {
         /**
          * This command is used to set the temperature setpoint.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 8.2.6.1
+         * @see {@link MatterSpecification.v142.Cluster} § 8.2.6.1
          */
         setTemperature(request: TemperatureControl.SetTemperatureRequest): MaybePromise;
     }

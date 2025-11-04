@@ -22,34 +22,34 @@ export namespace ThreadNetworkDirectory {
     /**
      * Represents the data associated with a Thread Network.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 10.4.4.1
+     * @see {@link MatterSpecification.v142.Cluster} § 10.4.4.1
      */
     export const TlvThreadNetwork = TlvObject({
         /**
          * This field shall indicate the Extended PAN ID from the OperationalDataset for the given Thread network.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 10.4.4.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 10.4.4.1.1
          */
         extendedPanId: TlvField(0, TlvByteString.bound({ length: 8 })),
 
         /**
          * This field shall indicate the Network Name from the OperationalDataset for the given Thread network.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 10.4.4.1.2
+         * @see {@link MatterSpecification.v142.Cluster} § 10.4.4.1.2
          */
         networkName: TlvField(1, TlvString.bound({ minLength: 1, maxLength: 16 })),
 
         /**
          * This field shall indicate the Channel from the OperationalDataset for the given Thread network.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 10.4.4.1.3
+         * @see {@link MatterSpecification.v142.Cluster} § 10.4.4.1.3
          */
         channel: TlvField(2, TlvUInt16),
 
         /**
          * This field shall indicate the Active Timestamp from the OperationalDataset for the given Thread network.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 10.4.4.1.4
+         * @see {@link MatterSpecification.v142.Cluster} § 10.4.4.1.4
          */
         activeTimestamp: TlvField(3, TlvUInt64)
     });
@@ -57,14 +57,14 @@ export namespace ThreadNetworkDirectory {
     /**
      * Represents the data associated with a Thread Network.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 10.4.4.1
+     * @see {@link MatterSpecification.v142.Cluster} § 10.4.4.1
      */
     export interface ThreadNetwork extends TypeFromSchema<typeof TlvThreadNetwork> {}
 
     /**
      * Input to the ThreadNetworkDirectory addNetwork command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 10.4.6.1
+     * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.1
      */
     export const TlvAddNetworkRequest = TlvObject({
         /**
@@ -72,7 +72,7 @@ export namespace ThreadNetworkDirectory {
          * specification. It shall contain at least the following sub-TLVs: Active Timestamp, Channel, Channel Mask,
          * Extended PAN ID, Network Key, Network Mesh-Local Prefix, Network Name, PAN ID, PSKc, and Security Policy.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 10.4.6.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.1.1
          */
         operationalDataset: TlvField(0, TlvByteString.bound({ maxLength: 254 }))
     });
@@ -80,28 +80,28 @@ export namespace ThreadNetworkDirectory {
     /**
      * Input to the ThreadNetworkDirectory addNetwork command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 10.4.6.1
+     * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.1
      */
     export interface AddNetworkRequest extends TypeFromSchema<typeof TlvAddNetworkRequest> {}
 
     /**
      * Input to the ThreadNetworkDirectory removeNetwork command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 10.4.6.2
+     * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.2
      */
     export const TlvRemoveNetworkRequest = TlvObject({ extendedPanId: TlvField(0, TlvByteString.bound({ length: 8 })) });
 
     /**
      * Input to the ThreadNetworkDirectory removeNetwork command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 10.4.6.2
+     * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.2
      */
     export interface RemoveNetworkRequest extends TypeFromSchema<typeof TlvRemoveNetworkRequest> {}
 
     /**
      * Input to the ThreadNetworkDirectory getOperationalDataset command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 10.4.6.3
+     * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.3
      */
     export const TlvGetOperationalDatasetRequest = TlvObject({
         extendedPanId: TlvField(0, TlvByteString.bound({ length: 8 }))
@@ -110,14 +110,14 @@ export namespace ThreadNetworkDirectory {
     /**
      * Input to the ThreadNetworkDirectory getOperationalDataset command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 10.4.6.3
+     * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.3
      */
     export interface GetOperationalDatasetRequest extends TypeFromSchema<typeof TlvGetOperationalDatasetRequest> {}
 
     /**
      * Contains the Thread Operational Dataset for the Extended PAN specified in GetOperationalDataset.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 10.4.6.4
+     * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.4
      */
     export const TlvOperationalDatasetResponse = TlvObject({
         operationalDataset: TlvField(0, TlvByteString.bound({ maxLength: 254 }))
@@ -126,7 +126,7 @@ export namespace ThreadNetworkDirectory {
     /**
      * Contains the Thread Operational Dataset for the Extended PAN specified in GetOperationalDataset.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 10.4.6.4
+     * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.4
      */
     export interface OperationalDatasetResponse extends TypeFromSchema<typeof TlvOperationalDatasetResponse> {}
 
@@ -158,7 +158,7 @@ export namespace ThreadNetworkDirectory {
              *
              * On a factory reset this attribute shall be reset to null.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 10.4.5.1
+             * @see {@link MatterSpecification.v142.Cluster} § 10.4.5.1
              */
             preferredExtendedPanId: WritableAttribute(
                 0x0,
@@ -178,7 +178,7 @@ export namespace ThreadNetworkDirectory {
              * On a factory reset this list shall be cleared, and any Thread Operational datasets previously stored
              * shall be removed from the Node.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 10.4.5.2
+             * @see {@link MatterSpecification.v142.Cluster} § 10.4.5.2
              */
             threadNetworks: Attribute(0x1, TlvArray(TlvThreadNetwork), { persistent: true, default: [] }),
 
@@ -187,7 +187,7 @@ export namespace ThreadNetworkDirectory {
              * 2 times the number of SupportedFabrics advertised in the Operational Credentials Cluster on the root
              * endpoint of this node.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 10.4.5.3
+             * @see {@link MatterSpecification.v142.Cluster} § 10.4.5.3
              */
             threadNetworkTableSize: FixedAttribute(0x2, TlvUInt8)
         },
@@ -200,7 +200,7 @@ export namespace ThreadNetworkDirectory {
              * is replaced. As a result, changes to the network parameters (e.g. Channel, Network Name, PSKc, …) of an
              * existing entry with a given Extended PAN ID can be made using this command.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 10.4.6.1
+             * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.1
              */
             addNetwork: Command(
                 0x0,
@@ -213,7 +213,7 @@ export namespace ThreadNetworkDirectory {
             /**
              * Removes the network with the given Extended PAN ID from the ThreadNetworks attribute.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 10.4.6.2
+             * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.2
              */
             removeNetwork: Command(
                 0x1,
@@ -226,7 +226,7 @@ export namespace ThreadNetworkDirectory {
             /**
              * Retrieves the Thread Operational Dataset with the given Extended PAN ID.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 10.4.6.3
+             * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.3
              */
             getOperationalDataset: Command(
                 0x2,
@@ -243,7 +243,7 @@ export namespace ThreadNetworkDirectory {
      * well as a designation of the user’s preferred network, to facilitate the sharing of Thread networks across
      * fabrics.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 10.4
+     * @see {@link MatterSpecification.v142.Cluster} § 10.4
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

@@ -38,7 +38,7 @@ import { Identity } from "#general";
  *
  *   • Telescoping Extractors
  *
- * @see {@link MatterSpecification.v141.Device} § 13.10
+ * @see {@link MatterSpecification.v142.Device} § 13.10
  */
 export interface ExtractorHoodDevice extends Identity<typeof ExtractorHoodDeviceDefinition> {}
 

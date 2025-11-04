@@ -12,7 +12,7 @@ import { Thermostat } from "#clusters/thermostat";
 export namespace ThermostatInterface {
     export interface Base {
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 4.3.10.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.1
          */
         setpointRaiseLower(request: Thermostat.SetpointRaiseLowerRequest): MaybePromise;
 
@@ -29,12 +29,12 @@ export namespace ThermostatInterface {
          * all other days unchanged. If the schedule is larger than what fits in one frame or contains more than 10
          * transitions, the schedule shall then be sent using multiple SetWeeklySchedule Commands.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 4.3.10.2
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.2
          */
         setWeeklySchedule(request: Thermostat.SetWeeklyScheduleRequest): MaybePromise;
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 4.3.10.3
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.3
          */
         getWeeklySchedule(request: Thermostat.GetWeeklyScheduleRequest): MaybePromise<Thermostat.GetWeeklyScheduleResponse>;
 
@@ -44,21 +44,21 @@ export namespace ThermostatInterface {
          * Upon receipt, all transitions currently stored shall be cleared and a default response of SUCCESS shall be
          * sent in response. There are no error responses to this command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 4.3.10.5
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.5
          */
         clearWeeklySchedule(): MaybePromise;
     }
 
     export interface Presets {
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 4.3.10.9
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.9
          */
         setActivePresetRequest(request: Thermostat.SetActivePresetRequest): MaybePromise;
     }
 
     export interface MatterScheduleConfiguration {
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 4.3.10.8
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.8
          */
         setActiveScheduleRequest(request: Thermostat.SetActiveScheduleRequest): MaybePromise;
     }

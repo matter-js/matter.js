@@ -54,7 +54,7 @@ export namespace AccountLoginInterface {
          * successfully mounting a brute force attack. A Content App that supports this command shall ensure that the
          * Temporary Account Identifier used by its clients is not valid for more than 10 minutes.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.2.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.1
          */
         getSetupPin(request: AccountLogin.GetSetupPinRequest): MaybePromise<AccountLogin.GetSetupPinResponse>;
 
@@ -96,7 +96,7 @@ export namespace AccountLoginInterface {
          * successfully mounting a brute force attack. A Content App that supports this command shall ensure that the
          * Temporary Account Identifier used by its clients is not valid for more than 10 minutes.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.2.4.3
+         * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.3
          */
         login(request: AccountLogin.LoginRequest): MaybePromise;
 
@@ -104,7 +104,7 @@ export namespace AccountLoginInterface {
          * The purpose of this command is to instruct the Content App to clear the current user account. This command
          * SHOULD be used by clients of a Content App to indicate the end of a user session.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.2.4.4
+         * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.4
          */
         logout(request: AccountLogin.LogoutRequest): MaybePromise;
     }

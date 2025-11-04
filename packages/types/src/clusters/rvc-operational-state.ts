@@ -39,7 +39,7 @@ export namespace RvcOperationalState {
      * resumed, the device shall respond with an OperationalCommandResponse command with an ErrorStateID of
      * CommandInvalidInState but take no further action.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 7.4.4.1
+     * @see {@link MatterSpecification.v142.Cluster} § 7.4.4.1
      */
     export enum OperationalState {
         /**
@@ -101,13 +101,13 @@ export namespace RvcOperationalState {
     /**
      * The OperationalStateStruct is used to indicate a possible state of the device.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.14.4.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.2
      */
     export const TlvOperationalStateStruct = TlvObject({
         /**
          * This shall be populated with a value from the OperationalStateEnum.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.14.4.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.2.1
          */
         operationalStateId: TlvField(0, TlvEnum<OperationalState | OperationalStateNamespace.OperationalStateEnum>()),
 
@@ -115,7 +115,7 @@ export namespace RvcOperationalState {
          * This field is present when the OperationalStateID is from the set reserved for Manufacturer Specific States.
          * If present, this shall contain a human-readable description of the operational state.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.14.4.2.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.2.2
          */
         operationalStateLabel: TlvOptionalField(1, TlvString.bound({ maxLength: 64 }))
     });
@@ -123,7 +123,7 @@ export namespace RvcOperationalState {
     /**
      * The OperationalStateStruct is used to indicate a possible state of the device.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.14.4.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.2
      */
     export interface OperationalStateStruct extends TypeFromSchema<typeof TlvOperationalStateStruct> {}
 
@@ -131,7 +131,7 @@ export namespace RvcOperationalState {
      * The values defined herein are applicable to this derived cluster of Operational State only and are additional to
      * the set of values defined in Operational State itself.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 7.4.4.2
+     * @see {@link MatterSpecification.v142.Cluster} § 7.4.4.2
      */
     export enum ErrorState {
         /**
@@ -234,13 +234,13 @@ export namespace RvcOperationalState {
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.14.4.4
+     * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.4
      */
     export const TlvErrorStateStruct = TlvObject({
         /**
          * This shall be populated with a value from the ErrorStateEnum.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.14.4.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.4.1
          */
         errorStateId: TlvField(0, TlvEnum<ErrorState | OperationalStateNamespace.ErrorState>()),
 
@@ -248,7 +248,7 @@ export namespace RvcOperationalState {
          * This field is present when the ErrorStateID is from the set reserved for Manufacturer Specific errors. If
          * present, this shall contain a human-readable description of the error state.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.14.4.4.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.4.2
          */
         errorStateLabel: TlvOptionalField(1, TlvString.bound({ maxLength: 64 })),
 
@@ -257,18 +257,18 @@ export namespace RvcOperationalState {
          * ErrorStateID indicates that the device is a Robotic Vacuum that is stuck, the ErrorStateDetails contains
          * "left wheel blocked".
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.14.4.4.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.4.3
          */
         errorStateDetails: TlvOptionalField(2, TlvString.bound({ maxLength: 64 }))
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.14.4.4
+     * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.4
      */
     export interface ErrorStateStruct extends TypeFromSchema<typeof TlvErrorStateStruct> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 7.4.5
+     * @see {@link MatterSpecification.v142.Cluster} § 7.4.5
      */
     export const TlvOperationalCommandResponse = TlvObject({
         /**
@@ -276,27 +276,27 @@ export namespace RvcOperationalState {
          * of the attempted command, the ErrorStateID shall be populated with NoError. See the individual command
          * sections for additional specific requirements on population.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.14.6.5.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.14.6.5.1
          */
         commandResponseState: TlvField(0, TlvErrorStateStruct)
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 7.4.5
+     * @see {@link MatterSpecification.v142.Cluster} § 7.4.5
      */
     export interface OperationalCommandResponse extends TypeFromSchema<typeof TlvOperationalCommandResponse> {}
 
     /**
      * Body of the RvcOperationalState operationalError event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.14.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.1
      */
     export const TlvOperationalErrorEvent = TlvObject({ errorState: TlvField(0, TlvErrorStateStruct) });
 
     /**
      * Body of the RvcOperationalState operationalError event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.14.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.1
      */
     export interface OperationalErrorEvent extends TypeFromSchema<typeof TlvOperationalErrorEvent> {}
 
@@ -318,7 +318,7 @@ export namespace RvcOperationalState {
              * A null value indicates that the device does not present phases during its operation. When this
              * attribute’s value is null, the CurrentPhase attribute shall also be set to null.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.14.5.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.1
              */
             phaseList: Attribute(0x0, TlvNullable(TlvArray(TlvString, { maxLength: 32 }))),
 
@@ -330,7 +330,7 @@ export namespace RvcOperationalState {
              *
              * Null if the PhaseList attribute is null or if the PhaseList attribute is an empty list.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.14.5.2
+             * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.2
              */
             currentPhase: Attribute(0x1, TlvNullable(TlvUInt8)),
 
@@ -363,7 +363,7 @@ export namespace RvcOperationalState {
              * As this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the
              * reporting of this attribute in order to keep track of the remaining duration.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.14.5.3
+             * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.3
              */
             countdownTime: OptionalAttribute(0x2, TlvNullable(TlvUInt32.bound({ max: 259200 })), { default: null }),
 
@@ -377,7 +377,7 @@ export namespace RvcOperationalState {
              * OperationalStateEnum. A device type requiring implementation of this cluster shall define the set of
              * states that are applicable to that specific device type.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.14.5.4
+             * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.4
              */
             operationalStateList: Attribute(0x3, TlvArray(TlvOperationalStateStruct), { default: [] }),
 
@@ -385,7 +385,7 @@ export namespace RvcOperationalState {
              * This attribute specifies the current operational state of a device. This shall be populated with a valid
              * OperationalStateID from the set of values in the OperationalStateList Attribute.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.14.5.5
+             * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.5
              */
             operationalState: Attribute(
                 0x4,
@@ -399,19 +399,19 @@ export namespace RvcOperationalState {
              *
              * When there is no error detected, this shall have an ErrorStateID of NoError.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.14.5.6
+             * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.6
              */
             operationalError: Attribute(0x5, TlvErrorStateStruct)
         },
 
         commands: {
             /**
-             * @see {@link MatterSpecification.v141.Cluster} § 7.4.5
+             * @see {@link MatterSpecification.v142.Cluster} § 7.4.5
              */
             pause: Command(0x0, TlvNoArguments, 0x4, TlvOperationalCommandResponse),
 
             /**
-             * @see {@link MatterSpecification.v141.Cluster} § 7.4.5
+             * @see {@link MatterSpecification.v142.Cluster} § 7.4.5
              */
             resume: Command(0x3, TlvNoArguments, 0x4, TlvOperationalCommandResponse),
 
@@ -433,7 +433,7 @@ export namespace RvcOperationalState {
              *
              *   • The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 7.4.5.1
+             * @see {@link MatterSpecification.v142.Cluster} § 7.4.5.1
              */
             goHome: OptionalCommand(0x80, TlvNoArguments, 0x4, TlvOperationalCommandResponse)
         },
@@ -445,7 +445,7 @@ export namespace RvcOperationalState {
              *
              * This event shall contain the following fields:
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.14.7.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.1
              */
             operationalError: Event(0x0, Priority.Critical, TlvOperationalErrorEvent),
 
@@ -460,7 +460,7 @@ export namespace RvcOperationalState {
              *
              * This event shall contain the following fields:
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.14.7.2
+             * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2
              */
             operationCompletion: OptionalEvent(
                 0x1,
@@ -474,7 +474,7 @@ export namespace RvcOperationalState {
      * This cluster is derived from the Operational State cluster and provides an interface for monitoring the
      * operational state of a robotic vacuum cleaner.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 7.4
+     * @see {@link MatterSpecification.v142.Cluster} § 7.4
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

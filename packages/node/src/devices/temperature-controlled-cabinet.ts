@@ -33,7 +33,7 @@ import { Identity } from "#general";
  * because you must select the features your device supports. You can add manually using
  * TemperatureControlledCabinetDevice.with().
  *
- * @see {@link MatterSpecification.v141.Device} § 13.4
+ * @see {@link MatterSpecification.v142.Device} § 13.4
  */
 export interface TemperatureControlledCabinetDevice extends Identity<typeof TemperatureControlledCabinetDeviceDefinition> {}
 

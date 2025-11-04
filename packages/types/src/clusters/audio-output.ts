@@ -22,7 +22,7 @@ export namespace AudioOutput {
     /**
      * These are optional features supported by AudioOutputCluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.5.4
+     * @see {@link MatterSpecification.v142.Cluster} § 6.5.4
      */
     export enum Feature {
         /**
@@ -36,21 +36,21 @@ export namespace AudioOutput {
     /**
      * Input to the AudioOutput renameOutput command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.5.7.2
+     * @see {@link MatterSpecification.v142.Cluster} § 6.5.7.2
      */
     export const TlvRenameOutputRequest = TlvObject({ index: TlvField(0, TlvUInt8), name: TlvField(1, TlvString) });
 
     /**
      * Input to the AudioOutput renameOutput command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.5.7.2
+     * @see {@link MatterSpecification.v142.Cluster} § 6.5.7.2
      */
     export interface RenameOutputRequest extends TypeFromSchema<typeof TlvRenameOutputRequest> {}
 
     /**
      * The type of output, expressed as an enum, with the following values:
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.5.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.5.5.1
      */
     export enum OutputType {
         /**
@@ -68,20 +68,20 @@ export namespace AudioOutput {
     /**
      * This contains information about an output.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.5.5.2
+     * @see {@link MatterSpecification.v142.Cluster} § 6.5.5.2
      */
     export const TlvOutputInfo = TlvObject({
         /**
          * This field shall indicate the unique index into the list of outputs.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.5.5.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.5.5.2.1
          */
         index: TlvField(0, TlvUInt8),
 
         /**
          * This field shall indicate the type of output.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.5.5.2.2
+         * @see {@link MatterSpecification.v142.Cluster} § 6.5.5.2.2
          */
         outputType: TlvField(1, TlvEnum<OutputType>()),
 
@@ -89,7 +89,7 @@ export namespace AudioOutput {
          * The device defined and user editable output name, such as “Soundbar”, “Speakers”. This field may be blank,
          * but SHOULD be provided when known.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.5.5.2.3
+         * @see {@link MatterSpecification.v142.Cluster} § 6.5.5.2.3
          */
         name: TlvField(2, TlvString)
     });
@@ -97,21 +97,21 @@ export namespace AudioOutput {
     /**
      * This contains information about an output.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.5.5.2
+     * @see {@link MatterSpecification.v142.Cluster} § 6.5.5.2
      */
     export interface OutputInfo extends TypeFromSchema<typeof TlvOutputInfo> {}
 
     /**
      * Input to the AudioOutput selectOutput command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.5.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.5.7.1
      */
     export const TlvSelectOutputRequest = TlvObject({
         /**
          * This shall indicate the index field of the OutputInfoStruct from the OutputList attribute in which to change
          * to.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.5.7.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.5.7.1.1
          */
         index: TlvField(0, TlvUInt8)
     });
@@ -119,7 +119,7 @@ export namespace AudioOutput {
     /**
      * Input to the AudioOutput selectOutput command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.5.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.5.7.1
      */
     export interface SelectOutputRequest extends TypeFromSchema<typeof TlvSelectOutputRequest> {}
 
@@ -134,7 +134,7 @@ export namespace AudioOutput {
              * Updates to the output name shall appear in the device’s settings menus. Name updates may automatically be
              * sent to the actual device to which the output connects.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 6.5.7.2
+             * @see {@link MatterSpecification.v142.Cluster} § 6.5.7.2
              */
             renameOutput: Command(0x1, TlvRenameOutputRequest, 0x1, TlvNoResponse, { invokeAcl: AccessLevel.Manage })
         }
@@ -159,14 +159,14 @@ export namespace AudioOutput {
             /**
              * This attribute provides the list of outputs supported by the device.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 6.5.6.1
+             * @see {@link MatterSpecification.v142.Cluster} § 6.5.6.1
              */
             outputList: Attribute(0x0, TlvArray(TlvOutputInfo), { default: [] }),
 
             /**
              * This attribute contains the value of the index field of the currently selected OutputInfoStruct.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 6.5.6.2
+             * @see {@link MatterSpecification.v142.Cluster} § 6.5.6.2
              */
             currentOutput: Attribute(0x1, TlvUInt8)
         },
@@ -179,7 +179,7 @@ export namespace AudioOutput {
              * Note that when the current output is set to an output of type HDMI, adjustments to volume via a Speaker
              * endpoint on the same node may cause HDMI volume up/down commands to be sent to the given HDMI output.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 6.5.7.1
+             * @see {@link MatterSpecification.v142.Cluster} § 6.5.7.1
              */
             selectOutput: Command(0x0, TlvSelectOutputRequest, 0x0, TlvNoResponse)
         },
@@ -209,7 +209,7 @@ export namespace AudioOutput {
      * AudioOutputCluster supports optional features that you can enable with the AudioOutputCluster.with() factory
      * method.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.5
+     * @see {@link MatterSpecification.v142.Cluster} § 6.5
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

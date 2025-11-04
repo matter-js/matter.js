@@ -14,7 +14,7 @@ export namespace AlarmBaseInterface {
         /**
          * This command allows a client to request that an alarm be enabled or suppressed at the server.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.15.7.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.15.7.2
          */
         modifyEnabledAlarms(request: AlarmBase.ModifyEnabledAlarmsRequest): MaybePromise;
     }
@@ -24,7 +24,7 @@ export namespace AlarmBaseInterface {
          * This command resets active and latched alarms (if possible). Any generated Notify event shall contain fields
          * that represent the state of the server after the command has been processed.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.15.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.15.7.1
          */
         reset(request: AlarmBase.ResetRequest): MaybePromise;
     }

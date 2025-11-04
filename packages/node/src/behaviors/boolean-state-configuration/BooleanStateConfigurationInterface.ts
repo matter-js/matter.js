@@ -12,14 +12,14 @@ import { BooleanStateConfiguration } from "#clusters/boolean-state-configuration
 export namespace BooleanStateConfigurationInterface {
     export interface VisualOrAudible {
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 1.8.7.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.2
          */
         enableDisableAlarm(request: BooleanStateConfiguration.EnableDisableAlarmRequest): MaybePromise;
     }
 
     export interface AlarmSuppress {
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 1.8.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.1
          */
         suppressAlarm(request: BooleanStateConfiguration.SuppressAlarmRequest): MaybePromise;
     }

@@ -24,7 +24,7 @@ import { Identity } from "#general";
  * WaterHeaterDevice requires Thermostat cluster but Thermostat is not added by default because you must select the
  * features your device supports. You can add manually using WaterHeaterDevice.with().
  *
- * @see {@link MatterSpecification.v141.Device} § 14.2
+ * @see {@link MatterSpecification.v142.Device} § 14.2
  */
 export interface WaterHeaterDevice extends Identity<typeof WaterHeaterDeviceDefinition> {}
 

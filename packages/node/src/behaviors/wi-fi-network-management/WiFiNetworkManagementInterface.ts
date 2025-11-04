@@ -23,7 +23,7 @@ export namespace WiFiNetworkManagementInterface {
          *
          * Otherwise a NetworkPassphraseResponse shall be generated.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 10.2.5.1
+         * @see {@link MatterSpecification.v142.Cluster} § 10.2.5.1
          */
         networkPassphraseRequest(): MaybePromise<WiFiNetworkManagement.NetworkPassphraseResponse>;
     }

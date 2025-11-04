@@ -30,7 +30,7 @@ import { Identity } from "#general";
  * capable of being used to switch the device on or off, adjust the intensity of the light being emitted and adjust the
  * color of the light being emitted. In addition, a Control Bridge device is capable of being used for setting scenes.
  *
- * @see {@link MatterSpecification.v141.Device} § 6.4
+ * @see {@link MatterSpecification.v142.Device} § 6.4
  */
 export interface ControlBridgeDevice extends Identity<typeof ControlBridgeDeviceDefinition> {}
 

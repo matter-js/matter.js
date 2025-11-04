@@ -21,20 +21,20 @@ export namespace ContentAppObserver {
     /**
      * Input to the ContentAppObserver contentAppMessage command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.12.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.1
      */
     export const TlvContentAppMessageRequest = TlvObject({
         /**
          * This field shall indicate content app-specific data.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.12.5.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.1.1
          */
         data: TlvField(0, TlvString.bound({ maxLength: 500 })),
 
         /**
          * This optional field shall indicate a content app-specific hint to the encoding of the data.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.12.5.1.2
+         * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.1.2
          */
         encodingHint: TlvOptionalField(1, TlvString.bound({ maxLength: 100 }))
     });
@@ -42,12 +42,12 @@ export namespace ContentAppObserver {
     /**
      * Input to the ContentAppObserver contentAppMessage command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.12.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.1
      */
     export interface ContentAppMessageRequest extends TypeFromSchema<typeof TlvContentAppMessageRequest> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 6.12.4.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.12.4.1
      */
     export enum Status {
         /**
@@ -64,7 +64,7 @@ export namespace ContentAppObserver {
     /**
      * Thrown for cluster status code {@link Status.UnexpectedData}.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.12.4.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.12.4.1
      */
     export class UnexpectedDataError extends StatusResponseError {
         constructor(
@@ -79,27 +79,27 @@ export namespace ContentAppObserver {
     /**
      * This command shall be generated in response to ContentAppMessage command.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.12.5.2
+     * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.2
      */
     export const TlvContentAppMessageResponse = TlvObject({
         /**
          * This field shall indicate the status of the command which resulted in this response.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.12.5.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.2.1
          */
         status: TlvField(0, TlvEnum<Status>()),
 
         /**
          * This optional field shall indicate content app-specific data.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.12.5.2.2
+         * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.2.2
          */
         data: TlvOptionalField(1, TlvString.bound({ maxLength: 500 })),
 
         /**
          * This optional field shall indicate a content app-specific hint to the encoding of the data.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.12.5.2.3
+         * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.2.3
          */
         encodingHint: TlvOptionalField(2, TlvString.bound({ maxLength: 100 }))
     });
@@ -107,7 +107,7 @@ export namespace ContentAppObserver {
     /**
      * This command shall be generated in response to ContentAppMessage command.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.12.5.2
+     * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.2
      */
     export interface ContentAppMessageResponse extends TypeFromSchema<typeof TlvContentAppMessageResponse> {}
 
@@ -127,7 +127,7 @@ export namespace ContentAppObserver {
              *
              * This command returns a ContentAppMessage Response.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 6.12.5.1
+             * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.1
              */
             contentAppMessage: Command(0x0, TlvContentAppMessageRequest, 0x1, TlvContentAppMessageResponse)
         }
@@ -172,7 +172,7 @@ export namespace ContentAppObserver {
      * does not recognize. A Content App SHOULD ignore the Data field values in responses when the EncodingHint value is
      * blank or not recognized.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.12
+     * @see {@link MatterSpecification.v142.Cluster} § 6.12
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

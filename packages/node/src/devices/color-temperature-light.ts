@@ -26,7 +26,7 @@ import { Identity } from "#general";
  * light adjusted, and its color temperature adjusted by means of a bound controller device such as a Color Dimmer
  * Switch.
  *
- * @see {@link MatterSpecification.v141.Device} § 4.3
+ * @see {@link MatterSpecification.v142.Device} § 4.3
  */
 export interface ColorTemperatureLightDevice extends Identity<typeof ColorTemperatureLightDeviceDefinition> {}
 

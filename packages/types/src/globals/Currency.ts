@@ -15,7 +15,7 @@ import { TypeFromSchema } from "../tlv/TlvSchema.js";
  *
  * This data type represents a currency with an associated number of decimal points.
  *
- * @see {@link MatterSpecification.v141.Core} § 7.19.2.51
+ * @see {@link MatterSpecification.v142.Core} § 7.19.2.51
  */
 export const TlvCurrency = TlvObject({
     currency: TlvField(0, TlvUInt16.bound({ max: 999 })),
@@ -27,6 +27,6 @@ export const TlvCurrency = TlvObject({
  *
  * This data type represents a currency with an associated number of decimal points.
  *
- * @see {@link MatterSpecification.v141.Core} § 7.19.2.51
+ * @see {@link MatterSpecification.v142.Core} § 7.19.2.51
  */
 export interface Currency extends TypeFromSchema<typeof TlvCurrency> {}

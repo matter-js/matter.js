@@ -26,7 +26,7 @@ export namespace TemperatureMeasurement {
             /**
              * Indicates the measured temperature. The null value indicates that the temperature is unknown.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.3.4.1
+             * @see {@link MatterSpecification.v142.Cluster} § 2.3.4.1
              */
             measuredValue: Attribute(0x0, TlvNullable(TlvInt16)),
 
@@ -36,7 +36,7 @@ export namespace TemperatureMeasurement {
              *
              * The null value indicates that the value is not available.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.3.4.2
+             * @see {@link MatterSpecification.v142.Cluster} § 2.3.4.2
              */
             minMeasuredValue: Attribute(0x1, TlvNullable(TlvInt16.bound({ min: -27315 })), { default: -27315 }),
 
@@ -46,14 +46,14 @@ export namespace TemperatureMeasurement {
              *
              * The null value indicates that the value is not available.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.3.4.3
+             * @see {@link MatterSpecification.v142.Cluster} § 2.3.4.3
              */
             maxMeasuredValue: Attribute(0x2, TlvNullable(TlvInt16.bound({ max: 32767 })), { default: 32767 }),
 
             /**
              * See Measured Value.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.3.4.4
+             * @see {@link MatterSpecification.v142.Cluster} § 2.3.4.4
              */
             tolerance: OptionalAttribute(0x3, TlvUInt16.bound({ max: 2048 }), { default: 0 })
         }
@@ -63,7 +63,7 @@ export namespace TemperatureMeasurement {
      * This cluster provides an interface to temperature measurement functionality, including configuration and
      * provision of notifications of temperature measurements.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.3
+     * @see {@link MatterSpecification.v142.Cluster} § 2.3
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

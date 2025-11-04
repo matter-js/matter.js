@@ -12,12 +12,12 @@ import { OvenCavityOperationalState } from "#clusters/oven-cavity-operational-st
 export namespace OvenCavityOperationalStateInterface {
     export interface Base {
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.10.5
+         * @see {@link MatterSpecification.v142.Cluster} § 8.10.5
          */
         stop(): MaybePromise<OvenCavityOperationalState.OperationalCommandResponse>;
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 8.10.5
+         * @see {@link MatterSpecification.v142.Cluster} § 8.10.5
          */
         start(): MaybePromise<OvenCavityOperationalState.OperationalCommandResponse>;
     }

@@ -27,7 +27,7 @@ export namespace WiFiNetworkDiagnosticsInterface {
          *
          *   • PacketUnicastTxCount
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.15.7.1
+         * @see {@link MatterSpecification.v142.Core} § 11.15.7.1
          */
         resetCounts(): MaybePromise;
     }

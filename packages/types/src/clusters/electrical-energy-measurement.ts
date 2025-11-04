@@ -22,7 +22,7 @@ export namespace ElectricalEnergyMeasurement {
     /**
      * These are optional features supported by ElectricalEnergyMeasurementCluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.12.4
+     * @see {@link MatterSpecification.v142.Cluster} § 2.12.4
      */
     export enum Feature {
         /**
@@ -30,7 +30,7 @@ export namespace ElectricalEnergyMeasurement {
          *
          * The feature indicates the server is capable of measuring how much energy is imported by the server.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.4.1
          */
         ImportedEnergy = "ImportedEnergy",
 
@@ -39,7 +39,7 @@ export namespace ElectricalEnergyMeasurement {
          *
          * The feature indicates the server is capable of measuring how much energy is exported by the server.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.4.2
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.4.2
          */
         ExportedEnergy = "ExportedEnergy",
 
@@ -51,7 +51,7 @@ export namespace ElectricalEnergyMeasurement {
          * include this feature, when a device’s firmware is updated to correct measurement errors, or when a device is
          * factory reset.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.4.3
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.4.3
          */
         CumulativeEnergy = "CumulativeEnergy",
 
@@ -62,7 +62,7 @@ export namespace ElectricalEnergyMeasurement {
          * server during a certain period of time. The start and end times for measurement periods shall be determined
          * by the server, and may represent overlapping periods.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.4.4
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.4.4
          */
         PeriodicEnergy = "PeriodicEnergy"
     }
@@ -80,7 +80,7 @@ export namespace ElectricalEnergyMeasurement {
      * Elements using this data type shall indicate whether it represents cumulative or periodic energy, e.g. in the
      * name or in the element description.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.2
+     * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.2
      */
     export const TlvEnergyMeasurement = TlvObject({
         /**
@@ -93,7 +93,7 @@ export namespace ElectricalEnergyMeasurement {
          * during the period specified by either the StartTimestamp and EndTimestamp fields, the period specified by the
          * StartSystime and EndSystime fields, or both.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.2.1
          */
         energy: TlvField(0, TlvInt64.bound({ min: 0 })),
 
@@ -109,7 +109,7 @@ export namespace ElectricalEnergyMeasurement {
          * Otherwise, if the server had not yet determined the time in UTC at or before the beginning of the measurement
          * period, or does not have the capability of determining the time in UTC, this field shall be omitted.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.2.2
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.2.2
          */
         startTimestamp: TlvOptionalField(1, TlvEpochS),
 
@@ -123,7 +123,7 @@ export namespace ElectricalEnergyMeasurement {
          * Otherwise, if the server had not yet determined the time in UTC by the end of the measurement period, or does
          * not have the capability of determining the time in UTC, this field shall be omitted.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.2.3
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.2.3
          */
         endTimestamp: TlvOptionalField(2, TlvEpochS),
 
@@ -140,7 +140,7 @@ export namespace ElectricalEnergyMeasurement {
          * this field may be omitted; if it is indicated, its value shall be the time elapsed since boot at the UTC time
          * indicated in StartTimestamp.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.2.4
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.2.4
          */
         startSystime: TlvOptionalField(3, TlvSysTimeMS),
 
@@ -155,7 +155,7 @@ export namespace ElectricalEnergyMeasurement {
          * be omitted; if it is indicated, its value shall be the time elapsed since boot at the UTC time indicated in
          * EndTimestamp.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.2.5
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.2.5
          */
         endSystime: TlvOptionalField(4, TlvSysTimeMS)
     });
@@ -173,7 +173,7 @@ export namespace ElectricalEnergyMeasurement {
      * Elements using this data type shall indicate whether it represents cumulative or periodic energy, e.g. in the
      * name or in the element description.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.2
+     * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.2
      */
     export interface EnergyMeasurement extends TypeFromSchema<typeof TlvEnergyMeasurement> {}
 
@@ -181,7 +181,7 @@ export namespace ElectricalEnergyMeasurement {
      * This struct shall represent the times at which cumulative measurements were last zero, either due to
      * initialization of the device, or an internal reset of the cumulative value.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.3
+     * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.3
      */
     export const TlvCumulativeEnergyReset = TlvObject({
         /**
@@ -198,7 +198,7 @@ export namespace ElectricalEnergyMeasurement {
          * If the timestamp in UTC when the value of the Energy field on the CumulativeEnergyImported attribute was most
          * recently zero cannot currently be determined, a value of null shall be returned.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.3.1
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.3.1
          */
         importedResetTimestamp: TlvOptionalField(0, TlvNullable(TlvEpochS)),
 
@@ -216,7 +216,7 @@ export namespace ElectricalEnergyMeasurement {
          * If the timestamp in UTC when the value of the Energy field on the CumulativeEnergyExported attribute was most
          * recently zero cannot currently be determined, a value of null shall be returned.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.3.2
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.3.2
          */
         exportedResetTimestamp: TlvOptionalField(1, TlvNullable(TlvEpochS)),
 
@@ -232,7 +232,7 @@ export namespace ElectricalEnergyMeasurement {
          * CumulativeEnergyImported attribute was most recently zero, this field may be omitted; if it is indicated, its
          * value shall be the time elapsed since boot at the UTC time indicated in ImportedResetTimestamp.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.3.3
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.3.3
          */
         importedResetSystime: TlvOptionalField(2, TlvNullable(TlvSysTimeMS)),
 
@@ -248,7 +248,7 @@ export namespace ElectricalEnergyMeasurement {
          * CumulativeEnergyExported attribute was most recently zero, this field may be omitted; if it is indicated, its
          * value shall be the time elapsed since boot at the UTC time indicated in ImportedResetTimestamp.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.3.4
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.3.4
          */
         exportedResetSystime: TlvOptionalField(3, TlvNullable(TlvSysTimeMS))
     });
@@ -257,21 +257,21 @@ export namespace ElectricalEnergyMeasurement {
      * This struct shall represent the times at which cumulative measurements were last zero, either due to
      * initialization of the device, or an internal reset of the cumulative value.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.3
+     * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.3
      */
     export interface CumulativeEnergyReset extends TypeFromSchema<typeof TlvCumulativeEnergyReset> {}
 
     /**
      * Body of the ElectricalEnergyMeasurement cumulativeEnergyMeasured event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.12.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.1
      */
     export const TlvCumulativeEnergyMeasuredEvent = TlvObject({
         /**
          * This field shall be the value of CumulativeEnergyImported attribute at the timestamp indicated in its
          * EndTimestamp field, EndSystime field, or both.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.7.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.1.1
          */
         energyImported: TlvOptionalField(0, TlvEnergyMeasurement),
 
@@ -279,7 +279,7 @@ export namespace ElectricalEnergyMeasurement {
          * This field shall be the value of CumulativeEnergyExported attribute at the timestamp indicated in its
          * EndTimestamp field, EndSystime field, or both.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.7.1.2
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.1.2
          */
         energyExported: TlvOptionalField(1, TlvEnergyMeasurement)
     });
@@ -287,21 +287,21 @@ export namespace ElectricalEnergyMeasurement {
     /**
      * Body of the ElectricalEnergyMeasurement cumulativeEnergyMeasured event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.12.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.1
      */
     export interface CumulativeEnergyMeasuredEvent extends TypeFromSchema<typeof TlvCumulativeEnergyMeasuredEvent> {}
 
     /**
      * Body of the ElectricalEnergyMeasurement periodicEnergyMeasured event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.12.7.2
+     * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.2
      */
     export const TlvPeriodicEnergyMeasuredEvent = TlvObject({
         /**
          * This field shall be the value of PeriodicEnergyImported attribute at the timestamp indicated in its
          * EndTimestamp field, EndSystime field, or both.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.7.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.2.1
          */
         energyImported: TlvOptionalField(0, TlvEnergyMeasurement),
 
@@ -309,7 +309,7 @@ export namespace ElectricalEnergyMeasurement {
          * This field shall be the value of PeriodicEnergyExported attribute at the timestamp indicated in its
          * EndTimestamp field, EndSystime field, or both.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 2.12.7.2.2
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.2.2
          */
         energyExported: TlvOptionalField(1, TlvEnergyMeasurement)
     });
@@ -317,12 +317,12 @@ export namespace ElectricalEnergyMeasurement {
     /**
      * Body of the ElectricalEnergyMeasurement periodicEnergyMeasured event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.12.7.2
+     * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.2
      */
     export interface PeriodicEnergyMeasuredEvent extends TypeFromSchema<typeof TlvPeriodicEnergyMeasuredEvent> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 2.12.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.1
      */
     export enum MeasurementType {
         Unspecified = 0,
@@ -429,7 +429,7 @@ export namespace ElectricalEnergyMeasurement {
              *
              * If the cumulative energy imported cannot currently be determined, a value of null shall be returned.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.12.6.2
+             * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.2
              */
             cumulativeEnergyImported: Attribute(0x1, TlvNullable(TlvEnergyMeasurement))
         }
@@ -456,7 +456,7 @@ export namespace ElectricalEnergyMeasurement {
              *
              * If the cumulative energy exported cannot currently be determined, a value of null shall be returned.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.12.6.3
+             * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.3
              */
             cumulativeEnergyExported: Attribute(0x2, TlvNullable(TlvEnergyMeasurement))
         }
@@ -483,7 +483,7 @@ export namespace ElectricalEnergyMeasurement {
              *
              * If the periodic energy imported cannot currently be determined, a value of null shall be returned.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.12.6.4
+             * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.4
              */
             periodicEnergyImported: Attribute(0x3, TlvNullable(TlvEnergyMeasurement))
         }
@@ -510,7 +510,7 @@ export namespace ElectricalEnergyMeasurement {
              *
              * If the periodic energy exported cannot currently be determined, a value of null shall be returned.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.12.6.5
+             * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.5
              */
             periodicEnergyExported: Attribute(0x4, TlvNullable(TlvEnergyMeasurement))
         }
@@ -524,7 +524,7 @@ export namespace ElectricalEnergyMeasurement {
             /**
              * Indicates when cumulative measurements were most recently zero.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.12.6.6
+             * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.6
              */
             cumulativeEnergyReset: OptionalAttribute(0x5, TlvNullable(TlvCumulativeEnergyReset), { default: null })
         },
@@ -535,7 +535,7 @@ export namespace ElectricalEnergyMeasurement {
              * server, exported from the server, or both, but not more frequently than the rate mentioned in the
              * description above of the related attribute.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.12.7.1
+             * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.1
              */
             cumulativeEnergyMeasured: Event(0x0, Priority.Info, TlvCumulativeEnergyMeasuredEvent)
         }
@@ -550,7 +550,7 @@ export namespace ElectricalEnergyMeasurement {
              * This event shall be generated when the server reaches the end of a reporting period for imported energy,
              * exported energy, or both.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.12.7.2
+             * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.2
              */
             periodicEnergyMeasured: Event(0x1, Priority.Info, TlvPeriodicEnergyMeasuredEvent)
         }
@@ -568,14 +568,14 @@ export namespace ElectricalEnergyMeasurement {
             /**
              * The feature indicates the server is capable of measuring how much energy is imported by the server.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.12.4.1
+             * @see {@link MatterSpecification.v142.Cluster} § 2.12.4.1
              */
             importedEnergy: BitFlag(0),
 
             /**
              * The feature indicates the server is capable of measuring how much energy is exported by the server.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.12.4.2
+             * @see {@link MatterSpecification.v142.Cluster} § 2.12.4.2
              */
             exportedEnergy: BitFlag(1),
 
@@ -585,7 +585,7 @@ export namespace ElectricalEnergyMeasurement {
              * updated to include this feature, when a device’s firmware is updated to correct measurement errors, or
              * when a device is factory reset.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.12.4.3
+             * @see {@link MatterSpecification.v142.Cluster} § 2.12.4.3
              */
             cumulativeEnergy: BitFlag(2),
 
@@ -594,7 +594,7 @@ export namespace ElectricalEnergyMeasurement {
              * the server during a certain period of time. The start and end times for measurement periods shall be
              * determined by the server, and may represent overlapping periods.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.12.4.4
+             * @see {@link MatterSpecification.v142.Cluster} § 2.12.4.4
              */
             periodicEnergy: BitFlag(3)
         },
@@ -604,7 +604,7 @@ export namespace ElectricalEnergyMeasurement {
              * Indicates the accuracy of energy measurement by this server. The value of the MeasurementType field on
              * this MeasurementAccuracyStruct shall be ElectricalEnergy.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.12.6.1
+             * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.1
              */
             accuracy: FixedAttribute(0x0, TlvMeasurementAccuracy)
         },
@@ -649,7 +649,7 @@ export namespace ElectricalEnergyMeasurement {
      * Per the Matter specification you cannot use {@link ElectricalEnergyMeasurementCluster} without enabling certain
      * feature combinations. You must use the {@link with} factory method to obtain a working cluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.12
+     * @see {@link MatterSpecification.v142.Cluster} § 2.12
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

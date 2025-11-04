@@ -21,7 +21,7 @@ export namespace EnergyPreference {
     /**
      * These are optional features supported by EnergyPreferenceCluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 9.7.4
+     * @see {@link MatterSpecification.v142.Cluster} § 9.7.4
      */
     export enum Feature {
         /**
@@ -30,7 +30,7 @@ export namespace EnergyPreference {
          * This feature allows a user to select from a list of energy balances with associated descriptions of which
          * strategies a device will use to target the specified balance.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 9.7.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 9.7.4.1
          */
         EnergyBalance = "EnergyBalance",
 
@@ -41,7 +41,7 @@ export namespace EnergyPreference {
          * to a mode using less power. For example, a device might provide a scale of durations that must elapse without
          * user interaction before it goes to sleep.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 9.7.4.2
+         * @see {@link MatterSpecification.v142.Cluster} § 9.7.4.2
          */
         LowPowerModeSensitivity = "LowPowerModeSensitivity"
     }
@@ -49,13 +49,13 @@ export namespace EnergyPreference {
     /**
      * This represents a step along a scale of preferences.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 9.7.5.2
+     * @see {@link MatterSpecification.v142.Cluster} § 9.7.5.2
      */
     export const TlvBalance = TlvObject({
         /**
          * This field shall indicate the relative value of this step.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 9.7.5.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 9.7.5.2.1
          */
         step: TlvField(0, TlvPercent),
 
@@ -63,7 +63,7 @@ export namespace EnergyPreference {
          * This field shall indicate an optional string explaining which actions a device might take at the given step
          * value.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 9.7.5.2.2
+         * @see {@link MatterSpecification.v142.Cluster} § 9.7.5.2.2
          */
         label: TlvOptionalField(1, TlvString.bound({ maxLength: 64 }))
     });
@@ -71,12 +71,12 @@ export namespace EnergyPreference {
     /**
      * This represents a step along a scale of preferences.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 9.7.5.2
+     * @see {@link MatterSpecification.v142.Cluster} § 9.7.5.2
      */
     export interface Balance extends TypeFromSchema<typeof TlvBalance> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 9.7.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 9.7.5.1
      */
     export enum EnergyPriority {
         /**
@@ -84,7 +84,7 @@ export namespace EnergyPreference {
          *
          * This value shall emphasize user comfort; e.g. local temperature for a thermostat.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 9.7.5.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 9.7.5.1.1
          */
         Comfort = 0,
 
@@ -94,7 +94,7 @@ export namespace EnergyPreference {
          * This value shall emphasize how quickly a device accomplishes its targeted use; e.g. how quickly a robot
          * vacuum completes a cleaning cycle.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 9.7.5.1.2
+         * @see {@link MatterSpecification.v142.Cluster} § 9.7.5.1.2
          */
         Speed = 1,
 
@@ -103,7 +103,7 @@ export namespace EnergyPreference {
          *
          * This value shall emphasize how much energy a device uses; e.g. electricity usage for a Pump.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 9.7.5.1.3
+         * @see {@link MatterSpecification.v142.Cluster} § 9.7.5.1.3
          */
         Efficiency = 2,
 
@@ -133,7 +133,7 @@ export namespace EnergyPreference {
              * The first BalanceStruct shall have a Step value of zero, and the last BalanceStruct shall have a Step
              * value of 100.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 9.7.6.1
+             * @see {@link MatterSpecification.v142.Cluster} § 9.7.6.1
              */
             energyBalances: FixedAttribute(0x0, TlvArray(TlvBalance, { minLength: 2, maxLength: 10 })),
 
@@ -158,7 +158,7 @@ export namespace EnergyPreference {
              *      last element in EnergyPriorities, the new value of CurrentEnergyBalance shall be the index of the
              *      last element in the updated value of EnergyBalances.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 9.7.6.2
+             * @see {@link MatterSpecification.v142.Cluster} § 9.7.6.2
              */
             currentEnergyBalance: WritableAttribute(0x1, TlvUInt8, { persistent: true }),
 
@@ -169,7 +169,7 @@ export namespace EnergyPreference {
              * If the value of EnergyPriorities changes after an update to represent a new balance between priorities,
              * the value of the CurrentEnergyBalance attribute shall be set to its default.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 9.7.6.3
+             * @see {@link MatterSpecification.v142.Cluster} § 9.7.6.3
              */
             energyPriorities: FixedAttribute(0x2, TlvArray(TlvEnum<EnergyPriority>(), { length: 2 }))
         }
@@ -187,7 +187,7 @@ export namespace EnergyPreference {
              * Each BalanceStruct shall have a Step field larger than the Step field on the previous BalanceStruct in
              * the list.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 9.7.6.4
+             * @see {@link MatterSpecification.v142.Cluster} § 9.7.6.4
              */
             lowPowerModeSensitivities: FixedAttribute(0x3, TlvArray(TlvBalance, { minLength: 2, maxLength: 10 })),
 
@@ -203,7 +203,7 @@ export namespace EnergyPreference {
              * the LowPowerModeSensitivity attribute to the index which the manufacturer specifies most closely matches
              * the previous value.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 9.7.6.5
+             * @see {@link MatterSpecification.v142.Cluster} § 9.7.6.5
              */
             currentLowPowerModeSensitivity: WritableAttribute(0x4, TlvUInt8, { persistent: true })
         }
@@ -222,7 +222,7 @@ export namespace EnergyPreference {
              * This feature allows a user to select from a list of energy balances with associated descriptions of which
              * strategies a device will use to target the specified balance.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 9.7.4.1
+             * @see {@link MatterSpecification.v142.Cluster} § 9.7.4.1
              */
             energyBalance: BitFlag(0),
 
@@ -231,7 +231,7 @@ export namespace EnergyPreference {
              * switch to a mode using less power. For example, a device might provide a scale of durations that must
              * elapse without user interaction before it goes to sleep.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 9.7.4.2
+             * @see {@link MatterSpecification.v142.Cluster} § 9.7.4.2
              */
             lowPowerModeSensitivity: BitFlag(1)
         },
@@ -260,7 +260,7 @@ export namespace EnergyPreference {
      * Per the Matter specification you cannot use {@link EnergyPreferenceCluster} without enabling certain feature
      * combinations. You must use the {@link with} factory method to obtain a working cluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 9.7
+     * @see {@link MatterSpecification.v142.Cluster} § 9.7
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

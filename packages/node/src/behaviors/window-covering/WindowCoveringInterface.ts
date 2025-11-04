@@ -41,7 +41,7 @@ export namespace WindowCoveringInterface {
          *
          *   • CurrentPositionTilt attribute shall be equal to the InstalledOpenLimitTilt attribute.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 5.3.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.1
          */
         upOrOpen(): MaybePromise;
 
@@ -75,7 +75,7 @@ export namespace WindowCoveringInterface {
          *
          *   • CurrentPositionTilt attribute shall be equal to the InstalledClosedLimitTilt attribute.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 5.3.7.2
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.2
          */
         downOrClose(): MaybePromise;
 
@@ -89,7 +89,7 @@ export namespace WindowCoveringInterface {
          *   • TargetPositionTiltPercent100ths attribute will be set to CurrentPositionTiltPercent100ths attribute
          *     value.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 5.3.7.3
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.3
          */
         stopMotion(): MaybePromise;
     }
@@ -115,7 +115,7 @@ export namespace WindowCoveringInterface {
          * a tilt control device, then the command SHOULD be ignored and a UNSUPPORTED_COMMAND status SHOULD be
          * returned.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 5.3.7.5
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.5
          */
         goToLiftPercentage(request: WindowCovering.GoToLiftPercentageRequest): MaybePromise;
     }
@@ -141,7 +141,7 @@ export namespace WindowCoveringInterface {
          * a tilt control device, then the command SHOULD be ignored and a UNSUPPORTED_COMMAND status SHOULD be
          * returned.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 5.3.7.7
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.7
          */
         goToTiltPercentage(request: WindowCovering.GoToTiltPercentageRequest): MaybePromise;
     }
@@ -167,7 +167,7 @@ export namespace WindowCoveringInterface {
          * a tilt control device, then the command SHOULD be ignored and a UNSUPPORTED_COMMAND status SHOULD be
          * returned.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 5.3.7.5
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.5
          */
         goToLiftPercentage(request: WindowCovering.GoToLiftPercentageRequest): MaybePromise;
     }
@@ -193,7 +193,7 @@ export namespace WindowCoveringInterface {
          * a tilt control device, then the command SHOULD be ignored and a UNSUPPORTED_COMMAND status SHOULD be
          * returned.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 5.3.7.7
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.7
          */
         goToTiltPercentage(request: WindowCovering.GoToTiltPercentageRequest): MaybePromise;
     }
@@ -203,7 +203,7 @@ export namespace WindowCoveringInterface {
          * This command is used to set the target lift position of the window covering to the value specified in the
          * command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 5.3.7.4
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.4
          */
         goToLiftValue(request: WindowCovering.GoToLiftValueRequest): MaybePromise;
     }
@@ -213,7 +213,7 @@ export namespace WindowCoveringInterface {
          * This command is used to set the target tilt position of the window covering to the value specified in the
          * command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 5.3.7.6
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.6
          */
         goToTiltValue(request: WindowCovering.GoToTiltValueRequest): MaybePromise;
     }

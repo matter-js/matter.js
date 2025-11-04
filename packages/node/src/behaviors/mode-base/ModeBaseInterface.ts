@@ -16,7 +16,7 @@ export namespace ModeBaseInterface {
          *
          * On receipt of this command the device shall respond with a ChangeToModeResponse command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
          */
         changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ModeBase.ChangeToModeResponse>;
     }

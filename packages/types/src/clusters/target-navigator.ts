@@ -23,20 +23,20 @@ export namespace TargetNavigator {
     /**
      * This indicates an object describing the navigable target.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.11.4.2
+     * @see {@link MatterSpecification.v142.Cluster} § 6.11.4.2
      */
     export const TlvTargetInfo = TlvObject({
         /**
          * This field shall contain an unique id within the TargetList.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.11.4.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.11.4.2.1
          */
         identifier: TlvField(0, TlvUInt8.bound({ max: 254 })),
 
         /**
          * This field shall contain a name string for the TargetInfoStruct.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.11.4.2.2
+         * @see {@link MatterSpecification.v142.Cluster} § 6.11.4.2.2
          */
         name: TlvField(1, TlvString)
     });
@@ -44,28 +44,28 @@ export namespace TargetNavigator {
     /**
      * This indicates an object describing the navigable target.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.11.4.2
+     * @see {@link MatterSpecification.v142.Cluster} § 6.11.4.2
      */
     export interface TargetInfo extends TypeFromSchema<typeof TlvTargetInfo> {}
 
     /**
      * Input to the TargetNavigator navigateTarget command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.11.6.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.11.6.1
      */
     export const TlvNavigateTargetRequest = TlvObject({
         /**
          * This field shall indicate the Identifier for the target for UX navigation. The Target shall be an Identifier
          * value contained within one of the TargetInfoStruct objects in the TargetList attribute.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.11.6.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.11.6.1.1
          */
         target: TlvField(0, TlvUInt8),
 
         /**
          * This field shall indicate Optional app-specific data.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.11.6.1.2
+         * @see {@link MatterSpecification.v142.Cluster} § 6.11.6.1.2
          */
         data: TlvOptionalField(1, TlvString)
     });
@@ -73,12 +73,12 @@ export namespace TargetNavigator {
     /**
      * Input to the TargetNavigator navigateTarget command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.11.6.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.11.6.1
      */
     export interface NavigateTargetRequest extends TypeFromSchema<typeof TlvNavigateTargetRequest> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 6.11.4.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.11.4.1
      */
     export enum Status {
         /**
@@ -100,7 +100,7 @@ export namespace TargetNavigator {
     /**
      * Thrown for cluster status code {@link Status.TargetNotFound}.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.11.4.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.11.4.1
      */
     export class TargetNotFoundError extends StatusResponseError {
         constructor(
@@ -115,7 +115,7 @@ export namespace TargetNavigator {
     /**
      * Thrown for cluster status code {@link Status.NotAllowed}.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.11.4.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.11.4.1
      */
     export class NotAllowedError extends StatusResponseError {
         constructor(
@@ -130,20 +130,20 @@ export namespace TargetNavigator {
     /**
      * This command shall be generated in response to NavigateTarget command.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.11.6.2
+     * @see {@link MatterSpecification.v142.Cluster} § 6.11.6.2
      */
     export const TlvNavigateTargetResponse = TlvObject({
         /**
          * This field shall indicate the of the command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.11.6.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.11.6.2.1
          */
         status: TlvField(0, TlvEnum<Status>()),
 
         /**
          * This field shall indicate Optional app-specific data.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.11.6.2.2
+         * @see {@link MatterSpecification.v142.Cluster} § 6.11.6.2.2
          */
         data: TlvOptionalField(1, TlvString)
     });
@@ -151,14 +151,14 @@ export namespace TargetNavigator {
     /**
      * This command shall be generated in response to NavigateTarget command.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.11.6.2
+     * @see {@link MatterSpecification.v142.Cluster} § 6.11.6.2
      */
     export interface NavigateTargetResponse extends TypeFromSchema<typeof TlvNavigateTargetResponse> {}
 
     /**
      * Body of the TargetNavigator targetUpdated event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.11.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.11.7.1
      */
     export const TlvTargetUpdatedEvent = TlvObject({
         targetList: TlvOptionalField(0, TlvArray(TlvTargetInfo)),
@@ -169,7 +169,7 @@ export namespace TargetNavigator {
     /**
      * Body of the TargetNavigator targetUpdated event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.11.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 6.11.7.1
      */
     export interface TargetUpdatedEvent extends TypeFromSchema<typeof TlvTargetUpdatedEvent> {}
 
@@ -187,7 +187,7 @@ export namespace TargetNavigator {
              * Endpoint (Video Player or Content App). The list shall NOT contain any entries with the same Identifier
              * in the TargetInfoStruct object.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 6.11.5.1
+             * @see {@link MatterSpecification.v142.Cluster} § 6.11.5.1
              */
             targetList: Attribute(0x0, TlvArray(TlvTargetInfo), { default: [] }),
 
@@ -198,7 +198,7 @@ export namespace TargetNavigator {
              * When not 0xFF, the CurrentTarget shall be an Identifier value contained within one of the
              * TargetInfoStruct objects in the TargetList attribute.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 6.11.5.2
+             * @see {@link MatterSpecification.v142.Cluster} § 6.11.5.2
              */
             currentTarget: OptionalAttribute(0x1, TlvUInt8, { default: 255 })
         },
@@ -207,7 +207,7 @@ export namespace TargetNavigator {
             /**
              * Upon receipt, this shall navigation the UX to the target identified.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 6.11.6.1
+             * @see {@link MatterSpecification.v142.Cluster} § 6.11.6.1
              */
             navigateTarget: Command(0x0, TlvNavigateTargetRequest, 0x1, TlvNavigateTargetResponse)
         },
@@ -217,7 +217,7 @@ export namespace TargetNavigator {
              * This event shall be generated when there is a change in either the active target or the list of available
              * targets or both.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 6.11.7.1
+             * @see {@link MatterSpecification.v142.Cluster} § 6.11.7.1
              */
             targetUpdated: OptionalEvent(0x0, Priority.Info, TlvTargetUpdatedEvent)
         }
@@ -235,7 +235,7 @@ export namespace TargetNavigator {
      * When this cluster is implemented for a Content App endpoint, the Video Player device containing the endpoint
      * shall launch the Content App when a client invokes the NavigateTarget command.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 6.11
+     * @see {@link MatterSpecification.v142.Cluster} § 6.11
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

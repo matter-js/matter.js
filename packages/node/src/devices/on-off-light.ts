@@ -25,7 +25,7 @@ import { Identity } from "#general";
  * device such as an On/Off Light Switch or a Dimmer Switch. In addition, an on/off light is also capable of being
  * switched by means of a bound occupancy sensor.
  *
- * @see {@link MatterSpecification.v141.Device} § 4.1
+ * @see {@link MatterSpecification.v142.Device} § 4.1
  */
 export interface OnOffLightDevice extends Identity<typeof OnOffLightDeviceDefinition> {}
 

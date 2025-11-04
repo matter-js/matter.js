@@ -16,7 +16,7 @@ import { TypeFromSchema } from "../tlv/TlvSchema.js";
  *
  * This data type represents an amount of money in a given currency.
  *
- * @see {@link MatterSpecification.v141.Core} § 7.19.2.54
+ * @see {@link MatterSpecification.v142.Core} § 7.19.2.54
  */
 export const TlvPrice = TlvObject({ amount: TlvField(0, TlvInt64), currency: TlvField(1, TlvCurrency) });
 
@@ -25,6 +25,6 @@ export const TlvPrice = TlvObject({ amount: TlvField(0, TlvInt64), currency: Tlv
  *
  * This data type represents an amount of money in a given currency.
  *
- * @see {@link MatterSpecification.v141.Core} § 7.19.2.54
+ * @see {@link MatterSpecification.v142.Core} § 7.19.2.54
  */
 export interface Price extends TypeFromSchema<typeof TlvPrice> {}

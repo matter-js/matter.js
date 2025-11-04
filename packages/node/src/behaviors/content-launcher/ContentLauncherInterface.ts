@@ -28,7 +28,7 @@ export namespace ContentLauncherInterface {
          *
          * This command returns a Launch Response.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.7.7.2
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.2
          */
         launchUrl(request: ContentLauncher.LaunchUrlRequest): MaybePromise<ContentLauncher.LauncherResponse>;
     }
@@ -38,7 +38,7 @@ export namespace ContentLauncherInterface {
          * Upon receipt, this shall launch the specified content with optional search criteria. This command returns a
          * Launch Response.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.7.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1
          */
         launchContent(request: ContentLauncher.LaunchContentRequest): MaybePromise<ContentLauncher.LauncherResponse>;
     }

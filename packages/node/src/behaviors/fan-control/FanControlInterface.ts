@@ -28,7 +28,7 @@ export namespace FanControlInterface {
          *
          * This command supports these fields:
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 4.4.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.4.7.1
          */
         step(request: FanControl.StepRequest): MaybePromise;
     }

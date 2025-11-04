@@ -14,7 +14,7 @@ export namespace ChannelInterface {
         /**
          * Change the channel to the channel with the given Number in the ChannelList attribute.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.6.7.3
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.3
          */
         changeChannelByNumber(request: Channel.ChangeChannelByNumberRequest): MaybePromise;
 
@@ -31,7 +31,7 @@ export namespace ChannelInterface {
          * For example, if the current channel is at index 0 and count value of -1 is given, then the current channel
          * should change to the last channel.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.6.7.4
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.4
          */
         skipChannel(request: Channel.SkipChannelRequest): MaybePromise;
     }
@@ -47,7 +47,7 @@ export namespace ChannelInterface {
          *
          * Upon success, the CurrentChannel attribute, if supported, shall be updated to reflect the change.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.6.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.1
          */
         changeChannel(request: Channel.ChangeChannelRequest): MaybePromise<Channel.ChangeChannelResponse>;
     }
@@ -59,7 +59,7 @@ export namespace ChannelInterface {
          * Standard error codes shall be used when arguments provided are not valid. For example, if StartTime is
          * greater than EndTime, the status code INVALID_ACTION shall be returned.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.6.7.5
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.5
          */
         getProgramGuide(request: Channel.GetProgramGuideRequest): MaybePromise<Channel.ProgramGuideResponse>;
     }
@@ -68,14 +68,14 @@ export namespace ChannelInterface {
         /**
          * Record a specific program or series when it goes live. This functionality enables DVR recording features.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.6.7.7
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.7
          */
         recordProgram(request: Channel.RecordProgramRequest): MaybePromise;
 
         /**
          * Cancel recording for a specific program or series.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.6.7.8
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.8
          */
         cancelRecordProgram(request: Channel.CancelRecordProgramRequest): MaybePromise;
     }

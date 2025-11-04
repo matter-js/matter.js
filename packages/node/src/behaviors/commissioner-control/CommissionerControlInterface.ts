@@ -32,7 +32,7 @@ export namespace CommissionerControlInterface {
          *
          * The parameters for RequestCommissioningApproval command are as follows:
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.26.6.1
+         * @see {@link MatterSpecification.v142.Core} § 11.26.6.1
          */
         requestCommissioningApproval(request: CommissionerControl.RequestCommissioningApprovalRequest): MaybePromise;
 
@@ -57,7 +57,7 @@ export namespace CommissionerControlInterface {
          *
          * The parameters for CommissionNode command are as follows:
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.26.6.5
+         * @see {@link MatterSpecification.v142.Core} § 11.26.6.5
          */
         commissionNode(request: CommissionerControl.CommissionNodeRequest): MaybePromise<CommissionerControl.ReverseOpenCommissioningWindowResponse>;
     }

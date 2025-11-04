@@ -22,7 +22,7 @@ import { Identity } from "#general";
  * A Dimmer Switch is a controller device that, when bound to a lighting device such as a Dimmable Light, is capable of
  * being used to switch the device on or off and adjust the intensity of the light being emitted.
  *
- * @see {@link MatterSpecification.v141.Device} § 6.2
+ * @see {@link MatterSpecification.v142.Device} § 6.2
  */
 export interface DimmerSwitchDevice extends Identity<typeof DimmerSwitchDeviceDefinition> {}
 

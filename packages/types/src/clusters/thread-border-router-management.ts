@@ -24,7 +24,7 @@ export namespace ThreadBorderRouterManagement {
     /**
      * These are optional features supported by ThreadBorderRouterManagementCluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 10.3.4
+     * @see {@link MatterSpecification.v142.Cluster} § 10.3.4
      */
     export enum Feature {
         /**
@@ -39,7 +39,7 @@ export namespace ThreadBorderRouterManagement {
          *   change, e.g. when the Thread Border Router serves non-Matter devices that do not support PAN change for an
          *   implementation-specific reason.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 10.3.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 10.3.4.1
          */
         PanChange = "PanChange"
     }
@@ -47,7 +47,7 @@ export namespace ThreadBorderRouterManagement {
     /**
      * Input to the ThreadBorderRouterManagement setPendingDatasetRequest command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 10.3.6.5
+     * @see {@link MatterSpecification.v142.Cluster} § 10.3.6.5
      */
     export const TlvSetPendingDatasetRequest = TlvObject({
         pendingDataset: TlvField(0, TlvByteString.bound({ maxLength: 254 }))
@@ -56,14 +56,14 @@ export namespace ThreadBorderRouterManagement {
     /**
      * Input to the ThreadBorderRouterManagement setPendingDatasetRequest command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 10.3.6.5
+     * @see {@link MatterSpecification.v142.Cluster} § 10.3.6.5
      */
     export interface SetPendingDatasetRequest extends TypeFromSchema<typeof TlvSetPendingDatasetRequest> {}
 
     /**
      * This command is sent in response to GetActiveDatasetRequest or GetPendingDatasetRequest command.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 10.3.6.3
+     * @see {@link MatterSpecification.v142.Cluster} § 10.3.6.3
      */
     export const TlvDatasetResponse = TlvObject({
         /**
@@ -73,7 +73,7 @@ export namespace ThreadBorderRouterManagement {
          * Router is connected as an octet string containing the raw Thread TLV value of the dataset, as defined in the
          * Thread specification.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 10.3.6.3.1
+         * @see {@link MatterSpecification.v142.Cluster} § 10.3.6.3.1
          */
         dataset: TlvField(0, TlvByteString.bound({ maxLength: 254 }))
     });
@@ -81,28 +81,28 @@ export namespace ThreadBorderRouterManagement {
     /**
      * This command is sent in response to GetActiveDatasetRequest or GetPendingDatasetRequest command.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 10.3.6.3
+     * @see {@link MatterSpecification.v142.Cluster} § 10.3.6.3
      */
     export interface DatasetResponse extends TypeFromSchema<typeof TlvDatasetResponse> {}
 
     /**
      * Input to the ThreadBorderRouterManagement setActiveDatasetRequest command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 10.3.6.4
+     * @see {@link MatterSpecification.v142.Cluster} § 10.3.6.4
      */
     export const TlvSetActiveDatasetRequest = TlvObject({
         /**
          * This field shall contain the active dataset to set of the Thread network to configure in the Border Router as
          * an octet string containing the raw Thread TLV value of the dataset, as defined in the Thread specification.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 10.3.6.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 10.3.6.4.1
          */
         activeDataset: TlvField(0, TlvByteString.bound({ maxLength: 254 })),
 
         /**
          * See Breadcrumb Attribute section of General Commissioning Cluster in [MatterCore] for usage.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 10.3.6.4.2
+         * @see {@link MatterSpecification.v142.Cluster} § 10.3.6.4.2
          */
         breadcrumb: TlvOptionalField(1, TlvUInt64)
     });
@@ -110,7 +110,7 @@ export namespace ThreadBorderRouterManagement {
     /**
      * Input to the ThreadBorderRouterManagement setActiveDatasetRequest command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 10.3.6.4
+     * @see {@link MatterSpecification.v142.Cluster} § 10.3.6.4
      */
     export interface SetActiveDatasetRequest extends TypeFromSchema<typeof TlvSetActiveDatasetRequest> {}
 
@@ -137,7 +137,7 @@ export namespace ThreadBorderRouterManagement {
              * Router is connected, with the value given in the PendingDataset parameter. The Border Router will manage
              * activation of the pending dataset as defined in the Thread specification.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 10.3.6.5
+             * @see {@link MatterSpecification.v142.Cluster} § 10.3.6.5
              */
             setPendingDatasetRequest: Command(
                 0x4,
@@ -168,7 +168,7 @@ export namespace ThreadBorderRouterManagement {
              *   change, e.g. when the Thread Border Router serves non-Matter devices that do not support PAN change for
              *   an implementation-specific reason.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 10.3.4.1
+             * @see {@link MatterSpecification.v142.Cluster} § 10.3.4.1
              */
             panChange: BitFlag(0)
         },
@@ -180,7 +180,7 @@ export namespace ThreadBorderRouterManagement {
              * <VendorName> <ProductName>._meshcop._udp. An example name would be ACME Border Router
              * (74be)._meshcop._udp.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 10.3.5.1
+             * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.1
              */
             borderRouterName: Attribute(0x0, TlvString.bound({ minLength: 1, maxLength: 63 })),
 
@@ -188,7 +188,7 @@ export namespace ThreadBorderRouterManagement {
              * Indicates a 16-byte globally unique ID for a Thread Border Router device. This ID is
              * manufacturer-specific, and it is created and managed by the border router’s implementation.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 10.3.5.2
+             * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.2
              */
             borderAgentId: Attribute(0x1, TlvByteString.bound({ length: 16 })),
 
@@ -198,14 +198,14 @@ export namespace ThreadBorderRouterManagement {
              * The format shall match the value mapping defined in the "Version TLV" section of the Thread
              * specification. For example, Thread 1.3.0 would have ThreadVersion set to 4.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 10.3.5.3
+             * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.3
              */
             threadVersion: FixedAttribute(0x2, TlvUInt16),
 
             /**
              * Indicates whether the associated IEEE 802.15.4 Thread interface is enabled or disabled.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 10.3.5.4
+             * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.4
              */
             interfaceEnabled: Attribute(0x3, TlvBoolean, { persistent: true }),
 
@@ -215,7 +215,7 @@ export namespace ThreadBorderRouterManagement {
              * connected. This attribute shall be updated when a new Active dataset is configured on the Thread network
              * to which the border router is connected.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 10.3.5.5
+             * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.5
              */
             activeDatasetTimestamp: Attribute(0x4, TlvNullable(TlvUInt64), { persistent: true }),
 
@@ -225,7 +225,7 @@ export namespace ThreadBorderRouterManagement {
              * is connected. This attribute shall be updated when a new Pending dataset is configured on the Thread
              * network to which the border router is connected.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 10.3.5.6
+             * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.6
              */
             pendingDatasetTimestamp: Attribute(0x5, TlvNullable(TlvUInt64), { persistent: true })
         },
@@ -243,7 +243,7 @@ export namespace ThreadBorderRouterManagement {
              *
              * Otherwise, this shall generate a DatasetResponse command.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 10.3.6.1
+             * @see {@link MatterSpecification.v142.Cluster} § 10.3.6.1
              */
             getActiveDatasetRequest: Command(
                 0x0,
@@ -265,7 +265,7 @@ export namespace ThreadBorderRouterManagement {
              *
              * Otherwise, this shall generate a DatasetResponse command.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 10.3.6.2
+             * @see {@link MatterSpecification.v142.Cluster} § 10.3.6.2
              */
             getPendingDatasetRequest: Command(
                 0x1,
@@ -279,7 +279,7 @@ export namespace ThreadBorderRouterManagement {
              * This command shall be used to set the active Dataset of the Thread network to which the Border Router is
              * connected, when there is no active dataset already.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 10.3.6.4
+             * @see {@link MatterSpecification.v142.Cluster} § 10.3.6.4
              */
             setActiveDatasetRequest: Command(
                 0x3,
@@ -310,7 +310,7 @@ export namespace ThreadBorderRouterManagement {
      * ThreadBorderRouterManagementCluster supports optional features that you can enable with the
      * ThreadBorderRouterManagementCluster.with() factory method.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 10.3
+     * @see {@link MatterSpecification.v142.Cluster} § 10.3
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

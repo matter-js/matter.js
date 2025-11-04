@@ -131,7 +131,7 @@ export namespace GeneralCommissioningInterface {
          *   10. Optionally: if no factory-reset resulted from the previous steps, it is recommended that the Node
          *       rollback the state of all non fabric-scoped data present in the Fail-Safe context.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.10.7.2
+         * @see {@link MatterSpecification.v142.Core} § 11.10.7.2
          */
         armFailSafe(request: GeneralCommissioning.ArmFailSafeRequest): MaybePromise<GeneralCommissioning.ArmFailSafeResponse>;
 
@@ -167,7 +167,7 @@ export namespace GeneralCommissioningInterface {
          * when SetRegulatoryConfigResponse has the ErrorCode field set to OK. If the command fails, the Breadcrumb
          * attribute shall be left unchanged.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.10.7.4
+         * @see {@link MatterSpecification.v142.Core} § 11.10.7.4
          */
         setRegulatoryConfig(request: GeneralCommissioning.SetRegulatoryConfigRequest): MaybePromise<GeneralCommissioning.SetRegulatoryConfigResponse>;
 
@@ -226,7 +226,7 @@ export namespace GeneralCommissioningInterface {
          * After receipt of a CommissioningCompleteResponse with an ErrorCode value of OK, a client cannot expect any
          * previously established PASE session to still be usable, due to the server having cleared such sessions.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.10.7.6
+         * @see {@link MatterSpecification.v142.Core} § 11.10.7.6
          */
         commissioningComplete(): MaybePromise<GeneralCommissioning.CommissioningCompleteResponse>;
     }
@@ -236,7 +236,7 @@ export namespace GeneralCommissioningInterface {
          * This command is used to set the user acknowledgements received in the Enhanced Setup Flow Terms & Conditions
          * into the node.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.10.7.8
+         * @see {@link MatterSpecification.v142.Core} § 11.10.7.8
          */
         setTcAcknowledgements(request: GeneralCommissioning.SetTcAcknowledgementsRequest): MaybePromise<GeneralCommissioning.SetTcAcknowledgementsResponse>;
     }

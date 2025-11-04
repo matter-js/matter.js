@@ -38,7 +38,7 @@ export namespace RelativeHumidityMeasurement {
              *
              * MeasuredValue is updated continuously as new measurements are made.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.6.4.1
+             * @see {@link MatterSpecification.v142.Cluster} § 2.6.4.1
              */
             measuredValue: Attribute(0x0, TlvNullable(TlvUInt16)),
 
@@ -46,7 +46,7 @@ export namespace RelativeHumidityMeasurement {
              * The MinMeasuredValue attribute indicates the minimum value of MeasuredValue that can be measured. The
              * null value means this attribute is not defined. See Measured Value for more details.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.6.4.2
+             * @see {@link MatterSpecification.v142.Cluster} § 2.6.4.2
              */
             minMeasuredValue: Attribute(0x1, TlvNullable(TlvUInt16.bound({ max: 9999 }))),
 
@@ -54,14 +54,14 @@ export namespace RelativeHumidityMeasurement {
              * The MaxMeasuredValue attribute indicates the maximum value of MeasuredValue that can be measured. The
              * null value means this attribute is not defined. See Measured Value for more details.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.6.4.3
+             * @see {@link MatterSpecification.v142.Cluster} § 2.6.4.3
              */
             maxMeasuredValue: Attribute(0x2, TlvNullable(TlvUInt16.bound({ max: 10000 }))),
 
             /**
              * See Measured Value.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.6.4.4
+             * @see {@link MatterSpecification.v142.Cluster} § 2.6.4.4
              */
             tolerance: OptionalAttribute(0x3, TlvUInt16.bound({ max: 2048 }))
         }
@@ -72,7 +72,7 @@ export namespace RelativeHumidityMeasurement {
      * measurement is reportable and may be configured for reporting. Water content measurements currently is, but are
      * not limited to relative humidity.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.6
+     * @see {@link MatterSpecification.v142.Cluster} § 2.6
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

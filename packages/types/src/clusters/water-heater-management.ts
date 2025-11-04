@@ -32,7 +32,7 @@ export namespace WaterHeaterManagement {
     /**
      * These are optional features supported by WaterHeaterManagementCluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 9.5.4
+     * @see {@link MatterSpecification.v142.Cluster} § 9.5.4
      */
     export enum Feature {
         /**
@@ -51,7 +51,7 @@ export namespace WaterHeaterManagement {
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 9.5.6.1
+     * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.1
      */
     export const WaterHeaterHeatSource = {
         /**
@@ -81,7 +81,7 @@ export namespace WaterHeaterManagement {
     };
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 9.5.6.2
+     * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.2
      */
     export enum BoostState {
         /**
@@ -96,13 +96,13 @@ export namespace WaterHeaterManagement {
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 9.5.6.3
+     * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.3
      */
     export const TlvWaterHeaterBoostInfo = TlvObject({
         /**
          * This field shall indicate the time period, in seconds, for which the boost state is activated.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 9.5.6.3.1
+         * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.3.1
          */
         duration: TlvField(0, TlvUInt32.bound({ min: 1 })),
 
@@ -116,7 +116,7 @@ export namespace WaterHeaterManagement {
          *
          *   • the TargetPercentage (if specified).
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 9.5.6.3.2
+         * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.3.2
          */
         oneShot: TlvOptionalField(1, TlvBoolean),
 
@@ -126,7 +126,7 @@ export namespace WaterHeaterManagement {
          *
          * The choice of which heat sources are activated is manufacturer specific.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 9.5.6.3.3
+         * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.3.3
          */
         emergencyBoost: TlvOptionalField(2, TlvBoolean),
 
@@ -139,7 +139,7 @@ export namespace WaterHeaterManagement {
          * The value of this field shall be within the constraints of the MinHeatSetpointLimit and MaxHeatSetpointLimit
          * attributes (inclusive), of the thermostat cluster.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 9.5.6.3.4
+         * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.3.4
          */
         temporarySetpoint: TlvOptionalField(3, TlvInt16),
 
@@ -147,7 +147,7 @@ export namespace WaterHeaterManagement {
          * This field shall indicate the target percentage of hot water in the tank that the TankPercentage attribute
          * must reach before the heating is switched off.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 9.5.6.3.5
+         * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.3.5
          */
         targetPercentage: TlvOptionalField(4, TlvPercent),
 
@@ -162,41 +162,41 @@ export namespace WaterHeaterManagement {
          *
          * This field shall be less than or equal to the TargetPercentage field.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 9.5.6.3.6
+         * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.3.6
          */
         targetReheat: TlvOptionalField(5, TlvPercent)
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 9.5.6.3
+     * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.3
      */
     export interface WaterHeaterBoostInfo extends TypeFromSchema<typeof TlvWaterHeaterBoostInfo> {}
 
     /**
      * Input to the WaterHeaterManagement boost command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 9.5.8.1
+     * @see {@link MatterSpecification.v142.Cluster} § 9.5.8.1
      */
     export const TlvBoostRequest = TlvObject({ boostInfo: TlvField(0, TlvWaterHeaterBoostInfo) });
 
     /**
      * Input to the WaterHeaterManagement boost command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 9.5.8.1
+     * @see {@link MatterSpecification.v142.Cluster} § 9.5.8.1
      */
     export interface BoostRequest extends TypeFromSchema<typeof TlvBoostRequest> {}
 
     /**
      * Body of the WaterHeaterManagement boostStarted event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 9.5.9.1
+     * @see {@link MatterSpecification.v142.Cluster} § 9.5.9.1
      */
     export const TlvBoostStartedEvent = TlvObject({ boostInfo: TlvField(0, TlvWaterHeaterBoostInfo) });
 
     /**
      * Body of the WaterHeaterManagement boostStarted event
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 9.5.9.1
+     * @see {@link MatterSpecification.v142.Cluster} § 9.5.9.1
      */
     export interface BoostStartedEvent extends TypeFromSchema<typeof TlvBoostStartedEvent> {}
 
@@ -209,7 +209,7 @@ export namespace WaterHeaterManagement {
              * Indicates the volume of water that the hot water tank can hold (in units of Litres). This allows an
              * energy management system to estimate the required heating energy needed to reach the target temperature.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 9.5.7.3
+             * @see {@link MatterSpecification.v142.Cluster} § 9.5.7.3
              */
             tankVolume: Attribute(0x2, TlvUInt16),
 
@@ -248,7 +248,7 @@ export namespace WaterHeaterManagement {
              *   for 1kWh of electrical energy input. The conversion between heat energy and electrical energy is
              *   outside the scope of this cluster.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 9.5.7.4
+             * @see {@link MatterSpecification.v142.Cluster} § 9.5.7.4
              */
             estimatedHeatRequired: Attribute(0x3, TlvInt64.bound({ min: 0 }))
         }
@@ -286,7 +286,7 @@ export namespace WaterHeaterManagement {
              *
              * ### TankPercentage = 50%
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 9.5.7.5
+             * @see {@link MatterSpecification.v142.Cluster} § 9.5.7.5
              */
             tankPercentage: Attribute(0x4, TlvPercent)
         }
@@ -317,7 +317,7 @@ export namespace WaterHeaterManagement {
              * Indicates the heat sources that the water heater can call on for heating. If a bit is set then the water
              * heater supports the corresponding heat source.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 9.5.7.1
+             * @see {@link MatterSpecification.v142.Cluster} § 9.5.7.1
              */
             heaterTypes: FixedAttribute(0x0, TlvBitmap(TlvUInt8, WaterHeaterHeatSource)),
 
@@ -325,7 +325,7 @@ export namespace WaterHeaterManagement {
              * Indicates if the water heater is heating water. If a bit is set then the corresponding heat source is
              * active.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 9.5.7.2
+             * @see {@link MatterSpecification.v142.Cluster} § 9.5.7.2
              */
             heatDemand: Attribute(0x1, TlvBitmap(TlvUInt8, WaterHeaterHeatSource)),
 
@@ -334,7 +334,7 @@ export namespace WaterHeaterManagement {
              *
              * See Section 9.5.8.1, “Boost Command” and Section 9.5.8.2, “CancelBoost Command” for more details.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 9.5.7.6
+             * @see {@link MatterSpecification.v142.Cluster} § 9.5.7.6
              */
             boostState: Attribute(0x5, TlvEnum<BoostState>())
         },
@@ -343,14 +343,14 @@ export namespace WaterHeaterManagement {
             /**
              * Allows a client to request that the water heater is put into a Boost state.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 9.5.8.1
+             * @see {@link MatterSpecification.v142.Cluster} § 9.5.8.1
              */
             boost: Command(0x0, TlvBoostRequest, 0x0, TlvNoResponse, { invokeAcl: AccessLevel.Manage }),
 
             /**
              * Allows a client to cancel an ongoing Boost operation. This command has no payload.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 9.5.8.2
+             * @see {@link MatterSpecification.v142.Cluster} § 9.5.8.2
              */
             cancelBoost: Command(0x1, TlvNoArguments, 0x1, TlvNoResponse, { invokeAcl: AccessLevel.Manage })
         },
@@ -362,14 +362,14 @@ export namespace WaterHeaterManagement {
              * The corresponding structure fields within the WaterHeaterBoostInfoStruct are copied from the Boost
              * command.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 9.5.9.1
+             * @see {@link MatterSpecification.v142.Cluster} § 9.5.9.1
              */
             boostStarted: Event(0x0, Priority.Info, TlvBoostStartedEvent),
 
             /**
              * This event shall be generated whenever the BoostState transitions from Active to Inactive.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 9.5.9.2
+             * @see {@link MatterSpecification.v142.Cluster} § 9.5.9.2
              */
             boostEnded: Event(0x1, Priority.Info, TlvNoArguments)
         },
@@ -399,7 +399,7 @@ export namespace WaterHeaterManagement {
      * WaterHeaterManagementCluster supports optional features that you can enable with the
      * WaterHeaterManagementCluster.with() factory method.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 9.5
+     * @see {@link MatterSpecification.v142.Cluster} § 9.5
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

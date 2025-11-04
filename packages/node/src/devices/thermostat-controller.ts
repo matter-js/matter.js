@@ -19,7 +19,7 @@ import { Identity } from "#general";
 /**
  * A Thermostat Controller is a device capable of controlling a Thermostat.
  *
- * @see {@link MatterSpecification.v141.Device} § 9.4
+ * @see {@link MatterSpecification.v142.Device} § 9.4
  */
 export interface ThermostatControllerDevice extends Identity<typeof ThermostatControllerDeviceDefinition> {}
 

@@ -14,7 +14,7 @@ export namespace IdentifyInterface {
         /**
          * This command starts or stops the receiving device identifying itself.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.2.6.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.2.6.1
          */
         identify(request: Identify.IdentifyRequest): MaybePromise;
 
@@ -25,7 +25,7 @@ export namespace IdentifyInterface {
          * themselves are entirely up to the implementer to use whenever a visual feedback is useful but it is not the
          * same as and does not replace the identify mechanism used during commissioning.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.2.6.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.2.6.2
          */
         triggerEffect(request: Identify.TriggerEffectRequest): MaybePromise;
     }

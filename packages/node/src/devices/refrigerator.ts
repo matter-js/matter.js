@@ -22,7 +22,7 @@ import { Identity } from "#general";
  * Examples of consumer products that may make use of this device type include refrigerators, freezers, and wine
  * coolers.
  *
- * @see {@link MatterSpecification.v141.Device} § 13.2
+ * @see {@link MatterSpecification.v142.Device} § 13.2
  */
 export interface RefrigeratorDevice extends Identity<typeof RefrigeratorDeviceDefinition> {}
 

@@ -18,7 +18,7 @@ export namespace OtaSoftwareUpdateRequestorInterface {
          *
          * If the accessing fabric index is 0, this command shall fail with an UNSUPPORTED_ACCESS status code.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.20.7.6.1
+         * @see {@link MatterSpecification.v142.Core} § 11.20.7.6.1
          */
         announceOtaProvider(request: OtaSoftwareUpdateRequestor.AnnounceOtaProviderRequest): MaybePromise;
     }

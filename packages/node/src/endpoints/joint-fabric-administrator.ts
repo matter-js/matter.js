@@ -25,7 +25,7 @@ import { Identity } from "#general";
  * (as specified in the Matter core specification) to be commissioned onto the Joint Fabric. Once commissioned, a client
  * may access the capabilities of the Joint Fabric Administrator.
  *
- * @see {@link MatterSpecification.v141.Device} § 2.9
+ * @see {@link MatterSpecification.v142.Device} § 2.9
  */
 export interface JointFabricAdministratorEndpoint extends Identity<typeof JointFabricAdministratorEndpointDefinition> {}
 

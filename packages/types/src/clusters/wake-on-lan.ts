@@ -29,7 +29,7 @@ export namespace WakeOnLan {
              * Format of this attribute shall be an upper-case hex-encoded string representing the hex address, like
              * 12345678ABCD.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.12.4.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.12.4.1
              */
             macAddress: OptionalFixedAttribute(0x0, TlvString.bound({ maxLength: 12 })),
 
@@ -43,7 +43,7 @@ export namespace WakeOnLan {
              *   will therefore choose not to include it or read it. The MAC Address can often be determined using ARP
              *   in IPv4 or NDP in IPv6.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.12.4.2
+             * @see {@link MatterSpecification.v142.Cluster} § 1.12.4.2
              */
             linkLocalAddress: OptionalFixedAttribute(0x1, TlvByteString)
         }
@@ -74,7 +74,7 @@ export namespace WakeOnLan {
      * The cluster server for Wake on LAN or Wake on WLAN is implemented by a device that supports the Wake on LAN/WLAN
      * protocol, such as a TV, Set-top Box, or Smart Speaker.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.12
+     * @see {@link MatterSpecification.v142.Cluster} § 1.12
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

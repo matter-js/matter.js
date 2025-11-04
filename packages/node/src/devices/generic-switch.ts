@@ -18,7 +18,7 @@ import { Identity } from "#general";
  * GenericSwitchDevice requires Switch cluster but Switch is not added by default because you must select the features
  * your device supports. You can add manually using GenericSwitchDevice.with().
  *
- * @see {@link MatterSpecification.v141.Device} § 6.6
+ * @see {@link MatterSpecification.v142.Device} § 6.6
  */
 export interface GenericSwitchDevice extends Identity<typeof GenericSwitchDeviceDefinition> {}
 

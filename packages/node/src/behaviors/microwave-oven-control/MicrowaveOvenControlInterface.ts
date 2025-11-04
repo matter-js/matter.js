@@ -15,7 +15,7 @@ export namespace MicrowaveOvenControlInterface {
          * This command is used to set the cooking parameters associated with the operation of the device. This command
          * supports the following fields:
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 8.13.6.2
+         * @see {@link MatterSpecification.v142.Cluster} § 8.13.6.2
          */
         setCookingParameters(request: MicrowaveOvenControl.SetCookingParametersRequest): MaybePromise;
 
@@ -23,7 +23,7 @@ export namespace MicrowaveOvenControlInterface {
          * This command is used to add more time to the CookTime attribute of the server. This command supports these
          * fields:
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 8.13.6.3
+         * @see {@link MatterSpecification.v142.Cluster} § 8.13.6.3
          */
         addMoreTime(request: MicrowaveOvenControl.AddMoreTimeRequest): MaybePromise;
     }

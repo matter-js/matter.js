@@ -17,7 +17,7 @@ export namespace AirQuality {
     /**
      * These are optional features supported by AirQualityCluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.9.4
+     * @see {@link MatterSpecification.v142.Cluster} § 2.9.4
      */
     export enum Feature {
         /**
@@ -53,7 +53,7 @@ export namespace AirQuality {
      * The AirQualityEnum provides a representation of the quality of the analyzed air. It is up to the device
      * manufacturer to determine the mapping between the measured values and their corresponding enumeration values.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.9.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 2.9.5.1
      */
     export enum AirQualityEnum {
         /**
@@ -126,7 +126,7 @@ export namespace AirQuality {
             /**
              * Indicates a value from AirQualityEnum that is indicative of the currently measured air quality.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 2.9.6.1
+             * @see {@link MatterSpecification.v142.Cluster} § 2.9.6.1
              */
             airQuality: Attribute(0x0, TlvEnum<AirQualityEnum>())
         },
@@ -150,7 +150,7 @@ export namespace AirQuality {
      * AirQualityCluster supports optional features that you can enable with the AirQualityCluster.with() factory
      * method.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 2.9
+     * @see {@link MatterSpecification.v142.Cluster} § 2.9
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

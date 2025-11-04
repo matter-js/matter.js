@@ -21,7 +21,7 @@ export namespace FanControl {
     /**
      * These are optional features supported by FanControlCluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 4.4.4
+     * @see {@link MatterSpecification.v142.Cluster} § 4.4.4
      */
     export enum Feature {
         /**
@@ -36,7 +36,7 @@ export namespace FanControl {
          *
          * See Section 4.4.6.6.1, “Speed Rules” for more details.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 4.4.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.4.4.1
          */
         MultiSpeed = "MultiSpeed",
 
@@ -77,7 +77,7 @@ export namespace FanControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 4.4.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 4.4.5.1
      */
     export const Rock = {
         /**
@@ -97,7 +97,7 @@ export namespace FanControl {
     };
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 4.4.5.2
+     * @see {@link MatterSpecification.v142.Cluster} § 4.4.5.2
      */
     export const Wind = {
         /**
@@ -106,7 +106,7 @@ export namespace FanControl {
          * The fan speed, based on current settings, shall gradually slow down to a final minimum speed. For this
          * process, the sequence, speeds and duration are MS.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 4.4.5.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.4.5.2.1
          */
         sleepWind: BitFlag(0),
 
@@ -115,13 +115,13 @@ export namespace FanControl {
          *
          * The fan speed shall vary to emulate natural wind. For this setting, the sequence, speeds and duration are MS.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 4.4.5.2.2
+         * @see {@link MatterSpecification.v142.Cluster} § 4.4.5.2.2
          */
         naturalWind: BitFlag(1)
     };
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 4.4.5.4
+     * @see {@link MatterSpecification.v142.Cluster} § 4.4.5.4
      */
     export enum AirflowDirection {
         /**
@@ -136,7 +136,7 @@ export namespace FanControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 4.4.5.3
+     * @see {@link MatterSpecification.v142.Cluster} § 4.4.5.3
      */
     export enum StepDirection {
         /**
@@ -153,20 +153,20 @@ export namespace FanControl {
     /**
      * Input to the FanControl step command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 4.4.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 4.4.7.1
      */
     export const TlvStepRequest = TlvObject({
         /**
          * This field shall indicate whether the speed-oriented attributes increase or decrease to the next step value.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 4.4.7.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.4.7.1.1
          */
         direction: TlvField(0, TlvEnum<StepDirection>()),
 
         /**
          * This field shall indicate if the speed-oriented attributes wrap between highest and lowest step value.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 4.4.7.1.2
+         * @see {@link MatterSpecification.v142.Cluster} § 4.4.7.1.2
          */
         wrap: TlvOptionalField(1, TlvBoolean),
 
@@ -175,7 +175,7 @@ export namespace FanControl {
          *
          * = 0) is included as a step value.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 4.4.7.1.3
+         * @see {@link MatterSpecification.v142.Cluster} § 4.4.7.1.3
          */
         lowestOff: TlvOptionalField(2, TlvBoolean)
     });
@@ -183,12 +183,12 @@ export namespace FanControl {
     /**
      * Input to the FanControl step command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 4.4.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 4.4.7.1
      */
     export interface StepRequest extends TypeFromSchema<typeof TlvStepRequest> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 4.4.5.5
+     * @see {@link MatterSpecification.v142.Cluster} § 4.4.5.5
      */
     export enum FanMode {
         /**
@@ -230,7 +230,7 @@ export namespace FanControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 4.4.5.6
+     * @see {@link MatterSpecification.v142.Cluster} § 4.4.5.6
      */
     export enum FanModeSequence {
         /**
@@ -272,7 +272,7 @@ export namespace FanControl {
             /**
              * Indicates the maximum value to which the SpeedSetting attribute can be set.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 4.4.6.5
+             * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.5
              */
             speedMax: FixedAttribute(0x4, TlvUInt8.bound({ min: 1, max: 100 })),
 
@@ -288,7 +288,7 @@ export namespace FanControl {
              * When this attribute is successfully written to, the server shall set the value of the FanMode and
              * PercentSetting attributes to values that abide by the mapping requirements listed below.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 4.4.6.6
+             * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.6
              */
             speedSetting: WritableAttribute(0x5, TlvNullable(TlvUInt8)),
 
@@ -307,7 +307,7 @@ export namespace FanControl {
              *
              * See Section 4.4.6.6.1, “Speed Rules” for more details.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 4.4.6.7
+             * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.7
              */
             speedCurrent: Attribute(0x6, TlvUInt8)
         }
@@ -322,7 +322,7 @@ export namespace FanControl {
              * This attribute is a bitmap that indicates the rocking motions that are supported by the server. If this
              * attribute is supported by the server, at least one bit shall be set in this attribute.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 4.4.6.8
+             * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.8
              */
             rockSupport: FixedAttribute(0x7, TlvBitmap(TlvUInt8, Rock)),
 
@@ -338,7 +338,7 @@ export namespace FanControl {
              * For example: If RockUpDown and RockRound are both set, but this combination is not possible, then only
              * RockUpDown becomes active.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 4.4.6.9
+             * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.9
              */
             rockSetting: WritableAttribute(0x8, TlvBitmap(TlvUInt8, Rock))
         }
@@ -353,7 +353,7 @@ export namespace FanControl {
              * This attribute is a bitmap that indicates what wind modes are supported by the server. If this attribute
              * is supported by the server, at least one bit shall be set in this attribute.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 4.4.6.10
+             * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.10
              */
             windSupport: FixedAttribute(0x9, TlvBitmap(TlvUInt8, Wind)),
 
@@ -369,7 +369,7 @@ export namespace FanControl {
              * For example: If Sleep Wind and Natural Wind are set, but this combination is not possible, then only
              * Sleep Wind becomes active.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 4.4.6.11
+             * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.11
              */
             windSetting: WritableAttribute(0xa, TlvBitmap(TlvUInt8, Wind))
         }
@@ -385,7 +385,7 @@ export namespace FanControl {
              * a new airflow direction for the fan. This attribute shall be set to one of the values in the
              * AirflowDirectionEnum table.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 4.4.6.12
+             * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.12
              */
             airflowDirection: WritableAttribute(0xb, TlvEnum<AirflowDirection>())
         }
@@ -413,7 +413,7 @@ export namespace FanControl {
              *
              * This command supports these fields:
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 4.4.7.1
+             * @see {@link MatterSpecification.v142.Cluster} § 4.4.7.1
              */
             step: Command(0x0, TlvStepRequest, 0x0, TlvNoResponse)
         }
@@ -438,7 +438,7 @@ export namespace FanControl {
              *
              * See Section 4.4.6.6.1, “Speed Rules” for more details.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 4.4.4.1
+             * @see {@link MatterSpecification.v142.Cluster} § 4.4.4.1
              */
             multiSpeed: BitFlag(0),
 
@@ -496,14 +496,14 @@ export namespace FanControl {
              * When this attribute is set to any valid value, the PercentCurrent and SpeedCurrent (if present)
              * attributes shall indicate the actual currently operating fan speed, unless otherwise specified below.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 4.4.6.1
+             * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.1
              */
             fanMode: WritableAttribute(0x0, TlvEnum<FanMode>(), { persistent: true }),
 
             /**
              * This attribute indicates the fan speed ranges that shall be supported by the server.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 4.4.6.2
+             * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.2
              */
             fanModeSequence: FixedAttribute(0x1, TlvEnum<FanModeSequence>()),
 
@@ -519,7 +519,7 @@ export namespace FanControl {
              * When this attribute is successfully written, the server shall set the value of the FanMode and
              * SpeedSetting (if present) attributes to values that abide by the mapping requirements listed below.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 4.4.6.3
+             * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.3
              */
             percentSetting: WritableAttribute(0x2, TlvNullable(TlvPercent)),
 
@@ -538,7 +538,7 @@ export namespace FanControl {
              *
              * See Section 4.4.6.3.1, “Percent Rules” for more details.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 4.4.6.4
+             * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.4
              */
             percentCurrent: Attribute(0x3, TlvPercent)
         },
@@ -567,7 +567,7 @@ export namespace FanControl {
      * FanControlCluster supports optional features that you can enable with the FanControlCluster.with() factory
      * method.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 4.4
+     * @see {@link MatterSpecification.v142.Cluster} § 4.4
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

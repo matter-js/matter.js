@@ -17,7 +17,7 @@ import { SemanticNamespace } from "../endpoint/type/SemanticNamespace.js";
  * See the rules for applying these and other tags for switch devices, e.g. from the Common Position Namespace and the
  * Common Number Namespace in the Generic Switch device type section in the Device Library.
  *
- * @see {@link MatterSpecification.v141.Namespace} § 18
+ * @see {@link MatterSpecification.v142.Namespace} § 18
  */
 export const SwitchesTag = SemanticNamespace({
     id: 0x43,
@@ -59,7 +59,7 @@ export const SwitchesTag = SemanticNamespace({
          * description of the function indicated on the button, such as a label or icon printed on the button, e.g.
          * "dining".
          *
-         * @see {@link MatterSpecification.v141.Namespace} § 18.1
+         * @see {@link MatterSpecification.v142.Namespace} § 18.1
          */
         Custom: { id: 0x8, label: "Custom" },
 

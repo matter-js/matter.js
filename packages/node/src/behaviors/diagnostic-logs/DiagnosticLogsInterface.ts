@@ -14,7 +14,7 @@ export namespace DiagnosticLogsInterface {
         /**
          * Reception of this command starts the process of retrieving diagnostic logs from a Node.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.11.5.1
+         * @see {@link MatterSpecification.v142.Core} § 11.11.5.1
          */
         retrieveLogsRequest(request: DiagnosticLogs.RetrieveLogsRequest): MaybePromise<DiagnosticLogs.RetrieveLogsResponse>;
     }

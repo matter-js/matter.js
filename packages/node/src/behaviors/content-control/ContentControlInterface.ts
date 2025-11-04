@@ -16,7 +16,7 @@ export namespace ContentControlInterface {
          *
          * Upon receipt of the Enable command, the media device shall set the Enabled attribute to TRUE.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.13.8.4
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.4
          */
         enable(): MaybePromise;
 
@@ -25,7 +25,7 @@ export namespace ContentControlInterface {
          *
          * On receipt of the Disable command, the media device shall set the Enabled attribute to FALSE.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.13.8.5
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.5
          */
         disable(): MaybePromise;
     }
@@ -38,7 +38,7 @@ export namespace ContentControlInterface {
          * one of values present in the OnDemandRatings attribute. If not, then a response with InvalidRating error
          * status shall be returned.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.13.8.10
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.10
          */
         setOnDemandRatingThreshold(request: ContentControl.SetOnDemandRatingThresholdRequest): MaybePromise;
     }
@@ -51,7 +51,7 @@ export namespace ContentControlInterface {
          * field is one of values present in the ScheduledContentRatings attribute. If not, then a response with
          * InvalidRating error status shall be returned.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.13.8.11
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.11
          */
         setScheduledContentRatingThreshold(request: ContentControl.SetScheduledContentRatingThresholdRequest): MaybePromise;
     }
@@ -77,7 +77,7 @@ export namespace ContentControlInterface {
          *
          *   • The client has provided a PINCode that matches the expected PIN value.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.13.8.6
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.6
          */
         addBonusTime(request: ContentControl.AddBonusTimeRequest): MaybePromise;
 
@@ -87,7 +87,7 @@ export namespace ContentControlInterface {
          * Upon receipt of the SetScreenDailyTime command, the media device shall set the ScreenDailyTime attribute to
          * the ScreenTime value.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.13.8.7
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.7
          */
         setScreenDailyTime(request: ContentControl.SetScreenDailyTimeRequest): MaybePromise;
     }
@@ -100,7 +100,7 @@ export namespace ContentControlInterface {
          * Upon receipt of the BlockUnratedContent command, the media device shall set the BlockUnrated attribute to
          * TRUE.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.13.8.8
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.8
          */
         blockUnratedContent(): MaybePromise;
 
@@ -111,7 +111,7 @@ export namespace ContentControlInterface {
          * Upon receipt of the UnblockUnratedContent command, the media device shall set the BlockUn rated attribute to
          * FALSE.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.13.8.9
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.9
          */
         unblockUnratedContent(): MaybePromise;
     }
@@ -132,7 +132,7 @@ export namespace ContentControlInterface {
          * If all channels in Channel field already exist in the BlockChannelList attribute, then a response with
          * ChannelAlreadyExist error Status shall be returned.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.13.8.12
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.12
          */
         addBlockChannels(request: ContentControl.AddBlockChannelsRequest): MaybePromise;
 
@@ -144,7 +144,7 @@ export namespace ContentControlInterface {
          * indicated by ChannelIndexes passed in this command field are not present in the BlockChannelList attribute,
          * then a response with ChannelNotExist error Status shall be returned.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.13.8.13
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.13
          */
         removeBlockChannels(request: ContentControl.RemoveBlockChannelsRequest): MaybePromise;
     }
@@ -164,7 +164,7 @@ export namespace ContentControlInterface {
          * If all applications in Applications field are already present in BlockApplicationList attribute, then a
          * response with ApplicationAlreadyExist error Status shall be returned.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.13.8.14
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.14
          */
         addBlockApplications(request: ContentControl.AddBlockApplicationsRequest): MaybePromise;
 
@@ -176,7 +176,7 @@ export namespace ContentControlInterface {
          * field which are not present in the BlockApplicationList attribute, then a response with ApplicationNotExist
          * error Status shall be returned.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.13.8.15
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.15
          */
         removeBlockApplications(request: ContentControl.RemoveBlockApplicationsRequest): MaybePromise;
     }
@@ -195,7 +195,7 @@ export namespace ContentControlInterface {
          * If the TimeWindowIndex field is not NULL and presents in the BlockContentTimeWindow attribute, the media
          * device shall replace the original time window with the new time window passed in this command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.13.8.16
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.16
          */
         setBlockContentTimeWindow(request: ContentControl.SetBlockContentTimeWindowRequest): MaybePromise;
 
@@ -208,7 +208,7 @@ export namespace ContentControlInterface {
          * If one or more time window indexes passed in this command are not present in BlockContentTimeWindow
          * attribute, then a response with TimeWindowNotExist error status shall be returned.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.13.8.17
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.17
          */
         removeBlockContentTimeWindow(request: ContentControl.RemoveBlockContentTimeWindowRequest): MaybePromise;
     }
@@ -231,7 +231,7 @@ export namespace ContentControlInterface {
          * configuration of the Content Control settings exposed by this cluster. The ResetPIN command can also be used
          * to obtain the default PIN.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.13.8.1
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.1
          */
         updatePin(request: ContentControl.UpdatePinRequest): MaybePromise;
 
@@ -240,7 +240,7 @@ export namespace ContentControlInterface {
          *
          * If this command is executed successfully, a ResetPINResponse command with a new PIN shall be returned.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 6.13.8.2
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.2
          */
         resetPin(): MaybePromise<ContentControl.ResetPinResponse>;
     }

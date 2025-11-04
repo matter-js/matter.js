@@ -18,7 +18,7 @@ import { Identity } from "#general";
 /**
  * This defines conformance to the Rain Sensor device type.
  *
- * @see {@link MatterSpecification.v141.Device} § 7.13
+ * @see {@link MatterSpecification.v142.Device} § 7.13
  */
 export interface RainSensorDevice extends Identity<typeof RainSensorDeviceDefinition> {}
 

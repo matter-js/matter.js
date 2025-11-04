@@ -15,7 +15,7 @@ import { Identity } from "#general";
 /**
  * A Flow Sensor device measures and reports the flow rate of a fluid.
  *
- * @see {@link MatterSpecification.v141.Device} § 7.6
+ * @see {@link MatterSpecification.v142.Device} § 7.6
  */
 export interface FlowSensorDevice extends Identity<typeof FlowSensorDeviceDefinition> {}
 

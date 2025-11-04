@@ -32,7 +32,7 @@ import { Identity } from "#general";
  * A Content App is usually an application built by a Content Provider. A Casting Video Player with a Content App
  * Platform is able to launch Content Apps and represent these apps as separate endpoints.
  *
- * @see {@link MatterSpecification.v141.Device} § 10.5
+ * @see {@link MatterSpecification.v142.Device} § 10.5
  */
 export interface ContentAppDevice extends Identity<typeof ContentAppDeviceDefinition> {}
 

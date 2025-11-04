@@ -18,7 +18,7 @@ import { Identity } from "#general";
  * energy consumed in premises. It is not intended to be used for a UPS directly supplying a set of appliances, nor for
  * portable battery storage devices.
  *
- * @see {@link MatterSpecification.v141.Device} § 14.4
+ * @see {@link MatterSpecification.v142.Device} § 14.4
  */
 export interface BatteryStorageDevice extends Identity<typeof BatteryStorageDeviceDefinition> {}
 

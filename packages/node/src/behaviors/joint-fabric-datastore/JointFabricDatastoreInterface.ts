@@ -23,7 +23,7 @@ export namespace JointFabricDatastoreInterface {
          *
          *   3. Add the Epoch Key Entry for the KeySet to the KeySetList attribute.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.7.1
+         * @see {@link MatterSpecification.v142.Core} § 11.24.7.1
          */
         addKeySet(request: JointFabricDatastore.AddKeySetRequest): MaybePromise;
 
@@ -54,7 +54,7 @@ export namespace JointFabricDatastoreInterface {
          *               DatastoreNodeKeySetEntryStruct to CommitFailed and FailureCode code to the returned error. The
          *               pending change shall be applied in a subsequent Node Refresh.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.7.2
+         * @see {@link MatterSpecification.v142.Core} § 11.24.7.2
          */
         updateKeySet(request: JointFabricDatastore.UpdateKeySetRequest): MaybePromise;
 
@@ -80,7 +80,7 @@ export namespace JointFabricDatastoreInterface {
          *
          *   3. Remove the DatastoreGroupKeySetStruct for the given GroupKeySetID from the GroupKeySetList attribute.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.7.3
+         * @see {@link MatterSpecification.v142.Core} § 11.24.7.3
          */
         removeKeySet(request: JointFabricDatastore.RemoveKeySetRequest): MaybePromise;
 
@@ -100,7 +100,7 @@ export namespace JointFabricDatastoreInterface {
          *   2. Add the DatastoreGroupInformationEntryStruct for the Group with the given GroupID to the GroupList
          *      attribute.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.7.4
+         * @see {@link MatterSpecification.v142.Core} § 11.24.7.4
          */
         addGroup(request: JointFabricDatastore.AddGroupRequest): MaybePromise;
 
@@ -169,7 +169,7 @@ export namespace JointFabricDatastoreInterface {
          *
          *   2. If not successful, the pending change shall be applied in a subsequent Node Refresh.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.7.5
+         * @see {@link MatterSpecification.v142.Core} § 11.24.7.5
          */
         updateGroup(request: JointFabricDatastore.UpdateGroupRequest): MaybePromise;
 
@@ -195,7 +195,7 @@ export namespace JointFabricDatastoreInterface {
          *   3. Remove the DatastoreGroupInformationEntryStruct for the Group with the given GroupID from the GroupList
          *      attribute.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.7.6
+         * @see {@link MatterSpecification.v142.Core} § 11.24.7.6
          */
         removeGroup(request: JointFabricDatastore.RemoveGroupRequest): MaybePromise;
 
@@ -205,7 +205,7 @@ export namespace JointFabricDatastoreInterface {
          * NodeID, FriendlyName, VendorID and ICAC represent the admin to be added to the Joint Fabric Datastore
          * Cluster.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.7.7
+         * @see {@link MatterSpecification.v142.Core} § 11.24.7.7
          */
         addAdmin(request: JointFabricDatastore.AddAdminRequest): MaybePromise;
 
@@ -217,7 +217,7 @@ export namespace JointFabricDatastoreInterface {
          *
          * If entry is not found, return NOT_FOUND.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.7.8
+         * @see {@link MatterSpecification.v142.Core} § 11.24.7.8
          */
         updateAdmin(request: JointFabricDatastore.UpdateAdminRequest): MaybePromise;
 
@@ -229,7 +229,7 @@ export namespace JointFabricDatastoreInterface {
          *
          * If entry is not found, return NOT_FOUND.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.7.9
+         * @see {@link MatterSpecification.v142.Core} § 11.24.7.9
          */
         removeAdmin(request: JointFabricDatastore.RemoveAdminRequest): MaybePromise;
 
@@ -243,7 +243,7 @@ export namespace JointFabricDatastoreInterface {
          *
          * If a Node Information Entry exists for the given NodeID, this command shall return INVALID_CONSTRAINT.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.7.10
+         * @see {@link MatterSpecification.v142.Core} § 11.24.7.10
          */
         addPendingNode(request: JointFabricDatastore.AddPendingNodeRequest): MaybePromise;
 
@@ -377,7 +377,7 @@ export namespace JointFabricDatastoreInterface {
          *
          * 6. Update the CommissioningStatusEntry for the Node Information Entry to Committed.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.7.11
+         * @see {@link MatterSpecification.v142.Core} § 11.24.7.11
          */
         refreshNode(request: JointFabricDatastore.RefreshNodeRequest): MaybePromise;
 
@@ -389,7 +389,7 @@ export namespace JointFabricDatastoreInterface {
          *
          * If a Node Information Entry does not exist for the given NodeID, this command shall return NOT_FOUND.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.7.12
+         * @see {@link MatterSpecification.v142.Core} § 11.24.7.12
          */
         updateNode(request: JointFabricDatastore.UpdateNodeRequest): MaybePromise;
 
@@ -400,7 +400,7 @@ export namespace JointFabricDatastoreInterface {
          *
          * If a Node Information Entry does not exist for the given NodeID, this command shall return NOT_FOUND.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.7.13
+         * @see {@link MatterSpecification.v142.Core} § 11.24.7.13
          */
         removeNode(request: JointFabricDatastore.RemoveNodeRequest): MaybePromise;
 
@@ -416,7 +416,7 @@ export namespace JointFabricDatastoreInterface {
          * If an Endpoint Information Entry does not exist for the given NodeID and EndpointID, this command shall
          * return NOT_FOUND.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.7.14
+         * @see {@link MatterSpecification.v142.Core} § 11.24.7.14
          */
         updateEndpointForNode(request: JointFabricDatastore.UpdateEndpointForNodeRequest): MaybePromise;
 
@@ -460,7 +460,7 @@ export namespace JointFabricDatastoreInterface {
          *       ii. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
          *           error shall be handled in a subsequent Node Refresh.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.7.15
+         * @see {@link MatterSpecification.v142.Core} § 11.24.7.15
          */
         addGroupIdToEndpointForNode(request: JointFabricDatastore.AddGroupIdToEndpointForNodeRequest): MaybePromise;
 
@@ -504,7 +504,7 @@ export namespace JointFabricDatastoreInterface {
          *       ii. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
          *           error shall be handled in a subsequent Node Refresh.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.7.16
+         * @see {@link MatterSpecification.v142.Core} § 11.24.7.16
          */
         removeGroupIdFromEndpointForNode(request: JointFabricDatastore.RemoveGroupIdFromEndpointForNodeRequest): MaybePromise;
 
@@ -536,7 +536,7 @@ export namespace JointFabricDatastoreInterface {
          *       ii. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
          *           error shall be handled in a subsequent Node Refresh.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.7.17
+         * @see {@link MatterSpecification.v142.Core} § 11.24.7.17
          */
         addBindingToEndpointForNode(request: JointFabricDatastore.AddBindingToEndpointForNodeRequest): MaybePromise;
 
@@ -568,7 +568,7 @@ export namespace JointFabricDatastoreInterface {
          *       ii. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
          *           error shall be handled in a subsequent Node Refresh.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.7.18
+         * @see {@link MatterSpecification.v142.Core} § 11.24.7.18
          */
         removeBindingFromEndpointForNode(request: JointFabricDatastore.RemoveBindingFromEndpointForNodeRequest): MaybePromise;
 
@@ -594,7 +594,7 @@ export namespace JointFabricDatastoreInterface {
          *       ii. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
          *           error shall be handled in a subsequent Node Refresh.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.7.19
+         * @see {@link MatterSpecification.v142.Core} § 11.24.7.19
          */
         addAclToNode(request: JointFabricDatastore.AddAclToNodeRequest): MaybePromise;
 
@@ -621,7 +621,7 @@ export namespace JointFabricDatastoreInterface {
          *       ii. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
          *           error shall be handled in a subsequent Node Refresh.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.24.7.20
+         * @see {@link MatterSpecification.v142.Core} § 11.24.7.20
          */
         removeAclFromNode(request: JointFabricDatastore.RemoveAclFromNodeRequest): MaybePromise;
     }

@@ -40,7 +40,7 @@ export namespace ScenesManagement {
     /**
      * These are optional features supported by ScenesManagementCluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.4
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.4
      */
     export enum Feature {
         /**
@@ -48,13 +48,13 @@ export namespace ScenesManagement {
          *
          * This feature indicates the ability to store a name for a scene when a scene is added.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.4.1
          */
         SceneNames = "SceneNames"
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.7.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.2
      */
     export const TlvSceneInfo = TlvObject({
         /**
@@ -63,7 +63,7 @@ export namespace ScenesManagement {
          *
          * This only includes the count for the associated fabric.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.7.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.2.1
          */
         sceneCount: TlvField(0, TlvUInt8),
 
@@ -71,7 +71,7 @@ export namespace ScenesManagement {
          * This field shall indicate the scene identifier of the scene last invoked on the associated fabric. If no
          * scene has been invoked, the value of this field shall be 0xFF, the undefined scene identifier.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.7.2.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.2.2
          */
         currentScene: TlvField(1, TlvUInt8),
 
@@ -79,7 +79,7 @@ export namespace ScenesManagement {
          * This field shall indicate the group identifier of the scene last invoked on the associated fabric, or 0 if
          * the scene last invoked is not associated with a group.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.7.2.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.2.3
          */
         currentGroup: TlvField(2, TlvGroupId),
 
@@ -97,7 +97,7 @@ export namespace ScenesManagement {
          * fields shall be the last invoked scene and group for that fabric. In the event where no scene was previously
          * invoked for that fabric, the CurrentScene and CurrentGroup fields shall be their default values.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.7.2.4
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.2.4
          */
         sceneValid: TlvField(3, TlvBoolean),
 
@@ -107,7 +107,7 @@ export namespace ScenesManagement {
          * accessing fabric, due to other clients associated with other fabrics adding or deleting entries that impact
          * the resource usage on the device.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.7.2.5
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.2.5
          */
         remainingCapacity: TlvField(4, TlvUInt8.bound({ max: 253 })),
 
@@ -115,14 +115,14 @@ export namespace ScenesManagement {
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.7.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.2
      */
     export interface SceneInfo extends TypeFromSchema<typeof TlvSceneInfo> {}
 
     /**
      * This data type indicates a combination of an identifier and the value of an attribute.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.7.3
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.3
      */
     export const TlvAttributeValuePair = TlvObject({
         /**
@@ -196,7 +196,7 @@ export namespace ScenesManagement {
          *     ◦ ValueUnsigned8 of 0xFF is outside the range allowed for nullable attribute CurrentLevel, and would be
          *       considered as the null value.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.7.3.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.3.1
          */
         attributeId: TlvField(0, TlvAttributeId),
 
@@ -213,20 +213,20 @@ export namespace ScenesManagement {
     /**
      * This data type indicates a combination of an identifier and the value of an attribute.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.7.3
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.3
      */
     export interface AttributeValuePair extends TypeFromSchema<typeof TlvAttributeValuePair> {}
 
     /**
      * This data type indicates for a given cluster a set of attributes and their values.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.7.4
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.4
      */
     export const TlvExtensionFieldSet = TlvObject({
         /**
          * This field shall indicate the cluster-id of the cluster whose attributes are in the AttributeValueList field.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.7.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.4.1
          */
         clusterId: TlvField(0, TlvClusterId),
 
@@ -236,7 +236,7 @@ export namespace ScenesManagement {
          * Attributes which do not have the Scenes ("S") designation in the Quality column of their cluster
          * specification shall NOT be used in the AttributeValueList field.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.7.4.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.4.2
          */
         attributeValueList: TlvField(1, TlvArray(TlvAttributeValuePair))
     });
@@ -244,48 +244,48 @@ export namespace ScenesManagement {
     /**
      * This data type indicates for a given cluster a set of attributes and their values.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.7.4
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.4
      */
     export interface ExtensionFieldSet extends TypeFromSchema<typeof TlvExtensionFieldSet> {}
 
     /**
      * Input to the ScenesManagement addScene command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.2
      */
     export const TlvAddSceneRequest = TlvObject({
         /**
          * This field shall indicate the group identifier in the Group Table.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.2.1
          */
         groupId: TlvField(0, TlvGroupId),
 
         /**
          * This field shall indicate the scene identifier in the Scene Table.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.2.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.2.2
          */
         sceneId: TlvField(1, TlvUInt8.bound({ max: 254 })),
 
         /**
          * This field shall indicate the transition time of the scene, measured in milliseconds.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.2.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.2.3
          */
         transitionTime: TlvField(2, TlvUInt32.bound({ max: 60000000 })),
 
         /**
          * This field shall indicate the name of the scene.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.2.4
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.2.4
          */
         sceneName: TlvField(3, TlvString.bound({ maxLength: 16 })),
 
         /**
          * This field shall contains the list of extension fields.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.2.5
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.2.5
          */
         extensionFieldSetStructs: TlvField(4, TlvArray(TlvExtensionFieldSet))
     });
@@ -293,58 +293,58 @@ export namespace ScenesManagement {
     /**
      * Input to the ScenesManagement addScene command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.2
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.2
      */
     export interface AddSceneRequest extends TypeFromSchema<typeof TlvAddSceneRequest> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.3
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.3
      */
     export const TlvAddSceneResponse = TlvObject({
         /**
          * This field shall be set according to the Effect on Receipt section for AddScene command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.3.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.3.1
          */
         status: TlvField(0, TlvEnum<Status>()),
 
         /**
          * The GroupID field shall be set to the corresponding field of the received AddScene command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.3.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.3.2
          */
         groupId: TlvField(1, TlvGroupId),
 
         /**
          * The SceneID field shall be set to the corresponding field of the received AddScene command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.3.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.3.3
          */
         sceneId: TlvField(2, TlvUInt8.bound({ max: 254 }))
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.3
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.3
      */
     export interface AddSceneResponse extends TypeFromSchema<typeof TlvAddSceneResponse> {}
 
     /**
      * Input to the ScenesManagement viewScene command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.4
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.4
      */
     export const TlvViewSceneRequest = TlvObject({
         /**
          * This field shall indicate the group identifier in the Group Table.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.4.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.4.1
          */
         groupId: TlvField(0, TlvGroupId),
 
         /**
          * This field shall indicate the scene identifier in the Scene Table.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.4.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.4.2
          */
         sceneId: TlvField(1, TlvUInt8.bound({ max: 254 }))
     });
@@ -352,79 +352,79 @@ export namespace ScenesManagement {
     /**
      * Input to the ScenesManagement viewScene command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.4
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.4
      */
     export interface ViewSceneRequest extends TypeFromSchema<typeof TlvViewSceneRequest> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.5
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.5
      */
     export const TlvViewSceneResponse = TlvObject({
         /**
          * This field shall be set according to the Effect on Receipt section for ViewScene command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.5.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.5.1
          */
         status: TlvField(0, TlvEnum<Status>()),
 
         /**
          * The GroupID field shall be set to the corresponding field of the received ViewScene command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.5.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.5.2
          */
         groupId: TlvField(1, TlvGroupId),
 
         /**
          * The SceneID field shall be set to the corresponding field of the received ViewScene command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.5.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.5.3
          */
         sceneId: TlvField(2, TlvUInt8.bound({ max: 254 })),
 
         /**
          * This field shall be set to the corresponding field in the Scene Table entry.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.5.4
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.5.4
          */
         transitionTime: TlvOptionalField(3, TlvUInt32.bound({ max: 60000000 })),
 
         /**
          * This field shall be set to the corresponding field in the Scene Table entry.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.5.5
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.5.5
          */
         sceneName: TlvOptionalField(4, TlvString.bound({ maxLength: 16 })),
 
         /**
          * This field shall be set to the corresponding field in the Scene Table entry.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.5.6
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.5.6
          */
         extensionFieldSetStructs: TlvOptionalField(5, TlvArray(TlvExtensionFieldSet))
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.5
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.5
      */
     export interface ViewSceneResponse extends TypeFromSchema<typeof TlvViewSceneResponse> {}
 
     /**
      * Input to the ScenesManagement removeScene command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.6
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.6
      */
     export const TlvRemoveSceneRequest = TlvObject({
         /**
          * This field shall indicate the group identifier in the Group Table.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.6.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.6.1
          */
         groupId: TlvField(0, TlvGroupId),
 
         /**
          * This field shall indicate the scene identifier in the Scene Table.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.6.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.6.2
          */
         sceneId: TlvField(1, TlvUInt8.bound({ max: 254 }))
     });
@@ -432,51 +432,51 @@ export namespace ScenesManagement {
     /**
      * Input to the ScenesManagement removeScene command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.6
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.6
      */
     export interface RemoveSceneRequest extends TypeFromSchema<typeof TlvRemoveSceneRequest> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.7
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.7
      */
     export const TlvRemoveSceneResponse = TlvObject({
         /**
          * This field shall be set according to the Effect on Receipt section for RemoveScene command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.7.1
          */
         status: TlvField(0, TlvEnum<Status>()),
 
         /**
          * The GroupID field shall be set to the corresponding field of the received RemoveScene command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.7.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.7.2
          */
         groupId: TlvField(1, TlvGroupId),
 
         /**
          * The SceneID field shall be set to the corresponding field of the received RemoveScene command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.7.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.7.3
          */
         sceneId: TlvField(2, TlvUInt8.bound({ max: 254 }))
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.7
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.7
      */
     export interface RemoveSceneResponse extends TypeFromSchema<typeof TlvRemoveSceneResponse> {}
 
     /**
      * Input to the ScenesManagement removeAllScenes command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.8
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.8
      */
     export const TlvRemoveAllScenesRequest = TlvObject({
         /**
          * This field shall indicate the group identifier in the Group Table.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.8.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.8.1
          */
         groupId: TlvField(0, TlvGroupId)
     });
@@ -484,51 +484,51 @@ export namespace ScenesManagement {
     /**
      * Input to the ScenesManagement removeAllScenes command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.8
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.8
      */
     export interface RemoveAllScenesRequest extends TypeFromSchema<typeof TlvRemoveAllScenesRequest> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.9
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.9
      */
     export const TlvRemoveAllScenesResponse = TlvObject({
         /**
          * This field shall be set according to the Effect on Receipt section for RemoveAllScenes command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.9.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.9.1
          */
         status: TlvField(0, TlvEnum<Status>()),
 
         /**
          * The GroupID field shall be set to the corresponding field of the received RemoveAllScenes command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.9.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.9.2
          */
         groupId: TlvField(1, TlvGroupId)
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.9
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.9
      */
     export interface RemoveAllScenesResponse extends TypeFromSchema<typeof TlvRemoveAllScenesResponse> {}
 
     /**
      * Input to the ScenesManagement storeScene command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.10
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.10
      */
     export const TlvStoreSceneRequest = TlvObject({
         /**
          * This field shall indicate the group identifier in the Group Table.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.10.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.10.1
          */
         groupId: TlvField(0, TlvGroupId),
 
         /**
          * This field shall indicate the scene identifier in the Scene Table.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.10.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.10.2
          */
         sceneId: TlvField(1, TlvUInt8.bound({ max: 254 }))
     });
@@ -536,65 +536,65 @@ export namespace ScenesManagement {
     /**
      * Input to the ScenesManagement storeScene command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.10
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.10
      */
     export interface StoreSceneRequest extends TypeFromSchema<typeof TlvStoreSceneRequest> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.11
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.11
      */
     export const TlvStoreSceneResponse = TlvObject({
         /**
          * This field shall be set according to the Effect on Receipt section for StoreScene command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.11.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.11.1
          */
         status: TlvField(0, TlvEnum<Status>()),
 
         /**
          * The GroupID field shall be set to the corresponding field of the received StoreScene command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.11.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.11.2
          */
         groupId: TlvField(1, TlvGroupId),
 
         /**
          * The SceneID field shall be set to the corresponding field of the received StoreScene command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.11.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.11.3
          */
         sceneId: TlvField(2, TlvUInt8.bound({ max: 254 }))
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.11
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.11
      */
     export interface StoreSceneResponse extends TypeFromSchema<typeof TlvStoreSceneResponse> {}
 
     /**
      * Input to the ScenesManagement recallScene command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.12
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.12
      */
     export const TlvRecallSceneRequest = TlvObject({
         /**
          * This field shall indicate the group identifier in the Group Table.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.12.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.12.1
          */
         groupId: TlvField(0, TlvGroupId),
 
         /**
          * This field shall indicate the scene identifier in the Scene Table.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.12.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.12.2
          */
         sceneId: TlvField(1, TlvUInt8.bound({ max: 254 })),
 
         /**
          * This field shall indicate the transition time of the scene, measured in milliseconds.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.12.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.12.3
          */
         transitionTime: TlvOptionalField(2, TlvNullable(TlvUInt32.bound({ max: 60000000 })))
     });
@@ -602,20 +602,20 @@ export namespace ScenesManagement {
     /**
      * Input to the ScenesManagement recallScene command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.12
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.12
      */
     export interface RecallSceneRequest extends TypeFromSchema<typeof TlvRecallSceneRequest> {}
 
     /**
      * Input to the ScenesManagement getSceneMembership command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.13
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.13
      */
     export const TlvGetSceneMembershipRequest = TlvObject({
         /**
          * This field shall indicate the group identifier in the Group Table.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.13.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.13.1
          */
         groupId: TlvField(0, TlvGroupId)
     });
@@ -623,18 +623,18 @@ export namespace ScenesManagement {
     /**
      * Input to the ScenesManagement getSceneMembership command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.13
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.13
      */
     export interface GetSceneMembershipRequest extends TypeFromSchema<typeof TlvGetSceneMembershipRequest> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.14
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.14
      */
     export const TlvGetSceneMembershipResponse = TlvObject({
         /**
          * This field shall be set according to the Effect on Receipt section for GetSceneMembership command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.14.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.14.1
          */
         status: TlvField(0, TlvEnum<Status>()),
 
@@ -650,14 +650,14 @@ export namespace ScenesManagement {
          *
          *   • null - It is unknown if any further scenes may be added.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.14.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.14.2
          */
         capacity: TlvField(1, TlvNullable(TlvUInt8)),
 
         /**
          * This field shall be set to the corresponding field of the received GetSceneMembership command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.14.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.14.3
          */
         groupId: TlvField(2, TlvGroupId),
 
@@ -665,18 +665,18 @@ export namespace ScenesManagement {
          * If the status is not SUCCESS then this field shall be omitted, else this field shall contain the identifiers
          * of all the scenes in the Scene Table with the corresponding Group ID.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.14.4
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.14.4
          */
         sceneList: TlvOptionalField(3, TlvArray(TlvUInt8))
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.14
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.14
      */
     export interface GetSceneMembershipResponse extends TypeFromSchema<typeof TlvGetSceneMembershipResponse> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.7.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.1
      */
     export const CopyMode = {
         /**
@@ -688,7 +688,7 @@ export namespace ScenesManagement {
     /**
      * Input to the ScenesManagement copyScene command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.15
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.15
      */
     export const TlvCopySceneRequest = TlvObject({
         /**
@@ -698,7 +698,7 @@ export namespace ScenesManagement {
          * all scenes are to be copied and the SceneIdentifierFrom and SceneIdentifierTo fields shall be ignored.
          * Otherwise this bit is set to 0.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.15.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.15.1
          */
         mode: TlvField(0, TlvBitmap(TlvUInt8, CopyMode)),
 
@@ -706,7 +706,7 @@ export namespace ScenesManagement {
          * This field shall indicate the identifier of the group from which the scene is to be copied. Together with the
          * SceneIdentifierFrom field, this field uniquely identifies the scene to copy from the Scene Table.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.15.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.15.2
          */
         groupIdentifierFrom: TlvField(1, TlvGroupId),
 
@@ -714,7 +714,7 @@ export namespace ScenesManagement {
          * This field shall indicate the identifier of the scene from which the scene is to be copied. Together with the
          * GroupIdentifierFrom field, this field uniquely identifies the scene to copy from the Scene Table.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.15.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.15.3
          */
         sceneIdentifierFrom: TlvField(2, TlvUInt8.bound({ max: 254 })),
 
@@ -722,7 +722,7 @@ export namespace ScenesManagement {
          * This field shall indicate the identifier of the group to which the scene is to be copied. Together with the
          * SceneIdentifierTo field, this field uniquely identifies the scene to copy to the Scene Table.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.15.4
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.15.4
          */
         groupIdentifierTo: TlvField(3, TlvGroupId),
 
@@ -730,7 +730,7 @@ export namespace ScenesManagement {
          * This field shall indicate the identifier of the scene to which the scene is to be copied. Together with the
          * GroupIdentifierTo field, this field uniquely identifies the scene to copy to the Scene Table.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.15.5
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.15.5
          */
         sceneIdentifierTo: TlvField(4, TlvUInt8.bound({ max: 254 }))
     });
@@ -738,38 +738,38 @@ export namespace ScenesManagement {
     /**
      * Input to the ScenesManagement copyScene command
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.15
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.15
      */
     export interface CopySceneRequest extends TypeFromSchema<typeof TlvCopySceneRequest> {}
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.16
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.16
      */
     export const TlvCopySceneResponse = TlvObject({
         /**
          * This field shall be set according to the Effect on Receipt section for the CopyScene command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.16.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.16.1
          */
         status: TlvField(0, TlvEnum<Status>()),
 
         /**
          * This field shall be set to the same values as in the corresponding fields of the received CopyScene command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.16.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.16.2
          */
         groupIdentifierFrom: TlvField(1, TlvGroupId),
 
         /**
          * This field shall be set to the same values as in the corresponding fields of the received CopyScene command.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.16.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.16.3
          */
         sceneIdentifierFrom: TlvField(2, TlvUInt8.bound({ max: 254 }))
     });
 
     /**
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.16
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.16
      */
     export interface CopySceneResponse extends TypeFromSchema<typeof TlvCopySceneResponse> {}
 
@@ -783,21 +783,21 @@ export namespace ScenesManagement {
      * are illustrated below. An ExtensionFieldSetStruct may be present for each Scenes-supporting cluster implemented
      * on the same endpoint.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.7.5
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.5
      */
     export const TlvLogicalSceneTable = TlvObject({
         /**
          * This field is the group identifier for which this scene applies, or 0 if the scene is not associated with a
          * group.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.7.5.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.5.1
          */
         sceneGroupId: TlvField(0, TlvGroupId),
 
         /**
          * This field is unique within this group, which is used to identify this scene.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.7.5.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.5.2
          */
         sceneId: TlvField(1, TlvUInt8.bound({ max: 254 })),
 
@@ -807,7 +807,7 @@ export namespace ScenesManagement {
          * If scene names are not supported, any commands that write a scene name shall simply discard the name, and any
          * command that returns a scene name shall return an empty string.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.7.5.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.5.3
          */
         sceneName: TlvOptionalField(2, TlvString.bound({ maxLength: 16 })),
 
@@ -815,7 +815,7 @@ export namespace ScenesManagement {
          * This field is the amount of time, in milliseconds, it will take for a cluster to change from its current
          * state to the requested state.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.7.5.4
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.5.4
          */
         sceneTransitionTime: TlvField(3, TlvUInt32.bound({ max: 60000000 })),
 
@@ -825,7 +825,7 @@ export namespace ScenesManagement {
          * a cluster implemented on the same endpoint where the Scene ("S") designation appears in the quality column. A
          * scene is the aggregate of all such fields across all clusters on the endpoint.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.4.7.5.5
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.5.5
          */
         extensionFields: TlvField(4, TlvArray(TlvExtensionFieldSet))
     });
@@ -840,7 +840,7 @@ export namespace ScenesManagement {
      * are illustrated below. An ExtensionFieldSetStruct may be present for each Scenes-supporting cluster implemented
      * on the same endpoint.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4.7.5
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.5
      */
     export interface LogicalSceneTable extends TypeFromSchema<typeof TlvLogicalSceneTable> {}
 
@@ -856,7 +856,7 @@ export namespace ScenesManagement {
             /**
              * This feature indicates the ability to store a name for a scene when a scene is added.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.4.4.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.4.4.1
              */
             sceneNames: BitFlag(0)
         },
@@ -869,7 +869,7 @@ export namespace ScenesManagement {
              * endpoint) shall be 16, unless a device type in which this cluster is used, defines a larger value in the
              * device type definition.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.4.8.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.4.8.1
              */
             sceneTableSize: FixedAttribute(0x1, TlvUInt16),
 
@@ -879,7 +879,7 @@ export namespace ScenesManagement {
              * The number of list entries for this attribute shall NOT exceed the number of supported fabrics by the
              * device.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.4.8.2
+             * @see {@link MatterSpecification.v142.Cluster} § 1.4.8.2
              */
             fabricSceneInfo: FabricScopedAttribute(0x2, TlvArray(TlvSceneInfo), { default: [] })
         },
@@ -890,17 +890,17 @@ export namespace ScenesManagement {
              * endpoint that has a defined extension field set. Extension field sets may be omitted, including the case
              * of no extension field sets at all.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.2
+             * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.2
              */
             addScene: Command(0x0, TlvAddSceneRequest, 0x0, TlvAddSceneResponse, { invokeAcl: AccessLevel.Manage }),
 
             /**
-             * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.4
+             * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.4
              */
             viewScene: Command(0x1, TlvViewSceneRequest, 0x1, TlvViewSceneResponse),
 
             /**
-             * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.6
+             * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.6
              */
             removeScene: Command(
                 0x2,
@@ -911,7 +911,7 @@ export namespace ScenesManagement {
             ),
 
             /**
-             * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.8
+             * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.8
              */
             removeAllScenes: Command(
                 0x3,
@@ -922,7 +922,7 @@ export namespace ScenesManagement {
             ),
 
             /**
-             * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.10
+             * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.10
              */
             storeScene: Command(
                 0x4,
@@ -933,7 +933,7 @@ export namespace ScenesManagement {
             ),
 
             /**
-             * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.12
+             * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.12
              */
             recallScene: Command(0x5, TlvRecallSceneRequest, 0x5, TlvNoResponse),
 
@@ -941,7 +941,7 @@ export namespace ScenesManagement {
              * This command can be used to get the used scene identifiers within a certain group, for the endpoint that
              * implements this cluster.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.13
+             * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.13
              */
             getSceneMembership: Command(0x6, TlvGetSceneMembershipRequest, 0x6, TlvGetSceneMembershipResponse),
 
@@ -949,7 +949,7 @@ export namespace ScenesManagement {
              * This command allows a client to efficiently copy scenes from one group/scene identifier pair to another
              * group/scene identifier pair.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.4.9.15
+             * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.15
              */
             copyScene: OptionalCommand(
                 0x40,
@@ -985,7 +985,7 @@ export namespace ScenesManagement {
      * ScenesManagementCluster supports optional features that you can enable with the ScenesManagementCluster.with()
      * factory method.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.4
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

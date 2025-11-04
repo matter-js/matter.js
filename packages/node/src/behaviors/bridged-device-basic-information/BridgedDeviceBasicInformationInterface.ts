@@ -38,7 +38,7 @@ export namespace BridgedDeviceBasicInformationInterface {
          *   • The server shall only keep the bridged device active once for a request. (The server shall only consider
          *     the operation performed if an associated ActiveChanged event was generated.)
          *
-         * @see {@link MatterSpecification.v141.Core} § 9.13.6.1
+         * @see {@link MatterSpecification.v142.Core} § 9.13.6.1
          */
         keepActive(request: BridgedDeviceBasicInformation.KeepActiveRequest): MaybePromise;
     }

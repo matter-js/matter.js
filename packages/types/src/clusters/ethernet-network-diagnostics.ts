@@ -21,7 +21,7 @@ export namespace EthernetNetworkDiagnostics {
     /**
      * These are optional features supported by EthernetNetworkDiagnosticsCluster.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.16.4
+     * @see {@link MatterSpecification.v142.Core} § 11.16.4
      */
     export enum Feature {
         /**
@@ -41,7 +41,7 @@ export namespace EthernetNetworkDiagnostics {
     }
 
     /**
-     * @see {@link MatterSpecification.v141.Core} § 11.16.5.1
+     * @see {@link MatterSpecification.v142.Core} § 11.16.5.1
      */
     export enum PhyRate {
         /**
@@ -104,7 +104,7 @@ export namespace EthernetNetworkDiagnostics {
              * Indicates the number of packets that have been received on the ethernet network interface. The attribute
              * shall be reset to 0 upon a reboot of the Node.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.16.6.3
+             * @see {@link MatterSpecification.v142.Core} § 11.16.6.3
              */
             packetRxCount: Attribute(0x2, TlvUInt64, { omitChanges: true, default: 0 }),
 
@@ -112,7 +112,7 @@ export namespace EthernetNetworkDiagnostics {
              * Indicates the number of packets that have been successfully transferred on the ethernet network
              * interface. The attribute shall be reset to 0 upon a reboot of the Node.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.16.6.4
+             * @see {@link MatterSpecification.v142.Core} § 11.16.6.4
              */
             packetTxCount: Attribute(0x3, TlvUInt64, { omitChanges: true, default: 0 })
         }
@@ -127,7 +127,7 @@ export namespace EthernetNetworkDiagnostics {
              * Indicates the number of failed packet transmissions that have occurred on the ethernet network interface.
              * The attribute shall be reset to 0 upon a reboot of the Node.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.16.6.5
+             * @see {@link MatterSpecification.v142.Core} § 11.16.6.5
              */
             txErrCount: Attribute(0x4, TlvUInt64, { omitChanges: true, default: 0 }),
 
@@ -135,7 +135,7 @@ export namespace EthernetNetworkDiagnostics {
              * Indicates the number of collisions that have occurred while attempting to transmit a packet on the
              * ethernet network interface. The attribute shall be reset to 0 upon a reboot of the Node.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.16.6.6
+             * @see {@link MatterSpecification.v142.Core} § 11.16.6.6
              */
             collisionCount: Attribute(0x5, TlvUInt64, { omitChanges: true, default: 0 }),
 
@@ -144,7 +144,7 @@ export namespace EthernetNetworkDiagnostics {
              * retain all packets on the ethernet network interface. The attribute shall be reset to 0 upon a reboot of
              * the Node.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.16.6.7
+             * @see {@link MatterSpecification.v142.Core} § 11.16.6.7
              */
             overrunCount: Attribute(0x6, TlvUInt64, { omitChanges: true, default: 0 })
         }
@@ -170,7 +170,7 @@ export namespace EthernetNetworkDiagnostics {
              *
              *   • OverrunCount
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.16.7.1
+             * @see {@link MatterSpecification.v142.Core} § 11.16.7.1
              */
             resetCounts: Command(0x0, TlvNoArguments, 0x0, TlvNoResponse, { invokeAcl: AccessLevel.Manage })
         }
@@ -203,7 +203,7 @@ export namespace EthernetNetworkDiagnostics {
              * Indicates the current nominal, usable speed at the top of the physical layer of the Node. A value of null
              * shall indicate that the interface is not currently configured or operational.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.16.6.1
+             * @see {@link MatterSpecification.v142.Core} § 11.16.6.1
              */
             phyRate: OptionalAttribute(0x0, TlvNullable(TlvEnum<PhyRate>()), { default: null }),
 
@@ -211,7 +211,7 @@ export namespace EthernetNetworkDiagnostics {
              * Indicates if the Node is currently utilizing the full-duplex operating mode. A value of null shall
              * indicate that the interface is not currently configured or operational.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.16.6.2
+             * @see {@link MatterSpecification.v142.Core} § 11.16.6.2
              */
             fullDuplex: OptionalAttribute(0x1, TlvNullable(TlvBoolean), { default: null }),
 
@@ -219,7 +219,7 @@ export namespace EthernetNetworkDiagnostics {
              * Indicates the value of the Carrier Detect control signal present on the ethernet network interface. A
              * value of null shall indicate that the interface is not currently configured or operational.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.16.6.8
+             * @see {@link MatterSpecification.v142.Core} § 11.16.6.8
              */
             carrierDetect: OptionalAttribute(0x7, TlvNullable(TlvBoolean), { omitChanges: true, default: null }),
 
@@ -227,7 +227,7 @@ export namespace EthernetNetworkDiagnostics {
              * Indicates the duration of time, in minutes, that it has been since the ethernet network interface has
              * reset for any reason.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.16.6.9
+             * @see {@link MatterSpecification.v142.Core} § 11.16.6.9
              */
             timeSinceReset: OptionalAttribute(0x8, TlvUInt64, { omitChanges: true, default: 0 })
         },
@@ -258,7 +258,7 @@ export namespace EthernetNetworkDiagnostics {
      * EthernetNetworkDiagnosticsCluster supports optional features that you can enable with the
      * EthernetNetworkDiagnosticsCluster.with() factory method.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.16
+     * @see {@link MatterSpecification.v142.Core} § 11.16
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

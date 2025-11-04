@@ -24,7 +24,7 @@ export namespace GeneralCommissioning {
     /**
      * These are optional features supported by GeneralCommissioningCluster.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.10.4
+     * @see {@link MatterSpecification.v142.Core} § 11.10.4
      */
     export enum Feature {
         /**
@@ -38,14 +38,14 @@ export namespace GeneralCommissioning {
     /**
      * Input to the GeneralCommissioning setTcAcknowledgements command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.10.7.8
+     * @see {@link MatterSpecification.v142.Core} § 11.10.7.8
      */
     export const TlvSetTcAcknowledgementsRequest = TlvObject({
         /**
          * This field shall contain the version of the Enhanced Setup Flow Terms & Conditions that were presented to the
          * user.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.10.7.8.1
+         * @see {@link MatterSpecification.v142.Core} § 11.10.7.8.1
          */
         tcVersion: TlvField(0, TlvUInt16),
 
@@ -70,7 +70,7 @@ export namespace GeneralCommissioning {
          * not all required terms were accepted by the user, then the ErrorCode of RequiredTCNotAccepted shall be
          * returned and TCAcknowledgements shall remain unchanged.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.10.7.8.2
+         * @see {@link MatterSpecification.v142.Core} § 11.10.7.8.2
          */
         tcUserResponse: TlvField(1, TlvUInt16)
     });
@@ -78,14 +78,14 @@ export namespace GeneralCommissioning {
     /**
      * Input to the GeneralCommissioning setTcAcknowledgements command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.10.7.8
+     * @see {@link MatterSpecification.v142.Core} § 11.10.7.8
      */
     export interface SetTcAcknowledgementsRequest extends TypeFromSchema<typeof TlvSetTcAcknowledgementsRequest> {}
 
     /**
      * This enumeration is used by several response commands in this cluster to indicate particular errors.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.10.5.1
+     * @see {@link MatterSpecification.v142.Core} § 11.10.5.1
      */
     export enum CommissioningError {
         /**
@@ -134,14 +134,14 @@ export namespace GeneralCommissioning {
     /**
      * This command is used to report the result of the SetTCAcknowledgements command.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.10.7.9
+     * @see {@link MatterSpecification.v142.Core} § 11.10.7.9
      */
     export const TlvSetTcAcknowledgementsResponse = TlvObject({
         /**
          * This field shall contain the result of the operation, based on the behavior specified in the functional
          * description of the SetTCAcknowledgements command.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.10.7.9.1
+         * @see {@link MatterSpecification.v142.Core} § 11.10.7.9.1
          */
         errorCode: TlvField(0, TlvEnum<CommissioningError>())
     });
@@ -149,14 +149,14 @@ export namespace GeneralCommissioning {
     /**
      * This command is used to report the result of the SetTCAcknowledgements command.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.10.7.9
+     * @see {@link MatterSpecification.v142.Core} § 11.10.7.9
      */
     export interface SetTcAcknowledgementsResponse extends TypeFromSchema<typeof TlvSetTcAcknowledgementsResponse> {}
 
     /**
      * This structure provides some constant values that may be of use to all commissioners.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.10.5.3
+     * @see {@link MatterSpecification.v142.Core} § 11.10.5.3
      */
     export const TlvBasicCommissioningInfo = TlvObject({
         /**
@@ -165,7 +165,7 @@ export namespace GeneralCommissioning {
          * Commissionee. This value, if used in the ArmFailSafe command’s ExpiryLengthSeconds field SHOULD allow a
          * Commissioner to proceed with a nominal commissioning without having to-rearm the fail-safe, with some margin.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.10.5.3.1
+         * @see {@link MatterSpecification.v142.Core} § 11.10.5.3.1
          */
         failSafeExpiryLengthSeconds: TlvField(0, TlvUInt16),
 
@@ -177,7 +177,7 @@ export namespace GeneralCommissioning {
          * guidelines, it is recommended that the value of this field be aligned with the initial Announcement Duration
          * and default to 900 seconds.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.10.5.3.2
+         * @see {@link MatterSpecification.v142.Core} § 11.10.5.3.2
          */
         maxCumulativeFailsafeSeconds: TlvField(1, TlvUInt16)
     });
@@ -185,7 +185,7 @@ export namespace GeneralCommissioning {
     /**
      * This structure provides some constant values that may be of use to all commissioners.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.10.5.3
+     * @see {@link MatterSpecification.v142.Core} § 11.10.5.3
      */
     export interface BasicCommissioningInfo extends TypeFromSchema<typeof TlvBasicCommissioningInfo> {}
 
@@ -193,7 +193,7 @@ export namespace GeneralCommissioning {
      * This enumeration is used by the RegulatoryConfig and LocationCapability attributes to indicate possible radio
      * usage.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.10.5.2
+     * @see {@link MatterSpecification.v142.Core} § 11.10.5.2
      */
     export enum RegulatoryLocationType {
         /**
@@ -215,7 +215,7 @@ export namespace GeneralCommissioning {
     /**
      * Input to the GeneralCommissioning armFailSafe command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.10.7.2
+     * @see {@link MatterSpecification.v142.Core} § 11.10.7.2
      */
     export const TlvArmFailSafeRequest = TlvObject({
         expiryLengthSeconds: TlvField(0, TlvUInt16),
@@ -225,28 +225,28 @@ export namespace GeneralCommissioning {
     /**
      * Input to the GeneralCommissioning armFailSafe command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.10.7.2
+     * @see {@link MatterSpecification.v142.Core} § 11.10.7.2
      */
     export interface ArmFailSafeRequest extends TypeFromSchema<typeof TlvArmFailSafeRequest> {}
 
     /**
      * This command is used to report the result of the ArmFailSafe command.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.10.7.3
+     * @see {@link MatterSpecification.v142.Core} § 11.10.7.3
      */
     export const TlvArmFailSafeResponse = TlvObject({
         /**
          * This field shall contain the result of the operation, based on the behavior specified in the functional
          * description of the ArmFailSafe command.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.10.7.3.1
+         * @see {@link MatterSpecification.v142.Core} § 11.10.7.3.1
          */
         errorCode: TlvField(0, TlvEnum<CommissioningError>()),
 
         /**
          * See Section 11.10.7.1, “Common fields in General Commissioning cluster responses”.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.10.7.3.2
+         * @see {@link MatterSpecification.v142.Core} § 11.10.7.3.2
          */
         debugText: TlvField(1, TlvString.bound({ maxLength: 128 }))
     });
@@ -254,14 +254,14 @@ export namespace GeneralCommissioning {
     /**
      * This command is used to report the result of the ArmFailSafe command.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.10.7.3
+     * @see {@link MatterSpecification.v142.Core} § 11.10.7.3
      */
     export interface ArmFailSafeResponse extends TypeFromSchema<typeof TlvArmFailSafeResponse> {}
 
     /**
      * Input to the GeneralCommissioning setRegulatoryConfig command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.10.7.4
+     * @see {@link MatterSpecification.v142.Core} § 11.10.7.4
      */
     export const TlvSetRegulatoryConfigRequest = TlvObject({
         newRegulatoryConfig: TlvField(0, TlvEnum<RegulatoryLocationType>()),
@@ -272,28 +272,28 @@ export namespace GeneralCommissioning {
     /**
      * Input to the GeneralCommissioning setRegulatoryConfig command
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.10.7.4
+     * @see {@link MatterSpecification.v142.Core} § 11.10.7.4
      */
     export interface SetRegulatoryConfigRequest extends TypeFromSchema<typeof TlvSetRegulatoryConfigRequest> {}
 
     /**
      * This command is used to report the result of the SetRegulatoryConfig command.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.10.7.5
+     * @see {@link MatterSpecification.v142.Core} § 11.10.7.5
      */
     export const TlvSetRegulatoryConfigResponse = TlvObject({
         /**
          * This field shall contain the result of the operation, based on the behavior specified in the functional
          * description of the SetRegulatoryConfig command.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.10.7.5.1
+         * @see {@link MatterSpecification.v142.Core} § 11.10.7.5.1
          */
         errorCode: TlvField(0, TlvEnum<CommissioningError>()),
 
         /**
          * See Section 11.10.7.1, “Common fields in General Commissioning cluster responses”.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.10.7.5.2
+         * @see {@link MatterSpecification.v142.Core} § 11.10.7.5.2
          */
         debugText: TlvField(1, TlvString)
     });
@@ -301,28 +301,28 @@ export namespace GeneralCommissioning {
     /**
      * This command is used to report the result of the SetRegulatoryConfig command.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.10.7.5
+     * @see {@link MatterSpecification.v142.Core} § 11.10.7.5
      */
     export interface SetRegulatoryConfigResponse extends TypeFromSchema<typeof TlvSetRegulatoryConfigResponse> {}
 
     /**
      * This command is used to report the result of the CommissioningComplete command.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.10.7.7
+     * @see {@link MatterSpecification.v142.Core} § 11.10.7.7
      */
     export const TlvCommissioningCompleteResponse = TlvObject({
         /**
          * This field shall contain the result of the operation, based on the behavior specified in the functional
          * description of the CommissioningComplete command.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.10.7.7.1
+         * @see {@link MatterSpecification.v142.Core} § 11.10.7.7.1
          */
         errorCode: TlvField(0, TlvEnum<CommissioningError>()),
 
         /**
          * See Section 11.10.7.1, “Common fields in General Commissioning cluster responses”.
          *
-         * @see {@link MatterSpecification.v141.Core} § 11.10.7.7.2
+         * @see {@link MatterSpecification.v142.Core} § 11.10.7.7.2
          */
         debugText: TlvField(1, TlvString)
     });
@@ -330,7 +330,7 @@ export namespace GeneralCommissioning {
     /**
      * This command is used to report the result of the CommissioningComplete command.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.10.7.7
+     * @see {@link MatterSpecification.v142.Core} § 11.10.7.7
      */
     export interface CommissioningCompleteResponse extends TypeFromSchema<typeof TlvCommissioningCompleteResponse> {}
 
@@ -348,7 +348,7 @@ export namespace GeneralCommissioning {
              * this attribute is set to a value which is greater than or equal to TCMinRequiredVersion before returning
              * the user back to the originating Commissioner (see Section 5.7.4, “Enhanced Setup Flow (ESF)”).
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.10.6.6
+             * @see {@link MatterSpecification.v142.Core} § 11.10.6.6
              */
             tcAcceptedVersion: Attribute(
                 0x5,
@@ -364,7 +364,7 @@ export namespace GeneralCommissioning {
              * then the device shall update TCAcknowledgementsRequired to True so that an administrator can detect that
              * a newer version of the texts needs to be presented to the user.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.10.6.7
+             * @see {@link MatterSpecification.v142.Core} § 11.10.6.7
              */
             tcMinRequiredVersion: Attribute(
                 0x6,
@@ -384,7 +384,7 @@ export namespace GeneralCommissioning {
              * updated with the latest responses. This may happen in response to updated terms that were presented to
              * the user. On a factory reset this field shall be reset with all bits set to 0.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.10.6.8
+             * @see {@link MatterSpecification.v142.Core} § 11.10.6.8
              */
             tcAcknowledgements: Attribute(
                 0x7,
@@ -409,7 +409,7 @@ export namespace GeneralCommissioning {
              * this attribute is set to False before returning the user back to the original Commissioner (see Section
              * 5.7.4, “Enhanced Setup Flow (ESF)”).
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.10.6.9
+             * @see {@link MatterSpecification.v142.Core} § 11.10.6.9
              */
             tcAcknowledgementsRequired: Attribute(
                 0x8,
@@ -424,7 +424,7 @@ export namespace GeneralCommissioning {
              *
              * A null value indicates that there is no pending deadline for updated TC acceptance.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.10.6.10
+             * @see {@link MatterSpecification.v142.Core} § 11.10.6.10
              */
             tcUpdateDeadline: Attribute(
                 0x9,
@@ -438,7 +438,7 @@ export namespace GeneralCommissioning {
              * This command is used to set the user acknowledgements received in the Enhanced Setup Flow Terms &
              * Conditions into the node.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.10.7.8
+             * @see {@link MatterSpecification.v142.Core} § 11.10.7.8
              */
             setTcAcknowledgements: Command(
                 0x6,
@@ -482,7 +482,7 @@ export namespace GeneralCommissioning {
              * functioning of any cluster, other than being set as a side-effect of commands where this behavior is
              * described.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.10.6.1
+             * @see {@link MatterSpecification.v142.Core} § 11.10.6.1
              */
             breadcrumb: WritableAttribute(0x0, TlvUInt64, { default: 0, writeAcl: AccessLevel.Administer }),
 
@@ -491,7 +491,7 @@ export namespace GeneralCommissioning {
              *
              * See Section 11.10.5.3, “BasicCommissioningInfo Type” for more information.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.10.6.2
+             * @see {@link MatterSpecification.v142.Core} § 11.10.6.2
              */
             basicCommissioningInfo: FixedAttribute(0x1, TlvBasicCommissioningInfo),
 
@@ -501,7 +501,7 @@ export namespace GeneralCommissioning {
              * Note that the country code is part of Basic Information Cluster and therefore NOT listed on the
              * RegulatoryConfig attribute.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.10.6.3
+             * @see {@link MatterSpecification.v142.Core} § 11.10.6.3
              */
             regulatoryConfig: Attribute(0x2, TlvEnum<RegulatoryLocationType>()),
 
@@ -519,7 +519,7 @@ export namespace GeneralCommissioning {
              * means devices always have a safe default value, and Commissioners which choose to implement smarter
              * handling can.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.10.6.4
+             * @see {@link MatterSpecification.v142.Core} § 11.10.6.4
              */
             locationCapability: FixedAttribute(
                 0x3,
@@ -531,7 +531,7 @@ export namespace GeneralCommissioning {
              * Indicates whether this device supports "concurrent connection flow" commissioning mode (see Section 5.5,
              * “Commissioning Flows”). If false, the device only supports "non-concurrent connection flow" mode.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.10.6.5
+             * @see {@link MatterSpecification.v142.Core} § 11.10.6.5
              */
             supportsConcurrentConnection: FixedAttribute(0x4, TlvBoolean, { default: true })
         },
@@ -662,7 +662,7 @@ export namespace GeneralCommissioning {
              *   10. Optionally: if no factory-reset resulted from the previous steps, it is recommended that the Node
              *       rollback the state of all non fabric-scoped data present in the Fail-Safe context.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.10.7.2
+             * @see {@link MatterSpecification.v142.Core} § 11.10.7.2
              */
             armFailSafe: Command(
                 0x0,
@@ -705,7 +705,7 @@ export namespace GeneralCommissioning {
              * when SetRegulatoryConfigResponse has the ErrorCode field set to OK. If the command fails, the Breadcrumb
              * attribute shall be left unchanged.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.10.7.4
+             * @see {@link MatterSpecification.v142.Core} § 11.10.7.4
              */
             setRegulatoryConfig: Command(
                 0x2,
@@ -773,7 +773,7 @@ export namespace GeneralCommissioning {
              * any previously established PASE session to still be usable, due to the server having cleared such
              * sessions.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.10.7.6
+             * @see {@link MatterSpecification.v142.Core} § 11.10.7.6
              */
             commissioningComplete: Command(
                 0x4,
@@ -808,7 +808,7 @@ export namespace GeneralCommissioning {
      * GeneralCommissioningCluster supports optional features that you can enable with the
      * GeneralCommissioningCluster.with() factory method.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.10
+     * @see {@link MatterSpecification.v142.Core} § 11.10
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

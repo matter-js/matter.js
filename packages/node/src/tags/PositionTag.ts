@@ -26,7 +26,7 @@ import { SemanticNamespace } from "../endpoint/type/SemanticNamespace.js";
  * The following example illustrates a compound device comprised of 9 endpoints arranged in a 3x3 grid. This example
  * uses position tags to indicate position.
  *
- * @see {@link MatterSpecification.v141.Namespace} § 9
+ * @see {@link MatterSpecification.v142.Namespace} § 9
  */
 export const PositionTag = SemanticNamespace({
     id: 0x8,

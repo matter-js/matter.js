@@ -23,7 +23,7 @@ export namespace DeviceEnergyManagementMode {
     /**
      * These are optional features supported by DeviceEnergyManagementModeCluster.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 9.8.4
+     * @see {@link MatterSpecification.v142.Cluster} § 9.8.4
      */
     export enum Feature {
         /**
@@ -36,52 +36,52 @@ export namespace DeviceEnergyManagementMode {
 
     export enum ModeTag {
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 9.8.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1
          */
         Auto = 0,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 9.8.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1
          */
         Quick = 1,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 9.8.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1
          */
         Quiet = 2,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 9.8.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1
          */
         LowNoise = 3,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 9.8.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1
          */
         LowEnergy = 4,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 9.8.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1
          */
         Vacation = 5,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 9.8.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1
          */
         Min = 6,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 9.8.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1
          */
         Max = 7,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 9.8.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1
          */
         Night = 8,
 
         /**
-         * @see {@link MatterSpecification.v141.Cluster} § 9.8.7.1
+         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1
          */
         Day = 9,
 
@@ -89,28 +89,28 @@ export namespace DeviceEnergyManagementMode {
          * The device prohibits optimization of energy usage management: its energy usage is determined only by the user
          * configuration and internal device needs.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 9.8.7.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1.1
          */
         NoOptimization = 16384,
 
         /**
          * The device is permitted to manage its own energy usage. For example, using tariff information it may obtain.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 9.8.7.1.2
+         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1.2
          */
         DeviceOptimization = 16385,
 
         /**
          * The device permits management of energy usage by an energy manager to optimize the local energy usage.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 9.8.7.1.3
+         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1.3
          */
         LocalOptimization = 16386,
 
         /**
          * The device permits management of energy usage by an energy manager to optimize the grid energy usage.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 9.8.7.1.4
+         * @see {@link MatterSpecification.v142.Cluster} § 9.8.7.1.4
          */
         GridOptimization = 16387
     }
@@ -118,7 +118,7 @@ export namespace DeviceEnergyManagementMode {
     /**
      * A Mode Tag is meant to be interpreted by the client for the purpose the cluster serves.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1
      */
     export const TlvModeTagStruct = TlvObject({
         /**
@@ -132,7 +132,7 @@ export namespace DeviceEnergyManagementMode {
          * whose purpose is to choose the amount of sugar, or in a cluster whose purpose is to choose the amount of
          * salt.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.1.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1.1
          */
         mfgCode: TlvOptionalField(0, TlvVendorId),
 
@@ -140,7 +140,7 @@ export namespace DeviceEnergyManagementMode {
          * This field shall indicate the mode tag within a mode tag namespace which is either manufacturer specific or
          * standard.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.1.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1.2
          */
         value: TlvField(1, TlvEnum<ModeTag | ModeBase.ModeTag>())
     });
@@ -148,7 +148,7 @@ export namespace DeviceEnergyManagementMode {
     /**
      * A Mode Tag is meant to be interpreted by the client for the purpose the cluster serves.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1
      */
     export interface ModeTagStruct extends TypeFromSchema<typeof TlvModeTagStruct> {}
 
@@ -156,7 +156,7 @@ export namespace DeviceEnergyManagementMode {
      * The table below lists the changes relative to the Mode Base cluster for the fields of the ModeOptionStruct type.
      * A blank field indicates no change.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 9.8.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 9.8.5.1
      */
     export const TlvModeOption = TlvObject({
         /**
@@ -164,14 +164,14 @@ export namespace DeviceEnergyManagementMode {
          * the user to indicate what this option means. This field is meant to be readable and understandable by the
          * user.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.2.1
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.1
          */
         label: TlvField(0, TlvString.bound({ maxLength: 64 })),
 
         /**
          * This field is used to identify the mode option.
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.2.2
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.2
          */
         mode: TlvField(1, TlvUInt8),
 
@@ -211,7 +211,7 @@ export namespace DeviceEnergyManagementMode {
          *   • A mode that includes both a generic Quick tag (defined here), and Vacuum and Mop tags, (defined in the
          *     RVC Clean cluster that is a derivation of this cluster).
          *
-         * @see {@link MatterSpecification.v141.Cluster} § 1.10.5.2.3
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.3
          */
         modeTags: TlvField(2, TlvArray(TlvModeTagStruct, { maxLength: 8 }))
     });
@@ -220,7 +220,7 @@ export namespace DeviceEnergyManagementMode {
      * The table below lists the changes relative to the Mode Base cluster for the fields of the ModeOptionStruct type.
      * A blank field indicates no change.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 9.8.5.1
+     * @see {@link MatterSpecification.v142.Cluster} § 9.8.5.1
      */
     export interface ModeOption extends TypeFromSchema<typeof TlvModeOption> {}
 
@@ -253,7 +253,7 @@ export namespace DeviceEnergyManagementMode {
              * An entry in the SupportedModes attribute that includes one of an DeviceOptimization, LocalOptimization,
              * or GridOptimization tags shall NOT also include NoOptimization tag.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 9.8.6.1
+             * @see {@link MatterSpecification.v142.Cluster} § 9.8.6.1
              */
             supportedModes: FixedAttribute(
                 0x0,
@@ -262,7 +262,7 @@ export namespace DeviceEnergyManagementMode {
             ),
 
             /**
-             * @see {@link MatterSpecification.v141.Cluster} § 9.8.6
+             * @see {@link MatterSpecification.v142.Cluster} § 9.8.6
              */
             currentMode: Attribute(0x1, TlvUInt8, { persistent: true })
         },
@@ -273,7 +273,7 @@ export namespace DeviceEnergyManagementMode {
              *
              * On receipt of this command the device shall respond with a ChangeToModeResponse command.
              *
-             * @see {@link MatterSpecification.v141.Cluster} § 1.10.7.1
+             * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
              */
             changeToMode: Command(0x0, ModeBase.TlvChangeToModeRequest, 0x1, ModeBase.TlvChangeToModeResponse)
         },
@@ -297,7 +297,7 @@ export namespace DeviceEnergyManagementMode {
      * DeviceEnergyManagementModeCluster supports optional features that you can enable with the
      * DeviceEnergyManagementModeCluster.with() factory method.
      *
-     * @see {@link MatterSpecification.v141.Cluster} § 9.8
+     * @see {@link MatterSpecification.v142.Cluster} § 9.8
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 

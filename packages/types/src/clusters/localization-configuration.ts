@@ -33,7 +33,7 @@ export namespace LocalizationConfiguration {
              * An attempt to write a value to ActiveLocale that is not present in SupportedLocales shall result in a
              * CONSTRAINT_ERROR error.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.3.4.1
+             * @see {@link MatterSpecification.v142.Core} § 11.3.4.1
              */
             activeLocale: WritableAttribute(
                 0x0,
@@ -46,7 +46,7 @@ export namespace LocalizationConfiguration {
              * ActiveLocale attribute. The list shall NOT contain any duplicate entries. The ordering of items within
              * the list SHOULD NOT express any meaning.
              *
-             * @see {@link MatterSpecification.v141.Core} § 11.3.4.2
+             * @see {@link MatterSpecification.v142.Core} § 11.3.4.2
              */
             supportedLocales: FixedAttribute(0x1, TlvArray(TlvString, { maxLength: 32 }), { default: [] })
         }
@@ -61,7 +61,7 @@ export namespace LocalizationConfiguration {
      * This cluster supports an interface to a Node. It provides attributes for determining and configuring localization
      * information that a Node shall utilize when conveying values to a user.
      *
-     * @see {@link MatterSpecification.v141.Core} § 11.3
+     * @see {@link MatterSpecification.v142.Core} § 11.3
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
