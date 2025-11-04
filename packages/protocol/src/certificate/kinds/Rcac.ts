@@ -81,7 +81,7 @@ export class Rcac extends OperationalBase<OperationalCertificate.Rcac> {
 
         // The subject DN SHALL NOT encode any matter-vsc-id attribute.
         if ("vvsId" in subject) {
-            throw new CertificateError(`Noc certificate must not contain a vvsId.`);
+            throw new CertificateError(`Root certificate must not contain a vvsId.`);
         }
 
         // The basic constraints extension SHALL be encoded with is-ca set to true.
