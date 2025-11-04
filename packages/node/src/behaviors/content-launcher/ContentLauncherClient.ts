@@ -7,10 +7,10 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { ContentLauncher } from "#clusters/content-launcher";
-import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const ContentLauncherClientConstructor = ClusterBehavior.for(ContentLauncher.Complete);
+export const ContentLauncherClientConstructor = ClientBehavior(ContentLauncher.Complete);
 export interface ContentLauncherClient extends InstanceType<typeof ContentLauncherClientConstructor> {}
 export interface ContentLauncherClientConstructor extends Identity<typeof ContentLauncherClientConstructor> {}
 export const ContentLauncherClient: ContentLauncherClientConstructor = ContentLauncherClientConstructor;

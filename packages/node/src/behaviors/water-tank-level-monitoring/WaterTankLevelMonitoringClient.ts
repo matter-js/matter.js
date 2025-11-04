@@ -7,10 +7,10 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { WaterTankLevelMonitoring } from "#clusters/water-tank-level-monitoring";
-import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const WaterTankLevelMonitoringClientConstructor = ClusterBehavior.for(WaterTankLevelMonitoring.Complete);
+export const WaterTankLevelMonitoringClientConstructor = ClientBehavior(WaterTankLevelMonitoring.Complete);
 export interface WaterTankLevelMonitoringClient extends InstanceType<typeof WaterTankLevelMonitoringClientConstructor> {}
 export interface WaterTankLevelMonitoringClientConstructor extends Identity<typeof WaterTankLevelMonitoringClientConstructor> {}
 export const WaterTankLevelMonitoringClient: WaterTankLevelMonitoringClientConstructor = WaterTankLevelMonitoringClientConstructor;

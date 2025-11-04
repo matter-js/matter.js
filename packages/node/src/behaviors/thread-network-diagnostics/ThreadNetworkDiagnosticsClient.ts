@@ -7,10 +7,10 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { ThreadNetworkDiagnostics } from "#clusters/thread-network-diagnostics";
-import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const ThreadNetworkDiagnosticsClientConstructor = ClusterBehavior.for(ThreadNetworkDiagnostics.Complete);
+export const ThreadNetworkDiagnosticsClientConstructor = ClientBehavior(ThreadNetworkDiagnostics.Complete);
 export interface ThreadNetworkDiagnosticsClient extends InstanceType<typeof ThreadNetworkDiagnosticsClientConstructor> {}
 export interface ThreadNetworkDiagnosticsClientConstructor extends Identity<typeof ThreadNetworkDiagnosticsClientConstructor> {}
 export const ThreadNetworkDiagnosticsClient: ThreadNetworkDiagnosticsClientConstructor = ThreadNetworkDiagnosticsClientConstructor;

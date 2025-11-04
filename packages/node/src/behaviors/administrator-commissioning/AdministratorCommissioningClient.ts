@@ -7,10 +7,10 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { AdministratorCommissioning } from "#clusters/administrator-commissioning";
-import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const AdministratorCommissioningClientConstructor = ClusterBehavior.for(AdministratorCommissioning.Complete);
+export const AdministratorCommissioningClientConstructor = ClientBehavior(AdministratorCommissioning.Complete);
 export interface AdministratorCommissioningClient extends InstanceType<typeof AdministratorCommissioningClientConstructor> {}
 export interface AdministratorCommissioningClientConstructor extends Identity<typeof AdministratorCommissioningClientConstructor> {}
 export const AdministratorCommissioningClient: AdministratorCommissioningClientConstructor = AdministratorCommissioningClientConstructor;

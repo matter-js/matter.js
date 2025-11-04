@@ -26,8 +26,8 @@ import { ReadScope, type Read, type ReadResult } from "#protocol";
 import { DatasourceCache } from "#storage/client/DatasourceCache.js";
 import { ClientNodeStore } from "#storage/index.js";
 import type { AttributeId, ClusterId, ClusterType, CommandId, EndpointNumber } from "#types";
-import { ClientBehavior } from "./ClientBehavior.js";
 import { ClientEventEmitter } from "./ClientEventEmitter.js";
+import { PeerBehavior } from "./PeerBehavior.js";
 
 const DEVICE_TYPE_LIST_ATTR_ID = Descriptor.Cluster.attributes.deviceTypeList.id;
 const SERVER_LIST_ATTR_ID = Descriptor.Cluster.attributes.serverList.id;
@@ -295,7 +295,7 @@ export class ClientStructure {
                 cluster.attributes !== undefined &&
                 cluster.commands !== undefined
             ) {
-                cluster.behavior = ClientBehavior(cluster as ClientBehavior.ClusterShape);
+                cluster.behavior = PeerBehavior(cluster as PeerBehavior.ClusterShape);
                 endpoint.endpoint.behaviors.require(cluster.behavior);
             }
         }
@@ -437,7 +437,7 @@ interface EndpointStructure {
     clusters: Record<ClusterId, ClusterStructure>;
 }
 
-interface ClusterStructure extends Partial<ClientBehavior.ClusterShape> {
+interface ClusterStructure extends Partial<PeerBehavior.ClusterShape> {
     id: ClusterId;
     behavior?: ClusterBehavior.Type;
     store: Datasource.ExternallyMutableStore;

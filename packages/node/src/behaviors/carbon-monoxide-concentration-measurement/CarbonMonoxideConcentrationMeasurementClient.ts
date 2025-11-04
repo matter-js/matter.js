@@ -7,11 +7,12 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { CarbonMonoxideConcentrationMeasurement } from "#clusters/carbon-monoxide-concentration-measurement";
-import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const CarbonMonoxideConcentrationMeasurementClientConstructor = ClusterBehavior
-    .for(CarbonMonoxideConcentrationMeasurement.Complete);
+export const CarbonMonoxideConcentrationMeasurementClientConstructor = ClientBehavior(
+    CarbonMonoxideConcentrationMeasurement.Complete
+);
 export interface CarbonMonoxideConcentrationMeasurementClient extends InstanceType<typeof CarbonMonoxideConcentrationMeasurementClientConstructor> {}
 export interface CarbonMonoxideConcentrationMeasurementClientConstructor extends Identity<typeof CarbonMonoxideConcentrationMeasurementClientConstructor> {}
 export const CarbonMonoxideConcentrationMeasurementClient: CarbonMonoxideConcentrationMeasurementClientConstructor = CarbonMonoxideConcentrationMeasurementClientConstructor;

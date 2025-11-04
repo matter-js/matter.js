@@ -7,10 +7,10 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { PowerSource } from "#clusters/power-source";
-import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const PowerSourceClientConstructor = ClusterBehavior.for(PowerSource.Complete);
+export const PowerSourceClientConstructor = ClientBehavior(PowerSource.Complete);
 export interface PowerSourceClient extends InstanceType<typeof PowerSourceClientConstructor> {}
 export interface PowerSourceClientConstructor extends Identity<typeof PowerSourceClientConstructor> {}
 export const PowerSourceClient: PowerSourceClientConstructor = PowerSourceClientConstructor;

@@ -6,10 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { BasicInformationBehavior } from "./BasicInformationBehavior.js";
+import { BasicInformation } from "#clusters/basic-information";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const BasicInformationClientConstructor = BasicInformationBehavior;
-export interface BasicInformationClient extends BasicInformationBehavior {}
+export const BasicInformationClientConstructor = ClientBehavior(BasicInformation.Complete);
+export interface BasicInformationClient extends InstanceType<typeof BasicInformationClientConstructor> {}
 export interface BasicInformationClientConstructor extends Identity<typeof BasicInformationClientConstructor> {}
 export const BasicInformationClient: BasicInformationClientConstructor = BasicInformationClientConstructor;

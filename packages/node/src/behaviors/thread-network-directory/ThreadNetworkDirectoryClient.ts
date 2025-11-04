@@ -6,10 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ThreadNetworkDirectoryBehavior } from "./ThreadNetworkDirectoryBehavior.js";
+import { ThreadNetworkDirectory } from "#clusters/thread-network-directory";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const ThreadNetworkDirectoryClientConstructor = ThreadNetworkDirectoryBehavior;
-export interface ThreadNetworkDirectoryClient extends ThreadNetworkDirectoryBehavior {}
+export const ThreadNetworkDirectoryClientConstructor = ClientBehavior(ThreadNetworkDirectory.Complete);
+export interface ThreadNetworkDirectoryClient extends InstanceType<typeof ThreadNetworkDirectoryClientConstructor> {}
 export interface ThreadNetworkDirectoryClientConstructor extends Identity<typeof ThreadNetworkDirectoryClientConstructor> {}
 export const ThreadNetworkDirectoryClient: ThreadNetworkDirectoryClientConstructor = ThreadNetworkDirectoryClientConstructor;

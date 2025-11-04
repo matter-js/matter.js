@@ -6,10 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ActionsBehavior } from "./ActionsBehavior.js";
+import { Actions } from "#clusters/actions";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const ActionsClientConstructor = ActionsBehavior;
-export interface ActionsClient extends ActionsBehavior {}
+export const ActionsClientConstructor = ClientBehavior(Actions.Complete);
+export interface ActionsClient extends InstanceType<typeof ActionsClientConstructor> {}
 export interface ActionsClientConstructor extends Identity<typeof ActionsClientConstructor> {}
 export const ActionsClient: ActionsClientConstructor = ActionsClientConstructor;

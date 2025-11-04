@@ -7,10 +7,10 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { ElectricalEnergyMeasurement } from "#clusters/electrical-energy-measurement";
-import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const ElectricalEnergyMeasurementClientConstructor = ClusterBehavior.for(ElectricalEnergyMeasurement.Complete);
+export const ElectricalEnergyMeasurementClientConstructor = ClientBehavior(ElectricalEnergyMeasurement.Complete);
 export interface ElectricalEnergyMeasurementClient extends InstanceType<typeof ElectricalEnergyMeasurementClientConstructor> {}
 export interface ElectricalEnergyMeasurementClientConstructor extends Identity<typeof ElectricalEnergyMeasurementClientConstructor> {}
 export const ElectricalEnergyMeasurementClient: ElectricalEnergyMeasurementClientConstructor = ElectricalEnergyMeasurementClientConstructor;

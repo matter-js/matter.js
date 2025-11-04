@@ -6,10 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { WiFiNetworkManagementBehavior } from "./WiFiNetworkManagementBehavior.js";
+import { WiFiNetworkManagement } from "#clusters/wi-fi-network-management";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const WiFiNetworkManagementClientConstructor = WiFiNetworkManagementBehavior;
-export interface WiFiNetworkManagementClient extends WiFiNetworkManagementBehavior {}
+export const WiFiNetworkManagementClientConstructor = ClientBehavior(WiFiNetworkManagement.Complete);
+export interface WiFiNetworkManagementClient extends InstanceType<typeof WiFiNetworkManagementClientConstructor> {}
 export interface WiFiNetworkManagementClientConstructor extends Identity<typeof WiFiNetworkManagementClientConstructor> {}
 export const WiFiNetworkManagementClient: WiFiNetworkManagementClientConstructor = WiFiNetworkManagementClientConstructor;

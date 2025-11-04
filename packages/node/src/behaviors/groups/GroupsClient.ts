@@ -6,10 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { GroupsBehavior } from "./GroupsBehavior.js";
+import { Groups } from "#clusters/groups";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const GroupsClientConstructor = GroupsBehavior;
-export interface GroupsClient extends GroupsBehavior {}
+export const GroupsClientConstructor = ClientBehavior(Groups.Complete);
+export interface GroupsClient extends InstanceType<typeof GroupsClientConstructor> {}
 export interface GroupsClientConstructor extends Identity<typeof GroupsClientConstructor> {}
 export const GroupsClient: GroupsClientConstructor = GroupsClientConstructor;

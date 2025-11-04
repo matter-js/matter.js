@@ -13,6 +13,7 @@ import { Behavior } from "../Behavior.js";
 import type { BehaviorBacking } from "../internal/BehaviorBacking.js";
 import type { RootSupervisor } from "../supervision/RootSupervisor.js";
 import { NetworkBehavior } from "../system/network/NetworkBehavior.js";
+import { ClientBehavior } from "./ClientBehavior.js";
 import { ExtensionInterfaceOf, createType, type ClusterOf } from "./ClusterBehaviorUtil.js";
 import type { ClusterEvents } from "./ClusterEvents.js";
 import { ClusterInterface } from "./ClusterInterface.js";
@@ -181,7 +182,7 @@ export class ClusterBehavior extends Behavior {
         //
         // Further, we know the "Client" classes can have no extension methods or properties, so we don't need to do an
         // exact class match for type safety
-        if (other.name.endsWith("Client") && otherCluster.id === this.cluster.id) {
+        if (ClientBehavior.is(other) && otherCluster.id === this.cluster.id) {
             return true;
         }
 

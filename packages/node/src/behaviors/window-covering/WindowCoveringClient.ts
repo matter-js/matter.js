@@ -7,10 +7,10 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { WindowCovering } from "#clusters/window-covering";
-import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const WindowCoveringClientConstructor = ClusterBehavior.for(WindowCovering.Complete);
+export const WindowCoveringClientConstructor = ClientBehavior(WindowCovering.Complete);
 export interface WindowCoveringClient extends InstanceType<typeof WindowCoveringClientConstructor> {}
 export interface WindowCoveringClientConstructor extends Identity<typeof WindowCoveringClientConstructor> {}
 export const WindowCoveringClient: WindowCoveringClientConstructor = WindowCoveringClientConstructor;

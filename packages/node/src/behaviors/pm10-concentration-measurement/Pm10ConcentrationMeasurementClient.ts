@@ -7,10 +7,10 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { Pm10ConcentrationMeasurement } from "#clusters/pm10-concentration-measurement";
-import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const Pm10ConcentrationMeasurementClientConstructor = ClusterBehavior.for(Pm10ConcentrationMeasurement.Complete);
+export const Pm10ConcentrationMeasurementClientConstructor = ClientBehavior(Pm10ConcentrationMeasurement.Complete);
 export interface Pm10ConcentrationMeasurementClient extends InstanceType<typeof Pm10ConcentrationMeasurementClientConstructor> {}
 export interface Pm10ConcentrationMeasurementClientConstructor extends Identity<typeof Pm10ConcentrationMeasurementClientConstructor> {}
 export const Pm10ConcentrationMeasurementClient: Pm10ConcentrationMeasurementClientConstructor = Pm10ConcentrationMeasurementClientConstructor;

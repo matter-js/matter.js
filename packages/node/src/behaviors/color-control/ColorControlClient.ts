@@ -7,10 +7,10 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { ColorControl } from "#clusters/color-control";
-import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const ColorControlClientConstructor = ClusterBehavior.for(ColorControl.Complete);
+export const ColorControlClientConstructor = ClientBehavior(ColorControl.Complete);
 export interface ColorControlClient extends InstanceType<typeof ColorControlClientConstructor> {}
 export interface ColorControlClientConstructor extends Identity<typeof ColorControlClientConstructor> {}
 export const ColorControlClient: ColorControlClientConstructor = ColorControlClientConstructor;

@@ -7,10 +7,10 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { DoorLock } from "#clusters/door-lock";
-import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const DoorLockClientConstructor = ClusterBehavior.for(DoorLock.Complete);
+export const DoorLockClientConstructor = ClientBehavior(DoorLock.Complete);
 export interface DoorLockClient extends InstanceType<typeof DoorLockClientConstructor> {}
 export interface DoorLockClientConstructor extends Identity<typeof DoorLockClientConstructor> {}
 export const DoorLockClient: DoorLockClientConstructor = DoorLockClientConstructor;

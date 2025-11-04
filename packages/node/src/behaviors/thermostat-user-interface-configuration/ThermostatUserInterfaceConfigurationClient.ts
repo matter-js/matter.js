@@ -6,10 +6,13 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ThermostatUserInterfaceConfigurationBehavior } from "./ThermostatUserInterfaceConfigurationBehavior.js";
+import { ThermostatUserInterfaceConfiguration } from "#clusters/thermostat-user-interface-configuration";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const ThermostatUserInterfaceConfigurationClientConstructor = ThermostatUserInterfaceConfigurationBehavior;
-export interface ThermostatUserInterfaceConfigurationClient extends ThermostatUserInterfaceConfigurationBehavior {}
+export const ThermostatUserInterfaceConfigurationClientConstructor = ClientBehavior(
+    ThermostatUserInterfaceConfiguration.Complete
+);
+export interface ThermostatUserInterfaceConfigurationClient extends InstanceType<typeof ThermostatUserInterfaceConfigurationClientConstructor> {}
 export interface ThermostatUserInterfaceConfigurationClientConstructor extends Identity<typeof ThermostatUserInterfaceConfigurationClientConstructor> {}
 export const ThermostatUserInterfaceConfigurationClient: ThermostatUserInterfaceConfigurationClientConstructor = ThermostatUserInterfaceConfigurationClientConstructor;

@@ -6,10 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { FlowMeasurementBehavior } from "./FlowMeasurementBehavior.js";
+import { FlowMeasurement } from "#clusters/flow-measurement";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const FlowMeasurementClientConstructor = FlowMeasurementBehavior;
-export interface FlowMeasurementClient extends FlowMeasurementBehavior {}
+export const FlowMeasurementClientConstructor = ClientBehavior(FlowMeasurement.Complete);
+export interface FlowMeasurementClient extends InstanceType<typeof FlowMeasurementClientConstructor> {}
 export interface FlowMeasurementClientConstructor extends Identity<typeof FlowMeasurementClientConstructor> {}
 export const FlowMeasurementClient: FlowMeasurementClientConstructor = FlowMeasurementClientConstructor;

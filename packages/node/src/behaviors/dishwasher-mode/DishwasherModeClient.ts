@@ -6,10 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { DishwasherModeBehavior } from "./DishwasherModeBehavior.js";
+import { DishwasherMode } from "#clusters/dishwasher-mode";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const DishwasherModeClientConstructor = DishwasherModeBehavior;
-export interface DishwasherModeClient extends DishwasherModeBehavior {}
+export const DishwasherModeClientConstructor = ClientBehavior(DishwasherMode.Complete);
+export interface DishwasherModeClient extends InstanceType<typeof DishwasherModeClientConstructor> {}
 export interface DishwasherModeClientConstructor extends Identity<typeof DishwasherModeClientConstructor> {}
 export const DishwasherModeClient: DishwasherModeClientConstructor = DishwasherModeClientConstructor;

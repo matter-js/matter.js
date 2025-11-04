@@ -7,10 +7,10 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { WiFiNetworkDiagnostics } from "#clusters/wi-fi-network-diagnostics";
-import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const WiFiNetworkDiagnosticsClientConstructor = ClusterBehavior.for(WiFiNetworkDiagnostics.Complete);
+export const WiFiNetworkDiagnosticsClientConstructor = ClientBehavior(WiFiNetworkDiagnostics.Complete);
 export interface WiFiNetworkDiagnosticsClient extends InstanceType<typeof WiFiNetworkDiagnosticsClientConstructor> {}
 export interface WiFiNetworkDiagnosticsClientConstructor extends Identity<typeof WiFiNetworkDiagnosticsClientConstructor> {}
 export const WiFiNetworkDiagnosticsClient: WiFiNetworkDiagnosticsClientConstructor = WiFiNetworkDiagnosticsClientConstructor;

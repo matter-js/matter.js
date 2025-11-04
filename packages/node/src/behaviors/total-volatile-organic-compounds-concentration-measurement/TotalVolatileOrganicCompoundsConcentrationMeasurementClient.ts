@@ -9,11 +9,12 @@
 import {
     TotalVolatileOrganicCompoundsConcentrationMeasurement
 } from "#clusters/total-volatile-organic-compounds-concentration-measurement";
-import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const TotalVolatileOrganicCompoundsConcentrationMeasurementClientConstructor = ClusterBehavior
-    .for(TotalVolatileOrganicCompoundsConcentrationMeasurement.Complete);
+export const TotalVolatileOrganicCompoundsConcentrationMeasurementClientConstructor = ClientBehavior(
+    TotalVolatileOrganicCompoundsConcentrationMeasurement.Complete
+);
 export interface TotalVolatileOrganicCompoundsConcentrationMeasurementClient extends InstanceType<typeof TotalVolatileOrganicCompoundsConcentrationMeasurementClientConstructor> {}
 export interface TotalVolatileOrganicCompoundsConcentrationMeasurementClientConstructor extends Identity<typeof TotalVolatileOrganicCompoundsConcentrationMeasurementClientConstructor> {}
 export const TotalVolatileOrganicCompoundsConcentrationMeasurementClient: TotalVolatileOrganicCompoundsConcentrationMeasurementClientConstructor = TotalVolatileOrganicCompoundsConcentrationMeasurementClientConstructor;

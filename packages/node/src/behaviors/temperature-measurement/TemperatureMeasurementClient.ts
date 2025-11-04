@@ -6,10 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { TemperatureMeasurementBehavior } from "./TemperatureMeasurementBehavior.js";
+import { TemperatureMeasurement } from "#clusters/temperature-measurement";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const TemperatureMeasurementClientConstructor = TemperatureMeasurementBehavior;
-export interface TemperatureMeasurementClient extends TemperatureMeasurementBehavior {}
+export const TemperatureMeasurementClientConstructor = ClientBehavior(TemperatureMeasurement.Complete);
+export interface TemperatureMeasurementClient extends InstanceType<typeof TemperatureMeasurementClientConstructor> {}
 export interface TemperatureMeasurementClientConstructor extends Identity<typeof TemperatureMeasurementClientConstructor> {}
 export const TemperatureMeasurementClient: TemperatureMeasurementClientConstructor = TemperatureMeasurementClientConstructor;

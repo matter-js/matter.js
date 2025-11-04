@@ -7,10 +7,10 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { PumpConfigurationAndControl } from "#clusters/pump-configuration-and-control";
-import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const PumpConfigurationAndControlClientConstructor = ClusterBehavior.for(PumpConfigurationAndControl.Complete);
+export const PumpConfigurationAndControlClientConstructor = ClientBehavior(PumpConfigurationAndControl.Complete);
 export interface PumpConfigurationAndControlClient extends InstanceType<typeof PumpConfigurationAndControlClientConstructor> {}
 export interface PumpConfigurationAndControlClientConstructor extends Identity<typeof PumpConfigurationAndControlClientConstructor> {}
 export const PumpConfigurationAndControlClient: PumpConfigurationAndControlClientConstructor = PumpConfigurationAndControlClientConstructor;

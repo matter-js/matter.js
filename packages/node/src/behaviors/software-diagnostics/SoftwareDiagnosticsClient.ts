@@ -7,10 +7,10 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { SoftwareDiagnostics } from "#clusters/software-diagnostics";
-import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const SoftwareDiagnosticsClientConstructor = ClusterBehavior.for(SoftwareDiagnostics.Complete);
+export const SoftwareDiagnosticsClientConstructor = ClientBehavior(SoftwareDiagnostics.Complete);
 export interface SoftwareDiagnosticsClient extends InstanceType<typeof SoftwareDiagnosticsClientConstructor> {}
 export interface SoftwareDiagnosticsClientConstructor extends Identity<typeof SoftwareDiagnosticsClientConstructor> {}
 export const SoftwareDiagnosticsClient: SoftwareDiagnosticsClientConstructor = SoftwareDiagnosticsClientConstructor;

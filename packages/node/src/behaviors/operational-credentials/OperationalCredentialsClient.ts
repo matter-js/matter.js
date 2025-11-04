@@ -6,10 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { OperationalCredentialsBehavior } from "./OperationalCredentialsBehavior.js";
+import { OperationalCredentials } from "#clusters/operational-credentials";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const OperationalCredentialsClientConstructor = OperationalCredentialsBehavior;
-export interface OperationalCredentialsClient extends OperationalCredentialsBehavior {}
+export const OperationalCredentialsClientConstructor = ClientBehavior(OperationalCredentials.Complete);
+export interface OperationalCredentialsClient extends InstanceType<typeof OperationalCredentialsClientConstructor> {}
 export interface OperationalCredentialsClientConstructor extends Identity<typeof OperationalCredentialsClientConstructor> {}
 export const OperationalCredentialsClient: OperationalCredentialsClientConstructor = OperationalCredentialsClientConstructor;

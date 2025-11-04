@@ -6,10 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { PowerSourceConfigurationBehavior } from "./PowerSourceConfigurationBehavior.js";
+import { PowerSourceConfiguration } from "#clusters/power-source-configuration";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const PowerSourceConfigurationClientConstructor = PowerSourceConfigurationBehavior;
-export interface PowerSourceConfigurationClient extends PowerSourceConfigurationBehavior {}
+export const PowerSourceConfigurationClientConstructor = ClientBehavior(PowerSourceConfiguration.Complete);
+export interface PowerSourceConfigurationClient extends InstanceType<typeof PowerSourceConfigurationClientConstructor> {}
 export interface PowerSourceConfigurationClientConstructor extends Identity<typeof PowerSourceConfigurationClientConstructor> {}
 export const PowerSourceConfigurationClient: PowerSourceConfigurationClientConstructor = PowerSourceConfigurationClientConstructor;

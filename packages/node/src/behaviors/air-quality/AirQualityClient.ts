@@ -6,10 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { AirQualityBehavior } from "./AirQualityBehavior.js";
+import { AirQuality } from "#clusters/air-quality";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const AirQualityClientConstructor = AirQualityBehavior;
-export interface AirQualityClient extends AirQualityBehavior {}
+export const AirQualityClientConstructor = ClientBehavior(AirQuality.Complete);
+export interface AirQualityClient extends InstanceType<typeof AirQualityClientConstructor> {}
 export interface AirQualityClientConstructor extends Identity<typeof AirQualityClientConstructor> {}
 export const AirQualityClient: AirQualityClientConstructor = AirQualityClientConstructor;

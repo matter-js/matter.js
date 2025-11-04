@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export * from "./ClientBehavior.js";
 export * from "./ClusterBehavior.js";
 export * from "./ClusterBehaviorUtil.js";
 export * from "./ClusterEvents.js";

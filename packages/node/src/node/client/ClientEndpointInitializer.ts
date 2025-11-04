@@ -12,7 +12,7 @@ import { ServerBehaviorBacking } from "#behavior/internal/ServerBehaviorBacking.
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { FeatureBitmap } from "#model";
-import { ClientBehavior } from "#node/client/ClientBehavior.js";
+import { PeerBehavior } from "#node/client/PeerBehavior.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
 import { NodeStore } from "#storage/NodeStore.js";
@@ -84,7 +84,7 @@ export class ClientEndpointInitializer extends EndpointInitializer {
             commands.push(cmd.requestId);
         }
 
-        return ClientBehavior({
+        return PeerBehavior({
             id: cluster.id,
             revision: cluster.revision,
             features,

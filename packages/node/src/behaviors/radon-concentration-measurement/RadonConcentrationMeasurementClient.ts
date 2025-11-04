@@ -7,11 +7,10 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { RadonConcentrationMeasurement } from "#clusters/radon-concentration-measurement";
-import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const RadonConcentrationMeasurementClientConstructor = ClusterBehavior
-    .for(RadonConcentrationMeasurement.Complete);
+export const RadonConcentrationMeasurementClientConstructor = ClientBehavior(RadonConcentrationMeasurement.Complete);
 export interface RadonConcentrationMeasurementClient extends InstanceType<typeof RadonConcentrationMeasurementClientConstructor> {}
 export interface RadonConcentrationMeasurementClientConstructor extends Identity<typeof RadonConcentrationMeasurementClientConstructor> {}
 export const RadonConcentrationMeasurementClient: RadonConcentrationMeasurementClientConstructor = RadonConcentrationMeasurementClientConstructor;

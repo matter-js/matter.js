@@ -6,10 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { RvcCleanModeBehavior } from "./RvcCleanModeBehavior.js";
+import { RvcCleanMode } from "#clusters/rvc-clean-mode";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const RvcCleanModeClientConstructor = RvcCleanModeBehavior;
-export interface RvcCleanModeClient extends RvcCleanModeBehavior {}
+export const RvcCleanModeClientConstructor = ClientBehavior(RvcCleanMode.Complete);
+export interface RvcCleanModeClient extends InstanceType<typeof RvcCleanModeClientConstructor> {}
 export interface RvcCleanModeClientConstructor extends Identity<typeof RvcCleanModeClientConstructor> {}
 export const RvcCleanModeClient: RvcCleanModeClientConstructor = RvcCleanModeClientConstructor;

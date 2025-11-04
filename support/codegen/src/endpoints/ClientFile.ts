@@ -5,7 +5,7 @@
  */
 
 import { decamelize, Logger } from "#general";
-import { ClusterModel, ClusterVariance } from "#model";
+import { ClusterModel } from "#model";
 import { TsFile } from "../util/TsFile.js";
 
 const logger = Logger.get("BehaviorServerFile");
@@ -13,17 +13,14 @@ const logger = Logger.get("BehaviorServerFile");
 export class ClientFile extends TsFile {
     static readonly baseName = "Client";
     readonly definitionName: string;
-    #variance: ClusterVariance;
 
     constructor(
         name: string,
         public cluster: ClusterModel,
-        variance: ClusterVariance,
     ) {
         super(name);
         this.definitionName = `${cluster.name}Client`;
         this.cluster = cluster;
-        this.#variance = variance;
 
         this.generate();
     }
@@ -33,19 +30,11 @@ export class ClientFile extends TsFile {
 
         const constructorName = `${this.definitionName}Constructor`;
 
-        if (this.#variance.components.length) {
-            // Cluster with features - generate behavior based on "complete" cluster
-            this.addImport(`#clusters/${decamelize(this.cluster.name)}`, this.cluster.name);
-            this.addImport("!node/behavior/cluster/ClusterBehavior.js", "ClusterBehavior");
-            const builder = this.builder(`export const ${constructorName} = ClusterBehavior`);
-            builder.atom(`for(${this.cluster.name}.Complete)`);
-            this.atom(`export interface ${this.definitionName} extends InstanceType<typeof ${constructorName}> {}`);
-        } else {
-            // No features - just export an alias for the base behavior implementation
-            this.addImport(`./${this.cluster.name}Behavior.js`, `${this.cluster.name}Behavior`);
-            this.atom(`export const ${constructorName} = ${this.cluster.name}Behavior`);
-            this.atom(`export interface ${this.definitionName} extends ${this.cluster.name}Behavior {}`);
-        }
+        this.addImport(`#clusters/${decamelize(this.cluster.name)}`, this.cluster.name);
+        this.addImport("!node/behavior/cluster/ClientBehavior.js", "ClientBehavior");
+        const constructor = this.expressions(`export const ${constructorName} = ClientBehavior(`, ")");
+        constructor.atom(`${this.cluster.name}.Complete`);
+        this.atom(`export interface ${this.definitionName} extends InstanceType<typeof ${constructorName}> {}`);
 
         this.addImport("#general", "Identity");
         this.undefine(constructorName);

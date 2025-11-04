@@ -7,10 +7,10 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { EthernetNetworkDiagnostics } from "#clusters/ethernet-network-diagnostics";
-import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const EthernetNetworkDiagnosticsClientConstructor = ClusterBehavior.for(EthernetNetworkDiagnostics.Complete);
+export const EthernetNetworkDiagnosticsClientConstructor = ClientBehavior(EthernetNetworkDiagnostics.Complete);
 export interface EthernetNetworkDiagnosticsClient extends InstanceType<typeof EthernetNetworkDiagnosticsClientConstructor> {}
 export interface EthernetNetworkDiagnosticsClientConstructor extends Identity<typeof EthernetNetworkDiagnosticsClientConstructor> {}
 export const EthernetNetworkDiagnosticsClient: EthernetNetworkDiagnosticsClientConstructor = EthernetNetworkDiagnosticsClientConstructor;

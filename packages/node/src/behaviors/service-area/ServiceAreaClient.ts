@@ -7,10 +7,10 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { ServiceArea } from "#clusters/service-area";
-import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const ServiceAreaClientConstructor = ClusterBehavior.for(ServiceArea.Complete);
+export const ServiceAreaClientConstructor = ClientBehavior(ServiceArea.Complete);
 export interface ServiceAreaClient extends InstanceType<typeof ServiceAreaClientConstructor> {}
 export interface ServiceAreaClientConstructor extends Identity<typeof ServiceAreaClientConstructor> {}
 export const ServiceAreaClient: ServiceAreaClientConstructor = ServiceAreaClientConstructor;

@@ -6,10 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { DiagnosticLogsBehavior } from "./DiagnosticLogsBehavior.js";
+import { DiagnosticLogs } from "#clusters/diagnostic-logs";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const DiagnosticLogsClientConstructor = DiagnosticLogsBehavior;
-export interface DiagnosticLogsClient extends DiagnosticLogsBehavior {}
+export const DiagnosticLogsClientConstructor = ClientBehavior(DiagnosticLogs.Complete);
+export interface DiagnosticLogsClient extends InstanceType<typeof DiagnosticLogsClientConstructor> {}
 export interface DiagnosticLogsClientConstructor extends Identity<typeof DiagnosticLogsClientConstructor> {}
 export const DiagnosticLogsClient: DiagnosticLogsClientConstructor = DiagnosticLogsClientConstructor;

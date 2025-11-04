@@ -6,10 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { RvcRunModeBehavior } from "./RvcRunModeBehavior.js";
+import { RvcRunMode } from "#clusters/rvc-run-mode";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const RvcRunModeClientConstructor = RvcRunModeBehavior;
-export interface RvcRunModeClient extends RvcRunModeBehavior {}
+export const RvcRunModeClientConstructor = ClientBehavior(RvcRunMode.Complete);
+export interface RvcRunModeClient extends InstanceType<typeof RvcRunModeClientConstructor> {}
 export interface RvcRunModeClientConstructor extends Identity<typeof RvcRunModeClientConstructor> {}
 export const RvcRunModeClient: RvcRunModeClientConstructor = RvcRunModeClientConstructor;

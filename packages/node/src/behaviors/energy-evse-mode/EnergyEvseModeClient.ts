@@ -6,10 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { EnergyEvseModeBehavior } from "./EnergyEvseModeBehavior.js";
+import { EnergyEvseMode } from "#clusters/energy-evse-mode";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const EnergyEvseModeClientConstructor = EnergyEvseModeBehavior;
-export interface EnergyEvseModeClient extends EnergyEvseModeBehavior {}
+export const EnergyEvseModeClientConstructor = ClientBehavior(EnergyEvseMode.Complete);
+export interface EnergyEvseModeClient extends InstanceType<typeof EnergyEvseModeClientConstructor> {}
 export interface EnergyEvseModeClientConstructor extends Identity<typeof EnergyEvseModeClientConstructor> {}
 export const EnergyEvseModeClient: EnergyEvseModeClientConstructor = EnergyEvseModeClientConstructor;

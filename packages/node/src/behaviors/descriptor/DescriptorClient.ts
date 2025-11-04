@@ -7,10 +7,10 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { Descriptor } from "#clusters/descriptor";
-import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const DescriptorClientConstructor = ClusterBehavior.for(Descriptor.Complete);
+export const DescriptorClientConstructor = ClientBehavior(Descriptor.Complete);
 export interface DescriptorClient extends InstanceType<typeof DescriptorClientConstructor> {}
 export interface DescriptorClientConstructor extends Identity<typeof DescriptorClientConstructor> {}
 export const DescriptorClient: DescriptorClientConstructor = DescriptorClientConstructor;

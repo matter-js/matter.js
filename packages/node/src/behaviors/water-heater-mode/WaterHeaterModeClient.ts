@@ -6,10 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { WaterHeaterModeBehavior } from "./WaterHeaterModeBehavior.js";
+import { WaterHeaterMode } from "#clusters/water-heater-mode";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const WaterHeaterModeClientConstructor = WaterHeaterModeBehavior;
-export interface WaterHeaterModeClient extends WaterHeaterModeBehavior {}
+export const WaterHeaterModeClientConstructor = ClientBehavior(WaterHeaterMode.Complete);
+export interface WaterHeaterModeClient extends InstanceType<typeof WaterHeaterModeClientConstructor> {}
 export interface WaterHeaterModeClientConstructor extends Identity<typeof WaterHeaterModeClientConstructor> {}
 export const WaterHeaterModeClient: WaterHeaterModeClientConstructor = WaterHeaterModeClientConstructor;

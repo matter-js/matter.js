@@ -6,10 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { UserLabelBehavior } from "./UserLabelBehavior.js";
+import { UserLabel } from "#clusters/user-label";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const UserLabelClientConstructor = UserLabelBehavior;
-export interface UserLabelClient extends UserLabelBehavior {}
+export const UserLabelClientConstructor = ClientBehavior(UserLabel.Complete);
+export interface UserLabelClient extends InstanceType<typeof UserLabelClientConstructor> {}
 export interface UserLabelClientConstructor extends Identity<typeof UserLabelClientConstructor> {}
 export const UserLabelClient: UserLabelClientConstructor = UserLabelClientConstructor;

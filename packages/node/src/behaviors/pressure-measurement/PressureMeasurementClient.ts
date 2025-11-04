@@ -7,10 +7,10 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { PressureMeasurement } from "#clusters/pressure-measurement";
-import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const PressureMeasurementClientConstructor = ClusterBehavior.for(PressureMeasurement.Complete);
+export const PressureMeasurementClientConstructor = ClientBehavior(PressureMeasurement.Complete);
 export interface PressureMeasurementClient extends InstanceType<typeof PressureMeasurementClientConstructor> {}
 export interface PressureMeasurementClientConstructor extends Identity<typeof PressureMeasurementClientConstructor> {}
 export const PressureMeasurementClient: PressureMeasurementClientConstructor = PressureMeasurementClientConstructor;

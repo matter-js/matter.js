@@ -7,10 +7,10 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { MediaPlayback } from "#clusters/media-playback";
-import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const MediaPlaybackClientConstructor = ClusterBehavior.for(MediaPlayback.Complete);
+export const MediaPlaybackClientConstructor = ClientBehavior(MediaPlayback.Complete);
 export interface MediaPlaybackClient extends InstanceType<typeof MediaPlaybackClientConstructor> {}
 export interface MediaPlaybackClientConstructor extends Identity<typeof MediaPlaybackClientConstructor> {}
 export const MediaPlaybackClient: MediaPlaybackClientConstructor = MediaPlaybackClientConstructor;

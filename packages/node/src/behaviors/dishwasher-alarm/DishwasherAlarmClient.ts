@@ -7,10 +7,10 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { DishwasherAlarm } from "#clusters/dishwasher-alarm";
-import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const DishwasherAlarmClientConstructor = ClusterBehavior.for(DishwasherAlarm.Complete);
+export const DishwasherAlarmClientConstructor = ClientBehavior(DishwasherAlarm.Complete);
 export interface DishwasherAlarmClient extends InstanceType<typeof DishwasherAlarmClientConstructor> {}
 export interface DishwasherAlarmClientConstructor extends Identity<typeof DishwasherAlarmClientConstructor> {}
 export const DishwasherAlarmClient: DishwasherAlarmClientConstructor = DishwasherAlarmClientConstructor;

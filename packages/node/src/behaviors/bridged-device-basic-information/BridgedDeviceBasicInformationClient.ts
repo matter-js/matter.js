@@ -7,11 +7,10 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { BridgedDeviceBasicInformation } from "#clusters/bridged-device-basic-information";
-import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const BridgedDeviceBasicInformationClientConstructor = ClusterBehavior
-    .for(BridgedDeviceBasicInformation.Complete);
+export const BridgedDeviceBasicInformationClientConstructor = ClientBehavior(BridgedDeviceBasicInformation.Complete);
 export interface BridgedDeviceBasicInformationClient extends InstanceType<typeof BridgedDeviceBasicInformationClientConstructor> {}
 export interface BridgedDeviceBasicInformationClientConstructor extends Identity<typeof BridgedDeviceBasicInformationClientConstructor> {}
 export const BridgedDeviceBasicInformationClient: BridgedDeviceBasicInformationClientConstructor = BridgedDeviceBasicInformationClientConstructor;

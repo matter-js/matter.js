@@ -6,10 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MessagesBehavior } from "./MessagesBehavior.js";
+import { Messages } from "#clusters/messages";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const MessagesClientConstructor = MessagesBehavior;
-export interface MessagesClient extends MessagesBehavior {}
+export const MessagesClientConstructor = ClientBehavior(Messages.Complete);
+export interface MessagesClient extends InstanceType<typeof MessagesClientConstructor> {}
 export interface MessagesClientConstructor extends Identity<typeof MessagesClientConstructor> {}
 export const MessagesClient: MessagesClientConstructor = MessagesClientConstructor;

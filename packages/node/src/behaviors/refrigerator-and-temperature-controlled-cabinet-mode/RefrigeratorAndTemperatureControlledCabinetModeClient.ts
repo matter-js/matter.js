@@ -7,11 +7,14 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import {
-    RefrigeratorAndTemperatureControlledCabinetModeBehavior
-} from "./RefrigeratorAndTemperatureControlledCabinetModeBehavior.js";
+    RefrigeratorAndTemperatureControlledCabinetMode
+} from "#clusters/refrigerator-and-temperature-controlled-cabinet-mode";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const RefrigeratorAndTemperatureControlledCabinetModeClientConstructor = RefrigeratorAndTemperatureControlledCabinetModeBehavior;
-export interface RefrigeratorAndTemperatureControlledCabinetModeClient extends RefrigeratorAndTemperatureControlledCabinetModeBehavior {}
+export const RefrigeratorAndTemperatureControlledCabinetModeClientConstructor = ClientBehavior(
+    RefrigeratorAndTemperatureControlledCabinetMode.Complete
+);
+export interface RefrigeratorAndTemperatureControlledCabinetModeClient extends InstanceType<typeof RefrigeratorAndTemperatureControlledCabinetModeClientConstructor> {}
 export interface RefrigeratorAndTemperatureControlledCabinetModeClientConstructor extends Identity<typeof RefrigeratorAndTemperatureControlledCabinetModeClientConstructor> {}
 export const RefrigeratorAndTemperatureControlledCabinetModeClient: RefrigeratorAndTemperatureControlledCabinetModeClientConstructor = RefrigeratorAndTemperatureControlledCabinetModeClientConstructor;

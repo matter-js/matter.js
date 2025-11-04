@@ -7,10 +7,10 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { BooleanStateConfiguration } from "#clusters/boolean-state-configuration";
-import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const BooleanStateConfigurationClientConstructor = ClusterBehavior.for(BooleanStateConfiguration.Complete);
+export const BooleanStateConfigurationClientConstructor = ClientBehavior(BooleanStateConfiguration.Complete);
 export interface BooleanStateConfigurationClient extends InstanceType<typeof BooleanStateConfigurationClientConstructor> {}
 export interface BooleanStateConfigurationClientConstructor extends Identity<typeof BooleanStateConfigurationClientConstructor> {}
 export const BooleanStateConfigurationClient: BooleanStateConfigurationClientConstructor = BooleanStateConfigurationClientConstructor;

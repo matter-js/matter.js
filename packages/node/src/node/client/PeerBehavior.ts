@@ -33,7 +33,7 @@ const cache = {} as Record<string, ClusterBehavior.Type>;
 /**
  * Obtain a {@link ClusterBehavior.Type} for a remote cluster.
  */
-export function ClientBehavior(shape: ClientBehavior.ClusterShape): ClusterBehavior.Type {
+export function PeerBehavior(shape: PeerBehavior.ClusterShape): ClusterBehavior.Type {
     const analysis = ShapeAnalysis(shape);
 
     const fingerprint = createFingerprint(analysis);
@@ -55,7 +55,7 @@ export function ClientBehavior(shape: ClientBehavior.ClusterShape): ClusterBehav
     return type;
 }
 
-export namespace ClientBehavior {
+export namespace PeerBehavior {
     export interface ClusterShape {
         id: ClusterId;
         revision: number;
@@ -250,7 +250,7 @@ function createUnknownName(prefix: string, id: number) {
 
 interface ShapeAnalysis {
     schema: ClusterModel & { id: ClusterId };
-    shape: ClientBehavior.ClusterShape;
+    shape: PeerBehavior.ClusterShape;
     attrSupportOverrides: Map<AttributeModel, boolean>;
     extraAttrs: Set<number>;
     commandSupportOverrides: Map<CommandModel, boolean>;
@@ -260,7 +260,7 @@ interface ShapeAnalysis {
 /**
  * Analyze the cluster shape to determine how we should override the behavior and schema.
  */
-function ShapeAnalysis(shape: ClientBehavior.ClusterShape): ShapeAnalysis {
+function ShapeAnalysis(shape: PeerBehavior.ClusterShape): ShapeAnalysis {
     const standardCluster = Matter.get(ClusterModel, shape.id);
     const schema =
         standardCluster ??

@@ -6,10 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { OvenCavityOperationalStateBehavior } from "./OvenCavityOperationalStateBehavior.js";
+import { OvenCavityOperationalState } from "#clusters/oven-cavity-operational-state";
+import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "#general";
 
-export const OvenCavityOperationalStateClientConstructor = OvenCavityOperationalStateBehavior;
-export interface OvenCavityOperationalStateClient extends OvenCavityOperationalStateBehavior {}
+export const OvenCavityOperationalStateClientConstructor = ClientBehavior(OvenCavityOperationalState.Complete);
+export interface OvenCavityOperationalStateClient extends InstanceType<typeof OvenCavityOperationalStateClientConstructor> {}
 export interface OvenCavityOperationalStateClientConstructor extends Identity<typeof OvenCavityOperationalStateClientConstructor> {}
 export const OvenCavityOperationalStateClient: OvenCavityOperationalStateClientConstructor = OvenCavityOperationalStateClientConstructor;
