@@ -49,6 +49,7 @@
         "format-verify": "prettier --check \"packages/**/*.ts\" \"support/codegen/**/*.ts\" \"support/chip-testing/**/*.ts\"",
         "matter-bridge": "matter-run packages/examples/src/device-bridge-onoff/BridgedDevicesNode.ts",
         "matter-controller": "matter-run packages/examples/src/controller/ControllerNode.ts",
+        "matter-device": "npm run device-onoff",
         "generate-spec": "matter-run --max-old-space-size=6144 support/codegen/bin/generate-spec.js",
         "generate-chip": "matter-run support/codegen/bin/generate-chip.js",
         "generate-model": "matter-run support/codegen/bin/generate-model.js",
