@@ -58,6 +58,7 @@ export type LaunchOptions = {
     cwd?: string;
     args?: string[];
     runtimeArgs?: string[];
+    skipFiles?: string[];
 };
 
 export type LaunchConfig = LaunchOptions & typeof CONFIG_TEMPLATE;
@@ -180,6 +181,11 @@ function addTest(options: Partial<LaunchOptions> & { name: string }) {
     add({
         ...options,
         program: "node_modules/.bin/matter-test",
+        skipFiles: [
+            "<node_internals>/**",
+            "${workspaceFolder}/node_modules/mocha/**/*.js",
+            "${workspaceFolder}/packages/testing/**/*.ts",
+        ],
     });
 }
 

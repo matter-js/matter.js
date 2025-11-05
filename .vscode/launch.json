@@ -5,7 +5,9 @@
             "type": "node",
             "request": "launch",
             "skipFiles": [
-                "<node_internals>/**"
+                "<node_internals>/**",
+                "${workspaceFolder}/node_modules/mocha/**/*.js",
+                "${workspaceFolder}/packages/testing/**/*.ts"
             ],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
@@ -31,7 +33,9 @@
             "type": "node",
             "request": "launch",
             "skipFiles": [
-                "<node_internals>/**"
+                "<node_internals>/**",
+                "${workspaceFolder}/node_modules/mocha/**/*.js",
+                "${workspaceFolder}/packages/testing/**/*.ts"
             ],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
@@ -146,7 +150,9 @@
             "type": "node",
             "request": "launch",
             "skipFiles": [
-                "<node_internals>/**"
+                "<node_internals>/**",
+                "${workspaceFolder}/node_modules/mocha/**/*.js",
+                "${workspaceFolder}/packages/testing/**/*.ts"
             ],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
@@ -174,7 +180,9 @@
             "type": "node",
             "request": "launch",
             "skipFiles": [
-                "<node_internals>/**"
+                "<node_internals>/**",
+                "${workspaceFolder}/node_modules/mocha/**/*.js",
+                "${workspaceFolder}/packages/testing/**/*.ts"
             ],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
@@ -202,7 +210,9 @@
             "type": "node",
             "request": "launch",
             "skipFiles": [
-                "<node_internals>/**"
+                "<node_internals>/**",
+                "${workspaceFolder}/node_modules/mocha/**/*.js",
+                "${workspaceFolder}/packages/testing/**/*.ts"
             ],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
@@ -230,7 +240,9 @@
             "type": "node",
             "request": "launch",
             "skipFiles": [
-                "<node_internals>/**"
+                "<node_internals>/**",
+                "${workspaceFolder}/node_modules/mocha/**/*.js",
+                "${workspaceFolder}/packages/testing/**/*.ts"
             ],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
@@ -258,7 +270,9 @@
             "type": "node",
             "request": "launch",
             "skipFiles": [
-                "<node_internals>/**"
+                "<node_internals>/**",
+                "${workspaceFolder}/node_modules/mocha/**/*.js",
+                "${workspaceFolder}/packages/testing/**/*.ts"
             ],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
@@ -286,7 +300,9 @@
             "type": "node",
             "request": "launch",
             "skipFiles": [
-                "<node_internals>/**"
+                "<node_internals>/**",
+                "${workspaceFolder}/node_modules/mocha/**/*.js",
+                "${workspaceFolder}/packages/testing/**/*.ts"
             ],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
@@ -314,7 +330,9 @@
             "type": "node",
             "request": "launch",
             "skipFiles": [
-                "<node_internals>/**"
+                "<node_internals>/**",
+                "${workspaceFolder}/node_modules/mocha/**/*.js",
+                "${workspaceFolder}/packages/testing/**/*.ts"
             ],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
@@ -342,7 +360,9 @@
             "type": "node",
             "request": "launch",
             "skipFiles": [
-                "<node_internals>/**"
+                "<node_internals>/**",
+                "${workspaceFolder}/node_modules/mocha/**/*.js",
+                "${workspaceFolder}/packages/testing/**/*.ts"
             ],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
@@ -370,7 +390,9 @@
             "type": "node",
             "request": "launch",
             "skipFiles": [
-                "<node_internals>/**"
+                "<node_internals>/**",
+                "${workspaceFolder}/node_modules/mocha/**/*.js",
+                "${workspaceFolder}/packages/testing/**/*.ts"
             ],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
@@ -398,7 +420,9 @@
             "type": "node",
             "request": "launch",
             "skipFiles": [
-                "<node_internals>/**"
+                "<node_internals>/**",
+                "${workspaceFolder}/node_modules/mocha/**/*.js",
+                "${workspaceFolder}/packages/testing/**/*.ts"
             ],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
@@ -426,7 +450,9 @@
             "type": "node",
             "request": "launch",
             "skipFiles": [
-                "<node_internals>/**"
+                "<node_internals>/**",
+                "${workspaceFolder}/node_modules/mocha/**/*.js",
+                "${workspaceFolder}/packages/testing/**/*.ts"
             ],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
@@ -458,7 +484,9 @@
             "type": "node",
             "request": "launch",
             "skipFiles": [
-                "<node_internals>/**"
+                "<node_internals>/**",
+                "${workspaceFolder}/node_modules/mocha/**/*.js",
+                "${workspaceFolder}/packages/testing/**/*.ts"
             ],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
@@ -490,7 +518,9 @@
             "type": "node",
             "request": "launch",
             "skipFiles": [
-                "<node_internals>/**"
+                "<node_internals>/**",
+                "${workspaceFolder}/node_modules/mocha/**/*.js",
+                "${workspaceFolder}/packages/testing/**/*.ts"
             ],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
@@ -522,7 +552,9 @@
             "type": "node",
             "request": "launch",
             "skipFiles": [
-                "<node_internals>/**"
+                "<node_internals>/**",
+                "${workspaceFolder}/node_modules/mocha/**/*.js",
+                "${workspaceFolder}/packages/testing/**/*.ts"
             ],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
