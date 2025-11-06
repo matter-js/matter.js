@@ -119,6 +119,10 @@ export class CommissionableMdnsAdvertisement extends MdnsAdvertisement<ServiceDe
                 throw new ImplementationError(
                     `Only one pairing hint requiring instructions can be set, but got ${needsInstructionsCount}`,
                 );
+            } else if (needsInstructionsCount === 1 && !pairingInstructions) {
+                throw new ImplementationError(
+                    `Pairing instructions are required when a pairing hint requiring instructions is set`,
+                );
             } else if (needsInstructionsCount === 0 && pairingInstructions) {
                 throw new ImplementationError(
                     `Pairing instructions provided but no pairing hint requiring instructions set`,
