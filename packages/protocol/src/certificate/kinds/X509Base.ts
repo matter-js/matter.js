@@ -422,7 +422,7 @@ export namespace X509Base {
                     case "fabricId": {
                         // 16-byte hex string -> BigInt
                         const hexString = Bytes.toString(valueBytes);
-                        value = Bytes.asBigInt(Bytes.fromHex(hexString));
+                        value = BigInt("0x" + hexString);
                         break;
                     }
                     case "icacId":
@@ -430,7 +430,7 @@ export namespace X509Base {
                     case "vvsId": {
                         // 8-byte hex string -> BigInt, but convert to number if it fits
                         const hexString = Bytes.toString(valueBytes);
-                        const bigIntValue = Bytes.asBigInt(Bytes.fromHex(hexString));
+                        const bigIntValue = BigInt("0x" + hexString);
                         // Convert to number if it fits in Number.MAX_SAFE_INTEGER
                         value = bigIntValue <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(bigIntValue) : bigIntValue;
                         break;
@@ -440,15 +440,13 @@ export namespace X509Base {
                     case "vendorId": {
                         // 4-byte or 2-byte hex string -> number
                         const hexString = Bytes.toString(valueBytes);
-                        const bytes = Bytes.fromHex(hexString);
-                        value = Number(Bytes.asBigInt(bytes));
+                        value = parseInt(hexString, 16);
                         break;
                     }
                     case "caseAuthenticatedTag": {
                         // CAT tags - 4-byte hex string -> number
                         const hexString = Bytes.toString(valueBytes);
-                        const bytes = Bytes.fromHex(hexString);
-                        const catValue = Number(Bytes.asBigInt(bytes));
+                        const catValue = parseInt(hexString, 16);
                         if (result.caseAuthenticatedTags !== undefined) {
                             (result.caseAuthenticatedTags as number[]).push(catValue);
                             continue;
@@ -514,12 +512,12 @@ export namespace X509Base {
                             // First element is isCa boolean
                             if (bcElements[0][DerKey.TagId] === DerType.Boolean) {
                                 const bcBytes = Bytes.of(bcElements[0][DerKey.Bytes]);
-                                result.basicConstraints!.isCa = bcBytes[0] !== 0;
+                                result.basicConstraints.isCa = bcBytes[0] !== 0;
                             }
                             // Second element (if present) is pathLen integer
                             if (bcElements.length > 1 && bcElements[1][DerKey.TagId] === DerType.Integer) {
                                 const pathLenBytes = Bytes.of(bcElements[1][DerKey.Bytes]);
-                                result.basicConstraints!.pathLen = pathLenBytes[0];
+                                result.basicConstraints.pathLen = pathLenBytes[0];
                             }
                         }
                     }
