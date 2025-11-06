@@ -21,11 +21,14 @@ import {
     X962,
 } from "#general";
 import { CaseAuthenticatedTag, FabricId, NodeId, TypeFromPartialBitSchema, VendorId } from "#types";
+import { DerNode } from "@matter/general";
 import { assertCertificateDerSize, CertificateError, Unsigned } from "./common.js";
 import {
     FabricId_Matter,
     FirmwareSigningId_Matter,
     IcacId_Matter,
+    MATTER_EPOCH_OFFSET_S,
+    MATTER_OID_TO_FIELD_MAP,
     matterToJsDate,
     NocCat_Matter,
     NodeId_Matter,
@@ -293,7 +296,7 @@ export abstract class X509Base<CT extends X509Certificate> {
     /**
      * Build the ASN.1 DER structure for the certificate.
      */
-    protected genericBuildAsn1Structure({
+    genericBuildAsn1Structure({
         serialNumber,
         notBefore,
         notAfter,
@@ -322,11 +325,13 @@ export abstract class X509Base<CT extends X509Certificate> {
             extensions: ContextTagged(3, this.#extensionsToAsn1(extensions)),
         };
     }
+}
 
+export namespace X509Base {
     /**
      * Create a Certificate Signing Request (CSR) in ASN.1 DER format.
      */
-    static async createCertificateSigningRequest(crypto: Crypto, key: Key) {
+    export async function createCertificateSigningRequest(crypto: Crypto, key: Key) {
         const request = {
             version: 0,
             subject: { organization: X520.OrganisationName("CSR") },
@@ -342,9 +347,389 @@ export abstract class X509Base<CT extends X509Certificate> {
     }
 
     /**
+     * Map an OID to a subject/issuer field name.
+     * Uses auto-generated lookup maps from X520 and Matter OID definitions.
+     * Returns the field name and whether the value is a PrintableString variant.
+     */
+    function oidToSubjectField(oid: Bytes) {
+        const oidHex = Bytes.toHex(oid);
+
+        const field = X520.OID_TO_FIELD_MAP[oidHex] ?? MATTER_OID_TO_FIELD_MAP[oidHex];
+        if (field !== undefined) {
+            return { field, isPrintable: false };
+        }
+    }
+
+    /**
+     * Parse a subject or issuer field from ASN.1 DER format.
+     */
+    function parseSubjectOrIssuer(node: DerNode) {
+        const result: { [field: string]: unknown } = {};
+
+        const { [DerKey.Elements]: rdnSequence } = node;
+        if (!rdnSequence) {
+            throw new CertificateError("Invalid subject/issuer structure");
+        }
+
+        // Iterate through RDN SEQUENCEs
+        for (const rdnSet of rdnSequence) {
+            const { [DerKey.Elements]: attributeSets } = rdnSet;
+            if (!attributeSets) continue;
+
+            for (const attributeSet of attributeSets) {
+                const { [DerKey.Elements]: attrElements } = attributeSet;
+                if (!attrElements || attrElements.length !== 2) continue;
+
+                const [oidNode, valueNode] = attrElements;
+                const oid = oidNode[DerKey.Bytes];
+                const fieldInfo = oidToSubjectField(oid);
+
+                if (fieldInfo === undefined) continue;
+
+                let { field } = fieldInfo;
+                let value;
+
+                // Parse the value based on the field type
+                const valueBytes = Bytes.of(valueNode[DerKey.Bytes]);
+                const valueTag = valueNode[DerKey.TagId];
+
+                // Matter-specific fields are encoded as UTF8 strings containing hex values
+                switch (field) {
+                    case "nodeId":
+                    case "fabricId": {
+                        // 16-byte hex string -> BigInt
+                        const hexString = Bytes.toString(valueBytes);
+                        value = BigInt("0x" + hexString);
+                        break;
+                    }
+                    case "icacId":
+                    case "rcacId":
+                    case "vvsId": {
+                        // 8-byte hex string -> BigInt, but convert to number if it fits
+                        const hexString = Bytes.toString(valueBytes);
+                        const bigIntValue = BigInt("0x" + hexString);
+                        // Convert to number if it fits in Number.MAX_SAFE_INTEGER
+                        value = bigIntValue <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(bigIntValue) : bigIntValue;
+                        break;
+                    }
+                    case "firmwareSigningId":
+                    case "productId":
+                    case "vendorId": {
+                        // 4-byte or 2-byte hex string -> number
+                        const hexString = Bytes.toString(valueBytes);
+                        value = parseInt(hexString, 16);
+                        break;
+                    }
+                    case "caseAuthenticatedTag": {
+                        // CAT tags - 4-byte hex string -> number
+                        const hexString = Bytes.toString(valueBytes);
+                        const catValue = parseInt(hexString, 16);
+                        if (result.caseAuthenticatedTags !== undefined) {
+                            (result.caseAuthenticatedTags as number[]).push(catValue);
+                            continue;
+                        }
+                        field = "caseAuthenticatedTags";
+                        value = [catValue];
+                        break;
+                    }
+                    default: {
+                        // String fields
+                        value = Bytes.toString(valueBytes);
+
+                        // Handle PrintableString variants
+                        if (valueTag === DerType.PrintableString) {
+                            field += "Ps";
+                        }
+                    }
+                }
+                result[field] = value;
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Parse extensions from ASN.1 DER format.
+     */
+    function parseExtensions(extensionsNode: any): any {
+        const result: any = {};
+
+        const { [DerKey.Elements]: extensions } = extensionsNode;
+        if (!extensions) {
+            throw new CertificateError("Invalid extensions structure");
+        }
+
+        for (const ext of extensions) {
+            const { [DerKey.Elements]: extElements } = ext;
+            if (!extElements || extElements.length < 2) continue;
+
+            const oid = extElements[0][DerKey.Bytes];
+            const oidHex = Bytes.toHex(oid);
+
+            // Find the value - it might be after a critical flag
+            let valueIndex = 1;
+            if (extElements.length > 2 && extElements[1][DerKey.TagId] === DerType.Boolean) {
+                valueIndex = 2; // Skip critical flag
+            }
+
+            const valueOctetString = extElements[valueIndex][DerKey.Bytes];
+            const valueNode = DerCodec.decode(valueOctetString);
+
+            switch (oidHex) {
+                case "551d13": // basicConstraints
+                    {
+                        const { [DerKey.Elements]: bcElements } = valueNode;
+                        // Always initialize basicConstraints when extension is present
+                        if (!result.basicConstraints) {
+                            result.basicConstraints = { isCa: false };
+                        }
+                        if (bcElements && bcElements.length > 0) {
+                            // First element is isCa boolean
+                            if (bcElements[0][DerKey.TagId] === DerType.Boolean) {
+                                const bcBytes = Bytes.of(bcElements[0][DerKey.Bytes]);
+                                result.basicConstraints.isCa = bcBytes[0] !== 0;
+                            }
+                            // Second element (if present) is pathLen integer
+                            if (bcElements.length > 1 && bcElements[1][DerKey.TagId] === DerType.Integer) {
+                                const pathLenBytes = Bytes.of(bcElements[1][DerKey.Bytes]);
+                                result.basicConstraints.pathLen = pathLenBytes[0];
+                            }
+                        }
+                    }
+                    break;
+
+                case "551d0f": // keyUsage
+                    {
+                        // Note: DerKey.Bytes for BIT STRING returns data without the padding byte
+                        const bitString = Bytes.of(valueNode[DerKey.Bytes]);
+                        if (bitString.length >= 1) {
+                            // The keyUsage flags are in the first byte
+                            const usageByte = bitString[0];
+
+                            // Set all flags based on the bit values
+                            result.keyUsage = {
+                                digitalSignature: (usageByte & 0x80) !== 0,
+                                nonRepudiation: (usageByte & 0x40) !== 0,
+                                keyEncipherment: (usageByte & 0x20) !== 0,
+                                dataEncipherment: (usageByte & 0x10) !== 0,
+                                keyAgreement: (usageByte & 0x08) !== 0,
+                                keyCertSign: (usageByte & 0x04) !== 0,
+                                cRLSign: (usageByte & 0x02) !== 0,
+                                encipherOnly: (usageByte & 0x01) !== 0,
+                                decipherOnly: bitString.length > 1 ? (bitString[1] & 0x80) !== 0 : false,
+                            };
+                        }
+                    }
+                    break;
+
+                case "551d25": // extendedKeyUsage
+                    {
+                        const { [DerKey.Elements]: ekuElements } = valueNode;
+                        if (ekuElements) {
+                            const ekuValues: number[] = [];
+                            for (const eku of ekuElements) {
+                                const ekuOid = Bytes.toHex(eku[DerKey.Bytes]);
+                                switch (ekuOid) {
+                                    case "2b06010505070301":
+                                        ekuValues.push(1);
+                                        break; // serverAuth
+                                    case "2b06010505070302":
+                                        ekuValues.push(2);
+                                        break; // clientAuth
+                                    case "2b06010505070303":
+                                        ekuValues.push(3);
+                                        break; // codeSigning
+                                    case "2b06010505070304":
+                                        ekuValues.push(4);
+                                        break; // emailProtection
+                                    case "2b06010505070308":
+                                        ekuValues.push(5);
+                                        break; // timeStamping
+                                    case "2b06010505070309":
+                                        ekuValues.push(6);
+                                        break; // ocspSigning
+                                }
+                            }
+                            if (ekuValues.length > 0) {
+                                result.extendedKeyUsage = ekuValues;
+                            }
+                        }
+                    }
+                    break;
+
+                case "551d0e": // subjectKeyIdentifier
+                    result.subjectKeyIdentifier = valueNode[DerKey.Bytes];
+                    break;
+
+                case "551d23": // authorityKeyIdentifier
+                    {
+                        const { [DerKey.Elements]: akiElements } = valueNode;
+                        if (akiElements && akiElements.length > 0) {
+                            // The keyIdentifier is context-tagged with [0]
+                            result.authorityKeyIdentifier = akiElements[0][DerKey.Bytes];
+                        }
+                    }
+                    break;
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Parse a date from ASN.1 DER format (UTCTime or GeneralizedTime).
+     */
+    function parseDate(node: any): number {
+        const dateBytes = node[DerKey.Bytes];
+        const dateString = Bytes.toString(dateBytes);
+        const tag = node[DerKey.TagId];
+
+        let year: number, month: number, day: number, hour: number, minute: number, second: number;
+
+        if (tag === DerType.UtcDate) {
+            // UTCTime format: YYMMDDHHMMSSZ
+            year = parseInt(dateString.substring(0, 2));
+            year += year >= 50 ? 1900 : 2000;
+            month = parseInt(dateString.substring(2, 4));
+            day = parseInt(dateString.substring(4, 6));
+            hour = parseInt(dateString.substring(6, 8));
+            minute = parseInt(dateString.substring(8, 10));
+            second = parseInt(dateString.substring(10, 12));
+        } else if (tag === DerType.GeneralizedTime) {
+            // GeneralizedTime format: YYYYMMDDHHMMSSZ
+            year = parseInt(dateString.substring(0, 4));
+            month = parseInt(dateString.substring(4, 6));
+            day = parseInt(dateString.substring(6, 8));
+            hour = parseInt(dateString.substring(8, 10));
+            minute = parseInt(dateString.substring(10, 12));
+            second = parseInt(dateString.substring(12, 14));
+        } else {
+            throw new CertificateError(`Unsupported date type: ${tag}`);
+        }
+
+        const date = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+
+        // Check if this is the special NON_WELL_DEFINED_DATE (9999-12-31 23:59:59Z)
+        // which should be represented as 0 in Matter epoch
+        if (date.getTime() === X520.NON_WELL_DEFINED_DATE.getTime()) {
+            return 0;
+        }
+
+        // Convert to Matter epoch (seconds since 2000-01-01 00:00:00 UTC)
+        return Math.floor(date.getTime() / 1000) - MATTER_EPOCH_OFFSET_S;
+    }
+
+    /**
+     * Parse an ASN.1/DER encoded certificate into the internal format.
+     * This extracts the certificate data without the signature.
+     */
+    export function parseAsn1Certificate(encodedCert: Bytes): { cert: any; signature: Bytes } {
+        const { [DerKey.Elements]: rootElements } = DerCodec.decode(encodedCert);
+
+        if (!rootElements || rootElements.length !== 3) {
+            throw new CertificateError(
+                `Invalid certificate structure - expected 3 root elements, got ${rootElements?.length ?? 0}`,
+            );
+        }
+
+        const [certificateNode, , signatureNode] = rootElements;
+
+        // Parse TBSCertificate
+        const { [DerKey.Elements]: certElements } = certificateNode;
+        if (!certElements || certElements.length < 7) {
+            throw new CertificateError("Invalid TBSCertificate structure");
+        }
+
+        let idx = 0;
+
+        // Version (optional, context-tagged [0])
+        if (certElements[idx][DerKey.TagId] === 0xa0) {
+            // Skip version - we don't need it for the internal representation
+            idx++;
+        }
+
+        // Serial number
+        const serialNumber = certElements[idx++][DerKey.Bytes];
+
+        // Signature algorithm
+        const signatureAlgorithmOid = certElements[idx][DerKey.Elements]?.[0]?.[DerKey.Bytes];
+        if (!signatureAlgorithmOid) {
+            throw new CertificateError("Invalid signature algorithm structure");
+        }
+        const signatureAlgorithm = Bytes.toHex(signatureAlgorithmOid) === "2a8648ce3d040302" ? 1 : 0;
+        idx++;
+
+        // Issuer
+        const issuer = parseSubjectOrIssuer(certElements[idx++]);
+
+        // Validity
+        const { [DerKey.Elements]: validityElements } = certElements[idx++];
+        if (!validityElements || validityElements.length !== 2) {
+            throw new CertificateError("Invalid validity structure");
+        }
+        const notBefore = parseDate(validityElements[0]);
+        const notAfter = parseDate(validityElements[1]);
+
+        // Subject
+        const subject = parseSubjectOrIssuer(certElements[idx++]);
+
+        // Public key
+        const { [DerKey.Elements]: publicKeyElements } = certElements[idx++];
+        if (!publicKeyElements || publicKeyElements.length !== 2) {
+            throw new CertificateError("Invalid public key structure");
+        }
+
+        const { [DerKey.Elements]: algorithmElements } = publicKeyElements[0];
+        if (!algorithmElements || algorithmElements.length !== 2) {
+            throw new CertificateError("Invalid public key algorithm structure");
+        }
+
+        const publicKeyAlgorithmOid = Bytes.toHex(algorithmElements[0][DerKey.Bytes]);
+        const publicKeyAlgorithm = publicKeyAlgorithmOid === "2a8648ce3d0201" ? 1 : 0;
+
+        const ellipticCurveOid = Bytes.toHex(algorithmElements[1][DerKey.Bytes]);
+        const ellipticCurveIdentifier = ellipticCurveOid === "2a8648ce3d030107" ? 1 : 0;
+
+        // Note: DerKey.Bytes for BIT STRING returns data without the padding byte
+        // EC public keys in Matter format include the 0x04 uncompressed point format byte
+        // followed by 64 bytes (32 bytes X + 32 bytes Y), totaling 65 bytes
+        const ellipticCurvePublicKey = Bytes.of(publicKeyElements[1][DerKey.Bytes]);
+
+        // Extensions (optional, context-tagged [3])
+        let extensions: any = {};
+
+        if (idx < certElements.length && certElements[idx][DerKey.TagId] === 0xa3) {
+            const extensionsBytes = certElements[idx][DerKey.Bytes];
+            const extensionsSequence = DerCodec.decode(extensionsBytes);
+            extensions = parseExtensions(extensionsSequence);
+        }
+
+        // Extract signature from BIT STRING
+        // Note: DerKey.Bytes for BIT STRING returns data without the padding byte
+        const signature = Bytes.of(signatureNode[DerKey.Bytes]);
+
+        return {
+            cert: {
+                serialNumber,
+                signatureAlgorithm,
+                issuer,
+                notBefore,
+                notAfter,
+                subject,
+                publicKeyAlgorithm,
+                ellipticCurveIdentifier,
+                ellipticCurvePublicKey,
+                extensions,
+            },
+            signature,
+        };
+    }
+
+    /**
      * Extract the public key from a Certificate Signing Request (CSR) in ASN.1 DER format.
      */
-    static async getPublicKeyFromCsr(crypto: Crypto, encodedCsr: Bytes) {
+    export async function getPublicKeyFromCsr(crypto: Crypto, encodedCsr: Bytes) {
         const { [DerKey.Elements]: rootElements } = DerCodec.decode(encodedCsr);
         if (rootElements?.length !== 3) {
             throw new CertificateError("Invalid CSR data");

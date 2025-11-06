@@ -11,6 +11,7 @@ import { ExtensionKeyUsageSchema } from "./definitions/base.js";
 import { OperationalCertificate } from "./definitions/operational.js";
 import { OperationalBase } from "./OperationalBase.js";
 import { Rcac } from "./Rcac.js";
+import { X509Base } from "./X509Base.js";
 
 /**
  * Represents an Intermediate Certificate
@@ -19,6 +20,12 @@ export class Icac extends OperationalBase<OperationalCertificate.Icac> {
     /** Construct the class from a Tlv version of the certificate */
     static fromTlv(tlv: Bytes): Icac {
         return new Icac(OperationalCertificate.TlvIcac.decode(tlv));
+    }
+
+    /** Construct the class from an ASN.1/DER encoded certificate */
+    static fromAsn1(asn1: Bytes): Icac {
+        const { cert, signature } = X509Base.parseAsn1Certificate(asn1);
+        return new Icac({ ...cert, signature });
     }
 
     /** Validates all basic certificate fields on construction. */

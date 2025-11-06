@@ -13,6 +13,7 @@ import { Bytes, DerCodec, DerKey, DerNode, PrivateKey, PublicKey, StandardCrypto
 import { CaseAuthenticatedTag, FabricId, NodeId, ValidationOutOfBoundsError } from "#types";
 import {
     CERTIFICATE_SETS,
+    EXTERNAL_TEST_CERTIFICATES,
     TEST_CSR_REQUEST_ASN1,
     TEST_NOC_CERT_CAT_ASN1,
     TEST_PRIVATE_KEY,
@@ -90,6 +91,123 @@ describe("Certificates", () => {
                     });
                 }
             });
+        });
+    });
+
+    /**
+     * We verify all certificates which also verifies them cryptographically.
+     */
+    /**
+     * Parse ASN.1 certificates, convert to TLV, and verify they match the expected TLV.
+     * This tests the round-trip: TLV → ASN.1 → TLV
+     */
+    describe("parses ASN.1 certificates to TLV", () => {
+        Object.entries(CERTIFICATE_SETS).forEach(([key, certs]) => {
+            describe(`parses ASN.1 for ${key}`, () => {
+                it("parse root certificate from ASN.1", async () => {
+                    // Load from TLV, convert to ASN.1, parse back, and verify
+                    const rootFromTlv = Rcac.fromTlv(certs.ROOT.TLV);
+                    const rootFromAsn1 = Rcac.fromAsn1(rootFromTlv.asSignedAsn1());
+                    expect(rootFromAsn1.cert).to.deep.equal(rootFromTlv.cert);
+                    if ("ASN1" in certs.ROOT) {
+                        expect(Bytes.toHex(rootFromTlv.asUnsignedAsn1())).to.equal(Bytes.toHex(certs.ROOT.ASN1));
+                    }
+                    const tlvEncoded = rootFromAsn1.asSignedTlv();
+                    expect(Bytes.toHex(tlvEncoded)).equal(Bytes.toHex(certs.ROOT.TLV));
+
+                    await rootFromTlv.verify(crypto);
+                });
+
+                if ("ICAC" in certs) {
+                    it("parse intermediate certificate from ASN.1", async () => {
+                        const icacFromTlv = Icac.fromTlv(certs.ICAC.TLV);
+                        const icacFromAsn1 = Icac.fromAsn1(icacFromTlv.asSignedAsn1());
+                        expect(icacFromAsn1.cert).to.deep.equal(icacFromTlv.cert);
+                        const tlvEncoded = icacFromAsn1.asSignedTlv();
+                        expect(Bytes.toHex(tlvEncoded)).equal(Bytes.toHex(certs.ICAC.TLV));
+
+                        const rootFromTlv = Rcac.fromTlv(certs.ROOT.TLV);
+                        await icacFromAsn1.verify(crypto, rootFromTlv);
+                    });
+                }
+
+                it("parse operational certificate from ASN.1", async () => {
+                    const nocFromTlv = Noc.fromTlv(certs.NOC.TLV);
+                    const nocFromAsn1 = Noc.fromAsn1(nocFromTlv.asSignedAsn1());
+                    expect(nocFromAsn1.cert).to.deep.equal(nocFromTlv.cert);
+                    if ("ASN1" in certs.NOC) {
+                        expect(Bytes.toHex(nocFromTlv.asUnsignedAsn1())).to.equal(Bytes.toHex(certs.NOC.ASN1));
+                    }
+                    const tlvEncoded = nocFromAsn1.asSignedTlv();
+                    expect(Bytes.toHex(tlvEncoded)).equal(Bytes.toHex(certs.NOC.TLV));
+
+                    const rootFromTlv = Rcac.fromTlv(certs.ROOT.TLV);
+                    const icaFromTlv = "ICAC" in certs ? Icac.fromTlv(certs.ICAC.TLV) : undefined;
+                    await nocFromAsn1.verify(crypto, rootFromTlv, icaFromTlv);
+                });
+            });
+        });
+    });
+
+    /**
+     * Parse external ASN.1 certificates provided by the user.
+     * These are real-world certificates to validate ASN.1 parsing works with externally generated certs.
+     */
+    describe("parses external ASN.1 certificates", () => {
+        it("parse and regenerate external RCAC certificate", () => {
+            const rcac = Rcac.fromAsn1(EXTERNAL_TEST_CERTIFICATES.RCAC_ASN1);
+
+            // Verify we got valid data
+            expect(rcac.cert.subject.rcacId).to.not.be.undefined;
+            expect(rcac.cert.extensions.basicConstraints.isCa).to.be.true;
+            expect(rcac.isSigned).to.be.true;
+
+            const asn1 = rcac.asSignedAsn1();
+
+            expect(Bytes.toHex(asn1)).to.equal(Bytes.toHex(EXTERNAL_TEST_CERTIFICATES.RCAC_ASN1));
+        });
+
+        it("parse and regenerate external ICAC certificate", () => {
+            const icac = Icac.fromAsn1(EXTERNAL_TEST_CERTIFICATES.ICAC_ASN1);
+
+            // Verify we got valid data
+            expect(icac.cert.subject.icacId).to.not.be.undefined;
+            expect(icac.cert.extensions.basicConstraints.isCa).to.be.true;
+            expect(icac.isSigned).to.be.true;
+
+            const asn1 = icac.asSignedAsn1();
+            expect(Bytes.toHex(asn1)).to.equal(Bytes.toHex(EXTERNAL_TEST_CERTIFICATES.ICAC_ASN1));
+        });
+
+        it("parse and regenerate  external NOC certificate", () => {
+            const noc = Noc.fromAsn1(EXTERNAL_TEST_CERTIFICATES.NOC_ASN1);
+
+            // Verify we got valid data
+            expect(noc.cert.subject.nodeId).to.not.be.undefined;
+            expect(noc.cert.subject.fabricId).to.not.be.undefined;
+            expect(noc.cert.extensions.basicConstraints.isCa).to.be.false;
+            expect(noc.isSigned).to.be.true;
+
+            const asn1 = noc.asSignedAsn1();
+            expect(Bytes.toHex(asn1)).to.equal(Bytes.toHex(EXTERNAL_TEST_CERTIFICATES.NOC_ASN1));
+        });
+
+        it("external certificates form a valid chain", async () => {
+            const rcac = Rcac.fromAsn1(EXTERNAL_TEST_CERTIFICATES.RCAC_ASN1);
+            const icac = Icac.fromAsn1(EXTERNAL_TEST_CERTIFICATES.ICAC_ASN1);
+            const noc = Noc.fromAsn1(EXTERNAL_TEST_CERTIFICATES.NOC_ASN1);
+
+            // Verify the chain references are correct
+            expect(icac.cert.issuer.rcacId).to.equal(rcac.cert.subject.rcacId);
+            expect(noc.cert.issuer.icacId).to.equal(icac.cert.subject.icacId);
+
+            expect(rcac.cert.extensions.authorityKeyIdentifier).to.deep.equal(
+                rcac.cert.extensions.subjectKeyIdentifier,
+            );
+            expect(icac.cert.extensions.authorityKeyIdentifier).to.deep.equal(
+                rcac.cert.extensions.subjectKeyIdentifier,
+            );
+            expect(noc.cert.extensions.authorityKeyIdentifier).to.deep.equal(icac.cert.extensions.subjectKeyIdentifier);
         });
     });
 

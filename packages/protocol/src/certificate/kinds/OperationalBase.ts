@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Logger, Time } from "#general";
+import { Bytes, DerBitString, DerCodec, Logger, Time, X962 } from "#general";
 import { X509Base } from "./X509Base.js";
-import { CertificateError, Unsigned } from "./common.js";
+import { assertCertificateDerSize, CertificateError, Unsigned } from "./common.js";
 import { X509Certificate } from "./definitions/base.js";
 
 const logger = Logger.get("OperationalBaseCertificate");
@@ -24,7 +24,22 @@ export abstract class OperationalBase<CT extends X509Certificate> extends X509Ba
     protected abstract validateFields(): void;
 
     /** Encodes the signed certificate into the Matter TLV format. */
-    abstract asSignedTlv(signature: Bytes): Bytes;
+    abstract asSignedTlv(): Bytes;
+
+    /**
+     * Returns the signed certificate in ASN.1 DER format.
+     * If the certificate is not signed, it throws a CertificateError.
+     */
+    asSignedAsn1() {
+        const certificate = this.genericBuildAsn1Structure(this.cert);
+        const certBytes = DerCodec.encode({
+            certificate,
+            signAlgorithm: X962.EcdsaWithSHA256,
+            signature: DerBitString(this.signature),
+        });
+        assertCertificateDerSize(certBytes);
+        return certBytes;
+    }
 
     /**
      * Verifies general requirements a Matter certificate fields must fulfill.
