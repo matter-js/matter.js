@@ -4,15 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Branded } from "#general";
+import { Branded, Logger } from "#general";
 import { ValidationOutOfBoundsError } from "../common/ValidationError.js";
 import { TlvUInt32 } from "../tlv/TlvNumber.js";
 import { TlvWrapper } from "../tlv/TlvWrapper.js";
 
+const logger = Logger.get("CaseAuthenticatedTag");
+
 /**
  * A CASE Authenticated Tag (CAT) is a special subject distinguished name within the Operational Certificate.
  *
- * @see {@link MatterSpecification.v12.Core} § 6.6.2.1.2.
+ * @see {@link MatterSpecification.v141.Core} § 6.6.2.1.2.
  */
 export type CaseAuthenticatedTag = Branded<number, "CaseAuthenticatedTag">;
 
@@ -20,10 +22,22 @@ export function CaseAuthenticatedTag(id: number): CaseAuthenticatedTag {
     if ((id & 0xffff) === 0) {
         throw new ValidationOutOfBoundsError("CaseAuthenticatedTag version number must not be 0.");
     }
+
+    /** @see {@link MatterSpecification.v142.Core} § 6.6.2.1.2. */
+    // 0xF000 till 0xFFFD are reserved, 0xFFFE and 0xFFFF are assigned for special use cases
+    if (id >>> 16 > 0xefff) {
+        logger.warn(`CaseAuthenticatedTag Identifiers SHOULD NOT exceed 0xEFFF. Please choose a lower value.`);
+    }
     return id as CaseAuthenticatedTag;
 }
 
 export namespace CaseAuthenticatedTag {
+    /** @see {@link MatterSpecification.v142.Core} § 6.6.2.1.2. */
+    export const AdministratorIdentifier = 0xffff as CaseAuthenticatedTag;
+
+    /** @see {@link MatterSpecification.v142.Core} § 6.6.2.1.2. */
+    export const AnchorIdentifier = 0xfffe as CaseAuthenticatedTag;
+
     export const getIdentifyValue = (tag: CaseAuthenticatedTag) => tag >>> 16;
 
     export const getVersion = (tag: CaseAuthenticatedTag) => tag & 0xffff;
