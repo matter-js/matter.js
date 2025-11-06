@@ -23,6 +23,12 @@ import {
 } from "./BitmapSchema.js";
 import { Schema } from "./Schema.js";
 
+/** See {@link MatterSpecification.v142.Core} §5.1.3.2. */
+export const MATTER_QR_CODE_SINGLE_PAYLOAD_MAX_LENGTH = 255;
+
+/** See {@link MatterSpecification.v142.Core} §5.1.3.2. */
+export const MATTER_QR_CODE_ALL_PAYLOAD_MAX_LENGTH = 4296;
+
 /** See {@link MatterSpecification.v13.Core} § 5.1.3.1 Table 38 */
 export enum CommissioningFlowType {
     /** When not commissioned, the device always enters commissioning mode upon power-up. */
@@ -108,7 +114,7 @@ const PREFIX = "MT:";
 class QrPairingCodeSchema extends Schema<QrCodeData[], string> {
     protected encodeInternal(payloadData: QrCodeData[]): string {
         if (payloadData.length === 0) throw new ImplementationError("Provided Payload data is empty");
-        return (
+        const result =
             PREFIX +
             payloadData
                 .map(payloadData => {
@@ -117,10 +123,21 @@ class QrPairingCodeSchema extends Schema<QrCodeData[], string> {
                         tlvData !== undefined && tlvData.byteLength > 0
                             ? Bytes.of(Bytes.concat(QrCodeDataSchema.encode(payloadData), tlvData))
                             : QrCodeDataSchema.encode(payloadData);
-                    return Base38.encode(data);
+                    const result = Base38.encode(data);
+                    if (result.length > MATTER_QR_CODE_SINGLE_PAYLOAD_MAX_LENGTH) {
+                        throw new UnexpectedDataError(
+                            `Encoded pairing code is too long: ${result.length} characters (max ${MATTER_QR_CODE_SINGLE_PAYLOAD_MAX_LENGTH})`,
+                        );
+                    }
+                    return result;
                 })
-                .join("*")
-        );
+                .join("*");
+        if (result.length > MATTER_QR_CODE_ALL_PAYLOAD_MAX_LENGTH) {
+            throw new UnexpectedDataError(
+                `Encoded pairing code is too long: ${result.length} characters (max ${MATTER_QR_CODE_ALL_PAYLOAD_MAX_LENGTH})`,
+            );
+        }
+        return result;
     }
 
     protected decodeInternal(encoded: string): QrCodeData[] {
