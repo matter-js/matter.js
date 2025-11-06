@@ -132,7 +132,7 @@ export namespace X520 {
     /** commonName = ASN.1 OID 2.5.4.3 */
     export const CommonName = GenericString_X520(3, "commonName");
     /** surName = ASN.1 OID 2.5.4.4 */
-    export const SurName = GenericString_X520(4, "sureName");
+    export const SurName = GenericString_X520(4, "surName");
     /** serialNumber = ASN.1 OID 2.5.4.5 */
     export const SerialNumber = GenericString_X520(5, "serialNum");
     /** countryName = ASN.1 OID 2.5.4.6 */

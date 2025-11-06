@@ -12,6 +12,7 @@ import {
     DerBitString,
     DerCodec,
     DerKey,
+    DerNode,
     DerType,
     Key,
     PublicKey,
@@ -21,7 +22,6 @@ import {
     X962,
 } from "#general";
 import { CaseAuthenticatedTag, FabricId, NodeId, TypeFromPartialBitSchema, VendorId } from "#types";
-import { DerNode } from "@matter/general";
 import { assertCertificateDerSize, CertificateError, Unsigned } from "./common.js";
 import {
     FabricId_Matter,
@@ -117,8 +117,8 @@ export abstract class X509Base<CT extends X509Certificate> {
                 case "commonName":
                     asn.commonName = X520.CommonName(value as string);
                     break;
-                case "sureName":
-                    asn.sureName = X520.SurName(value as string);
+                case "surName":
+                    asn.surName = X520.SurName(value as string);
                     break;
                 case "serialNum":
                     asn.serialNum = X520.SerialNumber(value as string);
@@ -209,8 +209,8 @@ export abstract class X509Base<CT extends X509Certificate> {
                 case "commonNamePs":
                     asn.commonNamePs = X520.CommonName(value as string, true);
                     break;
-                case "sureNamePs":
-                    asn.sureNamePs = X520.SurName(value as string, true);
+                case "surNamePs":
+                    asn.surNamePs = X520.SurName(value as string, true);
                     break;
                 case "serialNumPs":
                     asn.serialNumPs = X520.SerialNumber(value as string, true);
@@ -347,6 +347,29 @@ export namespace X509Base {
     }
 
     /**
+     * X.509 certificate extension OIDs
+     */
+    namespace ExtensionOid {
+        export const BASIC_CONSTRAINTS = 0x551d13n;
+        export const KEY_USAGE = 0x551d0fn;
+        export const EXTENDED_KEY_USAGE = 0x551d25n;
+        export const SUBJECT_KEY_IDENTIFIER = 0x551d0en;
+        export const AUTHORITY_KEY_IDENTIFIER = 0x551d23n;
+    }
+
+    /**
+     * Extended Key Usage OIDs
+     */
+    namespace ExtendedKeyUsageOid {
+        export const SERVER_AUTH = 0x2b06010505070301n;
+        export const CLIENT_AUTH = 0x2b06010505070302n;
+        export const CODE_SIGNING = 0x2b06010505070303n;
+        export const EMAIL_PROTECTION = 0x2b06010505070304n;
+        export const TIME_STAMPING = 0x2b06010505070308n;
+        export const OCSP_SIGNING = 0x2b06010505070309n;
+    }
+
+    /**
      * Map an OID to a subject/issuer field name.
      * Uses auto-generated lookup maps from X520 and Matter OID definitions.
      * Returns the field name and whether the value is a PrintableString variant.
@@ -399,7 +422,7 @@ export namespace X509Base {
                     case "fabricId": {
                         // 16-byte hex string -> BigInt
                         const hexString = Bytes.toString(valueBytes);
-                        value = BigInt("0x" + hexString);
+                        value = Bytes.asBigInt(Bytes.fromHex(hexString));
                         break;
                     }
                     case "icacId":
@@ -407,7 +430,7 @@ export namespace X509Base {
                     case "vvsId": {
                         // 8-byte hex string -> BigInt, but convert to number if it fits
                         const hexString = Bytes.toString(valueBytes);
-                        const bigIntValue = BigInt("0x" + hexString);
+                        const bigIntValue = Bytes.asBigInt(Bytes.fromHex(hexString));
                         // Convert to number if it fits in Number.MAX_SAFE_INTEGER
                         value = bigIntValue <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(bigIntValue) : bigIntValue;
                         break;
@@ -417,13 +440,15 @@ export namespace X509Base {
                     case "vendorId": {
                         // 4-byte or 2-byte hex string -> number
                         const hexString = Bytes.toString(valueBytes);
-                        value = parseInt(hexString, 16);
+                        const bytes = Bytes.fromHex(hexString);
+                        value = Number(Bytes.asBigInt(bytes));
                         break;
                     }
                     case "caseAuthenticatedTag": {
                         // CAT tags - 4-byte hex string -> number
                         const hexString = Bytes.toString(valueBytes);
-                        const catValue = parseInt(hexString, 16);
+                        const bytes = Bytes.fromHex(hexString);
+                        const catValue = Number(Bytes.asBigInt(bytes));
                         if (result.caseAuthenticatedTags !== undefined) {
                             (result.caseAuthenticatedTags as number[]).push(catValue);
                             continue;
@@ -452,8 +477,12 @@ export namespace X509Base {
     /**
      * Parse extensions from ASN.1 DER format.
      */
-    function parseExtensions(extensionsNode: any): any {
-        const result: any = {};
+    function parseExtensions(extensionsNode: DerNode): X509Certificate["extensions"] & {
+        [oid: string]: unknown; // For unrecognized extensions
+    } {
+        const result = {
+            basicConstraints: { isCa: false },
+        } as X509Certificate["extensions"] & { [oid: string]: unknown };
 
         const { [DerKey.Elements]: extensions } = extensionsNode;
         if (!extensions) {
@@ -465,7 +494,7 @@ export namespace X509Base {
             if (!extElements || extElements.length < 2) continue;
 
             const oid = extElements[0][DerKey.Bytes];
-            const oidHex = Bytes.toHex(oid);
+            const oidValue = Bytes.asBigInt(oid);
 
             // Find the value - it might be after a critical flag
             let valueIndex = 1;
@@ -476,30 +505,27 @@ export namespace X509Base {
             const valueOctetString = extElements[valueIndex][DerKey.Bytes];
             const valueNode = DerCodec.decode(valueOctetString);
 
-            switch (oidHex) {
-                case "551d13": // basicConstraints
+            switch (oidValue) {
+                case ExtensionOid.BASIC_CONSTRAINTS:
                     {
                         const { [DerKey.Elements]: bcElements } = valueNode;
                         // Always initialize basicConstraints when extension is present
-                        if (!result.basicConstraints) {
-                            result.basicConstraints = { isCa: false };
-                        }
                         if (bcElements && bcElements.length > 0) {
                             // First element is isCa boolean
                             if (bcElements[0][DerKey.TagId] === DerType.Boolean) {
                                 const bcBytes = Bytes.of(bcElements[0][DerKey.Bytes]);
-                                result.basicConstraints.isCa = bcBytes[0] !== 0;
+                                result.basicConstraints!.isCa = bcBytes[0] !== 0;
                             }
                             // Second element (if present) is pathLen integer
                             if (bcElements.length > 1 && bcElements[1][DerKey.TagId] === DerType.Integer) {
                                 const pathLenBytes = Bytes.of(bcElements[1][DerKey.Bytes]);
-                                result.basicConstraints.pathLen = pathLenBytes[0];
+                                result.basicConstraints!.pathLen = pathLenBytes[0];
                             }
                         }
                     }
                     break;
 
-                case "551d0f": // keyUsage
+                case ExtensionOid.KEY_USAGE:
                     {
                         // Note: DerKey.Bytes for BIT STRING returns data without the padding byte
                         const bitString = Bytes.of(valueNode[DerKey.Bytes]);
@@ -523,32 +549,32 @@ export namespace X509Base {
                     }
                     break;
 
-                case "551d25": // extendedKeyUsage
+                case ExtensionOid.EXTENDED_KEY_USAGE:
                     {
                         const { [DerKey.Elements]: ekuElements } = valueNode;
                         if (ekuElements) {
                             const ekuValues: number[] = [];
                             for (const eku of ekuElements) {
-                                const ekuOid = Bytes.toHex(eku[DerKey.Bytes]);
-                                switch (ekuOid) {
-                                    case "2b06010505070301":
+                                const ekuOidValue = Bytes.asBigInt(eku[DerKey.Bytes]);
+                                switch (ekuOidValue) {
+                                    case ExtendedKeyUsageOid.SERVER_AUTH:
                                         ekuValues.push(1);
-                                        break; // serverAuth
-                                    case "2b06010505070302":
+                                        break;
+                                    case ExtendedKeyUsageOid.CLIENT_AUTH:
                                         ekuValues.push(2);
-                                        break; // clientAuth
-                                    case "2b06010505070303":
+                                        break;
+                                    case ExtendedKeyUsageOid.CODE_SIGNING:
                                         ekuValues.push(3);
-                                        break; // codeSigning
-                                    case "2b06010505070304":
+                                        break;
+                                    case ExtendedKeyUsageOid.EMAIL_PROTECTION:
                                         ekuValues.push(4);
-                                        break; // emailProtection
-                                    case "2b06010505070308":
+                                        break;
+                                    case ExtendedKeyUsageOid.TIME_STAMPING:
                                         ekuValues.push(5);
-                                        break; // timeStamping
-                                    case "2b06010505070309":
+                                        break;
+                                    case ExtendedKeyUsageOid.OCSP_SIGNING:
                                         ekuValues.push(6);
-                                        break; // ocspSigning
+                                        break;
                                 }
                             }
                             if (ekuValues.length > 0) {
@@ -558,11 +584,11 @@ export namespace X509Base {
                     }
                     break;
 
-                case "551d0e": // subjectKeyIdentifier
+                case ExtensionOid.SUBJECT_KEY_IDENTIFIER:
                     result.subjectKeyIdentifier = valueNode[DerKey.Bytes];
                     break;
 
-                case "551d23": // authorityKeyIdentifier
+                case ExtensionOid.AUTHORITY_KEY_IDENTIFIER:
                     {
                         const { [DerKey.Elements]: akiElements } = valueNode;
                         if (akiElements && akiElements.length > 0) {
@@ -574,13 +600,22 @@ export namespace X509Base {
             }
         }
 
+        if (
+            result.basicConstraints === undefined ||
+            result.keyUsage === undefined ||
+            result.subjectKeyIdentifier === undefined ||
+            result.authorityKeyIdentifier === undefined
+        ) {
+            throw new CertificateError("Missing required extensions in certificate");
+        }
+
         return result;
     }
 
     /**
      * Parse a date from ASN.1 DER format (UTCTime or GeneralizedTime).
      */
-    function parseDate(node: any): number {
+    function parseDate(node: DerNode): number {
         const dateBytes = node[DerKey.Bytes];
         const dateString = Bytes.toString(dateBytes);
         const tag = node[DerKey.TagId];
@@ -624,7 +659,7 @@ export namespace X509Base {
      * Parse an ASN.1/DER encoded certificate into the internal format.
      * This extracts the certificate data without the signature.
      */
-    export function parseAsn1Certificate(encodedCert: Bytes): { cert: any; signature: Bytes } {
+    export function parseAsn1Certificate(encodedCert: Bytes): X509Certificate {
         const { [DerKey.Elements]: rootElements } = DerCodec.decode(encodedCert);
 
         if (!rootElements || rootElements.length !== 3) {
@@ -696,32 +731,29 @@ export namespace X509Base {
         // followed by 64 bytes (32 bytes X + 32 bytes Y), totaling 65 bytes
         const ellipticCurvePublicKey = Bytes.of(publicKeyElements[1][DerKey.Bytes]);
 
-        // Extensions (optional, context-tagged [3])
-        let extensions: any = {};
-
-        if (idx < certElements.length && certElements[idx][DerKey.TagId] === 0xa3) {
-            const extensionsBytes = certElements[idx][DerKey.Bytes];
-            const extensionsSequence = DerCodec.decode(extensionsBytes);
-            extensions = parseExtensions(extensionsSequence);
+        // Extensions (required, context-tagged [3])
+        if (idx >= certElements.length || certElements[idx][DerKey.TagId] !== 0xa3) {
+            throw new CertificateError("Missing required extensions in certificate");
         }
+        const extensionsBytes = certElements[idx][DerKey.Bytes];
+        const extensionsSequence = DerCodec.decode(extensionsBytes);
+        const extensions = parseExtensions(extensionsSequence);
 
         // Extract signature from BIT STRING
         // Note: DerKey.Bytes for BIT STRING returns data without the padding byte
         const signature = Bytes.of(signatureNode[DerKey.Bytes]);
 
         return {
-            cert: {
-                serialNumber,
-                signatureAlgorithm,
-                issuer,
-                notBefore,
-                notAfter,
-                subject,
-                publicKeyAlgorithm,
-                ellipticCurveIdentifier,
-                ellipticCurvePublicKey,
-                extensions,
-            },
+            serialNumber,
+            signatureAlgorithm,
+            issuer,
+            notBefore,
+            notAfter,
+            subject,
+            publicKeyAlgorithm,
+            ellipticCurveIdentifier,
+            ellipticCurvePublicKey,
+            extensions,
             signature,
         };
     }

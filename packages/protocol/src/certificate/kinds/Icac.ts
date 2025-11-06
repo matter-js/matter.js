@@ -24,8 +24,8 @@ export class Icac extends OperationalBase<OperationalCertificate.Icac> {
 
     /** Construct the class from an ASN.1/DER encoded certificate */
     static fromAsn1(asn1: Bytes): Icac {
-        const { cert, signature } = X509Base.parseAsn1Certificate(asn1);
-        return new Icac({ ...cert, signature });
+        const cert = X509Base.parseAsn1Certificate(asn1);
+        return new Icac(cert as OperationalCertificate.Icac);
     }
 
     /** Validates all basic certificate fields on construction. */

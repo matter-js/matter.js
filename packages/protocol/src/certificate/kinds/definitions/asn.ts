@@ -60,13 +60,15 @@ export const MATTER_OID_TO_FIELD_MAP: { [oidHex: string]: string } = {};
  * Generic generator function for Matter-specific ASN.1 OID fields.
  * Registers the OID in the reverse lookup map immediately at function creation time.
  */
-const GenericMatterObject = <T>(oidBase: string, id: number, fieldName: string, valueConverter?: (value: T) => string) => {
+const GenericMatterObject = <T>(
+    oidBase: string,
+    id: number,
+    fieldName: string,
+    valueConverter?: (value: T) => string,
+) => {
     const oidHex = `${oidBase}${id.toString(16).padStart(2, "0")}`;
     // Register in reverse lookup map immediately at function creation time
-    if (
-        MATTER_OID_TO_FIELD_MAP[oidHex] !== undefined &&
-        MATTER_OID_TO_FIELD_MAP[oidHex] !== fieldName
-    ) {
+    if (MATTER_OID_TO_FIELD_MAP[oidHex] !== undefined && MATTER_OID_TO_FIELD_MAP[oidHex] !== fieldName) {
         throw new InternalError(
             `ASN.1 Matter OID mapping for ${oidHex} already exists with a different field name: "${MATTER_OID_TO_FIELD_MAP[oidHex]}" vs "${fieldName}"`,
         );

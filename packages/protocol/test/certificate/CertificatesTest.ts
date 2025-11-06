@@ -95,9 +95,6 @@ describe("Certificates", () => {
     });
 
     /**
-     * We verify all certificates which also verifies them cryptographically.
-     */
-    /**
      * Parse ASN.1 certificates, convert to TLV, and verify they match the expected TLV.
      * This tests the round-trip: TLV → ASN.1 → TLV
      */
@@ -179,7 +176,7 @@ describe("Certificates", () => {
             expect(Bytes.toHex(asn1)).to.equal(Bytes.toHex(EXTERNAL_TEST_CERTIFICATES.ICAC_ASN1));
         });
 
-        it("parse and regenerate  external NOC certificate", () => {
+        it("parse and regenerate external NOC certificate", () => {
             const noc = Noc.fromAsn1(EXTERNAL_TEST_CERTIFICATES.NOC_ASN1);
 
             // Verify we got valid data

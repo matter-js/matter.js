@@ -20,8 +20,8 @@ export class Rcac extends OperationalBase<OperationalCertificate.Rcac> {
 
     /** Construct the class from an ASN.1/DER encoded certificate */
     static fromAsn1(asn1: Bytes): Rcac {
-        const { cert, signature } = X509Base.parseAsn1Certificate(asn1);
-        return new Rcac({ ...cert, signature });
+        const cert = X509Base.parseAsn1Certificate(asn1);
+        return new Rcac(cert as OperationalCertificate.Rcac);
     }
 
     /** Validates all basic certificate fields on construction. */

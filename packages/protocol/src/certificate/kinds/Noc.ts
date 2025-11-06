@@ -21,8 +21,8 @@ export class Noc extends OperationalBase<OperationalCertificate.Noc> {
 
     /** Construct the class from an ASN.1/DER encoded certificate */
     static fromAsn1(asn1: Bytes) {
-        const { cert, signature } = X509Base.parseAsn1Certificate(asn1);
-        return new Noc({ ...cert, signature });
+        const cert = X509Base.parseAsn1Certificate(asn1);
+        return new Noc(cert as OperationalCertificate.Noc);
     }
 
     /** Validates all basic certificate fields on construction. */
