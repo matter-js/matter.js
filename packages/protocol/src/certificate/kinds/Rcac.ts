@@ -10,11 +10,18 @@ import { CertificateError } from "./common.js";
 import { ExtensionKeyUsageSchema } from "./definitions/base.js";
 import { OperationalCertificate } from "./definitions/operational.js";
 import { OperationalBase } from "./OperationalBase.js";
+import { X509Base } from "./X509Base.js";
 
 export class Rcac extends OperationalBase<OperationalCertificate.Rcac> {
     /** Construct the class from a Tlv version of the certificate */
     static fromTlv(tlv: Bytes): Rcac {
         return new Rcac(OperationalCertificate.TlvRcac.decode(tlv));
+    }
+
+    /** Construct the class from an ASN.1/DER encoded certificate */
+    static fromAsn1(asn1: Bytes): Rcac {
+        const cert = X509Base.parseAsn1Certificate(asn1);
+        return new Rcac(cert as OperationalCertificate.Rcac);
     }
 
     /** Validates all basic certificate fields on construction. */

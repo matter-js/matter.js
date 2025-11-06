@@ -59,7 +59,7 @@ export const PairingHintBitmap = {
      * The Device will enter Commissioning Mode when reset button is pressed for N seconds. The exact value of N SHALL
      * be made available via PI key.
      */
-    pressRestButtonForNumberOfSeconds: BitFlag(8),
+    pressResetButtonForNumberOfSeconds: BitFlag(8),
 
     /**
      * The Device will enter Commissioning Mode when reset button is pressed until associated light blinks.

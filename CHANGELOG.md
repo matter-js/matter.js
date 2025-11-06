@@ -37,26 +37,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Constraints now support Matter 1.4.2 functions `minOf` and `maxOf`
     - Enhancement: Model API is improved to simplify element filtering based on conformance
 
-- @matter/types
-    - Enhancement: The duplicate event priority definition `EventPriority` is deprecated; use the generated `Priority` enum instead
-    - Fix: Ensures correct Number ranges for nullable and non-nullable numbers on TLV level
-
-- @matter/protocol
-    - Breaking: The platform-specific BLE abstraction has changed so that higher-level logic may be shared across platforms
-    - Breaking: Low-level advertising APIs have changed significantly; in particular, `MdnsBroadcaster`, `MdnsInstanceBroadcaster` and `MdnsScanner` are replaced by `MdnsServer`, `MdnsAdvertisement` and `MdnsClient`
-    - Breaking: The `Ble.get()` singleton is removed; components now instead retrieve the `Ble` service from the environment
-    - Feature: Adds support for advertising of TCP and ICD services (but matter.js does not yet implement those features otherwise)
-    - Feature: Adds support for extended advertisement
-    - Feature: Added support for Case Authenticated Tags (CATs) in operational CASE sessions for enhanced access control
-    - Enhancement: MDNS broadcasts more aggressively until a connection is established
-    - Enhancement: MDNS and BLE advertising schedules are now configurable and conform to Matter and DNS-SD specifications
-    - Enhancement: MDNS client and server efficiency is improved with a shared socket and message parser
-    - Enhancement: MDNS Truncated Queries are now handled correctly
-    - Enhancement: matter.js no longer uses SO_REUSEADDR on the Matter port so you can no longer accidentally start two nodes at the same address simultaneously
-    - Fix: Controller networking was previously throwing the incorrect error after a communication timeout
-    - Fix: Ensures to only include the MaxTcpMessageSize in Session parameters when TCP is enabled
-    - Fix: Fixes the used ACL level for wildcard writes
-
 - @matter/node
     - Breaking: `Endpoint` and `Node` initialization values now require the correct type for some time values and IDs. So for example, `VendorId(1234)` instead of just `1234`
     - Breaking: `SubscriptionBehavior` is renamed to `SubscriptionsServer` with corresponding ID change to "subscriptions". This means in part that matter.js will ignore saved subscriptions but devices will recreate them automatically
@@ -80,8 +60,29 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Exposes Node's native HTTP server via new abstractions in `@matter/general`
     - Fix: Corrects network interface selection logic for windows
 
+- @matter/protocol
+    - Breaking: The platform-specific BLE abstraction has changed so that higher-level logic may be shared across platforms
+    - Breaking: Low-level advertising APIs have changed significantly; in particular, `MdnsBroadcaster`, `MdnsInstanceBroadcaster` and `MdnsScanner` are replaced by `MdnsServer`, `MdnsAdvertisement` and `MdnsClient`
+    - Breaking: The `Ble.get()` singleton is removed; components now instead retrieve the `Ble` service from the environment
+    - Feature: Adds support for advertising of TCP and ICD services (but matter.js does not yet implement those features otherwise)
+    - Feature: Adds support for extended advertisement
+    - Feature: Added support for Case Authenticated Tags (CATs) in operational CASE sessions for enhanced access control
+    - Feature: Added support to read and parse ASN.1 formatted certificates
+    - Enhancement: MDNS broadcasts more aggressively until a connection is established
+    - Enhancement: MDNS and BLE advertising schedules are now configurable and conform to Matter and DNS-SD specifications
+    - Enhancement: MDNS client and server efficiency is improved with a shared socket and message parser
+    - Enhancement: MDNS Truncated Queries are now handled correctly
+    - Enhancement: matter.js no longer uses SO_REUSEADDR on the Matter port so you can no longer accidentally start two nodes at the same address simultaneously
+    - Fix: Controller networking was previously throwing the incorrect error after a communication timeout
+    - Fix: Ensures to only include the MaxTcpMessageSize in Session parameters when TCP is enabled
+    - Fix: Fixes the used ACL level for wildcard writes
+
 - @matter/react-native
     - Fix: (Luxni) Update UDP, BLE and Crypto usage to work with React Native
+
+- @matter/types
+    - Enhancement: The duplicate event priority definition `EventPriority` is deprecated; use the generated `Priority` enum instead
+    - Fix: Ensures correct Number ranges for nullable and non-nullable numbers on TLV level
 
 - @project-chip/matter.js
     - BREAKING: `PairedNode.state` renamed to `PairedNode.connectionState`!

@@ -11,11 +11,18 @@ import { OperationalCertificate } from "./definitions/operational.js";
 import { Icac } from "./Icac.js";
 import { OperationalBase } from "./OperationalBase.js";
 import { Rcac } from "./Rcac.js";
+import { X509Base } from "./X509Base.js";
 
 export class Noc extends OperationalBase<OperationalCertificate.Noc> {
     /** Construct the class from a Tlv version of the certificate */
     static fromTlv(tlv: Bytes) {
         return new Noc(OperationalCertificate.TlvNoc.decode(tlv));
+    }
+
+    /** Construct the class from an ASN.1/DER encoded certificate */
+    static fromAsn1(asn1: Bytes) {
+        const cert = X509Base.parseAsn1Certificate(asn1);
+        return new Noc(cert as OperationalCertificate.Noc);
     }
 
     /** Validates all basic certificate fields on construction. */
