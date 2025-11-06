@@ -96,10 +96,10 @@ export namespace RemoteDescriptor {
 
         if (pairingHint !== undefined) {
             result.PH = pairingHint;
-        }
 
-        if (pairingInstructions !== undefined) {
-            result.PI = pairingInstructions;
+            if (pairingInstructions !== undefined) {
+                result.PI = pairingInstructions;
+            }
         }
 
         if (sessionIntervals !== undefined) {

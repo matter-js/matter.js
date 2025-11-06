@@ -106,13 +106,26 @@ export class CommissionableMdnsAdvertisement extends MdnsAdvertisement<ServiceDe
     #validatePairingInstructions() {
         const { pairingHint, pairingInstructions } = this.description;
 
-        const needsInstructions =
-            pairingHint && PAIRING_HINTS_REQUIRING_INSTRUCTION.find(hint => pairingHint[hint] === true);
+        if (pairingHint) {
+            if (Object.values(pairingHint).every(v => !v)) {
+                throw new ImplementationError("At least one pairing hint must be set if pairing hint is provided");
+            }
 
-        if (needsInstructions && !pairingInstructions) {
-            throw new ImplementationError(
-                `Pairing instructions required for pairing hint of type "${needsInstructions}"`,
+            const needsInstructionsCount = PAIRING_HINTS_REQUIRING_INSTRUCTION.reduce(
+                (count, hint) => (pairingHint[hint] === true ? count + 1 : count),
+                0,
             );
+            if (needsInstructionsCount > 1) {
+                throw new ImplementationError(
+                    `Only one pairing hint requiring instructions can be set, but got ${needsInstructionsCount}`,
+                );
+            } else if (needsInstructionsCount === 0 && pairingInstructions) {
+                throw new ImplementationError(
+                    `Pairing instructions provided but no pairing hint requiring instructions set`,
+                );
+            }
+        } else if (pairingInstructions) {
+            throw new ImplementationError("Pairing instructions provided but no pairing hint set");
         }
     }
 }
