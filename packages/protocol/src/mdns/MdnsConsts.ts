@@ -23,7 +23,7 @@ export const DEFAULT_PAIRING_HINT = {
 
 export const PAIRING_HINTS_REQUIRING_INSTRUCTION = Array<keyof typeof PairingHintBitmap>(
     "customInstruction",
-    "pressRestButtonForNumberOfSeconds",
+    "pressResetButtonForNumberOfSeconds",
     "pressResetButtonUntilLightBlinks",
     "pressResetButtonForNumberOfSecondsWithApplicationOfPower",
     "pressResetButtonUntilLightBlinksWithApplicationOfPower",
