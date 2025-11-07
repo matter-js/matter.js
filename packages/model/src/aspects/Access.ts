@@ -13,6 +13,12 @@ import { Aspect } from "./Aspect.js";
  */
 export enum AccessLevel {
     View = 1,
+
+    /**
+     * Formally removed in Spec in 1.4.2 but SDK and tests still implement it
+     * Remove when https://github.com/project-chip/connectedhomeip/issues/41840 is solved
+     * @deprecated
+     */
     ProxyView = 2,
     Operate = 3,
     Manage = 4,
@@ -377,7 +383,6 @@ export namespace Access {
      */
     export const PrivilegeLevel = {
         V: AccessLevel.View,
-        // 2 is ProxyView, seems not in use/model right now
         O: AccessLevel.Operate,
         M: AccessLevel.Manage,
         A: AccessLevel.Administer,

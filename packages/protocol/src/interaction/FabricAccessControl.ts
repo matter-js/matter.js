@@ -165,6 +165,10 @@ export class FabricAccessControl {
         grantedPrivileges.add(privilege);
         // Also add any privileges subsumed by the new privilege
         switch (privilege) {
+            /**
+             * Formally removed in Spec in 1.4.2 but SDK and tests still implement it
+             * Remove when https://github.com/project-chip/connectedhomeip/issues/41840 is solved
+             */
             case AccessLevel.ProxyView:
                 grantedPrivileges.add(AccessLevel.View);
                 break;
@@ -178,7 +182,6 @@ export class FabricAccessControl {
             case AccessLevel.Administer:
                 grantedPrivileges.add(AccessLevel.Manage);
                 grantedPrivileges.add(AccessLevel.Operate);
-                grantedPrivileges.add(AccessLevel.ProxyView);
                 grantedPrivileges.add(AccessLevel.View);
                 break;
         }
