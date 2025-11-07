@@ -23,6 +23,7 @@ import {
     ImplementationError,
     isObject,
     Logger,
+    Minutes,
     RetrySchedule,
     Seconds,
 } from "#general";
@@ -46,6 +47,14 @@ export interface ClientInteractionContext {
 }
 
 export const DEFAULT_MIN_INTERVAL_FLOOR = Seconds(1);
+
+/**
+ * Defines the upper limit for the publisher-selected maximum interval for any subscription.
+ * ◦ If the publisher is an ICD, this SHALL be set to the Idle Mode Duration or 60 minutes, whichever is greater.
+ * ◦ Otherwise, this SHALL be set to 60 minutes.
+ * So for a absolute maximum if nothing was provided we use the 60 minutes
+ */
+export const SUBSCRIPTION_MAX_INTERVAL_PUBLISHER_LIMIT = Minutes(60);
 
 const DEFAULT_TIMED_REQUEST_TIMEOUT = Seconds(10);
 const DEFAULT_MINIMUM_RESPONSE_TIMEOUT_WITH_FAILSAFE = Seconds(30);
@@ -316,6 +325,19 @@ export class ClientInteraction<SessionT extends InteractionSession = Interaction
             }
         }
 
+        const {
+            minIntervalFloor = DEFAULT_MIN_INTERVAL_FLOOR,
+            maxIntervalCeiling = SUBSCRIPTION_MAX_INTERVAL_PUBLISHER_LIMIT,
+        } = request;
+
+        if (maxIntervalCeiling < minIntervalFloor) {
+            throw new ImplementationError(
+                `Invalid subscription request: maxIntervalCeiling (${Duration.format(
+                    maxIntervalCeiling,
+                )}) is less than minIntervalFloor (${Duration.format(minIntervalFloor)})`,
+            );
+        }
+
         SecureSession.assert(this.#exchanges.session);
         const peer = this.#exchanges.session.peerAddress;
 
@@ -335,9 +357,9 @@ export class ClientInteraction<SessionT extends InteractionSession = Interaction
             );
 
             await messenger.sendSubscribeRequest({
-                minIntervalFloorSeconds: Seconds.of(DEFAULT_MIN_INTERVAL_FLOOR),
-                maxIntervalCeilingSeconds: Seconds.of(DEFAULT_MIN_INTERVAL_FLOOR), // TODO use better max fallback
                 ...request,
+                minIntervalFloorSeconds: Seconds.of(minIntervalFloor),
+                maxIntervalCeilingSeconds: Seconds.of(maxIntervalCeiling),
             });
             checkAbort();
 

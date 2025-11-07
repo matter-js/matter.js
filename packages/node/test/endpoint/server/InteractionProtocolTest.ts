@@ -336,7 +336,7 @@ const READ_RESPONSE_WITH_FILTER: DataReportPayload = {
 };
 
 const READ_RESPONSE_WILDCARD_EVENTS: DataReportPayload = {
-    interactionModelRevision: 12,
+    interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
     suppressResponse: true,
     eventReportsPayload: [
         {
