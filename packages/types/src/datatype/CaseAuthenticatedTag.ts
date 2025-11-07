@@ -14,7 +14,7 @@ const logger = Logger.get("CaseAuthenticatedTag");
 /**
  * A CASE Authenticated Tag (CAT) is a special subject distinguished name within the Operational Certificate.
  *
- * @see {@link MatterSpecification.v141.Core} § 6.6.2.1.2.
+ * @see {@link MatterSpecification.v142.Core} § 6.6.2.1.2.
  */
 export type CaseAuthenticatedTag = Branded<number, "CaseAuthenticatedTag">;
 
