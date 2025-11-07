@@ -488,7 +488,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         }
         if (maxIntervalCeiling < 0) {
             throw new StatusResponseError(
-                "maxIntervalCeiling should be greater or equal to 1",
+                "maxIntervalCeiling should be greater or equal to 0",
                 StatusCode.InvalidAction,
             );
         }
