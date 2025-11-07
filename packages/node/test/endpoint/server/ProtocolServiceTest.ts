@@ -163,8 +163,8 @@ describe("ProtocolServiceTest", () => {
             attributeRequests: [FABRICS_PATH, NOCS_PATH, COMMISSIONED_FABRICS_PATH],
             eventRequests: [LEAVE_PATH],
             keepSubscriptions: true,
-            minIntervalFloor: 1,
-            maxIntervalCeiling: 2,
+            minIntervalFloorSeconds: 1,
+            maxIntervalCeilingSeconds: 2,
         });
 
         // Handle an updated report

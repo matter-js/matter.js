@@ -415,8 +415,8 @@ const INVALID_SUBSCRIBE_REQUEST: SubscribeRequest = {
         { endpointId: EndpointNumber(99) },
     ],
     keepSubscriptions: true,
-    minIntervalFloor: 1,
-    maxIntervalCeiling: 2,
+    minIntervalFloorSeconds: 1,
+    maxIntervalCeilingSeconds: 2,
 };
 
 const WRITE_REQUEST: WriteRequest = {

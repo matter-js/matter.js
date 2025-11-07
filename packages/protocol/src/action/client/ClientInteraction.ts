@@ -358,8 +358,8 @@ export class ClientInteraction<SessionT extends InteractionSession = Interaction
 
             await messenger.sendSubscribeRequest({
                 ...request,
-                minIntervalFloor: Seconds.of(minIntervalFloor),
-                maxIntervalCeiling: Seconds.of(maxIntervalCeiling),
+                minIntervalFloorSeconds: Seconds.of(minIntervalFloor),
+                maxIntervalCeilingSeconds: Seconds.of(maxIntervalCeiling),
             });
             checkAbort();
 

@@ -398,8 +398,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         message: Message,
     ): Promise<void> {
         const {
-            minIntervalFloor,
-            maxIntervalCeiling,
+            minIntervalFloorSeconds,
+            maxIntervalCeilingSeconds,
             attributeRequests,
             dataVersionFilters,
             eventRequests,
@@ -483,16 +483,16 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         attributeRequests?.forEach(path => validateReadAttributesPath(path));
         eventRequests?.forEach(path => validateReadEventPath(path));
 
-        if (minIntervalFloor < 0) {
+        if (minIntervalFloorSeconds < 0) {
             throw new StatusResponseError("minIntervalFloor should be greater or equal to 0", StatusCode.InvalidAction);
         }
-        if (maxIntervalCeiling < 0) {
+        if (maxIntervalCeilingSeconds < 0) {
             throw new StatusResponseError(
                 "maxIntervalCeiling should be greater or equal to 0",
                 StatusCode.InvalidAction,
             );
         }
-        if (maxIntervalCeiling < minIntervalFloor) {
+        if (maxIntervalCeilingSeconds < minIntervalFloorSeconds) {
             throw new StatusResponseError(
                 "maxIntervalCeiling should be greater or equal to minIntervalFloor",
                 StatusCode.InvalidAction,
@@ -562,8 +562,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
     async #establishSubscription(
         id: number,
         {
-            minIntervalFloor,
-            maxIntervalCeiling,
+            minIntervalFloorSeconds,
+            maxIntervalCeilingSeconds,
             attributeRequests,
             dataVersionFilters,
             eventRequests,
@@ -592,8 +592,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 eventFilters,
                 isFabricFiltered,
             },
-            minIntervalFloor: Seconds(minIntervalFloor),
-            maxIntervalCeiling: Seconds(maxIntervalCeiling),
+            minIntervalFloor: Seconds(minIntervalFloorSeconds),
+            maxIntervalCeiling: Seconds(maxIntervalCeilingSeconds),
             subscriptionOptions: this.#subscriptionConfig,
         });
 
@@ -611,7 +611,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             exchange.via,
             Diagnostic.dict({
                 subId: id,
-                timing: `${Duration.format(Seconds(minIntervalFloor))} - ${Duration.format(Seconds(maxIntervalCeiling))} => ${Duration.format(subscription.maxInterval)}`,
+                timing: `${Duration.format(Seconds(minIntervalFloorSeconds))} - ${Duration.format(Seconds(maxIntervalCeilingSeconds))} => ${Duration.format(subscription.maxInterval)}`,
                 sendInterval: Duration.format(subscription.sendInterval),
             }),
         );

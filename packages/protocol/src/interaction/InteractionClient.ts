@@ -832,8 +832,8 @@ export class InteractionClient {
                     ? [{ path: { endpointId, clusterId }, dataVersion: knownDataVersion }]
                     : undefined,
             keepSubscriptions,
-            minIntervalFloor: minIntervalFloorSeconds,
-            maxIntervalCeiling: maxIntervalCeilingSeconds,
+            minIntervalFloorSeconds,
+            maxIntervalCeilingSeconds,
             isFabricFiltered,
         };
         const scope = ReadScope(request);
@@ -968,8 +968,8 @@ export class InteractionClient {
                 eventRequests: [{ endpointId, clusterId, eventId, isUrgent }],
                 eventFilters: minimumEventNumber !== undefined ? [{ eventMin: minimumEventNumber }] : undefined,
                 keepSubscriptions: true,
-                minIntervalFloor: Seconds.of(minIntervalFloor),
-                maxIntervalCeiling: Seconds.of(maxIntervalCeiling),
+                minIntervalFloorSeconds: Seconds.of(minIntervalFloor),
+                maxIntervalCeilingSeconds: Seconds.of(maxIntervalCeiling),
                 isFabricFiltered,
             });
             const { subscribeResponse, report } = await messenger.readAggregateSubscribeResponse();
@@ -1102,8 +1102,8 @@ export class InteractionClient {
             attributeRequests,
             eventRequests,
             keepSubscriptions,
-            minIntervalFloor: minIntervalFloorSeconds,
-            maxIntervalCeiling: maxIntervalCeilingSeconds,
+            minIntervalFloorSeconds,
+            maxIntervalCeilingSeconds,
             isFabricFiltered,
             eventFilters,
             dataVersionFilters: dataVersionFilters?.map(({ endpointId, clusterId, dataVersion }) => ({
