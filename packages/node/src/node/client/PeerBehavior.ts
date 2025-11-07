@@ -153,8 +153,12 @@ function generateType(analysis: ShapeAnalysis, baseType: Behavior.Type): Cluster
 
     // Add command implementations
     for (const id of analysis.shape.commands) {
-        const name = schema.get(CommandModel, id)?.name ?? createUnknownName("command", id);
-        type.prototype[camelize(name, false)] = implementCommand(camelize(name));
+        const commandSchema = schema.get(CommandModel, id);
+        const name = commandSchema?.name ?? createUnknownName("command", id);
+        type.prototype[camelize(name, false)] = implementCommand(
+            camelize(name),
+            !!commandSchema?.effectiveQuality?.largeMessage,
+        );
     }
 
     return type;
@@ -168,7 +172,7 @@ function generateType(analysis: ShapeAnalysis, baseType: Behavior.Type): Cluster
         isCloned = true;
     }
 
-    function implementCommand(command: string) {
+    function implementCommand(command: string, largeMessage: boolean) {
         return async function (this: ClusterBehavior, fields?: {}) {
             const node = this.env.get(Node) as ClientNode;
 
@@ -182,6 +186,7 @@ function generateType(analysis: ShapeAnalysis, baseType: Behavior.Type): Cluster
                             fields,
                         }),
                     ],
+                    largeMessage,
                 }),
             );
 

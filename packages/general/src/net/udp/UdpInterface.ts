@@ -65,6 +65,7 @@ export class UdpInterface implements ConnectionlessTransport {
 
 export class UdpConnection implements IpNetworkChannel<Bytes> {
     readonly isReliable = false;
+    readonly supportsLargeMessages = false;
     readonly type = ChannelType.UDP;
     readonly #server: UdpChannel;
     readonly #peerAddress: string;

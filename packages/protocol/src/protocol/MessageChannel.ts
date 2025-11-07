@@ -75,6 +75,14 @@ export class MessageChannel implements Channel<Message> {
         return this.channel.isReliable;
     }
 
+    /**
+     * Does the underlying transport support large messages?
+     * This is only true for TCP channels currently.
+     */
+    get supportsLargeMessages() {
+        return this.type === "tcp";
+    }
+
     get type() {
         return this.channel.type;
     }

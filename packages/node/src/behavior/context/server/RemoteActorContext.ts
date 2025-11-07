@@ -184,6 +184,7 @@ export function RemoteActorContext(options: RemoteActorContext.Options) {
             session,
             exchange,
             subject,
+            largeMessage: exchange?.channel.supportsLargeMessages,
 
             fabric: fabric?.fabricIndex ?? FabricIndex.NO_FABRIC,
             transaction,

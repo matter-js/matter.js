@@ -19,6 +19,9 @@ export interface Channel<T> {
     /** Is the transport Reliable? UDP is not, TCP and BTP are. */
     isReliable: boolean;
 
+    /** Does the channel support large messages? */
+    supportsLargeMessages: boolean;
+
     /** Channel name */
     name: string;
 

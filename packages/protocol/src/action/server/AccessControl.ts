@@ -191,6 +191,11 @@ export namespace AccessControl {
          * active.
          */
         readonly command?: boolean;
+
+        /**
+         * If this is true the data transfer supports large messages.
+         */
+        readonly largeMessage?: boolean;
     }
 
     /**

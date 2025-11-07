@@ -235,6 +235,9 @@ export interface CommandTypeProtocol extends AddressableElementProtocol<CommandI
      * Access control information for the command.
      */
     limits: AccessControl.Limits;
+
+    /** Indicates that the command requires a large message channel */
+    largeMessage?: boolean;
 }
 
 /**

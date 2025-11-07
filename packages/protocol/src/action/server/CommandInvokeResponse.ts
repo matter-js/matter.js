@@ -256,6 +256,11 @@ export class CommandInvokeResponse<
         }
 
         if (hasRemoteActor(this.session)) {
+            if (command.largeMessage && !this.session.largeMessage) {
+                this.#errorCount++;
+                return this.#addStatus(path, commandRef, Status.InvalidTransportType);
+            }
+
             if (limits.fabricScoped && !this.session.fabric) {
                 this.#errorCount++;
                 return this.#addStatus(path, commandRef, Status.UnsupportedAccess);
@@ -317,6 +322,10 @@ export class CommandInvokeResponse<
                         this.session.authorityAt(command.limits.writeLevel, cluster.location) !==
                         AccessControl.Authority.Granted
                     ) {
+                        return;
+                    }
+
+                    if (command.largeMessage && !this.session.largeMessage) {
                         return;
                     }
 

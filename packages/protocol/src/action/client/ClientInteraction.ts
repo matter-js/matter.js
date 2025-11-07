@@ -198,7 +198,7 @@ export class ClientInteraction<SessionT extends InteractionSession = Interaction
      * Invoke one or more commands.
      */
     async *invoke(request: ClientInvoke, session?: SessionT): DecodedInvokeResult {
-        await using context = await this.#begin(request, session);
+        await using context = await this.#begin(request, session, !!request.largeMessage);
         const { checkAbort, messenger } = context;
 
         if (request.timedRequest) {
@@ -400,7 +400,19 @@ export class ClientInteraction<SessionT extends InteractionSession = Interaction
         }
     }
 
-    async #begin(request: Read | Write | Invoke | Subscribe, session?: SessionT) {
+    async #begin(
+        request: Read | Write | Invoke | Subscribe,
+        session: SessionT | undefined,
+        ensureLargeMessageChannel = false,
+    ) {
+        if (ensureLargeMessageChannel) {
+            // TODO remove when we add support for TCP with 1.5.0
+            //  Then ensure here to open a TCP channel if available and not yet opened
+            throw new ImplementationError(
+                "Invoke request requires a large message channel which is not yet implemented.",
+            );
+        }
+
         if (this.#abort.aborted) {
             throw new ImplementationError("Client interaction unavailable after close");
         }
