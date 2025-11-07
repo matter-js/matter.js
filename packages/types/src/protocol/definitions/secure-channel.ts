@@ -78,6 +78,9 @@ export enum SecureChannelStatusCode {
     /** Indication that the sender cannot currently fulfill the request. See Section “Busy” for more details. */
     Busy = 0x0004,
 
+    /** Required CAT Mismatch during session establishment at the Sigma2 Validation step. */
+    RequiredCatMismatch = 0x0005,
+
     /**
      * No additional error details available.
      */
