@@ -69,5 +69,5 @@ export namespace Specification {
     /**
      * Interaction model revision associated with the default revision of Matter.
      */
-    export const INTERACTION_MODEL_REVISION = 12;
+    export const INTERACTION_MODEL_REVISION = 13;
 }

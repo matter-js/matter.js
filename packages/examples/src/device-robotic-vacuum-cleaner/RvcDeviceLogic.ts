@@ -315,6 +315,12 @@ export class RvcDeviceLogic extends Behavior {
             await this.endpoint.setStateOf(CustomRvcRunModeServer, {
                 currentMode: RvcDeviceRunModes.Idle,
             });
+            this.endpoint
+                .eventsOf(CustomRvcOperationalStateServer)
+                .operationCompletion.emit(
+                    { completionErrorCode: RvcOperationalState.ErrorState.NoError },
+                    this.context,
+                );
         }
     }
 

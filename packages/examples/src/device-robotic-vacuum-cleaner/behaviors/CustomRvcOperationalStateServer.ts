@@ -9,13 +9,17 @@ import { RvcOperationalStateServer } from "@matter/main/behaviors/rvc-operationa
 import { OperationalState } from "@matter/main/clusters/operational-state";
 import { RvcOperationalState } from "@matter/main/clusters/rvc-operational-state";
 
+const RvcOperationalStateServerWithCompletionEvent = RvcOperationalStateServer.enable({
+    events: { operationCompletion: true },
+});
+
 /**
  * This is a custom implementation of {@link RvcOperationalStateServer} that implements the needed methods goHome,
  * pause and resume, that are optional and so can not be implemented in the base class.
  * It also, adds custom events to the server that can be used by the device logic to more easily react on the needed
  * actions.
  */
-export class CustomRvcOperationalStateServer extends RvcOperationalStateServer {
+export class CustomRvcOperationalStateServer extends RvcOperationalStateServerWithCompletionEvent {
     declare events: CustomRvcOperationalStateServer.Events;
 
     override async goHome(): Promise<RvcOperationalState.OperationalCommandResponse> {
@@ -37,7 +41,11 @@ export class CustomRvcOperationalStateServer extends RvcOperationalStateServer {
         ) {
             if (
                 this.state.operationalState === RvcOperationalState.OperationalState.Charging ||
-                this.state.operationalState === RvcOperationalState.OperationalState.Docked
+                this.state.operationalState === RvcOperationalState.OperationalState.Docked ||
+                this.state.operationalState === RvcOperationalState.OperationalState.EmptyingDustBin ||
+                this.state.operationalState === RvcOperationalState.OperationalState.CleaningMop ||
+                this.state.operationalState === RvcOperationalState.OperationalState.FillingWaterTank ||
+                this.state.operationalState === RvcOperationalState.OperationalState.UpdatingMaps
             ) {
                 return {
                     commandResponseState: {
@@ -56,7 +64,13 @@ export class CustomRvcOperationalStateServer extends RvcOperationalStateServer {
             result.commandResponseState.errorStateId === OperationalState.ErrorState.NoError &&
             this.state.operationalState !== RvcOperationalState.OperationalState.Paused
         ) {
-            if (this.state.operationalState === RvcOperationalState.OperationalState.SeekingCharger) {
+            if (
+                this.state.operationalState === RvcOperationalState.OperationalState.SeekingCharger ||
+                this.state.operationalState === RvcOperationalState.OperationalState.EmptyingDustBin ||
+                this.state.operationalState === RvcOperationalState.OperationalState.CleaningMop ||
+                this.state.operationalState === RvcOperationalState.OperationalState.FillingWaterTank ||
+                this.state.operationalState === RvcOperationalState.OperationalState.UpdatingMaps
+            ) {
                 return {
                     commandResponseState: {
                         errorStateId: OperationalState.ErrorState.CommandInvalidInState,
@@ -71,7 +85,7 @@ export class CustomRvcOperationalStateServer extends RvcOperationalStateServer {
 }
 
 export namespace CustomRvcOperationalStateServer {
-    export class Events extends RvcOperationalStateServer.Events {
+    export class Events extends RvcOperationalStateServerWithCompletionEvent.Events {
         resumeTriggered = AsyncObservable();
         pauseTriggered = AsyncObservable();
         goHomeTriggered = AsyncObservable();

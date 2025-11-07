@@ -9,6 +9,7 @@ import { LocalMatter } from "../local.js";
 LocalMatter.children.push({
     tag: "cluster",
     name: "AlarmBase",
+    until: "1.4.1",
 
     children: [
         /**
