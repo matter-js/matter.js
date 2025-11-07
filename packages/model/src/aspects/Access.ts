@@ -13,7 +13,6 @@ import { Aspect } from "./Aspect.js";
  */
 export enum AccessLevel {
     View = 1,
-    ProxyView = 2,
     Operate = 3,
     Manage = 4,
     Administer = 5,
@@ -377,7 +376,6 @@ export namespace Access {
      */
     export const PrivilegeLevel = {
         V: AccessLevel.View,
-        // 2 is ProxyView, seems not in use/model right now
         O: AccessLevel.Operate,
         M: AccessLevel.Manage,
         A: AccessLevel.Administer,

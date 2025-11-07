@@ -165,9 +165,6 @@ export class FabricAccessControl {
         grantedPrivileges.add(privilege);
         // Also add any privileges subsumed by the new privilege
         switch (privilege) {
-            case AccessLevel.ProxyView:
-                grantedPrivileges.add(AccessLevel.View);
-                break;
             case AccessLevel.Operate:
                 grantedPrivileges.add(AccessLevel.View);
                 break;
@@ -178,7 +175,6 @@ export class FabricAccessControl {
             case AccessLevel.Administer:
                 grantedPrivileges.add(AccessLevel.Manage);
                 grantedPrivileges.add(AccessLevel.Operate);
-                grantedPrivileges.add(AccessLevel.ProxyView);
                 grantedPrivileges.add(AccessLevel.View);
                 break;
         }
