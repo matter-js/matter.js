@@ -49,14 +49,25 @@ export namespace CaseAuthenticatedTag {
      * If a version is not provided, version 1 is used.
      * @see {@link MatterSpecification.v142.Core} § 6.6.2.1.2.
      */
-    export const AdministratorIdentifier = (version = 1) => ((0xfffd << 16) | version) as CaseAuthenticatedTag;
+    export const AdministratorIdentifier = (version = 1) => {
+        if (version <= 0 || version > 0xffff) {
+            throw new ValidationOutOfBoundsError("CaseAuthenticatedTag version number must be between 1 and 0xffff.");
+        }
+        return ((0xfffd << 16) | version) as CaseAuthenticatedTag;
+    };
 
     /**
      * Creates an Anchor Identifier CaseAuthenticatedTag with the given version.
      * If a version is not provided, version 1 is used.
      * @see {@link MatterSpecification.v142.Core} § 6.6.2.1.2.
      */
-    export const AnchorIdentifier = (version = 1) => ((0xfffe << 16) | version) as CaseAuthenticatedTag;
+    export const AnchorIdentifier = (version = 1) => {
+        if (version <= 0 || version > 0xffff) {
+            throw new ValidationOutOfBoundsError("CaseAuthenticatedTag version number must be between 1 and 0xffff.");
+        }
+
+        return ((0xfffe << 16) | version) as CaseAuthenticatedTag;
+    };
 
     /** Gets the identifier value (upper 16 bits) of the CaseAuthenticatedTag. */
     export const getIdentifyValue = (tag: CaseAuthenticatedTag) => tag >>> 16;
