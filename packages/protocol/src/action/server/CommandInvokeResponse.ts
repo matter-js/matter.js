@@ -18,6 +18,7 @@ import {
     FabricIndex,
     Status,
     StatusCode,
+    StatusResponse,
     StatusResponseError,
     TlvSchema,
     TlvStream,
@@ -396,6 +397,12 @@ export class CommandInvokeResponse<
         invoker: CommandInvokeHandler,
     ) {
         try {
+            if (command.limits.fabricScoped && !this.session.fabric) {
+                throw new StatusResponse.InvalidCommandError(
+                    "Fabric scoped command requires session with an associated fabric.",
+                );
+            }
+
             const { requestTlv, responseTlv } = command;
             const request = this.#decodeWithSchema(requestTlv, commandFields);
             requestTlv.validate(request);
@@ -419,29 +426,27 @@ export class CommandInvokeResponse<
             }
         } catch (error) {
             await this.session.transaction?.rollback();
-            if (StatusResponseError.is(error)) {
-                this.#errorCount++;
+            StatusResponseError.accept(error);
 
-                let errorCode = error.code;
-                const errorLogText = `Error ${Diagnostic.hex(errorCode)}${
-                    error.clusterCode !== undefined ? `/${Diagnostic.hex(error.clusterCode)}` : ""
-                } while invoking command: ${error.message}`;
+            this.#errorCount++;
 
-                if (error instanceof ValidationError) {
-                    logger.info(
-                        `Validation-${errorLogText}${error.fieldName !== undefined ? ` in field ${error.fieldName}` : ""}`,
-                    );
-                    if (errorCode === StatusCode.InvalidAction) {
-                        errorCode = StatusCode.InvalidCommand;
-                    }
-                } else {
-                    logger.info(errorLogText);
+            let errorCode = error.code;
+            const errorLogText = `Error ${Diagnostic.hex(errorCode)}${
+                error.clusterCode !== undefined ? `/${Diagnostic.hex(error.clusterCode)}` : ""
+            } while invoking command: ${error.message}`;
+
+            if (error instanceof ValidationError) {
+                logger.info(
+                    `Validation-${errorLogText}${error.fieldName !== undefined ? ` in field ${error.fieldName}` : ""}`,
+                );
+                if (errorCode === StatusCode.InvalidAction) {
+                    errorCode = StatusCode.InvalidCommand;
                 }
-
-                this.#addStatus(path, commandRef, errorCode, error.clusterCode);
-                return;
+            } else {
+                logger.info(errorLogText);
             }
-            throw error;
+
+            this.#addStatus(path, commandRef, errorCode, error.clusterCode);
         }
     }
 
