@@ -36,7 +36,7 @@ export function CaseAuthenticatedTag(idOrTag: number, version?: number): CaseAut
     /** @see {@link MatterSpecification.v142.Core} § 6.6.2.1.2. */
     // Identifier values 0xF000-0xFFFD (upper 16 bits) are reserved; 0xFFFE and 0xFFFF are assigned for special use cases
     if (idOrTag >>> 16 > 0xefff) {
-        logger.warn(`CaseAuthenticatedTag Identifiers SHOULD NOT exceed 0xEFFF. Please choose a lower value.`);
+        logger.warn(`CaseAuthenticatedTag Identifier 0x${(id >>> 16).toString(16).toUpperCase()} SHOULD NOT exceed 0xEFFF. Please choose a lower value.`);
     }
     return idOrTag as CaseAuthenticatedTag;
 }
