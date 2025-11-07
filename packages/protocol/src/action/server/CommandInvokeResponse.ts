@@ -320,6 +320,10 @@ export class CommandInvokeResponse<
                         return;
                     }
 
+                    if (command.limits.fabricScoped && !this.session.fabric) {
+                        return;
+                    }
+
                     if (command.limits.timed && !this.session.timed) {
                         return;
                     }
