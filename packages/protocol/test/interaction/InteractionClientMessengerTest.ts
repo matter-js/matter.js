@@ -165,8 +165,8 @@ describe("InteractionClientMessenger", () => {
             interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
             isFabricFiltered: true,
             keepSubscriptions: true,
-            minIntervalFloorSeconds: 0,
-            maxIntervalCeilingSeconds: 1,
+            minIntervalFloor: 0,
+            maxIntervalCeiling: 1,
             attributeRequests: [{}],
         } as SubscribeRequest;
 
@@ -212,8 +212,8 @@ describe("InteractionClientMessenger", () => {
             interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
             isFabricFiltered: true,
             keepSubscriptions: true,
-            minIntervalFloorSeconds: 0,
-            maxIntervalCeilingSeconds: 1,
+            minIntervalFloor: 0,
+            maxIntervalCeiling: 1,
             attributeRequests: [{}],
             dataVersionFilters,
         } as SubscribeRequest;

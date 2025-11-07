@@ -21,10 +21,10 @@ export const TlvSubscribeRequest = TlvObject({
     keepSubscriptions: TlvField(0, TlvBoolean),
 
     /** The requested minimum interval boundary floor in seconds. */
-    minIntervalFloorSeconds: TlvField(1, TlvUInt16),
+    minIntervalFloor: TlvField(1, TlvUInt16),
 
     /** The requested maximum interval boundary ceiling in seconds. */
-    maxIntervalCeilingSeconds: TlvField(2, TlvUInt16),
+    maxIntervalCeiling: TlvField(2, TlvUInt16),
 
     /** A list of zero or more request paths to cluster attribute data. */
     attributeRequests: TlvOptionalField(3, TlvArray(TlvAttributePath)),
