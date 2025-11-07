@@ -484,17 +484,20 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         eventRequests?.forEach(path => validateReadEventPath(path));
 
         if (minIntervalFloorSeconds < 0) {
-            throw new StatusResponseError("minIntervalFloor should be greater or equal to 0", StatusCode.InvalidAction);
+            throw new StatusResponseError(
+                "minIntervalFloorSeconds should be greater or equal to 0",
+                StatusCode.InvalidAction,
+            );
         }
         if (maxIntervalCeilingSeconds < 0) {
             throw new StatusResponseError(
-                "maxIntervalCeiling should be greater or equal to 0",
+                "maxIntervalCeilingSeconds should be greater or equal to 0",
                 StatusCode.InvalidAction,
             );
         }
         if (maxIntervalCeilingSeconds < minIntervalFloorSeconds) {
             throw new StatusResponseError(
-                "maxIntervalCeiling should be greater or equal to minIntervalFloor",
+                "maxIntervalCeilingSeconds should be greater or equal to minIntervalFloorSeconds",
                 StatusCode.InvalidAction,
             );
         }

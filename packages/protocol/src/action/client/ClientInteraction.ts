@@ -333,8 +333,8 @@ export class ClientInteraction<SessionT extends InteractionSession = Interaction
         if (maxIntervalCeiling < minIntervalFloor) {
             throw new ImplementationError(
                 `Invalid subscription request: maxIntervalCeiling (${Duration.format(
-                    Seconds(maxIntervalCeiling),
-                )}) is less than minIntervalFloor (${Duration.format(Seconds(minIntervalFloor))})`,
+                    maxIntervalCeiling,
+                )}) is less than minIntervalFloor (${Duration.format(minIntervalFloor)})`,
             );
         }
 
