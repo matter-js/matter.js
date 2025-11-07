@@ -18,30 +18,51 @@ const logger = Logger.get("CaseAuthenticatedTag");
  */
 export type CaseAuthenticatedTag = Branded<number, "CaseAuthenticatedTag">;
 
-export function CaseAuthenticatedTag(id: number): CaseAuthenticatedTag {
-    if ((id & 0xffff) === 0) {
+/** Creates a CaseAuthenticatedTag from an identifier and version number. */
+export function CaseAuthenticatedTag(tag: number, version: number): CaseAuthenticatedTag;
+
+/** Creates a CaseAuthenticatedTag from an id containing identifier and version number. */
+export function CaseAuthenticatedTag(id: number): CaseAuthenticatedTag;
+
+export function CaseAuthenticatedTag(idOrTag: number, version?: number): CaseAuthenticatedTag {
+    if (version !== undefined) {
+        idOrTag = (idOrTag << 16) | version;
+    }
+
+    if ((idOrTag & 0xffff) === 0) {
         throw new ValidationOutOfBoundsError("CaseAuthenticatedTag version number must not be 0.");
     }
 
     /** @see {@link MatterSpecification.v142.Core} § 6.6.2.1.2. */
     // Identifier values 0xF000-0xFFFD (upper 16 bits) are reserved; 0xFFFE and 0xFFFF are assigned for special use cases
-    if (id >>> 16 > 0xefff) {
+    if (idOrTag >>> 16 > 0xefff) {
         logger.warn(`CaseAuthenticatedTag Identifiers SHOULD NOT exceed 0xEFFF. Please choose a lower value.`);
     }
-    return id as CaseAuthenticatedTag;
+    return idOrTag as CaseAuthenticatedTag;
 }
 
 export namespace CaseAuthenticatedTag {
-    /** @see {@link MatterSpecification.v142.Core} § 6.6.2.1.2. */
-    export const AdministratorIdentifier = 0xffff as CaseAuthenticatedTag;
+    /**
+     * Creates an Administrator Identifier CaseAuthenticatedTag with the given version.
+     * If a version is not provided, version 1 is used.
+     * @see {@link MatterSpecification.v142.Core} § 6.6.2.1.2.
+     */
+    export const AdministratorIdentifier = (version = 1) => ((0xfffd << 16) | version) as CaseAuthenticatedTag;
 
-    /** @see {@link MatterSpecification.v142.Core} § 6.6.2.1.2. */
-    export const AnchorIdentifier = 0xfffe as CaseAuthenticatedTag;
+    /**
+     * Creates an Anchor Identifier CaseAuthenticatedTag with the given version.
+     * If a version is not provided, version 1 is used.
+     * @see {@link MatterSpecification.v142.Core} § 6.6.2.1.2.
+     */
+    export const AnchorIdentifier = (version = 1) => ((0xfffe << 16) | version) as CaseAuthenticatedTag;
 
+    /** Gets the identifier value (upper 16 bits) of the CaseAuthenticatedTag. */
     export const getIdentifyValue = (tag: CaseAuthenticatedTag) => tag >>> 16;
 
+    /** Gets the version number (lower 16 bits) of the CaseAuthenticatedTag. */
     export const getVersion = (tag: CaseAuthenticatedTag) => tag & 0xffff;
 
+    /** Increases the version number (lower 16 bits) of the CaseAuthenticatedTag by 1. */
     export const increaseVersion = (tag: CaseAuthenticatedTag) => {
         const version = getVersion(tag);
         if (version === 0xffff) {
@@ -50,6 +71,7 @@ export namespace CaseAuthenticatedTag {
         return CaseAuthenticatedTag(tag + 1);
     };
 
+    /** Validates a list of CaseAuthenticatedTags according to Matter specification rules. */
     export const validateNocTagList = (tags: CaseAuthenticatedTag[]) => {
         if (tags.length > 3) {
             throw new ValidationOutOfBoundsError(`Too many CaseAuthenticatedTags (${tags.length}).`);
