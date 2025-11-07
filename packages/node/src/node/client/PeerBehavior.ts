@@ -153,12 +153,8 @@ function generateType(analysis: ShapeAnalysis, baseType: Behavior.Type): Cluster
 
     // Add command implementations
     for (const id of analysis.shape.commands) {
-        const commandSchema = schema.get(CommandModel, id);
-        const name = commandSchema?.name ?? createUnknownName("command", id);
-        type.prototype[camelize(name, false)] = implementCommand(
-            camelize(name),
-            !!commandSchema?.effectiveQuality?.largeMessage,
-        );
+        const name = schema.get(CommandModel, id)?.name ?? createUnknownName("command", id);
+        type.prototype[camelize(name, false)] = implementCommand(camelize(name));
     }
 
     return type;
@@ -172,10 +168,11 @@ function generateType(analysis: ShapeAnalysis, baseType: Behavior.Type): Cluster
         isCloned = true;
     }
 
-    function implementCommand(command: string, largeMessage: boolean) {
+    function implementCommand(command: string) {
         return async function (this: ClusterBehavior, fields?: {}) {
             const node = this.env.get(Node) as ClientNode;
 
+            // TODO when implementing TCP add needed logic for Large messages
             const chunks = (node.interaction as ClientInteraction).invoke(
                 Invoke({
                     commands: [
@@ -186,7 +183,6 @@ function generateType(analysis: ShapeAnalysis, baseType: Behavior.Type): Cluster
                             fields,
                         }),
                     ],
-                    largeMessage,
                 }),
             );
 

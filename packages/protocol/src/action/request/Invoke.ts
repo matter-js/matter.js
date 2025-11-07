@@ -19,7 +19,6 @@ export interface Invoke extends InvokeRequest {
     timeout?: Duration;
     expectedProcessingTime?: Duration;
     useExtendedFailSafeMessageResponseTimeout?: boolean;
-    largeMessage?: boolean;
 }
 
 export interface ClientInvoke extends Invoke {
@@ -65,7 +64,6 @@ export function Invoke(
         expectedProcessingTime,
         useExtendedFailSafeMessageResponseTimeout = false,
         skipValidation = false,
-        largeMessage = false,
     } = options;
     let timedRequest = !!options.timed || !!timeout;
 
@@ -102,7 +100,6 @@ export function Invoke(
         suppressResponse,
         expectedProcessingTime,
         useExtendedFailSafeMessageResponseTimeout,
-        largeMessage,
 
         // Additional meta-data for client side processing
         commands: commandMap,
@@ -148,9 +145,6 @@ export namespace Invoke {
 
         /** Whether to skip validation of command fields against schema */
         skipValidation?: boolean;
-
-        /** Indicates that the invokes must be sent over a channel that supports large messages */
-        largeMessage?: boolean;
     }
 
     export function Command<const C extends ClusterType>(

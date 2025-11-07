@@ -256,7 +256,7 @@ export class CommandInvokeResponse<
         }
 
         if (hasRemoteActor(this.session)) {
-            if (command.largeMessage && !this.session.largeMessage) {
+            if (limits.largeMessage && !this.session.largeMessage) {
                 this.#errorCount++;
                 return this.#addStatus(path, commandRef, Status.InvalidTransportType);
             }
@@ -318,6 +318,7 @@ export class CommandInvokeResponse<
             const command = cluster.type.commands[commandId];
             if (command !== undefined) {
                 if (hasRemoteActor(this.session)) {
+                    const { limits } = command;
                     if (
                         this.session.authorityAt(command.limits.writeLevel, cluster.location) !==
                         AccessControl.Authority.Granted
@@ -325,15 +326,15 @@ export class CommandInvokeResponse<
                         return;
                     }
 
-                    if (command.largeMessage && !this.session.largeMessage) {
+                    if (limits.largeMessage && !this.session.largeMessage) {
                         return;
                     }
 
-                    if (command.limits.fabricScoped && !this.session.fabric) {
+                    if (limits.fabricScoped && !this.session.fabric) {
                         return;
                     }
 
-                    if (command.limits.timed && !this.session.timed) {
+                    if (limits.timed && !this.session.timed) {
                         return;
                     }
                 }

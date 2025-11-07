@@ -502,19 +502,8 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
                 const {
                     access: { limits },
                 } = behavior.supervisor.get(member);
-                const {
-                    effectiveQuality: { largeMessage },
-                } = member;
 
-                const command = {
-                    id: id as CommandId,
-                    responseId,
-                    requestTlv,
-                    responseTlv,
-                    limits,
-                    name,
-                    largeMessage: largeMessage ? largeMessage : undefined,
-                };
+                const command = { id: id as CommandId, responseId, requestTlv, responseTlv, limits, name };
 
                 commandList.push(command);
                 commands[id] = command;

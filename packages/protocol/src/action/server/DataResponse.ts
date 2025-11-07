@@ -16,6 +16,7 @@ export const FallbackLimits: AccessControl.Limits = {
     readable: true,
     readLevel: AccessLevel.View,
     timed: false,
+    largeMessage: false,
     writable: true,
     writeLevel: AccessLevel.Administer,
 };
