@@ -177,7 +177,8 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
 
     override async close() {
         this.lifecycle.targetState = "offline";
-        await this.lifecycle.mutex.produce(this.closeWithMutex.bind(this));
+        await this.lifecycle.mutex.close();
+        await this.closeWithMutex();
     }
 
     protected async closeWithMutex() {

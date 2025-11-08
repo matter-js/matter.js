@@ -18,6 +18,7 @@ import {
     Logger,
     MatterFlowError,
     Mutex,
+    MutexClosedError,
     Observable,
 } from "#general";
 import { DatatypeModel, FieldElement } from "#model";
@@ -159,14 +160,14 @@ export class CommissioningServer extends Behavior {
             const sessions = this.agent.get(SessionsBehavior);
             if (Object.keys(sessions.state.sessions).length > 0) {
                 // We have still open sessions, wait for them to close
-                this.reactTo(sessions.events.closed, this.#handleSessionClosed);
+                this.reactTo(sessions.events.closed, this.#resetAfterSessionsClear);
             } else {
                 this.#triggerFactoryReset();
             }
         }
     }
 
-    #handleSessionClosed() {
+    #resetAfterSessionsClear() {
         const sessions = this.agent.get(SessionsBehavior);
         if (Object.keys(sessions.state.sessions).length === 0) {
             this.#triggerFactoryReset();
@@ -174,7 +175,7 @@ export class CommissioningServer extends Behavior {
     }
 
     #triggerFactoryReset() {
-        this.env.runtime.add((this.endpoint as ServerNode).erase());
+        this.env.runtime.add((this.endpoint as ServerNode).erase().catch(e => MutexClosedError.accept(e)));
     }
 
     #monitorFailsafe(failsafe: FailsafeContext) {

@@ -363,7 +363,13 @@ export class ExchangeManager {
             }
         }
         if (session.sendCloseMessageWhenClosing) {
-            const channel = this.#channelManager.getChannelForSession(session);
+            let channel;
+            try {
+                channel = this.#channelManager.getChannelForSession(session);
+            } catch (e) {
+                logger.debug(`Not sending close for session ${sessionName}:`, e);
+                return;
+            }
             logger.debug(`Channel for session ${sessionName} is ${channel?.name}`);
             if (channel !== undefined) {
                 const exchange = this.initiateExchangeWithChannel(channel, SECURE_CHANNEL_PROTOCOL_ID);
