@@ -379,7 +379,6 @@ export class ServerSubscription extends Subscription {
 
     /**
      * Determine all attributes that have changed since the last update and send them out to the subscriber.
-     * Important: This method MUST NOT be called directly. Use triggerSendUpdate() instead!
      */
     async #sendUpdate(onlyWithData = false) {
         // Get all outstanding updates, make sure the order is correct per endpoint and cluster
@@ -604,7 +603,7 @@ export class ServerSubscription extends Subscription {
     /**
      * Closes the subscription and flushes all outstanding data updates if requested.
      */
-    override async close(graceful = false, cancelledByPeer = false) {
+    override async close(flush = false, cancelledByPeer = false) {
         if (this.isClosed) {
             return;
         }
@@ -612,7 +611,8 @@ export class ServerSubscription extends Subscription {
             this.isCanceledByPeer = true;
         }
         await this.destroy();
-        if (graceful) {
+
+        if (flush) {
             await this.#flush();
         }
         if (this.#currentUpdatePromise) {

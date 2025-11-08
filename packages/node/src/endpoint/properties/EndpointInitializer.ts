@@ -41,11 +41,4 @@ export abstract class EndpointInitializer {
      * Invoked after behaviors are initialized but before the initialization transaction commits.
      */
     behaviorsInitialized(_agent: Agent) {}
-
-    /**
-     * Allows Initializer to manipulate the type before it is used to create a backing or behavior.
-     */
-    finalizeType(type: Behavior.Type): Behavior.Type {
-        return type;
-    }
 }

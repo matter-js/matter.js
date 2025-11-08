@@ -82,6 +82,29 @@ export class Mutex implements PromiseLike<unknown> {
     }
 
     /**
+     * Acquire the lock.
+     *
+     * This offers more natural mutex handling via a disposable.  The returned object must be disposed to unlock the
+     * mutex.
+     *
+     * Note that acquiring the lock is async but releasing is not, so you must use `using _lock = await mutex.lock()`
+     * rather than `await using _lock = mutex.lock()`.
+     *
+     * TODO - add abort support
+     */
+    async lock(): Promise<Disposable> {
+        return new Promise(lockObtained => {
+            this.run(async () => {
+                await new Promise<void>(lockReleased => {
+                    lockObtained({
+                        [Symbol.dispose]: lockReleased,
+                    });
+                });
+            });
+        });
+    }
+
+    /**
      * Cancel remaining work and perform one last task with the Mutex held.
      */
     terminate(cleanup?: () => PromiseLike<void>) {

@@ -3,8 +3,8 @@
  * Copyright 2022-2025 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
-import { OperationalCredentials } from "#clusters/operational-credentials";
+
+import type { OperationalCredentials } from "#clusters/operational-credentials";
 import {
     Bytes,
     Crypto,
@@ -22,6 +22,7 @@ import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Icac, Noc, NodeSession, Rcac, Vvsc } from "#protocol";
 import { FabricId, FabricIndex, ReceivedStatusResponseError, StatusResponse, VendorId } from "#types";
+import { OperationalCredentialsClient } from "../operational-credentials/OperationalCredentialsClient.js";
 
 const logger = Logger.get("VendorIdVerification");
 

@@ -13,8 +13,8 @@ import { Behavior } from "../Behavior.js";
 import type { BehaviorBacking } from "../internal/BehaviorBacking.js";
 import type { RootSupervisor } from "../supervision/RootSupervisor.js";
 import { NetworkBehavior } from "../system/network/NetworkBehavior.js";
-import { ClientBehavior } from "./ClientBehavior.js";
-import { ExtensionInterfaceOf, createType, type ClusterOf } from "./ClusterBehaviorUtil.js";
+import { ExtensionInterfaceOf, isClientBehavior, type ClusterOf } from "./cluster-behavior-utils.js";
+import { ClusterBehaviorType } from "./ClusterBehaviorType.js";
 import type { ClusterEvents } from "./ClusterEvents.js";
 import { ClusterInterface } from "./ClusterInterface.js";
 import type { ClusterState } from "./ClusterState.js";
@@ -105,7 +105,12 @@ export class ClusterBehavior extends Behavior {
         schema?: Schema.Cluster,
         name?: string,
     ) {
-        return createType(cluster, this, schema, name) as ClusterBehavior.Type<ClusterT, This>;
+        return ClusterBehaviorType({
+            cluster,
+            base: this,
+            schema,
+            name,
+        }) as ClusterBehavior.Type<ClusterT, This>;
     }
 
     /**
@@ -182,7 +187,7 @@ export class ClusterBehavior extends Behavior {
         //
         // Further, we know the "Client" classes can have no extension methods or properties, so we don't need to do an
         // exact class match for type safety
-        if (ClientBehavior.is(other) && otherCluster.id === this.cluster.id) {
+        if (isClientBehavior(other) && otherCluster.id === this.cluster.id) {
             return true;
         }
 

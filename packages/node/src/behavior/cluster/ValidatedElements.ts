@@ -8,7 +8,7 @@ import { Diagnostic, ImplementationError, Logger, MatterAggregateError, Observab
 import { ClusterType } from "#types";
 import { Behavior } from "../Behavior.js";
 import { ClusterBehavior } from "./ClusterBehavior.js";
-import { introspectionInstanceOf } from "./ClusterBehaviorUtil.js";
+import { introspectionInstanceOf } from "./cluster-behavior-utils.js";
 
 const logger = Logger.get("ValidatedElements");
 

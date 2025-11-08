@@ -393,7 +393,11 @@ export class Behaviors {
     /**
      * Determine if a specified behavior is supported and active.
      */
-    isActive(type: Behavior.Type) {
+    isActive(type: Behavior.Type | string) {
+        if (typeof type === "string") {
+            return this.#backings[type] !== undefined;
+        }
+
         const backing = this.#backings[type.id];
         return !!backing && backing.type.supports(type);
     }
@@ -461,11 +465,6 @@ export class Behaviors {
 
         if (this.#supported === this.#endpoint.type.behaviors) {
             this.#supported = { ...this.#supported };
-        }
-
-        // TODO how to better solve that?
-        if (this.#endpoint.env.has(EndpointInitializer)) {
-            type = this.#endpoint.env.get(EndpointInitializer).finalizeType(type);
         }
 
         this.#supported[type.id] = type;
@@ -672,6 +671,13 @@ export class Behaviors {
 
         const backing = this.#endpoint.env.get(EndpointInitializer).createBacking(this.#endpoint, myType);
         this.#backings[backing.type.id] = backing;
+
+        // The EndpointInitializer may choose to replace the behavior implementation.  If so the replacement should be
+        // compatible, but update our support map to designate the specific implementation
+        if (backing.type !== myType) {
+            this.#supported[backing.type.id] = backing.type;
+        }
+
         if (!this.#protocol) {
             this.#protocol = this.#endpoint.env.get(ProtocolService);
         }

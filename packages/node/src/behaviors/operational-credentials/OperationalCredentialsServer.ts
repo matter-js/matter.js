@@ -405,7 +405,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
             };
         }
 
-        await fabric.remove(this.context.session.id);
+        await fabric.leave(this.context.session.id);
         // The state is updated on removal via commissionedFabricChanged event, see constructor
 
         return {

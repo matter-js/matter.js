@@ -5,8 +5,8 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
+import { ClusterOf } from "#behavior/cluster/cluster-behavior-utils.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
-import { ClusterOf } from "#behavior/cluster/ClusterBehaviorUtil.js";
 import { ClusterEvents } from "#behavior/cluster/ClusterEvents.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { OnlineEvent } from "#behavior/Events.js";

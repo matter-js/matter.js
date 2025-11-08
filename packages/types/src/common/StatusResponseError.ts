@@ -71,7 +71,7 @@ export const StatusResponse = Object.fromEntries(
                 [name]: class extends StatusResponseError {
                     constructor(message?: string, clusterCode?: number) {
                         if (message === undefined) {
-                            message = capitalize(decamelize(name));
+                            message = capitalize(decamelize(name, " "));
                         }
 
                         super(message, code as Status, clusterCode);

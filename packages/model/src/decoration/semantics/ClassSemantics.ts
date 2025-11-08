@@ -7,7 +7,7 @@
 // Must import these via index to ensure proper initialization
 import { DatatypeModel, FieldModel, Model } from "#models/index.js";
 
-import { camelize } from "#general";
+import { camelize, InternalError } from "#general";
 import { Scope } from "#logic/Scope.js";
 import { any, struct } from "#standard/elements/models.js";
 import { InvalidMetadataError, MetadataConflictError } from "../errors.js";
@@ -264,6 +264,9 @@ export class ClassSemantics extends Semantics {
      * Determine {@link new} has semantic decoration.
      */
     static hasOwnSemantics(source: ClassSemantics.Constructor) {
+        if (typeof source !== "function") {
+            throw new InternalError(`Missing constructor for class semantic check`);
+        }
         return Object.hasOwn(source, Symbol.metadata) && Object.hasOwn(source[Symbol.metadata]!, matter);
     }
 

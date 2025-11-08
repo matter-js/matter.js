@@ -4,13 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Behavior } from "#behavior/Behavior.js";
 import type { ClusterType } from "#types";
 import { ClusterBehavior } from "./ClusterBehavior.js";
-
-const isClient = Symbol("is-client");
-
-type ClientBehaviorType = { [isClient]?: boolean };
+import { markClientBehavior } from "./cluster-behavior-utils.js";
 
 /**
  * Client view of a {@link ClusterBehavior}.
@@ -24,17 +20,7 @@ type ClientBehaviorType = { [isClient]?: boolean };
 export function ClientBehavior<const T extends ClusterType>(cluster: T): ClusterBehavior.Type<T> {
     const behavior = ClusterBehavior.for(cluster, undefined, `${cluster.name}Client`);
 
-    (behavior as ClientBehaviorType)[isClient] = true;
+    markClientBehavior(behavior);
 
     return behavior;
-}
-
-export namespace ClientBehavior {
-    /**
-     * Determine whether a behavior is a client.
-     */
-    export function is(type: Behavior.Type) {
-        // Use hasOwn so any derivation voids the client assertion
-        return (type as ClientBehaviorType)[isClient] && Object.hasOwn(type, isClient);
-    }
 }

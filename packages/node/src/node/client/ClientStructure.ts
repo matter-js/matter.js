@@ -11,6 +11,7 @@ import { Descriptor } from "#clusters/descriptor";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { RootEndpoint } from "#endpoints/root";
+import { InternalError, Logger } from "#general";
 import {
     AcceptedCommandList,
     AttributeList,
@@ -22,12 +23,16 @@ import {
     type FeatureBitmap,
 } from "#model";
 import type { ClientNode } from "#node/ClientNode.js";
+import type { Node } from "#node/Node.js";
 import { ReadScope, type Read, type ReadResult } from "#protocol";
 import { DatasourceCache } from "#storage/client/DatasourceCache.js";
 import { ClientNodeStore } from "#storage/index.js";
 import type { AttributeId, ClusterId, ClusterType, CommandId, EndpointNumber } from "#types";
 import { ClientEventEmitter } from "./ClientEventEmitter.js";
+import { ClientStructureEvents } from "./ClientStructureEvents.js";
 import { PeerBehavior } from "./PeerBehavior.js";
+
+const logger = Logger.get("ClientStructure");
 
 const DEVICE_TYPE_LIST_ATTR_ID = Descriptor.Cluster.attributes.deviceTypeList.id;
 const SERVER_LIST_ATTR_ID = Descriptor.Cluster.attributes.serverList.id;
@@ -42,6 +47,8 @@ export class ClientStructure {
     #emitEvent: ClientEventEmitter;
     #node: ClientNode;
     #subscribedFabricFiltered?: boolean;
+    #pending = new Map<EndpointStructure, "erase" | "reparent">();
+    #events: ClientStructureEvents;
 
     constructor(node: ClientNode) {
         this.#node = node;
@@ -51,6 +58,7 @@ export class ClientStructure {
             clusters: {},
         };
         this.#emitEvent = ClientEventEmitter(node, this);
+        this.#events = this.#node.env.get(ClientStructureEvents);
     }
 
     /**
@@ -76,7 +84,20 @@ export class ClientStructure {
                 }
 
                 const cluster = this.#clusterFor(endpoint, id);
-                this.#initializeCluster(endpoint, cluster);
+                this.#synchronizeCluster(endpoint, cluster);
+            }
+        }
+
+        for (const [endpoint, opcode] of this.#pending.entries()) {
+            this.#pending.delete(endpoint);
+
+            switch (opcode) {
+                case "reparent":
+                    this.#install(endpoint);
+                    break;
+
+                default:
+                    throw new InternalError(`Unexpected ${opcode} operation in initial hierarchy load`);
             }
         }
     }
@@ -142,10 +163,14 @@ export class ClientStructure {
      * Update the node structure by applying attribute changes.
      */
     async *mutate(request: Read, changes: ReadResult) {
-        const scope = ReadScope(request);
+        // Ensure mutations run serially and integrate properly with node lifecycle
+        using _lock = await this.#node.lifecycle.mutex.lock();
 
+        // We collect updates and only apply when we transition clusters
         let currentUpdates: AttributeUpdates | undefined;
 
+        // Apply changes
+        const scope = ReadScope(request);
         for await (const chunk of changes) {
             for (const change of chunk) {
                 switch (change.kind) {
@@ -164,8 +189,31 @@ export class ClientStructure {
             yield chunk;
         }
 
+        // The last cluster still needs its changes applied
         if (currentUpdates) {
             await this.#updateCluster(currentUpdates);
+        }
+
+        // We don't apply structural changes until we've processed all attribute data if a.) listeners might otherwise
+        // see partially initialized endpoints, or b.) the change requires an async operation
+        for (const [endpoint, opcode] of this.#pending.entries()) {
+            this.#pending.delete(endpoint);
+
+            switch (opcode) {
+                case "reparent":
+                    this.#install(endpoint);
+                    break;
+
+                case "erase":
+                    logger.debug(`Removing endpoint ${endpoint.endpoint} because it is no longer present on the peer`);
+                    delete this.#endpoints[endpoint.endpoint.number];
+                    try {
+                        await endpoint.endpoint.delete();
+                    } catch (e) {
+                        logger.error(`Error erasing peer endpoint ${endpoint.endpoint}:`, e);
+                    }
+                    break;
+            }
         }
     }
 
@@ -246,10 +294,11 @@ export class ClientStructure {
      * This is invoked in a batch when we've collected all sequential values for the current endpoint/cluster.
      */
     async #updateCluster(attrs: AttributeUpdates) {
+        // TODO: Detect changes in revision/features/attributes/commands and update behavior if needed
         const endpoint = this.#endpointFor(attrs.endpointId);
         const cluster = this.#clusterFor(endpoint, attrs.clusterId);
         await cluster.store.externalSet(attrs.values);
-        this.#initializeCluster(endpoint, cluster);
+        this.#synchronizeCluster(endpoint, cluster);
     }
 
     /**
@@ -260,18 +309,15 @@ export class ClientStructure {
      *
      * Invoked once we've loaded all attributes in an interaction.
      */
-    #initializeCluster(endpoint: EndpointStructure, cluster: ClusterStructure) {
-        const attrs = cluster.store.initialValues ?? {};
-
+    #synchronizeCluster(endpoint: EndpointStructure, cluster: ClusterStructure) {
         // Generate a behavior if enough information is available
-        // TODO: Detect changes in revision/features/attributes/commands and update behavior if needed
-        if (cluster.behavior === undefined) {
+        if (cluster.behavior === undefined && cluster.store.initialValues) {
             const {
                 [ClusterRevision.id]: clusterRevision,
                 [FeatureMap.id]: features,
                 [AttributeList.id]: attributeList,
                 [AcceptedCommandList.id]: commandList,
-            } = attrs;
+            } = cluster.store.initialValues;
 
             if (typeof clusterRevision === "number") {
                 cluster.revision = clusterRevision;
@@ -297,11 +343,20 @@ export class ClientStructure {
             ) {
                 cluster.behavior = PeerBehavior(cluster as PeerBehavior.ClusterShape);
                 endpoint.endpoint.behaviors.require(cluster.behavior);
+                if (endpoint.endpoint.lifecycle.isInstalled) {
+                    this.#events.emitCluster(endpoint.endpoint, cluster.behavior);
+                }
             }
         }
 
         // Special handling for descriptor cluster
         if (cluster.id === Descriptor.Cluster.id) {
+            let attrs;
+            if (cluster.behavior && endpoint.endpoint.behaviors.isActive(cluster.behavior.id)) {
+                attrs = endpoint.endpoint.stateOf(cluster.behavior);
+            } else {
+                attrs = cluster.store.initialValues ?? {};
+            }
             this.#synchronizeDescriptor(endpoint, attrs);
         }
     }
@@ -356,31 +411,52 @@ export class ClientStructure {
             }
         }
 
+        // The remaining logic deals with the parts list
         const partsList = attrs[PARTS_LIST_ATTR_ID];
-        if (Array.isArray(partsList)) {
-            for (const partNo of partsList) {
-                if (typeof partNo !== "number") {
+        if (!Array.isArray(partsList)) {
+            return;
+        }
+
+        // Ensure an endpoint is present and installed for each part in the partsList
+        for (const partNo of partsList) {
+            if (typeof partNo !== "number") {
+                continue;
+            }
+
+            const part = this.#endpointFor(partNo as EndpointNumber);
+
+            let isAlreadyDescendant = false;
+            for (let owner = this.#ownerOf(part); owner; owner = this.#ownerOf(owner)) {
+                if (owner === endpoint) {
+                    isAlreadyDescendant = true;
+                    break;
+                }
+            }
+
+            if (isAlreadyDescendant) {
+                continue;
+            }
+
+            part.pendingOwner = endpoint;
+            this.#pending.set(part, "reparent");
+        }
+
+        // For the root partsList specifically, if an endpoint is no longer present then it has been removd from the
+        // node.  Schedule for erase
+        if (endpoint.endpoint.maybeNumber === 0) {
+            const numbersUsed = new Set(partsList);
+            for (const descendent of (endpoint.endpoint as Node).endpoints) {
+                // Skip root endpoint and uninitialized numbers (though latter shouldn't be possible)
+                if (!descendent.maybeNumber) {
                     continue;
                 }
 
-                const part = this.#endpointFor(partNo as EndpointNumber);
-
-                // TODO - remove endpoints/parts that are no longer present
-                //  Including events vis parts/endpoints on node (per endpoint and generic "changed")?
-                //  Including data cleanup
-                let isAlreadyDescendant = false;
-                for (let owner = part.endpoint.owner; owner; owner = owner.owner) {
-                    if (owner === endpoint.endpoint) {
-                        isAlreadyDescendant = true;
-                        break;
+                if (!numbersUsed.has(descendent.number)) {
+                    const endpoint = this.#endpoints[descendent.number];
+                    if (endpoint) {
+                        this.#pending.set(endpoint, "erase");
                     }
                 }
-
-                if (isAlreadyDescendant) {
-                    continue;
-                }
-
-                part.endpoint.owner = endpoint.endpoint;
             }
         }
     }
@@ -415,12 +491,40 @@ export class ClientStructure {
         }
 
         cluster = {
+            kind: "discovered",
             id,
             store: this.#nodeStore.storeForEndpoint(endpoint.endpoint).createStoreForBehavior(id.toString()),
         };
         endpoint.clusters[id] = cluster;
 
         return cluster;
+    }
+
+    #ownerOf(endpoint: EndpointStructure) {
+        if (endpoint.pendingOwner) {
+            return endpoint.pendingOwner;
+        }
+
+        // Do not return the ServerNode if this is the ClientNode
+        if (endpoint.endpoint.number === 0) {
+            return;
+        }
+
+        const ownerNumber = endpoint.endpoint.owner?.maybeNumber;
+        if (ownerNumber !== undefined) {
+            return this.#endpointFor(ownerNumber);
+        }
+    }
+
+    #install(endpoint: EndpointStructure) {
+        const { pendingOwner } = endpoint;
+        if (!pendingOwner) {
+            return;
+        }
+
+        endpoint.endpoint.owner = pendingOwner.endpoint;
+        endpoint.pendingOwner = undefined;
+        this.#events.emitEndpoint(endpoint.endpoint);
     }
 }
 
@@ -433,11 +537,13 @@ interface AttributeUpdates {
 }
 
 interface EndpointStructure {
+    pendingOwner?: EndpointStructure;
     endpoint: Endpoint;
     clusters: Record<ClusterId, ClusterStructure>;
 }
 
-interface ClusterStructure extends Partial<PeerBehavior.ClusterShape> {
+interface ClusterStructure extends Partial<PeerBehavior.DiscoveredClusterShape> {
+    kind: "discovered";
     id: ClusterId;
     behavior?: ClusterBehavior.Type;
     store: Datasource.ExternallyMutableStore;

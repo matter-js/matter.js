@@ -218,7 +218,11 @@ export abstract class Session {
     abstract decode(packet: DecodedPacket, aad?: Bytes): DecodedMessage;
     abstract encode(message: Message): Packet;
     abstract end(sendClose: boolean): Promise<void>;
-    abstract destroy(sendClose?: boolean, closeAfterExchangeFinished?: boolean): Promise<void>;
+    abstract destroy(
+        sendClose?: boolean,
+        closeAfterExchangeFinished?: boolean,
+        flushSubscriptions?: boolean,
+    ): Promise<void>;
 
     protected get manager() {
         return this.#manager;

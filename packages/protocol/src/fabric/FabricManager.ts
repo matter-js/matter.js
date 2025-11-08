@@ -21,7 +21,7 @@ import {
     StorageManager,
 } from "#general";
 import { PeerAddress } from "#peer/PeerAddress.js";
-import { FabricIndex } from "#types";
+import { FabricId, FabricIndex } from "#types";
 import { Fabric } from "./Fabric.js";
 
 const logger = Logger.get("FabricManager");
@@ -251,7 +251,7 @@ export class FabricManager {
             }
         }
 
-        throw new FabricNotFoundError();
+        throw new FabricNotFoundError("Fabric not found");
     }
 
     findByKeypair(keypair: Key) {
@@ -269,6 +269,16 @@ export class FabricManager {
         this.#construction.assert();
 
         return this.#fabrics.get(index);
+    }
+
+    forDescriptor(descriptor: { rootPublicKey: Bytes; fabricId: FabricId }) {
+        this.#construction.assert();
+
+        return this.find(
+            fabric =>
+                Bytes.areEqual(fabric.rootPublicKey, descriptor.rootPublicKey) &&
+                fabric.fabricId === descriptor.fabricId,
+        );
     }
 
     async updateFabric(fabric: Fabric) {

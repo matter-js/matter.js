@@ -763,7 +763,7 @@ function computeApplicability(features: Set<string>, supportedFeatures: Set<stri
                 if (lhs === Mandatory || rhs === Mandatory) {
                     return Mandatory;
                 }
-                break;
+                return Conditional;
             }
 
             default:

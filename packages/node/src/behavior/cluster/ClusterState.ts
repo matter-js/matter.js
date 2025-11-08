@@ -7,7 +7,7 @@
 import type { ClusterType, TypeFromSchema } from "#types";
 import { AttributeId, BitSchema, CommandId, TypeFromPartialBitSchema } from "#types";
 import type { Behavior } from "../Behavior.js";
-import type { ClusterOf } from "./ClusterBehaviorUtil.js";
+import type { ClusterOf } from "./cluster-behavior-utils.js";
 
 /**
  * Instance type for complete (endpoint + fabric) state.

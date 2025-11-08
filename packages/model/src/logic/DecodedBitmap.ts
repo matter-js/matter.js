@@ -6,7 +6,6 @@
 
 import { ElementTag } from "#common/ElementTag.js";
 import type { FieldModel } from "#models/FieldModel.js";
-import { Model } from "#models/index.js";
 import type { ValueModel } from "#models/ValueModel.js";
 import { FeatureMap } from "#standard/elements/feature-map.element.js";
 import { camelize } from "@matter/general";
@@ -55,7 +54,7 @@ export function DecodedBitmap(model: ValueModel, value: number | bigint | Decode
     }
 
     let nameGenerator;
-    if (Model.types[ElementTag.Attribute] && model.id === FeatureMap.id) {
+    if (model.tag === ElementTag.Attribute && model.id === FeatureMap.id) {
         // Special case for feature map; use the long name as the key rather than the name
         nameGenerator = (model: ValueModel) =>
             (model as FieldModel).title === undefined ? camelize(model.name) : camelize((model as FieldModel).title!);

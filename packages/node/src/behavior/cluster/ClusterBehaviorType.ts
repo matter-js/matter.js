@@ -26,35 +26,22 @@ import { Behavior } from "../Behavior.js";
 import { DerivedState } from "../state/StateType.js";
 import type { ClusterBehavior } from "./ClusterBehavior.js";
 import { ClusterBehaviorCache } from "./ClusterBehaviorCache.js";
-
-const KNOWN_DEFAULTS = Symbol("knownDefaults");
+import { introspectionInstanceOf } from "./cluster-behavior-utils.js";
 
 /**
- * This is an internal utility used to track default values that we've erased due to conformance.  We reuse in
- * derivatives if the property is once again enabled.
+ * Generates a {@link ClusterBehavior.Type}.
  *
- * We cast the state constructor to this type so [KNOWN_DEFAULTS] becomes a static field on the state class.
+ * This factory performs runtime class generation of behaviors associated with a Matter cluster.  It implements
+ * ClusterBehavior.for() directly and is a core component of PeerBehavior().
  */
-interface HasKnownDefaults {
-    [KNOWN_DEFAULTS]?: Val.Struct;
-}
-
-/**
- * Create a non-functional instance of a {@link Behavior} for introspection purposes.
- */
-export function introspectionInstanceOf(type: Behavior.Type) {
-    return new (type as unknown as new () => Record<string, (...args: any[]) => any>)();
-}
-
-/**
- * This is the actual implementation of ClusterBehavior.for().  The result must match {@link ClusterBehavior.Type}<C>.
- */
-export function createType<const C extends ClusterType>(
-    cluster: C,
-    base: Behavior.Type,
-    schema?: Schema.Cluster,
-    name?: string,
-) {
+export function ClusterBehaviorType<const C extends ClusterType>({
+    cluster,
+    base,
+    schema,
+    name,
+    forClient,
+    commandFactory,
+}: ClusterBehaviorType.Configuration<C>) {
     if (schema === undefined) {
         if (base.schema.tag === ElementTag.Cluster) {
             schema = base.schema;
@@ -71,7 +58,7 @@ export function createType<const C extends ClusterType>(
     // If we are provided a name, the caller is creating a specialized version of the behavior.  Disable caching and
     // do not create a name automatically
     if (useCache) {
-        const cached = ClusterBehaviorCache.get(cluster, base, schema);
+        const cached = ClusterBehaviorCache.get(cluster, base, schema, forClient);
         if (cached) {
             return cached;
         }
@@ -83,7 +70,14 @@ export function createType<const C extends ClusterType>(
         }
     }
 
-    const context = DerivationContext(schema, cluster, base);
+    const context: DerivationContext = {
+        scope: Scope(schema),
+        cluster,
+        base,
+        newProps: {},
+        forClient,
+        commandFactory,
+    };
 
     const type = GeneratedClass({
         name,
@@ -110,7 +104,7 @@ export function createType<const C extends ClusterType>(
             },
         },
 
-        instanceDescriptors: createDefaultCommandDescriptors(cluster, base),
+        instanceDescriptors: createDefaultCommandDescriptors(context),
     }) as ClusterBehavior.Type;
 
     // Decorate the class
@@ -123,37 +117,75 @@ export function createType<const C extends ClusterType>(
         ClusterBehaviorCache.set(cluster, base, schema, type);
     }
 
-    return type;
+    return type as ClusterBehavior.Type<C>;
 }
 
-/**
- * The cluster type for a behavior.
- */
-export type ClusterOf<B extends Behavior.Type> = B extends { cluster: infer C extends ClusterType }
-    ? C
-    : ClusterType.Unknown;
+export namespace ClusterBehaviorType {
+    export interface Configuration<C extends ClusterType> {
+        /**
+         * The ClusterType for the new behavior.
+         */
+        cluster: C;
 
-/**
- * The extension interface for a behavior.
- */
-export type ExtensionInterfaceOf<B extends Behavior.Type> = B extends { ExtensionInterface: infer I extends {} }
-    ? I
-    : {};
+        /**
+         * The behavior to extend.
+         */
+        base: Behavior.Type;
+
+        /**
+         * The schema for the new behavior.
+         *
+         * If omitted uses the schema from the standard Matter data model.
+         */
+        schema?: Schema.Cluster;
+
+        /**
+         * Name used for the generated class.
+         *
+         * If omitted derives name from the schema.
+         */
+        name?: string;
+
+        /**
+         * Modify generation for client instrumentation.
+         *
+         * This affects a few things like how quieter events generate.
+         */
+        forClient?: boolean;
+
+        /**
+         * Factory for command implementations.
+         *
+         * By default commands install as {@link Behavior.unimplemented}.  In client scenarios this allows the caller to
+         * provide a useful default implementation.
+         */
+        commandFactory?: CommandFactory;
+    }
+
+    export interface CommandFactory {
+        (name: string): (this: ClusterBehavior, fields?: {}) => unknown;
+    }
+}
 
 interface DerivationContext {
     cluster: ClusterType;
     scope: Scope;
     base: Behavior.Type;
     newProps: Record<string, ValueModel>;
+    forClient?: boolean;
+    commandFactory?: ClusterBehaviorType.CommandFactory;
 }
 
-function DerivationContext(schema: Schema, cluster: ClusterType, base: Behavior.Type): DerivationContext {
-    return {
-        cluster,
-        scope: Scope(schema),
-        base,
-        newProps: {},
-    };
+const KNOWN_DEFAULTS = Symbol("knownDefaults");
+
+/**
+ * This is an internal utility used to track default values that we've erased due to conformance.  We reuse in
+ * derivatives if the property is once again enabled.
+ *
+ * We cast the state constructor to this type so [KNOWN_DEFAULTS] becomes a static field on the state class.
+ */
+interface HasKnownDefaults {
+    [KNOWN_DEFAULTS]?: Val.Struct;
 }
 
 /**
@@ -257,12 +289,15 @@ function createDerivedState({ cluster, scope, base, newProps }: DerivationContex
 /**
  * Extend events with additional implementations.
  */
-function createDerivedEvents({ scope, base, newProps }: DerivationContext) {
+function createDerivedEvents({ scope, base, newProps, forClient }: DerivationContext) {
     const instanceDescriptors = {} as PropertyDescriptorMap;
 
     const baseInstance = new base.Events() as unknown as Record<string, unknown>;
 
     const eventNames = new Set<string>();
+
+    // Events are generally OnlineEvent except in the case of server-side elements marked Q
+    const quieterImplementation = forClient ? OnlineEvent : QuietEvent;
 
     // Add events that are mandatory or marked as supported and not present in the base class
     const applicableClusterEvents = new Set();
@@ -272,14 +307,25 @@ function createDerivedEvents({ scope, base, newProps }: DerivationContext) {
     })) {
         const name = camelize(event.name);
         applicableClusterEvents.add(name);
-        if (scope.hasOperationalSupport(event) && baseInstance[name] === undefined) {
-            eventNames.add(name);
-            instanceDescriptors[name] = createEventDescriptor(
-                name,
-                event,
-                event.quality.quieter ? QuietEvent : OnlineEvent,
-            );
+
+        // Do not implement if already supported
+        if (baseInstance[name] !== undefined) {
+            continue;
         }
+
+        // For clients we implement all events because we can't know what's supported now that EventList is gone.  For
+        // servers we only add events that are explicitly
+        if (!forClient && !scope.hasOperationalSupport(event)) {
+            continue;
+        }
+
+        // Add the event
+        eventNames.add(name);
+        instanceDescriptors[name] = createEventDescriptor(
+            name,
+            event,
+            event.quality.quieter ? quieterImplementation : OnlineEvent,
+        );
     }
 
     // Add events for mandatory attributes that are not present in the base class
@@ -294,10 +340,11 @@ function createDerivedEvents({ scope, base, newProps }: DerivationContext) {
         const changed = `${attrName}$Changed`;
         if (baseInstance[changed] === undefined) {
             eventNames.add(changed);
+
             instanceDescriptors[changed] = createEventDescriptor(
                 changed,
                 prop,
-                prop.quality.quieter ? QuietEvent : OnlineEvent,
+                prop.quality.quieter ? quieterImplementation : OnlineEvent,
             );
         }
     }
@@ -386,17 +433,63 @@ function syncFeatures(schema: Schema.Cluster, cluster: ClusterType) {
     return schema;
 }
 
-function createDefaultCommandDescriptors(cluster: ClusterType, base: Behavior.Type) {
+const sourceFactory = Symbol("source-factory");
+
+interface MarkedCommand {
+    [sourceFactory]?: ClusterBehaviorType.CommandFactory;
+}
+
+/**
+ * Create descriptors for any command methods that are not already present in the base class.
+ */
+function createDefaultCommandDescriptors({ scope, base, commandFactory }: DerivationContext) {
     const result = {} as Record<string, PropertyDescriptor>;
     const instance = introspectionInstanceOf(base);
 
-    for (const name in cluster.commands) {
-        if (!instance[name]) {
-            result[name] = {
-                value: Behavior.unimplemented,
-                writable: true,
-            };
+    // We add functions for all commands, not just those that are conformant.  This ensures that the interface is
+    // compatible with the "client" clusters.  Commands that are nonconformant will not appear in the type and if
+    // somehow invoked will result in an "unimplemented" error
+    const names = new Set(
+        scope.membersOf(scope.owner, { tags: [ElementTag.Command] }).map(command => camelize(command.name)),
+    );
+
+    const conformantNames = new Set(
+        scope
+            .membersOf(scope.owner, { tags: [ElementTag.Command], conformance: "conformant" })
+            .map(command => camelize(command.name)),
+    );
+
+    for (const name of names) {
+        let implementation;
+
+        // Choose implementation, or skip if appropriate implementation is already present
+        if (!conformantNames.has(name)) {
+            // Non-conformant; install as unimplemented
+            if (instance[name]) {
+                continue;
+            }
+            implementation = Behavior.unimplemented;
+        } else if (commandFactory) {
+            // With a factory, replace any existing implementation not provided by the factory
+            if ((instance[name] as MarkedCommand | undefined)?.[sourceFactory] === commandFactory) {
+                continue;
+            }
+
+            implementation = commandFactory(name);
+
+            (implementation as MarkedCommand)[sourceFactory] = commandFactory;
+        } else {
+            // Otherwise make sure we at least have an "unimplemented"... um, implementation
+            if (instance[name]) {
+                continue;
+            }
+            implementation = Behavior.unimplemented;
         }
+
+        result[name] = {
+            value: implementation,
+            writable: true,
+        };
     }
 
     return result;
@@ -445,6 +538,9 @@ function selectDefaultValue(scope: Scope, oldDefault: Val, member: ValueModel) {
     }
 }
 
+/**
+ * Create a descriptor that lazily creates the {@link Observable} on the "Events" class.
+ */
 function createEventDescriptor(
     name: string,
     schema: ValueModel,

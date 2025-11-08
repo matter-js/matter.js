@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ClientBehavior } from "#behavior/cluster/ClientBehavior.js";
+import { isClientBehavior } from "#behavior/cluster/cluster-behavior-utils.js";
 import { OnlineEvent } from "#behavior/Events.js";
 import { Migration } from "#behavior/state/migrations/Migration.js";
 import type { Agent } from "#endpoint/Agent.js";
@@ -185,7 +185,7 @@ export abstract class BehaviorBacking {
      */
     createBehavior(agent: Agent, type: Behavior.Type) {
         const behavior = new this.#type(agent, this);
-        if (behavior instanceof type || ClientBehavior.is(type)) {
+        if (behavior instanceof type || isClientBehavior(type)) {
             return behavior;
         }
 

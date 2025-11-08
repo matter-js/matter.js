@@ -102,8 +102,8 @@ export class MockSite {
             commissioning: { enabled: false, ...options.controller?.commissioning },
         });
         const device = await this.addNode(undefined, {
-            ...options.device,
             device: OnOffLightDevice,
+            ...options.device,
         });
 
         return { controller, device };

@@ -290,12 +290,22 @@ export class Fabric {
         this.#persistCallback = callback;
     }
 
-    async remove(currentSessionId?: number) {
+    /**
+     * Gracefully exit the fabric.
+     *
+     * Devices should use this to cleanly exit a fabric.  It flushes subscriptions to ensure the "leave" event emits
+     * and closes sessions.
+     */
+    leave(currentSessionId?: number) {
+        return this.remove(currentSessionId, true);
+    }
+
+    async remove(currentSessionId?: number, graceful = false) {
         for (const callback of this.#removeCallbacks) {
             await callback();
         }
         for (const session of [...this.#sessions]) {
-            await session.destroy(false, session.id === currentSessionId); // Delay Close for current session only
+            await session.destroy(graceful, session.id === currentSessionId, graceful); // Delay Close for current session only
         }
     }
 

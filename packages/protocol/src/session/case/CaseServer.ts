@@ -49,7 +49,7 @@ export class CaseServer implements ProtocolHandler {
         try {
             await this.#handleSigma1(messenger);
         } catch (error) {
-            logger.error("An error occurred during the commissioning", error);
+            logger.error("Error establishing CASE session", error);
 
             if (error instanceof FabricNotFoundError) {
                 await messenger.sendError(SecureChannelStatusCode.NoSharedTrustRoots);

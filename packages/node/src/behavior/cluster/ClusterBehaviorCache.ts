@@ -9,20 +9,27 @@ import { Schema } from "#model";
 import { ClusterType } from "#types";
 import type { ClusterBehavior } from "./ClusterBehavior.js";
 
+const behaviorCache = new WeakMap<
+    Behavior.Type,
+    WeakMap<ClusterType, WeakMap<Schema, WeakRef<ClusterBehavior.Type<any>>>>
+>();
+
+const clientCache = new WeakMap<
+    Behavior.Type,
+    WeakMap<ClusterType, WeakMap<Schema, WeakRef<ClusterBehavior.Type<any>>>>
+>();
+
 /**
  * To save memory we cache behavior implementations specialized for specific clusters.  This allows for efficient
  * configuration of behaviors with conditional runtime logic.
  *
  * We use the cluster and schema as cache keys so this relies on similar caching for those items.
  */
-const typeCache = new WeakMap<
-    Behavior.Type,
-    WeakMap<ClusterType, WeakMap<Schema, WeakRef<ClusterBehavior.Type<any>>>>
->();
-
 export namespace ClusterBehaviorCache {
-    export function get(cluster: ClusterType, base: Behavior.Type, schema: Schema) {
-        const baseCache = typeCache.get(base);
+    export function get(cluster: ClusterType, base: Behavior.Type, schema: Schema, forClient?: boolean) {
+        const cache = forClient ? clientCache : behaviorCache;
+
+        const baseCache = cache.get(base);
         if (baseCache === undefined) {
             return;
         }
@@ -36,9 +43,9 @@ export namespace ClusterBehaviorCache {
     }
 
     export function set(cluster: ClusterType, base: Behavior.Type, schema: Schema, type: ClusterBehavior.Type) {
-        let baseCache = typeCache.get(base);
+        let baseCache = behaviorCache.get(base);
         if (baseCache === undefined) {
-            typeCache.set(base, (baseCache = new WeakMap()));
+            behaviorCache.set(base, (baseCache = new WeakMap()));
         }
 
         let clusterCache = baseCache.get(cluster);

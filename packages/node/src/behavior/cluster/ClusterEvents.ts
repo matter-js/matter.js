@@ -10,7 +10,7 @@ import type { AttributeModel, EventModel } from "#model";
 import type { ClusterType, TypeFromSchema } from "#types";
 import type { Behavior } from "../Behavior.js";
 import type { ActionContext } from "../context/ActionContext.js";
-import type { ClusterOf } from "./ClusterBehaviorUtil.js";
+import type { ClusterOf } from "./cluster-behavior-utils.js";
 
 /**
  * Event instance type for ClusterBehaviors.

@@ -191,13 +191,33 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     stateOf<T extends Behavior.Type>(type: T): Immutable<Behavior.StateOf<T>>;
 
     stateOf(type: Behavior.Type | string) {
+        const state = this.maybeStateOf(type as any);
+        if (state) {
+            return state;
+        }
+
+        const id = typeof type === "string" ? type : type.id;
+        throw new ImplementationError(`Behavior ${id} is not supported by ${this}`);
+    }
+
+    /**
+     * Version of {@link stateOf} that returns undefined instead of throwing if the requested behavior unsupported.
+     */
+    maybeStateOf(type: string): Immutable<Val.Struct>;
+
+    /**
+     * Version of {@link stateOf} that returns undefined instead of throwing if the requested behavior unsupported.
+     */
+    maybeStateOf<T extends Behavior.Type>(type: T): Immutable<Behavior.StateOf<T>>;
+
+    maybeStateOf(type: Behavior.Type | string) {
         if (typeof type === "string") {
             if (!(type in this.#stateView)) {
-                throw new ImplementationError(`Behavior ${type} is not supported by ${this}`);
+                return undefined;
             }
         } else {
             if (!this.behaviors.has(type)) {
-                throw new ImplementationError(`Behavior ${type.id} is not supported by ${this}`);
+                return undefined;
             }
             type = type.id;
         }
@@ -371,7 +391,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             }
         } else {
             if (!this.behaviors.has(type)) {
-                throw new ImplementationError(`Behavior ${type.id} is not supported by this endpoint`);
+                throw new ImplementationError(`Behavior ${type.id} is not supported by ${this}`);
             }
             type = type.id;
         }

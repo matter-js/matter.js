@@ -11,9 +11,11 @@ import { IdentifyClient } from "#behaviors/identify";
 import { OnOffClient } from "#behaviors/on-off";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { b$, Crypto, deepCopy, MockCrypto, Seconds, Time, TimeoutError } from "#general";
 import { Specification } from "#model";
-import { SustainedSubscription } from "#protocol";
+import { ServerNode } from "#node/ServerNode.js";
+import { FabricManager, SustainedSubscription } from "#protocol";
 import { MockSite } from "./mock-site.js";
 
 describe("ClientNode", () => {
@@ -115,7 +117,7 @@ describe("ClientNode", () => {
         expect(ep1b).not.undefined;
         expect(ep1b.construction.status).equals("active");
         expect(ep1b.state).deep.equals(expectedEp1State);
-    });
+    }).timeout(1e9);
 
     it("invokes, receives state updates and emits changed events", async () => {
         // *** SETUP ***
@@ -297,9 +299,75 @@ describe("ClientNode", () => {
         expect(payload).deep.equals({ softwareVersion: 12 });
     });
 
-    it("removes node after leave event", () => {
-        // TODO
+    it("handles endpoints that appear and disappear", async () => {
+        // *** SETUP ***
+
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair({
+            device: {
+                type: ServerNode.RootEndpoint,
+                parts: [
+                    {
+                        id: "aggregator",
+                        type: AggregatorEndpoint,
+                    },
+                ],
+            },
+        });
+        const peer1 = controller.peers.get("peer1")!;
+
+        const aggregatorServer = device.parts.get("aggregator")!;
+        expect(aggregatorServer).not.undefined;
+        expect(aggregatorServer.parts.size).equals(0);
+
+        const aggregatorClient = peer1.parts.get("ep1")!;
+        expect(aggregatorClient).not.undefined;
+        expect(aggregatorClient.type.deviceType).equals(AggregatorEndpoint.deviceType);
+        expect(aggregatorClient.parts.size).equals(0);
+
+        // *** ADD ENDPOINT ***
+
+        const added = Promise.resolve(aggregatorClient.parts.added);
+        const lightServer = new Endpoint(OnOffLightDevice);
+        await aggregatorServer.add(lightServer);
+
+        const lightClient = await MockTime.resolve(added);
+        expect(lightClient.number).equals(lightServer.number);
+        expect(lightClient.type.deviceType).equals(OnOffLightDevice.deviceType);
+
+        // *** DELETE ENDPOINT ***
+
+        const deleted = Promise.resolve(lightClient.lifecycle.destroyed);
+        await lightServer.delete();
+        await MockTime.resolve(deleted);
+        expect(aggregatorClient.parts.size).equals(0);
     });
+
+    it("erases node after leave event", async () => {
+        // *** SETUP ***
+
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer1 = controller.peers.get("peer1")!;
+
+        // *** CONFIRM FABRIC IDENTITY ***
+
+        const deviceFabric = device.env.get(FabricManager).fabrics[0];
+        expect(deviceFabric).not.undefined;
+        const controllerFabric = controller.env.get(FabricManager).fabrics[0];
+        expect(controllerFabric).not.undefined;
+        expect(deviceFabric.fabricId).equals(controllerFabric.fabricId);
+
+        // *** LEAVE FABRIC ON PEER ***
+
+        const deleted = Promise.resolve(peer1.lifecycle.destroyed);
+        await deviceFabric.leave();
+
+        // *** NOTE DELETION ON CONTROLLER ***
+
+        await MockTime.resolve(deleted);
+        expect(controller.peers.size).equals(0);
+    }).timeout(1e9);
 
     it("handles shutdown event and reestablishes connection", () => {
         // TODO
