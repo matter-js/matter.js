@@ -72,46 +72,53 @@ export class PaseServer implements ProtocolHandler {
             return;
         }
         const messenger = new PaseServerMessenger(exchange);
-        try {
-            // When a Commissioner is either in the process of establishing a PASE session with the Commissionee or has
-            // successfully established a session, the Commissionee SHALL NOT accept any more requests for new PASE
-            // sessions until session establishment fails or the successfully established PASE session is terminated on
-            // the commissioning channel.
-            const paseSession = this.sessions.getPaseSession();
-            if (paseSession !== undefined && !paseSession.isClosing) {
-                logger.info("Pase server: Pairing already in progress (PASE session exists), ignoring new exchange.");
-            } else if (this.#pairingTimer?.isRunning) {
-                logger.info(
-                    "Pase server: Pairing already in progress (PASE establishment Timer running), ignoring new exchange.",
-                );
-            } else if (this.#pairingMessenger !== undefined) {
-                logger.info("Already handling a pairing request, ignoring new exchange.");
-            } else {
+
+        // When a Commissioner is either in the process of establishing a PASE session with the Commissionee or has
+        // successfully established a session, the Commissionee SHALL NOT accept any more requests for new PASE
+        // sessions until session establishment fails or the successfully established PASE session is terminated on
+        // the commissioning channel.
+        const paseSession = this.sessions.getPaseSession();
+        if (paseSession !== undefined && !paseSession.isClosing) {
+            logger.info("Pase server: Pairing already in progress (PASE session exists), ignoring new exchange.");
+        } else if (this.#pairingTimer?.isRunning) {
+            logger.info(
+                "Pase server: Pairing already in progress (PASE establishment Timer running), ignoring new exchange.",
+            );
+        } else if (this.#pairingMessenger !== undefined) {
+            logger.info("Already handling a pairing request, ignoring new exchange.");
+        } else {
+            // All checks done, we handle the pairing request
+            try {
                 this.#pairingMessenger = messenger;
                 // Ok new pairing try, handle it
                 await this.handlePairingRequest(this.sessions.crypto);
-            }
-        } catch (error) {
-            this.#pairingErrors++;
-            logger.error(
-                `An error occurred during the PASE commissioning (${this.#pairingErrors}/${PASE_COMMISSIONING_MAX_ERRORS}):`,
-                error,
-            );
-
-            // If we received a ChannelStatusResponseError we do not need to send one back, so just cancel pairing
-            const sendError = !(error instanceof ChannelStatusResponseError);
-            await this.cancelPairing(messenger, sendError);
-
-            if (this.#pairingErrors >= PASE_COMMISSIONING_MAX_ERRORS) {
-                throw new MaximumPasePairingErrorsReachedError(
-                    `Pase server: Too many errors during PASE commissioning, aborting commissioning window`,
+            } catch (error) {
+                this.#pairingErrors++;
+                logger.error(
+                    `An error occurred during the PASE commissioning (${this.#pairingErrors}/${PASE_COMMISSIONING_MAX_ERRORS}):`,
+                    error,
                 );
+
+                // If we received a ChannelStatusResponseError we do not need to send one back, so just cancel pairing
+                const sendError = !(error instanceof ChannelStatusResponseError);
+                await this.cancelPairing(messenger, sendError);
+
+                if (this.#pairingErrors >= PASE_COMMISSIONING_MAX_ERRORS) {
+                    throw new MaximumPasePairingErrorsReachedError(
+                        `Pase server: Too many errors during PASE commissioning, aborting commissioning window`,
+                    );
+                }
+            } finally {
+                this.#pairingMessenger = undefined;
+                // Destroy the unsecure session used to establish the Pase session
+                await exchange.session.destroy();
             }
-        } finally {
-            this.#pairingMessenger = undefined;
-            // Destroy the unsecure session used to establish the Pase session
-            await exchange.session.destroy();
+            return;
         }
+
+        // We are not handing the pairing request, send error and close messenger
+        await messenger.sendError(SecureChannelStatusCode.InvalidParam);
+        await messenger.close();
     }
 
     private async handlePairingRequest(crypto: Crypto) {
