@@ -185,7 +185,7 @@ export abstract class FailsafeContext {
 
     async removePaseSession() {
         const session = this.#sessions.getPaseSession();
-        if (session) {
+        if (session !== undefined) {
             await session.close(true);
         }
     }

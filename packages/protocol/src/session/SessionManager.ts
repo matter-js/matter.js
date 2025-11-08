@@ -421,7 +421,7 @@ export class SessionManager {
 
         return [...this.#sessions].find(
             session => NodeSession.is(session) && session.isPase && !session.closingAfterExchangeFinished,
-        ) as NodeSession;
+        );
     }
 
     forFabric(fabric: Fabric) {
