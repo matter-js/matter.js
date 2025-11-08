@@ -15,7 +15,12 @@ export let nextInternalId = 1;
 
 let ReadOnly: LocalActorContext | undefined;
 
-export interface LocalActorContext extends ValueSupervisor.LocalActorSession {}
+export interface LocalActorContext extends ValueSupervisor.LocalActorSession {
+    /**
+     * @deprecated use `context.fabric === undefined` or `hasLocalActor(context)` to detect a local actor
+     */
+    offline: true;
+}
 
 /**
  * The context for operations triggered locally, either for in-process node implementations or remote nodes that are
@@ -80,9 +85,6 @@ export const LocalActorContext = {
             const context = Object.freeze({
                 ...options,
 
-                // Disable access level enforcement
-                offline: true,
-
                 transaction,
                 activity: frame,
 
@@ -101,6 +103,8 @@ export const LocalActorContext = {
 
                 resolve: transaction.resolve.bind(transaction),
                 reject: transaction.reject.bind(transaction),
+
+                offline: true,
             });
 
             return context;

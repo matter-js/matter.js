@@ -45,6 +45,11 @@ export interface RemoteActorContext extends ValueSupervisor.RemoteActorSession {
      * The priority of actions in this context.
      */
     priority?: Priority;
+
+    /**
+     * @deprecated use `context.fabric !== undefined` or `hasRemoteActor(context)` to detect a remote actor
+     */
+    offline?: false;
 }
 
 /**
@@ -185,6 +190,7 @@ export function RemoteActorContext(options: RemoteActorContext.Options) {
             exchange,
             subject,
             largeMessage: exchange?.channel.supportsLargeMessages,
+            offline: false,
 
             fabric: fabric?.fabricIndex ?? FabricIndex.NO_FABRIC,
             transaction,
