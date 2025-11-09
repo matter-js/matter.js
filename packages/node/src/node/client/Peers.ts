@@ -131,6 +131,10 @@ export class Peers extends EndpointContainer<ClientNode> {
         return this.owner.env.get(ClientStructureEvents).clusterInstalled(type);
     }
 
+    /**
+     * Emits when fixed attributes
+     */
+
     override get(id: number | string | PeerAddress) {
         if (typeof id !== "string" && typeof id !== "number") {
             const address = PeerAddress(id);

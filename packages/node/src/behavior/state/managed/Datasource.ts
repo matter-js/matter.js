@@ -230,6 +230,11 @@ export namespace Datasource {
         externalChangeListener?: (changes: Val.Struct) => Promise<void>;
 
         /**
+         * Callback installed by the store that releases the values from the datasource when invoked.
+         */
+        releaseValues?: () => Val.Struct;
+
+        /**
          * The current version of the data.
          */
         version: number;
@@ -471,6 +476,14 @@ function configureExternalChanges(internals: Internals) {
                 }
             }
         }
+    };
+
+    store.releaseValues = () => {
+        const { values } = internals;
+
+        internals.values = {};
+
+        return values;
     };
 }
 

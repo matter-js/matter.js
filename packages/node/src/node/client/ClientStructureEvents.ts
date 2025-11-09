@@ -9,21 +9,26 @@ import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { DescriptorClient } from "#behaviors/descriptor";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
-import { Environment, Environmental, Observable } from "#general";
+import { Environment, Environmental, Logger, Observable } from "#general";
 import { DeviceTypeId } from "#types";
+
+const logger = Logger.get("ClientStructureEvents");
 
 /**
  * An environmental service that manages events endpoint and behavior types.
  */
 export class ClientStructureEvents {
-    #endpointEvents?: Map<DeviceTypeId, Observable<[Endpoint]>>;
+    #endpointEvents?: Map<DeviceTypeId, Observable<[endpoint: Endpoint]>>;
     #clusterEvents?: Map<
         string,
         Array<{
             requestedType: Behavior.Type;
-            event: Observable<[Endpoint, Behavior.Type]>;
+            event: Observable<[endpoint: Endpoint, type: ClusterBehavior.Type]>;
         }>
     >;
+
+    #clusterReplaced?: Observable<[endpoint: Endpoint, type: ClusterBehavior.Type]>;
+    #clusterDeleted?: Observable<[endpoint: Endpoint, type: ClusterBehavior.Type]>;
 
     static [Environmental.create](env: Environment) {
         const instance = new ClientStructureEvents();
@@ -38,7 +43,7 @@ export class ClientStructureEvents {
 
         let event = this.#endpointEvents.get(type.deviceType);
         if (event === undefined) {
-            this.#endpointEvents.set(type.deviceType, (event = Observable()));
+            this.#endpointEvents.set(type.deviceType, (event = this.#createEvent("endpointInstalled")));
         }
 
         return event as Observable<[endpoint: Endpoint<T>]>;
@@ -60,10 +65,24 @@ export class ClientStructureEvents {
             }
         }
 
-        const event = Observable();
+        const event = this.#createEvent("clusterInstalled");
         events.push({ requestedType: type, event });
 
         return event;
+    }
+
+    get clusterReplaced() {
+        if (this.#clusterReplaced) {
+            return this.#clusterReplaced;
+        }
+        return (this.#clusterReplaced = this.#createEvent("clusterReplaced"));
+    }
+
+    get clusterDeleted() {
+        if (this.#clusterDeleted) {
+            return this.#clusterDeleted;
+        }
+        return (this.#clusterDeleted = this.#createEvent("clusterDeleted"));
     }
 
     emitEndpoint(endpoint: Endpoint) {
@@ -75,7 +94,11 @@ export class ClientStructureEvents {
         }
 
         for (const type of Object.values(endpoint.behaviors.supported)) {
-            this.emitCluster(endpoint, type);
+            if (!("cluster" in type)) {
+                continue;
+            }
+
+            this.emitCluster(endpoint, type as ClusterBehavior.Type);
         }
 
         for (const part of endpoint.parts) {
@@ -83,15 +106,40 @@ export class ClientStructureEvents {
         }
     }
 
-    emitCluster(endpoint: Endpoint, type: Behavior.Type) {
+    emitCluster(endpoint: Endpoint, type: ClusterBehavior.Type) {
         const events = this.#clusterEvents?.get(type.id);
         if (!events) {
             return;
         }
+
         for (const { requestedType, event } of events) {
             if (type.supports(requestedType)) {
                 event.emit(endpoint, type);
             }
+        }
+    }
+
+    emitClusterReplaced(endpoint: Endpoint, type: ClusterBehavior.Type) {
+        if (!this.#clusterReplaced) {
+            return;
+        }
+
+        this.#clusterReplaced.emit(endpoint, type);
+    }
+
+    emitClusterDeleted(endpoint: Endpoint, type: ClusterBehavior.Type) {
+        if (!this.#clusterDeleted) {
+            return;
+        }
+
+        this.#clusterDeleted.emit(endpoint, type);
+    }
+
+    #createEvent(kind: string): Observable<any, void> {
+        return Observable(unhandledError);
+
+        function unhandledError(e: unknown) {
+            logger.error(`Unhandled error in client structure ${kind} event handler:`, e);
         }
     }
 }

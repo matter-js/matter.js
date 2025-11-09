@@ -130,10 +130,10 @@ export abstract class BehaviorBacking {
     /**
      * Destroy the backing.
      */
-    close(agent: Agent, invokeClose = true) {
+    close(agent?: Agent) {
         const initialized = this.construction.status === Lifecycle.Status.Active;
         if (!initialized) {
-            invokeClose = false;
+            agent = undefined;
         }
 
         return this.construction.close(() => {
@@ -146,7 +146,7 @@ export abstract class BehaviorBacking {
                 },
             );
 
-            if (invokeClose) {
+            if (agent) {
                 result = MaybePromise.then(result, () => this.#invokeClose(agent));
             }
 
@@ -176,6 +176,19 @@ export abstract class BehaviorBacking {
      */
     get type() {
         return this.#type;
+    }
+
+    set type(type: Behavior.Type) {
+        if (!type.supports(this.#type)) {
+            // This is unlikely to cause issues because we limit to peer contexts.  In that case we implement elements
+            // fairly expansively regardless of reported support.  So worst case scenario the metadata reported earlier
+            // may be out of sync with the device.  There is a small possibility this causes problems, though, so log a
+            // warning
+            logger.warn(
+                `The cluster for active behavior ${this} may no longer be strictly compatible with local implementation`,
+            );
+        }
+        this.#type = type;
     }
 
     /**

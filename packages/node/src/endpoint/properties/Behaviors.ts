@@ -54,6 +54,7 @@ export class Behaviors {
     #endpoint: Endpoint;
     #supported: SupportedBehaviors;
     #backings: Record<string, BehaviorBacking> = {};
+    #events: Record<string, EventEmitter> = {};
     #options: Record<string, object | undefined>;
     #protocol?: ProtocolService;
 
@@ -296,12 +297,6 @@ export class Behaviors {
         }
 
         this.inject(type, options);
-
-        this.#endpoint.lifecycle.change(EndpointLifecycle.Change.ServersChanged);
-
-        if (type.early && this.#endpoint.lifecycle.isInstalled) {
-            this.#activateLate(type);
-        }
     }
 
     /**
@@ -456,9 +451,12 @@ export class Behaviors {
     }
 
     /**
-     * Add support for an additional behavior statically.  Should only be invoked prior to initialization.
+     * Add support for an additional behavior.
+     *
+     * This should generally only be used prior to initialization.  It may cause subtle errors if incompatible types are
+     * injected once the endpoint is initialized.
      */
-    inject(type: Behavior.Type, options?: Behavior.Options) {
+    inject(type: Behavior.Type, options?: Behavior.Options, notify = true) {
         if (options) {
             this.#options[type.id] = options;
         }
@@ -470,6 +468,47 @@ export class Behaviors {
         this.#supported[type.id] = type;
 
         this.#augmentEndpoint(type);
+
+        if (notify) {
+            this.#endpoint.lifecycle.change(EndpointLifecycle.Change.ServersChanged);
+        }
+
+        if (!this.#endpoint.lifecycle.isInstalled) {
+            return;
+        }
+
+        const activeBacking = this.#backings[type.id];
+        if (activeBacking) {
+            activeBacking.type = type;
+        } else if (type.early) {
+            this.#activateLate(type);
+        }
+    }
+
+    /**
+     * Drop support for a behavior.
+     *
+     * This is intended for synchronization with peers and should not be used for servers as Matter does not allow an
+     * endpoint to change its set of supported clusters.
+     */
+    drop(id: string): MaybePromise<void> {
+        const supported = this.#supported[id];
+        if (!supported) {
+            return;
+        }
+
+        delete this.#supported[id];
+
+        let promise: undefined | MaybePromise<void>;
+        const backing = this.#backings[id];
+        if (backing) {
+            logger.warn(`Removing ${backing} from active endpoint`);
+            promise = backing.close();
+        }
+
+        this.#endpoint.lifecycle.change(EndpointLifecycle.Change.ServersChanged);
+
+        return promise;
     }
 
     /**
@@ -704,17 +743,19 @@ export class Behaviors {
      * Updates endpoint "state" and "events" properties to include properties for a supported behavior.
      */
     #augmentEndpoint(type: Behavior.Type) {
+        const { id, Events } = type;
+
         const get = () => this.#backingFor(type).stateView;
-        Object.defineProperty(this.#endpoint.state, type.id, { get, enumerable: true });
+        Object.defineProperty(this.#endpoint.state, id, { get, enumerable: true });
         if (type.schema.id !== undefined) {
             Object.defineProperty(this.#endpoint.state, type.schema.id, { get });
         }
 
-        let events: undefined | EventEmitter;
-        Object.defineProperty(this.#endpoint.events, type.id, {
+        Object.defineProperty(this.#endpoint.events, id, {
             get: () => {
+                let events = this.#events[id];
                 if (!events) {
-                    events = new type.Events();
+                    events = this.#events[id] = new Events();
 
                     if (typeof (events as Events).setContext === "function") {
                         (events as Events).setContext(this.#endpoint, type);

@@ -77,7 +77,7 @@ describe("ClientNode", () => {
         expect(peer1).not.undefined;
 
         // Validate the root endpoint
-        expect(Object.keys(peer1.state)).deep.equals(Object.keys(PEER1_STATE));
+        expect(Object.keys(peer1.state).sort()).deep.equals(Object.keys(PEER1_STATE).sort());
         for (const key in peer1.state) {
             const actual = (peer1.state as Record<string, unknown>)[key];
             const expected = (PEER1_STATE as Record<string, unknown>)[key];

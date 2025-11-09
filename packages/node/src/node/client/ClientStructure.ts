@@ -11,7 +11,7 @@ import { Descriptor } from "#clusters/descriptor";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { RootEndpoint } from "#endpoints/root";
-import { InternalError, Logger } from "#general";
+import { Diagnostic, InternalError, isDeepEqual, Logger } from "#general";
 import {
     AcceptedCommandList,
     AttributeList,
@@ -43,20 +43,21 @@ const PARTS_LIST_ATTR_ID = Descriptor.Cluster.attributes.partsList.id;
  */
 export class ClientStructure {
     #nodeStore: ClientNodeStore;
-    #endpoints: Record<EndpointNumber, EndpointStructure> = {};
+    #endpoints = new Map<EndpointNumber, EndpointStructure>();
     #emitEvent: ClientEventEmitter;
     #node: ClientNode;
     #subscribedFabricFiltered?: boolean;
-    #pending = new Map<EndpointStructure, "erase" | "reparent">();
+    #pendingChanges = new Map<EndpointStructure, PendingChange>();
+    #pendingEvents = Array<PendingEvent>();
     #events: ClientStructureEvents;
 
     constructor(node: ClientNode) {
         this.#node = node;
         this.#nodeStore = node.env.get(ClientNodeStore);
-        this.#endpoints[node.number] = {
+        this.#endpoints.set(node.number, {
             endpoint: node,
-            clusters: {},
-        };
+            clusters: new Map(),
+        });
         this.#emitEvent = ClientEventEmitter(node, this);
         this.#events = this.#node.env.get(ClientStructureEvents);
     }
@@ -88,18 +89,21 @@ export class ClientStructure {
             }
         }
 
-        for (const [endpoint, opcode] of this.#pending.entries()) {
-            this.#pending.delete(endpoint);
-
-            switch (opcode) {
-                case "reparent":
-                    this.#install(endpoint);
-                    break;
-
-                default:
-                    throw new InternalError(`Unexpected ${opcode} operation in initial hierarchy load`);
+        const changes = this.#pendingChanges;
+        this.#pendingChanges = new Map();
+        for (const [structure, change] of changes.entries()) {
+            // Only installs should be queued
+            if (!change.install || change.erase || change.rebuild) {
+                throw new InternalError(
+                    `Unexpected erase and/or rebuild during initialization of ${structure.endpoint}`,
+                );
             }
+
+            this.#pendingChanges.delete(structure);
+            this.#install(structure);
         }
+
+        this.#emitPendingEvents();
     }
 
     /**
@@ -131,11 +135,11 @@ export class ClientStructure {
         for (const {
             endpoint: { number: endpointId },
             clusters,
-        } of Object.values(this.#endpoints)) {
+        } of this.#endpoints.values()) {
             for (const {
                 id: clusterId,
                 store: { version },
-            } of Object.values(clusters)) {
+            } of clusters.values()) {
                 if (!scope.isRelevant(endpointId, clusterId)) {
                     continue;
                 }
@@ -196,25 +200,25 @@ export class ClientStructure {
 
         // We don't apply structural changes until we've processed all attribute data if a.) listeners might otherwise
         // see partially initialized endpoints, or b.) the change requires an async operation
-        for (const [endpoint, opcode] of this.#pending.entries()) {
-            this.#pending.delete(endpoint);
+        for (const [endpoint, change] of this.#pendingChanges.entries()) {
+            this.#pendingChanges.delete(endpoint);
 
-            switch (opcode) {
-                case "reparent":
-                    this.#install(endpoint);
-                    break;
+            if (change.erase) {
+                await this.#erase(endpoint);
+                continue;
+            }
 
-                case "erase":
-                    logger.debug(`Removing endpoint ${endpoint.endpoint} because it is no longer present on the peer`);
-                    delete this.#endpoints[endpoint.endpoint.number];
-                    try {
-                        await endpoint.endpoint.delete();
-                    } catch (e) {
-                        logger.error(`Error erasing peer endpoint ${endpoint.endpoint}:`, e);
-                    }
-                    break;
+            if (change.rebuild) {
+                await this.#rebuild(endpoint);
+            }
+
+            if (change.install) {
+                this.#install(endpoint);
             }
         }
+
+        // Likewise, we don't emit events until we've applied all structural changes
+        this.#emitPendingEvents();
     }
 
     /** Reference to the default subscription used when the node was started. */
@@ -285,7 +289,7 @@ export class ClientStructure {
      * Obtain the {@link Endpoint} for a {@link EndpointNumber}.
      */
     endpointFor(endpoint: EndpointNumber): Endpoint | undefined {
-        return this.#endpoints[endpoint]?.endpoint;
+        return this.#endpoints.get(endpoint)?.endpoint;
     }
 
     /**
@@ -294,9 +298,27 @@ export class ClientStructure {
      * This is invoked in a batch when we've collected all sequential values for the current endpoint/cluster.
      */
     async #updateCluster(attrs: AttributeUpdates) {
-        // TODO: Detect changes in revision/features/attributes/commands and update behavior if needed
         const endpoint = this.#endpointFor(attrs.endpointId);
         const cluster = this.#clusterFor(endpoint, attrs.clusterId);
+
+        if (cluster.behavior && FeatureMap.id in attrs.values) {
+            if (!isDeepEqual(cluster.features, attrs.values[FeatureMap.id])) {
+                cluster.behavior = undefined;
+            }
+        }
+
+        if (cluster.behavior && AttributeList.id in attrs.values) {
+            if (!isDeepEqual(cluster.attributes, attrs.values[AttributeList.id])) {
+                cluster.behavior = undefined;
+            }
+        }
+
+        if (cluster.behavior && AcceptedCommandList.id in attrs.values) {
+            if (!isDeepEqual(cluster.attributes, attrs.values[AttributeList.id])) {
+                cluster.behavior = undefined;
+            }
+        }
+
         await cluster.store.externalSet(attrs.values);
         this.#synchronizeCluster(endpoint, cluster);
     }
@@ -309,30 +331,34 @@ export class ClientStructure {
      *
      * Invoked once we've loaded all attributes in an interaction.
      */
-    #synchronizeCluster(endpoint: EndpointStructure, cluster: ClusterStructure) {
+    #synchronizeCluster(structure: EndpointStructure, cluster: ClusterStructure) {
+        const { endpoint } = structure;
+
         // Generate a behavior if enough information is available
-        if (cluster.behavior === undefined && cluster.store.initialValues) {
-            const {
-                [ClusterRevision.id]: clusterRevision,
-                [FeatureMap.id]: features,
-                [AttributeList.id]: attributeList,
-                [AcceptedCommandList.id]: commandList,
-            } = cluster.store.initialValues;
+        if (cluster.behavior === undefined) {
+            if (cluster.store.initialValues) {
+                const {
+                    [ClusterRevision.id]: clusterRevision,
+                    [FeatureMap.id]: features,
+                    [AttributeList.id]: attributeList,
+                    [AcceptedCommandList.id]: commandList,
+                } = cluster.store.initialValues;
 
-            if (typeof clusterRevision === "number") {
-                cluster.revision = clusterRevision;
-            }
+                if (typeof clusterRevision === "number") {
+                    cluster.revision = clusterRevision;
+                }
 
-            if (typeof features === "object" && features !== null && !Array.isArray(features)) {
-                cluster.features = features as FeatureBitmap;
-            }
+                if (typeof features === "object" && features !== null && !Array.isArray(features)) {
+                    cluster.features = features as FeatureBitmap;
+                }
 
-            if (Array.isArray(attributeList)) {
-                cluster.attributes = attributeList.filter(attr => typeof attr === "number") as AttributeId[];
-            }
+                if (Array.isArray(attributeList)) {
+                    cluster.attributes = attributeList.filter(attr => typeof attr === "number") as AttributeId[];
+                }
 
-            if (Array.isArray(commandList)) {
-                cluster.commands = commandList.filter(cmd => typeof cmd === "number") as CommandId[];
+                if (Array.isArray(commandList)) {
+                    cluster.commands = commandList.filter(cmd => typeof cmd === "number") as CommandId[];
+                }
             }
 
             if (
@@ -341,10 +367,17 @@ export class ClientStructure {
                 cluster.attributes !== undefined &&
                 cluster.commands !== undefined
             ) {
-                cluster.behavior = PeerBehavior(cluster as PeerBehavior.ClusterShape);
-                endpoint.endpoint.behaviors.require(cluster.behavior);
-                if (endpoint.endpoint.lifecycle.isInstalled) {
-                    this.#events.emitCluster(endpoint.endpoint, cluster.behavior);
+                const behaviorType = PeerBehavior(cluster as PeerBehavior.ClusterShape);
+
+                if (endpoint.lifecycle.isInstalled) {
+                    cluster.pendingBehavior = behaviorType;
+                    this.#scheduleStructureChange(
+                        structure,
+                        endpoint.behaviors.supported[behaviorType.id] ? "rebuild" : "install",
+                    );
+                } else {
+                    cluster.behavior = behaviorType;
+                    endpoint.behaviors.inject(behaviorType);
                 }
             }
         }
@@ -352,19 +385,21 @@ export class ClientStructure {
         // Special handling for descriptor cluster
         if (cluster.id === Descriptor.Cluster.id) {
             let attrs;
-            if (cluster.behavior && endpoint.endpoint.behaviors.isActive(cluster.behavior.id)) {
-                attrs = endpoint.endpoint.stateOf(cluster.behavior);
+            if (cluster.behavior && endpoint.behaviors.isActive(cluster.behavior.id)) {
+                attrs = endpoint.stateOf(cluster.behavior);
             } else {
                 attrs = cluster.store.initialValues ?? {};
             }
-            this.#synchronizeDescriptor(endpoint, attrs);
+            this.#synchronizeDescriptor(structure, attrs);
         }
     }
 
-    #synchronizeDescriptor(endpoint: EndpointStructure, attrs: Record<number, unknown>) {
+    #synchronizeDescriptor(structure: EndpointStructure, attrs: Record<number, unknown>) {
+        const { endpoint } = structure;
+
         const deviceTypeList = attrs[DEVICE_TYPE_LIST_ATTR_ID] as Descriptor.DeviceType[];
         if (Array.isArray(deviceTypeList)) {
-            const endpointType = endpoint.endpoint.type;
+            const endpointType = endpoint.type;
             for (const dt of deviceTypeList) {
                 if (typeof dt?.deviceType !== "number") {
                     continue;
@@ -377,7 +412,7 @@ export class ClientStructure {
                 }
 
                 // Root endpoint really needs to be a root endpoint so ignore any noise that would disrupt that
-                if (!endpoint.endpoint.number && endpointType.deviceType !== RootEndpoint.deviceType) {
+                if (!endpoint.number && endpointType.deviceType !== RootEndpoint.deviceType) {
                     endpointType.deviceRevision = dt.revision;
                     break;
                 }
@@ -401,13 +436,24 @@ export class ClientStructure {
 
         const serverList = attrs[SERVER_LIST_ATTR_ID];
         if (Array.isArray(serverList)) {
-            // TODO: Remove clusters that are no longer present
-            //  Including events vis parts/endpoints on node (per endpoint and generic "changed")?
-            //  Including data cleanup
+            const currentlySupported = new Set(
+                Object.values(endpoint.behaviors.supported)
+                    .map(type => (type as ClusterBehavior.Type).cluster?.id)
+                    .filter(id => id !== undefined),
+            );
+
             for (const cluster of serverList) {
                 if (typeof cluster === "number") {
-                    this.#clusterFor(endpoint, cluster as ClusterId);
+                    this.#clusterFor(structure, cluster as ClusterId);
+                    currentlySupported.delete(cluster as ClusterId);
                 }
+            }
+
+            if (currentlySupported.size) {
+                for (const id of currentlySupported) {
+                    this.#clusterFor(structure, id).pendingDelete = true;
+                }
+                this.#scheduleStructureChange(structure, "rebuild");
             }
         }
 
@@ -427,7 +473,7 @@ export class ClientStructure {
 
             let isAlreadyDescendant = false;
             for (let owner = this.#ownerOf(part); owner; owner = this.#ownerOf(owner)) {
-                if (owner === endpoint) {
+                if (owner === structure) {
                     isAlreadyDescendant = true;
                     break;
                 }
@@ -437,24 +483,24 @@ export class ClientStructure {
                 continue;
             }
 
-            part.pendingOwner = endpoint;
-            this.#pending.set(part, "reparent");
+            part.pendingOwner = structure;
+            this.#scheduleStructureChange(part, "install");
         }
 
-        // For the root partsList specifically, if an endpoint is no longer present then it has been removd from the
+        // For the root partsList specifically, if an endpoint is no longer present then it has been removed from the
         // node.  Schedule for erase
-        if (endpoint.endpoint.maybeNumber === 0) {
+        if (endpoint.maybeNumber === 0) {
             const numbersUsed = new Set(partsList);
-            for (const descendent of (endpoint.endpoint as Node).endpoints) {
+            for (const descendent of (endpoint as Node).endpoints) {
                 // Skip root endpoint and uninitialized numbers (though latter shouldn't be possible)
                 if (!descendent.maybeNumber) {
                     continue;
                 }
 
                 if (!numbersUsed.has(descendent.number)) {
-                    const endpoint = this.#endpoints[descendent.number];
+                    const endpoint = this.#endpoints.get(descendent.number);
                     if (endpoint) {
-                        this.#pending.set(endpoint, "erase");
+                        this.#scheduleStructureChange(endpoint, "erase");
                     }
                 }
             }
@@ -462,7 +508,7 @@ export class ClientStructure {
     }
 
     #endpointFor(number: EndpointNumber) {
-        let endpoint = this.#endpoints[number];
+        let endpoint = this.#endpoints.get(number);
         if (endpoint) {
             return endpoint;
         }
@@ -477,15 +523,15 @@ export class ClientStructure {
                     deviceRevision: EndpointType.UNKNOWN_DEVICE_REVISION,
                 }),
             }),
-            clusters: {},
+            clusters: new Map(),
         };
-        this.#endpoints[number] = endpoint;
+        this.#endpoints.set(number, endpoint);
 
         return endpoint;
     }
 
     #clusterFor(endpoint: EndpointStructure, id: ClusterId) {
-        let cluster = endpoint.clusters[id];
+        let cluster = endpoint.clusters.get(id);
         if (cluster) {
             return cluster;
         }
@@ -494,8 +540,11 @@ export class ClientStructure {
             kind: "discovered",
             id,
             store: this.#nodeStore.storeForEndpoint(endpoint.endpoint).createStoreForBehavior(id.toString()),
+            behavior: undefined,
+            pendingBehavior: undefined,
+            pendingDelete: undefined,
         };
-        endpoint.clusters[id] = cluster;
+        endpoint.clusters.set(id, cluster);
 
         return cluster;
     }
@@ -516,15 +565,188 @@ export class ClientStructure {
         }
     }
 
-    #install(endpoint: EndpointStructure) {
-        const { pendingOwner } = endpoint;
-        if (!pendingOwner) {
-            return;
+    /**
+     * Erase an endpoint that disappeared from the peer.
+     */
+    async #erase(structure: EndpointStructure) {
+        const { endpoint } = structure;
+
+        logger.debug(
+            "Removing endpoint",
+            Diagnostic.strong(endpoint.toString()),
+            "because it is no longer present on the peer",
+        );
+
+        this.#endpoints.delete(endpoint.number);
+        try {
+            await endpoint.delete();
+        } catch (e) {
+            logger.error(`Error erasing peer endpoint ${endpoint}:`, e);
+        }
+    }
+
+    /**
+     * Replace clusters after activation because fixed global attributes have changed.
+     *
+     * Currently we apply granular updates to clusters.  This will possibly result in subtle errors if peers change in
+     * incompatible ways, but the backings are designed to be fairly resilient to this.  This is simpler for API users
+     * to deal with in the common case where they can just ignore. If it becomes problematic we can revert to replacing
+     * entire endpoints or behaviors when there are structural changes.
+     */
+    async #rebuild(structure: EndpointStructure) {
+        const { endpoint, clusters } = structure;
+
+        for (const cluster of clusters.values()) {
+            const { behavior, pendingBehavior, pendingDelete } = cluster;
+
+            if (pendingDelete) {
+                if (!behavior) {
+                    continue;
+                }
+
+                await endpoint.behaviors.drop(behavior.id);
+                try {
+                    await cluster.store.erase();
+                } catch (e) {
+                    logger.error("Error clearing cluster storage:", e);
+                }
+
+                this.#pendingEvents.push({
+                    kind: "cluster",
+                    endpoint: structure,
+                    cluster,
+                    subkind: "delete",
+                });
+
+                continue;
+            }
+
+            if (!pendingBehavior) {
+                continue;
+            }
+
+            const subkind = pendingBehavior.id in endpoint.behaviors.supported ? "replace" : "add";
+
+            endpoint.behaviors.inject(pendingBehavior);
+
+            cluster.behavior = pendingBehavior;
+            delete cluster.pendingBehavior;
+
+            this.#pendingEvents.push({
+                kind: "cluster",
+                subkind,
+                endpoint: structure,
+                cluster,
+            });
+        }
+    }
+
+    /**
+     * Install the endpoint and/or new behaviors.
+     */
+    #install(structure: EndpointStructure) {
+        const { endpoint, pendingOwner, clusters } = structure;
+
+        // Handle endpoint installation
+        if (pendingOwner) {
+            endpoint.owner = pendingOwner.endpoint;
+            structure.pendingOwner = undefined;
+            this.#pendingEvents.push({ kind: "endpoint", endpoint: structure });
         }
 
-        endpoint.endpoint.owner = pendingOwner.endpoint;
-        endpoint.pendingOwner = undefined;
-        this.#events.emitEndpoint(endpoint.endpoint);
+        // Handle behavior installation
+        for (const cluster of clusters.values()) {
+            const { pendingBehavior } = cluster;
+
+            // Skip if there is already a behavior even if there's a pending behavior because this needs to be handled
+            // by #rebuild
+            if (!pendingBehavior || endpoint.behaviors.supported[pendingBehavior.id]) {
+                continue;
+            }
+
+            // Add support for the cluster
+            endpoint.behaviors.inject(pendingBehavior);
+            cluster.behavior = pendingBehavior;
+            cluster.pendingBehavior = undefined;
+
+            // We emit cluster events during the endpoint event so only add cluster event manually if the endpoint is
+            // already installed
+            if (!pendingOwner) {
+                this.#pendingEvents.push({
+                    kind: "cluster",
+                    subkind: "add",
+                    endpoint: structure,
+                    cluster,
+                });
+            }
+        }
+    }
+
+    /**
+     * Queue a structural change for processing once a read response is fully processed.
+     */
+    #scheduleStructureChange(endpoint: EndpointStructure, kind: keyof PendingChange) {
+        const pending = this.#pendingChanges.get(endpoint);
+        if (pending) {
+            pending[kind] = true;
+        } else {
+            this.#pendingChanges.set(endpoint, { [kind]: true });
+        }
+    }
+
+    /**
+     * Emit pending events.
+     *
+     * We do this after all structural updates are complete so that listeners can expect composed parts and dependent
+     * behaviors to be installed.
+     */
+    #emitPendingEvents() {
+        const events = this.#pendingEvents;
+        this.#pendingEvents = [];
+        for (const event of events) {
+            switch (event.kind) {
+                case "endpoint": {
+                    const {
+                        endpoint: { endpoint, clusters },
+                    } = event;
+                    this.#events.emitEndpoint(endpoint);
+
+                    // Emit all cluster events now.  This is a minor optimization
+                    for (const { behavior } of clusters.values()) {
+                        if (behavior) {
+                            this.#events.emitCluster(endpoint, behavior);
+                        }
+                    }
+                    break;
+                }
+
+                case "cluster": {
+                    const {
+                        endpoint: { endpoint },
+                        cluster: { behavior },
+                    } = event;
+
+                    if (!behavior) {
+                        // Shouldn't happen
+                        break;
+                    }
+
+                    switch (event.subkind) {
+                        case "add":
+                            this.#events.emitCluster(endpoint, behavior);
+                            break;
+
+                        case "delete":
+                            this.#events.emitClusterDeleted(endpoint, behavior);
+                            break;
+
+                        case "replace":
+                            this.#events.emitClusterReplaced(endpoint, behavior);
+                    }
+                    break;
+                }
+            }
+        }
     }
 }
 
@@ -539,12 +761,51 @@ interface AttributeUpdates {
 interface EndpointStructure {
     pendingOwner?: EndpointStructure;
     endpoint: Endpoint;
-    clusters: Record<ClusterId, ClusterStructure>;
+    clusters: Map<ClusterId, ClusterStructure>;
 }
 
 interface ClusterStructure extends Partial<PeerBehavior.DiscoveredClusterShape> {
     kind: "discovered";
     id: ClusterId;
     behavior?: ClusterBehavior.Type;
-    store: Datasource.ExternallyMutableStore;
+    pendingBehavior?: ClusterBehavior.Type;
+    pendingDelete?: boolean;
+    store: DatasourceCache;
+}
+
+/**
+ * Queue entry for structural changes.
+ */
+interface PendingChange {
+    /**
+     * Erase an endpoint.
+     */
+    erase?: boolean;
+
+    /**
+     * Install new endpoint and/or behaviors.
+     */
+    install?: boolean;
+
+    /**
+     * Handle replacement or deletion of behaviors on active endpoint.
+     */
+    rebuild?: boolean;
+}
+
+/**
+ * Queue entry for pending notifications.
+ */
+export type PendingEvent = EndpointEvent | ClusterEvent;
+
+interface EndpointEvent {
+    kind: "endpoint";
+    endpoint: EndpointStructure;
+}
+
+interface ClusterEvent {
+    kind: "cluster";
+    subkind: "add" | "delete" | "replace";
+    endpoint: EndpointStructure;
+    cluster: ClusterStructure;
 }

@@ -5,21 +5,33 @@
  */
 
 import { Datasource } from "#behavior/state/managed/Datasource.js";
-import { InternalError, Transaction } from "#general";
+import { InternalError, MaybePromise, Transaction } from "#general";
 import { Val } from "#protocol";
 import type { ClientEndpointStore } from "./ClientEndpointStore.js";
 import type { RemoteWriteParticipant } from "./RemoteWriteParticipant.js";
 
 /**
- * Factory function for the default implementation of {@link Datasource.ExternallyMutableStore}.
+ * The default implementation of {@link Datasource.ExternallyMutableStore}.
  *
- * This implements storage for attribute values for a single cluster loaded from remote nodes.
+ * This implements storage for attribute values for a single cluster loaded from peers.
  */
+export interface DatasourceCache extends Datasource.ExternallyMutableStore {
+    /**
+     * Reset the cache to "uninitialized" state by reclaiming {@link initialValues} from an active datasource.
+     */
+    reclaimValues(): void;
+
+    /**
+     * Erase values just for this datasource.
+     */
+    erase(): MaybePromise<void>;
+}
+
 export function DatasourceCache(
     store: ClientEndpointStore,
     behaviorId: string,
     initialValues: Val.Struct | undefined,
-): Datasource.ExternallyMutableStore {
+): DatasourceCache {
     let version = initialValues?.[DatasourceCache.VERSION_KEY] as number;
     if (typeof version !== "number") {
         version = Datasource.UNKNOWN_VERSION;
@@ -51,6 +63,14 @@ export function DatasourceCache(
         },
 
         externalChangeListener: undefined,
+        releaseValues: undefined,
+
+        reclaimValues() {
+            if (this.releaseValues) {
+                this.initialValues = this.releaseValues();
+                this.releaseValues = undefined;
+            }
+        },
 
         get version() {
             return version;
@@ -58,6 +78,10 @@ export function DatasourceCache(
 
         set version(_version: number) {
             throw new InternalError("Datasource version must be set via externalSet");
+        },
+
+        async erase() {
+            await store.eraseStoreForBehavior(behaviorId);
         },
     };
 }
