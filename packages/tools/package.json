@@ -69,7 +69,7 @@
         "typedoc-github-theme": "^0.3.1"
     },
     "optionalDependencies": {
-        "@esbuild/linux-x64": "^0.25.9"
+        "@esbuild/linux-x64": "^0.27.0"
     },
     "devDependencies": {
         "@types/madge": "^5.0.3",
