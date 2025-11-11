@@ -74,14 +74,30 @@ export const DatatypeOverride = (type: DerType, value: any) => ({
 export const RawBytes = (bytes: Bytes) => ({
     [DerKey.Bytes]: bytes,
 });
-export const DerBigUint = (number: Bytes) => {
-    // We don't need bigint support currently, but we can translate here if we ever do
 
+/**
+ * Optimized path for encoding raw bytes that represent an unsigned integer.
+ *
+ * This allows to avoid e.g. round tripping a 256-bit number through a bigint when encoding.
+ */
+export const DerRawUint = (number: Bytes) => {
     const numberData = Bytes.of(number);
 
-    // Ensure value does not encode as negative
     if (numberData[0] & 0x80) {
+        // Add 0 prefix so number does not encode as negative
         number = Bytes.concat(new Uint8Array([0]), numberData);
+    } else {
+        // Drop non-conformant high-value zeros
+        let firstByte = 0;
+        while (firstByte < numberData.length - 1) {
+            if (numberData[firstByte] || numberData[firstByte + 1] & 0x80) {
+                break;
+            }
+            firstByte++;
+        }
+        if (firstByte) {
+            number = numberData.slice(firstByte);
+        }
     }
 
     return {

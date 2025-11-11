@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ContextTagged, DatatypeOverride, DerBitString, DerCodec, DerType } from "#codec/DerCodec.js";
+import { ContextTagged, DatatypeOverride, DerBitString, DerCodec, DerRawUint, DerType } from "#codec/DerCodec.js";
 import { X520, X962 } from "#codec/DerTypes.js";
 
-import { Bytes } from "#util/Bytes.js";
+import { b$, Bytes } from "#util/Bytes.js";
 
 const DECODED = {
     request: {
@@ -78,6 +78,15 @@ describe("DerCodec", () => {
 
         it("encodes special non-well defined GeneralizedDate correctly", () => {
             expectHex(DerCodec.encode(X520.NON_WELL_DEFINED_DATE), "180f39393939313233313233353935395a");
+        });
+
+        it("encodes uints correctly on optimized path", () => {
+            expectHex(DerCodec.encode(DerRawUint(b$`00`)), "020100");
+            expectHex(DerCodec.encode(DerRawUint(b$`0000`)), "020100");
+            expectHex(DerCodec.encode(DerRawUint(b$`01`)), "020101");
+            expectHex(DerCodec.encode(DerRawUint(b$`0001`)), "020101");
+            expectHex(DerCodec.encode(DerRawUint(b$`80`)), "02020080");
+            expectHex(DerCodec.encode(DerRawUint(b$`0080`)), "02020080");
         });
     });
 });

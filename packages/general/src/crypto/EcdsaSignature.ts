@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DerBigUint, DerCodec, DerError } from "#codec/DerCodec.js";
+import { DerCodec, DerError, DerRawUint } from "#codec/DerCodec.js";
 import { Bytes } from "#util/Bytes.js";
 import { SignatureEncodingError } from "./CryptoError.js";
 
@@ -58,8 +58,8 @@ export class EcdsaSignature {
         const bytesPerComponent = bytes.length / 2;
 
         return DerCodec.encode({
-            r: DerBigUint(bytes.slice(0, bytesPerComponent)),
-            s: DerBigUint(bytes.slice(bytesPerComponent)),
+            r: DerRawUint(bytes.slice(0, bytesPerComponent)),
+            s: DerRawUint(bytes.slice(bytesPerComponent)),
         });
     }
 }
