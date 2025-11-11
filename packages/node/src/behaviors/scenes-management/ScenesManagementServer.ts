@@ -845,8 +845,8 @@ export class ScenesManagementServer extends ScenesManagementBase {
      * @param applyFunc Function that applies scene values for that cluster
      */
     implementScenes<T extends ClusterBehavior>(behavior: T, applyFunc: ScenesManagementServer.ApplySceneValuesFunc<T>) {
-        const type = behavior.type as ClusterBehavior.Type;
-        if (!ClusterBehavior.is(type) || !type.schema || !type.schema.id) {
+        const { type } = behavior;
+        if (!type.schema.id) {
             return;
         }
         const clusterName = camelize(type.schema.name);

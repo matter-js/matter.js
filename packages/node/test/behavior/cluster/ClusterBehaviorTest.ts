@@ -7,16 +7,19 @@
 import { Behavior } from "#behavior/Behavior.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
+import { FeatureMismatchError } from "#behavior/internal/ServerBehaviorBacking.js";
 import { StateType } from "#behavior/state/StateType.js";
 import { BasicInformationBehavior } from "#behaviors/basic-information";
 import { LevelControlServer } from "#behaviors/level-control";
 import { NetworkCommissioningServer } from "#behaviors/network-commissioning";
 import { OnOffServer } from "#behaviors/on-off";
+import { BehaviorInitializationError } from "#endpoint/errors.js";
 import {
     AsyncObservable,
     BasicObservable,
     EventEmitter,
     ImplementationError,
+    MatterAggregateError,
     MaybePromise,
     Observable,
 } from "#general";
@@ -32,6 +35,7 @@ import {
     TlvString,
 } from "#types";
 import { MockEndpoint } from "../../endpoint/mock-endpoint.js";
+import { MockEndpointType } from "../mock-behavior.js";
 import { My, MyBehavior, MyCluster } from "./cluster-behavior-test-util.js";
 
 class MyEventedBehavior extends MyBehavior {
@@ -340,6 +344,29 @@ describe("ClusterBehavior", () => {
             expect(EthernetCommissioningServer.cluster.supportedFeatures.wiFiNetworkInterface).false;
             expect(EthernetCommissioningServer.cluster.supportedFeatures.threadNetworkInterface).false;
         });
+
+        it("prevents feature mismatch", async () => {
+            const AwesomeBehavior = MyBehavior.with("Awesome");
+            try {
+                await MockEndpoint.create(MockEndpointType.with(AwesomeBehavior), {
+                    myCluster: {
+                        featureMap: {
+                            awesome: false,
+                        },
+                    },
+                } as any);
+                throw new Error("MockEndpoint should have thrown FeatureMismatchError");
+            } catch (e) {
+                expect(e instanceof MatterAggregateError);
+                const cause1 = (e as MatterAggregateError).errors[0];
+                expect(cause1 instanceof BehaviorInitializationError);
+                const cause2 = cause1.cause;
+                expect(cause2) instanceof FeatureMismatchError;
+                expect(cause2.message).equals(
+                    'The featureMap for node0.part0.myCluster does not match the implementation; please use MyClusterBehavior.with("FeatureName") to configure features',
+                );
+            }
+        });
     });
 
     describe("enable", () => {
@@ -364,6 +391,4 @@ describe("ClusterBehavior", () => {
             expect(new MyLevelControl2.State().remainingTime).equals(0);
         });
     });
-
-    describe("defaults", () => {});
 });

@@ -110,6 +110,11 @@ export function ClusterBehaviorType<const C extends ClusterType>({
     // Decorate the class
     ClassSemantics.of(type).mutableModel = schema;
 
+    // If the schema was overridden, it won't change with class semantics so override explicitly if necessary
+    if (type.schema !== schema) {
+        Object.defineProperty(type, "schema", { value: schema });
+    }
+
     // Mutation of schema will almost certainly result in logic errors so ensure that can't happen
     schema.finalize();
 

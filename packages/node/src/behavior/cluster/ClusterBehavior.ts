@@ -56,6 +56,10 @@ export class ClusterBehavior extends Behavior {
         return this.cluster.supportedFeatures;
     }
 
+    override get type() {
+        return this.constructor as ClusterBehavior.Type;
+    }
+
     /**
      * Every cluster behavior has an associated ClusterType defined statically.
      */
