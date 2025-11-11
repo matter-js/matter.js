@@ -61,21 +61,6 @@ describe("NodeJsCrypto", () => {
 
     describe("sign & verify with SEC1 private and SPKI public keys", () => {
         it("signs data with known sec1 key", () => {
-            const result = cryptoNode.signEcdsa(Key({ sec1: SEC1_KEY }), ENCRYPTED_DATA, "der");
-
-            const privateKeyObject = crypto.createPrivateKey({
-                key: Buffer.from(Bytes.of(SEC1_KEY)),
-                format: "der",
-                type: "sec1",
-            });
-            const publicKey = crypto.createPublicKey(privateKeyObject).export({ format: "der", type: "spki" });
-
-            cryptoNode.verifyEcdsa(Key({ spki: Bytes.of(publicKey) }), ENCRYPTED_DATA, result, "der");
-        });
-    });
-
-    describe("sign & verify with SEC1 private and SPKI public keys (IEEE P1363)", () => {
-        it("signs data with known sec1 key", () => {
             const result = cryptoNode.signEcdsa(Key({ sec1: SEC1_KEY }), ENCRYPTED_DATA);
 
             const privateKeyObject = crypto.createPrivateKey({

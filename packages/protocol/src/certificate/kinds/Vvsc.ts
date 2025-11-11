@@ -35,7 +35,7 @@ export class Vvsc extends OperationalBase<OperationalCertificate.Vvsc> {
      * If the certificate is not signed, it throws a CertificateError.
      */
     asSignedTlv() {
-        return OperationalCertificate.TlvVvsc.encode({ ...this.cert, signature: this.signature });
+        return OperationalCertificate.TlvVvsc.encode({ ...this.cert, signature: this.signature.bytes });
     }
 
     /**

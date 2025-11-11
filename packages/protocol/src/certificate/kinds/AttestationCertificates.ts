@@ -19,7 +19,7 @@ export abstract class AttestationBaseCertificate<CT extends X509Certificate> ext
      * If the certificate is already signed, it throws a CertificateError.
      */
     override async sign(crypto: Crypto, key: JsonWebKey) {
-        this.signature = await crypto.signEcdsa(key, this.asUnsignedAsn1(), "der");
+        this.signature = await crypto.signEcdsa(key, this.asUnsignedAsn1());
     }
 
     /**
@@ -31,7 +31,7 @@ export abstract class AttestationBaseCertificate<CT extends X509Certificate> ext
         const certBytes = DerCodec.encode({
             certificate,
             signAlgorithm: X962.EcdsaWithSHA256,
-            signature: DerBitString(this.signature),
+            signature: DerBitString(this.signature.der),
         });
         assertCertificateDerSize(certBytes);
         return certBytes;

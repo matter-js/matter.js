@@ -14,6 +14,7 @@ import {
     DerKey,
     DerNode,
     DerType,
+    EcdsaSignature,
     Key,
     PublicKey,
     RawBytes,
@@ -46,13 +47,13 @@ import { CertificateExtension } from "./definitions/operational.js";
  * from a CSR.
  */
 export abstract class X509Base<CT extends X509Certificate> {
-    #signature?: Bytes;
+    #signature?: EcdsaSignature;
     #cert: Unsigned<CT>;
 
     constructor(cert: CT | Unsigned<CT>) {
         this.#cert = cert;
         if ("signature" in cert) {
-            this.#signature = cert.signature;
+            this.#signature = new EcdsaSignature(cert.signature);
         }
     }
 
@@ -79,7 +80,7 @@ export abstract class X509Base<CT extends X509Certificate> {
      * Set the signature of the certificate.
      * If the certificate is already signed, it throws a CertificateError.
      */
-    set signature(signature: Bytes) {
+    set signature(signature: EcdsaSignature) {
         if (this.isSigned) {
             throw new CertificateError("Certificate is already signed");
         }
@@ -342,7 +343,7 @@ export namespace X509Base {
         return DerCodec.encode({
             request,
             signAlgorithm: X962.EcdsaWithSHA256,
-            signature: DerBitString(await crypto.signEcdsa(key, DerCodec.encode(request), "der")),
+            signature: DerBitString((await crypto.signEcdsa(key, DerCodec.encode(request))).der),
         });
     }
 
@@ -739,7 +740,7 @@ export namespace X509Base {
 
         // Extract signature from BIT STRING
         // Note: DerKey.Bytes for BIT STRING returns data without the padding byte
-        const signature = Bytes.of(signatureNode[DerKey.Bytes]);
+        const signature = new EcdsaSignature(Bytes.of(signatureNode[DerKey.Bytes]), "der").bytes;
 
         return {
             serialNumber,
@@ -826,8 +827,7 @@ export namespace X509Base {
         await crypto.verifyEcdsa(
             PublicKey(publicKey),
             DerCodec.encode(requestNode),
-            signatureNode[DerKey.Bytes],
-            "der",
+            new EcdsaSignature(signatureNode[DerKey.Bytes], "der"),
         );
 
         return publicKey;

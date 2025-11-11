@@ -13,6 +13,7 @@ import * as mod from "@noble/curves/abstract/modular.js";
 import { p256 } from "@noble/curves/nist.js";
 import * as utils from "@noble/curves/utils.js";
 import { Entropy } from "../util/Entropy.js";
+import { EcdsaSignature } from "./EcdsaSignature.js";
 import type { PrivateKey, PublicKey } from "./Key.js";
 
 export const ec = {
@@ -27,7 +28,6 @@ export const CRYPTO_EC_CURVE = "prime256v1";
 export const CRYPTO_EC_KEY_BYTES = 32;
 export const CRYPTO_AUTH_TAG_LENGTH = 16;
 export const CRYPTO_SYMMETRIC_KEY_LENGTH = 16;
-export type CryptoDsaEncoding = "ieee-p1363" | "der";
 
 const logger = Logger.get("Crypto");
 
@@ -83,21 +83,12 @@ export abstract class Crypto extends Entropy {
     /**
      * Create an ECDSA signature.
      */
-    abstract signEcdsa(
-        privateKey: JsonWebKey,
-        data: Bytes | Bytes[],
-        dsaEncoding?: CryptoDsaEncoding,
-    ): MaybePromise<Bytes>;
+    abstract signEcdsa(privateKey: JsonWebKey, data: Bytes | Bytes[]): MaybePromise<EcdsaSignature>;
 
     /**
      * Authenticate an ECDSA signature.
      */
-    abstract verifyEcdsa(
-        publicKey: JsonWebKey,
-        data: Bytes,
-        signature: Bytes,
-        dsaEncoding?: CryptoDsaEncoding,
-    ): MaybePromise<void>;
+    abstract verifyEcdsa(publicKey: JsonWebKey, data: Bytes, signature: EcdsaSignature): MaybePromise<void>;
 
     /**
      * Create a general-purpose EC key.

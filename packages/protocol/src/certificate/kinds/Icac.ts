@@ -45,7 +45,7 @@ export class Icac extends OperationalBase<OperationalCertificate.Icac> {
      * If the certificate is not signed, it throws a CertificateError.
      */
     asSignedTlv() {
-        return OperationalCertificate.TlvIcac.encode({ ...this.cert, signature: this.signature });
+        return OperationalCertificate.TlvIcac.encode({ ...this.cert, signature: this.signature.bytes });
     }
 
     /**

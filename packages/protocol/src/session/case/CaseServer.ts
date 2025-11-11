@@ -5,7 +5,16 @@
  */
 
 import { Noc } from "#certificate/kinds/Noc.js";
-import { Bytes, Crypto, CryptoDecryptError, Diagnostic, Logger, PublicKey, UnexpectedDataError } from "#general";
+import {
+    Bytes,
+    Crypto,
+    CryptoDecryptError,
+    Diagnostic,
+    EcdsaSignature,
+    Logger,
+    PublicKey,
+    UnexpectedDataError,
+} from "#general";
 import { NodeSession } from "#session/NodeSession.js";
 import { SessionParametersWithDurations } from "#session/pase/PaseMessages.js";
 import { ResumptionRecord, SessionManager } from "#session/SessionManager.js";
@@ -207,7 +216,7 @@ export class CaseServer implements ProtocolHandler {
         const encryptedData = TlvEncryptedDataSigma2.encode({
             responderNoc: nodeOpCert,
             responderIcac: intermediateCACert,
-            signature,
+            signature: signature.bytes,
             resumptionId: cx.localResumptionId,
         });
         const encrypted = crypto.encrypt(sigma2Key, encryptedData, TBE_DATA2_NONCE);
@@ -254,7 +263,7 @@ export class CaseServer implements ProtocolHandler {
             throw new UnexpectedDataError(`Fabric ID mismatch: ${fabric.fabricId} !== ${peerFabricId}`);
         }
 
-        await crypto.verifyEcdsa(PublicKey(peerPublicKey), peerSignatureData, peerSignature);
+        await crypto.verifyEcdsa(PublicKey(peerPublicKey), peerSignatureData, new EcdsaSignature(peerSignature));
 
         // All good! Create secure session
         const secureSessionSalt = Bytes.concat(

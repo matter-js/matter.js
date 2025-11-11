@@ -9,7 +9,17 @@ import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Rcac } from "#certificate/kinds/Rcac.js";
 import { X509Base } from "#certificate/kinds/X509Base.js";
-import { Bytes, DerCodec, DerKey, DerNode, PrivateKey, PublicKey, StandardCrypto, X962 } from "#general";
+import {
+    Bytes,
+    DerCodec,
+    DerKey,
+    DerNode,
+    EcdsaSignature,
+    PrivateKey,
+    PublicKey,
+    StandardCrypto,
+    X962,
+} from "#general";
 import { CaseAuthenticatedTag, FabricId, NodeId, ValidationOutOfBoundsError } from "#types";
 import {
     CERTIFICATE_SETS,
@@ -151,7 +161,7 @@ describe("Certificates", () => {
      * These are real-world certificates to validate ASN.1 parsing works with externally generated certs.
      */
     describe("parses external ASN.1 certificates", () => {
-        it("parse and regenerate external RCAC certificate", () => {
+        it("parse and regenerate external RCAC certificate", async () => {
             const rcac = Rcac.fromAsn1(EXTERNAL_TEST_CERTIFICATES.RCAC_ASN1);
 
             // Verify we got valid data
@@ -162,6 +172,8 @@ describe("Certificates", () => {
             const asn1 = rcac.asSignedAsn1();
 
             expect(Bytes.toHex(asn1)).to.equal(Bytes.toHex(EXTERNAL_TEST_CERTIFICATES.RCAC_ASN1));
+
+            await rcac.verify(crypto);
         });
 
         it("parse and regenerate external ICAC certificate", () => {
@@ -464,8 +476,7 @@ describe("Certificates", () => {
             await crypto.verifyEcdsa(
                 PublicKey(TEST_PUBLIC_KEY),
                 DerCodec.encode(requestNode),
-                signatureNode[DerKey.Bytes],
-                "der",
+                new EcdsaSignature(signatureNode[DerKey.Bytes], "der"),
             );
         });
     });

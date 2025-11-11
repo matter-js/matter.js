@@ -30,3 +30,8 @@ export class CryptoDecryptError extends CryptoError {}
  * Thrown when cryptographic key parameters are invalid.
  */
 export class KeyInputError extends CryptoInputError {}
+
+/**
+ * Thrown when verification fails because of an invalid signature format.
+ */
+export class SignatureEncodingError extends CryptoVerifyError {}

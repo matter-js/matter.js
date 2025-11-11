@@ -46,7 +46,7 @@ export class Noc extends OperationalBase<OperationalCertificate.Noc> {
      * If the certificate is not signed, it throws a CertificateError.
      */
     asSignedTlv() {
-        return OperationalCertificate.TlvNoc.encode({ ...this.cert, signature: this.signature });
+        return OperationalCertificate.TlvNoc.encode({ ...this.cert, signature: this.signature.bytes });
     }
 
     /**

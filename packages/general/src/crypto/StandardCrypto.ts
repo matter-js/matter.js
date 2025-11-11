@@ -5,7 +5,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DerBigUint, DerCodec, DerError } from "#codec/DerCodec.js";
 import { Environment } from "#environment/Environment.js";
 import { ImplementationError, NotImplementedError } from "#MatterError.js";
 import { Bytes } from "#util/Bytes.js";
@@ -13,8 +12,9 @@ import { Entropy } from "#util/Entropy.js";
 import { MaybePromise } from "#util/Promises.js";
 import { describeList } from "#util/String.js";
 import { Ccm } from "./aes/Ccm.js";
-import { Crypto, CRYPTO_SYMMETRIC_KEY_LENGTH, CryptoDsaEncoding } from "./Crypto.js";
+import { Crypto, CRYPTO_SYMMETRIC_KEY_LENGTH } from "./Crypto.js";
 import { CryptoVerifyError, KeyInputError } from "./CryptoError.js";
+import { EcdsaSignature } from "./EcdsaSignature.js";
 import { CurveType, Key, KeyType, PrivateKey, PublicKey } from "./Key.js";
 import { WebCrypto } from "./WebCrypto.js";
 
@@ -146,7 +146,7 @@ export class StandardCrypto extends Crypto {
         );
     }
 
-    async signEcdsa(key: JsonWebKey, data: Bytes | Bytes[], dsaEncoding?: CryptoDsaEncoding) {
+    async signEcdsa(key: JsonWebKey, data: Bytes | Bytes[]) {
         if (Array.isArray(data)) {
             data = Bytes.concat(...data);
         }
@@ -167,40 +167,18 @@ export class StandardCrypto extends Crypto {
 
         const ieeeP1363 = Bytes.of(await this.#subtle.sign(SIGNATURE_ALGORITHM, subtleKey, Bytes.exclusive(data)));
 
-        if (dsaEncoding !== "der") return ieeeP1363;
-
-        const bytesPerComponent = ieeeP1363.byteLength / 2;
-
-        return DerCodec.encode({
-            r: DerBigUint(ieeeP1363.slice(0, bytesPerComponent)),
-            s: DerBigUint(ieeeP1363.slice(bytesPerComponent)),
-        });
+        return new EcdsaSignature(ieeeP1363);
     }
 
-    async verifyEcdsa(key: JsonWebKey, data: Bytes, signature: Bytes, dsaEncoding?: CryptoDsaEncoding) {
+    async verifyEcdsa(key: JsonWebKey, data: Bytes, signature: EcdsaSignature) {
         const { crv, kty, x, y } = key;
         key = { crv, kty, x, y };
         const subtleKey = await this.importKey("jwk", key, SIGNATURE_ALGORITHM, false, ["verify"]);
 
-        if (dsaEncoding === "der") {
-            try {
-                const decoded = DerCodec.decode(signature);
-
-                const r = DerCodec.decodeBigUint(decoded?._elements?.[0], 32);
-                const s = DerCodec.decodeBigUint(decoded?._elements?.[1], 32);
-
-                signature = Bytes.concat(r, s);
-            } catch (cause) {
-                DerError.accept(cause);
-
-                throw new CryptoVerifyError("Invalid DER signature", { cause });
-            }
-        }
-
         const verified = await this.#subtle.verify(
             SIGNATURE_ALGORITHM,
             subtleKey,
-            Bytes.exclusive(signature),
+            Bytes.exclusive(signature.bytes),
             Bytes.exclusive(data),
         );
 

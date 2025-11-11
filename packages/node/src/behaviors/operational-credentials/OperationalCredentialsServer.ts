@@ -115,7 +115,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
             timestamp: 0,
         });
 
-        const attestationSignature = await certification.sign(session, attestationElements);
+        const attestationSignature = (await certification.sign(session, attestationElements)).bytes;
 
         return { attestationElements, attestationSignature };
     }
@@ -153,7 +153,8 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
             this.context.session.id,
         );
         const nocsrElements = TlvCertSigningRequest.encode({ certSigningRequest, csrNonce });
-        return { nocsrElements, attestationSignature: await certification.sign(session, nocsrElements) };
+        const attestationSignature = (await certification.sign(session, nocsrElements)).bytes;
+        return { nocsrElements, attestationSignature };
     }
 
     override async certificateChainRequest({ certificateType }: OperationalCredentials.CertificateChainRequest) {
@@ -480,7 +481,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
         return {
             fabricIndex,
             fabricBindingVersion,
-            signature: await fabric.sign(signatureData),
+            signature: (await fabric.sign(signatureData)).bytes,
         };
     }
 

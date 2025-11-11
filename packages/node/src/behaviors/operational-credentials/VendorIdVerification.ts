@@ -11,6 +11,7 @@ import {
     CryptoError,
     DataReader,
     DataWriter,
+    EcdsaSignature,
     Endian,
     InternalError,
     Logger,
@@ -189,7 +190,7 @@ export namespace VendorIdVerification {
 
         try {
             // Validate signature over TBS data
-            await crypto.verifyEcdsa(PublicKey(rootPublicKey), tbs, signature);
+            await crypto.verifyEcdsa(PublicKey(rootPublicKey), tbs, new EcdsaSignature(signature));
 
             // Verify Noc cert chain using trusted root
             const rootCert = Rcac.fromTlv(rcac);
@@ -255,7 +256,11 @@ export namespace VendorIdVerification {
                 signerSkid,
             });
 
-            await crypto.verifyEcdsa(PublicKey(ellipticCurvePublicKey), ourStatement, vidStatementSignature);
+            await crypto.verifyEcdsa(
+                PublicKey(ellipticCurvePublicKey),
+                ourStatement,
+                new EcdsaSignature(vidStatementSignature),
+            );
         } else {
             // TODO
             // Look-up the entry in the Operational Trust Anchors Schema under the expected VendorID

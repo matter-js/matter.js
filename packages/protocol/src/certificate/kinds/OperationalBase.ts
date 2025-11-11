@@ -35,7 +35,7 @@ export abstract class OperationalBase<CT extends X509Certificate> extends X509Ba
         const certBytes = DerCodec.encode({
             certificate,
             signAlgorithm: X962.EcdsaWithSHA256,
-            signature: DerBitString(this.signature),
+            signature: DerBitString(this.signature.der),
         });
         assertCertificateDerSize(certBytes);
         return certBytes;

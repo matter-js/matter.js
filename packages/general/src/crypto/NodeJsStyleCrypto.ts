@@ -17,9 +17,9 @@ import {
     CRYPTO_ENCRYPT_ALGORITHM,
     CRYPTO_HASH_ALGORITHM,
     CRYPTO_SYMMETRIC_KEY_LENGTH,
-    CryptoDsaEncoding,
 } from "./Crypto.js";
 import { CryptoDecryptError, CryptoVerifyError } from "./CryptoError.js";
+import { EcdsaSignature } from "./EcdsaSignature.js";
 import { PrivateKey, PublicKey } from "./Key.js";
 
 // Note that this is a type-only import, not a runtime dependency.
@@ -179,24 +179,26 @@ export class NodeJsStyleCrypto extends Crypto {
         return Bytes.of(hmac.digest());
     }
 
-    signEcdsa(privateKey: JsonWebKey, data: Bytes | Bytes[], dsaEncoding: CryptoDsaEncoding = "ieee-p1363"): Bytes {
+    signEcdsa(privateKey: JsonWebKey, data: Bytes | Bytes[]) {
         const signer = this.#crypto.createSign(CRYPTO_HASH_ALGORITHM);
         if (Array.isArray(data)) {
             data.forEach(chunk => signer.update(Bytes.of(chunk)));
         } else {
             signer.update(Bytes.of(data));
         }
-        return Bytes.of(
-            signer.sign({
-                key: privateKey as any,
-                format: "jwk",
-                type: "pkcs8",
-                dsaEncoding,
-            }),
+        return new EcdsaSignature(
+            Bytes.of(
+                signer.sign({
+                    key: privateKey as any,
+                    format: "jwk",
+                    type: "pkcs8",
+                    dsaEncoding: "ieee-p1363",
+                }),
+            ),
         );
     }
 
-    verifyEcdsa(publicKey: JsonWebKey, data: Bytes, signature: Bytes, dsaEncoding: CryptoDsaEncoding = "ieee-p1363") {
+    verifyEcdsa(publicKey: JsonWebKey, data: Bytes, signature: EcdsaSignature) {
         const verifier = this.#crypto.createVerify(CRYPTO_HASH_ALGORITHM);
         verifier.update(Bytes.of(data));
         const success = verifier.verify(
@@ -204,9 +206,9 @@ export class NodeJsStyleCrypto extends Crypto {
                 key: publicKey as any,
                 format: "jwk",
                 type: "spki",
-                dsaEncoding,
+                dsaEncoding: "ieee-p1363",
             },
-            Bytes.of(signature),
+            Bytes.of(signature.bytes),
         );
         if (!success) throw new CryptoVerifyError("Signature verification failed");
     }

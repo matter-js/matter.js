@@ -41,7 +41,7 @@ export class Rcac extends OperationalBase<OperationalCertificate.Rcac> {
      * If the certificate is not signed, it throws a CertificateError.
      */
     asSignedTlv() {
-        return OperationalCertificate.TlvRcac.encode({ ...this.cert, signature: this.signature });
+        return OperationalCertificate.TlvRcac.encode({ ...this.cert, signature: this.signature.bytes });
     }
 
     /**

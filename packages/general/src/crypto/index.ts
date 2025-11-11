@@ -7,6 +7,7 @@
 export * from "./Crypto.js";
 export * from "./CryptoConstants.js";
 export * from "./CryptoError.js";
+export * from "./EcdsaSignature.js";
 export * from "./Key.js";
 export * from "./MockCrypto.js";
 export * from "./NodeJsStyleCrypto.js";

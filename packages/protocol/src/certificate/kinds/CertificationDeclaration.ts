@@ -77,7 +77,7 @@ export class CertificationDeclaration {
                     subjectKeyIdentifier: ContextTaggedBytes(0, this.#subjectKeyIdentifier),
                     digestAlgorithm: SHA256_CMS,
                     signatureAlgorithm: X962.EcdsaWithSHA256,
-                    signature: await crypto.signEcdsa(privateKey, this.#eContent, "der"),
+                    signature: (await crypto.signEcdsa(privateKey, this.#eContent)).der,
                 },
             ],
         };

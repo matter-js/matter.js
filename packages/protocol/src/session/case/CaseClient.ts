@@ -7,7 +7,7 @@
 import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Fabric } from "#fabric/Fabric.js";
-import { Bytes, Duration, Logger, PublicKey, UnexpectedDataError } from "#general";
+import { Bytes, Duration, EcdsaSignature, Logger, PublicKey, UnexpectedDataError } from "#general";
 import { MessageExchange, RetransmissionLimitReachedError } from "#protocol/MessageExchange.js";
 import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
 import { NodeSession } from "#session/NodeSession.js";
@@ -179,7 +179,7 @@ export class CaseClient {
                 subject: { fabricId: peerFabricIdNOCert, nodeId: peerNodeIdNOCert },
             } = Noc.fromTlv(peerNoc).cert;
 
-            await crypto.verifyEcdsa(PublicKey(peerPublicKey), peerSignatureData, peerSignature);
+            await crypto.verifyEcdsa(PublicKey(peerPublicKey), peerSignatureData, new EcdsaSignature(peerSignature));
 
             if (peerNodeIdNOCert !== peerNodeId) {
                 throw new UnexpectedDataError(
@@ -220,7 +220,7 @@ export class CaseClient {
             const encryptedData = TlvEncryptedDataSigma3.encode({
                 responderNoc: localNoc,
                 responderIcac: localIcac,
-                signature,
+                signature: signature.bytes,
             });
             const encrypted = crypto.encrypt(sigma3Key, encryptedData, TBE_DATA3_NONCE);
             const sigma3Bytes = await messenger.sendSigma3({ encrypted });
