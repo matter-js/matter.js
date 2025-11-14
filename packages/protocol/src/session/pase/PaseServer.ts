@@ -71,7 +71,6 @@ export class PaseServer implements ProtocolHandler {
             logger.warn("Pase server: Received new exchange but server is closed, ignoring exchange.");
             return;
         }
-        const messenger = new PaseServerMessenger(exchange);
 
         // When a Commissioner is either in the process of establishing a PASE session with the Commissionee or has
         // successfully established a session, the Commissionee SHALL NOT accept any more requests for new PASE
@@ -87,6 +86,7 @@ export class PaseServer implements ProtocolHandler {
         } else if (this.#pairingMessenger !== undefined) {
             logger.info("Already handling a pairing request, ignoring new exchange.");
         } else {
+            const messenger = new PaseServerMessenger(exchange);
             // All checks done, we handle the pairing request
             try {
                 this.#pairingMessenger = messenger;
@@ -113,12 +113,7 @@ export class PaseServer implements ProtocolHandler {
                 // Destroy the unsecure session used to establish the Pase session
                 await exchange.session.destroy();
             }
-            return;
         }
-
-        // We are not handing the pairing request, send error and close messenger
-        await messenger.sendError(SecureChannelStatusCode.InvalidParam);
-        await messenger.close();
     }
 
     private async handlePairingRequest(crypto: Crypto) {
