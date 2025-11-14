@@ -337,7 +337,7 @@ export class NodeSession extends SecureSession {
     }
 
     /** Destroys a session. Outstanding subscription data will be discarded. */
-    async destroy(sendClose = false, closeAfterExchangeFinished = true, flushSubscriptions = false) {
+    override async destroy(sendClose = false, closeAfterExchangeFinished = true, flushSubscriptions = false) {
         await this.clearSubscriptions(flushSubscriptions);
         this.#fabric?.removeSession(this);
         if (!sendClose) {
@@ -359,10 +359,12 @@ export class NodeSession extends SecureSession {
                 } catch (error) {
                     NoChannelError.accept(error);
                 } finally {
+                    await super.destroy();
                     await this.destroyed.emit();
                 }
                 return;
             }
+            await super.destroy();
             await this.destroyed.emit();
         }
     }

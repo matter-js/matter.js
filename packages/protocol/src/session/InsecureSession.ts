@@ -7,7 +7,7 @@
 import { Bytes, Crypto, Logger, MatterFlowError } from "#general";
 import { NodeId } from "#types";
 import { DecodedMessage, DecodedPacket, Message, MessageCodec, Packet, SessionType } from "../codec/MessageCodec.js";
-import { Fabric } from "../fabric/Fabric.js";
+import type { Fabric } from "../fabric/Fabric.js";
 import { MessageCounter } from "../protocol/MessageCounter.js";
 import { MessageReceptionStateUnencryptedWithRollover } from "../protocol/MessageReceptionState.js";
 import { NoAssociatedFabricError } from "./NodeSession.js";
@@ -89,8 +89,9 @@ export class InsecureSession extends Session {
         throw new NoAssociatedFabricError("Session needs to be a secure session");
     }
 
-    async destroy() {
+    override async destroy() {
         await this.end();
+        await super.destroy();
         await this.destroyed.emit();
     }
 

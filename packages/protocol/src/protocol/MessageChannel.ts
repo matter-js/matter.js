@@ -7,7 +7,7 @@
 import { Message, MessageCodec } from "#codec/MessageCodec.js";
 import { Bytes, Channel, Diagnostic, Duration, Logger, MatterError, MatterFlowError, Millis, Seconds } from "#general";
 import type { ExchangeLogContext } from "#protocol/MessageExchange.js";
-import { Session, SessionParameters } from "#session/Session.js";
+import type { Session, SessionParameters } from "#session/Session.js";
 
 const logger = new Logger("MessageChannel");
 

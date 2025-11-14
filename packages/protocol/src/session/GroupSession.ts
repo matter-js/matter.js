@@ -5,8 +5,8 @@
  */
 import { Subject } from "#action/server/Subject.js";
 import { DecodedMessage, DecodedPacket, Message, MessageCodec, Packet, SessionType } from "#codec/MessageCodec.js";
-import { Fabric } from "#fabric/Fabric.js";
-import { FabricManager } from "#fabric/FabricManager.js";
+import type { Fabric } from "#fabric/Fabric.js";
+import type { FabricManager } from "#fabric/FabricManager.js";
 import {
     Bytes,
     CryptoDecryptError,
@@ -215,8 +215,9 @@ export class GroupSession extends SecureSession {
         return { message, key, sessionId, sourceNodeId, keySetId, fabric };
     }
 
-    async destroy() {
+    override async destroy() {
         logger.info(`End group session ${this.name}`);
+        await super.destroy();
         this.manager?.removeGroupSession(this);
     }
 
