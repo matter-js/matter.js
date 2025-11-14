@@ -251,6 +251,10 @@ export abstract class Session {
         return this.#manager?.owner;
     }
 
+    get hasChannel() {
+        return !!this.#channel;
+    }
+
     set channel(channel: Channel<Bytes>) {
         if (this.#channel === undefined) {
             throw new ImplementationError("Cannot reassign session channel");

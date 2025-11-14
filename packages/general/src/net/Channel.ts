@@ -38,6 +38,6 @@ export interface IpNetworkChannel<T> extends Channel<T> {
     networkAddress: ServerAddressUdp;
 }
 
-export function isIpNetworkChannel<T>(channel: Channel<T>): channel is IpNetworkChannel<T> {
-    return isObject((channel as IpNetworkChannel<T>).networkAddress);
+export function isIpNetworkChannel<T>(channel?: Channel<T>): channel is IpNetworkChannel<T> {
+    return isObject((channel as IpNetworkChannel<T> | undefined)?.networkAddress);
 }
