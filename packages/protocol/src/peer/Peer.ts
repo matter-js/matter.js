@@ -4,15 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BasicMultiplex, MaybePromise } from "#general";
+import { BasicMultiplex, BasicSet, isIpNetworkChannel, MaybePromise } from "#general";
+import { NodeSession } from "#session/NodeSession.js";
 import { ObservablePeerDescriptor, PeerDescriptor } from "./PeerDescriptor.js";
 
 /**
- * A node (or group) on a fabric we are a member of.
+ * A node on a fabric we are a member of.
  */
 export class Peer {
     #descriptor: PeerDescriptor;
     #context: Peer.Context;
+    #sessions = new BasicSet<NodeSession>();
     #workers = new BasicMultiplex();
     #isSaving = false;
 
@@ -26,6 +28,21 @@ export class Peer {
             this.#workers.add(this.#save(), `persistence of ${this}`);
         });
         this.#context = context;
+
+        this.#sessions.added.on(session => {
+            // Remove channel when destroyed
+            session.destroyed.on(() => {
+                this.#sessions.delete(session);
+            });
+
+            // Ensure operational address is always the most recent IP
+            if (session.hasChannel) {
+                const { channel } = session.channel;
+                if (isIpNetworkChannel(channel)) {
+                    this.#descriptor.operationalAddress = channel.networkAddress;
+                }
+            }
+        });
     }
 
     get address() {
@@ -34,6 +51,10 @@ export class Peer {
 
     get descriptor() {
         return this.#descriptor;
+    }
+
+    get sessions() {
+        return this.#sessions;
     }
 
     async close() {
