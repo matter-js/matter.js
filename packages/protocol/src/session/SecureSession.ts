@@ -3,11 +3,12 @@
  * Copyright 2022-2025 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { Subject } from "#action/server/Subject.js";
-import { Message } from "#codec/MessageCodec.js";
-import { Fabric } from "#fabric/Fabric.js";
+
+import type { Subject } from "#action/server/Subject.js";
+import type { Message } from "#codec/MessageCodec.js";
+import type { Fabric } from "#fabric/Fabric.js";
 import { MatterFlowError } from "#general";
-import { PeerAddress } from "#peer/PeerAddress.js";
+import type { PeerAddress } from "#peer/PeerAddress.js";
 import { Session } from "./Session.js";
 
 export abstract class SecureSession extends Session {

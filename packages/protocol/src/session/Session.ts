@@ -8,14 +8,17 @@ import { SupportedTransportsBitmap } from "#common/SupportedTransportsBitmap.js"
 import {
     AsyncObservable,
     Bytes,
+    Channel,
     DataWriter,
     Duration,
     Endian,
+    ImplementationError,
     InternalError,
     Time,
     Timespan,
     Timestamp,
 } from "#general";
+import { MessageChannel } from "#protocol/MessageChannel.js";
 import { NodeId, TypeFromPartialBitSchema } from "#types";
 import { DecodedMessage, DecodedPacket, Message, Packet, SessionType } from "../codec/MessageCodec.js";
 import { Fabric } from "../fabric/Fabric.js";
@@ -70,7 +73,15 @@ export interface SessionParameters extends SessionIntervals {
 
 export type SessionParameterOptions = Partial<SessionParameters>;
 
+export class NonOperationalSession extends ImplementationError {
+    constructor(session: Session) {
+        super(`Session ${session.name} has no channel assigned`);
+    }
+}
+
 export abstract class Session {
+    #channel?: MessageChannel;
+
     abstract get name(): string;
     abstract get closingAfterExchangeFinished(): boolean;
     #manager?: SessionManager;
@@ -218,11 +229,16 @@ export abstract class Session {
     abstract decode(packet: DecodedPacket, aad?: Bytes): DecodedMessage;
     abstract encode(message: Message): Packet;
     abstract end(sendClose: boolean): Promise<void>;
-    abstract destroy(
-        sendClose?: boolean,
-        closeAfterExchangeFinished?: boolean,
-        flushSubscriptions?: boolean,
-    ): Promise<void>;
+    async destroy(
+        _sendClose?: boolean,
+        _closeAfterExchangeFinished?: boolean,
+        _flushSubscriptions?: boolean,
+    ): Promise<void> {
+        if (this.#channel) {
+            await this.#channel.close();
+            this.#channel = undefined;
+        }
+    }
 
     protected get manager() {
         return this.#manager;
@@ -233,5 +249,19 @@ export abstract class Session {
      */
     get owner() {
         return this.#manager?.owner;
+    }
+
+    set channel(channel: Channel<Bytes>) {
+        if (this.#channel === undefined) {
+            throw new ImplementationError("Cannot reassign session channel");
+        }
+        this.#channel = new MessageChannel(channel, this);
+    }
+
+    get channel(): MessageChannel {
+        if (this.#channel === undefined) {
+            throw new NonOperationalSession(this);
+        }
+        return this.#channel;
     }
 }
