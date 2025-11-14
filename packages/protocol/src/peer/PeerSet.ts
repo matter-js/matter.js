@@ -47,8 +47,9 @@ import { SessionManager } from "#session/SessionManager.js";
 import { CaseAuthenticatedTag, GroupId, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "#types";
 import { ControllerDiscovery, DiscoveryError, PairRetransmissionLimitReachedError } from "./ControllerDiscovery.js";
 import { InteractionQueue } from "./InteractionQueue.js";
-import { OperationalPeer } from "./OperationalPeer.js";
+import { Peer } from "./Peer.js";
 import { PeerAddressStore, PeerDataStore } from "./PeerAddressStore.js";
+import { PeerDescriptor } from "./PeerDescriptor.js";
 
 const logger = Logger.get("PeerSet");
 
@@ -114,15 +115,15 @@ export interface PeerSetContext {
 /**
  * Manages operational connections to peers on shared fabric.
  */
-export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<OperationalPeer> {
+export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     readonly #sessions: SessionManager;
     readonly #channels: ChannelManager;
     readonly #exchanges: ExchangeManager;
     readonly #scanners: ScannerSet;
     readonly #transports: ConnectionlessTransportSet;
     readonly #caseClient: CaseClient;
-    readonly #peers = new BasicSet<OperationalPeer>();
-    readonly #peersByAddress = new PeerAddressMap<OperationalPeer>();
+    readonly #peers = new BasicSet<Peer>();
+    readonly #peersByAddress = new PeerAddressMap<Peer>();
     readonly #runningPeerDiscoveries = new PeerAddressMap<RunningDiscovery>();
     readonly #runningPeerReconnections = new PeerAddressMap<{
         promise: Promise<MessageChannel>;
@@ -146,7 +147,6 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
         this.#caseClient = new CaseClient(this.#sessions);
 
         this.#peers.added.on(peer => {
-            peer.address = PeerAddress(peer.address);
             this.#peersByAddress.set(peer.address, peer);
         });
 
@@ -171,8 +171,8 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
         });
 
         this.#construction = Construction(this, async () => {
-            for (const peer of await this.#store.loadPeers()) {
-                this.#peers.add(peer);
+            for (const descriptor of await this.#store.loadPeers()) {
+                this.#peers.add(new Peer(descriptor));
             }
         });
     }
@@ -193,9 +193,9 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
         return this.#disconnected;
     }
 
-    has(item: PeerAddress | OperationalPeer) {
+    has(item: PeerAddress | PeerDescriptor | Peer) {
         if ("address" in item) {
-            return this.#peers.has(item);
+            return this.#peersByAddress.has(item.address);
         }
         return this.#peersByAddress.has(item);
     }
@@ -204,15 +204,15 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
         return this.#peers.size;
     }
 
-    find(predicate: (item: OperationalPeer) => boolean | undefined) {
+    find(predicate: (item: Peer) => boolean | undefined) {
         return this.#peers.find(predicate);
     }
 
-    filter(predicate: (item: OperationalPeer) => boolean | undefined) {
+    filter(predicate: (item: Peer) => boolean | undefined) {
         return this.#peers.filter(predicate);
     }
 
-    map<T>(mapper: (item: OperationalPeer) => T) {
+    map<T>(mapper: (item: Peer) => T) {
         return this.#peers.map(mapper);
     }
 
@@ -334,7 +334,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
 
             // Enrich discoveryData with data from the node store when not provided
             const { discoveryData } = discoveryOptions ?? {
-                discoveryData: this.#peersByAddress.get(address)?.discoveryData,
+                discoveryData: this.#peersByAddress.get(address)?.descriptor.discoveryData,
             };
             // Try to use first result for one last try before we need to reconnect
             const operationalAddress = this.#knownOperationalAddressFor(address, true);
@@ -359,7 +359,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
     /**
      * Retrieve a peer by address.
      */
-    get(peer: PeerAddress | OperationalPeer) {
+    get(peer: PeerAddress | PeerDescriptor) {
         if ("address" in peer) {
             return this.#peersByAddress.get(peer.address);
         }
@@ -370,7 +370,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
      * Terminate any active peer connection.
      * Also handles unknown peers
      */
-    async disconnect(peer: PeerAddress | OperationalPeer, sendSessionClose = true) {
+    async disconnect(peer: PeerAddress | PeerDescriptor, sendSessionClose = true) {
         let address = this.get(peer)?.address; // Check known Peers
         if (address === undefined) {
             // We did not find a ClientNode for this peer, so check if it is a PeerAddress
@@ -389,7 +389,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
     /**
      * Forget a known peer.
      */
-    async delete(peer: PeerAddress | OperationalPeer) {
+    async delete(peer: PeerAddress | PeerDescriptor) {
         const actual = this.get(peer);
         if (actual === undefined) {
             return;
@@ -463,7 +463,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
             discoveryOptions: {
                 discoveryType: requestedDiscoveryType = NodeDiscoveryType.FullDiscovery,
                 timeout,
-                discoveryData = this.#peersByAddress.get(address)?.discoveryData,
+                discoveryData = this.#peersByAddress.get(address)?.descriptor.discoveryData,
             } = {},
             caseAuthenticatedTags,
         } = options ?? {};
@@ -821,20 +821,20 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
     ) {
         let peer = this.#peersByAddress.get(address);
         if (peer === undefined) {
-            peer = { address, dataStore: await this.#store.createNodeStore(address) };
+            peer = new Peer({ address, dataStore: await this.#store.createNodeStore(address) });
             this.#peers.add(peer);
         }
-        peer.operationalAddress = operationalServerAddress ?? peer.operationalAddress;
+        peer.descriptor.operationalAddress = operationalServerAddress ?? peer.descriptor.operationalAddress;
         if (discoveryData !== undefined) {
-            peer.discoveryData = {
-                ...peer.discoveryData,
+            peer.descriptor.discoveryData = {
+                ...peer.descriptor.discoveryData,
                 ...discoveryData,
             };
         }
-        await this.#store.updatePeer(peer);
+        await this.#store.updatePeer(peer.descriptor);
 
         // If we got a new channel and have a running discovery we can end it
-        if (peer.operationalAddress !== undefined && this.#runningPeerDiscoveries.has(address)) {
+        if (peer.descriptor.operationalAddress !== undefined && this.#runningPeerDiscoveries.has(address)) {
             logger.info(`Found ${address} during discovery, cancel discovery.`);
             // We are currently discovering this node, so we need to update the discovery data
             const { mdnsClient: mdnsScanner } = this.#runningPeerDiscoveries.get(address) ?? {};
@@ -849,7 +849,7 @@ export class PeerSet implements ImmutableSet<OperationalPeer>, ObservableSet<Ope
     }
 
     #getLastOperationalAddress(address: PeerAddress) {
-        return this.#peersByAddress.get(address)?.operationalAddress;
+        return this.#peersByAddress.get(address)?.descriptor.operationalAddress;
     }
 
     #handleFirstRetry(session: Session) {

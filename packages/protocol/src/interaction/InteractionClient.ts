@@ -144,7 +144,7 @@ export class InteractionClientProvider {
         }
 
         const isGroupAddress = PeerAddress.isGroup(address);
-        const nodeStore = isGroupAddress ? undefined : this.#peers.get(address)?.dataStore;
+        const nodeStore = isGroupAddress ? undefined : this.#peers.get(address)?.descriptor.dataStore;
         await nodeStore?.construction; // Lazy initialize the data if not already done
 
         const exchangeProvider = await this.#peers.exchangeProviderFor(address, options);

@@ -49,10 +49,10 @@ import {
     InteractionClientProvider,
     MessageChannel,
     NodeDiscoveryType,
-    OperationalPeer,
     PeerAddress,
     PeerAddressStore,
     PeerConnectionOptions,
+    PeerDescriptor,
     PeerSet,
     RetransmissionLimitReachedError,
     ScannerSet,
@@ -81,7 +81,7 @@ const DEFAULT_FABRIC_INDEX = FabricIndex(1);
 const logger = Logger.get("MatterController");
 
 // Operational peer extended with basic information as required for conversion to CommissionedNodeDetails
-type CommissionedPeer = OperationalPeer & { deviceData?: DeviceInformationData };
+type CommissionedPeer = PeerDescriptor & { deviceData?: DeviceInformationData };
 
 // Backward-compatible persistence record for nodes
 type StoredOperationalPeer = [NodeId, CommissionedNodeDetails];
@@ -489,7 +489,7 @@ export class MatterController {
     getCommissionedNodesDetails() {
         this.#construction.assert();
         return this.#peers!.map(peer => {
-            const { address, operationalAddress, discoveryData, deviceData } = peer as CommissionedPeer;
+            const { address, operationalAddress, discoveryData, deviceData } = peer.descriptor as CommissionedPeer;
             return {
                 nodeId: address.nodeId,
                 operationalAddress: operationalAddress ? ServerAddress.urlFor(operationalAddress) : undefined,
@@ -502,7 +502,7 @@ export class MatterController {
 
     getCommissionedNodeDetails(nodeId: NodeId) {
         this.#construction.assert();
-        const nodeDetails = this.#peers!.get(this.#fabric!.addressOf(nodeId)) as CommissionedPeer;
+        const nodeDetails = this.#peers!.get(this.#fabric!.addressOf(nodeId))?.descriptor as CommissionedPeer;
         if (nodeDetails === undefined) {
             throw new Error(`Node ${nodeId} is not commissioned.`);
         }
@@ -518,7 +518,7 @@ export class MatterController {
 
     async enhanceCommissionedNodeDetails(nodeId: NodeId, deviceData: DeviceInformationData) {
         this.#construction.assert();
-        const nodeDetails = this.#peers!.get(this.#fabric!.addressOf(nodeId)) as CommissionedPeer;
+        const nodeDetails = this.#peers!.get(this.#fabric!.addressOf(nodeId))?.descriptor as CommissionedPeer;
         if (nodeDetails === undefined) {
             throw new Error(`Node ${nodeId} is not commissioned.`);
         }
@@ -568,11 +568,11 @@ export class MatterController {
     ): Promise<{ endpointId: EndpointNumber; clusterId: ClusterId; dataVersion: number }[]> {
         this.#construction.assert();
         const peer = this.#peers!.get(this.#fabric!.addressOf(nodeId));
-        if (peer === undefined || peer.dataStore === undefined) {
+        if (peer === undefined || peer.descriptor.dataStore === undefined) {
             return []; // We have no store, also no data
         }
-        await peer.dataStore.construction;
-        return peer.dataStore.getClusterDataVersions(filterEndpointId, filterClusterId);
+        await peer.descriptor.dataStore.construction;
+        return peer.descriptor.dataStore.getClusterDataVersions(filterEndpointId, filterClusterId);
     }
 
     async retrieveStoredAttributes(
@@ -582,11 +582,11 @@ export class MatterController {
     ): Promise<DecodedAttributeReportValue<any>[]> {
         this.#construction.assert();
         const peer = this.#peers!.get(this.#fabric!.addressOf(nodeId));
-        if (peer === undefined || peer.dataStore === undefined) {
+        if (peer === undefined || peer.descriptor.dataStore === undefined) {
             return []; // We have no store, also no data
         }
-        await peer.dataStore.construction;
-        return peer.dataStore.retrieveAttributes(endpointId, clusterId);
+        await peer.descriptor.dataStore.construction;
+        return peer.descriptor.dataStore.retrieveAttributes(endpointId, clusterId);
     }
 
     async updateFabricLabel(label: string) {
@@ -658,7 +658,7 @@ class CommissionedNodeStore extends PeerAddressStore {
                     operationalAddress: operationalServerAddress,
                     discoveryData,
                     deviceData,
-                } = peer as CommissionedPeer;
+                } = peer.descriptor as CommissionedPeer;
                 return [
                     address.nodeId,
                     { operationalServerAddress, discoveryData, deviceData },
