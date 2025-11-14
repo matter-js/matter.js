@@ -15,7 +15,7 @@ import { PeerAddress } from "./PeerAddress.js";
  *
  * For our purposes a "peer" is another node commissioned to a fabric to which we have access.
  */
-export interface OperationalPeer {
+export interface PeerDescriptor {
     /**
      * The logical address of the peer.
      */
@@ -38,6 +38,8 @@ export interface OperationalPeer {
 
     /**
      * The data store for the peer.
+     *
+     * @deprecated
      */
     dataStore?: PeerDataStore;
 }
