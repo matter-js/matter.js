@@ -134,6 +134,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     readonly #interactionQueue = new InteractionQueue();
     readonly #nodeCachedData = new PeerAddressMap<PeerDataStore>(); // Temporarily until we store it in new API
     readonly #disconnected = AsyncObservable<[address: PeerAddress]>();
+    readonly #peerContext: Peer.Context;
 
     constructor(context: PeerSetContext) {
         const { sessions, channels, exchanges, scanners, transports: netInterfaces, store } = context;
@@ -145,6 +146,10 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         this.#transports = netInterfaces;
         this.#store = store;
         this.#caseClient = new CaseClient(this.#sessions);
+
+        this.#peerContext = {
+            savePeer: peer => this.#store.updatePeer(peer.descriptor),
+        };
 
         this.#peers.added.on(peer => {
             this.#peersByAddress.set(peer.address, peer);
@@ -172,7 +177,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
 
         this.#construction = Construction(this, async () => {
             for (const descriptor of await this.#store.loadPeers()) {
-                this.#peers.add(new Peer(descriptor));
+                this.#peers.add(new Peer(descriptor, this.#peerContext));
             }
         });
     }
@@ -191,6 +196,23 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
 
     get disconnected() {
         return this.#disconnected;
+    }
+
+    /**
+     * Unconditional get.
+     *
+     * Creates the peer if not already present.
+     */
+    for(address: PeerAddress) {
+        let peer = this.#peersByAddress.get(address);
+        if (peer) {
+            return peer;
+        }
+
+        peer = new Peer({ address }, this.#peerContext);
+        this.#peers.add(peer);
+
+        return peer;
     }
 
     has(item: PeerAddress | PeerDescriptor | Peer) {
@@ -420,6 +442,10 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             rejecter(new ChannelNotConnectedError("PeerSet closed")),
         );
         this.#runningPeerReconnections.clear();
+
+        for (const peer of this.#peers) {
+            await peer.close();
+        }
     }
 
     /**
@@ -821,7 +847,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     ) {
         let peer = this.#peersByAddress.get(address);
         if (peer === undefined) {
-            peer = new Peer({ address, dataStore: await this.#store.createNodeStore(address) });
+            peer = new Peer({ address, dataStore: await this.#store.createNodeStore(address) }, this.#peerContext);
             this.#peers.add(peer);
         }
         peer.descriptor.operationalAddress = operationalServerAddress ?? peer.descriptor.operationalAddress;
@@ -831,7 +857,6 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                 ...discoveryData,
             };
         }
-        await this.#store.updatePeer(peer.descriptor);
 
         // If we got a new channel and have a running discovery we can end it
         if (peer.descriptor.operationalAddress !== undefined && this.#runningPeerDiscoveries.has(address)) {
