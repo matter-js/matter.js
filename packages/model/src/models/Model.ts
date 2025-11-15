@@ -4,15 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, decamelize, ImplementationError } from "#general";
+import { camelize, decamelize, ImplementationError, NodeJsStyleInspectable } from "#general";
 import { DefinitionError, ElementTag, Metatype, Specification } from "../common/index.js";
 import { AnyElement, BaseElement } from "../elements/index.js";
 import { ModelTraversal } from "../logic/ModelTraversal.js";
 import { Children, InternalChildren } from "./Children.js";
 import type { MatterModel } from "./MatterModel.js";
 import { Resource, ResourceBundle } from "./Resource.js";
-
-const inspect = Symbol.for("nodejs.util.inspect.custom");
 
 /**
  * Thrown when model API is used incorrectly.
@@ -726,30 +724,30 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     get hasLocalResource() {
         return !!(this.#resource || (this.#root?.resources || ResourceBundle.default).get(this));
     }
-
-    [inspect](_depth: any, options: any, inspect: any) {
-        const json = this.valueOf() as Record<string, unknown>;
-        const props = {
-            name: json.name,
-        } as Record<string, unknown>;
-        if (json.id !== undefined) {
-            props.id = json.id;
-        }
-        for (const key in json) {
-            if (key === "id" || key === "name" || key === "tag") {
-                continue;
-            }
-            props[key] = json[key];
-        }
-        if (this.#children !== undefined && this.#children.length) {
-            props.children = this.#children.length;
-        }
-        if (!inspect) {
-            inspect = (value: unknown) => `${value}`;
-        }
-        return `${inspect(props, options)}`.replace(/^\{/, `${decamelize(this.tag)} {`);
-    }
 }
+
+NodeJsStyleInspectable(Model.prototype, function (_depth, options, inspect) {
+    const json = this.valueOf() as Record<string, unknown>;
+    const props = {
+        name: json.name,
+    } as Record<string, unknown>;
+    if (json.id !== undefined) {
+        props.id = json.id;
+    }
+    for (const key in json) {
+        if (key === "id" || key === "name" || key === "tag") {
+            continue;
+        }
+        props[key] = json[key];
+    }
+    if (this.children.length) {
+        props.children = this.children.length;
+    }
+    if (!inspect) {
+        inspect = (value: unknown) => `${value}`;
+    }
+    return `${inspect(props, options)}`.replace(/^\{/, `${decamelize(this.tag)} {`);
+});
 
 export namespace Model {
     /**

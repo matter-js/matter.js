@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { NodeJsStyleInspectable } from "#log/NodeJsStyleInspectable.js";
 import { Duration } from "./Duration.js";
 
 /**
@@ -93,8 +94,9 @@ export function TimeUnit<T = {}>(kind: TimeUnit.Kind, abbrev: string, one: numbe
         floor,
         round,
         toString: kindOf,
-        [Symbol.for("nodejs.util.inspect.custom")]: kindOf,
     });
+
+    NodeJsStyleInspectable(unit, kindOf);
 
     return unit;
 }

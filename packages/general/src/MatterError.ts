@@ -4,11 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { NodeJsStyleInspectable } from "#log/NodeJsStyleInspectable.js";
 import type { MaybePromise } from "#util/Promises.js";
 import { decamelize } from "#util/String.js";
 import { errorOf } from "./util/Error.js";
-
-const inspect = Symbol.for("nodejs.util.inspect.custom");
 
 const codes = new WeakMap<{}, string>();
 
@@ -80,28 +79,6 @@ export class MatterError extends Error {
         }
 
         return id;
-    }
-
-    /**
-     * Node.js-style object inspection.
-     *
-     * Node's default inspection only prevents two levels of depth which may hide critical information.  It's also
-     * considerably more verbose than native matter.js formatting.  We therefore offer this custom implementation.
-     *
-     * Note that this conforms to Node's API but is not dependent on Node.
-     */
-    [inspect](depth: number, inspectionOptions?: { colors?: boolean }) {
-        const formatterFor = MatterError.formatterFor;
-        if (typeof formatterFor !== "function") {
-            return this;
-        }
-
-        const format = formatterFor(inspectionOptions?.colors ? "ansi" : "plain");
-        if (typeof format !== "function") {
-            return this;
-        }
-
-        return format(this, depth);
     }
 
     /**
@@ -192,9 +169,6 @@ export class MatterAggregateError extends AggregateError {
     constructor(causes: Iterable<unknown>, message?: string) {
         causes = [...causes].map(errorOf);
         super(causes, message);
-
-        Object.defineProperty(MatterAggregateError.prototype, inspect, { enumerable: false });
-        Object.defineProperty(MatterAggregateError.prototype, "format", { enumerable: false });
     }
 
     /**
@@ -246,12 +220,9 @@ export class MatterAggregateError extends AggregateError {
         }
         return (results as PromiseFulfilledResult<T>[]).map(result => result.value);
     }
-}
 
-Object.assign(MatterAggregateError, {
-    [inspect]: MatterError.prototype[inspect],
-    format: MatterError.prototype.format,
-});
+    format = MatterError.prototype.format;
+}
 
 /**
  * It's never reasonable to fail to present error information so we include this rudimentary fallback error formatter.
@@ -348,3 +319,34 @@ export class AbortedError extends CanceledError {
         return super.accept(cause);
     }
 }
+
+/**
+ * Node.js-style object inspection.
+ *
+ * Node's default inspection only prevents two levels of depth which may hide critical information.  It's also
+ * considerably more verbose than native matter.js formatting.  We therefore offer this custom implementation.
+ *
+ * Note that this conforms to Node's API but is not dependent on Node.
+ */
+function inspector(this: MatterError, depth: number, options: NodeJsStyleInspectable.Options) {
+    const formatterFor = MatterError.formatterFor;
+    if (typeof formatterFor !== "function") {
+        return this;
+    }
+
+    const format = formatterFor(options.colors ? "ansi" : "plain");
+    if (typeof format !== "function") {
+        return this;
+    }
+
+    return format(this, depth);
+}
+
+NodeJsStyleInspectable(MatterError.prototype, inspector);
+NodeJsStyleInspectable(MatterAggregateError.prototype, inspector);
+Object.defineProperty(MatterAggregateError.prototype, "format", {
+    value: MatterError.prototype.format,
+    configurable: true,
+    writable: true,
+    enumerable: false,
+});

@@ -11,3 +11,4 @@ export * from "./LogDestination.js";
 export * from "./LogFormat.js";
 export * from "./Logger.js";
 export * from "./LogLevel.js";
+export * from "./NodeJsStyleInspectable.js";

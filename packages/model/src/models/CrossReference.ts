@@ -5,8 +5,7 @@
  */
 
 import { Specification } from "#common/Specification.js";
-
-const inspect = Symbol.for("nodejs.util.inspect.custom");
+import { NodeJsStyleInspectable } from "#general";
 
 export class CrossReference implements Specification.CrossReference {
     document: Specification;
@@ -39,11 +38,11 @@ export class CrossReference implements Specification.CrossReference {
 
         return (this.instances[key] = new CrossReference(xref));
     }
-
-    [inspect](_depth: any, options: any, inspect: any) {
-        return inspect ? inspect(this.toString(), options) : this.toString();
-    }
 }
+
+NodeJsStyleInspectable(CrossReference.prototype, function (_depth, options, inspect) {
+    return inspect(this.toString(), options);
+});
 
 export namespace CrossReference {
     export type Definition = Specification.CrossReference | `${string}§${string}`;
