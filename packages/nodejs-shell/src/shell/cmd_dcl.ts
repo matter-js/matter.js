@@ -135,10 +135,10 @@ export default function commands() {
 
                         try {
                             console.log(`Fetching model information from ${getDclEnv(test)} DCL...`);
-                            console.log(`VID: ${Diagnostic.hex(vid, 4)}`);
-                            console.log(`PID: ${Diagnostic.hex(pid, 4)}`);
+                            console.log(`VID: ${Diagnostic.hex(vid!, 4)}`);
+                            console.log(`PID: ${Diagnostic.hex(pid!, 4)}`);
 
-                            const model = await client.fetchModelByVidPid(vid, pid);
+                            const model = await client.fetchModelByVidPid(vid!, pid!);
                             console.log("Device model information:");
                             console.log(JSON.stringify(model, null, 2));
                         } catch (error) {
@@ -158,10 +158,10 @@ export default function commands() {
 
                         try {
                             console.log(`Fetching available versions from ${getDclEnv(test)} DCL...`);
-                            console.log(`VID: ${Diagnostic.hex(vid, 4)}`);
-                            console.log(`PID: ${Diagnostic.hex(pid, 4)}`);
+                            console.log(`VID: ${Diagnostic.hex(vid!, 4)}`);
+                            console.log(`PID: ${Diagnostic.hex(pid!, 4)}`);
 
-                            const versions = await client.fetchModelVersionsByVidPid(vid, pid);
+                            const versions = await client.fetchModelVersionsByVidPid(vid!, pid!);
                             console.log(`Found ${versions.length} software version(s):`);
                             console.log(JSON.stringify(versions, null, 2));
                         } catch (error) {
@@ -188,14 +188,14 @@ export default function commands() {
 
                         try {
                             console.log(`Fetching version details from ${getDclEnv(test)} DCL...`);
-                            console.log(`VID: ${Diagnostic.hex(vid, 4)}`);
-                            console.log(`PID: ${Diagnostic.hex(pid, 4)}`);
+                            console.log(`VID: ${Diagnostic.hex(vid!, 4)}`);
+                            console.log(`PID: ${Diagnostic.hex(pid!, 4)}`);
                             console.log(`Software Version: ${softwareVersion}`);
 
                             const versionInfo = await client.fetchModelVersionByVidPidSoftwareVersion(
-                                vid,
-                                pid,
-                                softwareVersion,
+                                vid!,
+                                pid!,
+                                softwareVersion!,
                             );
                             console.log("Software version information:");
                             console.log(JSON.stringify(versionInfo, null, 2));
