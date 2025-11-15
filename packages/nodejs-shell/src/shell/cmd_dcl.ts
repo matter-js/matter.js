@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Diagnostic } from "#general";
 import { DclClient } from "@matter/protocol";
 import type { Argv } from "yargs";
 
@@ -16,13 +17,6 @@ function parseVidPid(value: string, fieldName: string): number {
         throw new Error(`${fieldName} must be a valid 16-bit number`);
     }
     return num;
-}
-
-/**
- * Format a number as a padded uppercase hex string with 0x prefix
- */
-function toHex(value: number, padding: number): string {
-    return `0x${value.toString(16).toUpperCase().padStart(padding, "0")}`;
 }
 
 /**
@@ -141,8 +135,8 @@ export default function commands() {
 
                         try {
                             console.log(`Fetching model information from ${getDclEnv(test)} DCL...`);
-                            console.log(`VID: ${toHex(vid, 4)}`);
-                            console.log(`PID: ${toHex(pid, 4)}`);
+                            console.log(`VID: ${Diagnostic.hex(vid, 4)}`);
+                            console.log(`PID: ${Diagnostic.hex(pid, 4)}`);
 
                             const model = await client.fetchModelByVidPid(vid, pid);
                             console.log("Device model information:");
@@ -164,8 +158,8 @@ export default function commands() {
 
                         try {
                             console.log(`Fetching available versions from ${getDclEnv(test)} DCL...`);
-                            console.log(`VID: ${toHex(vid, 4)}`);
-                            console.log(`PID: ${toHex(pid, 4)}`);
+                            console.log(`VID: ${Diagnostic.hex(vid, 4)}`);
+                            console.log(`PID: ${Diagnostic.hex(pid, 4)}`);
 
                             const versions = await client.fetchModelVersionsByVidPid(vid, pid);
                             console.log(`Found ${versions.length} software version(s):`);
@@ -194,8 +188,8 @@ export default function commands() {
 
                         try {
                             console.log(`Fetching version details from ${getDclEnv(test)} DCL...`);
-                            console.log(`VID: ${toHex(vid, 4)}`);
-                            console.log(`PID: ${toHex(pid, 4)}`);
+                            console.log(`VID: ${Diagnostic.hex(vid, 4)}`);
+                            console.log(`PID: ${Diagnostic.hex(pid, 4)}`);
                             console.log(`Software Version: ${softwareVersion}`);
 
                             const versionInfo = await client.fetchModelVersionByVidPidSoftwareVersion(
