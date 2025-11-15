@@ -121,10 +121,12 @@ describe("RetrySchedule", () => {
 
             // Should yield: 1s, 2s, 4s (total: 7s)
             // Next would be 8s but that would exceed 10s timeout
-            expect(intervals).length(3);
+            // So it adjusts to 3s to exactly fill the timeout
+            expect(intervals).length(4);
             expect(intervals[0]).equal(Seconds(1));
             expect(intervals[1]).equal(Seconds(2));
             expect(intervals[2]).equal(Seconds(4));
+            expect(intervals[3]).equal(Seconds(3)); // Adjusted to fit
         });
 
         it("adjusts final interval to fit within timeout", () => {
@@ -208,12 +210,13 @@ describe("RetrySchedule", () => {
             const intervals = Array.from(schedule);
 
             // Should yield: 1s, 2s, 3s (capped), 3s (capped), total would be 9s
-            // Next 3s would exceed timeout, so adjusted to 1s
-            expect(intervals).length(4);
+            // Next 3s would exceed timeout, so adjusted to 1s to fill exactly 10s
+            expect(intervals).length(5);
             expect(intervals[0]).equal(Seconds(1));
             expect(intervals[1]).equal(Seconds(2));
             expect(intervals[2]).equal(Seconds(3));
             expect(intervals[3]).equal(Seconds(3));
+            expect(intervals[4]).equal(Seconds(1)); // Adjusted to fit
         });
     });
 
