@@ -131,17 +131,17 @@ export default function commands() {
                     },
                     async argv => {
                         const { vid, pid, test } = argv;
+                        if (vid === undefined || pid === undefined) {
+                            throw new Error("VID and PID are required");
+                        }
                         const client = new DclClient(!test);
 
                         try {
                             console.log(`Fetching model information from ${getDclEnv(test)} DCL...`);
-                            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-                            console.log(`VID: ${Diagnostic.hex(vid!, 4)}`);
-                            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-                            console.log(`PID: ${Diagnostic.hex(pid!, 4)}`);
+                            console.log(`VID: ${Diagnostic.hex(vid, 4)}`);
+                            console.log(`PID: ${Diagnostic.hex(pid, 4)}`);
 
-                            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-                            const model = await client.fetchModelByVidPid(vid!, pid!);
+                            const model = await client.fetchModelByVidPid(vid, pid);
                             console.log("Device model information:");
                             console.log(JSON.stringify(model, null, 2));
                         } catch (error) {
@@ -157,17 +157,17 @@ export default function commands() {
                     },
                     async argv => {
                         const { vid, pid, test } = argv;
+                        if (vid === undefined || pid === undefined) {
+                            throw new Error("VID and PID are required");
+                        }
                         const client = new DclClient(!test);
 
                         try {
                             console.log(`Fetching available versions from ${getDclEnv(test)} DCL...`);
-                            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-                            console.log(`VID: ${Diagnostic.hex(vid!, 4)}`);
-                            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-                            console.log(`PID: ${Diagnostic.hex(pid!, 4)}`);
+                            console.log(`VID: ${Diagnostic.hex(vid, 4)}`);
+                            console.log(`PID: ${Diagnostic.hex(pid, 4)}`);
 
-                            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-                            const versions = await client.fetchModelVersionsByVidPid(vid!, pid!);
+                            const versions = await client.fetchModelVersionsByVidPid(vid, pid);
                             console.log(`Found ${versions.length} software version(s):`);
                             console.log(JSON.stringify(versions, null, 2));
                         } catch (error) {
@@ -190,21 +190,21 @@ export default function commands() {
                     },
                     async argv => {
                         const { vid, pid, softwareVersion, test } = argv;
+                        if (vid === undefined || pid === undefined || softwareVersion === undefined) {
+                            throw new Error("VID, PID, and software version are required");
+                        }
                         const client = new DclClient(!test);
 
                         try {
                             console.log(`Fetching version details from ${getDclEnv(test)} DCL...`);
-                            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-                            console.log(`VID: ${Diagnostic.hex(vid!, 4)}`);
-                            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-                            console.log(`PID: ${Diagnostic.hex(pid!, 4)}`);
+                            console.log(`VID: ${Diagnostic.hex(vid, 4)}`);
+                            console.log(`PID: ${Diagnostic.hex(pid, 4)}`);
                             console.log(`Software Version: ${softwareVersion}`);
 
-                            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
                             const versionInfo = await client.fetchModelVersionByVidPidSoftwareVersion(
-                                vid!,
-                                pid!,
-                                softwareVersion!,
+                                vid,
+                                pid,
+                                softwareVersion,
                             );
                             console.log("Software version information:");
                             console.log(JSON.stringify(versionInfo, null, 2));
