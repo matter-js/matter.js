@@ -135,9 +135,12 @@ export default function commands() {
 
                         try {
                             console.log(`Fetching model information from ${getDclEnv(test)} DCL...`);
+                            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
                             console.log(`VID: ${Diagnostic.hex(vid!, 4)}`);
+                            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
                             console.log(`PID: ${Diagnostic.hex(pid!, 4)}`);
 
+                            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
                             const model = await client.fetchModelByVidPid(vid!, pid!);
                             console.log("Device model information:");
                             console.log(JSON.stringify(model, null, 2));
@@ -158,9 +161,12 @@ export default function commands() {
 
                         try {
                             console.log(`Fetching available versions from ${getDclEnv(test)} DCL...`);
+                            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
                             console.log(`VID: ${Diagnostic.hex(vid!, 4)}`);
+                            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
                             console.log(`PID: ${Diagnostic.hex(pid!, 4)}`);
 
+                            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
                             const versions = await client.fetchModelVersionsByVidPid(vid!, pid!);
                             console.log(`Found ${versions.length} software version(s):`);
                             console.log(JSON.stringify(versions, null, 2));
@@ -188,10 +194,13 @@ export default function commands() {
 
                         try {
                             console.log(`Fetching version details from ${getDclEnv(test)} DCL...`);
+                            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
                             console.log(`VID: ${Diagnostic.hex(vid!, 4)}`);
+                            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
                             console.log(`PID: ${Diagnostic.hex(pid!, 4)}`);
                             console.log(`Software Version: ${softwareVersion}`);
 
+                            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
                             const versionInfo = await client.fetchModelVersionByVidPidSoftwareVersion(
                                 vid!,
                                 pid!,
