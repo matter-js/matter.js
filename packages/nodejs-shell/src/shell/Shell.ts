@@ -18,6 +18,7 @@ import cmdCommands from "./cmd_cluster-commands";
 import cmdEvents from "./cmd_cluster-events";
 import cmdCommission from "./cmd_commission.js";
 import cmdConfig from "./cmd_config.js";
+import cmdDcl from "./cmd_dcl.js";
 import cmdDiscover from "./cmd_discover.js";
 import cmdIdentify from "./cmd_identify.js";
 import cmdNodes from "./cmd_nodes.js";
@@ -149,6 +150,7 @@ export class Shell {
                     cmdEvents(this.theNode),
                     cmdCommands(this.theNode),
                     cmdTlv(),
+                    cmdDcl(),
                     exitCommand(),
                 ])
                 .command({
