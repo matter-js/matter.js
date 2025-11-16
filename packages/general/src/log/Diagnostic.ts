@@ -335,11 +335,14 @@ export namespace Diagnostic {
     /**
      * Convert a number or bigint to a hex string which is prefixed by "0x" for logging purposes
      * @param value The number or bigint to convert
-     * @param padding Optional padding width (pads with leading zeros)
+     * @param padding Optional padding width (pads with leading zeros). When padding is specified, the "0x" prefix is omitted for cleaner aligned output.
      */
     export function hex(value: number | bigint, padding?: number) {
         const hexString = value.toString(16);
-        return `0x${padding !== undefined ? hexString.padStart(padding, "0") : hexString}`;
+        if (padding !== undefined) {
+            return hexString.padStart(padding, "0");
+        }
+        return `0x${hexString}`;
     }
 
     /**
