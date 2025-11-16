@@ -7,8 +7,9 @@
 import { AsyncObservable, Bytes, Channel, Environment, Environmental, Logger } from "#general";
 import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
 import { MessageChannel } from "#protocol/MessageChannel.js";
-import { NoChannelError, NodeSession } from "#session/NodeSession.js";
+import { NodeSession } from "#session/NodeSession.js";
 import { Session } from "#session/Session.js";
+import { SessionClosedError } from "./errors.js";
 
 const logger = Logger.get("ChannelManager");
 
@@ -79,7 +80,7 @@ export class ChannelManager {
         }
         results = results.filter(channel => !channel.closed && !channel.session.closingAfterExchangeFinished);
         if (results.length === 0)
-            throw new NoChannelError(
+            throw new SessionClosedError(
                 `Can't find a channel to ${PeerAddress(address)}${session !== undefined ? ` session ${session.id}` : ""}`,
             );
         return results[results.length - 1]; // Return the latest added channel (or the one belonging to the session requested)
@@ -153,7 +154,7 @@ export class ChannelManager {
         try {
             return this.getChannel(address, session);
         } catch (e) {
-            NoChannelError.accept(e);
+            SessionClosedError.accept(e);
         }
 
         // Need to create

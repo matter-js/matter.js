@@ -15,15 +15,15 @@ import {
     Diagnostic,
     Duration,
     Logger,
-    MatterError,
     MatterFlowError,
 } from "#general";
 import type { Subscription } from "#interaction/Subscription.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
+import { NoAssociatedFabricError, SessionClosedError } from "#protocol/errors.js";
 import { MessageCounter } from "#protocol/MessageCounter.js";
 import { MessageReceptionStateEncryptedWithoutRollover } from "#protocol/MessageReceptionState.js";
 import { SecureChannelMessenger } from "#securechannel/SecureChannelMessenger.js";
-import { CaseAuthenticatedTag, FabricIndex, NodeId, StatusCode, StatusResponseError } from "#types";
+import { CaseAuthenticatedTag, FabricIndex, NodeId } from "#types";
 import { SecureSession } from "./SecureSession.js";
 import { Session, SessionParameterOptions } from "./Session.js";
 import type { SessionManager } from "./SessionManager.js";
@@ -32,14 +32,6 @@ const logger = Logger.get("SecureSession");
 
 const SESSION_KEYS_INFO = Bytes.fromString("SessionKeys");
 const SESSION_RESUMPTION_KEYS_INFO = Bytes.fromString("SessionResumptionKeys");
-
-export class NoChannelError extends MatterError {}
-
-export class NoAssociatedFabricError extends StatusResponseError {
-    constructor(message: string) {
-        super(message, StatusCode.UnsupportedAccess);
-    }
-}
 
 export class NodeSession extends SecureSession {
     readonly #crypto: Crypto;
@@ -357,7 +349,7 @@ export class NodeSession extends SecureSession {
                 try {
                     await this.closer;
                 } catch (error) {
-                    NoChannelError.accept(error);
+                    SessionClosedError.accept(error);
                 } finally {
                     await super.destroy();
                     await this.destroyed.emit();

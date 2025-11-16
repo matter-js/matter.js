@@ -10,11 +10,11 @@ import { InteractionServer, PeerSubscription } from "#node/server/InteractionSer
 import { ServerSubscription } from "#node/server/ServerSubscription.js";
 import {
     ChannelManager,
-    NoChannelError,
     NodeDiscoveryType,
     PeerAddress,
     PeerAddressSet,
     PeerSet,
+    SessionClosedError,
     SessionManager,
     Subscription,
 } from "#protocol";
@@ -157,7 +157,7 @@ export class SubscriptionsBehavior extends Behavior {
             operationalAddress = isIpNetworkChannel(channel) ? channel.networkAddress : undefined;
         } catch (error) {
             // Can happen in edge cases, so better catch it and proceed without operational address
-            NoChannelError.accept(error);
+            SessionClosedError.accept(error);
         }
         const peerSubscription: PeerSubscription = {
             subscriptionId: id,

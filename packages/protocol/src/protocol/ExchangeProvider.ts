@@ -7,15 +7,12 @@ import { ChannelType, Duration, Observable } from "#general";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { ChannelManager } from "#protocol/ChannelManager.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
-import {
-    ChannelNotConnectedError,
-    DEFAULT_EXPECTED_PROCESSING_TIME,
-    MessageChannel,
-} from "#protocol/MessageChannel.js";
+import { DEFAULT_EXPECTED_PROCESSING_TIME, MessageChannel } from "#protocol/MessageChannel.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { ProtocolHandler } from "#protocol/ProtocolHandler.js";
 import { Session } from "#session/Session.js";
 import { INTERACTION_PROTOCOL_ID } from "#types";
+import { SessionClosedError } from "./errors.js";
 
 /**
  * Interface for obtaining an exchange with a specific peer.
@@ -111,7 +108,7 @@ export class ReconnectableExchangeProvider extends ExchangeProvider {
             await this.reconnectChannel();
         }
         if (!this.channelManager.hasChannel(this.#address)) {
-            throw new ChannelNotConnectedError("Channel not connected");
+            throw new SessionClosedError("Channel not connected");
         }
         return this.exchangeManager.initiateExchange(this.#address, INTERACTION_PROTOCOL_ID);
     }
@@ -124,14 +121,14 @@ export class ReconnectableExchangeProvider extends ExchangeProvider {
 
     get session() {
         if (!this.channelManager.hasChannel(this.#address)) {
-            throw new ChannelNotConnectedError("Channel not connected");
+            throw new SessionClosedError("Channel not connected");
         }
         return this.channelManager.getChannel(this.#address).session;
     }
 
     get channelType() {
         if (!this.channelManager.hasChannel(this.#address)) {
-            throw new ChannelNotConnectedError("Channel not connected");
+            throw new SessionClosedError("Channel not connected");
         }
         return this.channelManager.getChannel(this.#address).type;
     }
@@ -139,7 +136,7 @@ export class ReconnectableExchangeProvider extends ExchangeProvider {
     maximumPeerResponseTime(expectedProcessingTimeMs = DEFAULT_EXPECTED_PROCESSING_TIME) {
         const channel = this.channelManager.getChannel(this.#address);
         if (!channel) {
-            throw new ChannelNotConnectedError("Channel not connected");
+            throw new SessionClosedError("Channel not connected");
         }
         return this.exchangeManager.calculateMaximumPeerResponseTimeMsFor(channel, expectedProcessingTimeMs);
     }

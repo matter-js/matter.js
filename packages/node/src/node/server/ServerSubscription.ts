@@ -29,11 +29,11 @@ import {
     AttributeSubscriptionResponse,
     EventReadResponse,
     InteractionServerMessenger,
-    NoChannelError,
     NumberedOccurrence,
     PeerAddress,
     Read,
     ReadResult,
+    SessionClosedError,
     Subscription,
     SubscriptionCriteria,
 } from "#protocol";
@@ -433,7 +433,7 @@ export class ServerSubscription extends Subscription {
                 if (
                     error instanceof NoResponseTimeoutError ||
                     error instanceof NetworkError ||
-                    error instanceof NoChannelError
+                    error instanceof SessionClosedError
                 ) {
                     // Let's consider this subscription as dead and wait for a reconnect
                     this.isCanceledByPeer = true; // We handle this case like  if the controller canceled the subscription

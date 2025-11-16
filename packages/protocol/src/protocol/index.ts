@@ -7,6 +7,7 @@
 export * from "./ChannelManager.js";
 export * from "./DeviceAdvertiser.js";
 export * from "./DeviceCommissioner.js";
+export * from "./errors.js";
 export * from "./ExchangeManager.js";
 export * from "./ExchangeProvider.js";
 export * from "./MessageChannel.js";

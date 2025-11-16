@@ -16,19 +16,12 @@ import {
     Instant,
     InternalError,
     Logger,
-    MatterError,
     MatterFlowError,
     Millis,
-    NoResponseTimeoutError,
     Time,
     Timer,
 } from "#general";
-import {
-    ChannelNotConnectedError,
-    DEFAULT_EXPECTED_PROCESSING_TIME,
-    MessageChannel,
-    MRP,
-} from "#protocol/MessageChannel.js";
+import { DEFAULT_EXPECTED_PROCESSING_TIME, MessageChannel, MRP } from "#protocol/MessageChannel.js";
 import { GroupSession } from "#session/GroupSession.js";
 import { SecureSession } from "#session/SecureSession.js";
 import { SessionParameters } from "#session/Session.js";
@@ -40,19 +33,9 @@ import {
     StatusCode,
     StatusResponseError,
 } from "#types";
+import { RetransmissionLimitReachedError, SessionClosedError, UnexpectedMessageError } from "./errors.js";
 
 const logger = Logger.get("MessageExchange");
-
-export class RetransmissionLimitReachedError extends NoResponseTimeoutError {}
-
-export class UnexpectedMessageError extends MatterError {
-    public constructor(
-        message: string,
-        public readonly receivedMessage: Message,
-    ) {
-        super(`(${MessageCodec.messageDiagnostics(receivedMessage)}) ${message}`);
-    }
-}
 
 export type ExchangeLogContext = Record<string, unknown>;
 
@@ -547,7 +530,7 @@ export class MessageExchange {
             .then(() => this.#initializeResubmission(message, resubmissionBackoffTime, expectedProcessingTime))
             .catch(error => {
                 logger.error("An error happened when retransmitting a message", error);
-                if (error instanceof ChannelNotConnectedError) {
+                if (error instanceof SessionClosedError) {
                     this.#close().catch(error => logger.error("An error happened when closing the exchange", error));
                 } else {
                     this.#initializeResubmission(message, resubmissionBackoffTime, expectedProcessingTime);
