@@ -26,7 +26,6 @@ import { SecureChannelMessenger } from "#securechannel/SecureChannelMessenger.js
 import { CaseAuthenticatedTag, FabricIndex, NodeId } from "#types";
 import { SecureSession } from "./SecureSession.js";
 import { Session, SessionParameterOptions } from "./Session.js";
-import type { SessionManager } from "./SessionManager.js";
 
 const logger = Logger.get("SecureSession");
 
@@ -51,20 +50,7 @@ export class NodeSession extends SecureSession {
     readonly supportsMRP = true;
     readonly type = SessionType.Unicast;
 
-    static async create(args: {
-        crypto: Crypto;
-        manager?: SessionManager;
-        id: number;
-        fabric: Fabric | undefined;
-        peerNodeId: NodeId;
-        peerSessionId: number;
-        sharedSecret: Bytes;
-        salt: Bytes;
-        isInitiator: boolean;
-        isResumption: boolean;
-        peerSessionParameters?: SessionParameterOptions;
-        caseAuthenticatedTags?: CaseAuthenticatedTag[];
-    }) {
+    static async create(options: NodeSession.CreateConfig) {
         const {
             crypto,
             manager,
@@ -78,9 +64,9 @@ export class NodeSession extends SecureSession {
             isResumption,
             peerSessionParameters,
             caseAuthenticatedTags,
-        } = args;
+        } = options;
         const keys = Bytes.of(
-            await args.crypto.createHkdfKey(
+            await options.crypto.createHkdfKey(
                 sharedSecret,
                 salt,
                 isResumption ? SESSION_RESUMPTION_KEYS_INFO : SESSION_KEYS_INFO,
@@ -106,20 +92,7 @@ export class NodeSession extends SecureSession {
         });
     }
 
-    constructor(args: {
-        crypto: Crypto;
-        manager?: SessionManager;
-        id: number;
-        fabric: Fabric | undefined;
-        peerNodeId: NodeId;
-        peerSessionId: number;
-        decryptKey: Bytes;
-        encryptKey: Bytes;
-        attestationKey: Bytes;
-        sessionParameters?: SessionParameterOptions;
-        caseAuthenticatedTags?: CaseAuthenticatedTag[];
-        isInitiator: boolean;
-    }) {
+    constructor(config: NodeSession.Config) {
         const {
             crypto,
             manager,
@@ -132,10 +105,10 @@ export class NodeSession extends SecureSession {
             attestationKey,
             caseAuthenticatedTags,
             isInitiator,
-        } = args;
+        } = config;
 
         super({
-            ...args,
+            ...config,
             setActiveTimestamp: true, // We always set the active timestamp for Secure sessions
             // Can be changed to a PersistedMessageCounter if we implement session storage
             messageCounter: new MessageCounter(crypto, () => {
@@ -411,5 +384,32 @@ export namespace NodeSession {
                 ...session.parameterDiagnostics,
             }),
         );
+    }
+}
+
+export namespace NodeSession {
+    export interface CommonConfig extends Session.CommonConfig {
+        crypto: Crypto;
+        id: number;
+        fabric: Fabric | undefined;
+        peerNodeId: NodeId;
+        peerSessionId: number;
+        caseAuthenticatedTags?: CaseAuthenticatedTag[];
+    }
+
+    export interface Config extends CommonConfig {
+        decryptKey: Bytes;
+        encryptKey: Bytes;
+        attestationKey: Bytes;
+        sessionParameters?: SessionParameterOptions;
+        isInitiator: boolean;
+    }
+
+    export interface CreateConfig extends CommonConfig {
+        sharedSecret: Bytes;
+        salt: Bytes;
+        isInitiator: boolean;
+        isResumption: boolean;
+        peerSessionParameters?: SessionParameterOptions;
     }
 }

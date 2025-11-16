@@ -17,7 +17,6 @@ import {
     UnexpectedDataError,
 } from "#general";
 import { PeerAddress } from "#peer/PeerAddress.js";
-import type { SessionManager } from "#session/SessionManager.js";
 import { FabricIndex, GroupId, NodeId } from "#types";
 import { SecureSession } from "./SecureSession.js";
 import { Session } from "./Session.js";
@@ -35,17 +34,10 @@ export class GroupSession extends SecureSession {
 
     readonly keySetId: number;
 
-    constructor(args: {
-        manager?: SessionManager;
-        id: number; // Records the Group Session ID derived from the Operational Group Key used to encrypt the message.
-        fabric: Fabric;
-        keySetId: number; // The Group Key Set ID that was used to encrypt the incoming group message.
-        peerNodeId: NodeId; //The Target Group Node Id
-        operationalGroupKey: Bytes; // The Operational Group Key that was used to encrypt the incoming group message.
-    }) {
-        const { manager, fabric, operationalGroupKey, id, peerNodeId, keySetId } = args;
+    constructor(config: GroupSession.Config) {
+        const { manager, fabric, operationalGroupKey, id, peerNodeId, keySetId } = config;
         super({
-            ...args,
+            ...config,
             setActiveTimestamp: false, // We always set the active timestamp for Secure sessions TODO Check
             messageCounter: fabric.groups.messaging.counterFor(operationalGroupKey),
         });
@@ -227,6 +219,14 @@ export class GroupSession extends SecureSession {
 }
 
 export namespace GroupSession {
+    export interface Config extends Session.CommonConfig {
+        id: number; // Records the Group Session ID derived from the Operational Group Key used to encrypt the message.
+        fabric: Fabric;
+        keySetId: number; // The Group Key Set ID that was used to encrypt the incoming group message.
+        peerNodeId: NodeId; //The Target Group Node Id
+        operationalGroupKey: Bytes; // The Operational Group Key that was used to encrypt the incoming group message.
+    }
+
     export function assert(session?: Session, errorText?: string): asserts session is GroupSession {
         if (!is(session)) {
             throw new MatterFlowError(errorText ?? "Insecure session in secure context");

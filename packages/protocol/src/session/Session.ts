@@ -110,13 +110,7 @@ export abstract class Session {
     #destroyed = AsyncObservable<[]>();
     #closedByPeer = AsyncObservable<[]>();
 
-    constructor(args: {
-        manager?: SessionManager;
-        messageCounter: MessageCounter;
-        messageReceptionState?: MessageReceptionState;
-        sessionParameters?: SessionParameterOptions;
-        setActiveTimestamp: boolean;
-    }) {
+    constructor(config: Session.Configuration) {
         const {
             manager,
             messageCounter,
@@ -133,7 +127,7 @@ export abstract class Session {
                 maxTcpMessageSize = FALLBACK_MAX_TCP_MESSAGE_SIZE,
             } = {},
             setActiveTimestamp,
-        } = args;
+        } = config;
         this.#manager = manager;
         this.messageCounter = messageCounter;
         this.messageReceptionState = messageReceptionState;
@@ -267,5 +261,18 @@ export abstract class Session {
             throw new NonOperationalSession(this);
         }
         return this.#channel;
+    }
+}
+
+export namespace Session {
+    export interface CommonConfig {
+        manager?: SessionManager;
+    }
+
+    export interface Configuration extends CommonConfig {
+        messageCounter: MessageCounter;
+        messageReceptionState?: MessageReceptionState;
+        sessionParameters?: SessionParameterOptions;
+        setActiveTimestamp: boolean;
     }
 }
