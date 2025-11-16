@@ -6,9 +6,6 @@
 
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
-import { OccupancySensingServer } from "#behaviors/occupancy-sensing";
-import { TemperatureMeasurementServer } from "#behaviors/temperature-measurement";
-import { OccupancySensing } from "#clusters/occupancy-sensing";
 import { Thermostat } from "#clusters/thermostat";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import {
@@ -73,9 +70,12 @@ const schema = ThermostatBehaviorLogicBase.schema.extend({
  * * Adjust the thermostat running mode when in Auto system mode and the Setback feature is also supported
  * * Determine the system mode and/or running mode based on temperature changes
  *
- * For local temperature or occupancy values we check if there is a local cluster available on the same endpoint and use
- * them, alternatively raw measurements can be set in the states externalMeasuredIndoorTemperature and
- * externallyMeasuredOccupancy. The OutdoorTemperature can be set directly on the attribute if supported.
+ * For local temperature or occupancy values we currently do not support bound clusters. Ideally raw measurements can
+ * be set in the states externalMeasuredIndoorTemperature and externallyMeasuredOccupancy. If you write the
+ * localTemperature attribute directly please note that this value needs to apply the calibration, if applicable. To
+ * prevent the need for own logic to apply calibration, ideally use the provided states and let this behavior handle
+ * the localTemperature attribute updates for you.
+ * The OutdoorTemperature can be set directly on the attribute if supported.
  * The RemoteSensing attribute need to be set correctly as needed by the developer to identify the measurement source.
  *
  * The following custom events are provided:
@@ -415,32 +415,22 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         }
 
         let localTemperature = null;
-        if (!preferRemoteTemperature && this.agent.has(TemperatureMeasurementServer)) {
-            logger.debug(
-                "Using existing TemperatureMeasurement cluster on same endpoint for local temperature measurement",
+
+        // TODO: Check for installed Bindings for TemperatureMeasurement cluster when supported and use the value
+
+        if (this.state.externalMeasuredIndoorTemperature === undefined) {
+            logger.warn(
+                "No local TemperatureMeasurement cluster available and externalMeasuredIndoorTemperature state not set. Setting localTemperature to null",
             );
-            if (this.state.externalMeasuredIndoorTemperature !== undefined) {
-                logger.warn(
-                    "Both local TemperatureMeasurement cluster and externalMeasuredIndoorTemperature state are set, using local cluster",
-                );
-            }
-            this.reactTo(
-                this.agent.get(TemperatureMeasurementServer).events.measuredValue$Changed,
-                this.#handleMeasuredTemperatureChange,
-            );
-            localTemperature = this.endpoint.stateOf(TemperatureMeasurementServer).measuredValue;
         } else {
-            if (this.state.externalMeasuredIndoorTemperature === undefined) {
-                logger.warn(
-                    "No local TemperatureMeasurement cluster available and externalMeasuredIndoorTemperature state not set. Setting localTemperature to null",
-                );
-            } else {
-                logger.info("Using measured temperature via externalMeasuredIndoorTemperature state");
-                localTemperature = this.state.externalMeasuredIndoorTemperature ?? null;
-            }
-            this.reactTo(this.events.externalMeasuredIndoorTemperature$Changed, this.#handleMeasuredTemperatureChange);
+            logger.info("Using measured temperature via externalMeasuredIndoorTemperature state");
+            localTemperature = this.state.externalMeasuredIndoorTemperature ?? null;
         }
-        this.#handleMeasuredTemperatureChange(localTemperature); // and initialize
+        this.reactTo(this.events.externalMeasuredIndoorTemperature$Changed, this.#handleMeasuredTemperatureChange);
+
+        if (localTemperature !== null) {
+            this.#handleMeasuredTemperatureChange(localTemperature); // and initialize
+        }
     }
 
     /**
@@ -473,37 +463,23 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             return;
         }
         let currentOccupancy: boolean;
-        const preferRemoteOccupancy = !!this.state.remoteSensing?.occupancy;
-        if (!preferRemoteOccupancy && this.agent.has(OccupancySensingServer)) {
-            logger.debug("Using existing OccupancySensing cluster on same endpoint for local occupancy sensing");
-            if (this.state.externallyMeasuredOccupancy !== undefined) {
-                logger.warn(
-                    "Both local OccupancySensing cluster and externallyMeasuredOccupancy state are set, using local cluster",
-                );
-            }
-            this.reactTo(this.agent.get(OccupancySensingServer).events.occupancy$Changed, this.#handleOccupancyChange);
-            currentOccupancy = !!this.endpoint.stateOf(OccupancySensingServer).occupancy.occupied;
+
+        // TODO: Check for installed Bindings for OccupancySensing cluster when supported and use the value
+
+        if (this.state.externallyMeasuredOccupancy === undefined) {
+            currentOccupancy = true;
+            logger.warn("No local OccupancySensing cluster available and externallyMeasuredOccupancy state not set");
         } else {
-            if (this.state.externallyMeasuredOccupancy === undefined) {
-                currentOccupancy = true;
-                logger.warn(
-                    "No local OccupancySensing cluster available and externallyMeasuredOccupancy state not set",
-                );
-            } else {
-                logger.info("Using occupancy via externallyMeasuredOccupancy state");
-                currentOccupancy = this.state.externallyMeasuredOccupancy;
-            }
-            this.reactTo(this.events.externallyMeasuredOccupancy$Changed, this.#handleExternalOccupancyChange);
+            logger.info("Using occupancy via externallyMeasuredOccupancy state");
+            currentOccupancy = this.state.externallyMeasuredOccupancy;
         }
+        this.reactTo(this.events.externallyMeasuredOccupancy$Changed, this.#handleExternalOccupancyChange);
+
         this.#handleExternalOccupancyChange(currentOccupancy); // and initialize
     }
 
     #handleExternalOccupancyChange(newValue: boolean) {
         this.state.occupancy = { occupied: newValue };
-    }
-
-    #handleOccupancyChange(newValue: TypeFromPartialBitSchema<typeof OccupancySensing.Occupancy>) {
-        this.state.occupancy = newValue;
     }
 
     /** Setup all validations for the Thermostat behavior */
