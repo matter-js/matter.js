@@ -19,3 +19,4 @@ export * from "./SecureSession.js";
 export * from "./Session.js";
 export * from "./SessionIntervals.js";
 export * from "./SessionManager.js";
+export * from "./SessionParameters.js";

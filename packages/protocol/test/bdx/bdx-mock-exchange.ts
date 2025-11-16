@@ -62,7 +62,16 @@ export class MockExchange extends MessageExchange {
             localSessionParameters: {},
         } as MessageExchangeContext;
 
-        super(context, true, 1, NodeId(1), NodeId(address.nodeId), options.id ?? 1, BDX_PROTOCOL_ID, true);
+        super({
+            context,
+            isInitiator: true,
+            exchangeId: 1,
+            nodeId: NodeId(1),
+            peerNodeId: NodeId(address.nodeId),
+            peerSessionId: options.id ?? 1,
+            protocolId: BDX_PROTOCOL_ID,
+            requiresSecureSession: true,
+        });
 
         this.address = address;
     }

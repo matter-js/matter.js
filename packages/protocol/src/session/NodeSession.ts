@@ -25,7 +25,8 @@ import { MessageReceptionStateEncryptedWithoutRollover } from "#protocol/Message
 import { SecureChannelMessenger } from "#securechannel/SecureChannelMessenger.js";
 import { CaseAuthenticatedTag, FabricIndex, NodeId } from "#types";
 import { SecureSession } from "./SecureSession.js";
-import { Session, SessionParameterOptions } from "./Session.js";
+import { Session } from "./Session.js";
+import { SessionParameters } from "./SessionParameters.js";
 
 const logger = Logger.get("SecureSession");
 
@@ -401,7 +402,7 @@ export namespace NodeSession {
         decryptKey: Bytes;
         encryptKey: Bytes;
         attestationKey: Bytes;
-        sessionParameters?: SessionParameterOptions;
+        sessionParameters?: SessionParameters.Config;
         isInitiator: boolean;
     }
 
@@ -410,6 +411,6 @@ export namespace NodeSession {
         salt: Bytes;
         isInitiator: boolean;
         isResumption: boolean;
-        peerSessionParameters?: SessionParameterOptions;
+        peerSessionParameters?: SessionParameters.Config;
     }
 }

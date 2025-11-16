@@ -26,40 +26,20 @@ import {
     toHex,
 } from "#general";
 import { Subscription } from "#interaction/Subscription.js";
-import { Specification } from "#model";
 import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
 import { SessionClosedError } from "#protocol/errors.js";
 import { GroupSession } from "#session/GroupSession.js";
-import { CaseAuthenticatedTag, DEFAULT_MAX_PATHS_PER_INVOKE, FabricId, FabricIndex, GroupId, NodeId } from "#types";
+import { CaseAuthenticatedTag, FabricId, FabricIndex, GroupId, NodeId } from "#types";
 import { UnexpectedDataError } from "@matter/general";
 import { ExposedFabricInformation, Fabric } from "../fabric/Fabric.js";
 import { MessageCounter } from "../protocol/MessageCounter.js";
 import { InsecureSession } from "./InsecureSession.js";
 import { NodeSession } from "./NodeSession.js";
 import { SecureSession } from "./SecureSession.js";
-import {
-    FALLBACK_DATAMODEL_REVISION,
-    FALLBACK_INTERACTIONMODEL_REVISION,
-    FALLBACK_MAX_PATHS_PER_INVOKE,
-    FALLBACK_MAX_TCP_MESSAGE_SIZE,
-    FALLBACK_SPECIFICATION_VERSION,
-    Session,
-    SessionParameterOptions,
-    SessionParameters,
-} from "./Session.js";
-import { SessionIntervals } from "./SessionIntervals.js";
+import { Session } from "./Session.js";
+import { SessionParameters } from "./SessionParameters.js";
 
 const logger = Logger.get("SessionManager");
-
-const DEFAULT_SESSION_PARAMETERS = {
-    ...SessionIntervals.defaults,
-    dataModelRevision: Specification.DATA_MODEL_REVISION,
-    interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
-    specificationVersion: Specification.SPECIFICATION_VERSION,
-    maxPathsPerInvoke: DEFAULT_MAX_PATHS_PER_INVOKE,
-    supportedTransports: {},
-    maxTcpMessageSize: FALLBACK_MAX_TCP_MESSAGE_SIZE,
-};
 
 export interface ResumptionRecord {
     sharedSecret: Bytes;
@@ -113,7 +93,7 @@ export interface SessionManagerContext {
     /**
      * Parameter overrides.
      */
-    parameters?: Partial<SessionParameters>;
+    parameters?: SessionParameters.Config;
 
     /**
      * This is an arbitrary contextual object attached to sessions used for compatibility with legacy APIs.
@@ -149,7 +129,7 @@ export class SessionManager {
         const {
             fabrics: { crypto },
         } = context;
-        this.#sessionParameters = { ...DEFAULT_SESSION_PARAMETERS, ...context.parameters };
+        this.#sessionParameters = SessionParameters({ ...SessionParameters.defaults, ...context.parameters });
         this.#nextSessionId = crypto.randomUint16;
         this.#globalUnencryptedMessageCounter = new MessageCounter(crypto);
 
@@ -254,7 +234,7 @@ export class SessionManager {
 
     createInsecureSession(options: {
         initiatorNodeId?: NodeId;
-        sessionParameters?: SessionParameterOptions;
+        sessionParameters?: SessionParameters.Config;
         isInitiator?: boolean;
     }) {
         this.#construction.assert();
@@ -292,7 +272,7 @@ export class SessionManager {
         salt: Bytes;
         isInitiator: boolean;
         isResumption: boolean;
-        peerSessionParameters?: SessionParameterOptions;
+        peerSessionParameters?: SessionParameters.Config;
         caseAuthenticatedTags?: CaseAuthenticatedTag[];
     }) {
         await this.construction;
@@ -616,17 +596,7 @@ export class SessionManager {
                 fabricId,
                 fabricIndex,
                 peerNodeId,
-                sessionParameters: {
-                    idleInterval,
-                    activeInterval,
-                    activeThreshold,
-                    dataModelRevision,
-                    interactionModelRevision,
-                    specificationVersion,
-                    maxPathsPerInvoke,
-                    supportedTransports,
-                    maxTcpMessageSize,
-                } = {},
+                sessionParameters,
                 caseAuthenticatedTags,
             }) => {
                 const fabric = this.#context.fabrics.find(
@@ -655,21 +625,8 @@ export class SessionManager {
                     resumptionId,
                     fabric,
                     peerNodeId,
-                    sessionParameters: {
-                        // Make sure to initialize default values when restoring an older resumption record
-                        idleInterval: idleInterval ?? SessionIntervals.defaults.idleInterval,
-                        activeInterval: activeInterval ?? SessionIntervals.defaults.activeInterval,
-                        activeThreshold: activeThreshold ?? SessionIntervals.defaults.activeThreshold,
-                        dataModelRevision: dataModelRevision ?? FALLBACK_DATAMODEL_REVISION,
-                        interactionModelRevision: interactionModelRevision ?? FALLBACK_INTERACTIONMODEL_REVISION,
-                        specificationVersion: specificationVersion ?? FALLBACK_SPECIFICATION_VERSION,
-                        maxPathsPerInvoke: maxPathsPerInvoke ?? FALLBACK_MAX_PATHS_PER_INVOKE,
-                        supportedTransports:
-                            supportedTransports !== undefined
-                                ? SupportedTransportsSchema.decode(supportedTransports)
-                                : {},
-                        maxTcpMessageSize: maxTcpMessageSize ?? FALLBACK_MAX_TCP_MESSAGE_SIZE,
-                    },
+                    // Make sure to initialize default values when restoring an older resumption record
+                    sessionParameters: SessionParameters(sessionParameters),
                     caseAuthenticatedTags,
                 });
             },
