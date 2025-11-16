@@ -11,7 +11,8 @@ import { DecodedMessage, DecodedPacket, Message, MessageCodec, Packet, SessionTy
 import type { Fabric } from "../fabric/Fabric.js";
 import { MessageCounter } from "../protocol/MessageCounter.js";
 import { MessageReceptionStateUnencryptedWithRollover } from "../protocol/MessageReceptionState.js";
-import { Session, SessionParameterOptions } from "./Session.js";
+import { Session } from "./Session.js";
+import { SessionParameters } from "./SessionParameters.js";
 
 const logger = Logger.get("InsecureSession");
 
@@ -98,7 +99,7 @@ export namespace InsecureSession {
         crypto: Crypto;
         messageCounter: MessageCounter;
         initiatorNodeId?: NodeId;
-        sessionParameters?: SessionParameterOptions;
+        sessionParameters?: SessionParameters.Config;
         isInitiator?: boolean;
     }
 }

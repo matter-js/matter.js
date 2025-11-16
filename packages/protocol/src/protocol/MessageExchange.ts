@@ -24,7 +24,7 @@ import {
 import { DEFAULT_EXPECTED_PROCESSING_TIME, MessageChannel, MRP } from "#protocol/MessageChannel.js";
 import { GroupSession } from "#session/GroupSession.js";
 import { SecureSession } from "#session/SecureSession.js";
-import { SessionParameters } from "#session/Session.js";
+import { SessionParameters } from "#session/SessionParameters.js";
 import {
     GroupId,
     NodeId,
@@ -100,34 +100,37 @@ export class MessageExchange {
         const {
             channel: { session },
         } = context;
-        return new MessageExchange(
+        return new MessageExchange({
             context,
-            false,
-            session.id,
-            initialMessage.packetHeader.destNodeId,
-            initialMessage.packetHeader.sourceNodeId,
-            initialMessage.payloadHeader.exchangeId,
-            initialMessage.payloadHeader.protocolId,
-            session.isSecure,
-        );
+            isInitiator: false,
+            peerSessionId: session.id,
+            nodeId: initialMessage.packetHeader.destNodeId,
+            peerNodeId: initialMessage.packetHeader.sourceNodeId,
+            exchangeId: initialMessage.payloadHeader.exchangeId,
+            protocolId: initialMessage.payloadHeader.protocolId,
+            requiresSecureSession: session.isSecure,
+        });
     }
 
     static initiate(context: MessageExchangeContext, exchangeId: number, protocolId: number) {
         const {
             channel: { session },
         } = context;
-        return new MessageExchange(
+        return new MessageExchange({
             context,
-            true,
-            session.peerSessionId,
-            session.nodeId,
-            session.peerNodeId,
+            isInitiator: true,
+            peerSessionId: session.peerSessionId,
+            nodeId: session.nodeId,
+            peerNodeId: session.peerNodeId,
             exchangeId,
             protocolId,
-            session.isSecure,
-        );
+            requiresSecureSession: session.isSecure,
+        });
     }
 
+    readonly #context: MessageExchangeContext;
+    readonly #isInitiator: boolean;
+    readonly #requiresSecureSession: boolean;
     readonly #messagesQueue = new DataReadQueue<Message>();
     #receivedMessageToAck: Message | undefined;
     #receivedMessageAckTimer = Time.getTimer("Ack receipt timeout", MRP.STANDALONE_ACK_TIMEOUT, () => {
@@ -158,18 +161,22 @@ export class MessageExchange {
     readonly #closed = AsyncObservable<[]>();
     readonly #closing = AsyncObservable<[]>();
 
-    constructor(
-        readonly context: MessageExchangeContext,
-        readonly isInitiator: boolean,
-        peerSessionId: number,
-        nodeId: NodeId | undefined,
-        peerNodeId: NodeId | undefined,
-        exchangeId: number,
-        protocolId: number,
-        readonly requiresSecureSession: boolean,
-    ) {
+    constructor(config: MessageExchange.Config) {
+        const {
+            context,
+            isInitiator,
+            peerSessionId,
+            nodeId,
+            peerNodeId,
+            exchangeId,
+            protocolId,
+            requiresSecureSession,
+        } = config;
         const { channel } = context;
         const { session } = channel;
+        this.#context = context;
+        this.#isInitiator = isInitiator;
+        this.#requiresSecureSession = requiresSecureSession;
         this.#peerSessionId = peerSessionId;
         this.#nodeId = nodeId;
         this.#peerNodeId = peerNodeId;
@@ -199,6 +206,18 @@ export class MessageExchange {
                 }),
             }),
         );
+    }
+
+    get context() {
+        return this.#context;
+    }
+
+    get isInitiator() {
+        return this.#isInitiator;
+    }
+
+    get requiresSecureSession() {
+        return this.#requiresSecureSession;
     }
 
     /** Emits when the exchange is actually closed. This happens after all Retries and Communication are done. */
@@ -675,5 +694,18 @@ export class MessageExchange {
         }
 
         return Diagnostic.via(`${(this.session as SecureSession).peerAddress.toString()}#${this.session.id}`);
+    }
+}
+
+export namespace MessageExchange {
+    export interface Config {
+        context: MessageExchangeContext;
+        isInitiator: boolean;
+        peerSessionId: number;
+        nodeId?: NodeId;
+        peerNodeId?: NodeId;
+        exchangeId: number;
+        protocolId: number;
+        requiresSecureSession: boolean;
     }
 }

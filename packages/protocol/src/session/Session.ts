@@ -24,54 +24,8 @@ import { DecodedMessage, DecodedPacket, Message, Packet, SessionType } from "../
 import { Fabric } from "../fabric/Fabric.js";
 import { MessageCounter } from "../protocol/MessageCounter.js";
 import { MessageReceptionState } from "../protocol/MessageReceptionState.js";
-import { SessionIntervals } from "./SessionIntervals.js";
 import { type SessionManager } from "./SessionManager.js";
-
-/** Fallback value for Data Model Revision when not provided in Session parameters. We use Matter 1.2 as assumption. */
-export const FALLBACK_DATAMODEL_REVISION = 17;
-
-/** Fallback value for Interaction Model Revision when not provided in Session parameters. We use Matter 1.2 as assumption. */
-export const FALLBACK_INTERACTIONMODEL_REVISION = 11;
-
-/**
- * Fallback value for Specification Version when not provided in Session parameters. We use 0 as assumption which is
- * "before 1.3".
- */
-export const FALLBACK_SPECIFICATION_VERSION = 0;
-
-/**
- * Fallback value for the maximum number of paths that can be included in a single invoke message when not provided in
- * Session parameters.
- */
-export const FALLBACK_MAX_PATHS_PER_INVOKE = 1;
-
-export const FALLBACK_MAX_TCP_MESSAGE_SIZE = 64000;
-
-export interface SessionParameters extends SessionIntervals {
-    /** Version of Data Model for the Session parameters side where it appears. */
-    dataModelRevision: number;
-
-    /** Version of Interaction Model for the Session parameters side where it appears. */
-    interactionModelRevision: number;
-
-    /** Version of Specification for the Session parameters side where it appears. */
-    specificationVersion: number;
-
-    /** The maximum number of elements in the InvokeRequests list that the Node is able to process. */
-    maxPathsPerInvoke: number;
-
-    /** A bitmap of the supported transport protocols in addition to MRP. */
-    supportedTransports: TypeFromPartialBitSchema<typeof SupportedTransportsBitmap>;
-
-    /**
-     * Maximum size of the message carried over TCP, excluding the framing message length
-     * field, that the node is capable of receiving from its peer.
-     * Default: 64000 bytes
-     */
-    maxTcpMessageSize?: number;
-}
-
-export type SessionParameterOptions = Partial<SessionParameters>;
+import { SessionParameters } from "./SessionParameters.js";
 
 export class NonOperationalSession extends ImplementationError {
     constructor(session: Session) {
@@ -99,7 +53,7 @@ export abstract class Session {
     protected readonly messageCounter: MessageCounter;
     protected readonly messageReceptionState?: MessageReceptionState;
     protected readonly supportedTransports: TypeFromPartialBitSchema<typeof SupportedTransportsBitmap>;
-    protected readonly maxTcpMessageSize: number;
+    protected readonly maxTcpMessageSize?: number;
 
     /**
      * If the ExchangeManager performs async work to clean up a session it sets this promise.  This is because
@@ -111,23 +65,20 @@ export abstract class Session {
     #closedByPeer = AsyncObservable<[]>();
 
     constructor(config: Session.Configuration) {
+        const { manager, messageCounter, messageReceptionState, sessionParameters, setActiveTimestamp } = config;
+
         const {
-            manager,
-            messageCounter,
-            messageReceptionState,
-            sessionParameters: {
-                idleInterval = SessionIntervals.defaults.idleInterval,
-                activeInterval = SessionIntervals.defaults.activeInterval,
-                activeThreshold = SessionIntervals.defaults.activeThreshold,
-                dataModelRevision = FALLBACK_DATAMODEL_REVISION,
-                interactionModelRevision = FALLBACK_INTERACTIONMODEL_REVISION,
-                specificationVersion = FALLBACK_SPECIFICATION_VERSION,
-                maxPathsPerInvoke = FALLBACK_MAX_PATHS_PER_INVOKE,
-                supportedTransports = {}, // no TCP support by default
-                maxTcpMessageSize = FALLBACK_MAX_TCP_MESSAGE_SIZE,
-            } = {},
-            setActiveTimestamp,
-        } = config;
+            idleInterval,
+            activeInterval,
+            activeThreshold,
+            dataModelRevision,
+            interactionModelRevision,
+            specificationVersion,
+            maxPathsPerInvoke,
+            supportedTransports,
+            maxTcpMessageSize,
+        } = SessionParameters(sessionParameters);
+
         this.#manager = manager;
         this.messageCounter = messageCounter;
         this.messageReceptionState = messageReceptionState;
@@ -272,7 +223,7 @@ export namespace Session {
     export interface Configuration extends CommonConfig {
         messageCounter: MessageCounter;
         messageReceptionState?: MessageReceptionState;
-        sessionParameters?: SessionParameterOptions;
+        sessionParameters?: SessionParameters.Config;
         setActiveTimestamp: boolean;
     }
 }

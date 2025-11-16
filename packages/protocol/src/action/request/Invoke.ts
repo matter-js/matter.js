@@ -5,7 +5,7 @@
  */
 
 import { Diagnostic, Duration, isObject } from "#general";
-import { FALLBACK_INTERACTIONMODEL_REVISION } from "#session/Session.js";
+import { SessionParameters } from "#session/SessionParameters.js";
 import { ClusterType, CommandData, FabricIndex, InvokeRequest, ObjectSchema, TlvSchema, TypeFromSchema } from "#types";
 import { MalformedRequestError } from "./MalformedRequestError.js";
 import { resolvePathForSpecifier, Specifier } from "./Specifier.js";
@@ -58,7 +58,7 @@ export function Invoke(
     }
 
     const {
-        interactionModelRevision = FALLBACK_INTERACTIONMODEL_REVISION,
+        interactionModelRevision = SessionParameters.fallbacks.interactionModelRevision,
         suppressResponse = false,
         timeout,
         expectedProcessingTime,

@@ -6,7 +6,7 @@
 
 import { FabricManager } from "#fabric/FabricManager.js";
 import { StandardCrypto, StorageBackendMemory, StorageContext } from "#general";
-import { SessionParameters } from "#session/Session.js";
+import { SessionParameters } from "#index.js";
 import { SessionManager } from "#session/SessionManager.js";
 import { NodeId } from "#types";
 
