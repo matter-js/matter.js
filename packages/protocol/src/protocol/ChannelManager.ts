@@ -49,7 +49,7 @@ export class ChannelManager {
     }
 
     async setChannel(address: PeerAddress, channel: MessageChannel) {
-        channel.closeCallback = async () => this.removeChannel(address, channel.session);
+        channel.onClose = async () => this.removeChannel(address, channel.session);
         const currentChannels = this.#channels.get(address) ?? [];
         currentChannels.push(channel);
         this.#channels.set(address, currentChannels);
