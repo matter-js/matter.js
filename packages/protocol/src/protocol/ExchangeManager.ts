@@ -24,11 +24,7 @@ import {
     UnexpectedDataError,
 } from "#general";
 import { PeerAddress } from "#peer/PeerAddress.js";
-import {
-    ChannelNotConnectedError,
-    DEFAULT_EXPECTED_PROCESSING_TIME,
-    MessageChannel,
-} from "#protocol/MessageChannel.js";
+import { DEFAULT_EXPECTED_PROCESSING_TIME, MessageChannel } from "#protocol/MessageChannel.js";
 import { SecureChannelMessenger } from "#securechannel/SecureChannelMessenger.js";
 import { UNICAST_UNSECURE_SESSION_ID } from "#session/InsecureSession.js";
 import { NodeSession } from "#session/NodeSession.js";
@@ -36,6 +32,7 @@ import { Session } from "#session/Session.js";
 import { SessionManager } from "#session/SessionManager.js";
 import { NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "#types";
 import { ChannelManager } from "./ChannelManager.js";
+import { SessionClosedError } from "./errors.js";
 import { MessageExchange, MessageExchangeContext } from "./MessageExchange.js";
 import { DuplicateMessageError } from "./MessageReceptionState.js";
 import { ProtocolHandler } from "./ProtocolHandler.js";
@@ -385,8 +382,8 @@ export class ExchangeManager {
                     await messenger.sendCloseSession();
                     await messenger.close();
                 } catch (error) {
-                    if (error instanceof ChannelNotConnectedError) {
-                        logger.debug("Session already closed because channel is disconnected.");
+                    if (error instanceof SessionClosedError) {
+                        logger.debug("Session already closed");
                     } else {
                         logger.error("Error closing session", error);
                     }

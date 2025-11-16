@@ -19,7 +19,7 @@ import {
 import { DecodedAttributeReportValue } from "#interaction/AttributeDataDecoder.js";
 import { DecodedDataReport } from "#interaction/DecodedDataReport.js";
 import { Specification } from "#model";
-import { ChannelNotConnectedError } from "#protocol/MessageChannel.js";
+import { RetransmissionLimitReachedError, SessionClosedError, UnexpectedMessageError } from "#protocol/errors.js";
 import {
     AttributeId,
     ClusterId,
@@ -48,12 +48,7 @@ import {
 } from "#types";
 import { Message, SessionType } from "../codec/MessageCodec.js";
 import { ExchangeProvider } from "../protocol/ExchangeProvider.js";
-import {
-    ExchangeSendOptions,
-    MessageExchange,
-    RetransmissionLimitReachedError,
-    UnexpectedMessageError,
-} from "../protocol/MessageExchange.js";
+import { ExchangeSendOptions, MessageExchange } from "../protocol/MessageExchange.js";
 import {
     AttributeReportPayload,
     BaseDataReport,
@@ -1037,14 +1032,14 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
     override async send(messageType: number, payload: Bytes, options?: ExchangeSendOptions) {
         try {
             if (this.exchange.channel.closed) {
-                throw new ChannelNotConnectedError("The exchange channel is closed. Please connect the device first.");
+                throw new SessionClosedError("The exchange channel is closed. Please connect the device first.");
             }
 
             return await this.exchange.send(messageType, payload, options);
         } catch (error) {
             if (
                 this.#exchangeProvider.supportsReconnect &&
-                (error instanceof RetransmissionLimitReachedError || error instanceof ChannelNotConnectedError) &&
+                (error instanceof RetransmissionLimitReachedError || error instanceof SessionClosedError) &&
                 !options?.multipleMessageInteraction
             ) {
                 // When retransmission failed (most likely due to a lost connection or invalid session),

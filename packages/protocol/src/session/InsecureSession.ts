@@ -5,12 +5,12 @@
  */
 
 import { Bytes, Crypto, Logger, MatterFlowError } from "#general";
+import { NoAssociatedFabricError } from "#protocol/errors.js";
 import { NodeId } from "#types";
 import { DecodedMessage, DecodedPacket, Message, MessageCodec, Packet, SessionType } from "../codec/MessageCodec.js";
 import type { Fabric } from "../fabric/Fabric.js";
 import { MessageCounter } from "../protocol/MessageCounter.js";
 import { MessageReceptionStateUnencryptedWithRollover } from "../protocol/MessageReceptionState.js";
-import { NoAssociatedFabricError } from "./NodeSession.js";
 import { Session, SessionParameterOptions } from "./Session.js";
 import type { SessionManager } from "./SessionManager.js";
 

@@ -35,10 +35,11 @@ import {
 import { MdnsClient } from "#mdns/MdnsClient.js";
 import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
 import { ChannelManager } from "#protocol/ChannelManager.js";
+import { RetransmissionLimitReachedError, SessionClosedError } from "#protocol/errors.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { DedicatedChannelExchangeProvider, ReconnectableExchangeProvider } from "#protocol/ExchangeProvider.js";
-import { ChannelNotConnectedError, MessageChannel } from "#protocol/MessageChannel.js";
-import { MessageExchange, RetransmissionLimitReachedError } from "#protocol/MessageExchange.js";
+import { MessageChannel } from "#protocol/MessageChannel.js";
+import { MessageExchange } from "#protocol/MessageExchange.js";
 import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
 import { CaseClient } from "#session/case/CaseClient.js";
 import { SecureSession } from "#session/SecureSession.js";
@@ -438,9 +439,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         }
 
         this.#interactionQueue.close();
-        this.#runningPeerReconnections.forEach(({ rejecter }) =>
-            rejecter(new ChannelNotConnectedError("PeerSet closed")),
-        );
+        this.#runningPeerReconnections.forEach(({ rejecter }) => rejecter(new SessionClosedError("PeerSet closed")));
         this.#runningPeerReconnections.clear();
 
         for (const peer of this.#peers) {
