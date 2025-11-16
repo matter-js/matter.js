@@ -28,6 +28,7 @@ import {
 import { Subscription } from "#interaction/Subscription.js";
 import { Specification } from "#model";
 import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
+import { SessionClosedError } from "#protocol/errors.js";
 import { GroupSession } from "#session/GroupSession.js";
 import { CaseAuthenticatedTag, DEFAULT_MAX_PATHS_PER_INVOKE, FabricId, FabricIndex, GroupId, NodeId } from "#types";
 import { UnexpectedDataError } from "@matter/general";
@@ -433,7 +434,16 @@ export class SessionManager {
         );
     }
 
-    getSessionForNode(address: PeerAddress) {
+    sessionFor(peer: PeerAddress) {
+        const session = this.maybeSessionFor(peer);
+        if (session) {
+            return session;
+        }
+
+        throw new SessionClosedError(`Not currently connected to ${PeerAddress(peer)}`);
+    }
+
+    maybeSessionFor(address: PeerAddress) {
         this.#construction.assert();
 
         //TODO: It can have multiple sessions for one node ...
@@ -443,7 +453,7 @@ export class SessionManager {
         });
     }
 
-    async removeAllSessionsForNode(address: PeerAddress, sendClose = false, closeBeforeCreatedTimestamp?: number) {
+    async removeSessionsFor(address: PeerAddress, sendClose = false, closeBeforeCreatedTimestamp?: number) {
         await this.#construction;
 
         for (const session of this.#sessions) {

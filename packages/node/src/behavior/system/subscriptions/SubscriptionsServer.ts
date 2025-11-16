@@ -231,7 +231,7 @@ export class SubscriptionsBehavior extends Behavior {
                 continue;
             }
             logger.debug(`Try to reestablish former subscription ${subscriptionId} to ${peerAddress}`);
-            if (sessions.getSessionForNode(peerAddress) !== undefined) {
+            if (sessions.maybeSessionFor(peerAddress) !== undefined) {
                 logger.debug(`We already have and existing session for peer ${peerAddress}`);
             } else {
                 try {
@@ -257,7 +257,7 @@ export class SubscriptionsBehavior extends Behavior {
                     logger.debug(`Skip re-establishing former subscription ${subscriptionId} to ${peerAddress}`);
                     continue;
                 }
-                const session = sessions.getSessionForNode(peerAddress);
+                const session = sessions.maybeSessionFor(peerAddress);
                 if (session === undefined) {
                     peerStopList.add(peerAddress);
                     logger.debug(`Could not connect to peer ${peerAddress}`);

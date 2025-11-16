@@ -366,7 +366,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                     `Re-discovering device failed (no address found), remove all sessions for ${PeerAddress(address)}`,
                 );
                 // We remove all sessions, this also informs the PairedNode class
-                await this.#sessions.removeAllSessionsForNode(address);
+                await this.#sessions.removeSessionsFor(address);
                 throw new RetransmissionLimitReachedError(`No operational address found for ${PeerAddress(address)}`);
             }
             if (
@@ -404,7 +404,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             }
         }
 
-        await this.#sessions.removeAllSessionsForNode(address, sendSessionClose);
+        await this.#sessions.removeSessionsFor(address, sendSessionClose);
         await this.#channels.removeAllNodeChannels(address);
         await this.#disconnected.emit(address);
     }
@@ -472,7 +472,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             ) {
                 logger.info(`Resume failed, remove all sessions for ${PeerAddress(address)}`);
                 // We remove all sessions, this also informs the PairedNode class
-                await this.#sessions.removeAllSessionsForNode(address);
+                await this.#sessions.removeSessionsFor(address);
             }
             throw error;
         }
@@ -688,7 +688,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                     error.message ? error.message : error,
                 );
                 // We remove all sessions, this also informs the PairedNode class
-                await this.#sessions.removeAllSessionsForNode(address, false, startTime);
+                await this.#sessions.removeSessionsFor(address, false, startTime);
                 return undefined;
             } else {
                 throw error;
