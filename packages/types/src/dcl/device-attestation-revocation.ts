@@ -18,8 +18,8 @@ export enum RevocationTypeEnum {
  * @see {@link MatterSpecification.v141.Core} § 11.23.9.
  * DCL endpoints:
  *   * /dcl/pki/revocation-points
- *   * /dcl/pki/revocation-points/{issuerSubjectKeyID}
- *   * /dcl/pki/revocation-points/{issuerSubjectKeyID}/{vid}/{label}
+ *   * /dcl/pki/revocation-points/{issuerSubjectKeyId}
+ *   * /dcl/pki/revocation-points/{issuerSubjectKeyId}/{vid}/{label}
  */
 export interface DeviceAttestationPkiRevocationDclSchema {
     /**
@@ -51,8 +51,8 @@ export interface DeviceAttestationPkiRevocationDclSchema {
      * SHALL be enforced against the tuple containing all of:
      * • VendorID
      * • Label
-     * • IssuerSubjectKeyID
-     * Therefore, there MAY be multiple entries for the same VendorID and IssuerSubjectKeyID in case
+     * • IssuerSubjectKeyId
+     * Therefore, there MAY be multiple entries for the same VendorID and IssuerSubjectKeyId in case
      * partitioning is done, which are disambiguated by the Label.
      * Enforcement of uniqueness constraints SHALL be done by the Distributed Compliance Ledger’s
      * block transaction processing and SHALL also be done by clients making use of the information
@@ -89,10 +89,10 @@ export interface DeviceAttestationPkiRevocationDclSchema {
      * would appear in openssl x509 output, for human consumption) would be recorded as
      * A303136D54A84BE24C4887B341066DC270962F99.
      * When processing revocation information during the device Device Attestation Procedure, clients
-     * SHALL only use entries whose IssuerSubjectKeyID matches a candidate certificate’s Authority Key
+     * SHALL only use entries whose IssuerSubjectKeyId matches a candidate certificate’s Authority Key
      * Identifier extension.
      */
-    issuerSubjectKeyID: string;
+    issuerSubjectKeyId: string;
 
     /**
      * This field SHALL indicate the URL where to obtain the information in the format indicated by the

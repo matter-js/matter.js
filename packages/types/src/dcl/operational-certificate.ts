@@ -36,7 +36,7 @@ export interface OperationalCertificateDclSchema {
      * to the private key used to sign a Matter certificate. This is OPTIONAL for Operational Root CA
      * Certificates (RCAC).
      */
-    authorityKeyID?: string;
+    authorityKeyId?: string;
 
     /**
      * This field SHALL contain the PAA certificate’s Subject field, as defined Operational Root CA Certificates
@@ -51,7 +51,7 @@ export interface OperationalCertificateDclSchema {
      * for Operational Root CA Certificates (RCAC). This is encoded as defined in Section 6.1, “Certificate
      * Common Conventions”.
      */
-    rootSubjectKeyID?: string;
+    rootSubjectKeyId?: string;
 
     /**
      * This field SHALL signify whether the associated certificates is a Operational Root CA Certificate
@@ -82,7 +82,7 @@ export interface OperationalCertificateDclSchema {
      * This field SHALL uniquely identify the PAA certificate’s Subject Key Identifier mandatory extension.
      * This is encoded as defined in Section 6.1.2, “Key Identifier Extension Constraints”.
      */
-    subjectKeyID: string;
+    subjectKeyId: string;
 
     /**
      * This field SHALL contain the Vendor ID of the vendor that issued the certificate.
