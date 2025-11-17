@@ -139,8 +139,7 @@ export class FetchMock {
         // Check mocks in reverse order (most recently added first, which are usually most specific)
         for (let i = this.responses.length - 1; i >= 0; i--) {
             const mock = this.responses[i];
-            const matches =
-                typeof mock.url === "string" ? urlString.includes(mock.url) : mock.url.test(urlString);
+            const matches = typeof mock.url === "string" ? urlString.includes(mock.url) : mock.url.test(urlString);
 
             if (matches) {
                 // Create a fresh response for each fetch

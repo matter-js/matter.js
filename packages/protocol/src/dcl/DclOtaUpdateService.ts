@@ -197,7 +197,7 @@ export class DclOtaUpdateService {
         if (this.#storage === undefined) {
             await this.construction;
         }
-        let storage = this.#storage!;
+        const storage = this.#storage!;
 
         const { softwareVersion, softwareVersionString, vid, pid } = updateInfo;
 
@@ -253,7 +253,7 @@ export class DclOtaUpdateService {
         if (this.#storage === undefined) {
             await this.construction;
         }
-        let storage = this.#storage!;
+        const storage = this.#storage!;
 
         const { otaUrl, softwareVersion, softwareVersionString, vid, pid } = updateInfo;
 
@@ -577,7 +577,7 @@ export class DclOtaUpdateService {
         if (this.#storage === undefined) {
             await this.construction;
         }
-        let storage = this.#storage!;
+        const storage = this.#storage!;
 
         // Get all keys from storage
         const keys = await storage.keys();
@@ -659,7 +659,7 @@ export class DclOtaUpdateService {
         if (this.#storage === undefined) {
             await this.construction;
         }
-        let storage = this.#storage!;
+        const storage = this.#storage!;
 
         const fileDesignator = new PersistedFileDesignator(filename, storage);
         if (!(await fileDesignator.exists())) {
@@ -686,7 +686,7 @@ export class DclOtaUpdateService {
         if (this.#storage === undefined) {
             await this.construction;
         }
-        let storage = this.#storage!;
+        const storage = this.#storage!;
 
         const { vendorId, productId, isProduction = true } = options;
         let { filename } = options;

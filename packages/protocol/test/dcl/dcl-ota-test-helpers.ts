@@ -13,10 +13,7 @@ import { DeviceSoftwareVersionModelDclSchema, VendorId } from "#types";
  * Collects chunks from async iterators before computing the hash.
  */
 export class StreamingCrypto extends StandardCrypto {
-    override computeHash(
-        algorithmId: number,
-        data: Parameters<Crypto["computeHash"]>[1],
-    ) {
+    override computeHash(algorithmId: number, data: Parameters<Crypto["computeHash"]>[1]) {
         // If it's an async iterator, collect all chunks first
         if (typeof data === "object" && data !== null && ("next" in data || Symbol.asyncIterator in data)) {
             const chunks: Uint8Array[] = [];
