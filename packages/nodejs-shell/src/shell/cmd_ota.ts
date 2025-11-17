@@ -411,11 +411,9 @@ export default function commands(theNode: MatterNode) {
                     async argv => {
                         const { keyname, vid, pid, mode } = argv;
 
-                        let deletedCount: number;
-
                         if (keyname) {
                             // Delete by keyname
-                            deletedCount = await theNode.otaService.delete({
+                            await theNode.otaService.delete({
                                 filename: keyname,
                             });
                             console.log(`Deleted OTA image: ${keyname}`);
@@ -425,7 +423,7 @@ export default function commands(theNode: MatterNode) {
                             const productId = pid ? parseHexId(pid, "product") : undefined;
                             const isProduction = mode === "prod";
 
-                            deletedCount = await theNode.otaService.delete({
+                            const deletedCount = await theNode.otaService.delete({
                                 vendorId,
                                 productId,
                                 isProduction,
