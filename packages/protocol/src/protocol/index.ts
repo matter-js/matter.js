@@ -15,4 +15,5 @@ export * from "./MessageCounter.js";
 export * from "./MessageExchange.js";
 export * from "./MessageReceptionState.js";
 export * from "./ProtocolHandler.js";
+export * from "./ProtocolMocks.js";
 export * from "./ProtocolStatusMessage.js";
