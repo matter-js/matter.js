@@ -8,18 +8,13 @@ import { Fabric } from "#fabric/Fabric.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import { TestFabric } from "#fabric/TestFabric.js";
 import { b$, Bytes, MockCrypto, StorageBackendMemory, StorageManager } from "#general";
+import { ProtocolMocks } from "#index.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { SessionManager } from "#session/SessionManager.js";
-import { FabricId, FabricIndex, NodeId, VendorId } from "#types";
+import { FabricId, NodeId, VendorId } from "#types";
 
 const OPERATIONAL_ID = b$`6cf78388a7e78e3d`;
-const TEST_ROOT_NODE = NodeId(1n);
 
-const TEST_FABRIC_INDEX = FabricIndex(1);
-const TEST_FABRIC_ID = FabricId(0x2906c908d115d362n);
-const TEST_NODE_ID = NodeId(0xcd5544aa7b13ef14n);
-const TEST_ROOT_PUBLIC_KEY = b$`044a9f42b1ca4840d37292bbc7f6a7e11e22200c976fc900dbc98a7a383a641cb8254a2e56d4e295a847943b4e3897c4a773e930277b4d9fbede8a052686bfacfa`;
-const TEST_IDENTITY_PROTECTION_KEY = b$`9bc61cd9c62a2df6d64dfcaa9dc472d4`;
 const TEST_RANDOM = b$`7e171231568dfa17206b3accf8faec2f4d21b580113196f47c7c4deb810a73dc`;
 const EXPECTED_DESTINATION_ID = b$`dc35dd5fc9134cc5544538c9c3fc4297c1ec3370c839136a80e10796451d4c53`;
 
@@ -57,24 +52,27 @@ const crypto = MockCrypto();
 describe("Fabric", () => {
     describe("getDestinationId", () => {
         it("generates the correct destination ID", async () => {
+            const { fabricIndex, nodeId, fabricId, rootNodeId, rootPublicKey, operationalIdentityProtectionKey } =
+                ProtocolMocks.Fabric.defaults;
+
             const fabric = new Fabric(crypto, {
-                fabricIndex: TEST_FABRIC_INDEX,
-                fabricId: TEST_FABRIC_ID,
-                nodeId: TEST_NODE_ID,
-                rootNodeId: TEST_ROOT_NODE,
+                fabricIndex,
+                fabricId,
+                nodeId,
+                rootNodeId,
                 operationalId: NO_BYTES,
                 keyPair: await crypto.createKeyPair(),
-                rootPublicKey: TEST_ROOT_PUBLIC_KEY,
+                rootPublicKey,
                 rootVendorId: VendorId(0),
-                rootCert: NO_BYTES,
-                identityProtectionKey: NO_BYTES,
-                operationalIdentityProtectionKey: TEST_IDENTITY_PROTECTION_KEY,
+                rootCert: Bytes.empty,
+                identityProtectionKey: Bytes.empty,
+                operationalIdentityProtectionKey,
                 intermediateCACert: NO_BYTES,
                 operationalCert: NO_BYTES,
                 label: "",
             });
 
-            const result = await fabric.currentDestinationIdFor(TEST_NODE_ID, TEST_RANDOM);
+            const result = await fabric.currentDestinationIdFor(nodeId, TEST_RANDOM);
 
             expect(Bytes.toHex(result)).to.equal(Bytes.toHex(EXPECTED_DESTINATION_ID));
         });
@@ -87,11 +85,13 @@ describe("Fabric", () => {
         });
 
         it("generates the correct destination ID 3", async () => {
+            const { fabricIndex, rootNodeId } = ProtocolMocks.Fabric.defaults;
+
             const fabric = new Fabric(crypto, {
-                fabricIndex: TEST_FABRIC_INDEX,
+                fabricIndex,
                 fabricId: TEST_FABRIC_ID_3,
                 nodeId: TEST_NODE_ID_3,
-                rootNodeId: TEST_ROOT_NODE,
+                rootNodeId,
                 operationalId: NO_BYTES,
                 keyPair: await crypto.createKeyPair(),
                 rootPublicKey: TEST_ROOT_PUBLIC_KEY_3,

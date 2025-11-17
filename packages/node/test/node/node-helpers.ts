@@ -335,7 +335,9 @@ export namespace interaction {
         const { exchange, interactionServer } = await connect(node, fabric);
 
         const channels = node.env.get(ChannelManager);
-        channels.getChannel = () => exchange.channel;
+        channels.getChannel = () => {
+            return exchange.channel;
+        };
 
         await interactionServer.handleSubscribeRequest(exchange, request, BarelyMockedMessenger, BarelyMockedMessage);
     }
