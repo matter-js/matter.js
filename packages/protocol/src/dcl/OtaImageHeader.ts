@@ -113,7 +113,7 @@ export const TlvOtaImageHeader = TlvObject({
      *
      * Maximum length is 128 hex characters to support SHA-512 (64 bytes = 128 hex chars).
      */
-    imageDigest: TlvField(9, TlvByteString.bound({ maxLength: 128 })),
+    imageDigest: TlvField(9, TlvByteString.bound({ maxLength: 64 })),
 });
 
 export interface OtaImageHeader extends TypeFromSchema<typeof TlvOtaImageHeader> {}
