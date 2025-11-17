@@ -106,15 +106,16 @@ export namespace ProtocolMocks {
      * A mock channel that can act as a placeholder without full mock networking.
      */
     export class NetworkChannel implements IpNetworkChannel<Bytes> {
-        maxPayloadSize = MAX_UDP_MESSAGE_SIZE;
-        isReliable = false;
+        maxPayloadSize: number;
+        isReliable = true;
         supportsLargeMessages = false;
         name = "mock-byte-channel";
         type = ChannelType.UDP;
         networkAddress: ServerAddressUdp;
 
-        constructor(config: { index?: number }) {
+        constructor(config: { index?: number; maxPayloadSize?: number }) {
             const index = config.index ?? 1;
+            this.maxPayloadSize = config.maxPayloadSize ?? MAX_UDP_MESSAGE_SIZE;
             this.networkAddress = { type: "udp", ip: `::${index}`, port: 5540 };
         }
 
@@ -230,7 +231,7 @@ export namespace ProtocolMocks {
          * Emits when read() won't block.
          */
         get readReady() {
-            return this.#mockChannel.read();
+            return this.#mockChannel.readReady;
         }
 
         override nextMessage() {
