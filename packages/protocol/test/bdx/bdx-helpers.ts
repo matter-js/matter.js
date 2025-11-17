@@ -2,10 +2,9 @@ import { BdxSessionConfiguration } from "#bdx/BdxSessionConfiguration.js";
 import { BdxClient, BdxMessage, BdxMessenger, BdxProtocol, BdxStatusMessage } from "#bdx/index.js";
 import { Message } from "#codec/MessageCodec.js";
 import { MaybePromise, StorageBackendMemory, StorageManager } from "#general";
-import { PeerAddress } from "#peer/PeerAddress.js";
-import { BdxMessageType, FabricIndex, NodeId, SecureMessageType } from "#types";
+import { ProtocolMocks } from "#protocol/ProtocolMocks.js";
+import { BDX_PROTOCOL_ID, BdxMessageType, SecureMessageType } from "#types";
 import { createPromise, StorageContext } from "@matter/general";
-import { createSession, MockExchange } from "./bdx-mock-exchange.js";
 
 type MessageRecords = { type: BdxMessageType | SecureMessageType.StatusReport; data: any };
 
@@ -33,14 +32,8 @@ export async function bdxTransfer(params: {
     serverExchangeManipulator?: (message: Message) => Message;
 }) {
     // Create two exchanges, one for sending and one for receiving.
-    const sendingExchange = new MockExchange(PeerAddress({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }), {
-        id: 1,
-        session: await createSession({ sessionId: 1 }),
-    });
-    const receivingExchange = new MockExchange(PeerAddress({ fabricIndex: FabricIndex(2), nodeId: NodeId(2) }), {
-        id: 2,
-        session: await createSession({ sessionId: 2 }),
-    });
+    const sendingExchange = createExchange(1);
+    const receivingExchange = createExchange(1);
     const clientExchangeData = new Array<MessageRecords>();
     const serverExchangeData = new Array<MessageRecords>();
 
@@ -60,7 +53,7 @@ export async function bdxTransfer(params: {
 
     const { promise, resolver } = createPromise<Message>();
 
-    sendingExchange.newData.on(async () => {
+    sendingExchange.readReady.on(async () => {
         let message = await sendingExchange.read();
         clientExchangeData.push(parseMessage(message));
         if (params.clientExchangeManipulator) {
@@ -74,7 +67,7 @@ export async function bdxTransfer(params: {
         }
     });
 
-    receivingExchange.newData.on(async () => {
+    receivingExchange.readReady.on(async () => {
         let message = await receivingExchange.read();
         serverExchangeData.push(parseMessage(message));
         if (params.serverExchangeManipulator) {
@@ -105,12 +98,16 @@ export async function bdxTransfer(params: {
     } catch (err) {
         clientError = err;
     }
-    await params.validate(clientStorage, serverStorage, {
-        clientExchangeData,
-        serverExchangeData,
-        clientError,
-        serverError,
-    });
+    await MockTime.resolve(
+        Promise.resolve(
+            params.validate(clientStorage, serverStorage, {
+                clientExchangeData,
+                serverExchangeData,
+                clientError,
+                serverError,
+            }),
+        ),
+    );
 }
 
 function parseMessage(message: Message): MessageRecords {
@@ -122,4 +119,22 @@ function parseMessage(message: Message): MessageRecords {
     }
     const { kind: type, message: data } = BdxMessage.decode(message.payloadHeader.messageType, message.payload);
     return { type, data };
+}
+
+function createExchange(index: number) {
+    return new ProtocolMocks.Exchange({
+        index,
+        fabricIndex: index,
+        context: {
+            channel: new ProtocolMocks.MessageChannel({
+                index,
+                fabricIndex: index,
+                channel: new ProtocolMocks.NetworkChannel({
+                    index,
+                    maxPayloadSize: 1024,
+                }),
+            }),
+        },
+        protocolId: BDX_PROTOCOL_ID,
+    });
 }
