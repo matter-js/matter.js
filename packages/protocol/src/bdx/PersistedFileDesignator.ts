@@ -12,7 +12,10 @@ export class PersistedFileDesignator extends FileDesignator {
     #storage: StorageContext;
     #blob?: Blob;
 
-    constructor(fd: string | Bytes, storage: StorageContext) {
+    constructor(fd: string | Bytes | FileDesignator, storage: StorageContext) {
+        if (fd instanceof FileDesignator) {
+            fd = fd.bytes;
+        }
         super(fd);
         this.#storage = storage;
     }
@@ -36,5 +39,9 @@ export class PersistedFileDesignator extends FileDesignator {
 
     writeFromStream(stream: ReadableStream<Bytes>) {
         return this.#storage.writeBlobFromStream(this.text, stream);
+    }
+
+    delete() {
+        return this.#storage.delete(this.text);
     }
 }

@@ -4,6 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import {
+    TestCert_PAA_FFF1_Cert,
+    TestCert_PAA_NoVID_Cert,
+    TestCert_WithoutAuthKeyId,
+} from "#certificate/ChipPAAuthorities.js";
+import { Paa } from "#certificate/kinds/AttestationCertificates.js";
 import { CertificateError } from "#certificate/kinds/common.js";
 import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
@@ -161,7 +167,7 @@ describe("Certificates", () => {
      * These are real-world certificates to validate ASN.1 parsing works with externally generated certs.
      */
     describe("parses external ASN.1 certificates", () => {
-        it("parse and regenerate external RCAC certificate", async () => {
+        it("parse and regenerate external RCAC certificate", () => {
             const rcac = Rcac.fromAsn1(EXTERNAL_TEST_CERTIFICATES.RCAC_ASN1);
 
             // Verify we got valid data
@@ -172,11 +178,9 @@ describe("Certificates", () => {
             const asn1 = rcac.asSignedAsn1();
 
             expect(Bytes.toHex(asn1)).to.equal(Bytes.toHex(EXTERNAL_TEST_CERTIFICATES.RCAC_ASN1));
-
-            await rcac.verify(crypto);
         });
 
-        it("parse and regenerate external ICAC certificate", () => {
+        it("parse and regenerate external ICAC certificate", async () => {
             const icac = Icac.fromAsn1(EXTERNAL_TEST_CERTIFICATES.ICAC_ASN1);
 
             // Verify we got valid data
@@ -188,7 +192,7 @@ describe("Certificates", () => {
             expect(Bytes.toHex(asn1)).to.equal(Bytes.toHex(EXTERNAL_TEST_CERTIFICATES.ICAC_ASN1));
         });
 
-        it("parse and regenerate external NOC certificate", () => {
+        it("parse and regenerate external NOC certificate", async () => {
             const noc = Noc.fromAsn1(EXTERNAL_TEST_CERTIFICATES.NOC_ASN1);
 
             // Verify we got valid data
@@ -217,6 +221,10 @@ describe("Certificates", () => {
                 rcac.cert.extensions.subjectKeyIdentifier,
             );
             expect(noc.cert.extensions.authorityKeyIdentifier).to.deep.equal(icac.cert.extensions.subjectKeyIdentifier);
+
+            await rcac.verify(crypto);
+            await icac.verify(crypto, rcac);
+            await noc.verify(crypto, rcac, icac);
         });
     });
 
@@ -477,6 +485,40 @@ describe("Certificates", () => {
                 PublicKey(TEST_PUBLIC_KEY),
                 DerCodec.encode(requestNode),
                 new EcdsaSignature(signatureNode[DerKey.Bytes], "der"),
+            );
+        });
+    });
+
+    describe("Paa.fromAsn1", () => {
+        it("parses PAA certificate without VID from ASN.1", () => {
+            const paa = Paa.fromAsn1(TestCert_PAA_NoVID_Cert);
+
+            expect(paa.cert).to.exist;
+            expect(paa.cert.subject.commonName).to.equal("Matter Test PAA");
+            expect(Bytes.toHex(paa.cert.extensions.subjectKeyIdentifier).toUpperCase()).to.equal(
+                "785CE705B86B8F4E6FC793AA60CB43EA696882D5",
+            );
+        });
+
+        it("parses PAA certificate with VID from ASN.1", () => {
+            const paa = Paa.fromAsn1(TestCert_PAA_FFF1_Cert);
+
+            expect(paa.cert).to.exist;
+            expect(paa.cert.subject.commonName).to.equal("Matter Test PAA");
+            expect(paa.cert.subject.vendorId).to.equal(0xfff1);
+            expect(Bytes.toHex(paa.cert.extensions.subjectKeyIdentifier).toUpperCase()).to.equal(
+                "6AFD22771F511FECBF1641976710DCDC31A1717E",
+            );
+        });
+
+        it("parses PAA certificate without AuthorityKeyIdentifier with VID from ASN.1", () => {
+            const paa = Paa.fromAsn1(TestCert_WithoutAuthKeyId);
+
+            expect(paa.cert).to.exist;
+            expect(paa.cert.subject.commonName).to.equal("Kwikset Matter Test PAA");
+            expect(paa.cert.subject.vendorId).to.equal(5153);
+            expect(Bytes.toHex(paa.cert.extensions.subjectKeyIdentifier).toUpperCase()).to.equal(
+                "62B177DEFD5A9CC35D9190A0E0F5F4E9ECE84BE1",
             );
         });
     });

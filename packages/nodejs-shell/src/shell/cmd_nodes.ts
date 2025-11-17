@@ -5,7 +5,7 @@
  */
 
 import { capitalize, decamelize, Diagnostic } from "#general";
-import { NodeId } from "#types";
+import { NodeId, VendorId } from "#types";
 import { CommissioningControllerNodeOptions, NodeStateInformation } from "@project-chip/matter.js/device";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode";
@@ -239,6 +239,197 @@ export default function commands(theNode: MatterNode) {
                                 );
                             }
                         }
+                    },
+                )
+                .command(
+                    "ota",
+                    "OTA update operations for nodes",
+                    yargs =>
+                        yargs
+                            .command(
+                                "check <node-id>",
+                                "Check for OTA updates for a commissioned node",
+                                yargs => {
+                                    return yargs
+                                        .positional("node-id", {
+                                            describe: "Node ID to check for updates",
+                                            type: "string",
+                                            demandOption: true,
+                                        })
+                                        .option("mode", {
+                                            describe: "DCL mode (prod or test)",
+                                            type: "string",
+                                            choices: ["prod", "test"],
+                                            default: "prod",
+                                        });
+                                },
+                                async argv => {
+                                    const { nodeId: nodeIdStr, mode } = argv;
+                                    const isProduction = mode === "prod";
+
+                                    await theNode.start();
+                                    if (theNode.commissioningController === undefined) {
+                                        throw new Error("CommissioningController not initialized");
+                                    }
+
+                                    const nodeId = NodeId(BigInt(nodeIdStr));
+                                    const nodeDetails = theNode.commissioningController
+                                        .getCommissionedNodesDetails()
+                                        .find(nd => nd.nodeId === nodeId);
+                                    const basicInfo = nodeDetails?.deviceData?.basicInformation;
+                                    if (!basicInfo) {
+                                        throw new Error(`Node ${nodeIdStr} has no basic information available`);
+                                    }
+                                    if (
+                                        basicInfo.vendorId === undefined ||
+                                        basicInfo.productId === undefined ||
+                                        basicInfo.softwareVersion === undefined
+                                    ) {
+                                        throw new Error(
+                                            `Node ${nodeIdStr} is missing required basic information for OTA check`,
+                                        );
+                                    }
+
+                                    console.log(`Checking for OTA updates for node ${nodeIdStr}...`);
+                                    console.log(
+                                        `  Vendor ID: ${Diagnostic.hex(basicInfo.vendorId as VendorId, 4).toUpperCase()}`,
+                                    );
+                                    console.log(
+                                        `  Product ID: ${Diagnostic.hex(basicInfo.productId as number, 4).toUpperCase()}`,
+                                    );
+                                    console.log(
+                                        `  Current Software Version: ${basicInfo.softwareVersion} (${basicInfo.softwareVersionString})`,
+                                    );
+                                    console.log(`  DCL Mode: ${isProduction ? "production" : "test"}\n`);
+
+                                    const updateInfo = await theNode.otaService.checkForUpdate(
+                                        basicInfo.vendorId as VendorId,
+                                        basicInfo.productId as number,
+                                        basicInfo.softwareVersion as number,
+                                        isProduction,
+                                    );
+
+                                    if (updateInfo) {
+                                        console.log("✓ Update available!");
+                                        console.log(
+                                            `  New Version: ${updateInfo.softwareVersion} (${updateInfo.softwareVersionString})`,
+                                        );
+                                        console.log(`  OTA URL: ${updateInfo.otaUrl}`);
+                                        if (updateInfo.otaFileSize) {
+                                            const sizeKB = Number(updateInfo.otaFileSize) / 1024;
+                                            console.log(`  File Size: ${sizeKB.toFixed(2)} KB`);
+                                        }
+                                        if (updateInfo.releaseNotesUrl) {
+                                            console.log(`  Release Notes: ${updateInfo.releaseNotesUrl}`);
+                                        }
+                                        console.log(
+                                            `\nRun "nodes ota download ${nodeIdStr}${mode === "test" ? " --mode test" : ""}" to download this update.`,
+                                        );
+                                    } else {
+                                        console.log("✓ No updates available. Device is up to date.");
+                                    }
+                                },
+                            )
+                            .command(
+                                "download <node-id>",
+                                "Download OTA update for a commissioned node",
+                                yargs => {
+                                    return yargs
+                                        .positional("node-id", {
+                                            describe: "Node ID to download update for",
+                                            type: "string",
+                                            demandOption: true,
+                                        })
+                                        .option("mode", {
+                                            describe: "DCL mode (prod or test)",
+                                            type: "string",
+                                            choices: ["prod", "test"],
+                                            default: "prod",
+                                        })
+                                        .option("force", {
+                                            describe: "Force download even if update is already stored locally",
+                                            type: "boolean",
+                                            default: false,
+                                        });
+                                },
+                                async argv => {
+                                    const { nodeId: nodeIdStr, mode, force } = argv;
+                                    const isProduction = mode === "prod";
+                                    const forceDownload = force === true;
+
+                                    await theNode.start();
+                                    if (theNode.commissioningController === undefined) {
+                                        throw new Error("CommissioningController not initialized");
+                                    }
+
+                                    const nodeId = NodeId(BigInt(nodeIdStr));
+                                    const nodeDetails = theNode.commissioningController
+                                        .getCommissionedNodesDetails()
+                                        .find(nd => nd.nodeId === nodeId);
+                                    const basicInfo = nodeDetails?.deviceData?.basicInformation;
+                                    if (!basicInfo) {
+                                        throw new Error(`Node ${nodeIdStr} has no basic information available`);
+                                    }
+                                    if (
+                                        basicInfo.vendorId === undefined ||
+                                        basicInfo.productId === undefined ||
+                                        basicInfo.softwareVersion === undefined
+                                    ) {
+                                        throw new Error(
+                                            `Node ${nodeIdStr} is missing required basic information for OTA check`,
+                                        );
+                                    }
+
+                                    console.log(`Checking for OTA updates for node ${nodeIdStr}...`);
+                                    console.log(
+                                        `  Vendor ID: ${Diagnostic.hex(basicInfo.vendorId as VendorId, 4).toUpperCase()}`,
+                                    );
+                                    console.log(
+                                        `  Product ID: ${Diagnostic.hex(basicInfo.productId as number, 4).toUpperCase()}`,
+                                    );
+                                    console.log(
+                                        `  Current Software Version: ${basicInfo.softwareVersion} (${basicInfo.softwareVersionString})`,
+                                    );
+                                    console.log(`  DCL Mode: ${isProduction ? "production" : "test"}\n`);
+
+                                    const updateInfo = await theNode.otaService.checkForUpdate(
+                                        basicInfo.vendorId as VendorId,
+                                        basicInfo.productId as number,
+                                        basicInfo.softwareVersion as number,
+                                        isProduction,
+                                    );
+
+                                    if (!updateInfo) {
+                                        console.log("No updates available. Device is up to date.");
+                                        return;
+                                    }
+
+                                    console.log("Update found:");
+                                    console.log(
+                                        `  New Version: ${updateInfo.softwareVersion} (${updateInfo.softwareVersionString})`,
+                                    );
+                                    console.log(`  OTA URL: ${updateInfo.otaUrl}`);
+                                    if (updateInfo.otaFileSize) {
+                                        const sizeKB = Number(updateInfo.otaFileSize) / 1024;
+                                        console.log(`  File Size: ${sizeKB.toFixed(2)} KB`);
+                                    }
+
+                                    console.log("\nDownloading update...");
+                                    const fd = await theNode.otaService.downloadUpdate(
+                                        updateInfo,
+                                        isProduction,
+                                        forceDownload,
+                                    );
+
+                                    console.log(`✓ Update downloaded and stored successfully: ${fd.text}`);
+                                    console.log(
+                                        `\nYou can now apply this update to the device using your device's OTA mechanism.`,
+                                    );
+                                },
+                            )
+                            .demandCommand(1, "Please specify an OTA subcommand"),
+                    async (argv: any) => {
+                        argv.unhandled = true;
                     },
                 ),
         handler: async (argv: any) => {

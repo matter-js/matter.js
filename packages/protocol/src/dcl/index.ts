@@ -4,4 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export * from "./DclCertificateService.js";
 export * from "./DclClient.js";
+export * from "./DclOtaUpdateService.js";
+export * from "./DclRestApiTypes.js";
+export * from "./OtaImageHeader.js";
+export * from "./OtaImageReader.js";
+export * from "./OtaImageWriter.js";

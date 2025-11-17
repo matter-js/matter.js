@@ -5,7 +5,17 @@
  */
 
 import { NodeJsCrypto } from "#crypto/NodeJsCrypto.js";
-import { b$, Bytes, DataReader, Key, PrivateKey, PublicKey } from "#general";
+import {
+    b$,
+    Bytes,
+    DataReader,
+    HASH_ALGORITHM_NAMES,
+    HASH_ALGORITHM_OUTPUT_LENGTHS,
+    HashAlgorithm,
+    Key,
+    PrivateKey,
+    PublicKey,
+} from "#general";
 import * as assert from "node:assert";
 import * as crypto from "node:crypto";
 
@@ -165,6 +175,100 @@ describe("NodeJsCrypto", () => {
             });
             const hash = await cryptoNode.computeSha256(stream.getReader());
             expect(Bytes.toHex(hash)).equals(HASH_TEST_SHA256);
+        });
+    });
+
+    describe("Hash Algorithms", () => {
+        const testData = b$`48656c6c6f20576f726c64`; // "Hello World"
+        const testData2 = b$`54657374204461746121`; // "Test Data!"
+
+        describe("SHA-256", () => {
+            it("computes SHA-256 via computeHash", async () => {
+                const hash = await cryptoNode.computeHash(HashAlgorithm.SHA256, testData);
+                expect(Bytes.isBytes(hash)).to.be.true;
+                expect(hash.byteLength).to.equal(HASH_ALGORITHM_OUTPUT_LENGTHS[HashAlgorithm.SHA256]);
+            });
+
+            it("computeSha256() produces same result as computeHash", async () => {
+                const hash1 = await cryptoNode.computeSha256(testData);
+                const hash2 = await cryptoNode.computeHash(HashAlgorithm.SHA256, testData);
+                expect(Bytes.toHex(hash1)).to.equal(Bytes.toHex(hash2));
+            });
+
+            it("supports streaming", async () => {
+                const baseData = Bytes.of(testData);
+                async function* data() {
+                    yield Bytes.of(baseData).slice(0, 5);
+                    yield Bytes.of(baseData).slice(5);
+                }
+                const hashStream = await cryptoNode.computeHash(HashAlgorithm.SHA256, data());
+                const hashSingle = await cryptoNode.computeHash(HashAlgorithm.SHA256, testData);
+                expect(Bytes.toHex(hashStream)).to.equal(Bytes.toHex(hashSingle));
+            });
+
+            it("supports array of buffers", async () => {
+                const chunk1 = b$`48656c6c6f`; // "Hello"
+                const chunk2 = b$`20576f726c64`; // " World"
+
+                const hashArray = await cryptoNode.computeHash(HashAlgorithm.SHA256, [chunk1, chunk2]);
+                const hashSingle = await cryptoNode.computeHash(HashAlgorithm.SHA256, testData);
+                expect(Bytes.toHex(hashArray)).to.equal(Bytes.toHex(hashSingle));
+            });
+        });
+
+        [
+            HashAlgorithm.SHA512,
+            HashAlgorithm.SHA384,
+            HashAlgorithm.SHA512_224,
+            HashAlgorithm.SHA512_256,
+            HashAlgorithm.SHA3_256,
+        ].forEach(alg => {
+            describe(HASH_ALGORITHM_NAMES[alg], () => {
+                it(`computes ${HASH_ALGORITHM_NAMES[alg]} via computeHash`, async () => {
+                    const hash = await cryptoNode.computeHash(alg, testData);
+                    expect(Bytes.isBytes(hash)).to.be.true;
+                    expect(hash.byteLength).to.equal(HASH_ALGORITHM_OUTPUT_LENGTHS[alg]);
+                });
+
+                it(`supports streaming`, async () => {
+                    const baseData = Bytes.of(testData);
+                    async function* data() {
+                        yield Bytes.of(baseData).slice(0, 5);
+                        yield Bytes.of(baseData).slice(5);
+                    }
+                    const hashStream = await cryptoNode.computeHash(alg, data());
+                    const hashSingle = await cryptoNode.computeHash(alg, testData);
+                    expect(Bytes.toHex(hashStream)).to.equal(Bytes.toHex(hashSingle));
+                });
+
+                it(`supports array of buffers`, async () => {
+                    const chunk1 = b$`48656c6c6f`; // "Hello"
+                    const chunk2 = b$`20576f726c64`; // " World"
+
+                    const hashArray = await cryptoNode.computeHash(alg, [chunk1, chunk2]);
+                    const hashSingle = await cryptoNode.computeHash(alg, testData);
+                    expect(Bytes.toHex(hashArray)).to.equal(
+                        Bytes.toHex(hashSingle),
+                        `Algorithm ${HASH_ALGORITHM_NAMES[alg]} array hashing failed`,
+                    );
+                });
+
+                it("produces different hashes for different inputs", async () => {
+                    const hash1 = await cryptoNode.computeHash(alg, testData);
+                    const hash2 = await cryptoNode.computeHash(alg, testData2);
+                    expect(Bytes.toHex(hash1)).to.not.equal(Bytes.toHex(hash2));
+                });
+            });
+        });
+
+        describe("Error Handling", () => {
+            it("throws error for invalid algorithm ID", () => {
+                expect(() => cryptoNode.computeHash(99 as any, testData)).throw;
+            });
+
+            it("throws error for zero algorithm ID", () => {
+                expect(() => cryptoNode.computeHash(0 as any, testData)).throw;
+            });
         });
     });
 });

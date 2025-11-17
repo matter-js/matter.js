@@ -5,6 +5,7 @@
  */
 
 import { Logger } from "#general";
+import { DclCertificateService } from "@matter/protocol";
 import { Argv } from "yargs";
 import { MatterNode } from "../MatterNode";
 import { setLogLevel } from "../app";
@@ -220,7 +221,42 @@ export default function commands(theNode: MatterNode) {
                             },
                             argv => doThreadCredentials(theNode, { action: "set", ...argv }),
                         );
-                }),
+                })
+
+                // DCL Test Certificates
+                .command(
+                    "dcl-test-certificates",
+                    "Manage DCL test certificate fetching (production only vs. include test)",
+                    yargs => {
+                        return yargs
+                            .command(
+                                "* [action]",
+                                "get/delete DCL test certificate setting",
+                                yargs => {
+                                    return yargs.positional("action", {
+                                        describe: "get/delete",
+                                        choices: ["get", "delete"] as const,
+                                        default: "get",
+                                        type: "string",
+                                    });
+                                },
+                                async argv => doDclTestCertificates(theNode, argv),
+                            )
+                            .command(
+                                "set <value>",
+                                "Enable or disable test certificate fetching from DCL",
+                                yargs => {
+                                    return yargs.positional("value", {
+                                        describe: "Enable test certificates (true/false)",
+                                        type: "string",
+                                        choices: ["true", "false"] as const,
+                                        demandOption: true,
+                                    });
+                                },
+                                async argv => doDclTestCertificates(theNode, { action: "set", ...argv }),
+                            );
+                    },
+                ),
         handler: async (argv: any) => {
             argv.unhandled = true;
         },
@@ -421,6 +457,49 @@ async function doThreadCredentials(
             await theNode.Store.delete("ThreadName");
             await theNode.Store.delete("ThreadOperationalDataset");
             console.log(`Thread network credentials were deleted`);
+            break;
+    }
+}
+
+async function doDclTestCertificates(
+    theNode: MatterNode,
+    args: {
+        action: string;
+        value?: string;
+    },
+) {
+    const { action, value } = args;
+    switch (action) {
+        case "get":
+            const enabled = await theNode.Store.get<boolean>("DclFetchTestCertificates", false);
+            console.log(
+                `DCL test certificates: ${enabled ? "enabled (production + test + GitHub)" : "disabled (production only)"}`,
+            );
+            break;
+        case "set":
+            if (value === undefined) {
+                console.log(`Cannot change DCL test certificates setting: New value not provided`);
+                return;
+            }
+            const newValue = value === "true";
+            await theNode.Store.set("DclFetchTestCertificates", newValue);
+
+            // Close existing certificate service so it gets re-initialized with new setting
+            await theNode.environment.close(DclCertificateService);
+
+            console.log(
+                `DCL test certificates: ${newValue ? "enabled (production + test + GitHub)" : "disabled (production only)"}. Please restart the shell for the changes to take effect.`,
+            );
+            break;
+        case "delete":
+            await theNode.Store.delete("DclFetchTestCertificates");
+
+            // Close existing certificate service so it gets re-initialized with new setting
+            await theNode.environment.close(DclCertificateService);
+
+            console.log(
+                `DCL test certificates setting reset to default (disabled). Please restart the shell for the changes to take effect.`,
+            );
             break;
     }
 }

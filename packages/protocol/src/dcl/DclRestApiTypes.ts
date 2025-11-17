@@ -3,7 +3,8 @@
  * Copyright 2022-2025 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { DeviceModelDclSchema, DeviceSoftwareVersionModelDclSchema, ProductAttestationDclSchema } from "@matter/types";
+
+import { DeviceModelDclSchema, DeviceSoftwareVersionModelDclSchema, ProductAttestationDclSchema } from "#types";
 
 export interface DclApiErrorResponse {
     code: number;
@@ -16,7 +17,7 @@ export interface DclPkiRootCertificateSubjectReference {
     subjectKeyId: string;
 }
 
-/** Response for /dcl/pki/certificates/approved */
+/** Response for /dcl/pki/root-certificates */
 export interface DclPkiRootCertificatesResponse {
     approvedRootCertificates: {
         certs: DclPkiRootCertificateSubjectReference[];
@@ -26,7 +27,7 @@ export interface DclPkiRootCertificatesResponse {
 
 /** Response for /dcl/pki/certificates/{subject}/{subjectKeyId} */
 export interface DclPkiCertificateResponse {
-    approvedRootCertificates: {
+    approvedCertificates: {
         subject: string;
         subjectKeyId: string;
         certs: ProductAttestationDclSchema[];
@@ -34,7 +35,7 @@ export interface DclPkiCertificateResponse {
     };
 }
 
-/** Response for /dcl/models/model/{vid}/{pid} */
+/** Response for /dcl/model/models/{vid}/{pid} */
 export interface DclModelModelsWithVidPidResponse {
     model: DeviceModelDclSchema;
 }

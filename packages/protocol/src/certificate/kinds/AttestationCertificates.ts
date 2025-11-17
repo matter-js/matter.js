@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Crypto, DerBitString, DerCodec, X962 } from "#general";
+import { Bytes, Crypto, DerBitString, DerCodec, X962 } from "#general";
 import { assertCertificateDerSize } from "./common.js";
 import { AttestationCertificate } from "./definitions/attestation.js";
 import { X509Certificate } from "./definitions/base.js";
@@ -39,7 +39,13 @@ export abstract class AttestationBaseCertificate<CT extends X509Certificate> ext
 }
 
 /** PAA (Product Attestation Authority) Certificate. */
-export class Paa extends AttestationBaseCertificate<AttestationCertificate.Paa> {}
+export class Paa extends AttestationBaseCertificate<AttestationCertificate.Paa> {
+    /** Construct the class from an ASN.1/DER encoded certificate */
+    static fromAsn1(asn1: Bytes): Paa {
+        const cert = X509Base.parseAsn1Certificate(asn1, X509Base.REQUIRED_PAA_EXTENSIONS);
+        return new Paa(cert as AttestationCertificate.Paa);
+    }
+}
 
 /** PAI (Product Attestation Intermediate) Certificate. */
 export class Pai extends AttestationBaseCertificate<AttestationCertificate.Pai> {}

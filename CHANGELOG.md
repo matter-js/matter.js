@@ -25,7 +25,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: MaybeAsyncStorage got renamed to Storage because it is the only interface from now on
     - Feature: Adds Blob support to the Storage interface
     - Feature: Add BDX (Bulk Data eXchange) protocol support according to Matter specification
-    - Enhancement: Allows SHA 256 generation using async iterator or readable stream reader as input
+    - Feature: Added support for multiple hash algorithms (SHA-256, SHA-384, SHA-512, SHA-512/224, SHA-512/256, SHA3-256) via HashAlgorithm enum with IANA identifiers
+    - Enhancement: Enhanced Crypto.computeHash() to support streaming data via ReadableStreamDefaultReader and AsyncIterator in addition to Bytes and Bytes[] for memory-efficient hash computation
     - Enhancement: Added platform abstractions for of HTTP, WebSockets and MQTT
     - Enhancement: Added polyfills and additional types for decorators
     - Enhancement: Split out access to random values from Crypto interface to an Entropy interface
@@ -60,6 +61,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Exposes Node's native HTTP server via new abstractions in `@matter/general`
     - Fix: Corrects network interface selection logic for windows
 
+- @matter/nodejs-shell
+    - Feature: Added `cert` command for DCL certificate management with subcommands: list, details, as-pem, delete, and update
+    - Feature: Added `ota` command for OTA update management with subcommands: info, extract, verify, list, add, delete, and copy for managing OTA image files in storage
+
 - @matter/protocol
     - Breaking: The platform-specific BLE abstraction has changed so that higher-level logic may be shared across platforms
     - Breaking: Low-level advertising APIs have changed significantly; in particular, `MdnsBroadcaster`, `MdnsInstanceBroadcaster` and `MdnsScanner` are replaced by `MdnsServer`, `MdnsAdvertisement` and `MdnsClient`
@@ -68,6 +73,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Adds support for extended advertisement
     - Feature: Added support for Case Authenticated Tags (CATs) in operational CASE sessions for enhanced access control
     - Feature: Added support to read and parse ASN.1 formatted certificates
+    - Feature: Added DclCertificateService for managing Product Attestation Authority (PAA) certificates from the Distributed Compliance Ledger (DCL) with automatic updates from production DCL, test DCL, and GitHub development repositories
+    - Feature: Added DclOtaUpdateService for checking and downloading Over-The-Air (OTA) software updates from DCL with full validation and checksum verification
+    - Feature: Added OTA image processing utilities (OtaImageReader, OtaImageWriter) for reading, validating, extracting, and creating Matter OTA update files
     - Enhancement: MDNS broadcasts more aggressively until a connection is established
     - Enhancement: MDNS and BLE advertising schedules are now configurable and conform to Matter and DNS-SD specifications
     - Enhancement: MDNS client and server efficiency is improved with a shared socket and message parser

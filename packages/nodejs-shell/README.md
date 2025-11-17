@@ -63,6 +63,8 @@ matter-node> help
   config                                   Manage global configuration
   session                                  Manage session
   nodes                                    Manage nodes
+  ota                                      OTA update operations
+  cert                                     Certificate management operations
   subscribe [node-id]                      Subscribe to all events and attributes of a node
   identify [time] [node-id] [endpoint-id]  Trigger Identify command with given time (default 10s). Execute on one node or endpoint, else all onoff clusters will be controlled
   discover                                 Handle device discovery
@@ -81,11 +83,12 @@ For instance `config --help` will display all node configuration for the persist
 
 ```
 > config
-  config loglevel             Manage Console and File LogLevels
-  config logfile              Manage Logfile path
-  config ble-hci              Manage BLE HCI ID (Linux)
-  config wifi-credentials     Manage Wi-Fi credentials used in commissioning process
-  config thread-credentials   Manage Thread credentials used in commissioning process
+  config loglevel                 Manage Console and File LogLevels
+  config logfile                  Manage Logfile path
+  config ble-hci                  Manage BLE HCI ID (Linux)
+  config wifi-credentials         Manage Wi-Fi credentials used in commissioning process
+  config thread-credentials       Manage Thread credentials used in commissioning process
+  config dcl-test-certificates    Manage DCL test certificate fetching
 
 Done
 ```
@@ -95,6 +98,24 @@ Done
 By default the Shell logs messages to the console. The log level can be changed using the `config loglevel` command. The log level can be set to `error`, `warn`, `info`, `debug` or `trace`. The console default is "info".
 
 Additionally the Shell can log to a file. The log file path can be set using the `config logfile` command or as commandline parameter (which will then be persisted in the configuration). The log file always contain the logs in "debug" level.
+
+### DCL Test Certificates
+
+By default, the shell only fetches production certificates from the Distributed Compliance Ledger (DCL). To also fetch test certificates from DCL and development certificates from GitHub, use the `config dcl-test-certificates` command:
+
+```
+config dcl-test-certificates set true
+config dcl-test-certificates set false
+config dcl-test-certificates get
+config dcl-test-certificates delete
+```
+
+When enabled, the certificate service will fetch:
+- Production certificates from DCL
+- Test certificates from DCL
+- Development certificates from the Matter GitHub repository
+
+When disabled (default), only production certificates from DCL are fetched. Changes require restarting the shell to take effect.
 
 ### Commission a device
 
@@ -128,6 +149,190 @@ Additional parameters to the connect command are the subscription delays (min/ma
 ### Log a Node structure
 
 To see the full node structure of a node you can use the `nodes log` command and provide the node-id as parameter (`nodes log 5000`).
+
+### OTA Update Management
+
+The shell provides comprehensive OTA (Over-The-Air) update management through DCL (Distributed Compliance Ledger) integration and local file operations.
+
+#### Check for OTA updates for a commissioned node
+
+Use `nodes ota check <node-id>` to query the DCL for available OTA updates for a specific commissioned node. The command uses the node's basic information (vendor ID, product ID, current software version) to check for newer firmware versions.
+
+```
+nodes ota check 5000
+nodes ota check 5000 --mode test
+```
+
+Options:
+- `--mode <prod|test>`: Specify DCL mode - production (default) or test
+
+The command will display information about available updates including version, file size, and download URL.
+
+#### Download OTA updates for a commissioned node
+
+Use `nodes ota download <node-id>` to check for and download OTA updates from DCL. The downloaded update is validated and stored locally for later use.
+
+```
+nodes ota download 5000
+nodes ota download 5000 --mode test --force
+```
+
+Options:
+- `--mode <prod|test>`: Specify DCL mode - production (default) or test
+- `--force`: Force re-download even if the update is already cached locally
+
+#### Display OTA image information
+
+Use `ota info <file>` to display detailed information about an OTA image file including vendor ID, product ID, software version, and applicable version ranges.
+
+```
+ota info file:///path/to/firmware.bin
+ota info fff1-8000-prod
+```
+
+The command accepts:
+- `file://` prefix: Absolute file path on the filesystem
+- No prefix: Storage key for a previously downloaded/imported OTA file
+
+#### List stored OTA images
+
+Use `ota list` to list all OTA images currently stored locally with optional filtering.
+
+```
+ota list
+ota list --vendor 0xfff1
+ota list --vendor 0xfff1 --product 0x8000
+ota list --mode test
+```
+
+Options:
+- `--vendor <vid>`: Filter by vendor ID (hex format like 0xFFF1 or decimal)
+- `--product <pid>`: Filter by product ID (hex format like 0x8000 or decimal) - requires --vendor
+- `--mode <prod|test>`: Filter by DCL mode (production or test)
+
+#### Add OTA image to storage
+
+Use `ota add <file>` to import a local OTA image file into storage after validation.
+
+```
+ota add /path/to/firmware.bin
+ota add /path/to/test-firmware.bin --mode test
+```
+
+Options:
+- `--mode <prod|test>`: Mark the OTA image as production (default) or test mode
+
+The command validates the OTA file format and extracts metadata before storing it.
+
+#### Delete OTA images from storage
+
+Use `ota delete` to remove OTA images from local storage.
+
+```
+ota delete fff1-8000-prod
+ota delete --vendor 0xfff1
+ota delete --vendor 0xfff1 --product 0x8000 --mode test
+```
+
+Options:
+- `<keyname>`: Delete specific OTA file by storage key
+- `--vendor <vid>`: Delete all OTA files for a vendor
+- `--product <pid>`: Delete specific product (requires --vendor)
+- `--mode <prod|test>`: Specify DCL mode - production (default) or test
+
+#### Copy OTA image to filesystem
+
+Use `ota copy` to export a stored OTA image to the filesystem.
+
+```
+ota copy fff1-8000-prod /path/to/output.bin
+ota copy 0xfff1 0x8000 prod /path/to/output.bin
+```
+
+Both forms are supported:
+- `ota copy <keyname> <target>`: Copy by storage key
+- `ota copy <vendor-id> <product-id> <mode> <target>`: Copy by vendor/product/mode
+
+If target is a directory, the source keyname is used as the filename.
+
+#### Verify OTA image
+
+Use `ota verify <file>` to validate an OTA image file without extracting the payload. This performs full validation including header parsing and checksum verification.
+
+```
+ota verify file:///path/to/firmware.bin
+ota verify fff1-8000-prod
+```
+
+#### Extract OTA payload
+
+Use `ota extract <file>` to extract and validate the payload from an OTA image file. The payload is written to a new file with "-payload" added to the filename.
+
+```
+ota extract /path/to/firmware.bin
+```
+
+The extracted payload file will be created at `/path/to/firmware-payload.bin`.
+
+### Certificate Management
+
+The shell provides certificate management operations for PAA (Product Attestation Authority) certificates stored locally. Certificates are automatically fetched from DCL (Distributed Compliance Ledger) and can be managed through the cert commands.
+
+#### List certificates
+
+Use `cert list` to display all stored certificates with their subject key IDs and subject information. Optionally filter by vendor ID.
+
+```
+cert list
+cert list 0xFFF1
+```
+
+The command displays:
+- Subject Key ID (unique identifier)
+- Subject (certificate subject as text)
+
+For detailed information about a specific certificate, use the `cert details` command.
+
+#### View certificate details
+
+Use `cert details <subject-key-id>` to view detailed metadata about a specific certificate.
+
+```
+cert details 6AFD22771F511FECBF1641976710DCDC31A1717E
+```
+
+This displays all certificate metadata in JSON format, including subject information, serial number, VID, and more.
+
+#### Get certificate as PEM
+
+Use `cert as-pem <subject-key-id>` to retrieve a certificate in PEM format, which can be saved to a file or used for verification.
+
+```
+cert as-pem 6AFD22771F511FECBF1641976710DCDC31A1717E
+cert as-pem 6AFD22771F511FECBF1641976710DCDC31A1717E > certificate.pem
+```
+
+The PEM format output can be redirected to a file for use with standard certificate tools.
+
+#### Delete certificate
+
+Use `cert delete <subject-key-id>` to remove a certificate from local storage.
+
+```
+cert delete 6AFD22771F511FECBF1641976710DCDC31A1717E
+```
+
+Note: This only removes the certificate from local storage. Production certificates from DCL will be re-downloaded during the next automatic update cycle.
+
+#### Update certificates from DCL
+
+Use `cert update` to manually trigger an update of certificates from the Distributed Compliance Ledger.
+
+```
+cert update
+```
+
+This fetches the latest production certificates from DCL and, if configured, also fetches test certificates from DCL and GitHub. The shell automatically performs periodic updates, but this command allows manual updates when needed.
 
 ### Commissioning related node operations
 

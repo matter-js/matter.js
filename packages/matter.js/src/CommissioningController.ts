@@ -522,7 +522,7 @@ export class CommissioningController {
         return controller.getCommissionedNodes() ?? [];
     }
 
-    /** Returns an arra with all commissioned NodeIds and their metadata. */
+    /** Returns an array with all commissioned NodeIds and their metadata. */
     getCommissionedNodesDetails() {
         const controller = this.#assertControllerIsStarted();
 

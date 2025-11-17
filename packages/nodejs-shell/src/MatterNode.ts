@@ -7,6 +7,7 @@
 // Include this first to auto-register Crypto, Network and Time Node.js implementations
 import { Environment, Logger, StorageContext, StorageService } from "#general";
 import { NodeId } from "#types";
+import { DclCertificateService, DclOtaUpdateService } from "@matter/protocol";
 import { CommissioningController, ControllerStore } from "@project-chip/matter.js";
 import { CommissioningControllerNodeOptions, Endpoint, PairedNode } from "@project-chip/matter.js/device";
 import { join } from "node:path";
@@ -16,11 +17,12 @@ const logger = Logger.get("Node");
 export class MatterNode {
     #storageLocation?: string;
     #storageContext?: StorageContext;
-    readonly #environment?: Environment;
+    readonly #environment: Environment;
     commissioningController?: CommissioningController;
     #started = false;
     readonly #nodeNum: number;
     readonly #netInterface?: string;
+    #dclFetchTestCertificates = false;
 
     constructor(nodeNum: number, netInterface?: string) {
         this.#environment = Environment.default;
@@ -31,6 +33,24 @@ export class MatterNode {
 
     get storageLocation() {
         return this.#storageLocation;
+    }
+
+    get environment() {
+        return this.#environment;
+    }
+
+    get otaService() {
+        return this.environment.has(DclOtaUpdateService)
+            ? this.environment.get(DclOtaUpdateService)
+            : new DclOtaUpdateService(this.environment); // Will add itself on initial instantiation
+    }
+
+    get certificateService() {
+        if (this.environment.has(DclCertificateService)) {
+            return this.environment.get(DclCertificateService);
+        }
+
+        return new DclCertificateService(this.environment, { fetchTestCertificates: this.#dclFetchTestCertificates });
     }
 
     async initialize(resetStorage: boolean) {
@@ -62,6 +82,9 @@ export class MatterNode {
                 await controllerStore.erase();
             }
             this.#storageContext = controllerStore.storage.createContext("Node");
+
+            // Read DCL test certificates setting
+            this.#dclFetchTestCertificates = await this.#storageContext.get<boolean>("DclFetchTestCertificates", false);
 
             const storageService = this.commissioningController.env.get(StorageService);
             const baseLocation = storageService.location;

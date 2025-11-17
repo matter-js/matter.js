@@ -11,9 +11,12 @@ import {
     CRYPTO_SYMMETRIC_KEY_LENGTH,
     Entropy,
     Environment,
+    HASH_ALGORITHM_NAMES,
+    HashAlgorithm,
     Key,
     NodeJsCryptoApiLike,
     NodeJsStyleCrypto,
+    NotImplementedError,
     PrivateKey,
     PublicKey,
     StandardCrypto,
@@ -121,6 +124,29 @@ export class ReactNativeCrypto extends StandardCrypto {
      * QuickCrypto's subtle doesn't support HMAC signing; instead rely on Node.js crypto emulation.
      */
     override signHmac = nodeJsCrypto.signHmac.bind(nodeJsCrypto);
+
+    /**
+     * Override computeHash to block Tier 3 algorithms (SHA-512/224, SHA-512/256, SHA3-256).
+     * React Native/QuickCrypto is assumed to not support these advanced algorithms.
+     */
+    override computeHash(
+        algorithm: HashAlgorithm,
+        data: Bytes | Bytes[] | ReadableStreamDefaultReader<Bytes> | AsyncIterator<Bytes>,
+    ) {
+        // Block unsupported algorithms
+        if (
+            algorithm === HashAlgorithm.SHA512_224 ||
+            algorithm === HashAlgorithm.SHA512_256 ||
+            algorithm === HashAlgorithm.SHA3_256
+        ) {
+            throw new NotImplementedError(
+                `Hash algorithm ${HASH_ALGORITHM_NAMES[algorithm]} (${HashAlgorithm[algorithm]}) is not supported in ReactNativeCrypto. Use Node.js-based crypto implementation.`,
+            );
+        }
+
+        // Delegate to StandardCrypto for algorithms SHA-256, SHA-512 and SHA-384
+        return super.computeHash(algorithm, data);
+    }
 }
 
 {

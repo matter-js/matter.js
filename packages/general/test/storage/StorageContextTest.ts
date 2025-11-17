@@ -93,7 +93,7 @@ describe("StorageContext", () => {
 
         expect(() => {
             storageContext.get("key");
-        }).throw(StorageError, "No value found for key key in context context and no default value specified!");
+        }).throw(StorageError, "No value found for key key in context context and no default value specified");
     });
 
     it("check if key is set", async () => {

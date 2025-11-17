@@ -12,18 +12,23 @@ import {
     DclPkiRootCertificatesResponse,
     DclPkiRootCertificateSubjectReference,
 } from "#dcl/DclRestApiTypes.js";
-import { MatterError } from "#general";
+import { Duration, Logger, MatterError, Seconds } from "#general";
 
+const logger = new Logger("DclClient");
+
+// Swagger for DCL: https://zigbee-alliance.github.io/distributed-compliance-ledger/#/
 const DCL_PRODUCTION_URL = "https://on.dcl.csa-iot.org";
 const DCL_TEST_URL = "https://on.test-net.dcl.csa-iot.org";
+
+const DEFAULT_DCL_TIMEOUT = Seconds(5);
 
 /** Base class for all DCL-related errors */
 export class MatterDclError extends MatterError {}
 
 /** Error thrown when fetching data from DCL fails */
 export class MatterDclResponseError extends MatterDclError {
-    constructor(path: string, error: DclApiErrorResponse) {
-        super(`Error fetching ${path} from DCL: ${error.code} - ${error.message}`);
+    constructor(path: string, error: DclApiErrorResponse, options?: ErrorOptions) {
+        super(`Error fetching ${path} from DCL: ${error.code} - ${error.message}`, options);
     }
 }
 
@@ -35,15 +40,17 @@ export class DclClient {
         this.#baseUrl = this.production ? DCL_PRODUCTION_URL : DCL_TEST_URL;
     }
 
-    async #fetchJson<ResponseT>(path: string): Promise<ResponseT> {
-        const url = new URL(path, this.#baseUrl);
+    async #fetchJson<ResponseT>(path: string, options?: DclClient.Options): Promise<ResponseT> {
+        const url = new URL(path, this.#baseUrl).toString();
+        logger.debug(`Fetching for DCL:`, url);
         try {
-            const response = await fetch(url.toString(), {
+            const timeoutMs = options?.timeout ?? DEFAULT_DCL_TIMEOUT;
+            const response = await fetch(url, {
                 method: "GET",
                 headers: {
                     "Content-Type": "application/json",
                 },
-                signal: AbortSignal.timeout(5_000), // 5 seconds timeout
+                signal: AbortSignal.timeout(timeoutMs),
             });
 
             if (!response.ok) {
@@ -52,19 +59,22 @@ export class DclClient {
 
             return await response.json();
         } catch (error) {
-            if (error instanceof MatterDclResponseError) {
-                throw error; // Re-throw custom DCL error
-            }
-            throw new MatterDclResponseError(path, {
-                code: 500,
-                message: error instanceof Error ? error.message : "Unknown Error",
-                details: [],
-            });
+            MatterDclResponseError.reject(error);
+            MatterError.accept(error);
+            throw new MatterDclResponseError(
+                path,
+                {
+                    code: 500,
+                    message: error.message,
+                    details: [],
+                },
+                { cause: error },
+            );
         }
     }
 
-    async fetchRootCertificateList() {
-        const certList = await this.#fetchJson<DclPkiRootCertificatesResponse>("/certificates/approved");
+    async fetchRootCertificateList(options?: DclClient.Options) {
+        const certList = await this.#fetchJson<DclPkiRootCertificatesResponse>("/dcl/pki/root-certificates", options);
         if (certList?.approvedRootCertificates?.schemaVersion !== 0) {
             throw new MatterDclError(
                 `Unsupported DCL Root Certificate schema version: ${certList.approvedRootCertificates.schemaVersion}`,
@@ -73,26 +83,26 @@ export class DclClient {
         return certList.approvedRootCertificates.certs;
     }
 
-    async fetchRootCertificateBySubject(subject: DclPkiRootCertificateSubjectReference) {
-        const path = `/certificates/${encodeURIComponent(subject.subject)}/${encodeURIComponent(subject.subjectKeyId)}`;
-        const response = await this.#fetchJson<DclPkiCertificateResponse>(path);
+    async fetchRootCertificateBySubject(subject: DclPkiRootCertificateSubjectReference, options?: DclClient.Options) {
+        const path = `/dcl/pki/certificates/${encodeURIComponent(subject.subject)}/${encodeURIComponent(subject.subjectKeyId)}`;
+        const response = await this.#fetchJson<DclPkiCertificateResponse>(path, options);
         if (
             !response ||
-            !response.approvedRootCertificates ||
-            response.approvedRootCertificates.subject !== subject.subject ||
-            response.approvedRootCertificates.subjectKeyId !== subject.subjectKeyId ||
-            response.approvedRootCertificates.schemaVersion !== 0
+            !response.approvedCertificates ||
+            response.approvedCertificates.subject !== subject.subject ||
+            response.approvedCertificates.subjectKeyId !== subject.subjectKeyId ||
+            response.approvedCertificates.schemaVersion !== 0
         ) {
             throw new MatterDclError(
                 `Root certificate not found for subject: ${subject.subject}, subjectKeyId: ${subject.subjectKeyId}`,
             );
         }
-        return response.approvedRootCertificates.certs;
+        return response.approvedCertificates.certs;
     }
 
-    async fetchModelByVidPid(vid: number, pid: number) {
-        const path = `/models/model/${encodeURIComponent(vid)}/${encodeURIComponent(pid)}`;
-        const response = await this.#fetchJson<DclModelModelsWithVidPidResponse>(path);
+    async fetchModelByVidPid(vid: number, pid: number, options?: DclClient.Options) {
+        const path = `/dcl/model/models/${encodeURIComponent(vid)}/${encodeURIComponent(pid)}`;
+        const response = await this.#fetchJson<DclModelModelsWithVidPidResponse>(path, options);
         if (
             !response ||
             !response.model ||
@@ -105,9 +115,9 @@ export class DclClient {
         return response.model;
     }
 
-    async fetchModelVersionsByVidPid(vid: number, pid: number) {
-        const path = `/models/versions/${encodeURIComponent(vid)}/${encodeURIComponent(pid)}`;
-        const response = await this.#fetchJson<DclModelVersionsWithVidPidResponse>(path);
+    async fetchModelVersionsByVidPid(vid: number, pid: number, options?: DclClient.Options) {
+        const path = `/dcl/model/versions/${encodeURIComponent(vid)}/${encodeURIComponent(pid)}`;
+        const response = await this.#fetchJson<DclModelVersionsWithVidPidResponse>(path, options);
         if (
             !response ||
             !response.modelVersions ||
@@ -120,9 +130,14 @@ export class DclClient {
         return response.modelVersions.softwareVersions;
     }
 
-    async fetchModelVersionByVidPidSoftwareVersion(vid: number, pid: number, softwareVersion: number) {
-        const path = `/models/versions/${encodeURIComponent(vid)}/${encodeURIComponent(pid)}/${encodeURIComponent(softwareVersion)}`;
-        const response = await this.#fetchJson<DclModelVersionWithVidPidSoftwareVersionResponse>(path);
+    async fetchModelVersionByVidPidSoftwareVersion(
+        vid: number,
+        pid: number,
+        softwareVersion: number,
+        options?: DclClient.Options,
+    ) {
+        const path = `/dcl/model/versions/${encodeURIComponent(vid)}/${encodeURIComponent(pid)}/${encodeURIComponent(softwareVersion)}`;
+        const response = await this.#fetchJson<DclModelVersionWithVidPidSoftwareVersionResponse>(path, options);
         if (
             !response ||
             !response.modelVersion ||
@@ -136,5 +151,12 @@ export class DclClient {
             );
         }
         return response.modelVersion;
+    }
+}
+
+export namespace DclClient {
+    export interface Options {
+        /** Timeout for DCL requests. Default is 5s. */
+        timeout?: Duration;
     }
 }

@@ -29,6 +29,42 @@ export const CRYPTO_EC_KEY_BYTES = 32;
 export const CRYPTO_AUTH_TAG_LENGTH = 16;
 export const CRYPTO_SYMMETRIC_KEY_LENGTH = 16;
 
+/**
+ * Hash algorithms identified by IANA Hash Function identifiers.
+ * Based on FIPS 180-4 Section 6.2 and FIPS 202.
+ *
+ * The enum values are the FIPS-defined algorithm IDs.
+ */
+export enum HashAlgorithm {
+    SHA256 = 1,
+    SHA512 = 7,
+    SHA384 = 8,
+    SHA512_224 = 10,
+    SHA512_256 = 11,
+    SHA3_256 = 12,
+}
+
+export const HASH_ALGORITHM_OUTPUT_LENGTHS: Record<HashAlgorithm, number> = {
+    [HashAlgorithm.SHA256]: 32,
+    [HashAlgorithm.SHA512]: 64,
+    [HashAlgorithm.SHA384]: 48,
+    [HashAlgorithm.SHA512_224]: 28,
+    [HashAlgorithm.SHA512_256]: 32,
+    [HashAlgorithm.SHA3_256]: 32,
+};
+
+/**
+ * Human-readable names for hash algorithms.
+ */
+export const HASH_ALGORITHM_NAMES: Record<HashAlgorithm, string> = {
+    [HashAlgorithm.SHA256]: "SHA-256",
+    [HashAlgorithm.SHA512]: "SHA-512",
+    [HashAlgorithm.SHA384]: "SHA-384",
+    [HashAlgorithm.SHA512_224]: "SHA-512/224",
+    [HashAlgorithm.SHA512_256]: "SHA-512/256",
+    [HashAlgorithm.SHA3_256]: "SHA3-256",
+};
+
 const logger = Logger.get("Crypto");
 
 /**
@@ -59,11 +95,22 @@ export abstract class Crypto extends Entropy {
     abstract decrypt(key: Bytes, data: Bytes, nonce: Bytes, aad?: Bytes): Bytes;
 
     /**
-     * Compute the SHA-256 hash of a buffer.
+     * Compute a cryptographic hash using the specified algorithm.
      */
-    abstract computeSha256(
+    abstract computeHash(
+        algorithm: HashAlgorithm,
         data: Bytes | Bytes[] | ReadableStreamDefaultReader<Bytes> | AsyncIterator<Bytes>,
     ): MaybePromise<Bytes>;
+
+    /**
+     * Compute the SHA-256 hash of a buffer, stream or async iterator.
+     * Convenience method that calls computeHash(HashAlgorithm.SHA256, data), but commonly used in Matter.
+     */
+    computeSha256(
+        data: Bytes | Bytes[] | ReadableStreamDefaultReader<Bytes> | AsyncIterator<Bytes>,
+    ): MaybePromise<Bytes> {
+        return this.computeHash(HashAlgorithm.SHA256, data);
+    }
 
     /**
      * Create a key from a secret using PBKDF2.

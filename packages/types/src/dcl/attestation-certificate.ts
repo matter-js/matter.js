@@ -47,7 +47,7 @@ export interface ProductAttestationDclSchema {
      * The authority key identifier extension provides a means of identifying the public key corresponding
      * to the private key used to sign a Matter certificate. This is OPTIONAL for PAA Certificates.
      */
-    authorityKeyID?: string;
+    authorityKeyId?: string;
 
     /**
      * This field SHALL contain the PAA certificate’s Subject field, as defined in PAA in PAA Certificate.
@@ -61,7 +61,7 @@ export interface ProductAttestationDclSchema {
      * It is defined in PAA Certificate and Operational Root CA Certificates (RCAC). This is OPTIONAL
      * for PAA Certificates. This is encoded as defined in Section 6.1, “Certificate Common Conventions”.
      */
-    rootSubjectKeyID?: string;
+    rootSubjectKeyId?: string;
 
     /**
      * This field SHALL signify whether the associated certificate is PAA Certificate.
@@ -75,18 +75,23 @@ export interface ProductAttestationDclSchema {
     owner: string;
 
     /**
-     * This field SHALL contain the certificate’s Subject field. This is OPTIONAL for PAA Certificates. This
-     * is encoded as defined in Section 6.1, “Certificate Common Conventions”.
+     * This field SHALL contain the certificate's Subject field. This is OPTIONAL for PAA Certificates. This
+     * is encoded as defined in Section 6.1, "Certificate Common Conventions".
      * Base64 encoded
      * TODO Check optional or not??
      */
     subject?: string;
 
     /**
-     * This field SHALL uniquely identify the PAA certificate’s Subject Key Identifier mandatory extension.
-     * This is encoded as defined in Section 6.1.2, “Key Identifier Extension Constraints”.
+     * Human-readable text representation of the certificate's Subject field.
      */
-    subjectKeyID: string;
+    subjectAsText?: string;
+
+    /**
+     * This field SHALL uniquely identify the PAA certificate's Subject Key Identifier mandatory extension.
+     * This is encoded as defined in Section 6.1.2, "Key Identifier Extension Constraints".
+     */
+    subjectKeyId: string;
 
     /**
      * This field SHALL contain list of DCL Keys that approved the PAA Certificate admission into DCL.
