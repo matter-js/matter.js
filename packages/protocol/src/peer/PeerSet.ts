@@ -111,7 +111,6 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     readonly #transports: ConnectionlessTransportSet;
     readonly #caseClient: CaseClient;
     readonly #peers = new BasicSet<Peer>();
-    readonly #peersByAddress = new PeerAddressMap<Peer>();
     readonly #construction: Construction<PeerSet>;
     readonly #store: PeerAddressStore;
     readonly #interactionQueue = new InteractionQueue();
@@ -137,16 +136,11 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         };
 
         this.#peers.added.on(peer => {
-            this.#peersByAddress.set(peer.address, peer);
             peer.sessions.deleted.on(() => {
                 if (!peer.sessions.size) {
                     this.#disconnected.emit(peer);
                 }
             });
-        });
-
-        this.#peers.deleted.on(peer => {
-            this.#peersByAddress.delete(peer.address);
         });
 
         this.#sessions.retry.on((session, count) => {
@@ -186,7 +180,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
      * Creates the peer if not already present.
      */
     for(address: PeerAddress) {
-        let peer = this.#peersByAddress.get(address);
+        let peer = this.get(address);
         if (peer) {
             return peer;
         }
@@ -198,10 +192,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     }
 
     has(item: PeerAddress | PeerDescriptor | Peer) {
-        if ("address" in item) {
-            return this.#peersByAddress.has(item.address);
-        }
-        return this.#peersByAddress.has(item);
+        return !!this.get(item);
     }
 
     get size() {
@@ -269,7 +260,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         }
 
         const { allowUnknownPeer, operationalAddress } = options;
-        if (!this.#peersByAddress.has(address) && !allowUnknownPeer) {
+        if (!this.has(address) && !allowUnknownPeer) {
             throw new UnknownNodeError(`Cannot connect to unknown device ${PeerAddress(address)}`);
         }
 
@@ -332,7 +323,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
 
             // Enrich discoveryData with data from the node store when not provided
             const { discoveryData } = discoveryOptions ?? {
-                discoveryData: this.#peersByAddress.get(address)?.descriptor.discoveryData,
+                discoveryData: this.get(address)?.descriptor.discoveryData,
             };
             // Try to use first result for one last try before we need to reconnect
             const operationalAddress = this.#knownOperationalAddressFor(address, true);
@@ -359,9 +350,9 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
      */
     get(peer: PeerAddress | PeerDescriptor) {
         if ("address" in peer) {
-            return this.#peersByAddress.get(peer.address);
+            return this.#peers.get("address", PeerAddress(peer.address));
         }
-        return this.#peersByAddress.get(peer);
+        return this.#peers.get("address", PeerAddress(peer));
     }
 
     async close() {
@@ -392,7 +383,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         } catch (error) {
             if (
                 (error instanceof DiscoveryError || error instanceof NoResponseTimeoutError) &&
-                this.#peersByAddress.has(address) &&
+                this.has(address) &&
                 tryOperationalAddress === undefined
             ) {
                 logger.info(`Resume failed, remove all sessions for ${PeerAddress(address)}`);
@@ -413,7 +404,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             discoveryOptions: {
                 discoveryType: requestedDiscoveryType = NodeDiscoveryType.FullDiscovery,
                 timeout,
-                discoveryData = this.#peersByAddress.get(address)?.descriptor.discoveryData,
+                discoveryData = this.get(address)?.descriptor.discoveryData,
             } = {},
             caseAuthenticatedTags,
         } = options ?? {};
@@ -742,7 +733,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         operationalServerAddress?: ServerAddressUdp,
         discoveryData?: DiscoveryData,
     ) {
-        let peer = this.#peersByAddress.get(address);
+        let peer = this.get(address);
         if (peer === undefined) {
             peer = new Peer({ address, dataStore: await this.#store.createNodeStore(address) }, this.#peerContext);
             this.#peers.add(peer);
@@ -771,7 +762,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     }
 
     #getLastOperationalAddress(address: PeerAddress) {
-        return this.#peersByAddress.get(address)?.descriptor.operationalAddress;
+        return this.get(address)?.descriptor.operationalAddress;
     }
 
     #handleFirstRetry(session: Session) {
