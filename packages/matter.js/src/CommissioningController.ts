@@ -33,6 +33,7 @@ import {
     FabricGroups,
     InteractionClient,
     NodeDiscoveryType,
+    NodeSession,
     SecureSession,
     Session,
 } from "#protocol";
@@ -312,7 +313,7 @@ export class CommissioningController {
         return nodeId;
     }
 
-    connectPaseChannel(nodeOptions: NodeCommissioningOptions) {
+    connectPaseChannel(nodeOptions: NodeCommissioningOptions): Promise<NodeSession> {
         const controller = this.#assertControllerIsStarted();
 
         return controller.connectPaseChannel(nodeOptions);
