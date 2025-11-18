@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { BasicInformation } from "#clusters/basic-information";
 import { BasicMultiplex, BasicSet, isIpNetworkChannel, MaybePromise } from "#general";
 import { NodeSession } from "#session/NodeSession.js";
 import { ObservablePeerDescriptor, PeerDescriptor } from "./PeerDescriptor.js";
@@ -17,6 +18,10 @@ export class Peer {
     #sessions = new BasicSet<NodeSession>();
     #workers = new BasicMultiplex();
     #isSaving = false;
+    #limits: BasicInformation.CapabilityMinima = {
+        caseSessionsPerFabric: 3,
+        subscriptionsPerFabric: 3,
+    };
 
     constructor(descriptor: PeerDescriptor, context: Peer.Context) {
         this.#descriptor = new ObservablePeerDescriptor(descriptor, () => {
@@ -36,13 +41,19 @@ export class Peer {
             });
 
             // Ensure operational address is always the most recent IP
-            if (session.hasChannel) {
-                const { channel } = session.channel;
-                if (isIpNetworkChannel(channel)) {
-                    this.#descriptor.operationalAddress = channel.networkAddress;
-                }
+            const { channel } = session.channel;
+            if (isIpNetworkChannel(channel)) {
+                this.#descriptor.operationalAddress = channel.networkAddress;
             }
         });
+    }
+
+    get limits() {
+        return this.#limits;
+    }
+
+    set limits(limits: BasicInformation.CapabilityMinima) {
+        this.#limits = limits;
     }
 
     get address() {

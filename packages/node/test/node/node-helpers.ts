@@ -11,7 +11,6 @@ import { CommissioningServer, InteractionServer } from "#index.js";
 import { Specification } from "#model";
 import {
     Certificate,
-    ChannelManager,
     Fabric,
     FabricManager,
     InteractionServerMessenger,
@@ -333,11 +332,6 @@ export namespace interaction {
         request: TypeFromSchema<typeof TlvSubscribeRequest>,
     ) {
         const { exchange, interactionServer } = await connect(node, fabric);
-
-        const channels = node.env.get(ChannelManager);
-        channels.getChannel = () => {
-            return exchange.channel;
-        };
 
         await interactionServer.handleSubscribeRequest(exchange, request, BarelyMockedMessenger, BarelyMockedMessage);
     }

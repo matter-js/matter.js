@@ -68,7 +68,7 @@ describe("SessionManager", () => {
             }
             // Create a session with "next expected number"
             await sessionManager.createSecureSession({
-                sessionId: first + 1,
+                id: first + 1,
                 fabric: undefined,
                 peerNodeId: NodeId.UNSPECIFIED_NODE_ID,
                 peerSessionId: 0x8d4b,
@@ -91,7 +91,7 @@ describe("SessionManager", () => {
                 firstClosed = true;
             });
             await sessionManager.createSecureSession({
-                sessionId: first,
+                id: first,
                 fabric: undefined,
                 peerNodeId: NodeId.UNSPECIFIED_NODE_ID,
                 peerSessionId: 0x8d4b,
@@ -105,7 +105,7 @@ describe("SessionManager", () => {
             for (let i = 0; i < 0xfe; i++) {
                 const sessionId = await sessionManager.getNextAvailableSessionId();
                 await sessionManager.createSecureSession({
-                    sessionId,
+                    id: sessionId,
                     fabric: undefined,
                     peerNodeId: NodeId.UNSPECIFIED_NODE_ID,
                     peerSessionId: 0x8d4b,

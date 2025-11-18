@@ -51,23 +51,15 @@ export class NodeSession extends SecureSession {
     readonly supportsMRP = true;
     readonly type = SessionType.Unicast;
 
-    static async create(options: NodeSession.CreateConfig) {
-        const {
-            crypto,
-            manager,
-            id,
-            fabric,
-            peerNodeId,
-            peerSessionId,
-            sharedSecret,
-            salt,
-            isInitiator,
-            isResumption,
-            peerSessionParameters,
-            caseAuthenticatedTags,
-        } = options;
+    static async create(config: NodeSession.CreateConfig) {
+        const { manager, sharedSecret, salt, isResumption, peerSessionParameters, isInitiator } = config;
+
+        if (manager) {
+            await manager.construction;
+        }
+
         const keys = Bytes.of(
-            await options.crypto.createHkdfKey(
+            await config.crypto.createHkdfKey(
                 sharedSecret,
                 salt,
                 isResumption ? SESSION_RESUMPTION_KEYS_INFO : SESSION_KEYS_INFO,
@@ -77,19 +69,13 @@ export class NodeSession extends SecureSession {
         const decryptKey = isInitiator ? keys.slice(16, 32) : keys.slice(0, 16);
         const encryptKey = isInitiator ? keys.slice(0, 16) : keys.slice(16, 32);
         const attestationKey = keys.slice(32, 48);
-        return new NodeSession({
-            crypto,
-            manager,
-            id,
-            fabric,
-            peerNodeId,
-            peerSessionId,
+
+        return new this({
+            ...config,
             decryptKey,
             encryptKey,
             attestationKey,
             sessionParameters: peerSessionParameters,
-            isInitiator,
-            caseAuthenticatedTags,
         });
     }
 
@@ -392,7 +378,7 @@ export namespace NodeSession {
     export interface CommonConfig extends Session.CommonConfig {
         crypto: Crypto;
         id: number;
-        fabric: Fabric | undefined;
+        fabric?: Fabric;
         peerNodeId: NodeId;
         peerSessionId: number;
         caseAuthenticatedTags?: CaseAuthenticatedTag[];

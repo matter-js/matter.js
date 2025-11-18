@@ -25,8 +25,7 @@ export class MockExchange extends ProtocolMocks.Exchange {
             fabric.accessControl.accessLevelsFor = () => [AccessLevel.View, accessLevel];
             session = new ProtocolMocks.NodeSession({ fabric, peerNodeId: address.nodeId });
         }
-        const channel = new ProtocolMocks.MessageChannel({ session });
-        super({ context: { channel } });
+        super({ context: { session } });
         this.address = address;
     }
 

@@ -38,8 +38,8 @@ import {
 import { ControllerDiscovery, PairRetransmissionLimitReachedError } from "#peer/ControllerDiscovery.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { DedicatedChannelExchangeProvider } from "#protocol/ExchangeProvider.js";
-import { MessageChannel } from "#protocol/MessageChannel.js";
 import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
+import { NodeSession } from "#session/NodeSession.js";
 import { PaseClient } from "#session/pase/PaseClient.js";
 import { SessionManager } from "#session/SessionManager.js";
 import { DiscoveryCapabilitiesBitmap, NodeId, SECURE_CHANNEL_PROTOCOL_ID, TypeFromPartialBitSchema } from "#types";
@@ -177,21 +177,21 @@ export class ControllerCommissioner {
         addresses.sort(a => (a.type === "udp" ? -1 : 1));
 
         // Attempt a connection on each known address
-        let channel: MessageChannel | undefined;
+        let session: NodeSession | undefined;
         for (const address of addresses) {
             try {
-                channel = await this.#initializePaseSecureChannel(address, passcode, discoveryData);
+                session = await this.#initializePaseSecureChannel(address, passcode, discoveryData);
             } catch (e) {
                 NoResponseTimeoutError.accept(e);
                 logger.warn(`Could not connect to ${ServerAddress.urlFor(address)}: ${e.message}`);
             }
         }
 
-        if (channel === undefined) {
+        if (session === undefined) {
             throw new NoResponseTimeoutError("Could not connect to device");
         }
 
-        return await this.#commissionConnectedNode(channel, options, discoveryData);
+        return await this.#commissionConnectedNode(session, options, discoveryData);
     }
 
     /**
@@ -199,7 +199,7 @@ export class ControllerCommissioner {
      */
     async discoverAndEstablishPase(
         options: DiscoveryAndCommissioningOptions,
-    ): Promise<{ paseSecureChannel: MessageChannel; discoveryData?: DiscoveryData }> {
+    ): Promise<{ paseSession: NodeSession; discoveryData?: DiscoveryData }> {
         const {
             discovery: { timeout = Seconds(30) },
             passcode,
@@ -245,18 +245,18 @@ export class ControllerCommissioner {
         );
 
         // If we have a known address we try this first before we discover the device
-        let paseSecureChannel: MessageChannel | undefined;
+        let paseSession: NodeSession | undefined;
         let discoveryData: DiscoveryData | undefined;
 
         // If we have a last known address, try this first
         if (knownAddress !== undefined) {
             try {
-                paseSecureChannel = await this.#initializePaseSecureChannel(knownAddress, passcode);
+                paseSession = await this.#initializePaseSecureChannel(knownAddress, passcode);
             } catch (error) {
                 NoResponseTimeoutError.accept(error);
             }
         }
-        if (paseSecureChannel === undefined) {
+        if (paseSession === undefined) {
             const discoveredDevices = await ControllerDiscovery.discoverDeviceAddressesByIdentifier(
                 scannersToUse,
                 identifierData,
@@ -276,10 +276,10 @@ export class ControllerCommissioner {
             );
 
             // Pairing was successful, so store the address and assign the established secure channel
-            paseSecureChannel = result;
+            paseSession = result;
         }
 
-        return { paseSecureChannel, discoveryData };
+        return { paseSession, discoveryData };
     }
 
     /**
@@ -293,10 +293,10 @@ export class ControllerCommissioner {
         }
 
         // Establish PASE channel
-        const { paseSecureChannel, discoveryData } = await this.discoverAndEstablishPase(options);
+        const { paseSession, discoveryData } = await this.discoverAndEstablishPase(options);
 
         // Commission the node
-        return await this.#commissionConnectedNode(paseSecureChannel, options, discoveryData);
+        return await this.#commissionConnectedNode(paseSession, options, discoveryData);
     }
 
     /**
@@ -308,7 +308,7 @@ export class ControllerCommissioner {
         address: ServerAddress,
         passcode: number,
         device?: DiscoveryData,
-    ): Promise<MessageChannel> {
+    ): Promise<NodeSession> {
         let paseChannel: Channel<Bytes>;
         if (device !== undefined) {
             logger.info(`Establish PASE to device`, MdnsClient.discoveryDataDiagnostics(device));
@@ -349,8 +349,9 @@ export class ControllerCommissioner {
                 );
         }
 
-        // Do PASE paring
-        const unsecureSession = this.#context.sessions.createInsecureSession({
+        // Do PASE pairing
+        const insecureSession = this.#context.sessions.createInsecureSession({
+            channel: paseChannel,
             // Use the session parameters from MDNS announcements when available and rest is assumed to be fallbacks
             sessionParameters: {
                 idleInterval: Millis(device?.SII),
@@ -359,17 +360,16 @@ export class ControllerCommissioner {
             },
             isInitiator: true,
         });
-        const paseUnsecureMessageChannel = new MessageChannel(paseChannel, unsecureSession);
-        const paseExchange = this.#context.exchanges.initiateExchangeWithChannel(
-            paseUnsecureMessageChannel,
+        const paseExchange = this.#context.exchanges.initiateExchangeForSession(
+            insecureSession,
             SECURE_CHANNEL_PROTOCOL_ID,
         );
 
-        let paseSecureSession;
         try {
-            paseSecureSession = await this.#paseClient.pair(
+            return await this.#paseClient.pair(
                 this.#context.sessions.sessionParameters,
                 paseExchange,
+                paseChannel,
                 passcode,
             );
         } catch (e) {
@@ -382,9 +382,6 @@ export class ControllerCommissioner {
             }
             throw e;
         }
-
-        await unsecureSession.destroy();
-        return new MessageChannel(paseChannel, paseSecureSession);
     }
 
     /** Validate if a Peer Address is already known and commissioned */
@@ -415,7 +412,7 @@ export class ControllerCommissioner {
      * success.
      */
     async #commissionConnectedNode(
-        paseSecureMessageChannel: MessageChannel,
+        paseSession: NodeSession,
         options: CommissioningOptions,
         discoveryData?: DiscoveryData,
     ): Promise<PeerAddress> {
@@ -466,7 +463,7 @@ export class ControllerCommissioner {
         const commissioningManager = new commissioningFlowImpl(
             // Use the created secure session to do the commissioning
             new InteractionClient(
-                new DedicatedChannelExchangeProvider(this.#context.exchanges, paseSecureMessageChannel),
+                new DedicatedChannelExchangeProvider(this.#context.exchanges, paseSession),
                 undefined,
                 address,
             ),
@@ -480,7 +477,7 @@ export class ControllerCommissioner {
                         commissioning flow the commissioning channel SHALL terminate after successful step 12 (trigger
                         joining of operational network at Commissionee).
                      */
-                    await paseSecureMessageChannel.close(); // We reconnect using Case, so close PASE connection
+                    await paseSession.close(); // We reconnect using Case, so close PASE connection
                 }
 
                 if (performCaseCommissioning !== undefined) {
@@ -507,13 +504,13 @@ export class ControllerCommissioner {
             await this.#context.clients.peers.delete(address);
             throw error;
         } finally {
-            if (!paseSecureMessageChannel.closed) {
+            if (!paseSession.isClosed) {
                 /*
                     In concurrent connection commissioning flow the commissioning channel SHALL terminate after
                     successful step 15 (CommissioningComplete command invocation).
                     If PaseSecureMessageChannel is not already closed, we are in non-concurrent connection commissioning flow.
                  */
-                await paseSecureMessageChannel.close(); // We are done, so close PASE session
+                await paseSession.close(); // We are done, so close PASE session
             }
         }
 

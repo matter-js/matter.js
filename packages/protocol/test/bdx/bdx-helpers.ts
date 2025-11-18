@@ -125,16 +125,7 @@ function createExchange(index: number) {
     return new ProtocolMocks.Exchange({
         index,
         fabricIndex: index,
-        context: {
-            channel: new ProtocolMocks.MessageChannel({
-                index,
-                fabricIndex: index,
-                channel: new ProtocolMocks.NetworkChannel({
-                    index,
-                    maxPayloadSize: 1024,
-                }),
-            }),
-        },
+        maxPayloadSize: 1024,
         protocolId: BDX_PROTOCOL_ID,
     });
 }

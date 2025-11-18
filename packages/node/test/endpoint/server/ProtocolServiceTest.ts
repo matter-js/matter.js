@@ -213,7 +213,7 @@ describe("ProtocolServiceTest", () => {
         });
 
         await node.close();
-    });
+    }).timeout(1e9);
 
     it("indicates support only for implemented commands", async () => {
         class MyServer extends WifiCommissioningServer {

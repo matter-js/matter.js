@@ -5,7 +5,18 @@
  */
 
 import { Message, MessageCodec } from "#codec/MessageCodec.js";
-import { Bytes, Channel, Diagnostic, Duration, Logger, MatterFlowError, MaybePromise, Millis, Seconds } from "#general";
+import {
+    Bytes,
+    Channel,
+    Diagnostic,
+    Duration,
+    IpNetworkChannel,
+    Logger,
+    MatterFlowError,
+    MaybePromise,
+    Millis,
+    Seconds,
+} from "#general";
 import type { ExchangeLogContext } from "#protocol/MessageExchange.js";
 import type { Session } from "#session/Session.js";
 import type { SessionParameters } from "#session/SessionParameters.js";
@@ -65,10 +76,6 @@ export class MessageChannel implements Channel<Message> {
         this.#onClose = callback;
     }
 
-    get usesMrp() {
-        return this.session.supportsMRP && !this.channel.isReliable;
-    }
-
     /** Is the underlying transport reliable? */
     get isReliable() {
         return this.channel.isReliable;
@@ -111,6 +118,10 @@ export class MessageChannel implements Channel<Message> {
         return Diagnostic.via(`${this.session.name}@${this.channel.name}`);
     }
 
+    get networkAddress() {
+        return (this.channel as IpNetworkChannel<Bytes> | undefined)?.networkAddress;
+    }
+
     async close() {
         const wasAlreadyClosed = this.closed;
         this.closed = true;
@@ -132,7 +143,7 @@ export class MessageChannel implements Channel<Message> {
 
             case "udp":
                 // UDP normally uses MRP, if not we have Group communication, which normally have no responses
-                if (!this.usesMrp) {
+                if (!this.session.usesMrp) {
                     throw new MatterFlowError("No response expected for this message exchange because UDP and no MRP.");
                 }
                 // Calculate the maximum time till the peer got our last retry and worst case for the way back

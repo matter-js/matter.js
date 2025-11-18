@@ -47,7 +47,6 @@ import {
     FabricAuthority,
     FabricManager,
     InteractionClientProvider,
-    MessageChannel,
     NodeDiscoveryType,
     PeerAddress,
     PeerAddressStore,
@@ -56,6 +55,7 @@ import {
     PeerSet,
     RetransmissionLimitReachedError,
     ScannerSet,
+    SecureSession,
     SessionManager,
 } from "#protocol";
 import {
@@ -431,14 +431,14 @@ export class MatterController {
 
     async connectPaseChannel(options: NodeCommissioningOptions) {
         this.#construction.assert();
-        const { paseSecureChannel } = await this.#node!.env.get(ControllerCommissioner).discoverAndEstablishPase({
+        const { paseSession } = await this.#node!.env.get(ControllerCommissioner).discoverAndEstablishPase({
             ...options.commissioning,
             fabric: this.#fabric!,
             discovery: options.discovery,
             passcode: options.passcode,
         });
-        logger.warn("PASE channel established", paseSecureChannel.session.name, paseSecureChannel.session.isSecure);
-        return paseSecureChannel;
+        logger.warn("PASE channel established", paseSession.name, paseSession.isSecure);
+        return paseSession;
     }
 
     async removeNode(nodeId: NodeId) {
@@ -535,9 +535,9 @@ export class MatterController {
         return this.#node!.env.get(InteractionClientProvider).connect(this.#fabric!.addressOf(peerNodeId), options);
     }
 
-    createInteractionClient(peerNodeIdOrChannel: NodeId | MessageChannel, options: PeerConnectionOptions = {}) {
-        if (peerNodeIdOrChannel instanceof MessageChannel) {
-            return this.#node!.env.get(InteractionClientProvider).getInteractionClientForChannel(peerNodeIdOrChannel);
+    createInteractionClient(peerNodeIdOrChannel: NodeId | SecureSession, options: PeerConnectionOptions = {}) {
+        if (peerNodeIdOrChannel instanceof SecureSession) {
+            return this.#node!.env.get(InteractionClientProvider).interactionClientFor(peerNodeIdOrChannel);
         }
         return this.#node!.env.get(InteractionClientProvider).getInteractionClient(
             this.#fabric!.addressOf(peerNodeIdOrChannel),

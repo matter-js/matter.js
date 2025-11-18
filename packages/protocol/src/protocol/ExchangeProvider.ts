@@ -3,14 +3,15 @@
  * Copyright 2022-2025 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { ChannelType, Duration, Observable } from "#general";
+import { Duration, Observable } from "#general";
 import { PeerAddress } from "#peer/PeerAddress.js";
-import { ChannelManager } from "#protocol/ChannelManager.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
-import { DEFAULT_EXPECTED_PROCESSING_TIME, MessageChannel } from "#protocol/MessageChannel.js";
+import { DEFAULT_EXPECTED_PROCESSING_TIME } from "#protocol/MessageChannel.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { ProtocolHandler } from "#protocol/ProtocolHandler.js";
+import { SecureSession } from "#session/SecureSession.js";
 import { Session } from "#session/Session.js";
+import { SessionManager } from "#session/SessionManager.js";
 import { INTERACTION_PROTOCOL_ID } from "#types";
 import { SessionClosedError } from "./errors.js";
 
@@ -38,23 +39,26 @@ export abstract class ExchangeProvider {
     abstract initiateExchange(): Promise<MessageExchange>;
     abstract reconnectChannel(): Promise<boolean>;
     abstract session: Session;
-    abstract channelType: ChannelType;
+
+    get channelType() {
+        return this.session.channel.type;
+    }
 }
 
 /**
  * Manages an exchange over an established channel.
  */
 export class DedicatedChannelExchangeProvider extends ExchangeProvider {
-    #channel: MessageChannel;
+    #session: SecureSession;
     readonly supportsReconnect = false;
 
-    constructor(exchangeManager: ExchangeManager, channel: MessageChannel) {
+    constructor(exchangeManager: ExchangeManager, session: SecureSession) {
         super(exchangeManager);
-        this.#channel = channel;
+        this.#session = session;
     }
 
     async initiateExchange(): Promise<MessageExchange> {
-        return this.exchangeManager.initiateExchangeWithChannel(this.#channel, INTERACTION_PROTOCOL_ID);
+        return this.exchangeManager.initiateExchangeForSession(this.#session, INTERACTION_PROTOCOL_ID);
     }
 
     async reconnectChannel() {
@@ -62,15 +66,11 @@ export class DedicatedChannelExchangeProvider extends ExchangeProvider {
     }
 
     get session() {
-        return this.#channel.session;
-    }
-
-    get channelType() {
-        return this.#channel.type;
+        return this.#session;
     }
 
     maximumPeerResponseTime(expectedProcessingTime = DEFAULT_EXPECTED_PROCESSING_TIME) {
-        return this.exchangeManager.calculateMaximumPeerResponseTimeMsFor(this.#channel, expectedProcessingTime);
+        return this.exchangeManager.calculateMaximumPeerResponseTimeMsFor(this.#session, expectedProcessingTime);
     }
 }
 
@@ -85,15 +85,15 @@ export class ReconnectableExchangeProvider extends ExchangeProvider {
 
     constructor(
         exchangeManager: ExchangeManager,
-        protected readonly channelManager: ChannelManager,
+        protected readonly sessions: SessionManager,
         address: PeerAddress,
         reconnectChannelFunc: () => Promise<void>,
     ) {
         super(exchangeManager);
         this.#address = address;
         this.#reconnectChannelFunc = reconnectChannelFunc;
-        channelManager.added.on(address => {
-            if (address === this.#address) {
+        sessions.sessions.added.on(session => {
+            if (session.peerAddress === this.#address) {
                 this.#channelUpdated.emit();
             }
         });
@@ -104,10 +104,10 @@ export class ReconnectableExchangeProvider extends ExchangeProvider {
     }
 
     async initiateExchange(): Promise<MessageExchange> {
-        if (!this.channelManager.hasChannel(this.#address)) {
+        if (!this.sessions.maybeSessionFor(this.#address)) {
             await this.reconnectChannel();
         }
-        if (!this.channelManager.hasChannel(this.#address)) {
+        if (!this.sessions.maybeSessionFor(this.#address)) {
             throw new SessionClosedError("Channel not connected");
         }
         return this.exchangeManager.initiateExchange(this.#address, INTERACTION_PROTOCOL_ID);
@@ -120,24 +120,13 @@ export class ReconnectableExchangeProvider extends ExchangeProvider {
     }
 
     get session() {
-        if (!this.channelManager.hasChannel(this.#address)) {
-            throw new SessionClosedError("Channel not connected");
-        }
-        return this.channelManager.getChannel(this.#address).session;
-    }
-
-    get channelType() {
-        if (!this.channelManager.hasChannel(this.#address)) {
-            throw new SessionClosedError("Channel not connected");
-        }
-        return this.channelManager.getChannel(this.#address).type;
+        return this.sessions.sessionFor(this.#address);
     }
 
     maximumPeerResponseTime(expectedProcessingTimeMs = DEFAULT_EXPECTED_PROCESSING_TIME) {
-        const channel = this.channelManager.getChannel(this.#address);
-        if (!channel) {
-            throw new SessionClosedError("Channel not connected");
-        }
-        return this.exchangeManager.calculateMaximumPeerResponseTimeMsFor(channel, expectedProcessingTimeMs);
+        return this.exchangeManager.calculateMaximumPeerResponseTimeMsFor(
+            this.sessions.sessionFor(this.#address),
+            expectedProcessingTimeMs,
+        );
     }
 }
