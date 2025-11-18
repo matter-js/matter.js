@@ -6,8 +6,12 @@
 
 import { BasicInformation } from "#clusters/basic-information";
 import { BasicMultiplex, BasicSet, isIpNetworkChannel, MaybePromise } from "#general";
-import { NodeSession } from "#session/NodeSession.js";
+import type { MdnsClient } from "#mdns/MdnsClient.js";
+import type { NodeSession } from "#session/NodeSession.js";
+import type { SecureSession } from "#session/SecureSession.js";
+import type { SessionManager } from "#session/SessionManager.js";
 import { ObservablePeerDescriptor, PeerDescriptor } from "./PeerDescriptor.js";
+import type { NodeDiscoveryType } from "./PeerSet.js";
 
 /**
  * A node on a fabric we are a member of.
@@ -22,6 +26,10 @@ export class Peer {
         caseSessionsPerFabric: 3,
         subscriptionsPerFabric: 3,
     };
+
+    // TODO - manage these internally and/or factor away
+    activeDiscovery?: Peer.ActiveDiscovery;
+    activeReconnection?: Peer.ActiveReconnection;
 
     constructor(descriptor: PeerDescriptor, context: Peer.Context) {
         this.#descriptor = new ObservablePeerDescriptor(descriptor, () => {
@@ -48,6 +56,10 @@ export class Peer {
         });
     }
 
+    get fabric() {
+        return this.#context.sessions.fabricFor(this.address);
+    }
+
     get limits() {
         return this.#limits;
     }
@@ -69,6 +81,20 @@ export class Peer {
     }
 
     async close() {
+        if (this.activeDiscovery) {
+            this.activeDiscovery.stopTimerFunc?.();
+
+            // This ends discovery without triggering promises
+            this.activeDiscovery.mdnsClient?.cancelOperationalDeviceDiscovery(this.fabric, this.address.nodeId, false);
+
+            this.activeDiscovery = undefined;
+        }
+
+        if (this.activeReconnection) {
+            this.activeReconnection.rejecter("Peer closed");
+            this.activeReconnection = undefined;
+        }
+
         await this.#workers;
     }
 
@@ -84,6 +110,21 @@ export class Peer {
 
 export namespace Peer {
     export interface Context {
+        sessions: SessionManager;
         savePeer(peer: Peer): MaybePromise<void>;
+    }
+
+    // TODO - factor away
+    export interface ActiveDiscovery {
+        type: NodeDiscoveryType;
+        promises?: (() => Promise<SecureSession>)[];
+        stopTimerFunc?: (() => void) | undefined;
+        mdnsClient?: MdnsClient;
+    }
+
+    // TODO - factor away
+    export interface ActiveReconnection {
+        promise: Promise<SecureSession>;
+        rejecter: (reason?: any) => void;
     }
 }

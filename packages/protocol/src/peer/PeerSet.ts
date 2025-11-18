@@ -32,7 +32,7 @@ import {
 } from "#general";
 import { MdnsClient } from "#mdns/MdnsClient.js";
 import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
-import { RetransmissionLimitReachedError, SessionClosedError } from "#protocol/errors.js";
+import { RetransmissionLimitReachedError } from "#protocol/errors.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { DedicatedChannelExchangeProvider, ReconnectableExchangeProvider } from "#protocol/ExchangeProvider.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
@@ -90,13 +90,6 @@ export interface PeerConnectionOptions {
     caseAuthenticatedTags?: CaseAuthenticatedTag[];
 }
 
-interface RunningDiscovery {
-    type: NodeDiscoveryType;
-    promises?: (() => Promise<SecureSession>)[];
-    stopTimerFunc?: (() => void) | undefined;
-    mdnsClient?: MdnsClient;
-}
-
 /**
  * Interfaces {@link PeerSet} with other components.
  */
@@ -119,11 +112,6 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     readonly #caseClient: CaseClient;
     readonly #peers = new BasicSet<Peer>();
     readonly #peersByAddress = new PeerAddressMap<Peer>();
-    readonly #runningPeerDiscoveries = new PeerAddressMap<RunningDiscovery>();
-    readonly #runningPeerReconnections = new PeerAddressMap<{
-        promise: Promise<SecureSession>;
-        rejecter: (reason?: any) => void;
-    }>();
     readonly #construction: Construction<PeerSet>;
     readonly #store: PeerAddressStore;
     readonly #interactionQueue = new InteractionQueue();
@@ -142,6 +130,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         this.#caseClient = new CaseClient(this.#sessions);
 
         this.#peerContext = {
+            sessions,
             savePeer: peer => this.#store.updatePeer(peer.descriptor),
         };
 
@@ -277,21 +266,23 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             throw new UnknownNodeError(`Cannot connect to unknown device ${PeerAddress(address)}`);
         }
 
-        const { promise: existingReconnectPromise } = this.#runningPeerReconnections.get(address) ?? {};
+        const peer = this.for(address);
+
+        const { promise: existingReconnectPromise } = peer.activeReconnection ?? {};
         if (existingReconnectPromise !== undefined) {
             return existingReconnectPromise;
         }
 
         const { promise, resolver, rejecter } = createPromise<SecureSession>();
-        this.#runningPeerReconnections.set(address, { promise, rejecter });
+        peer.activeReconnection = { promise, rejecter };
 
         this.#resume(address, options, operationalAddress)
             .then(channel => {
-                this.#runningPeerReconnections.delete(address);
+                peer.activeReconnection = undefined;
                 resolver(channel);
             })
             .catch(error => {
-                this.#runningPeerReconnections.delete(address);
+                peer.activeReconnection = undefined;
                 rejecter(error);
             });
 
@@ -403,24 +394,15 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     }
 
     async close() {
-        for (const [address, { stopTimerFunc, mdnsClient: mdnsScanner }] of this.#runningPeerDiscoveries.entries()) {
-            stopTimerFunc?.();
-
-            // This ends discovery without triggering promises
-            mdnsScanner?.cancelOperationalDeviceDiscovery(this.#sessions.fabricFor(address), address.nodeId, false);
-        }
-
         for (const { address } of this.#peers) {
             await this.disconnect(address, false);
         }
 
-        this.#interactionQueue.close();
-        this.#runningPeerReconnections.forEach(({ rejecter }) => rejecter(new SessionClosedError("PeerSet closed")));
-        this.#runningPeerReconnections.clear();
-
         for (const peer of this.#peers) {
             await peer.close();
         }
+
+        this.#interactionQueue.close();
     }
 
     /**
@@ -480,7 +462,8 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             throw new ImplementationError("Cannot discover device without mDNS scanner.");
         }
 
-        const existingDiscoveryDetails = this.#runningPeerDiscoveries.get(address) ?? {
+        const peer = this.for(address);
+        const existingDiscoveryDetails = peer.activeDiscovery ?? {
             type: NodeDiscoveryType.None,
         };
 
@@ -490,7 +473,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             existingDiscoveryDetails.type < requestedDiscoveryType
         ) {
             mdnsScanner.cancelOperationalDeviceDiscovery(this.#sessions.fabricFor(address), address.nodeId);
-            this.#runningPeerDiscoveries.delete(address);
+            peer.activeDiscovery = undefined;
             existingDiscoveryDetails.type = NodeDiscoveryType.None;
         }
 
@@ -562,7 +545,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                                     this.#sessions.fabricFor(address),
                                     address.nodeId,
                                 );
-                                this.#runningPeerDiscoveries.delete(address);
+                                peer.activeDiscovery = undefined;
                                 resolver(result);
                             }
                         } catch (error) {
@@ -572,7 +555,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                                     this.#sessions.fabricFor(address),
                                     address.nodeId,
                                 );
-                                this.#runningPeerDiscoveries.delete(address);
+                                peer.activeDiscovery = undefined;
                                 rejecter(error);
                             }
                         }
@@ -596,9 +579,9 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                 timeout,
                 timeout === undefined,
             );
-            const { stopTimerFunc } = this.#runningPeerDiscoveries.get(address) ?? {};
+            const { stopTimerFunc } = peer.activeDiscovery ?? {};
             stopTimerFunc?.();
-            this.#runningPeerDiscoveries.delete(address);
+            peer.activeDiscovery = undefined;
 
             const { result } = await ControllerDiscovery.iterateServerAddresses(
                 [scanResult],
@@ -623,15 +606,15 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             return result;
         });
 
-        this.#runningPeerDiscoveries.set(address, {
+        peer.activeDiscovery = {
             type: requestedDiscoveryType,
             promises: discoveryPromises,
             stopTimerFunc,
             mdnsClient: mdnsScanner,
-        });
+        };
 
         return await anyPromise(discoveryPromises).finally(() => {
-            this.#runningPeerDiscoveries.delete(address);
+            peer.activeDiscovery = undefined;
         });
     }
 
@@ -806,10 +789,10 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         }
 
         // If we got a new channel and have a running discovery we can end it
-        if (peer.descriptor.operationalAddress !== undefined && this.#runningPeerDiscoveries.has(address)) {
+        if (peer.descriptor.operationalAddress !== undefined && peer.activeDiscovery) {
             logger.info(`Found ${address} during discovery, cancel discovery.`);
             // We are currently discovering this node, so we need to update the discovery data
-            const { mdnsClient: mdnsScanner } = this.#runningPeerDiscoveries.get(address) ?? {};
+            const { mdnsClient: mdnsScanner } = peer.activeDiscovery ?? {};
 
             // This ends discovery and triggers the promises
             mdnsScanner?.cancelOperationalDeviceDiscovery(this.#sessions.fabricFor(address), address.nodeId, true);
@@ -834,11 +817,12 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             return;
         }
         const address = fabric.addressOf(nodeId);
-        if (this.#runningPeerDiscoveries.has(address)) {
+        const peer = this.for(address);
+        if (peer.activeDiscovery) {
             // We already discover for this node, so we do not need to start a new discovery
             return;
         }
-        this.#runningPeerDiscoveries.set(address, { type: NodeDiscoveryType.RetransmissionDiscovery });
+        peer.activeDiscovery = { type: NodeDiscoveryType.RetransmissionDiscovery };
         this.#scanners
             .scannerFor(ChannelType.UDP)
             ?.findOperationalDevice(fabric, nodeId, RETRANSMISSION_DISCOVERY_TIMEOUT, true)
@@ -846,8 +830,8 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                 logger.error(`Failed to discover ${address} after resubmission started.`, error);
             })
             .finally(() => {
-                if (this.#runningPeerDiscoveries.get(address)?.type === NodeDiscoveryType.RetransmissionDiscovery) {
-                    this.#runningPeerDiscoveries.delete(address);
+                if (peer.activeDiscovery?.type === NodeDiscoveryType.RetransmissionDiscovery) {
+                    peer.activeDiscovery = undefined;
                 }
             });
     }
