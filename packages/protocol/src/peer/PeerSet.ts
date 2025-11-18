@@ -116,7 +116,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     readonly #store: PeerAddressStore;
     readonly #interactionQueue = new InteractionQueue();
     readonly #nodeCachedData = new PeerAddressMap<PeerDataStore>(); // Temporarily until we store it in new API
-    readonly #disconnected = AsyncObservable<[address: PeerAddress]>();
+    readonly #disconnected = AsyncObservable<[peer: Peer]>();
     readonly #peerContext: Peer.Context;
 
     constructor(context: PeerSetContext) {
@@ -132,10 +132,17 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         this.#peerContext = {
             sessions,
             savePeer: peer => this.#store.updatePeer(peer.descriptor),
+            deletePeer: peer => this.#store.deletePeer(peer.address),
+            closed: peer => this.#peers.delete(peer),
         };
 
         this.#peers.added.on(peer => {
             this.#peersByAddress.set(peer.address, peer);
+            peer.sessions.deleted.on(() => {
+                if (!peer.sessions.size) {
+                    this.#disconnected.emit(peer);
+                }
+            });
         });
 
         this.#peers.deleted.on(peer => {
@@ -357,47 +364,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         return this.#peersByAddress.get(peer);
     }
 
-    /**
-     * Terminate any active peer connection.
-     * Also handles unknown peers
-     */
-    async disconnect(peer: PeerAddress | PeerDescriptor, sendSessionClose = true) {
-        let address = this.get(peer)?.address; // Check known Peers
-        if (address === undefined) {
-            // We did not find a ClientNode for this peer, so check if it is a PeerAddress
-            if ("nodeId" in peer && "fabricIndex" in peer) {
-                address = peer;
-            } else {
-                return;
-            }
-        }
-
-        await this.#sessions.removeSessionsFor(address, sendSessionClose);
-        await this.#disconnected.emit(address);
-    }
-
-    /**
-     * Forget a known peer.
-     */
-    async delete(peer: PeerAddress | PeerDescriptor) {
-        const actual = this.get(peer);
-        if (actual === undefined) {
-            return;
-        }
-
-        const { address } = actual;
-        logger.info(`Removing ${address}`);
-        this.#peers.delete(actual);
-        await this.#store.deletePeer(address);
-        await this.disconnect(address, false);
-        await this.#sessions.deleteResumptionRecord(address);
-    }
-
     async close() {
-        for (const { address } of this.#peers) {
-            await this.disconnect(address, false);
-        }
-
         for (const peer of this.#peers) {
             await peer.close();
         }

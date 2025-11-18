@@ -80,7 +80,19 @@ export class Peer {
         return this.#sessions;
     }
 
-    async close() {
+    /**
+     * Permanently forget the peer.
+     */
+    async delete() {
+        await this.close();
+        await this.#context.deletePeer(this);
+        await this.#context.sessions.deleteResumptionRecord(this.address);
+    }
+
+    /**
+     *
+     */
+    async close(sendSessionClose = true) {
         if (this.activeDiscovery) {
             this.activeDiscovery.stopTimerFunc?.();
 
@@ -95,7 +107,11 @@ export class Peer {
             this.activeReconnection = undefined;
         }
 
+        await this.#context.sessions.removeSessionsFor(this.address, sendSessionClose);
+
         await this.#workers;
+
+        this.#context.closed(this);
     }
 
     toString() {
@@ -112,6 +128,8 @@ export namespace Peer {
     export interface Context {
         sessions: SessionManager;
         savePeer(peer: Peer): MaybePromise<void>;
+        deletePeer(peer: Peer): MaybePromise<void>;
+        closed(peer: Peer): void;
     }
 
     // TODO - factor away
