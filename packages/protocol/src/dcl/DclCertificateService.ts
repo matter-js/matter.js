@@ -9,10 +9,11 @@ import {
     Construction,
     Days,
     Diagnostic,
+    Directory,
     Duration,
     Environment,
     Logger,
-    Seconds,
+    Repo,
     StorageContext,
     StorageService,
     Time,
@@ -27,10 +28,8 @@ const logger = Logger.get("DclCertificateService");
 // GitHub repository for development/test certificates
 const GITHUB_OWNER = "project-chip";
 const GITHUB_REPO = "connectedhomeip";
-const GITHUB_PATH = "credentials/development/paa-root-certs";
-const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`;
-const GITHUB_RAW_URL = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/master/${GITHUB_PATH}`;
-const DEFAULT_GITHUB_TIMEOUT = Seconds(10);
+const GITHUB_BRANCH = "master";
+const GITHUB_CERT_PATH = "credentials/development/paa-root-certs";
 
 /**
  * Implements a service to manage DCL root certificates as a singleton in the environment and so will be shared by
@@ -419,32 +418,22 @@ export class DclCertificateService {
         try {
             logger.debug("Fetching development certificates from GitHub");
 
-            // Fetch the list of files from GitHub API
-            const response = await fetch(GITHUB_API_URL, {
-                method: "GET",
-                headers: {
-                    Accept: "application/vnd.github.v3+json",
-                },
-                signal: AbortSignal.timeout(this.#options.timeout ?? DEFAULT_GITHUB_TIMEOUT),
-            });
+            // Create GitHub repo client with timeout option
+            const repo = new Repo(GITHUB_OWNER, GITHUB_REPO, GITHUB_BRANCH, this.#options);
+            const certDir = await repo.cd(GITHUB_CERT_PATH);
 
-            if (!response.ok) {
-                throw new MatterDclError(`GitHub API request failed: ${response.status} ${response.statusText}`);
-            }
-
-            const contents = (await response.json()) as Array<{ name: string; type: string }>;
+            // List files in the certificate directory
+            const files = await certDir.ls();
 
             // Filter for .der files, excluding DCL mirror files because we load from DCL directly
-            const certFiles = contents.filter(
-                item => item.type === "file" && item.name.endsWith(".der") && !item.name.startsWith("dcld_mirror_"),
-            );
+            const certFiles = files.filter(name => name.endsWith(".der") && !name.startsWith("dcld_mirror_"));
             logger.debug(`Found ${certFiles.length} certificate files on GitHub`);
 
-            for (const file of certFiles) {
+            for (const filename of certFiles) {
                 if (this.#closed) {
                     return;
                 }
-                await this.#fetchGitHubCertificate(storage, file.name, force);
+                await this.#fetchGitHubCertificate(storage, certDir, filename, force);
             }
         } catch (error) {
             logger.info("Failed to fetch certificates from GitHub", error);
@@ -454,21 +443,10 @@ export class DclCertificateService {
     /**
      * Fetch a single certificate from GitHub by filename.
      */
-    async #fetchGitHubCertificate(storage: StorageContext, filename: string, force: boolean) {
+    async #fetchGitHubCertificate(storage: StorageContext, certDir: Directory, filename: string, force: boolean) {
         try {
-            const url = `${GITHUB_RAW_URL}/${filename}`;
-            const response = await fetch(url, {
-                method: "GET",
-                signal: AbortSignal.timeout(this.#options.timeout ?? DEFAULT_GITHUB_TIMEOUT),
-            });
-
-            if (!response.ok) {
-                throw new MatterDclError(`Failed to download ${filename}: ${response.status}`);
-            }
-
-            // Download DER certificate directly as binary
-            const arrayBuffer = await response.arrayBuffer();
-            const derBytes = new Uint8Array(arrayBuffer);
+            // Download DER certificate directly as binary using GitHub client
+            const derBytes = await certDir.getBinary(filename);
 
             // Parse the certificate to extract metadata
             const paa = Paa.fromAsn1(derBytes);

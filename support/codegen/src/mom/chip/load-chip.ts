@@ -4,14 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger } from "#general";
+import { Directory, Logger, Repo, Seconds } from "#general";
 import { AnyElement, ClusterElement, DatatypeElement, Matter, Metatype, ValueElement } from "#model";
 import { JSDOM } from "jsdom";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { readFileWithCache } from "../../util/file.js";
-import { Directory, Repo } from "../../util/github.js";
 import { translateChip } from "./translate-chip.js";
 
 const AUTH_FILE = resolve(homedir(), ".gh-auth");
@@ -25,7 +24,14 @@ const parser = new new JSDOM("").window.DOMParser();
 export async function loadChip(version: string): Promise<ClusterElement[]> {
     const elements = Array<AnyElement>();
 
-    const repo = new Repo("project-chip", "connectedhomeip", `v${version}-branch`, readFileWithCache, auth);
+    const repo = new Repo(
+        "project-chip",
+        "connectedhomeip",
+        `v${version}-branch`,
+        { timeout: Seconds(10) },
+        readFileWithCache,
+        auth,
+    );
 
     logger.info("load chip");
     return await Logger.nestAsync(async () => {
