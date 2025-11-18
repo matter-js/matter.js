@@ -427,9 +427,9 @@ export class SessionManager {
     }
 
     /**
-     * Creates or Returns a Group Session for a Group Peer Address.
-     * This is used for sending group messages because it returns the session for the current
-     * Group Epoch key. The Source Node Id is the own Node.
+     * Obtain an outbound group session for a specific group.
+     *
+     * Returns the session for the current group epoch key.  The source is this node and the peer is the group.
      */
     async groupSessionForAddress(address: PeerAddress, transports: ConnectionlessTransportSet) {
         const groupId = GroupId.fromNodeId(address.nodeId);
@@ -443,24 +443,29 @@ export class SessionManager {
             );
         }
 
-        let session = this.#groupSessions.get(fabric.nodeId)?.get("id", sessionId);
-        if (session === undefined) {
-            session = await GroupSession.create({
-                transports,
-                manager: this,
-                id: sessionId,
-                fabric,
-                keySetId,
-                operationalGroupKey: key,
-                peerNodeId: address.nodeId, // The peer node ID is the group node ID
-            });
+        const session = this.#groupSessions.get(fabric.nodeId)?.get("id", sessionId);
+        if (session) {
+            return session;
         }
-        return session;
+
+        return await GroupSession.create({
+            transports,
+            manager: this,
+            id: sessionId,
+            fabric,
+            keySetId,
+            operationalGroupKey: key,
+            groupNodeId: address.nodeId,
+        });
     }
 
     /**
-     * Creates or Returns the Group session based on an incoming packet.
-     * The Session ID is determined by trying to decrypt te packet with possible keys.
+     * Obtain a Group session for an incoming packet.
+     *
+     * The session ID is determined by decrypting the packet with possible keys.
+     *
+     * Note that the resulting session is non-operational in the sense that attempting outbound communication will
+     * result in an error.
      */
     async groupSessionFromPacket(packet: DecodedPacket, aad: Bytes) {
         const groupId = packet.header.destGroupId;
