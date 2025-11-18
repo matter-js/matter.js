@@ -11,12 +11,10 @@ import {
     CRYPTO_SYMMETRIC_KEY_LENGTH,
     Entropy,
     Environment,
-    HASH_ALGORITHM_NAMES,
     HashAlgorithm,
     Key,
     NodeJsCryptoApiLike,
     NodeJsStyleCrypto,
-    NotImplementedError,
     PrivateKey,
     PublicKey,
     StandardCrypto,
@@ -130,22 +128,11 @@ export class ReactNativeCrypto extends StandardCrypto {
      * React Native/QuickCrypto is assumed to not support these advanced algorithms.
      */
     override computeHash(
-        algorithm: HashAlgorithm,
         data: Bytes | Bytes[] | ReadableStreamDefaultReader<Bytes> | AsyncIterator<Bytes>,
+        algorithm: HashAlgorithm = "SHA-256",
     ) {
-        // Block unsupported algorithms
-        if (
-            algorithm === HashAlgorithm.SHA512_224 ||
-            algorithm === HashAlgorithm.SHA512_256 ||
-            algorithm === HashAlgorithm.SHA3_256
-        ) {
-            throw new NotImplementedError(
-                `Hash algorithm ${HASH_ALGORITHM_NAMES[algorithm]} (${HashAlgorithm[algorithm]}) is not supported in ReactNativeCrypto. Use Node.js-based crypto implementation.`,
-            );
-        }
-
         // Delegate to StandardCrypto for algorithms SHA-256, SHA-512 and SHA-384
-        return super.computeHash(algorithm, data);
+        return super.computeHash(data, algorithm);
     }
 }
 

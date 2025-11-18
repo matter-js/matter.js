@@ -5,9 +5,9 @@
  */
 
 export * from "./AttestationCertificates.js";
+export * from "./Certificate.js";
 export * from "./CertificationDeclaration.js";
 export * from "./Icac.js";
 export * from "./Noc.js";
 export * from "./Rcac.js";
 export * from "./Vvsc.js";
-export * from "./X509Base.js";

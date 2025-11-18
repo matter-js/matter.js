@@ -6,8 +6,16 @@
 
 import { TestCert_PAA_FFF1_Cert, TestCert_PAA_NoVID_Cert } from "#certificate/ChipPAAuthorities.js";
 import { DclCertificateService } from "#dcl/DclCertificateService.js";
-import { Bytes, Days, Environment, Minutes, StorageBackendMemory, StorageManager, StorageService } from "#general";
-import { FetchMock } from "../util/fetch-mock.js";
+import {
+    Bytes,
+    Days,
+    Environment,
+    Minutes,
+    MockFetch,
+    StorageBackendMemory,
+    StorageManager,
+    StorageService,
+} from "#general";
 
 // Mock DCL responses - using colon format as returned by real DCL API
 const mockDclRootCertificateList = {
@@ -92,13 +100,13 @@ function pemEncode(der: Bytes): string {
 }
 
 describe("DclCertificateService", () => {
-    let fetchMock: FetchMock;
+    let fetchMock: MockFetch;
     let environment: Environment;
     let storage: StorageBackendMemory;
     let storageManager: StorageManager;
 
     beforeEach(async () => {
-        fetchMock = new FetchMock();
+        fetchMock = new MockFetch();
         environment = new Environment("test");
 
         // Set up storage
@@ -150,7 +158,7 @@ describe("DclCertificateService", () => {
         });
 
         it("fetches test certificates when option is enabled", async () => {
-            // FetchMock uses includes() and checks in reverse order, so be specific with hostnames
+            // MockFetch uses includes() and checks in reverse order, so be specific with hostnames
 
             // Production DCL (on.dcl.csa-iot.org)
             fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", mockDclRootCertificateList);

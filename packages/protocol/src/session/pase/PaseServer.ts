@@ -156,7 +156,7 @@ export class PaseServer implements ProtocolHandler {
         // Process pake1 and send pake2
         const spake2p = Spake2p.create(
             crypto,
-            await crypto.computeSha256([SPAKE_CONTEXT, requestPayload, responsePayload]),
+            await crypto.computeHash([SPAKE_CONTEXT, requestPayload, responsePayload]),
             this.w0,
         );
         const { x: X } = await messenger.readPasePake1();

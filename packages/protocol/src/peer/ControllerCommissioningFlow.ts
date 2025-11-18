@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { X509Base } from "#certificate/kinds/X509Base.js";
+import { Certificate } from "#certificate/kinds/Certificate.js";
 import { BasicInformation } from "#clusters/basic-information";
 import { Descriptor } from "#clusters/descriptor";
 import { GeneralCommissioning } from "#clusters/general-commissioning";
@@ -835,7 +835,7 @@ export class ControllerCommissioningFlow {
         }
         // TODO: validate csrSignature using device public key
         const { certSigningRequest } = TlvCertSigningRequest.decode(nocsrElements);
-        const operationalPublicKey = await X509Base.getPublicKeyFromCsr(this.ca.crypto, certSigningRequest);
+        const operationalPublicKey = await Certificate.getPublicKeyFromCsr(this.ca.crypto, certSigningRequest);
 
         await operationalCredentialsClusterClient.addTrustedRootCertificate(
             {

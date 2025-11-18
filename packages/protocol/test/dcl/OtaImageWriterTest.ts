@@ -6,7 +6,7 @@
 
 import { OtaImageReader } from "#dcl/OtaImageReader.js";
 import { OtaImageWriter } from "#dcl/OtaImageWriter.js";
-import { Bytes, HASH_ALGORITHM_OUTPUT_LENGTHS, HashAlgorithm, StandardCrypto } from "#general";
+import { Bytes, HASH_ALGORITHM_OUTPUT_LENGTHS, HashFipsAlgorithmId, StandardCrypto } from "#general";
 import { StreamingCrypto } from "./dcl-ota-test-helpers.js";
 
 describe("OtaImageWriter", () => {
@@ -30,7 +30,7 @@ describe("OtaImageWriter", () => {
             expect(Bytes.isBytes(result.image)).equals(true);
             expect(result.image.byteLength).to.be.greaterThan(payload.byteLength);
             expect(result.fullFileChecksum).to.be.a("string");
-            expect(result.fullFileChecksumType).to.equal(1);
+            expect(result.fullFileChecksumType).to.equal("SHA-256");
 
             // Verify file starts with correct identifier
             const view = new DataView(Bytes.of(result.image).buffer);
@@ -91,7 +91,7 @@ describe("OtaImageWriter", () => {
 
         it("computes correct SHA-256 digest of payload", async () => {
             const payload = new Uint8Array([0xde, 0xad, 0xbe, 0xef]);
-            const expectedDigest = Bytes.toHex(await standardCrypto.computeSha256(payload));
+            const expectedDigest = Bytes.toHex(await standardCrypto.computeHash(payload));
 
             const result = await OtaImageWriter.create(crypto, {
                 vendorId: 0xfff1,
@@ -315,7 +315,7 @@ describe("OtaImageWriter", () => {
             // Should have checksum fields
             expect(result.fullFileChecksum).to.be.a("string");
             expect(result.fullFileChecksum.length).to.be.greaterThan(0);
-            expect(result.fullFileChecksumType).to.equal(1); // SHA-256
+            expect(result.fullFileChecksumType).to.equal("SHA-256");
 
             // Checksum should be base64 encoded (contains only valid base64 characters)
             expect(result.fullFileChecksum).to.match(/^[A-Z0-9+/]+=*$/i);
@@ -330,7 +330,7 @@ describe("OtaImageWriter", () => {
             const reader = stream.getReader();
             await OtaImageReader.file(reader, crypto, result.image.byteLength, {
                 calculateFullChecksum: true,
-                checksumType: 1,
+                checksumType: "SHA-256",
                 expectedChecksum: result.fullFileChecksum,
             });
 
@@ -374,7 +374,7 @@ describe("OtaImageWriter", () => {
                 payload,
             });
 
-            expect(result.fullFileChecksumType).to.equal(HashAlgorithm.SHA256);
+            expect(result.fullFileChecksumType).to.equal("SHA-256");
 
             // Verify image digest type in header
             const stream = new ReadableStream<Bytes>({
@@ -386,7 +386,7 @@ describe("OtaImageWriter", () => {
             const reader = stream.getReader();
             const header = await OtaImageReader.header(reader);
 
-            expect(header.imageDigestType).to.equal(HashAlgorithm.SHA256);
+            expect(header.imageDigestType).to.equal(HashFipsAlgorithmId["SHA-256"]);
         });
 
         it("uses custom imageDigestType when specified", async () => {
@@ -398,7 +398,7 @@ describe("OtaImageWriter", () => {
                 softwareVersion: 1,
                 softwareVersionString: "v1.0.0",
                 payload,
-                imageDigestType: HashAlgorithm.SHA512,
+                imageDigestType: "SHA-512",
             });
 
             // Verify image digest type in header
@@ -411,10 +411,10 @@ describe("OtaImageWriter", () => {
             const reader = stream.getReader();
             const header = await OtaImageReader.header(reader);
 
-            expect(header.imageDigestType).to.equal(HashAlgorithm.SHA512);
+            expect(header.imageDigestType).to.equal(HashFipsAlgorithmId["SHA-512"]);
 
             // Verify the digest is actually SHA-512 (64 bytes = 128 hex chars)
-            expect(header.imageDigest.byteLength).to.equal(HASH_ALGORITHM_OUTPUT_LENGTHS[HashAlgorithm.SHA512]);
+            expect(header.imageDigest.byteLength).to.equal(HASH_ALGORITHM_OUTPUT_LENGTHS["SHA-512"]);
         });
 
         it("uses custom fullFileChecksumType when specified", async () => {
@@ -426,10 +426,10 @@ describe("OtaImageWriter", () => {
                 softwareVersion: 1,
                 softwareVersionString: "v1.0.0",
                 payload,
-                fullFileChecksumType: HashAlgorithm.SHA384,
+                fullFileChecksumType: "SHA-384",
             });
 
-            expect(result.fullFileChecksumType).to.equal(HashAlgorithm.SHA384);
+            expect(result.fullFileChecksumType).to.equal("SHA-384");
 
             // Verify the checksum is actually SHA-384 (48 bytes base64 encoded)
             const decodedChecksum = Bytes.fromBase64(result.fullFileChecksum);
@@ -445,12 +445,12 @@ describe("OtaImageWriter", () => {
                 softwareVersion: 1,
                 softwareVersionString: "v1.0.0",
                 payload,
-                imageDigestType: HashAlgorithm.SHA256,
-                fullFileChecksumType: HashAlgorithm.SHA512,
+                imageDigestType: "SHA-256",
+                fullFileChecksumType: "SHA-512",
             });
 
             // Verify full file checksum type
-            expect(result.fullFileChecksumType).to.equal(HashAlgorithm.SHA512);
+            expect(result.fullFileChecksumType).to.equal("SHA-512");
 
             // Verify image digest type
             const stream = new ReadableStream<Bytes>({
@@ -462,8 +462,8 @@ describe("OtaImageWriter", () => {
             const reader = stream.getReader();
             const header = await OtaImageReader.header(reader);
 
-            expect(header.imageDigestType).to.equal(HashAlgorithm.SHA256);
-            expect(header.imageDigest.byteLength).to.equal(HASH_ALGORITHM_OUTPUT_LENGTHS[HashAlgorithm.SHA256]); // SHA-256 = 32 bytes = 64 hex chars
+            expect(header.imageDigestType).to.equal(HashFipsAlgorithmId["SHA-256"]);
+            expect(header.imageDigest.byteLength).to.equal(HASH_ALGORITHM_OUTPUT_LENGTHS["SHA-256"]); // SHA-256 = 32 bytes = 64 hex chars
 
             // Verify full file checksum
             const decodedChecksum = Bytes.fromBase64(result.fullFileChecksum);
@@ -480,7 +480,7 @@ describe("OtaImageWriter", () => {
                 softwareVersion: 1,
                 softwareVersionString: "v1.0.0",
                 payload,
-                imageDigestType: HashAlgorithm.SHA256,
+                imageDigestType: "SHA-256",
             });
 
             // Create with SHA-512
@@ -490,12 +490,12 @@ describe("OtaImageWriter", () => {
                 softwareVersion: 1,
                 softwareVersionString: "v1.0.0",
                 payload,
-                imageDigestType: HashAlgorithm.SHA512,
+                imageDigestType: "SHA-512",
             });
 
             // Manually compute expected digests
-            const expectedDigest256 = Bytes.toHex(await standardCrypto.computeSha256(payload));
-            const expectedDigest512 = Bytes.toHex(await standardCrypto.computeHash(HashAlgorithm.SHA512, payload));
+            const expectedDigest256 = Bytes.toHex(await standardCrypto.computeHash(payload));
+            const expectedDigest512 = Bytes.toHex(await standardCrypto.computeHash(payload, "SHA-512"));
 
             // Read headers and verify digests
             const stream256 = new ReadableStream<Bytes>({

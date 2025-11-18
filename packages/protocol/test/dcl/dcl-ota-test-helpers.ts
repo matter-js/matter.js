@@ -5,7 +5,7 @@
  */
 
 import { OtaImageWriter } from "#dcl/OtaImageWriter.js";
-import { Bytes, Crypto, StandardCrypto } from "#general";
+import { Bytes, Crypto, HashAlgorithm, StandardCrypto } from "#general";
 import { DeviceSoftwareVersionModelDclSchema, VendorId } from "#types";
 
 /**
@@ -13,7 +13,7 @@ import { DeviceSoftwareVersionModelDclSchema, VendorId } from "#types";
  * Collects chunks from async iterators before computing the hash.
  */
 export class StreamingCrypto extends StandardCrypto {
-    override computeHash(algorithmId: number, data: Parameters<Crypto["computeHash"]>[1]) {
+    override computeHash(data: Parameters<Crypto["computeHash"]>[0], algorithmId: HashAlgorithm) {
         // If it's an async iterator, collect all chunks first
         if (typeof data === "object" && data !== null && ("next" in data || Symbol.asyncIterator in data)) {
             const chunks: Uint8Array[] = [];
@@ -28,11 +28,11 @@ export class StreamingCrypto extends StandardCrypto {
                     chunks.push(chunk);
                 }
                 const combined = Bytes.concat(...chunks);
-                return super.computeHash(algorithmId, combined);
+                return super.computeHash(combined, algorithmId);
             };
             return collectAndHash();
         }
-        return super.computeHash(algorithmId, data);
+        return super.computeHash(data, algorithmId);
     }
 }
 

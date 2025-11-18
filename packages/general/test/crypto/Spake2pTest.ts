@@ -80,7 +80,7 @@ describe("Spake2p", () => {
                     "15300120b2901e92036f7bca007a3a1bf24bd71f18772105e83479c92b7a8af35e81827430022008070f685f2077779b824adf91e4bab6253b9d1a3c0f6615c6d447780f0feef325039c8d35042501e803300220163f8501fbbc0e6a8f69a9b999d038ca388ecffccc18fe259c4253f26e494dda1835052501881325022c011818",
                 ),
             );
-            const result = await crypto.computeSha256(context);
+            const result = await crypto.computeHash(context);
 
             expect(Bytes.toHex(result)).equals("c49718b0275b6f81fd6a081f6c34c5833382b75b3bd997895d13a51c71a02855");
         });

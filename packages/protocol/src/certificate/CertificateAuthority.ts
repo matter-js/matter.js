@@ -59,7 +59,7 @@ export class CertificateAuthority {
             const certValues = options instanceof StorageContext ? await options.values() : (options ?? {});
 
             this.#rootKeyPair = await this.#crypto.createKeyPair();
-            this.#rootKeyIdentifier = Bytes.of(await this.#crypto.computeSha256(this.#rootKeyPair.publicKey)).slice(
+            this.#rootKeyIdentifier = Bytes.of(await this.#crypto.computeHash(this.#rootKeyPair.publicKey)).slice(
                 0,
                 20,
             );
@@ -166,7 +166,7 @@ export class CertificateAuthority {
                     digitalSignature: true,
                 },
                 extendedKeyUsage: [2, 1],
-                subjectKeyIdentifier: Bytes.of(await this.#crypto.computeSha256(publicKey)).slice(0, 20),
+                subjectKeyIdentifier: Bytes.of(await this.#crypto.computeHash(publicKey)).slice(0, 20),
                 authorityKeyIdentifier: this.#initializedRootKeyIdentifier,
             },
         });

@@ -6,12 +6,12 @@
 
 import { Bytes, Crypto, Diagnostic, PublicKey } from "#general";
 import { FabricId } from "#types";
+import { Certificate } from "./Certificate.js";
 import { CertificateError } from "./common.js";
 import { ExtensionKeyUsageSchema } from "./definitions/base.js";
 import { OperationalCertificate } from "./definitions/operational.js";
 import { OperationalBase } from "./OperationalBase.js";
 import { Rcac } from "./Rcac.js";
-import { X509Base } from "./X509Base.js";
 
 /**
  * Represents an Intermediate Certificate
@@ -24,7 +24,7 @@ export class Icac extends OperationalBase<OperationalCertificate.Icac> {
 
     /** Construct the class from an ASN.1/DER encoded certificate */
     static fromAsn1(asn1: Bytes): Icac {
-        const cert = X509Base.parseAsn1Certificate(asn1);
+        const cert = Certificate.parseAsn1Certificate(asn1);
         return new Icac(cert as OperationalCertificate.Icac);
     }
 

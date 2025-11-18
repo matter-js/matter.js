@@ -25,6 +25,7 @@ export * from "./GeneratedClass.js";
 export * from "./Ip.js";
 export * from "./Lifecycle.js";
 export * from "./Map.js";
+export * from "./MockFetch.js";
 export * from "./Multiplex.js";
 export * from "./Mutex.js";
 export * from "./NamedHandler.js";

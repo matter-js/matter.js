@@ -27,11 +27,6 @@ export default function commands(theNode: MatterNode) {
                         const { vendorId: vendorIdStr } = argv;
 
                         await theNode.start();
-                        if (!theNode.certificateService) {
-                            throw new Error("Certificate service not initialized");
-                        }
-
-                        await theNode.certificateService.construction;
                         let certificates = theNode.certificateService.getAllCertificates();
 
                         // Filter by vendor ID if provided
@@ -83,10 +78,6 @@ export default function commands(theNode: MatterNode) {
                         const { subjectKeyId } = argv;
 
                         await theNode.start();
-                        if (!theNode.certificateService) {
-                            throw new Error("Certificate service not initialized");
-                        }
-
                         const cert = theNode.certificateService.getCertificate(subjectKeyId);
                         if (!cert) {
                             console.error(`Certificate with subject key ID ${subjectKeyId} not found`);
@@ -113,10 +104,6 @@ export default function commands(theNode: MatterNode) {
                         const normalizedId = subjectKeyId.replace(/:/g, "").toUpperCase();
 
                         await theNode.start();
-                        if (!theNode.certificateService) {
-                            throw new Error("Certificate service not initialized");
-                        }
-
                         const pemCert = await theNode.certificateService.getCertificateAsPem(normalizedId);
                         console.log(pemCert);
                     },
@@ -137,10 +124,6 @@ export default function commands(theNode: MatterNode) {
                         const normalizedId = subjectKeyId.replace(/:/g, "").toUpperCase();
 
                         await theNode.start();
-                        if (!theNode.certificateService) {
-                            throw new Error("Certificate service not initialized");
-                        }
-
                         await theNode.certificateService.deleteCertificate(normalizedId);
                         console.log(`Certificate ${subjectKeyId} deleted successfully`);
                     },
@@ -157,9 +140,6 @@ export default function commands(theNode: MatterNode) {
                     async argv => {
                         const { force } = argv;
                         await theNode.start();
-                        if (!theNode.certificateService) {
-                            throw new Error("Certificate service not initialized");
-                        }
 
                         console.log(`Updating certificates from DCL${force ? " (force mode)" : ""}...`);
                         await theNode.certificateService.updateCertificates(force);

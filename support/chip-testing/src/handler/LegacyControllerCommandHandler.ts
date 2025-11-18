@@ -8,13 +8,13 @@ import { Bytes, Logger, Seconds } from "@matter/general";
 import { NodeId, Observable, ServerAddressUdp } from "@matter/main";
 import { GeneralCommissioning, GroupKeyManagement } from "@matter/main/clusters";
 import {
+    Certificate,
     CertificateAuthority,
     InteractionClient,
     MessageChannel,
     NodeDiscoveryType,
     SupportedTransportsSchema,
     TlvCertSigningRequest,
-    X509Base,
 } from "@matter/main/protocol";
 import {
     Attribute,
@@ -541,7 +541,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
         const ca = await CertificateAuthority.create(this.#controllerInstance.crypto, caConfig);
 
         const { certSigningRequest } = TlvCertSigningRequest.decode(elements);
-        const operationalPublicKey = await X509Base.getPublicKeyFromCsr(
+        const operationalPublicKey = await Certificate.getPublicKeyFromCsr(
             this.#controllerInstance.crypto,
             certSigningRequest,
         );

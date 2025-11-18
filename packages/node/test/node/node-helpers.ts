@@ -10,6 +10,7 @@ import { Crypto, InternalError } from "#general";
 import { CommissioningServer, InteractionServer } from "#index.js";
 import { Specification } from "#model";
 import {
+    Certificate,
     ChannelManager,
     Fabric,
     FabricManager,
@@ -23,6 +24,8 @@ import {
 import {
     AttributeReport,
     EventReport,
+    FabricId,
+    FabricIndex,
     NodeId,
     TlvDataReport,
     TlvInvokeRequest,
@@ -34,8 +37,6 @@ import {
     TypeFromSchema,
     VendorId,
 } from "#types";
-import { X509Base } from "@matter/protocol";
-import { FabricId, FabricIndex } from "@matter/types";
 import { MockServerNode } from "./mock-server-node.js";
 
 export const FAILSAFE_LENGTH_S = 60;
@@ -172,7 +173,7 @@ export function CommissioningHelper() {
             });
 
             const { certSigningRequest } = TlvCertSigningRequest.decode(nocsrElements);
-            const peerPublicKey = await X509Base.getPublicKeyFromCsr(crypto, certSigningRequest);
+            const peerPublicKey = await Certificate.getPublicKeyFromCsr(crypto, certSigningRequest);
             const noc = await authority.ca.generateNoc(
                 peerPublicKey,
                 controllerFabric.fabricId,

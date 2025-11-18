@@ -4,7 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto, DataReader, Endian, HashAlgorithm, InternalError, Logger, MatterError } from "#general";
+import {
+    Bytes,
+    Crypto,
+    DataReader,
+    Endian,
+    HashAlgorithm,
+    HashFipsAlgorithmId,
+    InternalError,
+    Logger,
+    MatterError,
+} from "#general";
 import { OtaImageHeader, TlvOtaImageHeader } from "./OtaImageHeader.js";
 
 const logger = Logger.get("OtaImageReader");
@@ -27,7 +37,7 @@ export class OtaImageReader {
     #headerSize?: number;
     #headerData?: OtaImageHeader;
     #fullFileChecksum?: string;
-    #fullFileChecksumType: HashAlgorithm = HashAlgorithm.SHA256;
+    #fullFileChecksumType: HashAlgorithm = "SHA-256";
 
     /** Read only the OTA image header from the stream and returns the  parsed header data. */
     static async header(streamReader: ReadableStreamDefaultReader<Bytes>) {
@@ -211,8 +221,8 @@ export class OtaImageReader {
             // The internal payload digest will be verified later during usage and should be included by checking the
             // outer checksum.
             const fullChecksum = await this.#crypto.computeHash(
-                this.#fullFileChecksumType,
                 payloadIterator(headerBytes),
+                this.#fullFileChecksumType,
             );
             this.#fullFileChecksum = Bytes.toBase64(Bytes.of(fullChecksum));
 
@@ -222,7 +232,10 @@ export class OtaImageReader {
             }
         } else {
             // Else verify the internal payload digest to ensure payload integrity.
-            const hashBytes = await this.#crypto.computeHash(imageDigestType as HashAlgorithm, payloadIterator());
+            const hashBytes = await this.#crypto.computeHash(
+                payloadIterator(),
+                HashFipsAlgorithmId[imageDigestType] as HashAlgorithm,
+            );
 
             if (readPayloadSize !== BigInt(payloadSize)) {
                 throw new OtaImageError(`OTA payload size mismatch: expected ${payloadSize}, got ${readPayloadSize}`);
@@ -273,7 +286,10 @@ export class OtaImageReader {
             }
         };
 
-        const hashBytes = await this.#crypto.computeHash(imageDigestType as HashAlgorithm, iterator());
+        const hashBytes = await this.#crypto.computeHash(
+            iterator(),
+            HashFipsAlgorithmId[imageDigestType] as HashAlgorithm,
+        );
 
         if (readPayloadSize !== BigInt(payloadSize)) {
             throw new OtaImageError(`OTA payload size mismatch: expected ${payloadSize}, got ${readPayloadSize}`);

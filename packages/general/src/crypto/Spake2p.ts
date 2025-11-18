@@ -130,7 +130,7 @@ export class Spake2p {
         this.addToContext(TTwriter, Z);
         this.addToContext(TTwriter, V);
         this.addToContext(TTwriter, numberToBytesBE(this.#w0, 32));
-        return this.#crypto.computeSha256(TTwriter.toByteArray());
+        return this.#crypto.computeHash(TTwriter.toByteArray());
     }
 
     private addToContext(TTwriter: DataWriter<Endian.Little>, data: Bytes) {

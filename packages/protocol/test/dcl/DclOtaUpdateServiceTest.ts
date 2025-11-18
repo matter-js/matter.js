@@ -6,19 +6,27 @@
 
 import { DclOtaUpdateService, OtaUpdateError } from "#dcl/DclOtaUpdateService.js";
 import { OtaImageWriter } from "#dcl/OtaImageWriter.js";
-import { Crypto, DataWriter, Endian, Environment, StorageBackendMemory, StorageService } from "#general";
+import {
+    Crypto,
+    DataWriter,
+    Endian,
+    Environment,
+    HashFipsAlgorithmId,
+    MockFetch,
+    StorageBackendMemory,
+    StorageService,
+} from "#general";
 import { VendorId } from "#types";
-import { FetchMock } from "../util/fetch-mock.js";
 import { createOtaImage, createVersionMetadata, mockVersionsList, StreamingCrypto } from "./dcl-ota-test-helpers.js";
 
 describe("DclOtaUpdateService", () => {
-    let fetchMock: FetchMock;
+    let fetchMock: MockFetch;
     let environment: Environment;
     let storage: StorageBackendMemory;
     const crypto = new StreamingCrypto();
 
     beforeEach(async () => {
-        fetchMock = new FetchMock();
+        fetchMock = new MockFetch();
         environment = new Environment("test");
 
         // Set up storage - just create the backend, StorageService will manage initialization
@@ -534,7 +542,7 @@ describe("DclOtaUpdateService", () => {
             const metadata = createVersionMetadata(3, true, true, {
                 otaFileSize: otaImage.byteLength,
                 otaChecksum: otaResult.fullFileChecksum,
-                otaChecksumType: otaResult.fullFileChecksumType,
+                otaChecksumType: HashFipsAlgorithmId[otaResult.fullFileChecksumType],
             });
 
             // Mock version check

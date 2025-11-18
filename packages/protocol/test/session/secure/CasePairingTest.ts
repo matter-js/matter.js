@@ -21,7 +21,7 @@ describe("CasePairing", () => {
             const peerPubKey = b$`04ae6e458cf40ad53761ee90bc458aa577e6a1acf75410524551bb0bc4c708832c6525991ee2eed47df35ce2d83dad743bff6769ebbf731395d62453cb37303e03`;
             const fabricPubKey = b$`04531a14e4c1b4cc7ac69aa5e403d5ccc3c5152c29fddedc29ac98ecff6c8f8695317446029cf3eb3e295ee18f0fd0ba9f06f7fa229138db0bc8d8c6f9875c9707`;
 
-            const sigma2Salt = Bytes.concat(ipk, random, pubKey, await crypto.computeSha256(sigma1Bytes));
+            const sigma2Salt = Bytes.concat(ipk, random, pubKey, await crypto.computeHash(sigma1Bytes));
 
             expect(Bytes.toHex(sigma2Salt)).to.equal(
                 "0c677d9b5ac585827b577470bd9bd51675d1443943a23371699bb017958a87e9ec6bbcad5f990aa3822a45bec778648904e2690445cc017a388853eaeca3a1ffd2712f6898e0bb523b8b496590804a39bf1555300bbd2a159e927b428397fb07a41e26c8cdf858ec62a310d0480d94eb64df506d7014c72ed4a18169954cf24a5cacf44fc7c13eb39906c06a50864f8106",
@@ -84,7 +84,7 @@ describe("CasePairing", () => {
 
             const sigma3Salt = Bytes.concat(
                 identityProtectionKey,
-                await crypto.computeSha256([sigma1Bytes, sigma2Bytes]),
+                await crypto.computeHash([sigma1Bytes, sigma2Bytes]),
             );
 
             expect(Bytes.toHex(sigma3Salt)).to.equal(
@@ -116,7 +116,7 @@ describe("CasePairing", () => {
 
             const secureSessionSalt = Bytes.concat(
                 identityProtectionKey,
-                await crypto.computeSha256([sigma1Bytes, sigma2Bytes, sigma3Bytes]),
+                await crypto.computeHash([sigma1Bytes, sigma2Bytes, sigma3Bytes]),
             );
             const decryptKey = await crypto.createHkdfKey(
                 sharedSecret,

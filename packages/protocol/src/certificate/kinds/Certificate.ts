@@ -46,7 +46,7 @@ import { CertificateExtension } from "./definitions/operational.js";
  * It also provides two static methods to create a certificate signing request (CSR) and to extract the public key
  * from a CSR.
  */
-export abstract class X509Base<CT extends X509Certificate> {
+export abstract class Certificate<CT extends X509Certificate> {
     #signature?: EcdsaSignature;
     #cert: Unsigned<CT>;
 
@@ -328,7 +328,7 @@ export abstract class X509Base<CT extends X509Certificate> {
     }
 }
 
-export namespace X509Base {
+export namespace Certificate {
     /**
      * Create a Certificate Signing Request (CSR) in ASN.1 DER format.
      */

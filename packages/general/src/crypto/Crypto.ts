@@ -35,35 +35,25 @@ export const CRYPTO_SYMMETRIC_KEY_LENGTH = 16;
  *
  * The enum values are the FIPS-defined algorithm IDs.
  */
-export enum HashAlgorithm {
-    SHA256 = 1,
-    SHA512 = 7,
-    SHA384 = 8,
-    SHA512_224 = 10,
-    SHA512_256 = 11,
-    SHA3_256 = 12,
-}
+export type HashAlgorithm = "SHA-256" | "SHA-512" | "SHA-384" | "SHA-512/224" | "SHA-512/256" | "SHA3-256";
 
 export const HASH_ALGORITHM_OUTPUT_LENGTHS: Record<HashAlgorithm, number> = {
-    [HashAlgorithm.SHA256]: 32,
-    [HashAlgorithm.SHA512]: 64,
-    [HashAlgorithm.SHA384]: 48,
-    [HashAlgorithm.SHA512_224]: 28,
-    [HashAlgorithm.SHA512_256]: 32,
-    [HashAlgorithm.SHA3_256]: 32,
+    "SHA-256": 32,
+    "SHA-512": 64,
+    "SHA-384": 48,
+    "SHA-512/224": 28,
+    "SHA-512/256": 32,
+    "SHA3-256": 32,
 };
 
-/**
- * Human-readable names for hash algorithms.
- */
-export const HASH_ALGORITHM_NAMES: Record<HashAlgorithm, string> = {
-    [HashAlgorithm.SHA256]: "SHA-256",
-    [HashAlgorithm.SHA512]: "SHA-512",
-    [HashAlgorithm.SHA384]: "SHA-384",
-    [HashAlgorithm.SHA512_224]: "SHA-512/224",
-    [HashAlgorithm.SHA512_256]: "SHA-512/256",
-    [HashAlgorithm.SHA3_256]: "SHA3-256",
-};
+export enum HashFipsAlgorithmId {
+    "SHA-256" = 1,
+    "SHA-512" = 7,
+    "SHA-384" = 8,
+    "SHA-512/224" = 10,
+    "SHA-512/256" = 11,
+    "SHA3-256" = 12,
+}
 
 const logger = Logger.get("Crypto");
 
@@ -95,22 +85,12 @@ export abstract class Crypto extends Entropy {
     abstract decrypt(key: Bytes, data: Bytes, nonce: Bytes, aad?: Bytes): Bytes;
 
     /**
-     * Compute a cryptographic hash using the specified algorithm.
+     * Compute a cryptographic hash using the specified algorithm. If no algorithm is specified, SHA-256 is used.
      */
     abstract computeHash(
-        algorithm: HashAlgorithm,
         data: Bytes | Bytes[] | ReadableStreamDefaultReader<Bytes> | AsyncIterator<Bytes>,
+        algorithm?: HashAlgorithm,
     ): MaybePromise<Bytes>;
-
-    /**
-     * Compute the SHA-256 hash of a buffer, stream or async iterator.
-     * Convenience method that calls computeHash(HashAlgorithm.SHA256, data), but commonly used in Matter.
-     */
-    computeSha256(
-        data: Bytes | Bytes[] | ReadableStreamDefaultReader<Bytes> | AsyncIterator<Bytes>,
-    ): MaybePromise<Bytes> {
-        return this.computeHash(HashAlgorithm.SHA256, data);
-    }
 
     /**
      * Create a key from a secret using PBKDF2.

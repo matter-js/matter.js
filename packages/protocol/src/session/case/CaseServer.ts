@@ -203,7 +203,7 @@ export class CaseServer implements ProtocolHandler {
             operationalIdentityProtectionKey,
             responderRandom,
             responderEcdhPublicKey,
-            await crypto.computeSha256(cx.bytes),
+            await crypto.computeHash(cx.bytes),
         );
         const sigma2Key = await crypto.createHkdfKey(sharedSecret, sigma2Salt, KDFSR2_INFO);
         const signatureData = TlvSignedData.encode({
@@ -236,7 +236,7 @@ export class CaseServer implements ProtocolHandler {
         } = await cx.messenger.readSigma3();
         const sigma3Salt = Bytes.concat(
             operationalIdentityProtectionKey,
-            await crypto.computeSha256([cx.bytes, sigma2Bytes]),
+            await crypto.computeHash([cx.bytes, sigma2Bytes]),
         );
         const sigma3Key = await crypto.createHkdfKey(sharedSecret, sigma3Salt, KDFSR3_INFO);
         const peerDecryptedData = crypto.decrypt(sigma3Key, peerEncrypted, TBE_DATA3_NONCE);
@@ -268,7 +268,7 @@ export class CaseServer implements ProtocolHandler {
         // All good! Create secure session
         const secureSessionSalt = Bytes.concat(
             operationalIdentityProtectionKey,
-            await crypto.computeSha256([cx.bytes, sigma2Bytes, sigma3Bytes]),
+            await crypto.computeHash([cx.bytes, sigma2Bytes, sigma3Bytes]),
         );
         const secureSession = await this.#sessions.createSecureSession({
             sessionId: responderSessionId,

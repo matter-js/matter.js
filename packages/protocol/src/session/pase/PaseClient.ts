@@ -75,7 +75,7 @@ export class PaseClient {
         const { w0, w1 } = await Spake2p.computeW0W1(crypto, pbkdfParameters, setupPin);
         const spake2p = Spake2p.create(
             crypto,
-            await crypto.computeSha256([SPAKE_CONTEXT, requestPayload, responsePayload]),
+            await crypto.computeHash([SPAKE_CONTEXT, requestPayload, responsePayload]),
             w0,
         );
         const X = spake2p.computeX();

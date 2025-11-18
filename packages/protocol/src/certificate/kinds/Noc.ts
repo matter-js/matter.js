@@ -6,12 +6,12 @@
 
 import { Bytes, Crypto, Diagnostic, PublicKey } from "#general";
 import { CaseAuthenticatedTag, FabricId, NodeId } from "#types";
+import { Certificate } from "./Certificate.js";
 import { CertificateError } from "./common.js";
 import { OperationalCertificate } from "./definitions/operational.js";
 import { Icac } from "./Icac.js";
 import { OperationalBase } from "./OperationalBase.js";
 import { Rcac } from "./Rcac.js";
-import { X509Base } from "./X509Base.js";
 
 export class Noc extends OperationalBase<OperationalCertificate.Noc> {
     /** Construct the class from a Tlv version of the certificate */
@@ -21,7 +21,7 @@ export class Noc extends OperationalBase<OperationalCertificate.Noc> {
 
     /** Construct the class from an ASN.1/DER encoded certificate */
     static fromAsn1(asn1: Bytes) {
-        const cert = X509Base.parseAsn1Certificate(asn1);
+        const cert = Certificate.parseAsn1Certificate(asn1);
         return new Noc(cert as OperationalCertificate.Noc);
     }
 

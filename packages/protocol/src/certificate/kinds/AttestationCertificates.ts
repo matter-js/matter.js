@@ -5,15 +5,15 @@
  */
 
 import { Bytes, Crypto, DerBitString, DerCodec, X962 } from "#general";
+import { Certificate } from "./Certificate.js";
 import { assertCertificateDerSize } from "./common.js";
 import { AttestationCertificate } from "./definitions/attestation.js";
 import { X509Certificate } from "./definitions/base.js";
-import { X509Base } from "./X509Base.js";
 
 /**
  * Base class for Attestation Certificates (PAA, PAI, DAC).
  */
-export abstract class AttestationBaseCertificate<CT extends X509Certificate> extends X509Base<CT> {
+export abstract class AttestationBaseCertificate<CT extends X509Certificate> extends Certificate<CT> {
     /**
      * Sign the certificate using the provided crypto and key.
      * If the certificate is already signed, it throws a CertificateError.
@@ -42,7 +42,7 @@ export abstract class AttestationBaseCertificate<CT extends X509Certificate> ext
 export class Paa extends AttestationBaseCertificate<AttestationCertificate.Paa> {
     /** Construct the class from an ASN.1/DER encoded certificate */
     static fromAsn1(asn1: Bytes): Paa {
-        const cert = X509Base.parseAsn1Certificate(asn1, X509Base.REQUIRED_PAA_EXTENSIONS);
+        const cert = Certificate.parseAsn1Certificate(asn1, Certificate.REQUIRED_PAA_EXTENSIONS);
         return new Paa(cert as AttestationCertificate.Paa);
     }
 }

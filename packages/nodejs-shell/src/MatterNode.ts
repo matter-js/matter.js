@@ -6,8 +6,8 @@
 
 // Include this first to auto-register Crypto, Network and Time Node.js implementations
 import { Environment, Logger, StorageContext, StorageService } from "#general";
+import { DclCertificateService, DclOtaUpdateService } from "#protocol";
 import { NodeId } from "#types";
-import { DclCertificateService, DclOtaUpdateService } from "@matter/protocol";
 import { CommissioningController, ControllerStore } from "@project-chip/matter.js";
 import { CommissioningControllerNodeOptions, Endpoint, PairedNode } from "@project-chip/matter.js/device";
 import { join } from "node:path";
@@ -128,6 +128,7 @@ export class MatterNode {
             throw new Error("No controller initialized");
         }
         this.#started = true;
+        await this.certificateService.construction;
     }
 
     async connectAndGetNodes(nodeIdStr?: string, connectOptions?: CommissioningControllerNodeOptions) {

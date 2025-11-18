@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError, NotImplementedError } from "#MatterError.js";
+import { ImplementationError } from "#MatterError.js";
 import { Bytes } from "#util/Bytes.js";
 import { asError } from "#util/Error.js";
 import { MaybePromise } from "#util/Promises.js";
@@ -17,7 +17,6 @@ import {
     CRYPTO_ENCRYPT_ALGORITHM,
     CRYPTO_HASH_ALGORITHM,
     CRYPTO_SYMMETRIC_KEY_LENGTH,
-    HASH_ALGORITHM_NAMES,
     HashAlgorithm,
 } from "./Crypto.js";
 import { CryptoDecryptError, CryptoVerifyError } from "./CryptoError.js";
@@ -29,19 +28,6 @@ import type * as NodeJsCryptoApi from "node:crypto";
 
 // Ensure we don't reference global crypto accidentally
 declare const crypto: never;
-
-/**
- * Mapping of hash algorithms to Node.js crypto algorithm names.
- * Node.js supports all algorithms.
- */
-const NODE_CRYPTO_ALGORITHMS: Record<HashAlgorithm, string> = {
-    [HashAlgorithm.SHA256]: "sha256",
-    [HashAlgorithm.SHA512]: "sha512",
-    [HashAlgorithm.SHA384]: "sha384",
-    [HashAlgorithm.SHA512_224]: "sha512-224",
-    [HashAlgorithm.SHA512_256]: "sha512-256",
-    [HashAlgorithm.SHA3_256]: "sha3-256",
-};
 
 /**
  * A crypto API implemented in the style of Node.js.
@@ -130,16 +116,10 @@ export class NodeJsStyleCrypto extends Crypto {
     }
 
     computeHash(
-        algorithm: HashAlgorithm,
         data: Bytes | Bytes[] | ReadableStreamDefaultReader<Bytes> | AsyncIterator<Bytes>,
+        algorithm: HashAlgorithm = "SHA-256",
     ): MaybePromise<Bytes> {
-        // Validate algorithm
-        const nodeAlgorithmName = NODE_CRYPTO_ALGORITHMS[algorithm];
-        if (!nodeAlgorithmName) {
-            throw new NotImplementedError(`Unsupported hash algorithm ${HASH_ALGORITHM_NAMES[algorithm] ?? algorithm}`);
-        }
-
-        const hasher = this.#crypto.createHash(nodeAlgorithmName);
+        const hasher = this.#crypto.createHash(algorithm);
 
         // Handle different data types with full streaming support
         if (Array.isArray(data)) {
@@ -154,9 +134,7 @@ export class NodeJsStyleCrypto extends Crypto {
             } else if ("next" in data && typeof data.next === "function") {
                 iteratorFunc = data.next.bind(data);
             } else {
-                throw new ImplementationError(
-                    `Invalid data type for computeHash with algorithm ${HASH_ALGORITHM_NAMES[algorithm]}`,
-                );
+                throw new ImplementationError(`Invalid data type for computeHash with algorithm ${algorithm}`);
             }
             return this.#hashAsyncIteratorData(hasher, iteratorFunc).then(() => Bytes.of(hasher.digest()));
         }

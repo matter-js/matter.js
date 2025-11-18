@@ -10,11 +10,11 @@ import {
     TestCert_WithoutAuthKeyId,
 } from "#certificate/ChipPAAuthorities.js";
 import { Paa } from "#certificate/kinds/AttestationCertificates.js";
+import { Certificate } from "#certificate/kinds/Certificate.js";
 import { CertificateError } from "#certificate/kinds/common.js";
 import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Rcac } from "#certificate/kinds/Rcac.js";
-import { X509Base } from "#certificate/kinds/X509Base.js";
 import {
     Bytes,
     DerCodec,
@@ -470,7 +470,7 @@ describe("Certificates", () => {
 
     describe("createCertificateSigningRequest", () => {
         it("generates a valid CSR", async () => {
-            const result = await X509Base.createCertificateSigningRequest(
+            const result = await Certificate.createCertificateSigningRequest(
                 crypto,
                 PrivateKey(TEST_PRIVATE_KEY, { publicKey: TEST_PUBLIC_KEY }),
             );
@@ -525,12 +525,12 @@ describe("Certificates", () => {
 
     describe("getPublicKeyFromCsr", () => {
         it("get the public key from the CSR", async () => {
-            const csr = await X509Base.createCertificateSigningRequest(
+            const csr = await Certificate.createCertificateSigningRequest(
                 crypto,
                 PrivateKey(TEST_PRIVATE_KEY, { publicKey: TEST_PUBLIC_KEY }),
             );
 
-            const result = await X509Base.getPublicKeyFromCsr(crypto, csr);
+            const result = await Certificate.getPublicKeyFromCsr(crypto, csr);
 
             expect(result).deep.equal(TEST_PUBLIC_KEY);
         });

@@ -12,7 +12,7 @@
  * * NodeJsCryptoTest.ts also implements some of these tests
  */
 
-import { HASH_ALGORITHM_NAMES, HASH_ALGORITHM_OUTPUT_LENGTHS, HashAlgorithm } from "#crypto/index.js";
+import { HASH_ALGORITHM_OUTPUT_LENGTHS, HashAlgorithm } from "#crypto/index.js";
 import { Key, PrivateKey, PublicKey } from "#crypto/Key.js";
 import { StandardCrypto } from "#crypto/StandardCrypto.js";
 import { b$, Bytes } from "#util/Bytes.js";
@@ -82,7 +82,7 @@ describe("StandardCrypto", () => {
     // });
 
     it("creates correct EC hash", async () => {
-        const hash = await crypto.computeSha256(
+        const hash = await crypto.computeHash(
             b$`047e708746f3d9fb3265a73f0c69ad18cdd48860d7956731eb72873f3d09c17b667c13737017574bf3f826239ff27cdb52fb3e69ff4a06ffd2cbccfdc695ff6096`,
         );
         expect(Bytes.toHex(hash)).equals("582418375f09bff6b3bbb2421206ad6aec3c79ff2602f95a68d3e4d23bebe36f");
@@ -115,42 +115,42 @@ describe("StandardCrypto", () => {
 
         describe("SHA-256", () => {
             it("computes hash via computeHash", async () => {
-                const hash = await crypto.computeHash(HashAlgorithm.SHA256, testData);
+                const hash = await crypto.computeHash(testData, "SHA-256");
                 expect(Bytes.isBytes(hash)).to.be.true;
-                expect(hash.byteLength).to.equal(HASH_ALGORITHM_OUTPUT_LENGTHS[HashAlgorithm.SHA256]); // 256 bits = 32 bytes
+                expect(hash.byteLength).to.equal(HASH_ALGORITHM_OUTPUT_LENGTHS["SHA-256"]); // 256 bits = 32 bytes
             });
 
             it("computes hash via computeSha256()", async () => {
-                const hash = await crypto.computeSha256(testData);
+                const hash = await crypto.computeHash(testData);
                 expect(Bytes.isBytes(hash)).to.be.true;
-                expect(hash.byteLength).to.equal(HASH_ALGORITHM_OUTPUT_LENGTHS[HashAlgorithm.SHA256]);
+                expect(hash.byteLength).to.equal(HASH_ALGORITHM_OUTPUT_LENGTHS["SHA-256"]);
             });
 
             it("computeSha256() produces same result as computeHash(1)", async () => {
-                const hash1 = await crypto.computeSha256(testData);
-                const hash2 = await crypto.computeHash(HashAlgorithm.SHA256, testData);
+                const hash1 = await crypto.computeHash(testData);
+                const hash2 = await crypto.computeHash(testData, "SHA-256");
                 expect(Bytes.toHex(hash1)).to.equal(Bytes.toHex(hash2));
             });
 
             it("produces different hashes for different inputs", async () => {
-                const hash1 = await crypto.computeHash(HashAlgorithm.SHA256, testData);
-                const hash2 = await crypto.computeHash(HashAlgorithm.SHA256, testData2);
+                const hash1 = await crypto.computeHash(testData, "SHA-256");
+                const hash2 = await crypto.computeHash(testData2, "SHA-256");
                 expect(Bytes.toHex(hash1)).to.not.equal(Bytes.toHex(hash2));
             });
 
             it("handles array of buffers", async () => {
                 const chunk1 = b$`48656c6c6f`; // "Hello"
                 const chunk2 = b$`20576f726c64`; // " World"
-                const hashArray = await crypto.computeHash(HashAlgorithm.SHA256, [chunk1, chunk2]);
-                const hashSingle = await crypto.computeHash(HashAlgorithm.SHA256, testData);
+                const hashArray = await crypto.computeHash([chunk1, chunk2], "SHA-256");
+                const hashSingle = await crypto.computeHash(testData, "SHA-256");
                 expect(Bytes.toHex(hashArray)).to.equal(Bytes.toHex(hashSingle));
             });
         });
 
-        [HashAlgorithm.SHA512, HashAlgorithm.SHA384].forEach(alg => {
-            describe(HASH_ALGORITHM_NAMES[alg], () => {
-                it(`computes ${HASH_ALGORITHM_NAMES[alg]} via computeHash`, async () => {
-                    const hash = await crypto.computeHash(alg, testData);
+        (["SHA-512", "SHA-384"] as HashAlgorithm[]).forEach(alg => {
+            describe(alg, () => {
+                it(`computes ${alg} via computeHash`, async () => {
+                    const hash = await crypto.computeHash(testData, alg);
                     expect(Bytes.isBytes(hash)).to.be.true;
                     expect(hash.byteLength).to.equal(HASH_ALGORITHM_OUTPUT_LENGTHS[alg]);
                 });
@@ -161,7 +161,7 @@ describe("StandardCrypto", () => {
                         yield Bytes.of(baseData).slice(0, 5);
                         yield Bytes.of(baseData).slice(5);
                     }
-                    expect(() => crypto.computeHash(alg, data())).to.throw(
+                    expect(() => crypto.computeHash(data(), alg)).to.throw(
                         /Streamed hash computation is not supported in StandardCrypto/,
                     );
                 });
@@ -170,53 +170,33 @@ describe("StandardCrypto", () => {
                     const chunk1 = b$`48656c6c6f`; // "Hello"
                     const chunk2 = b$`20576f726c64`; // " World"
 
-                    const hashArray = await crypto.computeHash(alg, [chunk1, chunk2]);
-                    const hashSingle = await crypto.computeHash(alg, testData);
+                    const hashArray = await crypto.computeHash([chunk1, chunk2], alg);
+                    const hashSingle = await crypto.computeHash(testData, alg);
                     expect(Bytes.toHex(hashArray)).to.equal(
                         Bytes.toHex(hashSingle),
-                        `Algorithm ${HASH_ALGORITHM_NAMES[alg]} array hashing failed`,
+                        `Algorithm ${alg} array hashing failed`,
                     );
                 });
 
                 it("produces different hashes for different inputs", async () => {
-                    const hash1 = await crypto.computeHash(alg, testData);
-                    const hash2 = await crypto.computeHash(alg, testData2);
+                    const hash1 = await crypto.computeHash(testData, alg);
+                    const hash2 = await crypto.computeHash(testData2, alg);
                     expect(Bytes.toHex(hash1)).to.not.equal(Bytes.toHex(hash2));
                 });
             });
         });
 
         describe("Node.js-only Algorithms (Should Throw in StandardCrypto)", () => {
-            it("throws NotImplementedError for SHA-512/224 (ID 10)", () => {
-                expect(() => crypto.computeHash(HashAlgorithm.SHA512_224, testData)).throw(
-                    /not supported in StandardCrypto/,
-                );
+            it("throws NotImplementedError for SHA-512/224 (ID 10)", async () => {
+                await expect(crypto.computeHash(testData, "SHA-512/224")).to.be.rejectedWith(/Unrecognized/);
             });
 
-            it("throws NotImplementedError for SHA-512/256 (ID 11)", () => {
-                expect(() => crypto.computeHash(HashAlgorithm.SHA512_256, testData)).throw(
-                    /not supported in StandardCrypto/,
-                );
+            it("throws NotImplementedError for SHA-512/256 (ID 11)", async () => {
+                await expect(crypto.computeHash(testData, "SHA-512/256")).to.be.rejectedWith(/Unrecognized/);
             });
 
-            it("throws NotImplementedError for SHA3-256 (ID 12)", () => {
-                expect(() => crypto.computeHash(HashAlgorithm.SHA3_256, testData)).throw(
-                    /not supported in StandardCrypto/,
-                );
-            });
-        });
-
-        describe("Error Handling", () => {
-            it("throws error for invalid algorithm ID", () => {
-                expect(() => crypto.computeHash(99 as any, testData)).throw(/not supported in StandardCrypto/);
-            });
-
-            it("throws error for negative algorithm ID", () => {
-                expect(() => crypto.computeHash(-1 as any, testData)).throw(/not supported in StandardCrypto/);
-            });
-
-            it("throws error for zero algorithm ID", () => {
-                expect(() => crypto.computeHash(0 as any, testData)).throw(/not supported in StandardCrypto/);
+            it("throws NotImplementedError for SHA3-256 (ID 12)", async () => {
+                await expect(crypto.computeHash(testData, "SHA3-256")).to.be.rejectedWith(/Unrecognized/);
             });
         });
     });

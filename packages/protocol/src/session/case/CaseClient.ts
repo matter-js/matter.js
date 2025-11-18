@@ -158,7 +158,7 @@ export class CaseClient {
                 operationalIdentityProtectionKey,
                 responderRandom,
                 peerKey,
-                await crypto.computeSha256(sigma1Bytes),
+                await crypto.computeHash(sigma1Bytes),
             );
             const sigma2Key = await crypto.createHkdfKey(sharedSecret, sigma2Salt, KDFSR2_INFO);
             const peerEncryptedData = crypto.decrypt(sigma2Key, peerEncrypted, TBE_DATA2_NONCE);
@@ -207,7 +207,7 @@ export class CaseClient {
             // Generate and send sigma3
             const sigma3Salt = Bytes.concat(
                 operationalIdentityProtectionKey,
-                await crypto.computeSha256([sigma1Bytes, sigma2Bytes]),
+                await crypto.computeHash([sigma1Bytes, sigma2Bytes]),
             );
             const sigma3Key = await crypto.createHkdfKey(sharedSecret, sigma3Salt, KDFSR3_INFO);
             const signatureData = TlvSignedData.encode({
@@ -231,7 +231,7 @@ export class CaseClient {
             const sessionCaseAuthenticatedTags = caseAuthenticatedTags ?? resumptionRecord?.caseAuthenticatedTags;
             const secureSessionSalt = Bytes.concat(
                 operationalIdentityProtectionKey,
-                await crypto.computeSha256([sigma1Bytes, sigma2Bytes, sigma3Bytes]),
+                await crypto.computeHash([sigma1Bytes, sigma2Bytes, sigma3Bytes]),
             );
             secureSession = await this.#sessions.createSecureSession({
                 sessionId: initiatorSessionId,

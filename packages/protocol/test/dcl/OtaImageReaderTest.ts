@@ -6,7 +6,7 @@
 
 import { OtaImageReader } from "#dcl/OtaImageReader.js";
 import { OtaImageWriter } from "#dcl/OtaImageWriter.js";
-import { Bytes, HASH_ALGORITHM_OUTPUT_LENGTHS, HashAlgorithm } from "#general";
+import { Bytes, HASH_ALGORITHM_OUTPUT_LENGTHS, HashFipsAlgorithmId } from "#general";
 import { StreamingCrypto } from "./dcl-ota-test-helpers.js";
 
 describe("OtaImageReader", () => {
@@ -81,7 +81,7 @@ describe("OtaImageReader", () => {
                 softwareVersion: 1,
                 softwareVersionString: "v1.0.0",
                 payload,
-                imageDigestType: HashAlgorithm.SHA512,
+                imageDigestType: "SHA-512",
             });
 
             const stream = new ReadableStream<Bytes>({
@@ -93,8 +93,8 @@ describe("OtaImageReader", () => {
             const reader = stream.getReader();
             const header = await OtaImageReader.header(reader);
 
-            expect(header.imageDigestType).to.equal(HashAlgorithm.SHA512);
-            expect(header.imageDigest.byteLength).to.equal(HASH_ALGORITHM_OUTPUT_LENGTHS[HashAlgorithm.SHA512]);
+            expect(header.imageDigestType).to.equal(HashFipsAlgorithmId["SHA-512"]);
+            expect(header.imageDigest.byteLength).to.equal(HASH_ALGORITHM_OUTPUT_LENGTHS["SHA-512"]);
         });
     });
 
@@ -132,7 +132,7 @@ describe("OtaImageReader", () => {
                 softwareVersion: 1,
                 softwareVersionString: "v1.0.0",
                 payload,
-                imageDigestType: HashAlgorithm.SHA384,
+                imageDigestType: "SHA-384",
             });
 
             const stream = new ReadableStream<Bytes>({
@@ -144,7 +144,7 @@ describe("OtaImageReader", () => {
             const reader = stream.getReader();
             const header = await OtaImageReader.file(reader, crypto, result.image.byteLength);
 
-            expect(header.imageDigestType).to.equal(HashAlgorithm.SHA384);
+            expect(header.imageDigestType).to.equal(HashFipsAlgorithmId["SHA-384"]);
         });
 
         it("computes full file checksum when enabled", async () => {
@@ -193,7 +193,7 @@ describe("OtaImageReader", () => {
             });
             await OtaImageReader.file(stream.getReader(), crypto, result.image.byteLength, {
                 calculateFullChecksum: true,
-                checksumType: HashAlgorithm.SHA256,
+                checksumType: "SHA-256",
                 expectedChecksum: result.fullFileChecksum,
             });
         });
@@ -219,7 +219,7 @@ describe("OtaImageReader", () => {
             await expect(
                 OtaImageReader.file(stream.getReader(), crypto, result.image.byteLength, {
                     calculateFullChecksum: true,
-                    checksumType: HashAlgorithm.SHA256,
+                    checksumType: "SHA-256",
                     expectedChecksum: "invalid-checksum",
                 }),
             ).to.be.rejectedWith(/checksum mismatch/);
@@ -234,7 +234,7 @@ describe("OtaImageReader", () => {
                 softwareVersion: 1,
                 softwareVersionString: "v1.0.0",
                 payload,
-                fullFileChecksumType: HashAlgorithm.SHA512,
+                fullFileChecksumType: "SHA-512",
             });
 
             const stream = new ReadableStream<Bytes>({
@@ -246,7 +246,7 @@ describe("OtaImageReader", () => {
 
             await OtaImageReader.file(stream.getReader(), crypto, result.image.byteLength, {
                 calculateFullChecksum: true,
-                checksumType: HashAlgorithm.SHA512,
+                checksumType: "SHA-512",
                 expectedChecksum: result.fullFileChecksum,
             });
 
@@ -295,7 +295,7 @@ describe("OtaImageReader", () => {
                 softwareVersion: 1,
                 softwareVersionString: "v1.0.0",
                 payload,
-                imageDigestType: HashAlgorithm.SHA384,
+                imageDigestType: "SHA-384",
             });
 
             const stream = new ReadableStream<Bytes>({
@@ -307,7 +307,7 @@ describe("OtaImageReader", () => {
 
             // Should validate successfully with SHA-384
             const header = await OtaImageReader.file(stream.getReader(), crypto, result.image.byteLength);
-            expect(header.imageDigestType).to.equal(HashAlgorithm.SHA384);
+            expect(header.imageDigestType).to.equal(HashFipsAlgorithmId["SHA-384"]);
         });
     });
 

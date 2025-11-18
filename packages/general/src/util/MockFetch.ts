@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Callable } from "./Function.js";
+
 /**
  * Mock fetch response configuration
  */
@@ -38,7 +40,7 @@ export interface FetchCallLogEntry {
  *
  * @example
  * ```typescript
- * const fetchMock = new FetchMock();
+ * const fetchMock = new MockFetch();
  * fetchMock.addResponse("/api/data", { result: "success" });
  * fetchMock.install();
  *
@@ -47,13 +49,14 @@ export interface FetchCallLogEntry {
  * fetchMock.uninstall();
  * ```
  */
-export class FetchMock {
+export class MockFetch extends Callable<any, any> {
     private responses: FetchMockResponse[] = [];
     private originalFetch: typeof globalThis.fetch;
     private callLog: FetchCallLogEntry[] = [];
     private installed = false;
 
     constructor() {
+        super((url, options) => this.mockFetch(url, options));
         this.originalFetch = globalThis.fetch;
     }
 
@@ -78,7 +81,7 @@ export class FetchMock {
      */
     install() {
         if (this.installed) {
-            throw new Error("FetchMock is already installed");
+            throw new Error("MockFetch is already installed");
         }
         globalThis.fetch = this.mockFetch.bind(this) as any;
         this.installed = true;

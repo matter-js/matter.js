@@ -12,7 +12,7 @@ import { Entropy } from "#util/Entropy.js";
 import { MaybePromise } from "#util/Promises.js";
 import { describeList } from "#util/String.js";
 import { Ccm } from "./aes/Ccm.js";
-import { Crypto, CRYPTO_SYMMETRIC_KEY_LENGTH, HASH_ALGORITHM_NAMES, HashAlgorithm } from "./Crypto.js";
+import { Crypto, CRYPTO_SYMMETRIC_KEY_LENGTH, HashAlgorithm } from "./Crypto.js";
 import { CryptoVerifyError, KeyInputError } from "./CryptoError.js";
 import { EcdsaSignature } from "./EcdsaSignature.js";
 import { CurveType, Key, KeyType, PrivateKey, PublicKey } from "./Key.js";
@@ -20,17 +20,6 @@ import { WebCrypto } from "./WebCrypto.js";
 
 // Ensure we don't reference global crypto accidentally
 declare const crypto: never;
-
-/**
- * Mapping of hash algorithms to Web Crypto API algorithm names.
- * Only includes algorithms supported by Web Crypto API.
- */
-const WEB_CRYPTO_ALGORITHMS: Partial<Record<HashAlgorithm, string>> = {
-    [HashAlgorithm.SHA256]: "SHA-256",
-    [HashAlgorithm.SHA512]: "SHA-512",
-    [HashAlgorithm.SHA384]: "SHA-384",
-    // SHA-512/224, SHA-512/256, and SHA3-256 are not supported by Web Crypto API
-};
 
 const SIGNATURE_ALGORITHM = <EcdsaParams>{
     name: "ECDSA",
@@ -109,28 +98,20 @@ export class StandardCrypto extends Crypto {
     }
 
     computeHash(
-        algorithm: HashAlgorithm,
         buffer: Bytes | Bytes[] | ReadableStreamDefaultReader<Bytes> | AsyncIterator<Bytes>,
+        algorithm: HashAlgorithm = "SHA-256",
     ) {
-        // Check if Web Crypto supports this algorithm
-        const webCryptoName = WEB_CRYPTO_ALGORITHMS[algorithm];
-        if (!webCryptoName) {
-            throw new NotImplementedError(
-                `Hash algorithm ${HASH_ALGORITHM_NAMES[algorithm]} (${HashAlgorithm[algorithm]}) is not supported in StandardCrypto. Use Node.js-based crypto implementation.`,
-            );
-        }
-
         // Normalize buffer input
         if (Array.isArray(buffer)) {
             buffer = Bytes.concat(...buffer);
         }
         if (!Bytes.isBytes(buffer)) {
             throw new NotImplementedError(
-                `Streamed hash computation is not supported in StandardCrypto for ${HASH_ALGORITHM_NAMES[algorithm]}`,
+                `Streamed hash computation is not supported in StandardCrypto for ${algorithm}`,
             );
         }
 
-        return this.#subtle.digest(webCryptoName, Bytes.exclusive(buffer));
+        return this.#subtle.digest(algorithm, Bytes.exclusive(buffer));
     }
 
     async createPbkdf2Key(secret: Bytes, salt: Bytes, iteration: number, keyLength: number) {
