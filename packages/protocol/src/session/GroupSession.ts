@@ -58,19 +58,21 @@ export class GroupSession extends SecureSession {
         logger.debug(`Created secure GROUP session for fabric index ${fabric.fabricIndex}`, this.name);
     }
 
+    /**
+     * Create an outbound group session.
+     */
     static async create(options: {
         manager?: SessionManager;
         transports: ConnectionlessTransportSet;
         id: number;
         fabric: Fabric;
         keySetId: number;
-        peerNodeId: NodeId;
+        groupNodeId: NodeId;
         operationalGroupKey: Bytes;
     }) {
-        const { manager, transports, id, fabric, keySetId, peerNodeId, operationalGroupKey } = options;
+        const { manager, transports, id, fabric, keySetId, groupNodeId, operationalGroupKey } = options;
 
-        const groupId = GroupId.fromNodeId(peerNodeId);
-        GroupId.assertGroupId(groupId);
+        const groupId = GroupId.fromNodeId(groupNodeId);
         const multicastAddress = fabric.groups.multicastAddressFor(groupId);
 
         const operationalInterface = transports.interfaceFor(ChannelType.UDP, multicastAddress);
@@ -91,7 +93,7 @@ export class GroupSession extends SecureSession {
             id,
             fabric,
             keySetId,
-            peerNodeId,
+            peerNodeId: groupNodeId,
             operationalGroupKey,
         });
     }
