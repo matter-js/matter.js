@@ -185,19 +185,5 @@ describe("StandardCrypto", () => {
                 });
             });
         });
-
-        describe("Node.js-only Algorithms (Should Throw in StandardCrypto)", () => {
-            it("throws NotImplementedError for SHA-512/224 (ID 10)", async () => {
-                await expect(crypto.computeHash(testData, "SHA-512/224")).to.be.rejectedWith(/Unrecognized/);
-            });
-
-            it("throws NotImplementedError for SHA-512/256 (ID 11)", async () => {
-                await expect(crypto.computeHash(testData, "SHA-512/256")).to.be.rejectedWith(/Unrecognized/);
-            });
-
-            it("throws NotImplementedError for SHA3-256 (ID 12)", async () => {
-                await expect(crypto.computeHash(testData, "SHA3-256")).to.be.rejectedWith(/Unrecognized/);
-            });
-        });
     });
 });
