@@ -454,10 +454,7 @@ export class DclCertificateService {
 
             // Skip if certificate already exists (unless force is true)
             if (!force && this.#certificateIndex.has(subjectKeyId)) {
-                logger.debug(
-                    `Certificate ${subjectKeyId} already exists, skipping`,
-                    Diagnostic.dict({ skid: subjectKeyId }),
-                );
+                logger.debug(`Certificate already exists, skipping`, Diagnostic.dict({ skid: subjectKeyId }));
                 return;
             }
 
