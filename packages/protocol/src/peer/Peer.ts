@@ -5,13 +5,15 @@
  */
 
 import { BasicInformation } from "#clusters/basic-information";
-import { BasicMultiplex, BasicSet, isIpNetworkChannel, MaybePromise } from "#general";
+import { BasicMultiplex, BasicSet, Diagnostic, isIpNetworkChannel, Logger, MaybePromise } from "#general";
 import type { MdnsClient } from "#mdns/MdnsClient.js";
 import type { NodeSession } from "#session/NodeSession.js";
 import type { SecureSession } from "#session/SecureSession.js";
 import type { SessionManager } from "#session/SessionManager.js";
 import { ObservablePeerDescriptor, PeerDescriptor } from "./PeerDescriptor.js";
 import type { NodeDiscoveryType } from "./PeerSet.js";
+
+const logger = Logger.get("Peer");
 
 /**
  * A node on a fabric we are a member of.
@@ -84,13 +86,14 @@ export class Peer {
      * Permanently forget the peer.
      */
     async delete() {
-        await this.close();
+        logger.info("Removing", Diagnostic.strong(this.toString()));
+        await this.close(false);
         await this.#context.deletePeer(this);
         await this.#context.sessions.deleteResumptionRecord(this.address);
     }
 
     /**
-     *
+     * Remove the peer
      */
     async close(sendSessionClose = true) {
         if (this.activeDiscovery) {
