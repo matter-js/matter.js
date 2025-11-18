@@ -97,7 +97,7 @@ export class InteractionClientProvider {
     constructor(peers: PeerSet) {
         this.#peers = peers;
         this.#peers.deleted.on(peer => this.#onPeerLoss(peer.address));
-        this.#peers.disconnected.on(address => this.#onPeerLoss(address));
+        this.#peers.disconnected.on(peer => this.#onPeerLoss(peer.address));
     }
 
     static [Environmental.create](env: Environment) {

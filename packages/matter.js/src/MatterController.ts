@@ -426,7 +426,7 @@ export class MatterController {
 
     async disconnect(nodeId: NodeId) {
         this.#construction.assert();
-        return this.#peers!.disconnect(this.#fabric!.addressOf(nodeId));
+        return this.#peers?.get(this.#fabric!.addressOf(nodeId))?.delete();
     }
 
     async connectPaseChannel(options: NodeCommissioningOptions) {
@@ -443,7 +443,7 @@ export class MatterController {
 
     async removeNode(nodeId: NodeId) {
         this.#construction.assert();
-        return this.#peers!.delete(this.#fabric!.addressOf(nodeId));
+        return this.#peers?.get(this.#fabric!.addressOf(nodeId))?.delete();
     }
 
     /**
@@ -470,7 +470,7 @@ export class MatterController {
         });
         if (errorCode !== GeneralCommissioning.CommissioningError.Ok) {
             // We might have added data for an operational address that we need to cleanup
-            await this.#peers!.delete(this.#fabric!.addressOf(peerNodeId));
+            await this.#peers?.get(this.#fabric!.addressOf(peerNodeId))?.delete();
             throw new CommissioningError(`Commission error on commissioningComplete: ${errorCode}, ${debugText}`);
         }
         await this.#fabric!.persist();

@@ -501,7 +501,7 @@ export class ControllerCommissioner {
             await commissioningManager.executeCommissioning();
         } catch (error) {
             // We might have added data for an operational address that we need to cleanup
-            await this.#context.clients.peers.delete(address);
+            await this.#context.clients.peers.get(address)?.delete();
             throw error;
         } finally {
             if (!paseSession.isClosed) {
