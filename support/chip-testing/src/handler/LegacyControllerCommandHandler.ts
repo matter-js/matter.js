@@ -12,8 +12,8 @@ import {
     CertificateAuthority,
     InteractionClient,
     IPK_DEFAULT_EPOCH_START_TIME,
-    MessageChannel,
     NodeDiscoveryType,
+    SecureSession,
     SupportedTransportsSchema,
     TlvCertSigningRequest,
 } from "@matter/main/protocol";
@@ -67,7 +67,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
     #identity: string;
     #controllerInstance: CommissioningController;
     #started = false;
-    #paseChannel?: MessageChannel;
+    #paseSession?: SecureSession;
 
     constructor(identity: string, controllerInstance: CommissioningController) {
         super();
@@ -335,10 +335,10 @@ export class LegacyControllerCommandHandler extends CommandHandler {
             suppressResponse,
         } = data;
         let client: InteractionClient;
-        if (this.#paseChannel) {
-            logger.info("Force reuse of PASE connection", this.#paseChannel.name);
+        if (this.#paseSession) {
+            logger.info("Force reuse of PASE connection", this.#paseSession.name);
             client = await this.#controllerInstance.createInteractionClient(
-                this.#paseChannel,
+                this.#paseSession,
                 NodeDiscoveryType.FullDiscovery,
                 {
                     forcedConnection: true,
@@ -503,7 +503,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
 
     async handlePaseConnection(data: InitialPairingRequest): Promise<void> {
         await this.disconnectNode(data.nodeId);
-        this.#paseChannel = await this.#controllerInstance.connectPaseChannel(this.#determineCommissionOptions(data));
+        this.#paseSession = await this.#controllerInstance.connectPaseChannel(this.#determineCommissionOptions(data));
     }
 
     async handleInitialPairing(data: InitialPairingRequest): Promise<void> {

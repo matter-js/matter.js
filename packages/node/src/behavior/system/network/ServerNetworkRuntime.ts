@@ -24,7 +24,6 @@ import {
     Advertiser,
     Ble,
     BleAdvertiser,
-    ChannelManager,
     DeviceAdvertiser,
     DeviceCommissioner,
     ExchangeManager,
@@ -269,9 +268,6 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         await owner.act("start-network", agent => agent.load(ProductDescriptionServer));
 
         // Apply settings to environmental components
-        env.get(ChannelManager).caseSessionsPerFabricAndNode =
-            // Note that this is "sessions per fabric and node", so we support more than indicated by capabilityMinima
-            owner.state.basicInformation.capabilityMinima.caseSessionsPerFabric;
         env.get(SessionManager).sessionParameters = {
             maxPathsPerInvoke: this.owner.state.basicInformation.maxPathsPerInvoke,
         };

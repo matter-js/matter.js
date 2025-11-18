@@ -29,7 +29,7 @@ import { SessionParameters } from "./SessionParameters.js";
 
 export class NonOperationalSession extends ImplementationError {
     constructor(session: Session) {
-        super(`Session ${session.name} has no channel assigned`);
+        super(`Session ${session.name} has ended`);
     }
 }
 
@@ -65,7 +65,8 @@ export abstract class Session {
     #closedByPeer = AsyncObservable<[]>();
 
     constructor(config: Session.Configuration) {
-        const { manager, messageCounter, messageReceptionState, sessionParameters, setActiveTimestamp } = config;
+        const { manager, channel, messageCounter, messageReceptionState, sessionParameters, setActiveTimestamp } =
+            config;
 
         const {
             idleInterval,
@@ -80,6 +81,9 @@ export abstract class Session {
         } = SessionParameters(sessionParameters);
 
         this.#manager = manager;
+        if (channel) {
+            this.#channel = new MessageChannel(channel, this);
+        }
         this.messageCounter = messageCounter;
         this.messageReceptionState = messageReceptionState;
         this.idleInterval = idleInterval;
@@ -196,28 +200,43 @@ export abstract class Session {
         return this.#manager?.owner;
     }
 
-    get hasChannel() {
-        return !!this.#channel;
+    get isClosed() {
+        return !this.#channel;
     }
 
-    set channel(channel: Channel<Bytes>) {
-        if (this.#channel === undefined) {
-            throw new ImplementationError("Cannot reassign session channel");
-        }
-        this.#channel = new MessageChannel(channel, this);
-    }
-
+    /**
+     * The {@link MessageChannel} other components use for session communication.
+     */
     get channel(): MessageChannel {
         if (this.#channel === undefined) {
             throw new NonOperationalSession(this);
         }
         return this.#channel;
     }
+
+    /**
+     * This is primarily intended for testing.
+     */
+    protected set channel(channel: MessageChannel) {
+        if (this.#channel !== undefined) {
+            throw new ImplementationError("Cannot replace active channel");
+        }
+        this.#channel = channel;
+    }
+
+    get usesMrp() {
+        return this.supportsMRP && !this.channel.isReliable;
+    }
+
+    get supportsLargeMessages() {
+        return this.#channel !== undefined && this.channel.supportsLargeMessages;
+    }
 }
 
 export namespace Session {
     export interface CommonConfig {
         manager?: SessionManager;
+        channel?: Channel<Bytes>;
     }
 
     export interface Configuration extends CommonConfig {

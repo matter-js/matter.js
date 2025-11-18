@@ -9,17 +9,22 @@ import type { Fabric } from "#fabric/Fabric.js";
 import type { FabricManager } from "#fabric/FabricManager.js";
 import {
     Bytes,
+    ChannelType,
+    ConnectionlessTransportSet,
     CryptoDecryptError,
     ImplementationError,
     InternalError,
     Logger,
     MatterFlowError,
+    STANDARD_MATTER_PORT,
     UnexpectedDataError,
 } from "#general";
+import { PairRetransmissionLimitReachedError } from "#peer/ControllerDiscovery.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { FabricIndex, GroupId, NodeId } from "#types";
 import { SecureSession } from "./SecureSession.js";
 import { Session } from "./Session.js";
+import { SessionManager } from "./SessionManager.js";
 
 const logger = Logger.get("SecureGroupSession");
 
@@ -51,6 +56,44 @@ export class GroupSession extends SecureSession {
         fabric.addSession(this);
 
         logger.debug(`Created secure GROUP session for fabric index ${fabric.fabricIndex}`, this.name);
+    }
+
+    static async create(options: {
+        manager?: SessionManager;
+        transports: ConnectionlessTransportSet;
+        id: number;
+        fabric: Fabric;
+        keySetId: number;
+        peerNodeId: NodeId;
+        operationalGroupKey: Bytes;
+    }) {
+        const { manager, transports, id, fabric, keySetId, peerNodeId, operationalGroupKey } = options;
+
+        const groupId = GroupId.fromNodeId(peerNodeId);
+        GroupId.assertGroupId(groupId);
+        const multicastAddress = fabric.groups.multicastAddressFor(groupId);
+
+        const operationalInterface = transports.interfaceFor(ChannelType.UDP, multicastAddress);
+        if (operationalInterface === undefined) {
+            // TODO - better error class
+            throw new PairRetransmissionLimitReachedError(`IPv6 interface not initialized`);
+        }
+
+        const channel = await operationalInterface.openChannel({
+            type: ChannelType.UDP,
+            ip: multicastAddress,
+            port: STANDARD_MATTER_PORT,
+        });
+
+        return new GroupSession({
+            manager,
+            channel,
+            id,
+            fabric,
+            keySetId,
+            peerNodeId,
+            operationalGroupKey,
+        });
     }
 
     override get type() {

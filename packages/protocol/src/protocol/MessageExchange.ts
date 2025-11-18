@@ -21,9 +21,9 @@ import {
     Time,
     Timer,
 } from "#general";
-import { DEFAULT_EXPECTED_PROCESSING_TIME, MessageChannel, MRP } from "#protocol/MessageChannel.js";
 import { GroupSession } from "#session/GroupSession.js";
 import { SecureSession } from "#session/SecureSession.js";
+import { Session } from "#session/Session.js";
 import { SessionParameters } from "#session/SessionParameters.js";
 import {
     GroupId,
@@ -34,6 +34,7 @@ import {
     StatusResponseError,
 } from "#types";
 import { RetransmissionLimitReachedError, SessionClosedError, UnexpectedMessageError } from "./errors.js";
+import { DEFAULT_EXPECTED_PROCESSING_TIME, MRP } from "./MessageChannel.js";
 
 const logger = Logger.get("MessageExchange");
 
@@ -90,16 +91,14 @@ export const MATTER_MESSAGE_OVERHEAD = 26 + 12 + CRYPTO_AEAD_MIC_LENGTH_BYTES;
  * Interfaces {@link MessageExchange} with other components.
  */
 export interface MessageExchangeContext {
-    channel: MessageChannel;
+    session: Session;
     retry(number: number): void;
     localSessionParameters: SessionParameters;
 }
 
 export class MessageExchange {
     static fromInitialMessage(context: MessageExchangeContext, initialMessage: Message) {
-        const {
-            channel: { session },
-        } = context;
+        const { session } = context;
         return new MessageExchange({
             context,
             isInitiator: false,
@@ -108,14 +107,11 @@ export class MessageExchange {
             peerNodeId: initialMessage.packetHeader.sourceNodeId,
             exchangeId: initialMessage.payloadHeader.exchangeId,
             protocolId: initialMessage.payloadHeader.protocolId,
-            requiresSecureSession: session.isSecure,
         });
     }
 
     static initiate(context: MessageExchangeContext, exchangeId: number, protocolId: number) {
-        const {
-            channel: { session },
-        } = context;
+        const { session } = context;
         return new MessageExchange({
             context,
             isInitiator: true,
@@ -124,13 +120,11 @@ export class MessageExchange {
             peerNodeId: session.peerNodeId,
             exchangeId,
             protocolId,
-            requiresSecureSession: session.isSecure,
         });
     }
 
     readonly #context: MessageExchangeContext;
     readonly #isInitiator: boolean;
-    readonly #requiresSecureSession: boolean;
     readonly #messagesQueue = new DataReadQueue<Message>();
     #receivedMessageToAck: Message | undefined;
     #receivedMessageAckTimer = Time.getTimer("Ack receipt timeout", MRP.STANDALONE_ACK_TIMEOUT, () => {
@@ -162,21 +156,10 @@ export class MessageExchange {
     readonly #closing = AsyncObservable<[]>();
 
     constructor(config: MessageExchange.Config) {
-        const {
-            context,
-            isInitiator,
-            peerSessionId,
-            nodeId,
-            peerNodeId,
-            exchangeId,
-            protocolId,
-            requiresSecureSession,
-        } = config;
-        const { channel } = context;
-        const { session } = channel;
+        const { context, isInitiator, peerSessionId, nodeId, peerNodeId, exchangeId, protocolId } = config;
+
         this.#context = context;
         this.#isInitiator = isInitiator;
-        this.#requiresSecureSession = requiresSecureSession;
         this.#peerSessionId = peerSessionId;
         this.#nodeId = nodeId;
         this.#peerNodeId = peerNodeId;
@@ -187,10 +170,11 @@ export class MessageExchange {
 
         this.#used = !isInitiator; // If we are the initiator then exchange was not used yet, so track it
 
+        const { session } = context;
         logger.debug(
             "New exchange",
             isInitiator ? "»" : "«",
-            channel.name,
+            session.name,
             Diagnostic.dict({
                 protocol: this.#protocolId,
                 exId: this.#exchangeId,
@@ -201,7 +185,7 @@ export class MessageExchange {
                 SII: Duration.format(idleInterval),
                 maxTrans: MRP.MAX_TRANSMISSIONS,
                 exchangeFlags: Diagnostic.asFlags({
-                    MRP: this.channel.usesMrp,
+                    MRP: this.session.usesMrp,
                     I: this.isInitiator,
                 }),
             }),
@@ -214,10 +198,6 @@ export class MessageExchange {
 
     get isInitiator() {
         return this.#isInitiator;
-    }
-
-    get requiresSecureSession() {
-        return this.#requiresSecureSession;
     }
 
     /** Emits when the exchange is actually closed. This happens after all Retries and Communication are done. */
@@ -241,12 +221,12 @@ export class MessageExchange {
         return this.#exchangeId;
     }
 
-    get channel() {
-        return this.context.channel;
+    get session() {
+        return this.context.session;
     }
 
-    get session() {
-        return this.channel.session;
+    get channel() {
+        return this.session.channel;
     }
 
     /**
@@ -264,7 +244,7 @@ export class MessageExchange {
             packetHeader: { messageId },
             payloadHeader: { requiresAck },
         } = message;
-        if (!requiresAck || !this.channel.usesMrp) return;
+        if (!requiresAck || !this.session.usesMrp) return;
 
         await this.send(SecureMessageType.StandaloneAck, new Uint8Array(0), {
             includeAcknowledgeMessageId: messageId,
@@ -276,7 +256,7 @@ export class MessageExchange {
         logger.debug("Message «", MessageCodec.messageDiagnostics(message, { duplicate }));
 
         // Adjust the incoming message when ack was required, but this exchange does not use it to skip all relevant logic
-        if (message.payloadHeader.requiresAck && !this.channel.usesMrp) {
+        if (message.payloadHeader.requiresAck && !this.session.usesMrp) {
             logger.debug("Ignoring ack-required flag because MRP is not used for this exchange");
             message.payloadHeader.requiresAck = false;
         }
@@ -354,7 +334,7 @@ export class MessageExchange {
     }
 
     async send(messageType: number, payload: Bytes, options?: ExchangeSendOptions) {
-        if (options?.requiresAck && !this.channel.usesMrp) {
+        if (options?.requiresAck && !this.session.usesMrp) {
             options.requiresAck = false;
         }
 
@@ -367,13 +347,13 @@ export class MessageExchange {
             logContext,
             protocolId = this.#protocolId,
         } = options ?? {};
-        if (!this.channel.usesMrp && includeAcknowledgeMessageId !== undefined) {
+        if (!this.session.usesMrp && includeAcknowledgeMessageId !== undefined) {
             throw new InternalError("Cannot include an acknowledge message ID when MRP is not used");
         }
         const isStandaloneAck = SecureMessageType.isStandaloneAck(protocolId, messageType);
 
         if (isStandaloneAck) {
-            if (!this.channel.usesMrp) {
+            if (!this.session.usesMrp) {
                 return;
             }
             if (requiresAck) {
@@ -388,7 +368,7 @@ export class MessageExchange {
         this.session.notifyActivity(false);
 
         let ackedMessageId = includeAcknowledgeMessageId;
-        if (ackedMessageId === undefined && this.channel.usesMrp) {
+        if (ackedMessageId === undefined && this.session.usesMrp) {
             ackedMessageId = this.#receivedMessageToAck?.packetHeader.messageId;
             if (ackedMessageId !== undefined) {
                 this.#receivedMessageAckTimer.stop();
@@ -438,7 +418,7 @@ export class MessageExchange {
                 protocolId,
                 messageType,
                 isInitiatorMessage: this.isInitiator,
-                requiresAck: requiresAck ?? (this.channel.usesMrp && !isStandaloneAck),
+                requiresAck: requiresAck ?? (this.session.usesMrp && !isStandaloneAck),
                 ackedMessageId,
                 hasSecuredExtension: false,
             },
@@ -446,7 +426,7 @@ export class MessageExchange {
         };
 
         let ackPromise: Promise<Message> | undefined;
-        if (this.channel.usesMrp && message.payloadHeader.requiresAck && !disableMrpLogic) {
+        if (this.session.usesMrp && message.payloadHeader.requiresAck && !disableMrpLogic) {
             this.#sentMessageToAck = message;
             this.#retransmissionTimer = Time.getTimer(
                 `Message retransmission ${message.packetHeader.messageId}`,
@@ -706,6 +686,5 @@ export namespace MessageExchange {
         peerNodeId?: NodeId;
         exchangeId: number;
         protocolId: number;
-        requiresSecureSession: boolean;
     }
 }

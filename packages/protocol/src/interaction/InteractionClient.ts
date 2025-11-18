@@ -27,6 +27,7 @@ import { Specification } from "#model";
 import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
 import { PeerDataStore } from "#peer/PeerAddressStore.js";
 import { PeerConnectionOptions, PeerSet } from "#peer/PeerSet.js";
+import { SecureSession } from "#session/SecureSession.js";
 import {
     ArraySchema,
     Attribute,
@@ -57,7 +58,6 @@ import {
     resolveEventName,
 } from "#types";
 import { ExchangeProvider, ReconnectableExchangeProvider } from "../protocol/ExchangeProvider.js";
-import { MessageChannel } from "../protocol/MessageChannel.js";
 import { DecodedAttributeReportStatus, DecodedAttributeReportValue } from "./AttributeDataDecoder.js";
 import { DecodedDataReport } from "./DecodedDataReport.js";
 import { DecodedEventData, DecodedEventReportStatus, DecodedEventReportValue } from "./EventDataDecoder.js";
@@ -126,8 +126,8 @@ export class InteractionClientProvider {
         return this.getInteractionClient(address, options);
     }
 
-    async getInteractionClientForChannel(channel: MessageChannel): Promise<InteractionClient> {
-        const exchangeProvider = await this.#peers.exchangeProviderFor(channel);
+    async interactionClientFor(session: SecureSession): Promise<InteractionClient> {
+        const exchangeProvider = await this.#peers.exchangeProviderFor(session);
 
         return new InteractionClient(
             exchangeProvider,

@@ -5,16 +5,13 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
-import { Events as BaseEvents } from "#behavior/Events.js";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import {
     Diagnostic,
     Duration,
     ImplementationError,
-    isIpNetworkChannel,
     Logger,
     NotImplementedError,
-    Observable,
     ServerAddress,
     Time,
     Timestamp,
@@ -39,7 +36,6 @@ import type { ClientNode } from "#node/ClientNode.js";
 import type { Node } from "#node/Node.js";
 import { IdentityService } from "#node/server/IdentityService.js";
 import {
-    ChannelManager,
     CommissioningMode,
     ControllerCommissioner,
     DiscoveryData,
@@ -74,7 +70,6 @@ const logger = Logger.get("CommissioningClient");
  */
 export class CommissioningClient extends Behavior {
     declare state: CommissioningClient.State;
-    declare events: CommissioningClient.Events;
 
     static override readonly early = true;
 
@@ -91,7 +86,6 @@ export class CommissioningClient extends Behavior {
         }
 
         this.reactTo((this.endpoint as Node).lifecycle.partsReady, this.#initializeNode);
-        this.reactTo(this.events.peerAddress$Changed, this.#peerAddressChanged);
     }
 
     commission(passcode: number): Promise<ClientNode>;
@@ -253,30 +247,6 @@ export class CommissioningClient extends Behavior {
     #initializeNode() {
         const endpoint = this.endpoint as ClientNode;
         endpoint.lifecycle.initialized.emit(this.state.peerAddress !== undefined);
-    }
-
-    #peerAddressChanged(addr?: ProtocolPeerAddress) {
-        const node = this.endpoint as ClientNode;
-
-        if (addr) {
-            const channels = node.env.get(ChannelManager);
-            if (channels.hasChannel(addr)) {
-                const channel = channels.getChannel(addr).channel;
-                const operationalAddress = isIpNetworkChannel(channel) ? channel.networkAddress : undefined;
-                if (operationalAddress) {
-                    if (this.state.addresses === undefined) {
-                        this.state.addresses = [];
-                    }
-                    if (!this.state.addresses.some(a => ServerAddress.isEqual(ServerAddress(a), operationalAddress))) {
-                        this.state.addresses.push(ServerAddress.definitionOf(operationalAddress));
-                    }
-                }
-            }
-
-            node.lifecycle.commissioned.emit(this.context);
-        } else {
-            node.lifecycle.decommissioned.emit(this.context);
-        }
     }
 }
 
@@ -464,12 +434,6 @@ export namespace CommissioningClient {
          */
         @field(bool, nonvolatile)
         longIdleTimeOperatingMode?: boolean;
-    }
-
-    export class Events extends BaseEvents {
-        peerAddress$Changed = new Observable<
-            [value: ProtocolPeerAddress | undefined, oldValue: ProtocolPeerAddress | undefined]
-        >();
     }
 
     /**

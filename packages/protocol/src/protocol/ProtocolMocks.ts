@@ -80,15 +80,22 @@ export namespace ProtocolMocks {
      * A mock {@link NodeSession} that supports functional tests without full mock networking.
      */
     export class NodeSession extends RealNodeSession {
-        constructor(config?: Partial<RealNodeSession.Config> & { index?: number; fabricIndex?: number }) {
+        constructor(config?: NodeSession.Config) {
             const index = config?.index ?? 1;
             const fabricIndex = (config?.fabricIndex ?? 1) as FabricIndex;
             const crypto = config?.crypto ?? Environment.default.get(Crypto);
-            const fabric = config?.fabric ?? new Fabric({ fabricIndex });
+            const fabric = config && "fabric" in config ? config.fabric : new Fabric({ fabricIndex });
+            const maxPayloadSize = config?.maxPayloadSize;
 
-            super({
-                crypto,
-                fabric,
+            // Channel is optional so support "channel: undefined" to disable the default channel
+            let channel;
+            if (config && "channel" in config) {
+                channel = config.channel;
+            } else {
+                channel = new NetworkChannel({ index, maxPayloadSize });
+            }
+
+            const fullConfig = {
                 id: index,
                 peerNodeId: NodeId(index),
                 attestationKey: Bytes.empty,
@@ -98,8 +105,37 @@ export namespace ProtocolMocks {
                 encryptKey: Bytes.empty,
                 isInitiator: true,
                 ...config,
+                crypto,
+                fabric,
+            };
+            delete fullConfig.channel;
+
+            super(fullConfig);
+
+            // Initialize with a mocked message channel
+            this.channel = new MessageChannel({ channel, session: this });
+        }
+
+        static override async create(config: NodeSession.CreateConfig) {
+            const crypto = config?.crypto ?? config?.manager?.crypto ?? Environment.default.get(Crypto);
+            const index = config?.index ?? 1;
+            return RealNodeSession.create.call(this, {
+                id: index,
+                crypto,
+                peerNodeId: NodeId(0),
+                peerSessionId: index,
+                sharedSecret: Bytes.empty,
+                salt: Bytes.empty,
+                isInitiator: true,
+                isResumption: false,
+                ...config,
             });
         }
+    }
+
+    export namespace NodeSession {
+        export type Config = Partial<RealNodeSession.Config> & MockSessionConfig;
+        export type CreateConfig = Partial<RealNodeSession.CreateConfig & MockSessionConfig>;
     }
 
     /**
@@ -113,7 +149,7 @@ export namespace ProtocolMocks {
         type = ChannelType.UDP;
         networkAddress: ServerAddressUdp;
 
-        constructor(config: { index?: number; maxPayloadSize?: number }) {
+        constructor(config: MockNetworkConfig) {
             const index = config.index ?? 1;
             this.maxPayloadSize = config.maxPayloadSize ?? MAX_UDP_MESSAGE_SIZE;
             this.networkAddress = { type: "udp", ip: `::${index}`, port: 5540 };
@@ -168,28 +204,27 @@ export namespace ProtocolMocks {
         #responses = new DataReadQueue<Message>();
 
         constructor(
-            config?: Omit<Partial<MessageExchange.Config>, "context"> & {
-                context?: Partial<MessageExchangeContext>;
-                index?: number;
-                fabricIndex?: number;
-            },
+            config?: Omit<Partial<MessageExchange.Config>, "context"> &
+                MockSessionConfig & {
+                    context?: Partial<MessageExchangeContext>;
+                },
         ) {
             const context = config?.context;
 
             const index = config?.index ?? 1;
             const fabricIndex = config?.fabricIndex ?? 1;
+            const maxPayloadSize = config?.maxPayloadSize;
 
             super({
                 isInitiator: true,
                 exchangeId: index,
                 peerSessionId: index,
-                protocolId: SECURE_CHANNEL_PROTOCOL_ID,
-                requiresSecureSession: true,
+                protocolId: config?.protocolId ?? SECURE_CHANNEL_PROTOCOL_ID,
 
                 ...config,
 
                 context: {
-                    channel: context?.channel ?? new MessageChannel({ index, fabricIndex }),
+                    session: context?.session ?? new NodeSession({ index, fabricIndex, maxPayloadSize }),
                     localSessionParameters: SessionParameters(
                         context?.localSessionParameters ?? SessionParameters.defaults,
                     ),
@@ -247,5 +282,14 @@ export namespace ProtocolMocks {
             }
             return channel;
         }
+    }
+
+    export interface MockNetworkConfig {
+        index?: number;
+        maxPayloadSize?: number;
+    }
+
+    export interface MockSessionConfig extends MockNetworkConfig {
+        fabricIndex?: number;
     }
 }

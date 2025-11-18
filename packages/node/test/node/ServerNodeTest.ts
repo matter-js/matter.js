@@ -37,7 +37,7 @@ import { LocalActorContext } from "#index.js";
 import { AccessLevel, BasicInformation, ElementTag, FeatureMap } from "#model";
 import { ServerEnvironment } from "#node/server/ServerEnvironment.js";
 import { ServerNode } from "#node/ServerNode.js";
-import { AttestationCertificateManager, CertificationDeclaration, Val } from "#protocol";
+import { AttestationCertificateManager, CertificationDeclaration, ProtocolMocks, Val } from "#protocol";
 import { FabricIndex, VendorId } from "#types";
 import { OccurrenceManager } from "@matter/protocol";
 import { MockServerNode } from "./mock-server-node.js";
@@ -268,7 +268,7 @@ describe("ServerNode", () => {
             },
         });
 
-        const exchange = await node.createExchange();
+        const exchange = new ProtocolMocks.Exchange();
 
         const contextOptions = { exchange, command: true };
 
