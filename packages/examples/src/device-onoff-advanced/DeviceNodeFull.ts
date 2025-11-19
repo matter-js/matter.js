@@ -37,7 +37,7 @@ import { OnOffServer } from "@matter/main/behaviors";
 import { GeneralDiagnostics, NetworkCommissioning, OnOff } from "@matter/main/clusters";
 import { OnOffLightDevice, OnOffPlugInUnitDevice } from "@matter/main/devices";
 import { RootRequirements } from "@matter/main/endpoints";
-import { Ble, FabricAction } from "@matter/main/protocol";
+import { Ble } from "@matter/main/protocol";
 import { QrCode } from "@matter/main/types";
 import { createFileLogger } from "@matter/nodejs";
 import { execSync } from "node:child_process";
@@ -323,19 +323,7 @@ server.lifecycle.offline.on(() => console.log("Server is offline"));
  * information is needed.
  */
 server.events.commissioning.fabricsChanged.on((fabricIndex, fabricAction) => {
-    let action = "";
-    switch (fabricAction) {
-        case FabricAction.Added:
-            action = "added";
-            break;
-        case FabricAction.Removed:
-            action = "removed";
-            break;
-        case FabricAction.Updated:
-            action = "updated";
-            break;
-    }
-    console.log(`Commissioned Fabrics changed event (${action}) for ${fabricIndex} triggered`);
+    console.log(`Commissioned Fabrics changed event (${fabricAction}) for ${fabricIndex} triggered`);
     console.log(server.state.commissioning.fabrics[fabricIndex]);
 });
 
