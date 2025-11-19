@@ -232,7 +232,7 @@ export class GeneralCommissioningServer extends GeneralCommissioningBehavior {
         if (fabric.fabricIndex !== timedFabric) {
             return {
                 errorCode: GeneralCommissioning.CommissioningError.InvalidAuthentication,
-                debugText: `Associated fabric ${fabric.fabricIndex} does not match the one from the failsafe context ${timedFabric}.`,
+                debugText: `Associated fabric index ${fabric.fabricIndex} does not match failsafe fabric index ${timedFabric}`,
             };
         }
 
