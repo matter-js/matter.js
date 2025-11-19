@@ -132,7 +132,7 @@ export class MessageExchange {
             const messageToAck = this.#receivedMessageToAck;
             this.#receivedMessageToAck = undefined;
             // TODO: We need to track this promise later
-            this.sendStandaloneAckForMessage(messageToAck).catch(error =>
+            this.#sendStandaloneAckForMessage(messageToAck).catch(error =>
                 logger.error("An error happened when sending a standalone ack", error),
             );
         }
@@ -239,19 +239,6 @@ export class MessageExchange {
         return this.channel.maxPayloadSize - MATTER_MESSAGE_OVERHEAD;
     }
 
-    async sendStandaloneAckForMessage(message: Message) {
-        const {
-            packetHeader: { messageId },
-            payloadHeader: { requiresAck },
-        } = message;
-        if (!requiresAck || !this.session.usesMrp) return;
-
-        await this.send(SecureMessageType.StandaloneAck, new Uint8Array(0), {
-            includeAcknowledgeMessageId: messageId,
-            protocolId: SECURE_CHANNEL_PROTOCOL_ID,
-        });
-    }
-
     async onMessageReceived(message: Message, duplicate = false) {
         logger.debug("Message «", MessageCodec.messageDiagnostics(message, { duplicate }));
 
@@ -278,7 +265,7 @@ export class MessageExchange {
         if (duplicate) {
             // Received a message retransmission, but the reply is not ready yet, ignoring
             if (requiresAck) {
-                await this.sendStandaloneAckForMessage(message);
+                await this.#sendStandaloneAckForMessage(message);
             }
             return;
         }
@@ -324,7 +311,7 @@ export class MessageExchange {
             // We still have a message to ack, so ack this one as standalone ack directly
             if (this.#receivedMessageToAck !== undefined) {
                 this.#receivedMessageAckTimer.stop();
-                await this.sendStandaloneAckForMessage(this.#receivedMessageToAck);
+                await this.#sendStandaloneAckForMessage(this.#receivedMessageToAck);
                 return;
             }
             this.#receivedMessageToAck = message;
@@ -474,6 +461,19 @@ export class MessageExchange {
         return this.#messagesQueue.read(timeout);
     }
 
+    async #sendStandaloneAckForMessage(message: Message) {
+        const {
+            packetHeader: { messageId },
+            payloadHeader: { requiresAck },
+        } = message;
+        if (!requiresAck || !this.session.usesMrp) return;
+
+        await this.send(SecureMessageType.StandaloneAck, new Uint8Array(0), {
+            includeAcknowledgeMessageId: messageId,
+            protocolId: SECURE_CHANNEL_PROTOCOL_ID,
+        });
+    }
+
     #retransmitMessage(message: Message, expectedProcessingTime?: Duration) {
         this.#retransmissionCounter++;
         if (this.#isClosing || this.#retransmissionCounter >= MRP.MAX_TRANSMISSIONS) {
@@ -549,7 +549,7 @@ export class MessageExchange {
             const messageToAck = this.#receivedMessageToAck;
             this.#receivedMessageToAck = undefined;
             try {
-                await this.sendStandaloneAckForMessage(messageToAck);
+                await this.#sendStandaloneAckForMessage(messageToAck);
             } catch (error) {
                 logger.error("An error happened when closing the exchange", error);
             }
@@ -626,7 +626,7 @@ export class MessageExchange {
             const messageToAck = this.#receivedMessageToAck;
             this.#receivedMessageToAck = undefined;
             try {
-                await this.sendStandaloneAckForMessage(messageToAck);
+                await this.#sendStandaloneAckForMessage(messageToAck);
             } catch (error) {
                 logger.error(
                     `An error happened when closing the exchange ${this.session.name} / ${this.#exchangeId}`,

@@ -16,4 +16,3 @@ export * from "./MessageReceptionState.js";
 export * from "./ProtocolHandler.js";
 export * from "./ProtocolMocks.js";
 export * from "./ProtocolStatusMessage.js";
-export * from "./ProtocolMocks.js";
