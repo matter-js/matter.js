@@ -19,7 +19,6 @@ import {
     DeviceCertification,
     DeviceCommissioner,
     Fabric,
-    FabricAction,
     FabricManager,
     FabricTableFullError,
     MatterFabricConflictError,
@@ -548,17 +547,17 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
 
     async #handleAddedFabric({ fabricIndex }: Fabric) {
         await this.#updateFabrics();
-        this.agent.get(CommissioningServer).handleFabricChange(fabricIndex, FabricAction.Added);
+        this.agent.get(CommissioningServer).handleFabricChange(fabricIndex, "added");
     }
 
     async #handleUpdatedFabric({ fabricIndex }: Fabric) {
         await this.#updateFabrics();
-        this.agent.get(CommissioningServer).handleFabricChange(fabricIndex, FabricAction.Updated);
+        this.agent.get(CommissioningServer).handleFabricChange(fabricIndex, "updated");
     }
 
     async #handleRemovedFabric({ fabricIndex }: Fabric) {
         await this.#updateFabrics();
-        this.agent.get(CommissioningServer).handleFabricChange(fabricIndex, FabricAction.Removed);
+        this.agent.get(CommissioningServer).handleFabricChange(fabricIndex, "deleted");
     }
 
     async #handleFailsafeClosed() {

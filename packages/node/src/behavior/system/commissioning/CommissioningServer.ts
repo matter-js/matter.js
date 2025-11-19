@@ -31,7 +31,6 @@ import {
     DeviceAdvertiser,
     DeviceCommissioner,
     ExposedFabricInformation,
-    FabricAction,
     FabricManager,
     FailsafeContext,
     MdnsAdvertiser,
@@ -111,12 +110,12 @@ export class CommissioningServer extends Behavior {
         await this.internal.mutex;
     }
 
-    handleFabricChange(fabricIndex: FabricIndex, fabricAction: FabricAction) {
+    handleFabricChange(fabricIndex: FabricIndex, fabricAction: CommissioningServer.FabricAction) {
         // Do not consider commissioned so long as there is an active failsafe timer as commissioning may not be
         // complete and could still be rolled back
         if (this.env.has(FailsafeContext)) {
             const failsafe = this.env.get(FailsafeContext);
-            if (fabricAction === FabricAction.Added || fabricAction === FabricAction.Updated) {
+            if (fabricAction === "added" || fabricAction === "updated") {
                 // Added or updated fabric with active Failsafe are temporary and should not be considered until failsafe ends
                 if (failsafe.construction.status !== Lifecycle.Status.Destroyed) {
                     if (failsafe.fabricIndex === fabricIndex) {
@@ -128,7 +127,7 @@ export class CommissioningServer extends Behavior {
                         );
                     }
                 }
-            } else if (fabricAction === FabricAction.Removed) {
+            } else if (fabricAction === "deleted") {
                 // Removed fabric with active Failsafe are ignored but should match the failsafe one
                 if (failsafe.fabricIndex !== fabricIndex) {
                     throw new MatterFlowError(
@@ -187,10 +186,7 @@ export class CommissioningServer extends Behavior {
         const listener = this.callback(function (this: CommissioningServer, status: Lifecycle.Status) {
             if (status === Lifecycle.Status.Destroyed) {
                 if (failsafe.fabricIndex !== undefined) {
-                    this.handleFabricChange(
-                        failsafe.fabricIndex,
-                        failsafe.forUpdateNoc ? FabricAction.Updated : FabricAction.Added,
-                    );
+                    this.handleFabricChange(failsafe.fabricIndex, failsafe.forUpdateNoc ? "updated" : "added");
                 }
                 this.internal.unregisterFailsafeListener?.();
             }
@@ -407,6 +403,8 @@ export namespace CommissioningServer {
         fabricsChanged = Observable<[fabricIndex: FabricIndex, action: FabricAction]>();
         enabled$Changed = AsyncObservable<[context: ActionContext]>();
     }
+
+    export type FabricAction = "added" | "deleted" | "updated";
 }
 
 /**
