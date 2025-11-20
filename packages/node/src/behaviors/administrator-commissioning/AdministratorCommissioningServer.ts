@@ -181,10 +181,10 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
         const removeCallback = this.callback(this.#fabricRemovedCallback);
 
         this.internal.stopMonitoringFabricForRemoval = () => {
-            adminFabric.deleteRemoveCallback(removeCallback);
+            adminFabric.deleting.off(removeCallback);
         };
 
-        this.context.session.associatedFabric.addRemoveCallback(removeCallback);
+        this.context.session.associatedFabric.deleting.on(removeCallback);
     }
 
     /**

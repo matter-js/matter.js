@@ -275,8 +275,6 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
         const session = this.context.session;
         NodeSession.assert(session);
 
-        await failsafeContext.addFabric(fabric);
-
         try {
             if (session.isPase) {
                 logger.debug(`Add Fabric ${fabric.fabricIndex} to PASE session ${session.name}`);
@@ -293,7 +291,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
             }
         } catch (e) {
             // Fabric insertion into FabricManager is not currently transactional so we need to remove manually
-            await fabric.remove(session.id);
+            await fabric.delete(session.id);
             throw e;
         }
 
@@ -362,7 +360,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
             const updatedFabric = await timedOp.buildUpdatedFabric(nocValue, icacValue);
 
             // update FabricManager and Resumption records but leave current session intact
-            await timedOp.updateFabric(updatedFabric);
+            await timedOp.replaceFabric(updatedFabric);
 
             return {
                 statusCode: OperationalCredentials.NodeOperationalCertStatus.Ok,
@@ -567,7 +565,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
     async #nodeOnline() {
         const fabricManager = this.env.get(FabricManager);
         this.reactTo(fabricManager.events.added, this.#handleAddedFabric, { lock: true });
-        this.reactTo(fabricManager.events.updated, this.#handleUpdatedFabric, { lock: true });
+        this.reactTo(fabricManager.events.replaced, this.#handleUpdatedFabric, { lock: true });
         this.reactTo(fabricManager.events.deleted, this.#handleRemovedFabric, { lock: true });
         this.reactTo(fabricManager.events.failsafeClosed, this.#handleFailsafeClosed, { lock: true });
         await this.#updateFabrics();

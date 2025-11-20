@@ -106,7 +106,7 @@ describe("FabricManager", () => {
 
         it("get next fabric index after adding fabric and revoking it", async () => {
             const fabric = await TestFabric({ fabrics });
-            await fabrics.revokeFabric(fabric.fabricIndex);
+            await fabric.delete();
 
             expect(fabrics.allocateFabricIndex()).to.equal(2);
         });
@@ -114,7 +114,7 @@ describe("FabricManager", () => {
         it("get jumps over one fabric index after adding fabric and revoking it", async () => {
             const fabric = await TestFabric({ fabrics }); // Index 1
             await TestFabric({ fabrics }); // Index 2
-            await fabrics.revokeFabric(fabric.fabricIndex); // We do not remove the last generated Index
+            await fabric.delete(); // We do not remove the last generated Index
 
             expect(fabrics.allocateFabricIndex()).to.equal(3); // So index now changed
         });

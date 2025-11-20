@@ -87,7 +87,7 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
         }
 
         // TODO handle delete fabric more generically later to remove fabric scoped data
-        this.reactTo(fabrics.events.updated, this.#updateFabricAcls);
+        this.reactTo(fabrics.events.replaced, this.#updateFabricAcls);
         this.reactTo(fabrics.events.added, this.#updateFabricAcls);
 
         this.reactTo(this.events.interactionBegin, this.#handleInteractionBegin);

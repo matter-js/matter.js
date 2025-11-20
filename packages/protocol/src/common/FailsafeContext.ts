@@ -163,8 +163,8 @@ export abstract class FailsafeContext {
         return fabric.fabricIndex;
     }
 
-    async updateFabric(fabric: Fabric) {
-        await this.#fabrics.updateFabric(fabric);
+    async replaceFabric(fabric: Fabric) {
+        await this.#fabrics.replaceFabric(fabric);
         await this.#sessions.deleteResumptionRecordsForFabric(fabric);
     }
 
@@ -256,11 +256,17 @@ export abstract class FailsafeContext {
             );
         }
 
-        return builder
+        this.#associatedFabric = await builder
             .setRootVendorId(adminVendorId)
             .setIdentityProtectionKey(ipkValue)
             .setRootNodeId(caseAdminSubject)
             .build(this.#fabrics.allocateFabricIndex());
+
+        if (this.#failsafe) {
+            this.#failsafe.associatedFabric = this.#associatedFabric;
+        }
+
+        return this.#associatedFabric;
     }
 
     async #failSafeExpired() {
@@ -270,9 +276,9 @@ export abstract class FailsafeContext {
     }
 
     protected async rollback() {
-        if (this.fabricIndex !== undefined && !this.#forUpdateNoc) {
-            logger.debug(`Revoking fabric with index ${this.fabricIndex}`);
-            await this.#fabrics.revokeFabric(this.fabricIndex);
+        if (this.associatedFabric && !this.#forUpdateNoc) {
+            logger.debug(`Revoking fabric index ${this.fabricIndex}`);
+            await this.#associatedFabric?.delete();
         }
 
         // On expiry of the fail-safe timer, the following actions SHALL be performed in order:
@@ -309,10 +315,7 @@ export abstract class FailsafeContext {
         // 6. If an AddNOC command had been successfully invoked, achieve the equivalent effect of invoking the RemoveFabric command against the Fabric Index stored in the Fail-Safe Context for the Fabric Index that was the subject of the AddNOC command. This SHALL remove all associations to that Fabric including all fabric-scoped data, and MAY possibly factory-reset the device depending on current device state. This SHALL only apply to Fabrics added during the fail-safe period as the result of the AddNOC command.
         // 7. Remove any RCACs added by the AddTrustedRootCertificate command that are not currently referenced by any entry in the Fabrics attribute.
         if (!this.#forUpdateNoc && fabric !== undefined) {
-            const fabricIndex = this.fabricIndex;
-            if (fabricIndex !== undefined && this.#fabrics.has(fabricIndex)) {
-                await this.revokeFabric(this.#fabrics.for(fabricIndex));
-            }
+            await this.#associatedFabric?.delete();
         }
 
         // 8. Reset the Breadcrumb attribute to zero.
@@ -329,10 +332,8 @@ export abstract class FailsafeContext {
     abstract restoreNetworkState(): Promise<void>;
 
     async restoreFabric(fabric: Fabric) {
-        await this.updateFabric(fabric);
+        await this.replaceFabric(fabric);
     }
-
-    abstract revokeFabric(fabric: Fabric): Promise<void>;
 
     abstract restoreBreadcrumb(): Promise<void>;
 

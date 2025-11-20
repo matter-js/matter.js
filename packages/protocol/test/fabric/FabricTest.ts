@@ -157,12 +157,12 @@ describe("Fabric", () => {
                 }
             });
 
-            let removeCallbackCalled = false;
-            fabric.addRemoveCallback(async () => {
-                removeCallbackCalled = true;
+            let deleted = false;
+            fabric.deleted.on(() => {
+                deleted = true;
             });
 
-            await fabric.remove(secureSession2.id);
+            await fabric.delete(secureSession2.id);
 
             expect(session1Destroyed).to.be.true;
             expect(secureSession1.closingAfterExchangeFinished).to.be.false;
@@ -170,7 +170,7 @@ describe("Fabric", () => {
             expect(session2Destroyed).to.be.false; // Not destroyed directly because delayed because was session of fabric removal
             expect(secureSession2.closingAfterExchangeFinished).to.be.true;
             expect(secureSession2.sendCloseMessageWhenClosing).to.be.false;
-            expect(removeCallbackCalled).to.be.true;
+            expect(deleted).to.be.true;
         });
 
         it("removes one sessions without doing anything", async () => {

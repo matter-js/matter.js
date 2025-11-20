@@ -86,7 +86,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
         // Added fabric always have no groups, so no need to initialize anything on adding the fabric
 
         // Fabric was updated, so basically newly created, so we need to reinitialize the group key sets
-        this.reactTo(fabrics.events.updated, this.#handleFabricUpdate);
+        this.reactTo(fabrics.events.replaced, this.#handleFabricUpdate);
 
         // When we have group key sets, we need to ensure that they are initialized on the Fabric group manager
         if (this.state.groupKeySets.length) {

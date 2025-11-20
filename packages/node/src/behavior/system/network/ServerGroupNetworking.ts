@@ -64,7 +64,7 @@ export class ServerGroupNetworking {
             this.#activeGroupMemberships.delete(fabricIndex);
         });
 
-        this.#observers.on(fabrics.events.updated, async fabric => {
+        this.#observers.on(fabrics.events.replaced, async fabric => {
             const fabricIndex = fabric.fabricIndex;
 
             this.#observersForFabric(fabricIndex).close();

@@ -14,8 +14,6 @@ class MockFabricImplementation {
     constructor(id = 1) {
         this.fabricIndex = id;
     }
-
-    addRemoveCallback() {}
 }
 
 export const MockFabric = MockFabricImplementation as unknown as new (id?: number) => Fabric;

@@ -39,7 +39,7 @@ export class FabricManager {
     #storage?: StorageContext;
     #events = {
         added: Observable<[fabric: Fabric]>(),
-        updated: Observable<[fabric: Fabric]>(),
+        replaced: Observable<[fabric: Fabric]>(),
         deleted: AsyncObservable<[fabric: Fabric]>(),
         failsafeClosed: Observable<[]>(),
     };
@@ -174,7 +174,7 @@ export class FabricManager {
     #addOrUpdateFabricEntry(fabric: Fabric) {
         const { fabricIndex } = fabric;
         this.#fabrics.set(fabricIndex, fabric);
-        fabric.addRemoveCallback(async () => this.removeFabric(fabricIndex));
+        fabric.deleted.on(async () => this.removeFabric(fabricIndex));
         fabric.persistCallback = (isUpdate = true) => {
             if (!this.#storage) {
                 if (isUpdate) {
@@ -185,7 +185,7 @@ export class FabricManager {
             const persistResult = this.persistFabrics();
             return MaybePromise.then(persistResult, () => {
                 if (isUpdate) {
-                    this.#events.updated.emit(fabric); // Assume Fabric got updated when persist callback is called
+                    this.#events.replaced.emit(fabric); // Assume Fabric got updated when persist callback is called
                 }
             });
         };
@@ -242,6 +242,10 @@ export class FabricManager {
         for (const fabric of this.#fabrics.values()) {
             const candidateDestinationIds = await fabric.destinationIdsFor(fabric.nodeId, initiatorRandom);
             if (candidateDestinationIds.some(candidate => Bytes.areEqual(candidate, destinationId))) {
+                if (fabric.isDeleting) {
+                    throw new FabricNotFoundError("Fabric is deleting");
+                }
+
                 return fabric;
             }
         }
@@ -276,7 +280,7 @@ export class FabricManager {
         );
     }
 
-    async updateFabric(fabric: Fabric) {
+    async replaceFabric(fabric: Fabric) {
         await this.#construction;
 
         const { fabricIndex } = fabric;
@@ -296,16 +300,6 @@ export class FabricManager {
         if (this.#storage) {
             await this.persistFabrics();
         }
-        this.#events.updated.emit(fabric);
-    }
-
-    async revokeFabric(fabricIndex: FabricIndex) {
-        await this.#construction;
-
-        const fabric = this.#fabrics.get(fabricIndex);
-        if (fabric === undefined) {
-            throw new MatterFlowError(`Fabric with index ${fabricIndex} does not exist to revoke.`);
-        }
-        await fabric.remove();
+        this.#events.replaced.emit(fabric);
     }
 }

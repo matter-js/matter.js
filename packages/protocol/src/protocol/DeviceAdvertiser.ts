@@ -48,7 +48,7 @@ export class DeviceAdvertiser {
         });
 
         // When a fabric is updated we might need to adjust announcements
-        this.#observers.on(fabrics.events.updated, async fabric => {
+        this.#observers.on(fabrics.events.replaced, async fabric => {
             if (!this.#isOperational) {
                 return;
             }

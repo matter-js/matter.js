@@ -8,7 +8,7 @@ import { NetworkCommissioningBehavior } from "#behaviors/network-commissioning";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { Immutable, Lifecycle, UnsupportedDependencyError } from "#general";
 import type { ServerNode } from "#node/ServerNode.js";
-import { Fabric, FabricManager, FailsafeContext } from "#protocol";
+import { FabricManager, FailsafeContext } from "#protocol";
 
 /**
  * {@link FailsafeContext} for {@link ServerNode} API.
@@ -85,12 +85,6 @@ export class ServerNodeFailsafeContext extends FailsafeContext {
                 }
             });
         });
-    }
-
-    override async revokeFabric(fabric: Fabric) {
-        await fabric.remove();
-
-        // await this.#restoreOperationalCredentials();
     }
 
     override async restoreBreadcrumb() {

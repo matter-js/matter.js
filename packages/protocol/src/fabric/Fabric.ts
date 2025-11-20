@@ -9,6 +9,7 @@ import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Rcac } from "#certificate/kinds/Rcac.js";
 import {
+    AsyncObservable,
     BinaryKeyPair,
     Bytes,
     Crypto,
@@ -65,12 +66,16 @@ export class Fabric {
     readonly #groups: FabricGroups;
     readonly #accessControl: FabricAccessControl;
 
+    readonly #leaving = AsyncObservable<[]>();
+    readonly #deleting = AsyncObservable<[]>();
+    readonly #deleted = AsyncObservable<[]>();
+
     #vidVerificationStatement?: Bytes;
     #vvsc?: Bytes;
     #label: string;
-    #removeCallbacks = new Array<() => MaybePromise<void>>();
     #persistCallback: ((isUpdate?: boolean) => MaybePromise<void>) | undefined;
     #storage?: StorageContext;
+    #isDeleting?: boolean;
 
     constructor(crypto: Crypto, config: Fabric.Config) {
         this.#crypto = crypto;
@@ -204,6 +209,22 @@ export class Fabric {
         return this.#keyPair.publicKey;
     }
 
+    get isDeleting() {
+        return this.#isDeleting;
+    }
+
+    get leaving() {
+        return this.#leaving;
+    }
+
+    get deleting() {
+        return this.#deleting;
+    }
+
+    get deleted() {
+        return this.#deleted;
+    }
+
     sign(data: Bytes) {
         return this.crypto.signEcdsa(this.#keyPair, data);
     }
@@ -275,17 +296,6 @@ export class Fabric {
         }
     }
 
-    addRemoveCallback(callback: () => MaybePromise<void>) {
-        this.#removeCallbacks.push(callback);
-    }
-
-    deleteRemoveCallback(callback: () => MaybePromise<void>) {
-        const index = this.#removeCallbacks.indexOf(callback);
-        if (index >= 0) {
-            this.#removeCallbacks.splice(index, 1);
-        }
-    }
-
     set persistCallback(callback: (isUpdate?: boolean) => MaybePromise<void>) {
         // TODO Remove "isUpdate" parameter as soon as the fabric scoped data are removed from here/legacy API gets removed
         this.#persistCallback = callback;
@@ -297,17 +307,25 @@ export class Fabric {
      * Devices should use this to cleanly exit a fabric.  It flushes subscriptions to ensure the "leave" event emits
      * and closes sessions.
      */
-    leave(currentSessionId?: number) {
-        return this.remove(currentSessionId, true);
+    async leave(currentSessionId?: number) {
+        await this.#leaving.emit();
+
+        await this.delete(currentSessionId, true);
     }
 
-    async remove(currentSessionId?: number, graceful = false) {
-        for (const callback of this.#removeCallbacks) {
-            await callback();
-        }
+    /**
+     * Permanently remove the fabric.
+     */
+    async delete(currentSessionId?: number, graceful = false) {
+        this.#isDeleting = true;
+
+        await this.#deleting.emit();
+
         for (const session of [...this.#sessions]) {
             await session.destroy(graceful, session.id === currentSessionId, graceful); // Delay Close for current session only
         }
+
+        await this.#deleted.emit();
     }
 
     persist(isUpdate = true) {
