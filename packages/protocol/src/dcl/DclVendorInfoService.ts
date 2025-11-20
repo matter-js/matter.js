@@ -190,7 +190,7 @@ export class DclVendorInfoService {
     /**
      * Close the service and stop periodic updates.
      */
-    async close() {
+    close() {
         if (this.#closed) return;
         this.#closed = true;
 
@@ -200,12 +200,6 @@ export class DclVendorInfoService {
             this.#updateTimer.stop();
             this.#updateTimer = undefined;
         }
-
-        logger.debug("DclVendorInfoService closed");
-    }
-
-    [Symbol.asyncDispose]() {
-        return this.close();
     }
 }
 
