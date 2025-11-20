@@ -190,7 +190,7 @@ export class DclVendorInfoService {
     /**
      * Close the service and stop periodic updates.
      */
-    close() {
+    async close() {
         if (this.#closed) return;
         this.#closed = true;
 
