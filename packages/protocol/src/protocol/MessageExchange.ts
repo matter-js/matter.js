@@ -144,6 +144,7 @@ export class MessageExchange {
     #retransmissionCounter = 0;
     #closeTimer: Timer | undefined;
     #isClosing = false;
+    #isDestroyed = false;
     #timedInteractionTimer: Timer | undefined;
     #used: boolean;
 
@@ -543,7 +544,15 @@ export class MessageExchange {
         ).start();
     }
 
+    [Symbol.asyncDispose]() {
+        return this.destroy();
+    }
+
     async destroy() {
+        if (this.#isDestroyed) {
+            return;
+        }
+        this.#isDestroyed = true;
         if (this.#closeTimer === undefined && this.#receivedMessageToAck !== undefined) {
             this.#receivedMessageAckTimer.stop();
             const messageToAck = this.#receivedMessageToAck;
@@ -603,6 +612,9 @@ export class MessageExchange {
     }
 
     async close(force = false) {
+        if (this.#isDestroyed) {
+            return;
+        }
         if (this.#closeTimer !== undefined) {
             if (force) {
                 // Force close does not wait any longer
