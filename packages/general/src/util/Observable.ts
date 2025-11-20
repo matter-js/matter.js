@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Diagnostic } from "#log/Diagnostic.js";
 import { Duration } from "#time/Duration.js";
 import { Time, Timer } from "#time/Time.js";
 import { Instant, Millis, Seconds } from "#time/TimeUnit.js";
@@ -116,6 +117,11 @@ export interface Observable<T extends any[] = any[], R = void> extends AsyncIter
     ): Promise<TResult1 | TResult2>;
 
     /**
+     * A diagnostic aid; set this to produce detailed logs of emission.
+     */
+    traceAs: string | undefined;
+
+    /**
      * Observable supports standard "for await (const value of observable").
      *
      * Using an observer in this manner limits your listener to the first parameter normally emitted and your observer
@@ -195,6 +201,7 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
     #handlePromise!: ObserverPromiseHandler;
     #observers?: Set<Observer<T, R>>;
     #once?: Set<Observer<T, R>>;
+    #instrumentAs?: string;
 
     #joinIteration?: () => Promise<Next<T>>;
     #removeIterator?: () => void;
@@ -207,6 +214,10 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
         } else {
             this.isAsync = asyncConfig ?? false;
         }
+    }
+
+    set traceAs(name: string | undefined) {
+        this.#instrumentAs = name;
     }
 
     [Symbol.dispose]() {
@@ -292,6 +303,12 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
             return;
         }
 
+        let count = 0;
+
+        if (this.#instrumentAs) {
+            logger.debug(Diagnostic.strong(this.#instrumentAs), "emitting");
+        }
+
         // Iterate over a clone of observers so we do not trigger new observers added during observation
         const iterator = [...this.#observers][Symbol.iterator]();
 
@@ -306,6 +323,14 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
                 const observer = iteration.value;
 
                 try {
+                    if (this.#instrumentAs) {
+                        logger.debug(
+                            Diagnostic.strong(this.#instrumentAs),
+                            `invoking #${count++}`,
+                            Diagnostic.strong(observer.name || "(anon)"),
+                        );
+                        if (this.#instrumentAs === "Fabric deleting" && count === 7) debugger;
+                    }
                     result = observer(...payload);
                 } catch (e) {
                     this.#handleError(asError(e), observer);
@@ -338,6 +363,10 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
                 }
 
                 return result;
+            }
+
+            if (this.#instrumentAs) {
+                logger.debug(Diagnostic.strong(this.#instrumentAs), "emission complete");
             }
         };
 
