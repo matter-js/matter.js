@@ -135,38 +135,14 @@ export class DclVendorInfoService {
 
         // Add hardcoded test vendors if not present
         const hardcodedVendors: DclVendorInfo[] = [
-            {
-                vendorID: 0xfff1,
+            ...[0xfff1, 0xfff2, 0xfff3, 0xfff4].map(vendorID => ({
+                vendorID,
                 vendorName: "Test Vendor",
                 companyLegalName: "Test Vendor Inc.",
                 companyPreferredName: "Test Vendor",
                 vendorLandingPageURL: "https://test.example.com",
                 creator: "System",
-            },
-            {
-                vendorID: 0xfff2,
-                vendorName: "Test Vendor",
-                companyLegalName: "Test Vendor Inc.",
-                companyPreferredName: "Test Vendor",
-                vendorLandingPageURL: "https://test.example.com",
-                creator: "System",
-            },
-            {
-                vendorID: 0xfff3,
-                vendorName: "Test Vendor",
-                companyLegalName: "Test Vendor Inc.",
-                companyPreferredName: "Test Vendor",
-                vendorLandingPageURL: "https://test.example.com",
-                creator: "System",
-            },
-            {
-                vendorID: 0xfff4,
-                vendorName: "Test Vendor",
-                companyLegalName: "Test Vendor Inc.",
-                companyPreferredName: "Test Vendor",
-                vendorLandingPageURL: "https://test.example.com",
-                creator: "System",
-            },
+            })),
             {
                 vendorID: 4939,
                 vendorName: "Nabu Casa",
