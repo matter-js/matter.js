@@ -41,7 +41,11 @@ export class DclClient {
         this.#baseUrl = this.production ? DCL_PRODUCTION_URL : DCL_TEST_URL;
     }
 
-    async #fetchPaginatedJson<ItemT>(path: string, options?: DclClient.Options): Promise<ItemT[]> {
+    async #fetchPaginatedJson<ItemT>(
+        path: string,
+        paginatedField: string,
+        options?: DclClient.Options,
+    ): Promise<ItemT[]> {
         const allItems: ItemT[] = [];
         let nextKey: string | undefined;
 
@@ -54,13 +58,9 @@ export class DclClient {
 
             const response = await this.#fetchJson<any>(currentPath, options);
 
-            // Auto-detect the data field (it's the field that's not "pagination")
-            const dataField = Object.keys(response || {}).find(key => key !== "pagination");
-            if (dataField) {
-                const items = response[dataField];
-                if (items && Array.isArray(items)) {
-                    allItems.push(...items);
-                }
+            const items = response[paginatedField];
+            if (items && Array.isArray(items)) {
+                allItems.push(...items);
             }
 
             // Check for next page
@@ -187,7 +187,7 @@ export class DclClient {
      * Fetch all vendor information from DCL
      */
     async fetchAllVendors(options?: DclClient.Options) {
-        return this.#fetchPaginatedJson<DclVendorInfo>("/dcl/vendorinfo/vendors", options);
+        return this.#fetchPaginatedJson<DclVendorInfo>("/dcl/vendorinfo/vendors", "vendorInfo", options);
     }
 }
 
