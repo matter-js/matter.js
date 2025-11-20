@@ -5,7 +5,7 @@
  */
 
 import { Events, OfflineEvent, OnlineEvent, QuietEvent } from "#behavior/Events.js";
-import { camelize, EventEmitter, GeneratedClass, ImplementationError, Observable } from "#general";
+import { AsyncObservable, camelize, EventEmitter, GeneratedClass, ImplementationError, Observable } from "#general";
 import {
     ClassSemantics,
     ClusterModel,
@@ -548,7 +548,7 @@ function selectDefaultValue(scope: Scope, oldDefault: Val, member: ValueModel) {
 function createEventDescriptor(
     name: string,
     schema: ValueModel,
-    constructor: new <T extends any[]>(schema: ValueModel, owner: Events) => Observable<T>,
+    constructor: new <T extends any[]>(schema: ValueModel, owner: Events) => AsyncObservable<T>,
 ) {
     return {
         get(this: EventEmitter) {

@@ -5,6 +5,7 @@
  */
 
 import {
+    AsyncObservable,
     BasicObservable,
     Bytes,
     Diagnostic,
@@ -31,7 +32,7 @@ export class MdnsSocket {
     #socket: UdpMulticastServer;
     #handlers?: Set<PromiseLike<void>>;
     #isClosed = false;
-    #receipt = new BasicObservable<[message: MdnsSocket.Message]>(
+    #receipt: AsyncObservable<[message: MdnsSocket.Message]> = new BasicObservable(
         error => logger.error("Unhandled error in MDNS listener", error),
         true,
     );

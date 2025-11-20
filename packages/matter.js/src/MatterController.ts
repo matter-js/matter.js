@@ -327,7 +327,7 @@ export class MatterController {
 
             this.#node.env
                 .get(SessionManager)
-                .sessions.deleted.on(async session => sessionClosedCallback?.(session.peerNodeId));
+                .sessions.deleted.on(session => sessionClosedCallback?.(session.peerNodeId));
 
             this.#peers = this.#node.env.get(PeerSet);
             nodesStore.peers = this.#peers;

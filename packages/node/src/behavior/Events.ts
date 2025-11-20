@@ -8,6 +8,7 @@ import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import {
     asError,
+    AsyncObservable,
     BasicObservable,
     camelize,
     EventEmitter,
@@ -76,16 +77,17 @@ export namespace Events {
     /**
      * Generic type for {@link Endpoint#events}.
      */
-    export interface Generic<T extends Observable = Observable> extends Record<
-        string,
-        undefined | Record<string, undefined | T>
-    > {}
+    export interface Generic<T extends AsyncObservable = AsyncObservable>
+        extends Record<string, undefined | Record<string, undefined | T>> {}
 }
 
 /**
  * An event associated with a specific matter element such as an {@link AttributeElement} or {@link EventElement}.
  */
-export class ElementEvent<T extends any[] = any[], S extends ValueModel = ValueModel> extends BasicObservable<T> {
+export class ElementEvent<T extends any[] = any[], S extends ValueModel = ValueModel> extends BasicObservable<
+    T,
+    MaybePromise<void>
+> {
     #schema: S;
     #owner: Events;
 
@@ -215,7 +217,7 @@ export class OnlineEvent<T extends any[] = any[], S extends ValueModel = ValueMo
      * Normally this is the {@link OnlineEvent}, but in the case of server-side elements that are
      * {@link Quality.quieter} this is {@link quiet}.
      */
-    get online(): Observable<T> {
+    get online(): AsyncObservable<T> {
         return this;
     }
 
@@ -227,7 +229,7 @@ export class OnlineEvent<T extends any[] = any[], S extends ValueModel = ValueMo
      * By default emits latest changes once per second but you can reconfigure via {@link QuietObservable} properties
      * and/or trigger emits using {@link QuietObservable.emitNow} and {@link QuietObservable.emitSoon}.
      */
-    get quiet(): QuietObservable<T> {
+    get quiet(): QuietObservable<T, MaybePromise<void>> {
         throw new ImplementationError(`Matter does not define ${this} with "quieter" (Q) quality`);
     }
 
@@ -255,7 +257,7 @@ export class OnlineEvent<T extends any[] = any[], S extends ValueModel = ValueMo
 export class QuietEvent<T extends any[] = any[], S extends ValueModel = ValueModel> extends OnlineEvent<T, S> {
     override readonly isQuieter = true;
 
-    #quiet: QuietObservable<T>;
+    #quiet: QuietObservable<T, MaybePromise<void>>;
 
     constructor(schema: S, owner: Events, config?: QuietObservable.Configuration<T>) {
         super(schema, owner);
@@ -272,11 +274,11 @@ export class QuietEvent<T extends any[] = any[], S extends ValueModel = ValueMod
         });
     }
 
-    override get online(): Observable<T> {
+    override get online(): AsyncObservable {
         return this.#quiet;
     }
 
-    override get quiet(): QuietObservable<T> {
+    override get quiet() {
         return this.#quiet;
     }
 
@@ -286,7 +288,7 @@ export class QuietEvent<T extends any[] = any[], S extends ValueModel = ValueMod
     }
 }
 
-function descriptionOf(observable: Observable, observer: Observer) {
+function descriptionOf(observable: AsyncObservable, observer: Observer) {
     let desc = `${observable} observer`;
     if (observer.name) {
         desc = `${desc} ${observer.name}`;

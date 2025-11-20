@@ -6,6 +6,7 @@
 
 import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
 import {
+    AsyncObservable,
     Bytes,
     Construction,
     CRYPTO_SYMMETRIC_KEY_LENGTH,
@@ -13,7 +14,6 @@ import {
     Environmental,
     ImplementationError,
     Logger,
-    Observable,
 } from "#general";
 import { CaseAuthenticatedTag, FabricId, FabricIndex, NodeId, VendorId } from "#types";
 import { Fabric, FabricBuilder } from "./Fabric.js";
@@ -52,7 +52,7 @@ export class FabricAuthority {
     #construction: Construction<FabricAuthority>;
     #ca: CertificateAuthority;
     #fabrics: FabricManager;
-    #fabricAdded = new Observable<[Fabric]>();
+    #fabricAdded = new AsyncObservable<[Fabric]>();
 
     constructor({ ca, fabrics }: FabricAuthorityContext) {
         this.#ca = ca;
@@ -153,7 +153,7 @@ export class FabricAuthority {
         fabric.persist();
 
         logger.debug(`Created new controller fabric ${index}`);
-        this.#fabricAdded.emit(fabric);
+        await this.#fabricAdded.emit(fabric);
 
         return fabric;
     }

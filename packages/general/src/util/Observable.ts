@@ -30,9 +30,11 @@ const logger = Logger.get("Observable");
  * @param payload a list of arguments to be emitted
  */
 export interface Observer<T extends any[] = any[], R = void> {
-    (...payload: T): MaybePromise<R | undefined>;
+    (...payload: T): R | undefined;
     [observant]?: boolean;
 }
+
+export interface AsyncObserver<T extends any[] = any[], R = void> extends Observer<T, MaybePromise<R>> {}
 
 /**
  * A discrete event that may be monitored via callback.  Could call it "event" but that could be confused with Matter
@@ -227,7 +229,8 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
             // Promises handled by emitter
             this.#handlePromise = promise => promise;
         } else {
-            // We log promise errors but do not otherwise track
+            // We log promise errors but do not otherwise track.  This generally should not be invoked because types
+            // should align with this.#isAsync, so observers should not be returning promises
             this.#handlePromise = (promise, observer) => {
                 promise.catch(error => {
                     let identity: string;
@@ -592,7 +595,7 @@ function constructAsyncObservableValue(value?: unknown, handleError?: ObserverEr
  */
 export class EventEmitter {
     // True private screws up TS types
-    private events?: Record<string, Observable | undefined>;
+    private events?: Record<string, AsyncObservable | undefined>;
 
     emit<This, N extends EventEmitter.NamesOf<This>>(this: This, name: N, ...payload: EventEmitter.PayloadOf<This, N>) {
         event(this, name).emit(...payload);
@@ -614,7 +617,7 @@ export class EventEmitter {
         event(this, name).off(handler as any);
     }
 
-    addEvent(name: string, event?: Observable) {
+    addEvent(name: string, event?: AsyncObservable) {
         if (!this.events) {
             this.events = {};
         }
@@ -735,6 +738,18 @@ export class ObserverGroup {
         this.#defaultTarget = target;
     }
 
+    on<T extends any[], R>(
+        observable: Observable<T, R>,
+        observer: Observer<ObserverGroup.VarArgs<NoInfer<T>>, NoInfer<R>>,
+        target?: {},
+    ): void;
+
+    on<T extends any[], R>(
+        observable: AsyncObservable<T, R>,
+        observer: AsyncObserver<ObserverGroup.VarArgs<NoInfer<T>>, NoInfer<R>>,
+        target?: {},
+    ): void;
+
     /**
      * Add an observer.
      *
@@ -820,20 +835,23 @@ export namespace ObserverGroup {
 /**
  * An {@link Observable} that emits an algorithmically-reduced number of events.
  */
-export class QuietObservable<T extends any[] = any[]> extends BasicObservable<T> implements QuietObservable.State<T> {
+export class QuietObservable<T extends any[] = any[], R extends MaybePromise<void> = void>
+    extends BasicObservable<T, R>
+    implements QuietObservable.State<T, R>
+{
     #emitAutomatically = QuietObservable.defaults.emitAutomatically;
     #suppressionEnabled = QuietObservable.defaults.suppressionEnabled;
     #minimumEmitInterval = QuietObservable.defaults.minimumEmitInterval;
     #shouldEmit?: QuietObservable.EmitPredicate<T>;
-    #source?: Observable<T>;
-    #sink?: Observable<T>;
-    #sourceObserver?: Observer<T>;
-    #sinkObserver?: Observer<T>;
+    #source?: Observable<T, R>;
+    #sink?: Observable<T, R>;
+    #sourceObserver?: Observer<T, R>;
+    #sinkObserver?: Observer<T, R>;
     #deferredPayload?: T;
     #lastEmitAt?: number;
     #emitTimer?: Timer;
 
-    constructor(config?: QuietObservable.Configuration<T>) {
+    constructor(config?: QuietObservable.Configuration<T, R>) {
         super();
         if (config) {
             this.config = config;
@@ -844,7 +862,7 @@ export class QuietObservable<T extends any[] = any[]> extends BasicObservable<T>
         return this;
     }
 
-    set config(config: QuietObservable.Configuration<T>) {
+    set config(config: QuietObservable.Configuration<T, R>) {
         const { suppressionEnabled, minimumEmitInterval, emitAutomatically } = config;
         if (emitAutomatically !== undefined) {
             this.emitAutomatically = emitAutomatically;
@@ -917,7 +935,7 @@ export class QuietObservable<T extends any[] = any[]> extends BasicObservable<T>
         return this.#source;
     }
 
-    set source(source: Observable<T> | undefined) {
+    set source(source: Observable<T, R> | undefined) {
         if (this.#source === source) {
             return;
         }
@@ -936,7 +954,7 @@ export class QuietObservable<T extends any[] = any[]> extends BasicObservable<T>
         return this.#sink;
     }
 
-    set sink(sink: Observable<T> | undefined) {
+    set sink(sink: Observable<T, R> | undefined) {
         if (this.#sink === sink) {
             return;
         }
@@ -967,11 +985,11 @@ export class QuietObservable<T extends any[] = any[]> extends BasicObservable<T>
         return super.isObserved || this.#sink?.isObserved || false;
     }
 
-    override isObservedBy(observer: Observer<T>): boolean {
+    override isObservedBy(observer: Observer<T, R>): boolean {
         return this.#sink?.isObservedBy(observer) || this.isObservedBy(observer) || false;
     }
 
-    override emit(...payload: T) {
+    override emit(...payload: T): R | undefined {
         const shouldEmit = this.#shouldEmit?.(...payload);
         if (shouldEmit === false) {
             return;
@@ -1022,7 +1040,7 @@ export class QuietObservable<T extends any[] = any[]> extends BasicObservable<T>
         this.#deferredPayload = undefined;
         this.#lastEmitAt = now ?? Time.nowMs;
         this.#stop();
-        super.emit(...payload);
+        return super.emit(...payload);
     }
 
     #start(now?: number) {
@@ -1054,7 +1072,7 @@ export class QuietObservable<T extends any[] = any[]> extends BasicObservable<T>
 }
 
 export namespace QuietObservable {
-    export interface State<T extends any[] = any[]> {
+    export interface State<T extends any[] = any[], R extends MaybePromise<void> = void> {
         /**
          * If true this observable will emit within the suppression constraints.  If false it will only emit after calls
          * to {@link emitSoon} or {@link emitNow}.
@@ -1074,12 +1092,12 @@ export namespace QuietObservable {
         /**
          * An input observable this observable will automatically observe to produce events.
          */
-        source?: Observable<T>;
+        source?: Observable<T, R>;
 
         /**
          * An output observable this observable will automatically emit to whenever it emits.
          */
-        sink?: Observable<T>;
+        sink?: Observable<T, R>;
 
         /**
          * A predicate that determine whether a payload should emit.
@@ -1120,7 +1138,8 @@ export namespace QuietObservable {
         (...payload: T): EmitDirective;
     }
 
-    export interface Configuration<T extends any[] = any[]> extends Partial<State<T>> {}
+    export interface Configuration<T extends any[] = any[], R extends MaybePromise<void> = void>
+        extends Partial<State<T, R>> {}
 
     export const defaults: State = {
         emitAutomatically: true,

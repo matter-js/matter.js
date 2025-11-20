@@ -7,6 +7,7 @@
 import { Message } from "#codec/MessageCodec.js";
 import { Fabric as RealFabric } from "#fabric/Fabric.js";
 import {
+    AsyncObservable,
     b$,
     Bytes,
     Channel,
@@ -167,7 +168,7 @@ export namespace ProtocolMocks {
      */
     export class MessageChannel extends RealMessageChannel {
         #requests = new DataReadQueue<Message>();
-        #readReady?: Observable<[]>;
+        #readReady?: AsyncObservable<[]>;
 
         constructor(config?: {
             channel?: Channel<Bytes>;
@@ -185,7 +186,7 @@ export namespace ProtocolMocks {
 
         override async send(message: Message) {
             this.#requests.push(message);
-            this.#readReady?.emit();
+            await this.#readReady?.emit();
         }
 
         read() {

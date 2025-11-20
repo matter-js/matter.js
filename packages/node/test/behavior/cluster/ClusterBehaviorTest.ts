@@ -115,7 +115,7 @@ describe("ClusterBehavior", () => {
 
             ({}) as MyBehavior satisfies {
                 events: {
-                    reqEv: Observable<[string, context?: ActionContext]>;
+                    reqEv: AsyncObservable<[string, context?: ActionContext]>;
                 };
             };
         });
@@ -317,7 +317,7 @@ describe("ClusterBehavior", () => {
                 becomeAwesome(value: number): void;
 
                 events: EventEmitter & {
-                    becameAwesome: Observable<[number, ActionContext]>;
+                    becameAwesome: AsyncObservable<[number, ActionContext]>;
                 };
             };
 
@@ -379,7 +379,7 @@ describe("ClusterBehavior", () => {
             ({}) as InstanceType<typeof Events2> satisfies EventEmitter;
 
             const eventsInstance = new Events2();
-            void (eventsInstance.startUp satisfies Observable);
+            void (eventsInstance.startUp satisfies AsyncObservable);
             expect(eventsInstance.startUp).not.undefined;
         });
 

@@ -5,6 +5,7 @@
  */
 
 import {
+    AsyncObservable,
     Bytes,
     Construction,
     Crypto,
@@ -39,7 +40,7 @@ export class FabricManager {
     #events = {
         added: Observable<[fabric: Fabric]>(),
         updated: Observable<[fabric: Fabric]>(),
-        deleted: Observable<[fabric: Fabric]>(),
+        deleted: AsyncObservable<[fabric: Fabric]>(),
         failsafeClosed: Observable<[]>(),
     };
     #construction: Construction<FabricManager>;
@@ -177,9 +178,7 @@ export class FabricManager {
         fabric.persistCallback = (isUpdate = true) => {
             if (!this.#storage) {
                 if (isUpdate) {
-                    logger.warn(
-                        "Fabric can not be persisted because FabricManager has no storage but it is a fabric update.",
-                    );
+                    logger.warn(`Fabric ${fabricIndex} cannot persist because FabricManager has no storage`);
                 }
                 return;
             }
@@ -208,7 +207,9 @@ export class FabricManager {
             await this.persistFabrics();
         }
         await fabric.storage?.clearAll();
-        this.#events.deleted.emit(fabric);
+
+        // TODO - need to await this but need to resolve deadlock first
+        void this.#events.deleted.emit(fabric);
     }
 
     [Symbol.iterator]() {

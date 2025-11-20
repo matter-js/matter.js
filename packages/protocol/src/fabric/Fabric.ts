@@ -64,6 +64,7 @@ export class Fabric {
     readonly #sessions = new Set<Session>();
     readonly #groups: FabricGroups;
     readonly #accessControl: FabricAccessControl;
+
     #vidVerificationStatement?: Bytes;
     #vvsc?: Bytes;
     #label: string;

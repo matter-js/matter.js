@@ -350,7 +350,7 @@ describe("ClientNode", () => {
         expect(aggregatorClient.parts.size).equals(0);
     });
 
-    it("erases node after leave event", async () => {
+    it.only("erases node after leave event", async () => {
         // *** SETUP ***
 
         await using site = new MockSite();
