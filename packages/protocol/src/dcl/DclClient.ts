@@ -42,7 +42,7 @@ export class DclClient {
     }
 
     async #fetchPaginatedJson<ItemT>(path: string, options?: DclClient.Options): Promise<ItemT[]> {
-        const allItems: any[] = [];
+        const allItems: ItemT[] = [];
         let nextKey: string | undefined;
 
         do {
