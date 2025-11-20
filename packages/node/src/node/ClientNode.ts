@@ -12,6 +12,7 @@ import { NetworkRuntime } from "#behavior/system/network/NetworkRuntime.js";
 import { Agent } from "#endpoint/Agent.js";
 import { ClientNodeEndpoints } from "#endpoint/properties/ClientNodeEndpoints.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
+import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { Diagnostic, Identity, Lifecycle, Logger, MaybePromise } from "#general";
@@ -115,10 +116,16 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
      * If you can not reach the device, use {@link delete} instead.
      */
     async decommission() {
+        this.lifecycle.change(EndpointLifecycle.Change.Destroying);
+
         if (this.lifecycle.isCommissioned) {
             this.statusUpdate("decommissioning");
 
-            await this.act("decommission", agent => agent.commissioning.decommission());
+            try {
+                await this.act("decommission", agent => agent.commissioning.decommission());
+            } catch (e) {
+                logger.error(`Error decommissioning ${this}:`, e);
+            }
         }
         await this.delete();
     }

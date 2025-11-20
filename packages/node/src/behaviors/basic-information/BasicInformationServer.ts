@@ -117,7 +117,7 @@ export class BasicInformationServer extends Base {
         this.events.startUp.emit({ softwareVersion: this.state.softwareVersion }, this.context);
 
         const fabricManager = this.env.get(FabricManager);
-        this.reactTo(fabricManager.events.deleted, this.#handleRemovedFabric);
+        this.reactTo(fabricManager.events.deleting, this.#handleRemovedFabric);
     }
 
     #goingOffline() {

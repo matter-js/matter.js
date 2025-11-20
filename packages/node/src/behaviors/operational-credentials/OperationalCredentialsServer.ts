@@ -268,10 +268,6 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
             return this.#mapNocErrors(error);
         }
 
-        // The receiver SHALL create and add a new Access Control Entry using the CaseAdminSubject field to grant
-        // subsequent Administer access to an Administrator member of the new Fabric.
-        await this.endpoint.act(agent => agent.get(AccessControlServer).addDefaultCaseAcl(fabric, [caseAdminSubject]));
-
         const session = this.context.session;
         NodeSession.assert(session);
 
@@ -294,6 +290,10 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
             await fabric.delete(session.id);
             throw e;
         }
+
+        // The receiver SHALL create and add a new Access Control Entry using the CaseAdminSubject field to grant
+        // subsequent Administer access to an Administrator member of the new Fabric.
+        await this.endpoint.act(agent => agent.get(AccessControlServer).addDefaultCaseAcl(fabric, [caseAdminSubject]));
 
         // TODO The incoming IPKValue SHALL be stored in the Fabric-scoped slot within the Group Key Management cluster
         //  (see KeySetWrite), for subsequent use during CASE.
@@ -394,7 +394,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
     override async removeFabric({ fabricIndex }: OperationalCredentials.RemoveFabricRequest) {
         assertRemoteActor(this.context);
 
-        const fabric = this.env.get(FabricManager).findByIndex(fabricIndex);
+        const fabric = this.env.get(FabricManager).maybeForIndex(fabricIndex);
 
         if (fabric === undefined) {
             return {
@@ -402,6 +402,10 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
                 debugText: `Fabric ${fabricIndex} not found`,
             };
         }
+
+        // We do not handle fabric management transactionally because of legacy FabricManager implementation, and if
+        // we leave the transaction open it will cause deadlock
+        await this.context.transaction.rollback();
 
         await fabric.leave(this.context.session.id);
         // The state is updated on removal via commissionedFabricChanged event, see constructor
@@ -504,6 +508,9 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
     }
 
     async #updateFabrics() {
+        await this.context.transaction.addResources(this);
+        await this.context.transaction.begin();
+
         const fabrics = this.env.get(FabricManager);
         this.state.fabrics = fabrics.map(fabric => ({
             fabricId: fabric.fabricId,
@@ -566,7 +573,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
         const fabricManager = this.env.get(FabricManager);
         this.reactTo(fabricManager.events.added, this.#handleAddedFabric, { lock: true });
         this.reactTo(fabricManager.events.replaced, this.#handleUpdatedFabric, { lock: true });
-        this.reactTo(fabricManager.events.deleted, this.#handleRemovedFabric, { lock: true });
+        this.reactTo(fabricManager.events.deleting, this.#handleRemovedFabric, { lock: true });
         this.reactTo(fabricManager.events.failsafeClosed, this.#handleFailsafeClosed, { lock: true });
         await this.#updateFabrics();
     }
@@ -579,7 +586,6 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
 export namespace OperationalCredentialsServer {
     export class Internal {
         certification?: DeviceCertification;
-        commissionedFabric?: FabricIndex;
     }
 
     export class State extends OperationalCredentialsBehavior.State {

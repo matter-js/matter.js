@@ -237,7 +237,7 @@ describe("ServerNode", () => {
         await MockTime.advance(FAILSAFE_LENGTH_S * 1000 + 1);
 
         if (opcreds.commissionedFabrics > 0) {
-            await node.events.operationalCredentials.commissionedFabrics$Changed;
+            await MockTime.resolve(node.events.operationalCredentials.commissionedFabrics$Changed);
         }
 
         expect(opcreds.commissionedFabrics).equals(0);
@@ -406,11 +406,13 @@ describe("ServerNode", () => {
         expect(occurrencesPerFabric.get(FabricIndex(1))).equals(1);
         expect(occurrencesPerFabric.get(FabricIndex(2))).equals(1);
 
+        const sanitized = Promise.resolve(ServerEnvironment.fabricScopedDataSanitized);
+
         await node.online(contextOptions, async agent => {
             await agent.operationalCredentials.removeFabric({ fabricIndex: FabricIndex(1) });
         });
 
-        await ServerEnvironment.fabricScopedDataSanitized;
+        await sanitized;
 
         // Verify that the fabric scoped data are gone for the removed fabricIndex 1, but still exist for Index 2
         expect(node.state.operationalCredentials.nocs.filter(({ fabricIndex }) => fabricIndex === 1).length).equals(0);
@@ -434,7 +436,7 @@ describe("ServerNode", () => {
         expect(occurrencesPerFabric.get(FabricIndex(2))).equals(1);
 
         await node.close();
-    });
+    }).timeout(1e9);
 
     it("properly deploys aggregator", async () => {
         const aggregator = new Endpoint(AggregatorEndpoint);

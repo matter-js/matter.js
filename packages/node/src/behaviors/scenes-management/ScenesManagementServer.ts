@@ -218,7 +218,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
 
         // When a fabric git removed we need to check if the active scene is considered from that fabric
         // Data cleanup happens automatically
-        this.reactTo(fabricManager.events.deleted, this.#handleDeleteFabric);
+        this.reactTo(fabricManager.events.deleting, this.#handleDeleteFabric);
     }
 
     /**

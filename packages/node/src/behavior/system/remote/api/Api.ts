@@ -63,7 +63,7 @@ export namespace Api {
         if (!logger) {
             loggers.set(facility, (logger = Logger.get(facility)));
         }
-        logger[level](Diagnostic.via(id ?? "(anon)"), message);
+        logger[level](Diagnostic.via(id || "(anon)"), message);
     }
 
     export function logRequest(facility: string, id: string | undefined, method: string, target: string) {

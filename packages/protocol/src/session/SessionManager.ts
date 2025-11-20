@@ -137,7 +137,7 @@ export class SessionManager {
         this.#globalUnencryptedMessageCounter = new MessageCounter(crypto);
 
         // When fabric is removed, also remove the resumption record
-        this.#observers.on(context.fabrics.events.deleted, async fabric => {
+        this.#observers.on(context.fabrics.events.deleting, async fabric => {
             await this.deleteResumptionRecordsForFabric(fabric);
         });
 

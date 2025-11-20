@@ -48,7 +48,7 @@ export class AtomicWriteHandler {
     #pendingWrites = new BasicSet<AtomicWriteState>();
 
     constructor(fabricManager: FabricManager) {
-        this.#observers.on(fabricManager.events.deleted, fabric => this.#handleFabricRemoval(fabric));
+        this.#observers.on(fabricManager.events.deleting, fabric => this.#handleFabricRemoval(fabric));
     }
 
     static [Environmental.create](env: Environment) {

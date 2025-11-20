@@ -42,7 +42,7 @@ export namespace ServerEnvironment {
         // Ensure these are fully initialized
         const fabrics = await env.load(FabricManager);
 
-        fabrics.events.deleted.on(async () => {
+        fabrics.events.deleting.on(async () => {
             const fabricIndices = fabrics.fabrics.map(fabric => fabric.fabricIndex);
             if (fabricIndices.length > 0) {
                 await limitNodeDataToAllowedFabrics(node, fabricIndices);

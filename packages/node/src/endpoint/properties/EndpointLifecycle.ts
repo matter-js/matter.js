@@ -171,6 +171,10 @@ export class EndpointLifecycle {
                 this.#isInstalled = true;
                 break;
 
+            case EndpointLifecycle.Change.Destroying:
+                this.#isReady = false;
+                break;
+
             case EndpointLifecycle.Change.Ready:
                 // Sanity checks
                 if (!this.#hasId) {

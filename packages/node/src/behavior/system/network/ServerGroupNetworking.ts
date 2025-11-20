@@ -48,7 +48,7 @@ export class ServerGroupNetworking {
         this.#observers.on(fabrics.events.added, async fabric => this.#registerFabricGroupObserver(fabric));
 
         // When fabric is deleted, we remove the group memberships
-        this.#observers.on(fabrics.events.deleted, async fabric => {
+        this.#observers.on(fabrics.events.deleting, async fabric => {
             const fabricIndex = fabric.fabricIndex;
             this.#observersForFabric(fabricIndex).close();
             this.#fabricObservers.delete(fabricIndex);

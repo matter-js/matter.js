@@ -53,14 +53,8 @@ export class ServerNodeFailsafeContext extends FailsafeContext {
      * TODO - it's recommended to reset all state if commissioning bails; currently we perform mandatory restore
      */
     override async storeEndpointState() {
-        // const opcreds = this.#node.state.operationalCredentials;
         this.#storedState = {
             networks: new Map(),
-            /*
-            nocs: opcreds.nocs.map(noc => ({ ...noc })),
-            fabrics: opcreds.fabrics.map(fabric => ({ ...fabric })),
-            trustedRootCertificates: [...opcreds.trustedRootCertificates],
-             */
         };
 
         if (!this.#node.behaviors.has(NetworkCommissioningBehavior)) {

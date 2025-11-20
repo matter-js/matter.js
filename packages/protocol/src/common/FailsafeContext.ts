@@ -155,14 +155,6 @@ export abstract class FailsafeContext {
         return this.#fabrics.allocateFabricIndex();
     }
 
-    async addFabric(fabric: Fabric) {
-        this.#fabrics.addFabric(fabric);
-        if (this.#failsafe !== undefined) {
-            this.#associatedFabric = this.#failsafe.associatedFabric = fabric;
-        }
-        return fabric.fabricIndex;
-    }
-
     async replaceFabric(fabric: Fabric) {
         await this.#fabrics.replaceFabric(fabric);
         await this.#sessions.deleteResumptionRecordsForFabric(fabric);
@@ -261,6 +253,7 @@ export abstract class FailsafeContext {
             .setIdentityProtectionKey(ipkValue)
             .setRootNodeId(caseAdminSubject)
             .build(this.#fabrics.allocateFabricIndex());
+        this.#fabrics.addFabric(this.#associatedFabric);
 
         if (this.#failsafe) {
             this.#failsafe.associatedFabric = this.#associatedFabric;

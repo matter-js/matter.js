@@ -87,7 +87,7 @@ describe("BdxTest", () => {
                         expect(receivedData).to.deep.equal(data);
                     },
                 });
-            }).timeout(1e9);
+            });
 
             it("Using SendInit as Receiver-Driver (by Initiator)", async () => {
                 const data = crypto.randomBytes(2048);

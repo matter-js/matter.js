@@ -18,6 +18,7 @@ import {
     MatterFlowError,
     MaybePromise,
     Observable,
+    Observer,
     StorageContext,
     StorageManager,
 } from "#general";
@@ -39,8 +40,9 @@ export class FabricManager {
     #storage?: StorageContext;
     #events = {
         added: Observable<[fabric: Fabric]>(),
-        replaced: Observable<[fabric: Fabric]>(),
-        deleted: AsyncObservable<[fabric: Fabric]>(),
+        replaced: Observable<[fabric: Fabric]>(unhandled("replacing")),
+        deleting: AsyncObservable<[fabric: Fabric]>(unhandled("deleting")),
+        deleted: AsyncObservable<[fabric: Fabric]>(unhandled("deleted")),
         failsafeClosed: Observable<[]>(),
     };
     #construction: Construction<FabricManager>;
@@ -106,7 +108,8 @@ export class FabricManager {
         if (typeof address === "object") {
             address = address.fabricIndex;
         }
-        return this.#fabrics.has(address);
+        const fabric = this.maybeForIndex(address);
+        return fabric && !fabric.isDeleting;
     }
 
     for(address: FabricIndex | PeerAddress) {
@@ -144,7 +147,7 @@ export class FabricManager {
 
         const storeResult = this.#storage.set(
             "fabrics",
-            Array.from(this.#fabrics.values()).map(fabric => fabric.config),
+            this.fabrics.map(fabric => fabric.config),
         );
         if (MaybePromise.is(storeResult)) {
             return storeResult.then(() => this.#storage!.set("nextFabricIndex", this.#nextFabricIndex));
@@ -174,7 +177,10 @@ export class FabricManager {
     #addOrUpdateFabricEntry(fabric: Fabric) {
         const { fabricIndex } = fabric;
         this.#fabrics.set(fabricIndex, fabric);
-        fabric.deleted.on(async () => this.removeFabric(fabricIndex));
+
+        fabric.deleting.on(() => this.events.deleting.emit(fabric));
+        fabric.deleted.on(() => this.#handleFabricDeleted(fabric));
+
         fabric.persistCallback = (isUpdate = true) => {
             if (!this.#storage) {
                 if (isUpdate) {
@@ -194,34 +200,26 @@ export class FabricManager {
         }
     }
 
-    async removeFabric(fabricIndex: FabricIndex) {
+    async #handleFabricDeleted(fabric: Fabric) {
         await this.#construction;
 
-        const fabric = this.#fabrics.get(fabricIndex);
-        if (fabric === undefined)
-            throw new FabricNotFoundError(
-                `Fabric with index ${fabricIndex} cannot be removed because it does not exist.`,
-            );
-        this.#fabrics.delete(fabricIndex);
+        this.#fabrics.delete(fabric.fabricIndex);
         if (this.#storage) {
             await this.persistFabrics();
         }
         await fabric.storage?.clearAll();
-
-        // TODO - need to await this but need to resolve deadlock first
-        void this.#events.deleted.emit(fabric);
     }
 
     [Symbol.iterator]() {
         this.#construction.assert();
 
-        return this.#fabrics.values();
+        return this.fabrics[Symbol.iterator]();
     }
 
     get fabrics() {
         this.#construction.assert();
 
-        return Array.from(this.#fabrics.values());
+        return Array.from(this.#fabrics.values()).filter(fabric => !fabric.isDeleting);
     }
 
     get length() {
@@ -256,7 +254,7 @@ export class FabricManager {
     findByKeypair(keypair: Key) {
         this.#construction.assert();
 
-        for (const fabric of this.#fabrics.values()) {
+        for (const fabric of this.fabrics) {
             if (fabric.matchesKeyPair(keypair)) {
                 return fabric;
             }
@@ -264,10 +262,26 @@ export class FabricManager {
         return undefined;
     }
 
-    findByIndex(index: FabricIndex) {
+    maybeForIndex(index: FabricIndex) {
         this.#construction.assert();
 
-        return this.#fabrics.get(index);
+        const fabric = this.#fabrics.get(index);
+        if (fabric && !fabric.isDeleting) {
+            return fabric;
+        }
+    }
+
+    forIndex(index: FabricIndex) {
+        this.#construction.assert();
+
+        const fabric = this.#fabrics.get(index);
+        if (fabric === undefined) {
+            throw new FabricNotFoundError(`Fabric index ${index} does not exist`);
+        }
+        if (fabric.isDeleting) {
+            throw new FabricNotFoundError(`Fabric index ${index} is deleting`);
+        }
+        return fabric;
     }
 
     forDescriptor(descriptor: { rootPublicKey: Bytes; fabricId: FabricId }) {
@@ -287,7 +301,7 @@ export class FabricManager {
         const existingFabric = this.#fabrics.get(fabricIndex);
         if (existingFabric === undefined) {
             throw new FabricNotFoundError(
-                `Fabric with index ${fabricIndex} cannot be updated because it does not exist.`,
+                `Fabric with index ${fabricIndex} cannot be replaced because it does not exist.`,
             );
         }
         if (existingFabric === fabric) {
@@ -302,4 +316,12 @@ export class FabricManager {
         }
         this.#events.replaced.emit(fabric);
     }
+}
+
+// Log unhandled errors but do not abort deletion.  We will still likely end up with inconsistent state but should be
+// less harmful (and more secure) if we allow other observers to proceed
+function unhandled(what: string) {
+    return (e: Error, observer: Observer) => {
+        logger.error(`Unhandled error in fabric ${what} observer ${observer.name || "(anon)"}`, e);
+    };
 }

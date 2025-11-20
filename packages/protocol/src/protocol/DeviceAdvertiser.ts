@@ -78,7 +78,7 @@ export class DeviceAdvertiser {
         });
 
         // When a fabric is deleted, cancel any active advertisement
-        this.#observers.on(fabrics.events.deleted, fabric => {
+        this.#observers.on(fabrics.events.deleting, fabric => {
             Advertisement.cancelAll(this.#advertisements(ad => ad.isOperational() && ad.description.fabric === fabric));
         });
 
@@ -86,7 +86,7 @@ export class DeviceAdvertiser {
         // configured
         this.#observers.on(sessions.sessions.added, session => {
             const fabricIndex = session.fabric?.fabricIndex;
-            const fabric = fabricIndex ? fabrics.findByIndex(fabricIndex) : undefined;
+            const fabric = fabricIndex ? fabrics.maybeForIndex(fabricIndex) : undefined;
             if (!fabric) {
                 return;
             }
@@ -102,7 +102,7 @@ export class DeviceAdvertiser {
         // When a session is closed, conditionally resume broadcast
         this.#observers.on(sessions.sessions.deleted, session => {
             const fabricIndex = session.fabric?.fabricIndex;
-            const fabric = fabricIndex ? fabrics.findByIndex(fabricIndex) : undefined;
+            const fabric = fabricIndex ? fabrics.maybeForIndex(fabricIndex) : undefined;
 
             // If this was an operational connection, readvertise if we're no longer connected to the peer
             if (fabric) {

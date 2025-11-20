@@ -308,7 +308,7 @@ export class GeneralDiagnosticsServer extends Base {
         this.internal.lastTotalOperationalHoursTimer = Time.getPeriodicTimer(
             "GeneralDiagnostics.operationalHours",
             Minutes(5),
-            this.callback(this.#updateTotalOperationalHoursCounter),
+            this.callback(this.#updateTotalOperationalHoursCounter, { lock: true }),
         ).start();
 
         await this.#updateNetworkList();

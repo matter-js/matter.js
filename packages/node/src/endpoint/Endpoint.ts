@@ -753,6 +753,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      * Erase all persisted data and destroy the endpoint.
      */
     async delete() {
+        this.lifecycle.change(EndpointLifecycle.Change.Destroying);
         await this.erase();
         await this.close();
     }
