@@ -133,6 +133,10 @@ export class SecureChannelMessenger {
         return this.exchange.channel.channel.name;
     }
 
+    [Symbol.asyncDispose]() {
+        return this.close();
+    }
+
     async close() {
         await this.exchange.close();
     }

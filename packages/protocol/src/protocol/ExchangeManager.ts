@@ -345,7 +345,7 @@ export class ExchangeManager {
             }
         }
         if (session.sendCloseMessageWhenClosing) {
-            const exchange = this.initiateExchangeForSession(session, SECURE_CHANNEL_PROTOCOL_ID);
+            await using exchange = this.initiateExchangeForSession(session, SECURE_CHANNEL_PROTOCOL_ID);
             logger.debug(`Initiated exchange ${exchange.id} to close session ${sessionName}`);
             try {
                 const messenger = new SecureChannelMessenger(exchange);
@@ -354,7 +354,6 @@ export class ExchangeManager {
             } catch (error) {
                 logger.error("Error closing session", error);
             }
-            await exchange.destroy();
         }
         if (session.closingAfterExchangeFinished) {
             await session.destroy(false, false);
