@@ -75,6 +75,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Added support to read and parse ASN.1 formatted certificates
     - Feature: Added DclCertificateService for managing Product Attestation Authority (PAA) certificates from the Distributed Compliance Ledger (DCL) with automatic updates from production DCL, test DCL, and GitHub development repositories
     - Feature: Added DclOtaUpdateService for checking and downloading Over-The-Air (OTA) software updates from DCL with full validation and checksum verification
+    - Feature: Added DclVendorInfoService for retrieving vendor information from DCL
     - Feature: Added OTA image processing utilities (OtaImageReader, OtaImageWriter) for reading, validating, extracting, and creating Matter OTA update files
     - Enhancement: MDNS broadcasts more aggressively until a connection is established
     - Enhancement: MDNS and BLE advertising schedules are now configurable and conform to Matter and DNS-SD specifications

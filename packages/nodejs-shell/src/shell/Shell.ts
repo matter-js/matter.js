@@ -27,6 +27,7 @@ import cmdOta from "./cmd_ota.js";
 import cmdSession from "./cmd_session.js";
 import cmdSubscribe from "./cmd_subscribe.js";
 import cmdTlv from "./cmd_tlv";
+import cmdVendor from "./cmd_vendor.js";
 
 const MAX_HISTORY_SIZE = 1000;
 
@@ -153,6 +154,7 @@ export class Shell {
                     cmdCommands(this.theNode),
                     cmdOta(this.theNode),
                     cmdCert(this.theNode),
+                    cmdVendor(this.theNode),
                     cmdTlv(),
                     cmdDcl(),
                     exitCommand(),

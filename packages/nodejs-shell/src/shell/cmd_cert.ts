@@ -27,7 +27,7 @@ export default function commands(theNode: MatterNode) {
                         const { vendorId: vendorIdStr } = argv;
 
                         await theNode.start();
-                        let certificates = theNode.certificateService.getAllCertificates();
+                        let certificates = theNode.certificateService.certificates;
 
                         // Filter by vendor ID if provided
                         if (vendorIdStr) {
@@ -58,7 +58,7 @@ export default function commands(theNode: MatterNode) {
                         console.log(`\nFound ${certificates.length} certificate(s):\n`);
 
                         certificates.forEach(cert => {
-                            console.log(`Subject Key ID: ${cert.subjectKeyID}`);
+                            console.log(`Subject Key ID: ${cert.subjectKeyId}`);
                             console.log(`  Subject: ${cert.subjectAsText || cert.subject || "N/A"}`);
                             console.log("");
                         });
@@ -142,10 +142,10 @@ export default function commands(theNode: MatterNode) {
                         await theNode.start();
 
                         console.log(`Updating certificates from DCL${force ? " (force mode)" : ""}...`);
-                        await theNode.certificateService.updateCertificates(force);
+                        await theNode.certificateService.update(force);
                         console.log("Certificate update completed successfully");
 
-                        const count = theNode.certificateService.getAllCertificates().length;
+                        const count = theNode.certificateService.certificates.length;
                         console.log(`Total certificates in storage: ${count}`);
                     },
                 ),

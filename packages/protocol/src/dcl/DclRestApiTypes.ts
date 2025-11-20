@@ -54,3 +54,14 @@ export interface DclModelVersionsWithVidPidResponse {
 export interface DclModelVersionWithVidPidSoftwareVersionResponse {
     modelVersion: DeviceSoftwareVersionModelDclSchema;
 }
+
+/** Vendor information from DCL */
+export interface DclVendorInfo {
+    vendorID: number;
+    vendorName: string;
+    companyLegalName: string;
+    companyPreferredName: string;
+    vendorLandingPageURL: string;
+    creator: string;
+    schemaVersion?: number;
+}

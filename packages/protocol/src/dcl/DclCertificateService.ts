@@ -53,13 +53,13 @@ export class DclCertificateService {
         this.#construction = Construction(this, async () => {
             this.#storage = (await environment.get(StorageService).open("certificates")).createContext("root");
             await this.#loadIndex(this.#storage);
-            await this.updateCertificates();
+            await this.update();
 
             if (options.updateInterval !== null) {
                 // Start periodic update timer
                 const updateInterval = options.updateInterval ?? Days.one;
                 this.#updateTimer = Time.getPeriodicTimer("DCL Certificate Update", updateInterval, () =>
-                    this.updateCertificates(),
+                    this.update(),
                 ).start();
             }
         });
@@ -91,7 +91,7 @@ export class DclCertificateService {
     /**
      * Get all certificate metadata entries.
      */
-    getAllCertificates() {
+    get certificates() {
         this.construction.assert();
         return Array.from(this.#certificateIndex.values());
     }
@@ -238,7 +238,7 @@ export class DclCertificateService {
             } else {
                 logger.info(
                     `Certificate referenced in index but not found in storage`,
-                    Diagnostic.dict({ skid: metadata.subjectKeyID }),
+                    Diagnostic.dict({ skid: metadata.subjectKeyId }),
                 );
                 invalidCount++;
             }
@@ -261,7 +261,7 @@ export class DclCertificateService {
     /**
      * Update certificates from DCL and GitHub. Returns true if update succeeded, false if it failed.
      */
-    async updateCertificates(force = false) {
+    async update(force = false) {
         if (this.#closed || !this.#storage) {
             return;
         }
@@ -545,7 +545,7 @@ export namespace DclCertificateService {
     /**
      * Metadata for a stored certificate.
      */
-    export interface CertificateMetadata {
+    export type CertificateMetadata = {
         subject?: string;
         subjectAsText?: string;
         subjectKeyId: string;
@@ -553,6 +553,5 @@ export namespace DclCertificateService {
         vid: number;
         isRoot: boolean;
         isProduction: boolean;
-        [key: string]: string | number | boolean | undefined;
-    }
+    };
 }

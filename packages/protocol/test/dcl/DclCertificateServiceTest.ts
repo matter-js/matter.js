@@ -141,7 +141,7 @@ describe("DclCertificateService", () => {
             const service = new DclCertificateService(environment);
             await service.construction;
 
-            const certs = service.getAllCertificates();
+            const certs = service.certificates;
             expect(certs.length).to.equal(2);
 
             const cert1 = service.getCertificate("785CE705B86B8F4E6FC793AA60CB43EA696882D5");
@@ -200,7 +200,7 @@ describe("DclCertificateService", () => {
             const service = new DclCertificateService(environment, { fetchTestCertificates: true });
             await service.construction;
 
-            const certs = service.getAllCertificates();
+            const certs = service.certificates;
             // Should have 2 from production DCL + 2 from GitHub
             expect(certs.length).to.be.greaterThan(0);
 
@@ -250,7 +250,7 @@ describe("DclCertificateService", () => {
             const service2 = new DclCertificateService(environment);
             await service2.construction;
 
-            const certs = service2.getAllCertificates();
+            const certs = service2.certificates;
             expect(certs.length).to.equal(2);
 
             await service2.close();
@@ -271,13 +271,13 @@ describe("DclCertificateService", () => {
             const service = new DclCertificateService(environment);
             await service.construction;
 
-            const initialCount = service.getAllCertificates().length;
+            const initialCount = service.certificates.length;
             expect(initialCount).to.equal(2);
 
-            // Trigger update by advancing time (timer will call #updateCertificates)
+            // Trigger update by advancing time (timer will call #update)
             await MockTime.advance(24 * 60 * 60 * 1000); // Advance 1 day
 
-            const afterUpdateCount = service.getAllCertificates().length;
+            const afterUpdateCount = service.certificates.length;
             expect(afterUpdateCount).to.equal(2); // Should still be 2, not 4
 
             await service.close();
@@ -375,7 +375,7 @@ describe("DclCertificateService", () => {
             await service.construction;
 
             // Should have 0 certificates due to fetch failure
-            const certs = service.getAllCertificates();
+            const certs = service.certificates;
             expect(certs.length).to.equal(0);
 
             await service.close();
@@ -399,7 +399,7 @@ describe("DclCertificateService", () => {
             const service = new DclCertificateService(environment);
             await service.construction;
 
-            const certs = service.getAllCertificates();
+            const certs = service.certificates;
             expect(certs.length).to.equal(1); // Only one cert should have been stored
 
             await service.close();
@@ -437,7 +437,7 @@ describe("DclCertificateService", () => {
             await service.construction;
 
             // Should still have production certs despite GitHub failure
-            const certs = service.getAllCertificates();
+            const certs = service.certificates;
             expect(certs.length).to.equal(2);
 
             await service.close();
@@ -483,7 +483,7 @@ describe("DclCertificateService", () => {
             const service = new DclCertificateService(environment);
             await service.construction;
 
-            const certs = service.getAllCertificates();
+            const certs = service.certificates;
             expect(certs.length).to.equal(2);
             expect(certs.every(c => c.subjectKeyId && c.serialNumber)).to.be.true;
 
@@ -536,12 +536,12 @@ describe("DclCertificateService", () => {
             const service = new DclCertificateService(environment);
             await service.construction;
 
-            const countBefore = service.getAllCertificates().length;
+            const countBefore = service.certificates.length;
             expect(countBefore).to.equal(2);
 
             await service.deleteCertificate("785CE705B86B8F4E6FC793AA60CB43EA696882D5");
 
-            const countAfter = service.getAllCertificates().length;
+            const countAfter = service.certificates.length;
             expect(countAfter).to.equal(1);
 
             // Verify the certificate is no longer retrievable
@@ -585,7 +585,7 @@ describe("DclCertificateService", () => {
             await service2.construction;
 
             // After update, should have both certificates again (deleted one was re-fetched from DCL)
-            const certs = service2.getAllCertificates();
+            const certs = service2.certificates;
             expect(certs.length).to.equal(2);
 
             await service2.close();
@@ -611,7 +611,7 @@ describe("DclCertificateService", () => {
             const initialCallCount = fetchMock.getCallLog().length;
 
             // Manually trigger update
-            await service.updateCertificates();
+            await service.update();
 
             // Should have made additional DCL calls
             const afterUpdateCallCount = fetchMock.getCallLog().length;
@@ -636,25 +636,25 @@ describe("DclCertificateService", () => {
             await service.construction;
 
             const initialCallCount = fetchMock.getCallLog().length;
-            const initialCertCount = service.getAllCertificates().length;
+            const initialCertCount = service.certificates.length;
             expect(initialCertCount).to.equal(2);
 
             // Manually trigger update WITHOUT force - should check list but not re-fetch existing cert details
-            await service.updateCertificates(false);
+            await service.update(false);
 
             const afterNormalUpdateCallCount = fetchMock.getCallLog().length;
             // Should only fetch root certificate list (1 call), not individual certificates
             expect(afterNormalUpdateCallCount).to.equal(initialCallCount + 1);
 
             // Now trigger update WITH force - should re-fetch everything including cert details
-            await service.updateCertificates(true);
+            await service.update(true);
 
             const afterForceUpdateCallCount = fetchMock.getCallLog().length;
             // Should have made 3 more calls: 1 for root list + 2 for certificate details
             expect(afterForceUpdateCallCount).to.equal(afterNormalUpdateCallCount + 3);
 
             // Should still have same number of certificates (they were overwritten, not duplicated)
-            const finalCertCount = service.getAllCertificates().length;
+            const finalCertCount = service.certificates.length;
             expect(finalCertCount).to.equal(2);
 
             await service.close();
@@ -882,7 +882,7 @@ describe("DclCertificateService", () => {
             const service = new DclCertificateService(environment);
             await service.construction;
 
-            const countBefore = service.getAllCertificates().length;
+            const countBefore = service.certificates.length;
             expect(countBefore).to.equal(2);
 
             // Convert hex string to Bytes
@@ -890,7 +890,7 @@ describe("DclCertificateService", () => {
 
             await service.deleteCertificate(subjectKeyIdBytes);
 
-            const countAfter = service.getAllCertificates().length;
+            const countAfter = service.certificates.length;
             expect(countAfter).to.equal(1);
 
             await service.close();

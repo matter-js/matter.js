@@ -11,6 +11,7 @@ import {
     DclPkiCertificateResponse,
     DclPkiRootCertificatesResponse,
     DclPkiRootCertificateSubjectReference,
+    DclVendorInfo,
 } from "#dcl/DclRestApiTypes.js";
 import { Duration, Logger, MatterError, Seconds } from "#general";
 
@@ -38,6 +39,35 @@ export class DclClient {
 
     constructor(private readonly production: boolean = true) {
         this.#baseUrl = this.production ? DCL_PRODUCTION_URL : DCL_TEST_URL;
+    }
+
+    async #fetchPaginatedJson<ItemT>(path: string, options?: DclClient.Options): Promise<ItemT[]> {
+        const allItems: any[] = [];
+        let nextKey: string | undefined;
+
+        do {
+            // Append pagination key to path if present
+            const currentPath =
+                nextKey !== undefined
+                    ? `${path}${path.includes("?") ? "&" : "?"}pagination.key=${encodeURIComponent(nextKey)}`
+                    : path;
+
+            const response = await this.#fetchJson<any>(currentPath, options);
+
+            // Auto-detect the data field (it's the field that's not "pagination")
+            const dataField = Object.keys(response || {}).find(key => key !== "pagination");
+            if (dataField) {
+                const items = response[dataField];
+                if (items && Array.isArray(items)) {
+                    allItems.push(...items);
+                }
+            }
+
+            // Check for next page
+            nextKey = response?.pagination?.next_key;
+        } while (nextKey);
+
+        return allItems;
     }
 
     async #fetchJson<ResponseT>(path: string, options?: DclClient.Options): Promise<ResponseT> {
@@ -151,6 +181,13 @@ export class DclClient {
             );
         }
         return response.modelVersion;
+    }
+
+    /**
+     * Fetch all vendor information from DCL
+     */
+    async fetchAllVendors(options?: DclClient.Options) {
+        return this.#fetchPaginatedJson<DclVendorInfo>("/dcl/vendorinfo/vendors", options);
     }
 }
 
