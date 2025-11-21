@@ -49,12 +49,14 @@ export class ControllerBehavior extends Behavior {
             throw new ImplementationError("adminFabricLabel must be set for ControllerBehavior");
         }
 
+        const node = Node.forEndpoint(this.endpoint);
+
         // Configure discovery transports
         if (this.state.ip === undefined) {
             this.state.ip = true;
         }
         if (this.state.ip !== false) {
-            this.env.get(ScannerSet).add((await this.env.load(MdnsService)).client);
+            this.env.get(ScannerSet).add((await this.env.load(MdnsService, node)).client);
         }
 
         if (this.state.ble === undefined) {
@@ -83,7 +85,6 @@ export class ControllerBehavior extends Behavior {
             }
         }
 
-        const node = Node.forEndpoint(this.endpoint);
         this.reactTo(node.lifecycle.online, this.#nodeOnline);
         if (node.lifecycle.isOnline) {
             this.#nodeOnline();

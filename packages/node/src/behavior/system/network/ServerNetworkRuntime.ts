@@ -74,7 +74,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
             const port = this.owner.state.network.operationalPort;
             const options = this.owner.state.commissioning.mdns;
             const crypto = this.owner.env.get(Crypto);
-            const { server } = this.owner.env.get(MdnsService);
+            const { server } = this.owner.env.get(MdnsService, this.owner);
             this.#mdnsAdvertiser = new MdnsAdvertiser(crypto, server, { ...options, port });
         }
         return this.#mdnsAdvertiser;
@@ -253,7 +253,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         await this.addTransports(interfaces);
 
         // Initialize MDNS
-        const mdns = await owner.env.load(MdnsService);
+        const mdns = await owner.env.load(MdnsService, owner);
 
         const advertiser = env.get(DeviceAdvertiser);
 
@@ -322,6 +322,8 @@ export class ServerNetworkRuntime extends NetworkRuntime {
 
         // Now all sessions are closed, so we wait for Advertiser to be gone
         await advertisementShutdown;
+
+        await env.close(MdnsService, this.owner);
 
         await env.close(ExchangeManager);
         await env.close(SecureChannelProtocol);

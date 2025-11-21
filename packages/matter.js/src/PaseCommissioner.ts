@@ -79,7 +79,7 @@ export class PaseCommissioner {
         const { certificateAuthorityConfig: rootCertificateData, fabricConfig: fabricConfig } = this.options;
 
         try {
-            await this.environment.load(MdnsService);
+            await this.environment.load(MdnsService, this);
         } catch {
             logger.debug("No networking available, using only BLE");
         }
@@ -113,6 +113,7 @@ export class PaseCommissioner {
     async close() {
         await this.controllerInstance?.close();
         this.controllerInstance = undefined;
+        this.environment.close(MdnsService, this);
     }
 
     /** Initialize the controller. */

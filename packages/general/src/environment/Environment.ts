@@ -30,10 +30,33 @@ const logger = Logger.get("Environment");
  * * `mdns.ipv4` - Also announce/scan on IPv4 interfaces
  * * `network.interface` - Map of interface names to types, expected to be defined as object with name as key and of `{type: string|number}` objects with types: 1=Wifi, 2=Ethernet, 3=Cellular, 4=Thread (strings or numbers can be used). Can also be provided via env or cli like `MATTER_NETWORK_INTERFACE_ETH0_TYPE=Ethernet`
  *
+ * When managing services, the environment supports participant tracking.  A participant is an arbitrary object that
+ * indicates who is using a service.  When a service is requested with a participant, the service tracks usage by that
+ * participant.  When the service is closed with a participant, the service only actually closes when all participants
+ * have closed it. This allows sharing of services that may be used by multiple consumers without prematurely closing them.
+ * Services that are requested without a participant are not tracked and close immediately when requested.
+ * The first access mode (with or without participant) determines how the service is tracked and this is validated on
+ * further accesses.
+ *
+ * When services are deleted or closed and no participant tracking was used the service gets blocked in the local
+ * environment and does not inherit from parent environments anymore. When participant tracking is used the service does
+ * not get blocked because we assume that this "shared" service may still be needed by others.
+ *
  * TODO - could remove global singletons by moving here
  */
 export class Environment {
-    #services?: Map<Environmental.ServiceType, Environmental.Service | null>;
+    #services?: Map<
+        Environmental.ServiceType,
+        {
+            /** The instance of the service, null when deleted to block from parents inheritance */
+            instance: Environmental.Service | null;
+
+            /**
+             * Set of participants using the service, undefined when not yet accessed, null when accessed without participants
+             */
+            participants?: Set<any> | null;
+        }
+    >;
     #name: string;
     #parent?: Environment;
     #added = Observable<[type: Environmental.ServiceType, instance: {}]>();
@@ -49,13 +72,13 @@ export class Environment {
      * Determine if an environmental service is available.
      */
     has(type: Environmental.ServiceType): boolean {
-        const mine = this.#services?.get(type);
+        const { instance } = this.#services?.get(type) ?? {};
 
-        if (mine === null) {
+        if (instance === null) {
             return false;
         }
 
-        return mine !== undefined || (this.#parent?.has(type) ?? false);
+        return instance !== undefined || (this.#parent?.has(type) ?? false);
     }
 
     /**
@@ -65,19 +88,46 @@ export class Environment {
         return !!this.#services?.get(type);
     }
 
+    #assertParticipantUsage(hasParticipant: boolean, participants: Set<any> | null | undefined, typeName: string) {
+        if (participants !== undefined) {
+            // We have an instance, validate participant mode consistency
+            const serviceUsedWithParticipants = participants !== null;
+            if (hasParticipant !== serviceUsedWithParticipants) {
+                throw new InternalError(
+                    `Service ${typeName} was initialized ${serviceUsedWithParticipants ? "with" : "without"} participants but is being accessed ${hasParticipant ? "with" : "without"} participants`,
+                );
+            }
+        }
+    }
+
     /**
      * Access an environmental service.
+     * Optionally track usage by a participant, which delays closing till all participants are gone.
+     * @param participant optional participant requesting the service, if provided the service tracks usage by the participant
      */
-    get<T extends object>(type: Environmental.ServiceType<T>): T {
-        const mine = this.#services?.get(type);
+    get<T extends object>(type: Environmental.ServiceType<T>, participant?: any): T {
+        const serviceData = this.#services?.get(type);
+        const { instance: mine, participants } = serviceData ?? {};
 
+        const hasParticipant = participant !== undefined;
         if (mine !== undefined && mine !== null) {
+            this.#assertParticipantUsage(hasParticipant, participants, type.name);
+            // Add participant to existing set if needed
+            if (hasParticipant) {
+                if (serviceData!.participants === undefined) {
+                    serviceData!.participants = new Set<any>();
+                }
+                serviceData!.participants!.add(participant);
+            } else {
+                serviceData!.participants = null; // mark as no-participant mode
+            }
+
             return mine as T;
         }
 
         // When null then we do not have it and also do not want to inherit from parent
         if (mine === undefined) {
-            const instance = this.#parent?.maybeGet(type);
+            const instance = this.#parent?.maybeGet(type, participant);
             if (instance !== undefined && instance !== null) {
                 // Parent has it, use it
                 return instance;
@@ -90,32 +140,81 @@ export class Environment {
             if (!(instance instanceof type)) {
                 throw new InternalError(`Service creation did not produce instance of ${type.name}`);
             }
+
+            const serviceData = this.#services?.get(type);
+            if (serviceData) {
+                if (hasParticipant) {
+                    if (serviceData.participants === undefined) {
+                        serviceData.participants = new Set<any>();
+                    }
+                    serviceData.participants!.add(participant);
+                } else {
+                    serviceData.participants = null; // mark as no-participant mode
+                }
+            }
+
             return instance;
         }
 
         throw new UnsupportedDependencyError(`Required dependency ${type.name}`, "is not available");
     }
 
+    participants(type: Environmental.ServiceType): Set<any> | undefined | null {
+        const { instance: mine, participants } = this.#services?.get(type) ?? {};
+        if (mine !== undefined) {
+            return participants instanceof Set ? participants : undefined;
+        }
+        return this.#parent?.participants(type);
+    }
+
     /**
      * Access an environmental service that may not exist.
      */
-    maybeGet<T extends object>(type: Environmental.ServiceType<T>): T | undefined {
+    maybeGet<T extends object>(type: Environmental.ServiceType<T>, participant?: any): T | undefined {
         if (this.has(type)) {
-            return this.get(type);
+            return this.get(type, participant);
         }
     }
 
     /**
      * Remove an environmental service and block further inheritance
+     * Ensure to call delete with the same participant and instance as used in get to properly track usage.
      *
      * @param type the class of the service to remove
+     * @param participant optional participant requesting deletion, if provided the service is only deleted if no other participants remain
      * @param instance optional instance expected, if existing instance does not match it is not deleted
      */
-    delete(type: Environmental.ServiceType, instance?: any) {
-        const localInstance = this.#services?.get(type);
+    delete(type: Environmental.ServiceType, instance?: any, participant?: any) {
+        const serviceData = this.#services?.get(type);
+        const { instance: localInstance, participants } = serviceData ?? {};
+
+        // Validate participant mode consistency
+        const hasParticipant = participant !== undefined;
+        if (localInstance !== undefined && localInstance !== null) {
+            // We have a local instance, validate participant mode consistency
+            this.#assertParticipantUsage(hasParticipant, participants, type.name);
+
+            if (hasParticipant) {
+                // Remove the participant and only delete if no participants remain
+                serviceData?.participants?.delete(participant);
+                if (
+                    serviceData?.participants !== undefined &&
+                    serviceData?.participants !== null &&
+                    serviceData.participants.size > 0
+                ) {
+                    return;
+                }
+            }
+        } else if (localInstance === undefined && hasParticipant && this.#parent?.has(type)) {
+            // We don't have it locally, but parent has it, and it is a participant-tracked/shared service -> forward
+            // delete to parent
+            this.#parent.delete(type, instance, participant);
+            return;
+        }
 
         // Remove instance and replace by null to prevent inheritance from parent
-        this.#services?.set(type, null);
+        // Clear participants when deleting the service
+        this.#services?.set(type, { instance: null, participants: undefined });
 
         if (localInstance === undefined || localInstance === null) {
             return;
@@ -134,13 +233,24 @@ export class Environment {
 
     /**
      * Remove and close an environmental service.
+     * Ensure to call close with the same participant as used in get to properly track usage.
      */
     close<T extends object>(
         type: Environmental.ServiceType<T>,
+        participant?: any,
     ): T extends { close: () => MaybePromise<void> } ? MaybePromise<void> : void {
-        const instance = this.maybeGet(type);
-        this.delete(type, instance); // delete and block inheritance
+        const instance = this.maybeGet(type, participant);
+        const participants = instance !== undefined ? this.participants(type) : undefined;
+        this.delete(type, instance, participant); // delete and block inheritance
         if (instance !== undefined) {
+            if (participant !== undefined && participants !== undefined && participants !== null) {
+                participants.delete(participant);
+                if (participants.size > 0) {
+                    // still in use
+                    return;
+                }
+            }
+
             return (instance as Partial<Destructable>).close?.() as T extends { close: () => MaybePromise<void> }
                 ? MaybePromise<void>
                 : void;
@@ -150,8 +260,8 @@ export class Environment {
     /**
      * Access an environmental service, waiting for any async initialization to complete.
      */
-    async load<T extends Environmental.Service>(type: Environmental.Factory<T>) {
-        const instance = this.get(type);
+    async load<T extends Environmental.Service>(type: Environmental.Factory<T>, participant?: any): Promise<T> {
+        const instance = this.get(type, participant);
         await instance.construction;
         return instance;
     }
@@ -163,7 +273,10 @@ export class Environment {
         if (!this.#services) {
             this.#services = new Map();
         }
-        this.#services.set(type, instance as Environmental.Service);
+        // Services installed via set() don't have a participant mode yet - it will be determined on first access
+        this.#services.set(type, {
+            instance: instance as Environmental.Service,
+        });
         this.#added.emit(type, instance);
         const serviceEvents = this.#serviceEvents.get(type);
         if (serviceEvents) {

@@ -47,7 +47,7 @@ export class DclCertificateService {
     #fetchPromise?: Promise<void>;
 
     constructor(environment: Environment, options: DclCertificateService.Options = {}) {
-        environment.set(DclCertificateService, this);
+        environment.root.set(DclCertificateService, this);
         this.#options = options;
 
         this.#construction = Construction(this, async () => {
@@ -212,7 +212,7 @@ export class DclCertificateService {
     /**
      * Close the service and stop all timers.
      */
-    async close() {
+    close() {
         this.#closed = true;
         this.#updateTimer?.stop();
     }
