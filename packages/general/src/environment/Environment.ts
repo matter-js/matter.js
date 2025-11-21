@@ -159,7 +159,7 @@ export class Environment {
         throw new UnsupportedDependencyError(`Required dependency ${type.name}`, "is not available");
     }
 
-    participants(type: Environmental.ServiceType): Set<any> | undefined | null {
+    participants(type: Environmental.ServiceType): Set<any> | undefined {
         const { instance: mine, participants } = this.#services?.get(type) ?? {};
         if (mine !== undefined) {
             return participants instanceof Set ? participants : undefined;
@@ -240,12 +240,11 @@ export class Environment {
         participant?: any,
     ): T extends { close: () => MaybePromise<void> } ? MaybePromise<void> : void {
         const instance = this.maybeGet(type, participant);
-        const participants = instance !== undefined ? this.participants(type) : undefined;
-        this.delete(type, instance, participant); // delete and block inheritance
+        this.delete(type, instance, participant); // delete and potentially block inheritance
         if (instance !== undefined) {
-            if (participant !== undefined && participants !== undefined && participants !== null) {
-                participants.delete(participant);
-                if (participants.size > 0) {
+            if (participant !== undefined) {
+                const participants = this.participants(type);
+                if (participants && participants.size > 0) {
                     // still in use
                     return;
                 }
