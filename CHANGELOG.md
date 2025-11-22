@@ -23,6 +23,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: There are other small time changes such as converting `nowMs()` (a function) to `nowMs` (a property).
     - Breaking: SyncStorage interface got removed
     - Breaking: MaybeAsyncStorage got renamed to Storage because it is the only interface from now on
+    - Breaking: Some central services, especially MdnsService, are now tracked automatically by users and will close correctly when no longer needed. Closing MdnsService manually is not allowed anymore and would throw an exception.
     - Feature: Adds Blob support to the Storage interface
     - Feature: Add BDX (Bulk Data eXchange) protocol support according to Matter specification
     - Feature: Added support for multiple hash algorithms (SHA-256, SHA-384, SHA-512, SHA-512/224, SHA-512/256, SHA3-256) via HashAlgorithm enum with IANA identifiers
@@ -30,6 +31,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Added platform abstractions for of HTTP, WebSockets and MQTT
     - Enhancement: Added polyfills and additional types for decorators
     - Enhancement: Split out access to random values from Crypto interface to an Entropy interface
+    - Enhancement: Added support for shared Environment services by tracking usages and closing when last user is gone
     - Fix: Ensures that StandaloneAck messages are always considering the corresponding Secure channel protocol ID
 
 - @matter/model

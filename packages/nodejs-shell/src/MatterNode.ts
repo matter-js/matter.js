@@ -40,23 +40,24 @@ export class MatterNode {
     }
 
     get otaService() {
-        return this.environment.has(DclOtaUpdateService)
-            ? this.environment.get(DclOtaUpdateService)
-            : new DclOtaUpdateService(this.environment); // Will add itself on initial instantiation
+        if (!this.environment.has(DclOtaUpdateService)) {
+            new DclOtaUpdateService(this.environment); // Adds itself to the environment
+        }
+        return this.environment.get(DclOtaUpdateService, this);
     }
 
     get certificateService() {
-        if (this.environment.has(DclCertificateService)) {
-            return this.environment.get(DclCertificateService);
+        if (!this.environment.has(DclCertificateService)) {
+            new DclCertificateService(this.environment, { fetchTestCertificates: this.#dclFetchTestCertificates });
         }
-
-        return new DclCertificateService(this.environment, { fetchTestCertificates: this.#dclFetchTestCertificates });
+        return this.environment.get(DclCertificateService, this);
     }
 
     get vendorInfoService() {
-        return this.environment.has(DclVendorInfoService)
-            ? this.environment.get(DclVendorInfoService)
-            : new DclVendorInfoService(this.environment); // Will add itself on initial instantiation
+        if (!this.environment.has(DclVendorInfoService)) {
+            new DclVendorInfoService(this.environment); // Adds itself to the environment
+        }
+        return this.environment.get(DclVendorInfoService, this);
     }
 
     async initialize(resetStorage: boolean) {
@@ -114,6 +115,15 @@ export class MatterNode {
 
     async close() {
         await this.commissioningController?.close();
+        if (this.environment.has(DclOtaUpdateService)) {
+            this.environment.close(DclOtaUpdateService, this);
+        }
+        if (this.environment.has(DclCertificateService)) {
+            this.environment.close(DclCertificateService, this);
+        }
+        if (this.environment.has(DclVendorInfoService)) {
+            this.environment.close(DclVendorInfoService, this);
+        }
     }
 
     async start() {

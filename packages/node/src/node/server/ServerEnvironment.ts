@@ -11,7 +11,7 @@ import { NodePeerAddressStore } from "#node/client/NodePeerAddressStore.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { ServerEndpointInitializer } from "#node/server/ServerEndpointInitializer.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { FabricManager, MdnsService, OccurrenceManager, PeerAddressStore, SessionManager } from "#protocol";
+import { FabricManager, OccurrenceManager, PeerAddressStore, SessionManager } from "#protocol";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { IdentityService } from "./IdentityService.js";
 
@@ -63,10 +63,5 @@ export namespace ServerEnvironment {
         await env.close(SessionManager);
         await env.close(OccurrenceManager);
         await env.close(ServerNodeStore);
-
-        // TODO verify how to handle closing down Mdns Server because it normally installs itself on the Root Environment
-        if (env.owns(MdnsService)) {
-            await env.close(MdnsService);
-        }
     }
 }
