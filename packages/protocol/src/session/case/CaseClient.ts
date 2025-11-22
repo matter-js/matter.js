@@ -8,7 +8,8 @@ import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Fabric } from "#fabric/Fabric.js";
 import { Bytes, Duration, EcdsaSignature, Logger, PublicKey, UnexpectedDataError } from "#general";
-import { MessageExchange, RetransmissionLimitReachedError } from "#protocol/MessageExchange.js";
+import { MessageExchange } from "#protocol/MessageExchange.js";
+import { RetransmissionLimitReachedError } from "#protocol/errors.js";
 import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { SessionManager } from "#session/SessionManager.js";
@@ -122,7 +123,8 @@ export class CaseClient {
 
             const secureSessionSalt = Bytes.concat(initiatorRandom, resumptionRecord.resumptionId);
             secureSession = await this.#sessions.createSecureSession({
-                sessionId: initiatorSessionId,
+                channel: exchange.channel.channel,
+                id: initiatorSessionId,
                 fabric,
                 peerNodeId,
                 peerSessionId,
@@ -234,7 +236,8 @@ export class CaseClient {
                 await crypto.computeHash([sigma1Bytes, sigma2Bytes, sigma3Bytes]),
             );
             secureSession = await this.#sessions.createSecureSession({
-                sessionId: initiatorSessionId,
+                channel: exchange.channel.channel,
+                id: initiatorSessionId,
                 fabric,
                 peerNodeId,
                 peerSessionId,

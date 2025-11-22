@@ -9,6 +9,7 @@ import {
     MATTER_MESSAGE_OVERHEAD,
     Message,
     MessageExchange,
+    ProtocolMocks,
     SecureSession,
     SessionManager,
 } from "#protocol";
@@ -89,7 +90,12 @@ export async function createDummyMessageExchange(
     clearTimedInteractionCallback?: () => void,
     closeCallback?: () => void,
 ) {
-    const session = await node.createSession(sessionData);
+    const session = await ProtocolMocks.NodeSession.create({
+        manager: node.env.get(SessionManager),
+        fabric: undefined,
+        ...sessionData,
+    });
+
     return new DummyMessageExchange(
         session,
         hasTimedInteraction,

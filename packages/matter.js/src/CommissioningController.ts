@@ -32,8 +32,10 @@ import {
     Fabric,
     FabricGroups,
     InteractionClient,
-    MessageChannel,
     NodeDiscoveryType,
+    NodeSession,
+    SecureSession,
+    Session,
 } from "#protocol";
 import {
     CaseAuthenticatedTag,
@@ -311,7 +313,7 @@ export class CommissioningController {
         return nodeId;
     }
 
-    connectPaseChannel(nodeOptions: NodeCommissioningOptions) {
+    connectPaseChannel(nodeOptions: NodeCommissioningOptions): Promise<NodeSession> {
         const controller = this.#assertControllerIsStarted();
 
         return controller.connectPaseChannel(nodeOptions);
@@ -485,7 +487,7 @@ export class CommissioningController {
      * not be used directly. See the PairedNode class for the public API.
      */
     async createInteractionClient(
-        nodeIdOrChannel: NodeId | MessageChannel,
+        nodeIdOrSession: NodeId | SecureSession,
         discoveryType?: NodeDiscoveryType,
         options?: {
             forcedConnection?: boolean;
@@ -494,13 +496,13 @@ export class CommissioningController {
     ): Promise<InteractionClient> {
         const controller = this.#assertControllerIsStarted();
         const { forcedConnection, caseAuthenticatedTags = this.#options.caseAuthenticatedTags } = options ?? {};
-        if (nodeIdOrChannel instanceof MessageChannel || !forcedConnection) {
-            return controller.createInteractionClient(nodeIdOrChannel, {
+        if (nodeIdOrSession instanceof Session || !forcedConnection) {
+            return controller.createInteractionClient(nodeIdOrSession, {
                 discoveryOptions: { discoveryType },
                 caseAuthenticatedTags,
             });
         }
-        return controller.connect(nodeIdOrChannel, {
+        return controller.connect(nodeIdOrSession, {
             discoveryOptions: { discoveryType },
             allowUnknownPeer: forcedConnection,
             caseAuthenticatedTags,

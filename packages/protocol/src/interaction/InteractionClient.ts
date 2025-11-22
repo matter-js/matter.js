@@ -27,6 +27,7 @@ import { Specification } from "#model";
 import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
 import { PeerDataStore } from "#peer/PeerAddressStore.js";
 import { PeerConnectionOptions, PeerSet } from "#peer/PeerSet.js";
+import { SecureSession } from "#session/SecureSession.js";
 import {
     ArraySchema,
     Attribute,
@@ -57,7 +58,6 @@ import {
     resolveEventName,
 } from "#types";
 import { ExchangeProvider, ReconnectableExchangeProvider } from "../protocol/ExchangeProvider.js";
-import { MessageChannel } from "../protocol/MessageChannel.js";
 import { DecodedAttributeReportStatus, DecodedAttributeReportValue } from "./AttributeDataDecoder.js";
 import { DecodedDataReport } from "./DecodedDataReport.js";
 import { DecodedEventData, DecodedEventReportStatus, DecodedEventReportValue } from "./EventDataDecoder.js";
@@ -97,7 +97,7 @@ export class InteractionClientProvider {
     constructor(peers: PeerSet) {
         this.#peers = peers;
         this.#peers.deleted.on(peer => this.#onPeerLoss(peer.address));
-        this.#peers.disconnected.on(address => this.#onPeerLoss(address));
+        this.#peers.disconnected.on(peer => this.#onPeerLoss(peer.address));
     }
 
     static [Environmental.create](env: Environment) {
@@ -126,8 +126,8 @@ export class InteractionClientProvider {
         return this.getInteractionClient(address, options);
     }
 
-    async getInteractionClientForChannel(channel: MessageChannel): Promise<InteractionClient> {
-        const exchangeProvider = await this.#peers.exchangeProviderFor(channel);
+    async interactionClientFor(session: SecureSession): Promise<InteractionClient> {
+        const exchangeProvider = await this.#peers.exchangeProviderFor(session);
 
         return new InteractionClient(
             exchangeProvider,
@@ -144,7 +144,7 @@ export class InteractionClientProvider {
         }
 
         const isGroupAddress = PeerAddress.isGroup(address);
-        const nodeStore = isGroupAddress ? undefined : this.#peers.get(address)?.dataStore;
+        const nodeStore = isGroupAddress ? undefined : this.#peers.get(address)?.descriptor.dataStore;
         await nodeStore?.construction; // Lazy initialize the data if not already done
 
         const exchangeProvider = await this.#peers.exchangeProviderFor(address, options);

@@ -24,18 +24,13 @@ import {
     UnexpectedDataError,
 } from "#general";
 import { PeerAddress } from "#peer/PeerAddress.js";
-import {
-    ChannelNotConnectedError,
-    DEFAULT_EXPECTED_PROCESSING_TIME,
-    MessageChannel,
-} from "#protocol/MessageChannel.js";
+import { DEFAULT_EXPECTED_PROCESSING_TIME } from "#protocol/MessageChannel.js";
 import { SecureChannelMessenger } from "#securechannel/SecureChannelMessenger.js";
 import { UNICAST_UNSECURE_SESSION_ID } from "#session/InsecureSession.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { Session } from "#session/Session.js";
 import { SessionManager } from "#session/SessionManager.js";
 import { NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "#types";
-import { ChannelManager } from "./ChannelManager.js";
 import { MessageExchange, MessageExchangeContext } from "./MessageExchange.js";
 import { DuplicateMessageError } from "./MessageReceptionState.js";
 import { ProtocolHandler } from "./ProtocolHandler.js";
@@ -51,13 +46,11 @@ export interface ExchangeManagerContext {
     entropy: Entropy;
     netInterface: ConnectionlessTransportSet;
     sessionManager: SessionManager;
-    channelManager: ChannelManager;
 }
 
 export class ExchangeManager {
     readonly #transports: ConnectionlessTransportSet;
     readonly #sessionManager: SessionManager;
-    readonly #channelManager: ChannelManager;
     readonly #exchangeCounter: ExchangeCounter;
     readonly #exchanges = new Map<number, MessageExchange>();
     readonly #protocols = new Map<number, ProtocolHandler>();
@@ -69,7 +62,6 @@ export class ExchangeManager {
     constructor(context: ExchangeManagerContext) {
         this.#transports = context.netInterface;
         this.#sessionManager = context.sessionManager;
-        this.#channelManager = context.channelManager;
         this.#exchangeCounter = new ExchangeCounter(context.entropy);
 
         for (const netInterface of this.#transports) {
@@ -92,14 +84,9 @@ export class ExchangeManager {
             entropy: env.get(Entropy),
             netInterface: env.get(ConnectionlessTransportSet),
             sessionManager: env.get(SessionManager),
-            channelManager: env.get(ChannelManager),
         });
         env.set(ExchangeManager, instance);
         return instance;
-    }
-
-    get channels() {
-        return this.#channelManager;
     }
 
     hasProtocolHandler(protocolId: number) {
@@ -118,13 +105,13 @@ export class ExchangeManager {
     }
 
     initiateExchange(address: PeerAddress, protocolId: number) {
-        return this.initiateExchangeWithChannel(this.#channelManager.getChannel(address), protocolId);
+        return this.initiateExchangeForSession(this.#sessionManager.sessionFor(address), protocolId);
     }
 
-    initiateExchangeWithChannel(channel: MessageChannel, protocolId: number) {
+    initiateExchangeForSession(session: Session, protocolId: number) {
         const exchangeId = this.#exchangeCounter.getIncrementedCounter();
         const exchangeIndex = exchangeId | 0x10000; // Ensure initiated and received exchange index are different, since the exchangeID can be the same
-        const exchange = MessageExchange.initiate(this.#messageExchangeContextFor(channel), exchangeId, protocolId);
+        const exchange = MessageExchange.initiate(this.#messageExchangeContextFor(session), exchangeId, protocolId);
         this.#addExchange(exchangeIndex, exchange);
         return exchange;
     }
@@ -164,6 +151,7 @@ export class ExchangeManager {
                 session =
                     this.#sessionManager.getUnsecureSession(initiatorNodeId) ??
                     this.#sessionManager.createInsecureSession({
+                        channel,
                         initiatorNodeId,
                     });
             } else {
@@ -196,7 +184,7 @@ export class ExchangeManager {
             }
 
             let key: Bytes;
-            ({ session, message, key } = this.#sessionManager.groupSessionFromPacket(packet, aad));
+            ({ session, message, key } = await this.#sessionManager.groupSessionFromPacket(packet, aad));
 
             try {
                 session.updateMessageCounter(messageId, packet.header.sourceNodeId, key);
@@ -232,18 +220,12 @@ export class ExchangeManager {
             via: channel.name,
         });
         if (exchange !== undefined) {
-            if (
-                exchange.requiresSecureSession !== session.isSecure ||
-                exchange.session.id !== packet.header.sessionId ||
-                (exchange.isClosing && !isStandaloneAck)
-            ) {
+            if (exchange.session.id !== packet.header.sessionId || (exchange.isClosing && !isStandaloneAck)) {
                 logger.debug(
                     "Ignore « message because",
                     exchange.isClosing
                         ? "exchange is closing"
-                        : exchange.session.id !== packet.header.sessionId
-                          ? `session ID mismatch ${exchange.session.id} vs ${packet.header.sessionId}`
-                          : `session security requirements (${exchange.requiresSecureSession}) not fulfilled`,
+                        : `session ID mismatch ${exchange.session.id} vs ${packet.header.sessionId}`,
                     messageDiagnostics,
                 );
 
@@ -289,18 +271,12 @@ export class ExchangeManager {
                     return;
                 }
 
-                const exchange = MessageExchange.fromInitialMessage(
-                    this.#messageExchangeContextFor(await this.#channelManager.getOrCreateChannel(channel, session)),
-                    message,
-                );
+                const exchange = MessageExchange.fromInitialMessage(this.#messageExchangeContextFor(session), message);
                 this.#addExchange(exchangeIndex, exchange);
                 await exchange.onMessageReceived(message);
                 await protocolHandler.onNewExchange(exchange, message);
             } else if (message.payloadHeader.requiresAck) {
-                const exchange = MessageExchange.fromInitialMessage(
-                    this.#messageExchangeContextFor(await this.#channelManager.getOrCreateChannel(channel, session)),
-                    message,
-                );
+                const exchange = MessageExchange.fromInitialMessage(this.#messageExchangeContextFor(session), message);
                 this.#addExchange(exchangeIndex, exchange);
                 await exchange.send(SecureMessageType.StandaloneAck, new Uint8Array(0), {
                     includeAcknowledgeMessageId: message.packetHeader.messageId,
@@ -363,29 +339,14 @@ export class ExchangeManager {
             }
         }
         if (session.sendCloseMessageWhenClosing) {
-            let channel;
+            await using exchange = this.initiateExchangeForSession(session, SECURE_CHANNEL_PROTOCOL_ID);
+            logger.debug(`Initiated exchange ${exchange.id} to close session ${sessionName}`);
             try {
-                channel = this.#channelManager.getChannelForSession(session);
-            } catch (e) {
-                logger.debug(`Not sending close for session ${sessionName}:`, e);
-                return;
-            }
-            logger.debug(`Channel for session ${sessionName} is ${channel?.name}`);
-            if (channel !== undefined) {
-                const exchange = this.initiateExchangeWithChannel(channel, SECURE_CHANNEL_PROTOCOL_ID);
-                logger.debug(`Initiated exchange ${exchange.id} to close session ${sessionName}`);
-                try {
-                    const messenger = new SecureChannelMessenger(exchange);
-                    await messenger.sendCloseSession();
-                    await messenger.close();
-                } catch (error) {
-                    if (error instanceof ChannelNotConnectedError) {
-                        logger.debug("Session already closed because channel is disconnected.");
-                    } else {
-                        logger.error("Error closing session", error);
-                    }
-                }
-                await exchange.destroy();
+                const messenger = new SecureChannelMessenger(exchange);
+                await messenger.sendCloseSession();
+                await messenger.close();
+            } catch (error) {
+                logger.error("Error closing session", error);
             }
         }
         if (session.closingAfterExchangeFinished) {
@@ -420,22 +381,19 @@ export class ExchangeManager {
         exchangeToClose.close().catch(error => logger.error("Error closing exchange", error)); // TODO Promise??
     }
 
-    calculateMaximumPeerResponseTimeMsFor(
-        channel: MessageChannel,
-        expectedProcessingTime = DEFAULT_EXPECTED_PROCESSING_TIME,
-    ) {
-        return channel.calculateMaximumPeerResponseTime(
-            channel.session.parameters,
+    calculateMaximumPeerResponseTimeMsFor(session: Session, expectedProcessingTime = DEFAULT_EXPECTED_PROCESSING_TIME) {
+        return session.channel.calculateMaximumPeerResponseTime(
+            session.parameters,
             this.#sessionManager.sessionParameters,
             expectedProcessingTime,
         );
     }
 
-    #messageExchangeContextFor(channel: MessageChannel): MessageExchangeContext {
+    #messageExchangeContextFor(session: Session): MessageExchangeContext {
         return {
-            channel,
+            session,
             localSessionParameters: this.#sessionManager.sessionParameters,
-            retry: number => this.#sessionManager.retry.emit(channel.session, number),
+            retry: number => this.#sessionManager.retry.emit(session, number),
         };
     }
 

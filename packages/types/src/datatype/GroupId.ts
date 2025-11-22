@@ -59,7 +59,7 @@ export namespace GroupId {
 
     export function fromNodeId(nodeId: NodeId): GroupId {
         if (!isGroupNodeId(nodeId)) {
-            throw new InternalError(`NodeId ${nodeId} is not a Group NodeId`);
+            throw new InternalError(`Node ID ${nodeId} is not a group node ID`);
         }
         // NodeId is a 64-bit value, where the lower 16 bits represent the GroupId
         const groupId = Number(nodeId & BigInt(0xffff));

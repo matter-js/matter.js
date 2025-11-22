@@ -15,6 +15,7 @@ import {
     ServerAddress,
 } from "#general";
 import { CommissionableDeviceDiscoveryFailedError } from "#peer/ControllerCommissioningFlow.js";
+import { RetransmissionLimitReachedError } from "#protocol/errors.js";
 import { NodeId } from "#types";
 import {
     AddressTypeFromDevice,
@@ -26,7 +27,6 @@ import {
 } from "../common/Scanner.js";
 import { Fabric } from "../fabric/Fabric.js";
 import { MdnsClient } from "../mdns/MdnsClient.js";
-import { RetransmissionLimitReachedError } from "../protocol/MessageExchange.js";
 
 const logger = Logger.get("ControllerDiscovery");
 

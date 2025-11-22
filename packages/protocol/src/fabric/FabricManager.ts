@@ -30,12 +30,6 @@ const logger = Logger.get("FabricManager");
 export class FabricNotFoundError extends MatterError {}
 export class FabricTableFullError extends MatterError {}
 
-export enum FabricAction {
-    Added,
-    Removed,
-    Updated,
-}
-
 export class FabricManager {
     #crypto: Crypto;
     #nextFabricIndex = 1;

@@ -8,7 +8,7 @@ import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescripto
 import type { ClientNode } from "#node/ClientNode.js";
 import { IdentityService } from "#node/server/IdentityService.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { OperationalPeer, PeerAddress, PeerAddressMap, PeerAddressStore } from "#protocol";
+import { PeerAddress, PeerAddressMap, PeerAddressStore, PeerDescriptor } from "#protocol";
 import { FabricIndex, NodeId } from "#types";
 import { Crypto, ServerAddress, ServerAddressUdp } from "@matter/general";
 
@@ -50,7 +50,7 @@ export class NodePeerAddressStore extends PeerAddressStore {
         return address;
     }
 
-    loadPeers(): OperationalPeer[] {
+    loadPeers(): PeerDescriptor[] {
         this.#assignedAddresses = new PeerAddressMap();
         return [...this.#owner.peers]
             .map(node => {
@@ -72,7 +72,7 @@ export class NodePeerAddressStore extends PeerAddressStore {
             .filter(addr => addr !== undefined);
     }
 
-    async updatePeer(peer: OperationalPeer) {
+    async updatePeer(peer: PeerDescriptor) {
         const node = this.#owner.peers.get(peer.address);
         if (!node) {
             return;

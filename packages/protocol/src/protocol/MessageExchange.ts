@@ -16,22 +16,15 @@ import {
     Instant,
     InternalError,
     Logger,
-    MatterError,
     MatterFlowError,
     Millis,
-    NoResponseTimeoutError,
     Time,
     Timer,
 } from "#general";
-import {
-    ChannelNotConnectedError,
-    DEFAULT_EXPECTED_PROCESSING_TIME,
-    MessageChannel,
-    MRP,
-} from "#protocol/MessageChannel.js";
 import { GroupSession } from "#session/GroupSession.js";
 import { SecureSession } from "#session/SecureSession.js";
-import { SessionParameters } from "#session/Session.js";
+import { Session } from "#session/Session.js";
+import { SessionParameters } from "#session/SessionParameters.js";
 import {
     GroupId,
     NodeId,
@@ -40,19 +33,10 @@ import {
     StatusCode,
     StatusResponseError,
 } from "#types";
+import { RetransmissionLimitReachedError, SessionClosedError, UnexpectedMessageError } from "./errors.js";
+import { DEFAULT_EXPECTED_PROCESSING_TIME, MRP } from "./MessageChannel.js";
 
 const logger = Logger.get("MessageExchange");
-
-export class RetransmissionLimitReachedError extends NoResponseTimeoutError {}
-
-export class UnexpectedMessageError extends MatterError {
-    public constructor(
-        message: string,
-        public readonly receivedMessage: Message,
-    ) {
-        super(`(${MessageCodec.messageDiagnostics(receivedMessage)}) ${message}`);
-    }
-}
 
 export type ExchangeLogContext = Record<string, unknown>;
 
@@ -107,44 +91,40 @@ export const MATTER_MESSAGE_OVERHEAD = 26 + 12 + CRYPTO_AEAD_MIC_LENGTH_BYTES;
  * Interfaces {@link MessageExchange} with other components.
  */
 export interface MessageExchangeContext {
-    channel: MessageChannel;
+    session: Session;
     retry(number: number): void;
     localSessionParameters: SessionParameters;
 }
 
 export class MessageExchange {
     static fromInitialMessage(context: MessageExchangeContext, initialMessage: Message) {
-        const {
-            channel: { session },
-        } = context;
-        return new MessageExchange(
+        const { session } = context;
+        return new MessageExchange({
             context,
-            false,
-            session.id,
-            initialMessage.packetHeader.destNodeId,
-            initialMessage.packetHeader.sourceNodeId,
-            initialMessage.payloadHeader.exchangeId,
-            initialMessage.payloadHeader.protocolId,
-            session.isSecure,
-        );
+            isInitiator: false,
+            peerSessionId: session.id,
+            nodeId: initialMessage.packetHeader.destNodeId,
+            peerNodeId: initialMessage.packetHeader.sourceNodeId,
+            exchangeId: initialMessage.payloadHeader.exchangeId,
+            protocolId: initialMessage.payloadHeader.protocolId,
+        });
     }
 
     static initiate(context: MessageExchangeContext, exchangeId: number, protocolId: number) {
-        const {
-            channel: { session },
-        } = context;
-        return new MessageExchange(
+        const { session } = context;
+        return new MessageExchange({
             context,
-            true,
-            session.peerSessionId,
-            session.nodeId,
-            session.peerNodeId,
+            isInitiator: true,
+            peerSessionId: session.peerSessionId,
+            nodeId: session.nodeId,
+            peerNodeId: session.peerNodeId,
             exchangeId,
             protocolId,
-            session.isSecure,
-        );
+        });
     }
 
+    readonly #context: MessageExchangeContext;
+    readonly #isInitiator: boolean;
     readonly #messagesQueue = new DataReadQueue<Message>();
     #receivedMessageToAck: Message | undefined;
     #receivedMessageAckTimer = Time.getTimer("Ack receipt timeout", MRP.STANDALONE_ACK_TIMEOUT, () => {
@@ -152,7 +132,7 @@ export class MessageExchange {
             const messageToAck = this.#receivedMessageToAck;
             this.#receivedMessageToAck = undefined;
             // TODO: We need to track this promise later
-            this.sendStandaloneAckForMessage(messageToAck).catch(error =>
+            this.#sendStandaloneAckForMessage(messageToAck).catch(error =>
                 logger.error("An error happened when sending a standalone ack", error),
             );
         }
@@ -164,6 +144,7 @@ export class MessageExchange {
     #retransmissionCounter = 0;
     #closeTimer: Timer | undefined;
     #isClosing = false;
+    #isDestroyed = false;
     #timedInteractionTimer: Timer | undefined;
     #used: boolean;
 
@@ -175,18 +156,11 @@ export class MessageExchange {
     readonly #closed = AsyncObservable<[]>();
     readonly #closing = AsyncObservable<[]>();
 
-    constructor(
-        readonly context: MessageExchangeContext,
-        readonly isInitiator: boolean,
-        peerSessionId: number,
-        nodeId: NodeId | undefined,
-        peerNodeId: NodeId | undefined,
-        exchangeId: number,
-        protocolId: number,
-        readonly requiresSecureSession: boolean,
-    ) {
-        const { channel } = context;
-        const { session } = channel;
+    constructor(config: MessageExchange.Config) {
+        const { context, isInitiator, peerSessionId, nodeId, peerNodeId, exchangeId, protocolId } = config;
+
+        this.#context = context;
+        this.#isInitiator = isInitiator;
         this.#peerSessionId = peerSessionId;
         this.#nodeId = nodeId;
         this.#peerNodeId = peerNodeId;
@@ -197,10 +171,11 @@ export class MessageExchange {
 
         this.#used = !isInitiator; // If we are the initiator then exchange was not used yet, so track it
 
+        const { session } = context;
         logger.debug(
             "New exchange",
             isInitiator ? "»" : "«",
-            channel.name,
+            session.name,
             Diagnostic.dict({
                 protocol: this.#protocolId,
                 exId: this.#exchangeId,
@@ -211,11 +186,19 @@ export class MessageExchange {
                 SII: Duration.format(idleInterval),
                 maxTrans: MRP.MAX_TRANSMISSIONS,
                 exchangeFlags: Diagnostic.asFlags({
-                    MRP: this.channel.usesMrp,
+                    MRP: this.session.usesMrp,
                     I: this.isInitiator,
                 }),
             }),
         );
+    }
+
+    get context() {
+        return this.#context;
+    }
+
+    get isInitiator() {
+        return this.#isInitiator;
     }
 
     /** Emits when the exchange is actually closed. This happens after all Retries and Communication are done. */
@@ -239,12 +222,12 @@ export class MessageExchange {
         return this.#exchangeId;
     }
 
-    get channel() {
-        return this.context.channel;
+    get session() {
+        return this.context.session;
     }
 
-    get session() {
-        return this.channel.session;
+    get channel() {
+        return this.session.channel;
     }
 
     /**
@@ -257,24 +240,11 @@ export class MessageExchange {
         return this.channel.maxPayloadSize - MATTER_MESSAGE_OVERHEAD;
     }
 
-    async sendStandaloneAckForMessage(message: Message) {
-        const {
-            packetHeader: { messageId },
-            payloadHeader: { requiresAck },
-        } = message;
-        if (!requiresAck || !this.channel.usesMrp) return;
-
-        await this.send(SecureMessageType.StandaloneAck, new Uint8Array(0), {
-            includeAcknowledgeMessageId: messageId,
-            protocolId: SECURE_CHANNEL_PROTOCOL_ID,
-        });
-    }
-
     async onMessageReceived(message: Message, duplicate = false) {
         logger.debug("Message «", MessageCodec.messageDiagnostics(message, { duplicate }));
 
         // Adjust the incoming message when ack was required, but this exchange does not use it to skip all relevant logic
-        if (message.payloadHeader.requiresAck && !this.channel.usesMrp) {
+        if (message.payloadHeader.requiresAck && !this.session.usesMrp) {
             logger.debug("Ignoring ack-required flag because MRP is not used for this exchange");
             message.payloadHeader.requiresAck = false;
         }
@@ -296,7 +266,7 @@ export class MessageExchange {
         if (duplicate) {
             // Received a message retransmission, but the reply is not ready yet, ignoring
             if (requiresAck) {
-                await this.sendStandaloneAckForMessage(message);
+                await this.#sendStandaloneAckForMessage(message);
             }
             return;
         }
@@ -342,7 +312,7 @@ export class MessageExchange {
             // We still have a message to ack, so ack this one as standalone ack directly
             if (this.#receivedMessageToAck !== undefined) {
                 this.#receivedMessageAckTimer.stop();
-                await this.sendStandaloneAckForMessage(this.#receivedMessageToAck);
+                await this.#sendStandaloneAckForMessage(this.#receivedMessageToAck);
                 return;
             }
             this.#receivedMessageToAck = message;
@@ -352,7 +322,7 @@ export class MessageExchange {
     }
 
     async send(messageType: number, payload: Bytes, options?: ExchangeSendOptions) {
-        if (options?.requiresAck && !this.channel.usesMrp) {
+        if (options?.requiresAck && !this.session.usesMrp) {
             options.requiresAck = false;
         }
 
@@ -365,13 +335,13 @@ export class MessageExchange {
             logContext,
             protocolId = this.#protocolId,
         } = options ?? {};
-        if (!this.channel.usesMrp && includeAcknowledgeMessageId !== undefined) {
+        if (!this.session.usesMrp && includeAcknowledgeMessageId !== undefined) {
             throw new InternalError("Cannot include an acknowledge message ID when MRP is not used");
         }
         const isStandaloneAck = SecureMessageType.isStandaloneAck(protocolId, messageType);
 
         if (isStandaloneAck) {
-            if (!this.channel.usesMrp) {
+            if (!this.session.usesMrp) {
                 return;
             }
             if (requiresAck) {
@@ -386,7 +356,7 @@ export class MessageExchange {
         this.session.notifyActivity(false);
 
         let ackedMessageId = includeAcknowledgeMessageId;
-        if (ackedMessageId === undefined && this.channel.usesMrp) {
+        if (ackedMessageId === undefined && this.session.usesMrp) {
             ackedMessageId = this.#receivedMessageToAck?.packetHeader.messageId;
             if (ackedMessageId !== undefined) {
                 this.#receivedMessageAckTimer.stop();
@@ -436,7 +406,7 @@ export class MessageExchange {
                 protocolId,
                 messageType,
                 isInitiatorMessage: this.isInitiator,
-                requiresAck: requiresAck ?? (this.channel.usesMrp && !isStandaloneAck),
+                requiresAck: requiresAck ?? (this.session.usesMrp && !isStandaloneAck),
                 ackedMessageId,
                 hasSecuredExtension: false,
             },
@@ -444,7 +414,7 @@ export class MessageExchange {
         };
 
         let ackPromise: Promise<Message> | undefined;
-        if (this.channel.usesMrp && message.payloadHeader.requiresAck && !disableMrpLogic) {
+        if (this.session.usesMrp && message.payloadHeader.requiresAck && !disableMrpLogic) {
             this.#sentMessageToAck = message;
             this.#retransmissionTimer = Time.getTimer(
                 `Message retransmission ${message.packetHeader.messageId}`,
@@ -490,6 +460,19 @@ export class MessageExchange {
             );
         }
         return this.#messagesQueue.read(timeout);
+    }
+
+    async #sendStandaloneAckForMessage(message: Message) {
+        const {
+            packetHeader: { messageId },
+            payloadHeader: { requiresAck },
+        } = message;
+        if (!requiresAck || !this.session.usesMrp) return;
+
+        await this.send(SecureMessageType.StandaloneAck, new Uint8Array(0), {
+            includeAcknowledgeMessageId: messageId,
+            protocolId: SECURE_CHANNEL_PROTOCOL_ID,
+        });
     }
 
     #retransmitMessage(message: Message, expectedProcessingTime?: Duration) {
@@ -547,7 +530,7 @@ export class MessageExchange {
             .then(() => this.#initializeResubmission(message, resubmissionBackoffTime, expectedProcessingTime))
             .catch(error => {
                 logger.error("An error happened when retransmitting a message", error);
-                if (error instanceof ChannelNotConnectedError) {
+                if (error instanceof SessionClosedError) {
                     this.#close().catch(error => logger.error("An error happened when closing the exchange", error));
                 } else {
                     this.#initializeResubmission(message, resubmissionBackoffTime, expectedProcessingTime);
@@ -561,13 +544,21 @@ export class MessageExchange {
         ).start();
     }
 
+    [Symbol.asyncDispose]() {
+        return this.destroy();
+    }
+
     async destroy() {
+        if (this.#isDestroyed) {
+            return;
+        }
+        this.#isDestroyed = true;
         if (this.#closeTimer === undefined && this.#receivedMessageToAck !== undefined) {
             this.#receivedMessageAckTimer.stop();
             const messageToAck = this.#receivedMessageToAck;
             this.#receivedMessageToAck = undefined;
             try {
-                await this.sendStandaloneAckForMessage(messageToAck);
+                await this.#sendStandaloneAckForMessage(messageToAck);
             } catch (error) {
                 logger.error("An error happened when closing the exchange", error);
             }
@@ -621,6 +612,9 @@ export class MessageExchange {
     }
 
     async close(force = false) {
+        if (this.#isDestroyed) {
+            return;
+        }
         if (this.#closeTimer !== undefined) {
             if (force) {
                 // Force close does not wait any longer
@@ -644,7 +638,7 @@ export class MessageExchange {
             const messageToAck = this.#receivedMessageToAck;
             this.#receivedMessageToAck = undefined;
             try {
-                await this.sendStandaloneAckForMessage(messageToAck);
+                await this.#sendStandaloneAckForMessage(messageToAck);
             } catch (error) {
                 logger.error(
                     `An error happened when closing the exchange ${this.session.name} / ${this.#exchangeId}`,
@@ -692,5 +686,17 @@ export class MessageExchange {
         }
 
         return Diagnostic.via(`${(this.session as SecureSession).peerAddress.toString()}#${this.session.id}`);
+    }
+}
+
+export namespace MessageExchange {
+    export interface Config {
+        context: MessageExchangeContext;
+        isInitiator: boolean;
+        peerSessionId: number;
+        nodeId?: NodeId;
+        peerNodeId?: NodeId;
+        exchangeId: number;
+        protocolId: number;
     }
 }

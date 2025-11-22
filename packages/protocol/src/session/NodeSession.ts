@@ -15,31 +15,23 @@ import {
     Diagnostic,
     Duration,
     Logger,
-    MatterError,
     MatterFlowError,
 } from "#general";
 import type { Subscription } from "#interaction/Subscription.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
+import { NoAssociatedFabricError, SessionClosedError } from "#protocol/errors.js";
 import { MessageCounter } from "#protocol/MessageCounter.js";
 import { MessageReceptionStateEncryptedWithoutRollover } from "#protocol/MessageReceptionState.js";
 import { SecureChannelMessenger } from "#securechannel/SecureChannelMessenger.js";
-import { CaseAuthenticatedTag, FabricIndex, NodeId, StatusCode, StatusResponseError } from "#types";
+import { CaseAuthenticatedTag, FabricIndex, NodeId } from "#types";
 import { SecureSession } from "./SecureSession.js";
-import { Session, SessionParameterOptions } from "./Session.js";
-import type { SessionManager } from "./SessionManager.js";
+import { Session } from "./Session.js";
+import { SessionParameters } from "./SessionParameters.js";
 
 const logger = Logger.get("SecureSession");
 
 const SESSION_KEYS_INFO = Bytes.fromString("SessionKeys");
 const SESSION_RESUMPTION_KEYS_INFO = Bytes.fromString("SessionResumptionKeys");
-
-export class NoChannelError extends MatterError {}
-
-export class NoAssociatedFabricError extends StatusResponseError {
-    constructor(message: string) {
-        super(message, StatusCode.UnsupportedAccess);
-    }
-}
 
 export class NodeSession extends SecureSession {
     readonly #crypto: Crypto;
@@ -59,36 +51,15 @@ export class NodeSession extends SecureSession {
     readonly supportsMRP = true;
     readonly type = SessionType.Unicast;
 
-    static async create(args: {
-        crypto: Crypto;
-        manager?: SessionManager;
-        id: number;
-        fabric: Fabric | undefined;
-        peerNodeId: NodeId;
-        peerSessionId: number;
-        sharedSecret: Bytes;
-        salt: Bytes;
-        isInitiator: boolean;
-        isResumption: boolean;
-        peerSessionParameters?: SessionParameterOptions;
-        caseAuthenticatedTags?: CaseAuthenticatedTag[];
-    }) {
-        const {
-            crypto,
-            manager,
-            id,
-            fabric,
-            peerNodeId,
-            peerSessionId,
-            sharedSecret,
-            salt,
-            isInitiator,
-            isResumption,
-            peerSessionParameters,
-            caseAuthenticatedTags,
-        } = args;
+    static async create(config: NodeSession.CreateConfig) {
+        const { manager, sharedSecret, salt, isResumption, peerSessionParameters, isInitiator } = config;
+
+        if (manager) {
+            await manager.construction;
+        }
+
         const keys = Bytes.of(
-            await args.crypto.createHkdfKey(
+            await config.crypto.createHkdfKey(
                 sharedSecret,
                 salt,
                 isResumption ? SESSION_RESUMPTION_KEYS_INFO : SESSION_KEYS_INFO,
@@ -98,36 +69,17 @@ export class NodeSession extends SecureSession {
         const decryptKey = isInitiator ? keys.slice(16, 32) : keys.slice(0, 16);
         const encryptKey = isInitiator ? keys.slice(0, 16) : keys.slice(16, 32);
         const attestationKey = keys.slice(32, 48);
-        return new NodeSession({
-            crypto,
-            manager,
-            id,
-            fabric,
-            peerNodeId,
-            peerSessionId,
+
+        return new this({
+            ...config,
             decryptKey,
             encryptKey,
             attestationKey,
             sessionParameters: peerSessionParameters,
-            isInitiator,
-            caseAuthenticatedTags,
         });
     }
 
-    constructor(args: {
-        crypto: Crypto;
-        manager?: SessionManager;
-        id: number;
-        fabric: Fabric | undefined;
-        peerNodeId: NodeId;
-        peerSessionId: number;
-        decryptKey: Bytes;
-        encryptKey: Bytes;
-        attestationKey: Bytes;
-        sessionParameters?: SessionParameterOptions;
-        caseAuthenticatedTags?: CaseAuthenticatedTag[];
-        isInitiator: boolean;
-    }) {
+    constructor(config: NodeSession.Config) {
         const {
             crypto,
             manager,
@@ -140,10 +92,10 @@ export class NodeSession extends SecureSession {
             attestationKey,
             caseAuthenticatedTags,
             isInitiator,
-        } = args;
+        } = config;
 
         super({
-            ...args,
+            ...config,
             setActiveTimestamp: true, // We always set the active timestamp for Secure sessions
             // Can be changed to a PersistedMessageCounter if we implement session storage
             messageCounter: new MessageCounter(crypto, () => {
@@ -337,7 +289,7 @@ export class NodeSession extends SecureSession {
     }
 
     /** Destroys a session. Outstanding subscription data will be discarded. */
-    async destroy(sendClose = false, closeAfterExchangeFinished = true, flushSubscriptions = false) {
+    override async destroy(sendClose = false, closeAfterExchangeFinished = true, flushSubscriptions = false) {
         await this.clearSubscriptions(flushSubscriptions);
         this.#fabric?.removeSession(this);
         if (!sendClose) {
@@ -357,12 +309,14 @@ export class NodeSession extends SecureSession {
                 try {
                     await this.closer;
                 } catch (error) {
-                    NoChannelError.accept(error);
+                    SessionClosedError.accept(error);
                 } finally {
+                    await super.destroy();
                     await this.destroyed.emit();
                 }
                 return;
             }
+            await super.destroy();
             await this.destroyed.emit();
         }
     }
@@ -417,5 +371,32 @@ export namespace NodeSession {
                 ...session.parameterDiagnostics,
             }),
         );
+    }
+}
+
+export namespace NodeSession {
+    export interface CommonConfig extends Session.CommonConfig {
+        crypto: Crypto;
+        id: number;
+        fabric?: Fabric;
+        peerNodeId: NodeId;
+        peerSessionId: number;
+        caseAuthenticatedTags?: CaseAuthenticatedTag[];
+    }
+
+    export interface Config extends CommonConfig {
+        decryptKey: Bytes;
+        encryptKey: Bytes;
+        attestationKey: Bytes;
+        sessionParameters?: SessionParameters.Config;
+        isInitiator: boolean;
+    }
+
+    export interface CreateConfig extends CommonConfig {
+        sharedSecret: Bytes;
+        salt: Bytes;
+        isInitiator: boolean;
+        isResumption: boolean;
+        peerSessionParameters?: SessionParameters.Config;
     }
 }

@@ -5,14 +5,14 @@
  */
 
 import { Bytes, Crypto, Logger, MatterFlowError } from "#general";
+import { NoAssociatedFabricError } from "#protocol/errors.js";
 import { NodeId } from "#types";
 import { DecodedMessage, DecodedPacket, Message, MessageCodec, Packet, SessionType } from "../codec/MessageCodec.js";
-import { Fabric } from "../fabric/Fabric.js";
+import type { Fabric } from "../fabric/Fabric.js";
 import { MessageCounter } from "../protocol/MessageCounter.js";
 import { MessageReceptionStateUnencryptedWithRollover } from "../protocol/MessageReceptionState.js";
-import { NoAssociatedFabricError } from "./NodeSession.js";
-import { Session, SessionParameterOptions } from "./Session.js";
-import type { SessionManager } from "./SessionManager.js";
+import { Session } from "./Session.js";
+import { SessionParameters } from "./SessionParameters.js";
 
 const logger = Logger.get("InsecureSession");
 
@@ -24,17 +24,10 @@ export class InsecureSession extends Session {
     readonly supportsMRP = true;
     readonly type = SessionType.Unicast;
 
-    constructor(args: {
-        crypto: Crypto;
-        manager?: SessionManager;
-        messageCounter: MessageCounter;
-        initiatorNodeId?: NodeId;
-        sessionParameters?: SessionParameterOptions;
-        isInitiator?: boolean;
-    }) {
-        const { crypto, initiatorNodeId, isInitiator } = args;
+    constructor(config: InsecureSession.Config) {
+        const { crypto, initiatorNodeId, isInitiator } = config;
         super({
-            ...args,
+            ...config,
             setActiveTimestamp: !isInitiator, // When we are the initiator we assume the node is in idle mode
             messageReceptionState: new MessageReceptionStateUnencryptedWithRollover(),
         });
@@ -89,13 +82,24 @@ export class InsecureSession extends Session {
         throw new NoAssociatedFabricError("Session needs to be a secure session");
     }
 
-    async destroy() {
+    override async destroy() {
         await this.end();
+        await super.destroy();
         await this.destroyed.emit();
     }
 
     async end() {
         logger.info(`End insecure session ${this.name}`);
         this.manager?.insecureSessions.delete(this.nodeId);
+    }
+}
+
+export namespace InsecureSession {
+    export interface Config extends Session.CommonConfig {
+        crypto: Crypto;
+        messageCounter: MessageCounter;
+        initiatorNodeId?: NodeId;
+        sessionParameters?: SessionParameters.Config;
+        isInitiator?: boolean;
     }
 }

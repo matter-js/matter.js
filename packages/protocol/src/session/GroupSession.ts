@@ -5,22 +5,26 @@
  */
 import { Subject } from "#action/server/Subject.js";
 import { DecodedMessage, DecodedPacket, Message, MessageCodec, Packet, SessionType } from "#codec/MessageCodec.js";
-import { Fabric } from "#fabric/Fabric.js";
-import { FabricManager } from "#fabric/FabricManager.js";
+import type { Fabric } from "#fabric/Fabric.js";
+import type { FabricManager } from "#fabric/FabricManager.js";
 import {
     Bytes,
+    ChannelType,
+    ConnectionlessTransportSet,
     CryptoDecryptError,
     ImplementationError,
     InternalError,
     Logger,
     MatterFlowError,
+    STANDARD_MATTER_PORT,
     UnexpectedDataError,
 } from "#general";
+import { PairRetransmissionLimitReachedError } from "#peer/ControllerDiscovery.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
-import type { SessionManager } from "#session/SessionManager.js";
 import { FabricIndex, GroupId, NodeId } from "#types";
 import { SecureSession } from "./SecureSession.js";
 import { Session } from "./Session.js";
+import { SessionManager } from "./SessionManager.js";
 
 const logger = Logger.get("SecureGroupSession");
 
@@ -35,17 +39,10 @@ export class GroupSession extends SecureSession {
 
     readonly keySetId: number;
 
-    constructor(args: {
-        manager?: SessionManager;
-        id: number; // Records the Group Session ID derived from the Operational Group Key used to encrypt the message.
-        fabric: Fabric;
-        keySetId: number; // The Group Key Set ID that was used to encrypt the incoming group message.
-        peerNodeId: NodeId; //The Target Group Node Id
-        operationalGroupKey: Bytes; // The Operational Group Key that was used to encrypt the incoming group message.
-    }) {
-        const { manager, fabric, operationalGroupKey, id, peerNodeId, keySetId } = args;
+    constructor(config: GroupSession.Config) {
+        const { manager, fabric, operationalGroupKey, id, peerNodeId, keySetId } = config;
         super({
-            ...args,
+            ...config,
             setActiveTimestamp: false, // We always set the active timestamp for Secure sessions TODO Check
             messageCounter: fabric.groups.messaging.counterFor(operationalGroupKey),
         });
@@ -59,6 +56,46 @@ export class GroupSession extends SecureSession {
         fabric.addSession(this);
 
         logger.debug(`Created secure GROUP session for fabric index ${fabric.fabricIndex}`, this.name);
+    }
+
+    /**
+     * Create an outbound group session.
+     */
+    static async create(options: {
+        manager?: SessionManager;
+        transports: ConnectionlessTransportSet;
+        id: number;
+        fabric: Fabric;
+        keySetId: number;
+        groupNodeId: NodeId;
+        operationalGroupKey: Bytes;
+    }) {
+        const { manager, transports, id, fabric, keySetId, groupNodeId, operationalGroupKey } = options;
+
+        const groupId = GroupId.fromNodeId(groupNodeId);
+        const multicastAddress = fabric.groups.multicastAddressFor(groupId);
+
+        const operationalInterface = transports.interfaceFor(ChannelType.UDP, multicastAddress);
+        if (operationalInterface === undefined) {
+            // TODO - better error class
+            throw new PairRetransmissionLimitReachedError(`IPv6 interface not initialized`);
+        }
+
+        const channel = await operationalInterface.openChannel({
+            type: ChannelType.UDP,
+            ip: multicastAddress,
+            port: STANDARD_MATTER_PORT,
+        });
+
+        return new GroupSession({
+            manager,
+            channel,
+            id,
+            fabric,
+            keySetId,
+            peerNodeId: groupNodeId,
+            operationalGroupKey,
+        });
     }
 
     override get type() {
@@ -215,8 +252,9 @@ export class GroupSession extends SecureSession {
         return { message, key, sessionId, sourceNodeId, keySetId, fabric };
     }
 
-    async destroy() {
+    override async destroy() {
         logger.info(`End group session ${this.name}`);
+        await super.destroy();
         this.manager?.removeGroupSession(this);
     }
 
@@ -226,6 +264,14 @@ export class GroupSession extends SecureSession {
 }
 
 export namespace GroupSession {
+    export interface Config extends Session.CommonConfig {
+        id: number; // Records the Group Session ID derived from the Operational Group Key used to encrypt the message.
+        fabric: Fabric;
+        keySetId: number; // The Group Key Set ID that was used to encrypt the incoming group message.
+        peerNodeId: NodeId; //The Target Group Node Id
+        operationalGroupKey: Bytes; // The Operational Group Key that was used to encrypt the incoming group message.
+    }
+
     export function assert(session?: Session, errorText?: string): asserts session is GroupSession {
         if (!is(session)) {
             throw new MatterFlowError(errorText ?? "Insecure session in secure context");

@@ -7,6 +7,7 @@
 import { Noc } from "#certificate/kinds/Noc.js";
 import {
     Bytes,
+    Channel,
     Crypto,
     CryptoDecryptError,
     Diagnostic,
@@ -86,12 +87,12 @@ export class CaseServer implements ProtocolHandler {
         const context = new Sigma1Context(this.#fabrics.crypto, messenger, sigma1Bytes, sigma1, resumptionRecord);
 
         // Attempt resumption
-        if (await this.#resume(context)) {
+        if (await this.#resume(context, messenger.channel.channel)) {
             return;
         }
 
         // Attempt sigma2 negotiation
-        if (await this.#generateSigma2(context)) {
+        if (await this.#generateSigma2(context, messenger.channel.channel)) {
             return;
         }
 
@@ -107,7 +108,7 @@ export class CaseServer implements ProtocolHandler {
         throw new UnexpectedDataError("Invalid resumption ID or resume MIC.");
     }
 
-    async #resume(cx: Sigma1Context) {
+    async #resume(cx: Sigma1Context, channel: Channel<Bytes>) {
         if (cx.peerResumptionId === undefined || cx.peerResumeMic === undefined || cx.resumptionRecord === undefined) {
             return false;
         }
@@ -135,7 +136,8 @@ export class CaseServer implements ProtocolHandler {
         const responderSessionId = await this.#sessions.getNextAvailableSessionId();
         const secureSessionSalt = Bytes.concat(cx.peerRandom, cx.peerResumptionId);
         const secureSession = await this.#sessions.createSecureSession({
-            sessionId: responderSessionId,
+            channel,
+            id: responderSessionId,
             fabric,
             peerNodeId,
             peerSessionId: cx.peerSessionId,
@@ -178,7 +180,7 @@ export class CaseServer implements ProtocolHandler {
         return true;
     }
 
-    async #generateSigma2(cx: Sigma1Context) {
+    async #generateSigma2(cx: Sigma1Context, channel: Channel<Bytes>) {
         if (
             // No resumption attempted is OK
             !(cx.peerResumptionId === undefined && cx.peerResumeMic === undefined) &&
@@ -271,7 +273,8 @@ export class CaseServer implements ProtocolHandler {
             await crypto.computeHash([cx.bytes, sigma2Bytes, sigma3Bytes]),
         );
         const secureSession = await this.#sessions.createSecureSession({
-            sessionId: responderSessionId,
+            channel,
+            id: responderSessionId,
             fabric,
             peerNodeId,
             peerSessionId: cx.peerSessionId,

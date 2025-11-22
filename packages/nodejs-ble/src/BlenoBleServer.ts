@@ -15,7 +15,7 @@ import {
     BleError,
     BtpFlowError,
     BtpSessionHandler,
-    ChannelNotConnectedError,
+    SessionClosedError,
 } from "#protocol";
 import { require } from "@matter/nodejs-ble/require";
 import type { Bleno as BlenoType } from "@stoprocent/bleno";
@@ -424,7 +424,7 @@ export class BlenoBleServer extends BleChannel<Bytes> {
      */
     async send(data: Bytes) {
         if (this.btpSession === undefined) {
-            throw new ChannelNotConnectedError(`Cannot send data, no BTP session initialized`);
+            throw new SessionClosedError(`Cannot send data, no BTP session initialized`);
         }
         await this.btpSession.sendMatterMessage(data);
     }

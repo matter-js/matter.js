@@ -47,15 +47,15 @@ import {
     FabricAuthority,
     FabricManager,
     InteractionClientProvider,
-    MessageChannel,
     NodeDiscoveryType,
-    OperationalPeer,
     PeerAddress,
     PeerAddressStore,
     PeerConnectionOptions,
+    PeerDescriptor,
     PeerSet,
     RetransmissionLimitReachedError,
     ScannerSet,
+    SecureSession,
     SessionManager,
 } from "#protocol";
 import {
@@ -81,7 +81,7 @@ const DEFAULT_FABRIC_INDEX = FabricIndex(1);
 const logger = Logger.get("MatterController");
 
 // Operational peer extended with basic information as required for conversion to CommissionedNodeDetails
-type CommissionedPeer = OperationalPeer & { deviceData?: DeviceInformationData };
+type CommissionedPeer = PeerDescriptor & { deviceData?: DeviceInformationData };
 
 // Backward-compatible persistence record for nodes
 type StoredOperationalPeer = [NodeId, CommissionedNodeDetails];
@@ -426,24 +426,24 @@ export class MatterController {
 
     async disconnect(nodeId: NodeId) {
         this.#construction.assert();
-        return this.#peers!.disconnect(this.#fabric!.addressOf(nodeId));
+        return this.#peers?.get(this.#fabric!.addressOf(nodeId))?.delete();
     }
 
     async connectPaseChannel(options: NodeCommissioningOptions) {
         this.#construction.assert();
-        const { paseSecureChannel } = await this.#node!.env.get(ControllerCommissioner).discoverAndEstablishPase({
+        const { paseSession } = await this.#node!.env.get(ControllerCommissioner).discoverAndEstablishPase({
             ...options.commissioning,
             fabric: this.#fabric!,
             discovery: options.discovery,
             passcode: options.passcode,
         });
-        logger.warn("PASE channel established", paseSecureChannel.session.name, paseSecureChannel.session.isSecure);
-        return paseSecureChannel;
+        logger.warn("PASE channel established", paseSession.name, paseSession.isSecure);
+        return paseSession;
     }
 
     async removeNode(nodeId: NodeId) {
         this.#construction.assert();
-        return this.#peers!.delete(this.#fabric!.addressOf(nodeId));
+        return this.#peers?.get(this.#fabric!.addressOf(nodeId))?.delete();
     }
 
     /**
@@ -470,7 +470,7 @@ export class MatterController {
         });
         if (errorCode !== GeneralCommissioning.CommissioningError.Ok) {
             // We might have added data for an operational address that we need to cleanup
-            await this.#peers!.delete(this.#fabric!.addressOf(peerNodeId));
+            await this.#peers?.get(this.#fabric!.addressOf(peerNodeId))?.delete();
             throw new CommissioningError(`Commission error on commissioningComplete: ${errorCode}, ${debugText}`);
         }
         await this.#fabric!.persist();
@@ -489,7 +489,7 @@ export class MatterController {
     getCommissionedNodesDetails() {
         this.#construction.assert();
         return this.#peers!.map(peer => {
-            const { address, operationalAddress, discoveryData, deviceData } = peer as CommissionedPeer;
+            const { address, operationalAddress, discoveryData, deviceData } = peer.descriptor as CommissionedPeer;
             return {
                 nodeId: address.nodeId,
                 operationalAddress: operationalAddress ? ServerAddress.urlFor(operationalAddress) : undefined,
@@ -502,7 +502,7 @@ export class MatterController {
 
     getCommissionedNodeDetails(nodeId: NodeId) {
         this.#construction.assert();
-        const nodeDetails = this.#peers!.get(this.#fabric!.addressOf(nodeId)) as CommissionedPeer;
+        const nodeDetails = this.#peers!.get(this.#fabric!.addressOf(nodeId))?.descriptor as CommissionedPeer;
         if (nodeDetails === undefined) {
             throw new Error(`Node ${nodeId} is not commissioned.`);
         }
@@ -518,7 +518,7 @@ export class MatterController {
 
     async enhanceCommissionedNodeDetails(nodeId: NodeId, deviceData: DeviceInformationData) {
         this.#construction.assert();
-        const nodeDetails = this.#peers!.get(this.#fabric!.addressOf(nodeId)) as CommissionedPeer;
+        const nodeDetails = this.#peers!.get(this.#fabric!.addressOf(nodeId))?.descriptor as CommissionedPeer;
         if (nodeDetails === undefined) {
             throw new Error(`Node ${nodeId} is not commissioned.`);
         }
@@ -535,9 +535,9 @@ export class MatterController {
         return this.#node!.env.get(InteractionClientProvider).connect(this.#fabric!.addressOf(peerNodeId), options);
     }
 
-    createInteractionClient(peerNodeIdOrChannel: NodeId | MessageChannel, options: PeerConnectionOptions = {}) {
-        if (peerNodeIdOrChannel instanceof MessageChannel) {
-            return this.#node!.env.get(InteractionClientProvider).getInteractionClientForChannel(peerNodeIdOrChannel);
+    createInteractionClient(peerNodeIdOrChannel: NodeId | SecureSession, options: PeerConnectionOptions = {}) {
+        if (peerNodeIdOrChannel instanceof SecureSession) {
+            return this.#node!.env.get(InteractionClientProvider).interactionClientFor(peerNodeIdOrChannel);
         }
         return this.#node!.env.get(InteractionClientProvider).getInteractionClient(
             this.#fabric!.addressOf(peerNodeIdOrChannel),
@@ -568,11 +568,11 @@ export class MatterController {
     ): Promise<{ endpointId: EndpointNumber; clusterId: ClusterId; dataVersion: number }[]> {
         this.#construction.assert();
         const peer = this.#peers!.get(this.#fabric!.addressOf(nodeId));
-        if (peer === undefined || peer.dataStore === undefined) {
+        if (peer === undefined || peer.descriptor.dataStore === undefined) {
             return []; // We have no store, also no data
         }
-        await peer.dataStore.construction;
-        return peer.dataStore.getClusterDataVersions(filterEndpointId, filterClusterId);
+        await peer.descriptor.dataStore.construction;
+        return peer.descriptor.dataStore.getClusterDataVersions(filterEndpointId, filterClusterId);
     }
 
     async retrieveStoredAttributes(
@@ -582,11 +582,11 @@ export class MatterController {
     ): Promise<DecodedAttributeReportValue<any>[]> {
         this.#construction.assert();
         const peer = this.#peers!.get(this.#fabric!.addressOf(nodeId));
-        if (peer === undefined || peer.dataStore === undefined) {
+        if (peer === undefined || peer.descriptor.dataStore === undefined) {
             return []; // We have no store, also no data
         }
-        await peer.dataStore.construction;
-        return peer.dataStore.retrieveAttributes(endpointId, clusterId);
+        await peer.descriptor.dataStore.construction;
+        return peer.descriptor.dataStore.retrieveAttributes(endpointId, clusterId);
     }
 
     async updateFabricLabel(label: string) {
@@ -658,7 +658,7 @@ class CommissionedNodeStore extends PeerAddressStore {
                     operationalAddress: operationalServerAddress,
                     discoveryData,
                     deviceData,
-                } = peer as CommissionedPeer;
+                } = peer.descriptor as CommissionedPeer;
                 return [
                     address.nodeId,
                     { operationalServerAddress, discoveryData, deviceData },

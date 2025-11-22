@@ -9,12 +9,11 @@ import { DatatypeModel, FieldElement } from "#model";
 import { InteractionServer, PeerSubscription } from "#node/server/InteractionServer.js";
 import { ServerSubscription } from "#node/server/ServerSubscription.js";
 import {
-    ChannelManager,
-    NoChannelError,
     NodeDiscoveryType,
     PeerAddress,
     PeerAddressSet,
     PeerSet,
+    SessionClosedError,
     SessionManager,
     Subscription,
 } from "#protocol";
@@ -153,11 +152,10 @@ export class SubscriptionsBehavior extends Behavior {
         // TODO Remove when we store peer addresses also for operational nodes
         let operationalAddress: ServerAddressUdp | undefined;
         try {
-            const channel = this.env.get(ChannelManager).getChannel(peerAddress, session).channel;
-            operationalAddress = isIpNetworkChannel(channel) ? channel.networkAddress : undefined;
+            operationalAddress = isIpNetworkChannel(session.channel) ? session.channel.networkAddress : undefined;
         } catch (error) {
             // Can happen in edge cases, so better catch it and proceed without operational address
-            NoChannelError.accept(error);
+            SessionClosedError.accept(error);
         }
         const peerSubscription: PeerSubscription = {
             subscriptionId: id,
@@ -231,7 +229,7 @@ export class SubscriptionsBehavior extends Behavior {
                 continue;
             }
             logger.debug(`Try to reestablish former subscription ${subscriptionId} to ${peerAddress}`);
-            if (sessions.getSessionForNode(peerAddress) !== undefined) {
+            if (sessions.maybeSessionFor(peerAddress) !== undefined) {
                 logger.debug(`We already have and existing session for peer ${peerAddress}`);
             } else {
                 try {
@@ -257,7 +255,7 @@ export class SubscriptionsBehavior extends Behavior {
                     logger.debug(`Skip re-establishing former subscription ${subscriptionId} to ${peerAddress}`);
                     continue;
                 }
-                const session = sessions.getSessionForNode(peerAddress);
+                const session = sessions.maybeSessionFor(peerAddress);
                 if (session === undefined) {
                     peerStopList.add(peerAddress);
                     logger.debug(`Could not connect to peer ${peerAddress}`);
