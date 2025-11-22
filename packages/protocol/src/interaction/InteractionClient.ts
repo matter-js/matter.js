@@ -149,6 +149,12 @@ export class InteractionClientProvider {
 
         const exchangeProvider = await this.#peers.exchangeProviderFor(address, options);
 
+        // Double-check after await points - another concurrent call may have created the client
+        const existingClient = this.#clients.get(address);
+        if (existingClient !== undefined) {
+            return existingClient;
+        }
+
         client = new InteractionClient(
             exchangeProvider,
             this.#subscriptionClient,

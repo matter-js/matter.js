@@ -185,20 +185,20 @@ export class BtpCodec {
         }
 
         const ver: number[] = [];
-        ver[0] = (version & 0xf0) >> 4;
-        ver[1] = version & 0x0f;
+        ver[1] = (version & 0xf0) >> 4;
+        ver[0] = version & 0x0f;
 
         version = reader.readUInt8();
-        ver[2] = (version & 0xf0) >> 4;
-        ver[3] = version & 0x0f;
+        ver[3] = (version & 0xf0) >> 4;
+        ver[2] = version & 0x0f;
 
         version = reader.readUInt8();
-        ver[4] = (version & 0xf0) >> 4;
-        ver[5] = version & 0x0f;
+        ver[5] = (version & 0xf0) >> 4;
+        ver[4] = version & 0x0f;
 
         version = reader.readUInt8();
-        ver[6] = (version & 0xf0) >> 4;
-        ver[7] = version & 0x0f;
+        ver[7] = (version & 0xf0) >> 4;
+        ver[6] = version & 0x0f;
 
         const versions = ver.filter(v => v !== 0);
         if (versions.length === 0) {

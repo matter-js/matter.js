@@ -338,6 +338,11 @@ export class NodeSession extends SecureSession {
 
     /** Destroys a session. Outstanding subscription data will be discarded. */
     async destroy(sendClose = false, closeAfterExchangeFinished = true, flushSubscriptions = false) {
+        // Set closing flag immediately to prevent new operations during teardown
+        if (!closeAfterExchangeFinished) {
+            this.#isClosing = true;
+        }
+
         await this.clearSubscriptions(flushSubscriptions);
         this.#fabric?.removeSession(this);
         if (!sendClose) {
@@ -348,7 +353,6 @@ export class NodeSession extends SecureSession {
             logger.info(`Register Session ${this.name} to close when exchange is ended.`);
             this.#closingAfterExchangeFinished = true;
         } else {
-            this.#isClosing = true;
             logger.info(`End ${this.isPase ? "PASE" : "CASE"} session ${this.name}`);
             this.manager?.sessions.delete(this);
 
