@@ -28,4 +28,4 @@ If you want to use matter.js and have questions on other specific protocol featu
 
 If you plan to officially certify a device, bridge or controller based on matter.js please contact us via E-Mail or Discord to get the latest information of the certification status of matter.js, supported and not yet supported features and consulting on the certification process.
 
-matter.js successfully passed certification already. There are still thinks to consider and to discuss when you plan to certify.
+matter.js successfully passed certification already. There are still things to consider and to discuss when you plan to certify.
