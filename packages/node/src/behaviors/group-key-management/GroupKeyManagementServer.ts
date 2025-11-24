@@ -179,6 +179,16 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
                 );
             }*/
         }
+
+        // We also need to add the groups from the group table to the count of groups per fabric
+        for (const entry of this.state.groupTable) {
+            const { groupId, fabricIndex } = entry;
+            const id = `${fabricIndex}-${groupId}`;
+            if (!knownGroupIds.has(id)) {
+                groupIdsPerFabric[fabricIndex] = (groupIdsPerFabric[fabricIndex] ?? 0) + 1;
+            }
+        }
+
         if (groupIdsPerFabric.some(count => count > this.state.maxGroupsPerFabric)) {
             throw new StatusResponseError(
                 `Too many groups per fabric, maximum is ${this.state.maxGroupsPerFabric}`,
@@ -189,6 +199,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
 
     #validateGroupTable(groupTable: GroupKeyManagement.GroupInfoMap[]) {
         const knownGroupIds = new Set<string>();
+        const groupIdsPerFabric = new Array<number>();
         for (const entry of groupTable) {
             const { groupId, fabricIndex, endpoints } = entry;
             if (groupId === 0) {
@@ -198,6 +209,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
                 );
             }
 
+            groupIdsPerFabric[fabricIndex] = (groupIdsPerFabric[fabricIndex] ?? 0) + 1;
             const id = `${fabricIndex}-${groupId}`;
             if (knownGroupIds.has(id)) {
                 throw new StatusResponseError(
@@ -214,6 +226,22 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
                     StatusCode.ConstraintError,
                 );
             }
+        }
+
+        // We also need to add the groups from the group key map to the count of groups per fabric
+        for (const entry of this.state.groupKeyMap) {
+            const { groupId, fabricIndex } = entry;
+            const id = `${fabricIndex}-${groupId}`;
+            if (!knownGroupIds.has(id)) {
+                groupIdsPerFabric[fabricIndex] = (groupIdsPerFabric[fabricIndex] ?? 0) + 1;
+            }
+        }
+
+        if (groupIdsPerFabric.some(count => count > this.state.maxGroupsPerFabric)) {
+            throw new StatusResponseError(
+                `Too many groups per fabric, maximum is ${this.state.maxGroupsPerFabric}`,
+                StatusCode.ResourceExhausted,
+            );
         }
     }
 
