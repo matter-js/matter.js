@@ -71,7 +71,7 @@
         "@types/node": "^24.10.1",
         "@types/wtfnode": "^0.10.0",
         "@types/xml2js": "^0.4.14",
-        "@types/yargs": "^17.0.34"
+        "@types/yargs": "^17.0.35"
     },
     "publishConfig": {
         "access": "public"
