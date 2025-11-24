@@ -62,7 +62,7 @@
         "cycles": "matter-build cycles"
     },
     "devDependencies": {
-        "@eslint/compat": "^1.4.1",
+        "@eslint/compat": "^2.0.0",
         "@eslint/eslintrc": "^3.3.1",
         "@eslint/js": "^9.39.1",
         "@typescript-eslint/eslint-plugin": "^8.46.3",
@@ -76,7 +76,7 @@
         "prettier-plugin-organize-imports": "^4.3.0",
         "semver": "^7.7.3",
         "typescript": "~5.9.3",
-        "typescript-eslint": "^8.46.3"
+        "typescript-eslint": "^8.47.0"
     },
     "overrides": {
         "brorand": "npm:@matter.js/brorand@1.1.0"

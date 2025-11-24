@@ -29,7 +29,7 @@ jobs:
       head-commit-message: ${{ steps.get_head_commit_message.outputs.headCommitMsg }}
     steps:
       - name: Get repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha }}
       - name: Print head git commit message
@@ -50,7 +50,7 @@ jobs:
       chip-slowapp-tests-required: ${{ steps.check-long-tests.outputs.chip-slowapp-tests-required || steps.check-slowapp-tests.outputs.chip-slowapp-tests-required }}
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - uses: dorny/paths-filter@v3
         id: changes
@@ -134,7 +134,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Prepare chip tests and rebuild chip-tool if needed
         uses: ./.github/actions/prepare-chip-testing
@@ -149,7 +149,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Initialize chip tests
         uses: ./.github/actions/prepare-chip-testing
@@ -194,7 +194,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Initialize chip tests
         uses: ./.github/actions/prepare-chip-testing
@@ -240,7 +240,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Initialize chip tests
         uses: ./.github/actions/prepare-chip-testing
@@ -273,7 +273,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Initialize chip tests
         uses: ./.github/actions/prepare-chip-testing
@@ -309,7 +309,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Initialize chip tests
         uses: ./.github/actions/prepare-chip-testing
@@ -343,7 +343,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Initialize chip tests
         uses: ./.github/actions/prepare-chip-testing
@@ -373,7 +373,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Initialize chip tests
         uses: ./.github/actions/prepare-chip-testing
@@ -406,7 +406,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out matter.js
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Initialize chip tests
         uses: ./.github/actions/prepare-chip-testing

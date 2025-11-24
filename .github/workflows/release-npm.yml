@@ -20,7 +20,7 @@ jobs:
     if: github.repository == 'matter-js/matter.js' && contains(github.event.pull_request.labels.*.name, 'automated-npm-release')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Prepare testing environment
         uses: ./.github/actions/prepare-env
       - run: npm run format-verify
@@ -35,7 +35,7 @@ jobs:
         node-version: [ 20.x, 22.x, 24.x ]
         os: [ macos-latest, windows-latest ]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         # needed as long as we test Node.js 16 and npm <10.2.2 is used for Node.js 18/20
         with:
@@ -54,7 +54,7 @@ jobs:
       matrix:
         node-version: [ 20.x, 22.x, 24.x ]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Prepare testing environment
         uses: ./.github/actions/prepare-env
         with:
@@ -89,7 +89,7 @@ jobs:
 
       - name: Checkout repository
         if: steps.automerge.outputs.mergeResult == 'merged'
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Use Node.js 20.x
         if: steps.automerge.outputs.mergeResult == 'merged'
