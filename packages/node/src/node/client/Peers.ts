@@ -330,13 +330,13 @@ export class Peers extends EndpointContainer<ClientNode> {
 
     #onLeave(node: ClientNode, fabricIndex: FabricIndex) {
         this.#mutex.run(async () => {
-            const { fabrics: peerFabrics } = node.maybeStateOf(OperationalCredentialsClient);
-            const peerFabric = peerFabrics.find(fabric => fabric.fabricIndex === fabricIndex);
+            const { fabrics: peerFabrics } = node.maybeStateOf(OperationalCredentialsClient) ?? {};
+            const peerFabric = peerFabrics?.find(fabric => fabric.fabricIndex === fabricIndex);
             if (!peerFabric) {
                 return;
             }
 
-            const peerAddress = node.maybeStateOf(CommissioningClient).peerAddress;
+            const peerAddress = node.maybeStateOf(CommissioningClient)?.peerAddress;
             if (!peerAddress) {
                 return;
             }
