@@ -32,7 +32,7 @@ import type { ClusterState } from "./ClusterState.js";
  * and may not be retained across invocations.
  *
  * ClusterBehaviors may be instantiated with unsupported mandatory commands and attributes.  This is currently results
- * in a runtime error but it will not cause a type error during development.
+ * in a runtime error, but it will not cause a type error during development.
  */
 export class ClusterBehavior extends Behavior {
     declare static readonly schema: Schema.Cluster;

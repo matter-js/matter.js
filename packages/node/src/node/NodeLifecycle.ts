@@ -103,7 +103,7 @@ export class NodeLifecycle extends EndpointLifecycle {
     }
 
     /**
-     * Emits when node is no longer comissioned.
+     * Emits when node is no longer commissioned.
      */
     get decommissioned() {
         return this.#decommissioned;

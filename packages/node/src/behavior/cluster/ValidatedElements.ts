@@ -230,7 +230,7 @@ export class ValidatedElements {
             if (implementation === Behavior.unimplemented) {
                 if (!command.optional) {
                     // TODO - do not pollute the logs with these as Matter spec is in flux (should this include groups
-                    // or just scenes?)
+                    //  or just scenes?)
                     if (this.#name.match(/^(?:Groups|Scenes|GroupKeyManagement)(?:Server|Behavior)/)) {
                         continue;
                     }

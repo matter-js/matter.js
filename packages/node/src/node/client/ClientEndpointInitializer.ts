@@ -59,7 +59,7 @@ export class ClientEndpointInitializer extends EndpointInitializer {
 
         // Activate remote behavior
         const store = this.structure.storeForRemote(endpoint, peerType);
-        return new ClientBehaviorBacking(endpoint, type, store, endpoint.behaviors.optionsFor(peerType));
+        return new ClientBehaviorBacking(endpoint, peerType, store, endpoint.behaviors.optionsFor(peerType));
     }
 
     get structure() {
