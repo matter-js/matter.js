@@ -110,8 +110,7 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
     }
 
     override async prepareRuntimeShutdown() {
-        const sessions = this.env.get(SessionManager);
-        await sessions.close();
+        await this.env.get(SessionManager).closeAllSessions();
     }
 
     /**

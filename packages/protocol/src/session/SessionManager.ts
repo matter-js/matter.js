@@ -688,9 +688,20 @@ export class SessionManager {
             await this.#construction;
         }
 
+        this.#observers.close();
+
+        await this.closeAllSessions();
+    }
+
+    async clear() {
+        await this.closeAllSessions();
+        await this.#context.storage.clear();
+        this.#resumptionRecords.clear();
+    }
+
+    async closeAllSessions() {
         await this.#subscriptionUpdateMutex;
 
-        this.#observers.close();
         await this.#storeResumptionRecords();
         const closePromises = this.#sessions.map(async session => {
             await session?.end(false);
@@ -707,12 +718,6 @@ export class SessionManager {
         await MatterAggregateError.allSettled(closePromises, "Error closing sessions").catch(error =>
             logger.error(error),
         );
-    }
-
-    async clear() {
-        await this.close();
-        await this.#context.storage.clear();
-        this.#resumptionRecords.clear();
     }
 
     updateAllSubscriptions() {
