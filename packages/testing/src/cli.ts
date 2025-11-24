@@ -31,6 +31,7 @@ Error.stackTraceLimit = 50;
 interface Config {
     allLogs?: boolean;
     pull?: boolean;
+    env?: Record<string, unknown>;
 }
 
 export async function main(argv = process.argv) {
@@ -107,6 +108,12 @@ export async function main(argv = process.argv) {
 
         if ("pull" in config && !process.argv.includes("--no-pull")) {
             args.pull = !!config.pull;
+        }
+
+        if ("env" in config) {
+            for (const key in config.env) {
+                process.env[key] = `${config.env[key]}`;
+            }
         }
     } catch (e) {
         if (!(e instanceof JsonNotFoundError)) {
