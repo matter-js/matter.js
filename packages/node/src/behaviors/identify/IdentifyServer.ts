@@ -6,6 +6,7 @@
 
 import { Identify } from "#clusters/identify";
 import { MaybePromise, Observable, Seconds, Time, Timer } from "#general";
+import { hasRemoteActor } from "@matter/protocol";
 import { IdentifyBehavior } from "./IdentifyBehavior.js";
 
 /**
@@ -32,6 +33,14 @@ export class IdentifyServer extends IdentifyBehavior {
         if (this.state.identifyType === undefined) {
             this.state.identifyType = Identify.IdentifyType.None;
         }
+
+        this.events.identifyTime$Changed.quiet.config = {
+            shouldEmit: (oldValue, newValue, context) =>
+                hasRemoteActor(context) || ((oldValue === 0 || newValue === 0) && newValue !== oldValue)
+                    ? "now"
+                    : false,
+            suppressionEnabled: false,
+        };
 
         // TODO - identifyTime should become virtual attribute with timer to update isIdentifying
         // Enable I/2.4 once this is done
