@@ -29,6 +29,7 @@ import {
     Seconds,
     Time,
     Timestamp,
+    UninitializedDependencyError,
 } from "#general";
 import { ClientGroup } from "#node/ClientGroup.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
@@ -77,7 +78,14 @@ export class Peers extends EndpointContainer<ClientNode> {
     initialize() {
         const factory = this.owner.env.get(ClientNodeFactory);
 
-        const clientStores = this.owner.env.get(ServerNodeStore).clientStores;
+        const clientStores = this.owner.env.maybeGet(ServerNodeStore)?.clientStores;
+        if (clientStores === undefined) {
+            throw new UninitializedDependencyError(
+                "Peers",
+                "are not available because ServerNode initialization is incomplete",
+            );
+        }
+
         // Group nodes have an in-memory only store, so all nodes restored here are ClientNode
         for (const id of clientStores.knownIds) {
             this.add(

@@ -105,6 +105,10 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
     }
 
     override async [Construction.destruct]() {
+        if (this.#peers) {
+            await this.#peers.close();
+        }
+
         await super[Construction.destruct]();
         await ServerEnvironment.close(this);
     }
@@ -159,8 +163,13 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
      */
     get peers() {
         if (!this.#peers) {
-            this.#peers = new Peers(this);
-            this.#peers.initialize();
+            try {
+                this.#peers = new Peers(this);
+                this.#peers.initialize();
+            } catch (e) {
+                this.#peers = undefined;
+                throw e;
+            }
         }
 
         return this.#peers;
