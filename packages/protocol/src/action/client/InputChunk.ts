@@ -6,13 +6,16 @@
 
 import { ReadResult } from "#action/response/ReadResult.js";
 import { DecodedDataReport } from "#interaction/DecodedDataReport.js";
-import { DataReport, Status, TlvAny } from "#types";
+import { DataReport, Status, TlvAny, TlvAttributeReport, TypeFromSchema } from "#types";
 
 /**
  * Converts a {@link DataReport} into a {@link ReadResult.Chunk}.
  */
-export function* InputChunk(input: DataReport): ReadResult.Chunk {
-    const report = DecodedDataReport(input);
+export function* InputChunk(
+    input: DataReport,
+    leftoverAttributeReports?: TypeFromSchema<typeof TlvAttributeReport>[],
+): ReadResult.Chunk {
+    const report = DecodedDataReport(input, leftoverAttributeReports);
 
     for (const attr of report.attributeReports) {
         yield {

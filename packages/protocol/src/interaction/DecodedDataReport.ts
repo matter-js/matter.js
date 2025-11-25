@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DataReport } from "#types";
+import { DataReport, TlvAttributeReport, TypeFromSchema } from "#types";
 import {
     DecodedAttributeReportStatus,
     DecodedAttributeReportValue,
@@ -25,15 +25,34 @@ export interface DecodedDataReport extends DataReport {
     subscriptionId?: number;
 }
 
-export function DecodedDataReport(report: DataReport): DecodedDataReport {
+export function DecodedDataReport(
+    report: DataReport,
+    leftoverAttributeReports?: TypeFromSchema<typeof TlvAttributeReport>[],
+): DecodedDataReport {
     if ((report as DecodedDataReport).isNormalized) {
+        if (leftoverAttributeReports !== undefined && leftoverAttributeReports.length > 0) {
+            throw new Error("Cannot provide leftoverAttributeReports for already normalized DecodedDataReport");
+        }
         return report as DecodedDataReport;
+    }
+
+    if (leftoverAttributeReports !== undefined && leftoverAttributeReports.length > 0) {
+        // Prepend leftover values from last run
+        if (report.attributeReports === undefined) {
+            report.attributeReports = [...leftoverAttributeReports];
+        } else {
+            report.attributeReports = [...leftoverAttributeReports, ...report.attributeReports];
+        }
+        leftoverAttributeReports.length = 0;
     }
 
     const { attributeData: attributeReports, attributeStatus } =
         report.attributeReports === undefined
             ? { attributeData: [] }
-            : normalizeAndDecodeReadAttributeReport(report.attributeReports);
+            : normalizeAndDecodeReadAttributeReport(
+                  report.attributeReports,
+                  report.moreChunkedMessages ? leftoverAttributeReports : undefined,
+              );
 
     const { eventData: eventReports, eventStatus } =
         report.eventReports === undefined ? { eventData: [] } : normalizeAndDecodeReadEventReport(report.eventReports);

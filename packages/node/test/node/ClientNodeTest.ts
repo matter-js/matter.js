@@ -92,6 +92,7 @@ describe("ClientNode", () => {
         expect(ep1.state).deep.equals(EP1_STATE);
         const expectedEp1State = deepCopy(ep1.state);
 
+        //await peer1.set({ network: { autoSubscribe: false } });
         // *** STATE AFTER RESTART ***
 
         // Close all nodes
@@ -105,7 +106,7 @@ describe("ClientNode", () => {
         expect(peer1b).not.undefined;
 
         // Client nodes should fully initialize on initial load.  We could initialize asynchronously during ServerNode
-        // initialization but currently we don't
+        // initialization, but currently we don't
         expect(peer1b.construction.status).equals("active");
 
         // Validate the root endpoint
@@ -140,6 +141,9 @@ describe("ClientNode", () => {
         // *** UPDATE ***
 
         await MockTime.resolve(receivedUpdate);
+
+        // *** Test other command which is also in the featureset ***
+        await ep1.commandsOf(OnOffClient).offWithEffect({ effectIdentifier: 0, effectVariant: 0 });
     });
 
     it("decommissions", async () => {
@@ -153,7 +157,7 @@ describe("ClientNode", () => {
 
         // *** DECOMMISSION ***
 
-        await Promise.resolve(controller.peers.get("peer1")!.delete());
+        await Promise.resolve(controller.peers.get("peer1")!.decommission());
 
         expect(controller.peers.size).equals(0);
         expect(device.lifecycle.isCommissioned).is.false;
@@ -367,6 +371,32 @@ describe("ClientNode", () => {
 
         await MockTime.resolve(deleted);
         expect(controller.peers.size).equals(0);
+    }).timeout(1e9);
+
+    it("invokes command on a otherwise known peer", async () => {
+        // *** SETUP ***
+
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peer1 = controller.peers.get("peer1")!;
+        expect(peer1).not.undefined;
+
+        const peerAddress = deepCopy(peer1.state.commissioning.peerAddress);
+        expect(peerAddress).not.undefined;
+
+        await MockTime.resolve(controller.peers.get("peer1")!.delete());
+        expect(controller.peers.size).equals(0);
+
+        const peer = await controller.peers.forAddress(peerAddress!);
+        const ep1 = peer.endpoints.require(1);
+        ep1.behaviors.require(OnOffClient);
+
+        // *** INVOCATION ***
+
+        await ep1.commandsOf(OnOffClient).toggle();
+
+        await ep1.commandsOf(OnOffClient).offWithEffect({ effectIdentifier: 0, effectVariant: 0 });
     }).timeout(1e9);
 
     it("handles shutdown event and reestablishes connection", () => {

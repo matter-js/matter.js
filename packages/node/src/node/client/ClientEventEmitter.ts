@@ -5,11 +5,11 @@
  */
 
 import type { ElementEvent, Events } from "#behavior/Events.js";
-import { camelize, Diagnostic, Logger } from "#general";
+import { camelize, Diagnostic, isObject, Logger } from "#general";
 import { ClusterModel, EventModel, MatterModel } from "#model";
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ReadResult } from "#protocol";
-import type { ClusterId, EndpointNumber, EventId } from "#types";
+import type { ClusterId, EventId } from "#types";
 import type { ClientStructure } from "./ClientStructure.js";
 
 const logger = Logger.get("ClientEventEmitter");
@@ -46,7 +46,7 @@ export function ClientEventEmitter(node: ClientNode, structure: ClientStructure)
             return;
         }
 
-        const event = getEvent(node, occurrence.path.endpointId, names.cluster, names.event);
+        const event = getEvent(node, occurrence, names.cluster, names.event);
         if (event) {
             node.act(agent => {
                 // Current ActionContext is not writable, could skip act() but meh, see TODO above
@@ -56,7 +56,11 @@ export function ClientEventEmitter(node: ClientNode, structure: ClientStructure)
         }
     }
 
-    function getEvent(node: ClientNode, endpointId: EndpointNumber, clusterName: string, eventName: string) {
+    function getEvent(node: ClientNode, occurrence: ReadResult.EventValue, clusterName: string, eventName: string) {
+        const {
+            value,
+            path: { endpointId },
+        } = occurrence;
         const endpoint = structure.endpointFor(endpointId);
         if (endpoint === undefined) {
             logger.warn(`Received event for unsupported endpoint #${endpointId} on ${node}`);
@@ -74,6 +78,7 @@ export function ClientEventEmitter(node: ClientNode, structure: ClientStructure)
             Diagnostic.strong(`${clusterName}.${eventName}`),
             " on ",
             Diagnostic.strong(endpoint.toString()),
+            Diagnostic.weak(isObject(value) ? Diagnostic.dict(value) : value),
         );
 
         return events[eventName];

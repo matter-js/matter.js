@@ -30,7 +30,7 @@ import {
 import { InteractionClientMessenger, MessageType } from "#interaction/InteractionMessenger.js";
 import { ExchangeProvider } from "#protocol/ExchangeProvider.js";
 import { SecureSession } from "#session/SecureSession.js";
-import { Status, TlvNoResponse, TlvSubscribeResponse } from "#types";
+import { Status, TlvAttributeReport, TlvNoResponse, TlvSubscribeResponse, TypeFromSchema } from "#types";
 import { InputChunk } from "./InputChunk.js";
 import { ClientSubscribe } from "./subscription/ClientSubscribe.js";
 import { ClientSubscription } from "./subscription/ClientSubscription.js";
@@ -118,11 +118,12 @@ export class ClientInteraction<SessionT extends InteractionSession = Interaction
         let attributeReportCount = 0;
         let eventReportCount = 0;
 
+        let leftOverData = new Array<TypeFromSchema<typeof TlvAttributeReport>>();
         for await (const report of messenger.readDataReports()) {
             checkAbort();
             attributeReportCount += report.attributeReports?.length ?? 0;
             eventReportCount += report.eventReports?.length ?? 0;
-            yield InputChunk(report);
+            yield InputChunk(report, leftOverData);
             checkAbort();
         }
 
@@ -459,7 +460,8 @@ interface RequestContext {
 }
 
 async function* readChunks(messenger: InteractionClientMessenger) {
+    let leftOverData = new Array<TypeFromSchema<typeof TlvAttributeReport>>();
     for await (const report of messenger.readDataReports()) {
-        yield InputChunk(report);
+        yield InputChunk(report, leftOverData);
     }
 }

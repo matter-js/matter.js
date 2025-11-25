@@ -14,7 +14,7 @@ import { ClientNodeEndpoints } from "#endpoint/properties/ClientNodeEndpoints.js
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
-import { Diagnostic, Identity, Lifecycle, Logger, MaybePromise } from "#general";
+import { Diagnostic, Identity, Lifecycle, Logger, MaybePromise, Mutex } from "#general";
 import { Matter, MatterModel } from "#model";
 import { Interactable, OccurrenceManager, PeerAddress } from "#protocol";
 import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
@@ -36,6 +36,8 @@ const logger = Logger.get("ClientNode");
 export class ClientNode extends Node<ClientNode.RootEndpoint> {
     #matter: MatterModel;
     #interaction?: ClientNodeInteraction;
+    #startInProgress = false;
+    #dataUpdateMutex = new Mutex(this);
 
     constructor(options: ClientNode.Options) {
         const opts = {
@@ -68,6 +70,10 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
      */
     get matter() {
         return this.#matter;
+    }
+
+    get dataUpdateMutex() {
+        return this.#dataUpdateMutex;
     }
 
     override get endpoints(): ClientNodeEndpoints {
@@ -110,22 +116,42 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
 
     /**
      * Remove this node from the fabric (if commissioned) and locally.
+     * This method tries to communicate with the device to decommission it properly and will fail if the device is
+     * unreachable.
+     * If you can not reach the device, use {@link erase} instead.
      */
-    override async delete() {
+    async decommission() {
         if (this.lifecycle.isCommissioned) {
             this.statusUpdate("decommissioning");
 
             await this.act("decommission", agent => agent.commissioning.decommission());
         }
+        await this.delete();
+    }
 
-        await super.delete();
+    override async start() {
+        if (this.#startInProgress) {
+            return;
+        }
+
+        this.#startInProgress = true;
+        try {
+            await super.start();
+        } finally {
+            this.#startInProgress = false;
+        }
     }
 
     /**
      * Force-remove the node without first decommissioning.
      *
-     * If the node is still available you should use {@link delete} to remove it from the fabric.
+     * If the node is still available you should use {@link delete} to remove it properly from the fabric and only use
+     * this method as fallback.  You should also tell the user that he needs to manually factory-reset the device.
      */
+    override async delete() {
+        await super.delete();
+    }
+
     override async erase() {
         await this.lifecycle.mutex.produce(this.eraseWithMutex.bind(this));
     }
