@@ -10,6 +10,7 @@ import { Duration } from "#time/Duration.js";
 import { Minutes } from "#time/TimeUnit.js";
 import { MatterFlowError } from "../MatterError.js";
 import { Time, Timer } from "../time/Time.js";
+import { asError } from "./Error.js";
 import { createPromise } from "./Promises.js";
 import { EndOfStreamError, NoResponseTimeoutError } from "./Streams.js";
 
@@ -37,21 +38,18 @@ export class DataReadQueue<T> {
                 ),
             ).start(),
         };
-        return promise;
+
+        try {
+            return await promise;
+        } catch (e) {
+            // The stack trace where we created the error is useless (either a timer or close()) so replace here
+            const error = asError(e);
+            error.stack = new Error().stack;
+            throw error;
+        }
     }
 
-    async write(data: T) {
-        this.push(data);
-    }
-
-    get size() {
-        return this.#queue.length;
-    }
-
-    /**
-     * Same as write but doesn't require the await required to satisfy {@link Stream#write}.
-     */
-    push(data: T) {
+    write(data: T) {
         if (this.#closed) throw new EndOfStreamError();
         if (this.#pendingRead !== undefined) {
             this.#pendingRead.timeoutTimer?.stop();
@@ -61,6 +59,10 @@ export class DataReadQueue<T> {
             return;
         }
         this.#queue.push(data);
+    }
+
+    get size() {
+        return this.#queue.length;
     }
 
     close() {

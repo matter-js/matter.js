@@ -139,7 +139,7 @@ export class MockServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootE
                 session: node.env.get(SessionManager).maybeSessionFor(address),
             });
 
-            node.#newExchanges.push(exchange);
+            node.#newExchanges.write(exchange);
 
             return exchange;
         };

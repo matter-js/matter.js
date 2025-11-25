@@ -185,7 +185,7 @@ export namespace ProtocolMocks {
         }
 
         override async send(message: Message) {
-            this.#requests.push(message);
+            this.#requests.write(message);
             await this.#readReady?.emit();
         }
 
@@ -238,7 +238,7 @@ export namespace ProtocolMocks {
          * Enqueue a mock response.
          */
         async write(message: Message) {
-            this.#responses.push(message);
+            this.#responses.write(message);
         }
 
         /**
