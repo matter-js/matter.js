@@ -98,10 +98,10 @@ export class NodeSession extends SecureSession {
             ...config,
             setActiveTimestamp: true, // We always set the active timestamp for Secure sessions
             // Can be changed to a PersistedMessageCounter if we implement session storage
-            messageCounter: new MessageCounter(crypto, () => {
+            messageCounter: new MessageCounter(crypto, async () => {
                 // Secure Session Message Counter
                 // Expire/End the session before the counter rolls over
-                this.end(true, true).catch(error => logger.error(`Error while closing session: ${error}`));
+                return this.end(true, true);
             }),
             messageReceptionState: new MessageReceptionStateEncryptedWithoutRollover(),
         });

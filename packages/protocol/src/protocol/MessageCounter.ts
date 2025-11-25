@@ -52,7 +52,7 @@ export class MessageCounter {
      */
     constructor(
         crypto: Crypto,
-        protected readonly aboutToRolloverCallback?: () => void,
+        protected readonly onRollover?: () => Promise<void>,
 
         // Counter is a 28 bit random number plus 1
         protected readonly rolloverInfoDifference = ROLLOVER_INFO_DIFFERENCE,
@@ -63,16 +63,16 @@ export class MessageCounter {
     async getIncrementedCounter() {
         this.messageCounter++;
         if (this.messageCounter > MAX_COUNTER_VALUE_32BIT) {
-            if (this.aboutToRolloverCallback !== undefined) {
+            if (this.onRollover !== undefined) {
                 this.messageCounter = 0;
             } else {
                 throw new InternalError("Message counter rollover not allowed.");
             }
         } else if (
-            this.aboutToRolloverCallback !== undefined &&
+            this.onRollover !== undefined &&
             this.messageCounter === MAX_COUNTER_VALUE_32BIT - this.rolloverInfoDifference
         ) {
-            this.aboutToRolloverCallback();
+            await this.onRollover();
         }
         return this.messageCounter;
     }
@@ -90,7 +90,7 @@ export class PersistedMessageCounter extends MessageCounter {
         crypto: Crypto,
         storageContext: StorageContext,
         storageKey: string,
-        aboutToRolloverCallback?: () => void,
+        aboutToRolloverCallback?: () => Promise<void>,
         rolloverInfoDifference = ROLLOVER_INFO_DIFFERENCE,
     ) {
         return asyncNew(
@@ -107,7 +107,7 @@ export class PersistedMessageCounter extends MessageCounter {
         crypto: Crypto,
         private readonly storageContext: StorageContext,
         private readonly storageKey: string,
-        aboutToRolloverCallback?: () => void,
+        aboutToRolloverCallback?: () => Promise<void>,
         rolloverInfoDifference = ROLLOVER_INFO_DIFFERENCE,
     ) {
         super(crypto, aboutToRolloverCallback, rolloverInfoDifference);
@@ -119,10 +119,10 @@ export class PersistedMessageCounter extends MessageCounter {
                 }
                 // Make sure to call the callback if we are close to a rollover also for edge cases on initialization
                 if (
-                    this.aboutToRolloverCallback !== undefined &&
+                    this.onRollover !== undefined &&
                     this.messageCounter >= MAX_COUNTER_VALUE_32BIT - this.rolloverInfoDifference
                 ) {
-                    this.aboutToRolloverCallback();
+                    await this.onRollover();
                 }
             }
         });

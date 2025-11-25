@@ -93,7 +93,7 @@ describe("MessageCounter", () => {
                 crypto,
                 testStorageContext,
                 "counter",
-                () => {},
+                async () => {},
             );
             expect(await messageCounter.getIncrementedCounter()).equals(0);
         });
@@ -106,7 +106,7 @@ describe("MessageCounter", () => {
                 crypto,
                 testStorageContext,
                 "counter",
-                () => {
+                async () => {
                     callbackCalled = true;
                 },
                 100,
@@ -127,7 +127,7 @@ describe("MessageCounter", () => {
                 crypto,
                 testStorageContext,
                 "counter",
-                () => {
+                async () => {
                     callbackCalled = true;
                 },
                 100,
