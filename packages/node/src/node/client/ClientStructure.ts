@@ -27,7 +27,8 @@ import type { Node } from "#node/Node.js";
 import { ReadScope, type Read, type ReadResult } from "#protocol";
 import { DatasourceCache } from "#storage/client/DatasourceCache.js";
 import { ClientNodeStore } from "#storage/index.js";
-import { AttributeId, ClusterId, ClusterType, CommandId, EndpointNumber, Status } from "#types";
+import type { AttributeId, ClusterId, ClusterType, CommandId, EndpointNumber } from "#types";
+import { Status } from "#types";
 import { ClientEventEmitter } from "./ClientEventEmitter.js";
 import { ClientStructureEvents } from "./ClientStructureEvents.js";
 import { PeerBehavior } from "./PeerBehavior.js";
@@ -355,7 +356,7 @@ export class ClientStructure {
             }
 
             if (cluster.behavior && AcceptedCommandList.id in updates.values) {
-                if (!isDeepEqual(cluster.attributes, updates.values[AttributeList.id])) {
+                if (!isDeepEqual(cluster.commands, updates.values[AcceptedCommandList.id])) {
                     cluster.behavior = undefined;
                 }
             }
