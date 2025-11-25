@@ -83,7 +83,7 @@ export class Endpoints implements ImmutableSet<Endpoint> {
     }
 
     /**
-     * Object mapping EndpointNumber -> Endpoint.
+     * Object mapping Endpoint-Id -> Endpoint.
      *
      * Note that this does not include endpoint 0, but we have that in #node.
      */

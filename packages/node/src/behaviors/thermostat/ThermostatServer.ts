@@ -427,7 +427,8 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         let localTemperature = null;
         const localTempEndpoint = this.state.localIndoorTemperatureMeasurementEndpoint;
         if (!preferRemoteTemperature && localTempEndpoint !== undefined) {
-            const endpoint = this.env.get(ServerNode).endpoints.for(localTempEndpoint);
+            const endpoints = this.env.get(ServerNode).endpoints;
+            const endpoint = endpoints.has(localTempEndpoint) ? endpoints.for(localTempEndpoint) : undefined;
             if (endpoint !== undefined && endpoint.behaviors.has(TemperatureMeasurementServer)) {
                 logger.debug(
                     `Using existing TemperatureMeasurement cluster on endpoint #${localTempEndpoint} for local temperature measurement`,
@@ -494,9 +495,10 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         }
         let currentOccupancy = true;
         const preferRemoteOccupancy = !!this.state.remoteSensing?.occupancy;
-        const localOccupancyEndpoint = this.state.localIndoorTemperatureMeasurementEndpoint;
+        const localOccupancyEndpoint = this.state.localOccupancyMeasurementEndpoint;
         if (!preferRemoteOccupancy && localOccupancyEndpoint !== undefined) {
-            const endpoint = this.env.get(ServerNode).endpoints.for(localOccupancyEndpoint);
+            const endpoints = this.env.get(ServerNode).endpoints;
+            const endpoint = endpoints.has(localOccupancyEndpoint) ? endpoints.for(localOccupancyEndpoint) : undefined;
             if (endpoint !== undefined && endpoint.behaviors.has(OccupancySensingServer)) {
                 logger.debug(`Using existing OccupancySensing cluster on endpoint ${localOccupancyEndpoint} for local occupancy sensing`);
                 if (this.state.externallyMeasuredOccupancy !== undefined) {
