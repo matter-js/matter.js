@@ -303,74 +303,104 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
             return;
         }
 
-        let count = 0;
-
-        if (this.#instrumentAs) {
-            logger.debug(Diagnostic.strong(this.#instrumentAs), "emitting");
-        }
-
         // Iterate over a clone of observers so we do not trigger new observers added during observation
-        const iterator = [...this.#observers][Symbol.iterator]();
+        const observers = [...this.#observers];
 
-        const emitNext = (previousEmitResult?: R): R | undefined => {
-            if (previousEmitResult !== undefined) {
-                return previousEmitResult;
-            }
+        let nextObserver = 0;
 
-            for (let iteration = iterator.next(); !iteration.done; iteration = iterator.next()) {
-                let result;
+        const next = () => {
+            const observer = observers[nextObserver];
 
-                const observer = iteration.value;
-
-                try {
-                    if (this.#instrumentAs) {
-                        logger.debug(
-                            Diagnostic.strong(this.#instrumentAs),
-                            `invoking #${count++}`,
-                            Diagnostic.strong(observer.name || "(anon)"),
-                        );
-                        if (this.#instrumentAs === "Fabric deleting" && count === 7) debugger;
-                    }
-                    result = observer(...payload);
-                } catch (e) {
-                    this.#handleError(asError(e), observer);
-                }
-
-                if (this.#once?.has(observer)) {
-                    this.#once.delete(observer);
-                    this.#observers?.delete(observer);
-                }
-
-                if (result === undefined) {
-                    continue;
-                }
-
-                if (MaybePromise.is(result)) {
-                    result = this.#handlePromise(Promise.resolve(result), observer as Observer) as R | undefined;
-
-                    if (MaybePromise.is(result)) {
-                        return result.then(result => {
-                            if (result === undefined) {
-                                return emitNext();
-                            }
-                            return result;
-                        }) as R;
-                    }
-
-                    if (result === undefined) {
-                        continue;
-                    }
-                }
-
-                return result;
+            if (this.#once?.has(observer)) {
+                this.#once.delete(observer);
+                this.#observers?.delete(observer);
             }
 
             if (this.#instrumentAs) {
-                logger.debug(Diagnostic.strong(this.#instrumentAs), "emission complete");
+                logger.debug(
+                    Diagnostic.strong(this.#instrumentAs),
+                    `invoking #${nextObserver++}`,
+                    Diagnostic.strong(observer.name || "(anon)"),
+                );
             }
+
+            return observer;
         };
 
-        return emitNext();
+        let log: undefined | ((observer: Observer<any, any>) => void), done: undefined | (() => void);
+        if (this.#instrumentAs) {
+            logger.debug(Diagnostic.strong(this.#instrumentAs), "emitting");
+
+            log = (observer: Observer<any, any>) => {
+                logger.debug(
+                    Diagnostic.strong(this.#instrumentAs),
+                    `invoking #${nextObserver++}`,
+                    Diagnostic.strong(observer.name || "(anon)"),
+                );
+            };
+
+            done = () => {
+                logger.debug(Diagnostic.strong(this.#instrumentAs), "emission complete");
+            };
+        }
+
+        // Initially emit using a synchronous loop.  When we hit the first promies we convert to an async function
+        for (; nextObserver < observers.length; nextObserver++) {
+            let result: ReturnType<Observer<T, R>>;
+
+            let observer = next();
+
+            try {
+                log?.(observer);
+                result = observer(...payload);
+            } catch (e) {
+                this.#handleError(asError(e), observer);
+            }
+
+            if (result === undefined) {
+                continue;
+            }
+
+            // If observer was async (which we can only conclude after invocation), switch to async emission
+            if (MaybePromise.is(result)) {
+                const emitAsync = async () => {
+                    while (true) {
+                        if (MaybePromise.is(result)) {
+                            try {
+                                result = await result;
+                            } catch (e) {
+                                this.#handleError(asError(e), observer);
+                            }
+                        }
+
+                        if (result !== undefined) {
+                            return result;
+                        }
+
+                        nextObserver++;
+                        if (nextObserver >= observers.length) {
+                            break;
+                        }
+
+                        observer = next();
+
+                        try {
+                            result = observer(...payload);
+                        } catch (e) {
+                            this.#handleError(asError(e), observer);
+                        }
+                    }
+
+                    done?.();
+                };
+
+                return emitAsync() as R | undefined;
+            }
+
+            done?.();
+
+            return result;
+        }
     }
 
     on(observer: Observer<T, R>) {
