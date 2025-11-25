@@ -116,7 +116,7 @@ export abstract class Session {
         }
     }
 
-    isPeerActive(): boolean {
+    get isPeerActive(): boolean {
         return Timespan(this.activeTimestamp, Time.nowMs).duration < this.activeThreshold;
     }
 

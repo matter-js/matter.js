@@ -618,7 +618,7 @@ export class SessionManager {
                 nodeId: session.nodeId,
                 peerNodeId: session.peerNodeId,
                 fabric: session instanceof SecureSession ? session.fabric?.externalInformation : undefined,
-                isPeerActive: session.isPeerActive(),
+                isPeerActive: session.isPeerActive,
                 secure: session.isSecure,
                 lastInteractionTimestamp: session instanceof SecureSession ? session.timestamp : undefined,
                 lastActiveTimestamp: session instanceof SecureSession ? session.activeTimestamp : undefined,

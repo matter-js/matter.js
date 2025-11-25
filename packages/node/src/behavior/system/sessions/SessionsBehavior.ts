@@ -34,7 +34,7 @@ export class SessionsBehavior extends Behavior {
             nodeId: session.nodeId,
             peerNodeId: session.peerNodeId,
             fabric: session.fabric?.externalInformation,
-            isPeerActive: session.isPeerActive(),
+            isPeerActive: session.isPeerActive,
             lastInteractionTimestamp: session.timestamp,
             lastActiveTimestamp: session.activeTimestamp,
             numberOfActiveSubscriptions: session.subscriptions.size,

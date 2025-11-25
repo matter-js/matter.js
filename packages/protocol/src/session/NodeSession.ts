@@ -180,7 +180,7 @@ export class NodeSession extends SecureSession {
 
     async close(closeAfterExchangeFinished?: boolean) {
         if (closeAfterExchangeFinished === undefined) {
-            closeAfterExchangeFinished = this.isPeerActive(); // We delay session close if the peer is actively communicating with us
+            closeAfterExchangeFinished = this.isPeerActive; // We delay session close if the peer is actively communicating with us
         }
         await this.end(true, closeAfterExchangeFinished);
     }

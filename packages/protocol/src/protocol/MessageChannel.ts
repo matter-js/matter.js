@@ -177,7 +177,7 @@ export class MessageChannel implements Channel<Message> {
         const { activeInterval, idleInterval } = sessionParameters ?? this.session.parameters;
         // For the first message of a new exchange ... SHALL be set according to the idle state of the peer node.
         // For all subsequent messages of the exchange, ... SHOULD be set according to the active state of the peer node
-        const peerActive = retransmissionCount > 0 && (sessionParameters !== undefined || this.session.isPeerActive());
+        const peerActive = retransmissionCount > 0 && (sessionParameters !== undefined || this.session.isPeerActive);
         const baseInterval = peerActive ? activeInterval : idleInterval;
         return Millis.floor(
             Millis(
