@@ -636,7 +636,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
 
         const operationalChannel = await operationalInterface.openChannel(operationalServerAddress);
         const { sessionParameters } = this.#sessions.findResumptionRecordByAddress(address) ?? {};
-        const insecureSession = this.#sessions.createInsecureSession({
+        const unsecuredSession = this.#sessions.createUnsecuredSession({
             channel: operationalChannel,
             // Use the session parameters from MDNS announcements when available and rest is assumed to be fallbacks
             sessionParameters: {
@@ -649,14 +649,14 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         });
 
         try {
-            return await this.#doCasePair(insecureSession, address, options);
+            return await this.#doCasePair(unsecuredSession, address, options);
         } catch (error) {
             NoResponseTimeoutError.accept(error);
 
             // Convert error
             throw new PairRetransmissionLimitReachedError(error.message);
         } finally {
-            await insecureSession.destroy();
+            await unsecuredSession.destroy();
         }
     }
 
@@ -767,7 +767,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
 
     #handleFirstRetry(session: Session) {
         if (!session.isSecure || (session as SecureSession).fabric === undefined) {
-            // For insecure sessions from CASE/PASE or not yet fabric bound session establishments we do not need to do anything
+            // For unsecured sessions from CASE/PASE or not yet fabric bound session establishments we do not need to do anything
             return;
         }
         const { associatedFabric: fabric, peerNodeId: nodeId } = session;

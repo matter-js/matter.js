@@ -274,7 +274,7 @@ export namespace GroupSession {
 
     export function assert(session?: Session, errorText?: string): asserts session is GroupSession {
         if (!is(session)) {
-            throw new MatterFlowError(errorText ?? "Insecure session in secure context");
+            throw new MatterFlowError(errorText ?? "Unsecured session in secure context");
         }
     }
 

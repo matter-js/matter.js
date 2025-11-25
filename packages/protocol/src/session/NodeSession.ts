@@ -345,7 +345,7 @@ export class NodeSession extends SecureSession {
 export namespace NodeSession {
     export function assert(session?: Session, errorText?: string): asserts session is NodeSession {
         if (!is(session)) {
-            throw new MatterFlowError(errorText ?? "Insecure session in secure context");
+            throw new MatterFlowError(errorText ?? "Unsecured session in secure context");
         }
     }
 

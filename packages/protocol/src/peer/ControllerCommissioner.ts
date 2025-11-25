@@ -350,7 +350,7 @@ export class ControllerCommissioner {
         }
 
         // Do PASE pairing
-        const insecureSession = this.#context.sessions.createInsecureSession({
+        const unsecuredSession = this.#context.sessions.createUnsecuredSession({
             channel: paseChannel,
             // Use the session parameters from MDNS announcements when available and rest is assumed to be fallbacks
             sessionParameters: {
@@ -361,7 +361,7 @@ export class ControllerCommissioner {
             isInitiator: true,
         });
         const paseExchange = this.#context.exchanges.initiateExchangeForSession(
-            insecureSession,
+            unsecuredSession,
             SECURE_CHANNEL_PROTOCOL_ID,
         );
 

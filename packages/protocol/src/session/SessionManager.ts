@@ -36,11 +36,11 @@ import { CaseAuthenticatedTag, FabricId, FabricIndex, GroupId, NodeId } from "#t
 import { UnexpectedDataError } from "@matter/general";
 import { ExposedFabricInformation, Fabric } from "../fabric/Fabric.js";
 import { MessageCounter } from "../protocol/MessageCounter.js";
-import { InsecureSession } from "./InsecureSession.js";
 import { NodeSession } from "./NodeSession.js";
 import { SecureSession } from "./SecureSession.js";
 import { Session } from "./Session.js";
 import { SessionParameters } from "./SessionParameters.js";
+import { UnsecuredSession } from "./UnsecuredSession.js";
 
 const logger = Logger.get("SessionManager");
 
@@ -113,7 +113,7 @@ const ID_SPACE_UPPER_BOUND = 0xffff;
  */
 export class SessionManager {
     readonly #context: SessionManagerContext;
-    readonly #insecureSessions = new Map<NodeId, InsecureSession>();
+    readonly #unsecuredSessions = new Map<NodeId, UnsecuredSession>();
     readonly #sessions = new BasicSet<NodeSession>();
     readonly #groupSessions = new Map<NodeId, BasicSet<GroupSession>>();
     #nextSessionId: number;
@@ -187,10 +187,10 @@ export class SessionManager {
     }
 
     /**
-     * Active insecure sessions.
+     * Active unsecured sessions.
      */
-    get insecureSessions() {
-        return this.#insecureSessions;
+    get unsecuredSessions() {
+        return this.#unsecuredSessions;
     }
 
     /**
@@ -249,7 +249,7 @@ export class SessionManager {
         return this.#context.owner;
     }
 
-    createInsecureSession(options: {
+    createUnsecuredSession(options: {
         channel: Channel<Bytes>;
         initiatorNodeId?: NodeId;
         sessionParameters?: SessionParameters.Config;
@@ -259,12 +259,12 @@ export class SessionManager {
 
         const { channel, initiatorNodeId, sessionParameters, isInitiator } = options;
         if (initiatorNodeId !== undefined) {
-            if (this.#insecureSessions.has(initiatorNodeId)) {
-                throw new MatterFlowError(`UnsecureSession with NodeId ${initiatorNodeId} already exists.`);
+            if (this.#unsecuredSessions.has(initiatorNodeId)) {
+                throw new MatterFlowError(`UnsecuredSession with NodeId ${initiatorNodeId} already exists.`);
             }
         }
         while (true) {
-            const session = new InsecureSession({
+            const session = new UnsecuredSession({
                 crypto: this.#context.fabrics.crypto,
                 manager: this,
                 channel,
@@ -275,9 +275,9 @@ export class SessionManager {
             });
 
             const ephemeralNodeId = session.nodeId;
-            if (this.#insecureSessions.has(ephemeralNodeId)) continue;
+            if (this.#unsecuredSessions.has(ephemeralNodeId)) continue;
 
-            this.#insecureSessions.set(ephemeralNodeId, session);
+            this.#unsecuredSessions.set(ephemeralNodeId, session);
             return session;
         }
     }
@@ -417,13 +417,13 @@ export class SessionManager {
         }
     }
 
-    getUnsecureSession(sourceNodeId?: NodeId) {
+    getUnsecuredSession(sourceNodeId?: NodeId) {
         this.#construction.assert();
 
         if (sourceNodeId === undefined) {
-            return this.#insecureSessions.get(NodeId.UNSPECIFIED_NODE_ID);
+            return this.#unsecuredSessions.get(NodeId.UNSPECIFIED_NODE_ID);
         }
-        return this.#insecureSessions.get(sourceNodeId);
+        return this.#unsecuredSessions.get(sourceNodeId);
     }
 
     /**
@@ -650,7 +650,7 @@ export class SessionManager {
             await session?.end(false);
             this.#sessions.delete(session);
         });
-        for (const session of this.#insecureSessions.values()) {
+        for (const session of this.#unsecuredSessions.values()) {
             closePromises.push(session?.end());
         }
         for (const sessions of this.#groupSessions.values()) {

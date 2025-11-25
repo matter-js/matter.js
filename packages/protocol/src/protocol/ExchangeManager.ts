@@ -26,10 +26,10 @@ import {
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { DEFAULT_EXPECTED_PROCESSING_TIME } from "#protocol/MessageChannel.js";
 import { SecureChannelMessenger } from "#securechannel/SecureChannelMessenger.js";
-import { UNICAST_UNSECURE_SESSION_ID } from "#session/InsecureSession.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { Session } from "#session/Session.js";
 import { SessionManager } from "#session/SessionManager.js";
+import { UNICAST_UNSECURE_SESSION_ID } from "#session/UnsecuredSession.js";
 import { NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "#types";
 import { MessageExchange, MessageExchangeContext } from "./MessageExchange.js";
 import { DuplicateMessageError } from "./MessageReceptionState.js";
@@ -155,8 +155,8 @@ export class ExchangeManager {
                 if (this.#closing) return;
                 const initiatorNodeId = packet.header.sourceNodeId ?? NodeId.UNSPECIFIED_NODE_ID;
                 session =
-                    this.#sessionManager.getUnsecureSession(initiatorNodeId) ??
-                    this.#sessionManager.createInsecureSession({
+                    this.#sessionManager.getUnsecuredSession(initiatorNodeId) ??
+                    this.#sessionManager.createUnsecuredSession({
                         channel,
                         initiatorNodeId,
                     });

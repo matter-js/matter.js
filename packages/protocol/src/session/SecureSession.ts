@@ -21,7 +21,7 @@ export abstract class SecureSession extends Session {
 export namespace SecureSession {
     export function assert(session?: Session, errorText?: string): asserts session is SecureSession {
         if (!session?.isSecure) {
-            throw new MatterFlowError(errorText ?? "Insecure session in secure context");
+            throw new MatterFlowError(errorText ?? "Unsecured session in secure context");
         }
     }
 }
