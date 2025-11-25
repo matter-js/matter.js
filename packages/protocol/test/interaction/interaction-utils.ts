@@ -52,8 +52,8 @@ export class DummyMessageExchange {
         public closeCallback?: () => void,
     ) {}
 
-    async injectMessage(message: Message) {
-        return this.messagesQueue.write(message);
+    injectMessage(message: Message) {
+        this.messagesQueue.write(message);
     }
 
     async send(messageType: number, payload: Bytes, options?: ExchangeSendOptions) {

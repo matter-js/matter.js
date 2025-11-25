@@ -229,11 +229,12 @@ export class NodeSession extends SecureSession {
         return this.#fabric;
     }
 
-    addAssociatedFabric(fabric: Fabric) {
+    set(fabric: Fabric) {
         if (this.#fabric !== undefined) {
             throw new MatterFlowError("Session already has an associated Fabric. Cannot change this.");
         }
         this.#fabric = fabric;
+        this.#fabric.addSession(this);
     }
 
     get id() {

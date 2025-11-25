@@ -164,7 +164,7 @@ describe("ClientNode", () => {
 
         expect(controller.peers.size).equals(0);
         expect(device.lifecycle.isCommissioned).is.false;
-    }).timeout(1e9);
+    });
 
     it("writes attributes on commit", async () => {
         // *** SETUP ***

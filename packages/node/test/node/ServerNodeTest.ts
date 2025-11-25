@@ -437,7 +437,7 @@ describe("ServerNode", () => {
         expect(occurrencesPerFabric.get(FabricIndex(2))).equals(1);
 
         await node.close();
-    }).timeout(1e9);
+    });
 
     it("properly deploys aggregator", async () => {
         const aggregator = new Endpoint(AggregatorEndpoint);

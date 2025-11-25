@@ -274,7 +274,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
         try {
             if (session.isPase) {
                 logger.debug(`Add Fabric ${fabric.fabricIndex} to PASE session ${session.name}`);
-                session.addAssociatedFabric(fabric);
+                session.fabric = fabric;
             }
 
             // Update attributes
