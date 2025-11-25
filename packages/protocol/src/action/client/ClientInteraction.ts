@@ -118,7 +118,7 @@ export class ClientInteraction<SessionT extends InteractionSession = Interaction
         let attributeReportCount = 0;
         let eventReportCount = 0;
 
-        let leftOverData = new Array<TypeFromSchema<typeof TlvAttributeReport>>();
+        const leftOverData = new Array<TypeFromSchema<typeof TlvAttributeReport>>();
         for await (const report of messenger.readDataReports()) {
             checkAbort();
             attributeReportCount += report.attributeReports?.length ?? 0;
@@ -460,7 +460,7 @@ interface RequestContext {
 }
 
 async function* readChunks(messenger: InteractionClientMessenger) {
-    let leftOverData = new Array<TypeFromSchema<typeof TlvAttributeReport>>();
+    const leftOverData = new Array<TypeFromSchema<typeof TlvAttributeReport>>();
     for await (const report of messenger.readDataReports()) {
         yield InputChunk(report, leftOverData);
     }

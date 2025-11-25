@@ -350,13 +350,27 @@ export class ClientStructure {
             }
 
             if (cluster.behavior && AttributeList.id in updates.values) {
-                if (!isDeepEqual(cluster.attributes, updates.values[AttributeList.id])) {
+                const attributeList = updates.values[AttributeList.id];
+                if (
+                    Array.isArray(attributeList) &&
+                    !isDeepEqual(
+                        cluster.attributes,
+                        attributeList.sort((a, b) => a - b),
+                    )
+                ) {
                     cluster.behavior = undefined;
                 }
             }
 
             if (cluster.behavior && AcceptedCommandList.id in updates.values) {
-                if (!isDeepEqual(cluster.commands, updates.values[AcceptedCommandList.id])) {
+                const acceptedCommands = updates.values[AcceptedCommandList.id];
+                if (
+                    Array.isArray(acceptedCommands) &&
+                    !isDeepEqual(
+                        cluster.commands,
+                        acceptedCommands.sort((a, b) => a - b),
+                    )
+                ) {
                     cluster.behavior = undefined;
                 }
             }
@@ -407,11 +421,15 @@ export class ClientStructure {
                 }
 
                 if (Array.isArray(attributeList)) {
-                    cluster.attributes = attributeList.filter(attr => typeof attr === "number") as AttributeId[];
+                    cluster.attributes = (attributeList.filter(attr => typeof attr === "number") as AttributeId[]).sort(
+                        (a, b) => a - b,
+                    );
                 }
 
                 if (Array.isArray(commandList)) {
-                    cluster.commands = commandList.filter(cmd => typeof cmd === "number") as CommandId[];
+                    cluster.commands = (commandList.filter(cmd => typeof cmd === "number") as CommandId[]).sort(
+                        (a, b) => a - b,
+                    );
                 }
             }
 
