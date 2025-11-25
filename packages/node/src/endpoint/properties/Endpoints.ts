@@ -25,13 +25,17 @@ export class Endpoints implements ImmutableSet<Endpoint> {
         return this.#node;
     }
 
-    has(endpoint: Endpoint | number): boolean {
+    has(endpoint: Endpoint | number | string): boolean {
         if (endpoint === this.#node || endpoint === 0) {
             return true;
         }
 
         if (typeof endpoint === "number") {
             return endpoint in this.#index;
+        }
+
+        if (typeof endpoint === "string") {
+            return endpoint in this.#idIndex;
         }
 
         return endpoint.lifecycle.hasNumber && endpoint.number in this.#index;
@@ -57,12 +61,12 @@ export class Endpoints implements ImmutableSet<Endpoint> {
         return this.#list[Symbol.iterator]();
     }
 
-    for(number: number): Endpoint {
+    for(number: number | string): Endpoint {
         if (number === 0) {
             return this.#node;
         }
 
-        const endpoint = this.#index[number];
+        const endpoint = typeof number === "string" ? this.#idIndex[number] : this.#index[number];
         if (endpoint === undefined) {
             throw new StatusResponse.NotFoundError(`Endpoint ${number} does not exist`);
         }
@@ -76,6 +80,15 @@ export class Endpoints implements ImmutableSet<Endpoint> {
      */
     get #index() {
         return this.#node.behaviors.internalsOf(IndexBehavior).partsByNumber;
+    }
+
+    /**
+     * Object mapping EndpointNumber -> Endpoint.
+     *
+     * Note that this does not include endpoint 0, but we have that in #node.
+     */
+    get #idIndex() {
+        return this.#node.behaviors.internalsOf(IndexBehavior).partsById;
     }
 
     /**
