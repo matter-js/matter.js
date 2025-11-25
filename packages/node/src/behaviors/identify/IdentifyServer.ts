@@ -35,7 +35,7 @@ export class IdentifyServer extends IdentifyBehavior {
         }
 
         this.events.identifyTime$Changed.quiet.config = {
-            shouldEmit: (oldValue, newValue, context) =>
+            shouldEmit: (newValue, oldValue, context) =>
                 hasRemoteActor(context) || ((oldValue === 0 || newValue === 0) && newValue !== oldValue)
                     ? "now"
                     : false,
