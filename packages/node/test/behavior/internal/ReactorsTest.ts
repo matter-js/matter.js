@@ -103,7 +103,7 @@ class MockEndpoint {
     };
 
     expectActivity(active = 1) {
-        expect(this.activity.isActive).equals(!!active);
+        expect(this.activity.inactive.value).equals(!active);
         expect(this.activity.actors.length).equals(active);
     }
 }
@@ -202,9 +202,7 @@ describe("Reactors", () => {
 
         // Since the promises come from the emitter function rather than the reactor we must wait for activity to stop
         // to ensure state is updated
-        if (endpoint.activity.isActive) {
-            await endpoint.activity.inactive;
-        }
+        await endpoint.activity.inactive;
 
         endpoint.expectActivity(0);
 

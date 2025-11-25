@@ -145,9 +145,7 @@ describe("DescriptorServer", () => {
             const extraNumbers = [...extraChildren].map(child => child.number);
 
             const activity = node.env.get(NodeActivity);
-            if (activity.isActive) {
-                await activity.inactive;
-            }
+            await activity.inactive;
 
             expect(node.stateOf(DescriptorBehavior).partsList).deep.equals([
                 parent.number,

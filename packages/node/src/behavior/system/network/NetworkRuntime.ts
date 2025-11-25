@@ -44,9 +44,7 @@ export abstract class NetworkRuntime {
     async [Construction.destruct]() {
         this.#abort();
         const activity = this.#owner.env.get(NodeActivity);
-        if (activity.isActive) {
-            await activity.inactive;
-        }
+        await activity.inactive;
 
         try {
             await this.stop();

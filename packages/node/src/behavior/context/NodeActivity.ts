@@ -4,23 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic, Observable } from "#general";
+import { Diagnostic, ObservableValue } from "#general";
 
 /**
  * Tracks activity associated with a node.
  */
 export class NodeActivity {
     #actors = new Set<NodeActivity.Activity>();
-    #active = Observable<[]>();
-    #inactive = Observable<[]>();
-
-    get isActive() {
-        return this.#actors.size !== 0;
-    }
-
-    get active() {
-        return this.#active;
-    }
+    #inactive = ObservableValue(true);
 
     get inactive() {
         return this.#inactive;
@@ -67,7 +58,7 @@ export class NodeActivity {
                 this.#actors.delete(actor);
 
                 if (!this.#actors.size) {
-                    this.#inactive.emit();
+                    this.#inactive.emit(true);
                 }
             },
 
@@ -79,7 +70,7 @@ export class NodeActivity {
         this.#actors.add(actor);
 
         if (this.#actors.size === 1) {
-            this.#active.emit();
+            this.#inactive.emit(false);
         }
 
         return actor;

@@ -227,16 +227,17 @@ describe("ServerNode", () => {
     it("times out commissioning", async () => {
         const { node } = await commissioning.almostCommission();
 
-        // Somewhere there is another promise left that updates the fabrics correctly, so give that time to be fullfilled
-        await MockTime.yield();
-
         const opcreds = node.state.operationalCredentials;
+
+        if (!opcreds.commissionedFabrics) {
+            await MockTime.resolve(node.events.operationalCredentials.commissionedFabrics$Changed);
+        }
 
         expect(opcreds.commissionedFabrics).equals(1);
 
         await MockTime.advance(FAILSAFE_LENGTH_S * 1000 + 1);
 
-        if (opcreds.commissionedFabrics > 0) {
+        if (opcreds.commissionedFabrics) {
             await MockTime.resolve(node.events.operationalCredentials.commissionedFabrics$Changed);
         }
 
