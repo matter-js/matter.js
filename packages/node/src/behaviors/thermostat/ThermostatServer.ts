@@ -498,7 +498,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         if (!preferRemoteOccupancy && localOccupancyEndpoint !== undefined) {
             const endpoint = this.env.get(ServerNode).endpoints.for(localOccupancyEndpoint);
             if (endpoint !== undefined && endpoint.behaviors.has(OccupancySensingServer)) {
-                logger.debug("Using existing OccupancySensing cluster on same endpoint for local occupancy sensing");
+                logger.debug(`Using existing OccupancySensing cluster on endpoint ${localOccupancyEndpoint} for local occupancy sensing`);
                 if (this.state.externallyMeasuredOccupancy !== undefined) {
                     logger.warn(
                         "Both local OccupancySensing cluster and externallyMeasuredOccupancy state are set, using local cluster",
