@@ -508,7 +508,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                 currentOccupancy = !!endpoint.stateOf(OccupancySensingServer).occupancy.occupied;
             } else {
                 logger.warn(
-                    "No OccupancySensing cluster found on same endpoint, falling back to externallyMeasuredOccupancy state if set",
+                    `No OccupancySensing cluster found on endpoint ${localOccupancyEndpoint}, falling back to externallyMeasuredOccupancy state if set`,
                 );
             }
         } else {
