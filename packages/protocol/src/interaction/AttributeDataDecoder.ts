@@ -22,6 +22,7 @@ import {
     TlvAttributeReport,
     TlvAttributeStatus,
     TlvSchema,
+    TlvType,
     TypeFromSchema,
 } from "#types";
 
@@ -62,10 +63,40 @@ export type StructuredReadAttributeData = { [key: number]: { [key: number]: { [k
  * a received DataReport.
  * TODO: Convert into a Generator function once we migrate Reading Data for controller to also be streaming
  */
-export function normalizeAndDecodeReadAttributeReport(data: TypeFromSchema<typeof TlvAttributeReport>[]): {
+export function normalizeAndDecodeReadAttributeReport(
+    data: TypeFromSchema<typeof TlvAttributeReport>[],
+    leftoverAttributeReports?: TypeFromSchema<typeof TlvAttributeReport>[],
+): {
     attributeData: DecodedAttributeReportValue<any>[];
     attributeStatus: DecodedAttributeReportStatus[];
 } {
+    if (leftoverAttributeReports !== undefined) {
+        let chunkedArrayDataFound = false;
+        let cutIndex = data.length;
+        for (let i = data.length - 1; i >= 0; i--) {
+            const attributeData = data[i].attributeData;
+            if (attributeData === undefined) {
+                // Last entries are attribute status, so stop processing
+                break;
+            }
+            const { path, data: tlvData } = attributeData;
+            if (path.listIndex !== undefined) {
+                chunkedArrayDataFound = true;
+                continue; // This is part of a chunked array, so keep it
+            } else if (
+                chunkedArrayDataFound || // We found chunked elements before so this must be array initial value now
+                (Array.isArray(tlvData) && tlvData.length > 1 && tlvData[0].typeLength.type === TlvType.Array)
+            ) {
+                cutIndex = i; // Element is chunked array initial entry
+            }
+            break;
+        }
+        if (cutIndex < data.length) {
+            const ignoreDataForNow = data.splice(cutIndex, data.length - cutIndex);
+            ignoreDataForNow.forEach(entry => leftoverAttributeReports.push(entry));
+        }
+    }
+
     // TODO Decide how to handle the attribute report status field, right now we ignore it
     const dataValues = data.flatMap(({ attributeData }) => (attributeData !== undefined ? attributeData : []));
     const dataStatus = data.flatMap(({ attributeStatus }) => (attributeStatus !== undefined ? attributeStatus : []));

@@ -70,6 +70,10 @@ export class Peers extends EndpointContainer<ClientNode> {
         this.deleted.on(this.#manageExpiration.bind(this));
 
         this.clusterInstalled(BasicInformationClient).on(this.#instrumentBasicInformation.bind(this));
+
+        const lifecycle = owner.lifecycle;
+        lifecycle.online.on(this.#nodeOnline.bind(this));
+        lifecycle.offline.on(this.#nodeOffline.bind(this));
     }
 
     /**
@@ -94,6 +98,21 @@ export class Peers extends EndpointContainer<ClientNode> {
                     owner: this.owner,
                 }),
             );
+        }
+    }
+
+    async #nodeOnline() {
+        // TODO start all peers on node startup in a non blocking way respecting queuing for thread and such
+        /*for (const peer of this) {
+            await peer.start();
+        }*/
+        this.#manageExpiration();
+    }
+
+    async #nodeOffline() {
+        this.#cancelExpiration();
+        for (const peer of this) {
+            await peer.cancel();
         }
     }
 

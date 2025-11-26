@@ -40,6 +40,7 @@ const logger = Logger.get("Node");
 export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEndpoint> extends Endpoint<T> {
     #environment: Environment;
     #runtime?: NetworkRuntime;
+    #startInProgress = false;
 
     constructor(config: Node.Configuration<T>) {
         const parentEnvironment = config.environment ?? config.owner?.env ?? Environment.default;
@@ -96,12 +97,18 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
      * Bring the node online.
      */
     async start() {
-        if (this.lifecycle.isOnline) {
+        if (this.lifecycle.isOnline || this.#startInProgress) {
             return;
         }
-        this.lifecycle.targetState = "online";
 
-        await this.lifecycle.mutex.produce(this.startWithMutex.bind(this));
+        this.#startInProgress = true;
+        try {
+            this.lifecycle.targetState = "online";
+
+            await this.lifecycle.mutex.produce(this.startWithMutex.bind(this));
+        } finally {
+            this.#startInProgress = false;
+        }
     }
 
     protected async startWithMutex() {

@@ -28,6 +28,7 @@ import { ReadScope, type Read, type ReadResult } from "#protocol";
 import { DatasourceCache } from "#storage/client/DatasourceCache.js";
 import { ClientNodeStore } from "#storage/index.js";
 import type { AttributeId, ClusterId, ClusterType, CommandId, EndpointNumber } from "#types";
+import { Status } from "#types";
 import { ClientEventEmitter } from "./ClientEventEmitter.js";
 import { ClientStructureEvents } from "./ClientStructureEvents.js";
 import { PeerBehavior } from "./PeerBehavior.js";
@@ -44,11 +45,12 @@ const PARTS_LIST_ATTR_ID = Descriptor.Cluster.attributes.partsList.id;
 export class ClientStructure {
     #nodeStore: ClientNodeStore;
     #endpoints = new Map<EndpointNumber, EndpointStructure>();
-    #emitEvent: ClientEventEmitter;
+    #eventEmitter: ClientEventEmitter;
     #node: ClientNode;
     #subscribedFabricFiltered?: boolean;
     #pendingChanges = new Map<EndpointStructure, PendingChange>();
-    #pendingEvents = Array<PendingEvent>();
+    #pendingStructureEvents = Array<PendingEvent>();
+    #delayedClusterEvents = new Array<ReadResult.EventValue>();
     #events: ClientStructureEvents;
 
     constructor(node: ClientNode) {
@@ -58,7 +60,7 @@ export class ClientStructure {
             endpoint: node,
             clusters: new Map(),
         });
-        this.#emitEvent = ClientEventEmitter(node, this);
+        this.#eventEmitter = ClientEventEmitter(node, this);
         this.#events = this.#node.env.get(ClientStructureEvents);
     }
 
@@ -103,7 +105,7 @@ export class ClientStructure {
             this.#install(structure);
         }
 
-        this.#emitPendingEvents();
+        this.#emitPendingStructureEvents();
     }
 
     /**
@@ -167,9 +169,6 @@ export class ClientStructure {
      * Update the node structure by applying attribute changes.
      */
     async *mutate(request: Read, changes: ReadResult) {
-        // Ensure mutations run serially and integrate properly with node lifecycle
-        using _lock = await this.#node.lifecycle.mutex.lock();
-
         // We collect updates and only apply when we transition clusters
         let currentUpdates: AttributeUpdates | undefined;
 
@@ -183,10 +182,18 @@ export class ClientStructure {
                         break;
 
                     case "event-value":
-                        this.#emitEvent(change);
+                        this.#emitEvent(change, currentUpdates);
                         break;
 
-                    // we ignore attr-status and event-status for now
+                    case "attr-status":
+                    case "event-status":
+                        logger.debug(
+                            "Received status for",
+                            change.kind === "attr-status" ? "attribute" : "event",
+                            Diagnostic.strong(change.path.toString()),
+                            `: ${Status[change.status]}#${change.status}${change.clusterStatus !== undefined ? `/${Status[change.clusterStatus]}#${change.clusterStatus}` : ""}`,
+                        );
+                        break;
                 }
             }
 
@@ -218,7 +225,7 @@ export class ClientStructure {
         }
 
         // Likewise, we don't emit events until we've applied all structural changes
-        this.#emitPendingEvents();
+        this.#emitPendingStructureEvents();
     }
 
     /** Reference to the default subscription used when the node was started. */
@@ -273,6 +280,21 @@ export class ClientStructure {
         return currentUpdates;
     }
 
+    #emitEvent(occurrence: ReadResult.EventValue, currentUpdates?: AttributeUpdates) {
+        const { endpointId, clusterId } = occurrence.path;
+
+        const endpoint = this.#endpoints.get(endpointId);
+        // If we are building updates on current cluster or endpoint has pending changes, delay event emission
+        if (
+            (currentUpdates && (currentUpdates.endpointId === endpointId || currentUpdates.clusterId === clusterId)) ||
+            (endpoint !== undefined && this.#pendingChanges?.has(endpoint))
+        ) {
+            this.#delayedClusterEvents.push(occurrence);
+        } else {
+            this.#eventEmitter(occurrence);
+        }
+    }
+
     /**
      * Obtain the {@link ClusterType} for an {@link EndpointNumber} and {@link ClusterId}.
      */
@@ -308,13 +330,27 @@ export class ClientStructure {
         }
 
         if (cluster.behavior && AttributeList.id in attrs.values) {
-            if (!isDeepEqual(cluster.attributes, attrs.values[AttributeList.id])) {
+            const attributeList = attrs.values[AttributeList.id];
+            if (
+                Array.isArray(attributeList) &&
+                !isDeepEqual(
+                    cluster.attributes,
+                    attributeList.sort((a, b) => a - b),
+                )
+            ) {
                 cluster.behavior = undefined;
             }
         }
 
         if (cluster.behavior && AcceptedCommandList.id in attrs.values) {
-            if (!isDeepEqual(cluster.attributes, attrs.values[AttributeList.id])) {
+            const acceptedCommands = attrs.values[AcceptedCommandList.id];
+            if (
+                Array.isArray(acceptedCommands) &&
+                !isDeepEqual(
+                    cluster.commands,
+                    acceptedCommands.sort((a, b) => a - b),
+                )
+            ) {
                 cluster.behavior = undefined;
             }
         }
@@ -353,11 +389,15 @@ export class ClientStructure {
                 }
 
                 if (Array.isArray(attributeList)) {
-                    cluster.attributes = attributeList.filter(attr => typeof attr === "number") as AttributeId[];
+                    cluster.attributes = (attributeList.filter(attr => typeof attr === "number") as AttributeId[]).sort(
+                        (a, b) => a - b,
+                    );
                 }
 
                 if (Array.isArray(commandList)) {
-                    cluster.commands = commandList.filter(cmd => typeof cmd === "number") as CommandId[];
+                    cluster.commands = (commandList.filter(cmd => typeof cmd === "number") as CommandId[]).sort(
+                        (a, b) => a - b,
+                    );
                 }
             }
 
@@ -611,7 +651,7 @@ export class ClientStructure {
                     logger.error("Error clearing cluster storage:", e);
                 }
 
-                this.#pendingEvents.push({
+                this.#pendingStructureEvents.push({
                     kind: "cluster",
                     endpoint: structure,
                     cluster,
@@ -632,7 +672,7 @@ export class ClientStructure {
             cluster.behavior = pendingBehavior;
             delete cluster.pendingBehavior;
 
-            this.#pendingEvents.push({
+            this.#pendingStructureEvents.push({
                 kind: "cluster",
                 subkind,
                 endpoint: structure,
@@ -651,7 +691,7 @@ export class ClientStructure {
         if (pendingOwner) {
             endpoint.owner = pendingOwner.endpoint;
             structure.pendingOwner = undefined;
-            this.#pendingEvents.push({ kind: "endpoint", endpoint: structure });
+            this.#pendingStructureEvents.push({ kind: "endpoint", endpoint: structure });
         }
 
         // Handle behavior installation
@@ -672,7 +712,7 @@ export class ClientStructure {
             // We emit cluster events during the endpoint event so only add cluster event manually if the endpoint is
             // already installed
             if (!pendingOwner) {
-                this.#pendingEvents.push({
+                this.#pendingStructureEvents.push({
                     kind: "cluster",
                     subkind: "add",
                     endpoint: structure,
@@ -700,10 +740,12 @@ export class ClientStructure {
      * We do this after all structural updates are complete so that listeners can expect composed parts and dependent
      * behaviors to be installed.
      */
-    #emitPendingEvents() {
-        const events = this.#pendingEvents;
-        this.#pendingEvents = [];
-        for (const event of events) {
+    #emitPendingStructureEvents() {
+        const structureEvents = this.#pendingStructureEvents;
+        const clusterEvents = this.#delayedClusterEvents;
+        this.#delayedClusterEvents = [];
+        this.#pendingStructureEvents = [];
+        for (const event of structureEvents) {
             switch (event.kind) {
                 case "endpoint": {
                     const {
@@ -746,6 +788,9 @@ export class ClientStructure {
                     break;
                 }
             }
+        }
+        for (const occurrence of clusterEvents) {
+            this.#eventEmitter(occurrence);
         }
     }
 }
