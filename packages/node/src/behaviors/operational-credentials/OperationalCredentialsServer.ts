@@ -287,7 +287,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
             }
         } catch (e) {
             // Fabric insertion into FabricManager is not currently transactional so we need to remove manually
-            await fabric.delete(session.id);
+            await fabric.delete(this.context.exchange);
             throw e;
         }
 
@@ -407,7 +407,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
         // we leave the transaction open it will cause deadlock
         await this.context.transaction.rollback();
 
-        await fabric.leave(this.context.session.id);
+        await fabric.leave(this.context.exchange);
         // The state is updated on removal via commissionedFabricChanged event, see constructor
 
         return {

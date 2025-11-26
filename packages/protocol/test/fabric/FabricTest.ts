@@ -120,7 +120,7 @@ describe("Fabric", () => {
             let session1Destroyed = false;
             let session2Destroyed = false;
             const manager = await createManager();
-            const secureSession1 = new NodeSession({
+            const session1 = new NodeSession({
                 crypto,
                 manager,
                 id: 1,
@@ -133,8 +133,8 @@ describe("Fabric", () => {
                 isInitiator: true,
             });
 
-            fabric.addSession(secureSession1);
-            const secureSession2 = new NodeSession({
+            fabric.addSession(session1);
+            const session2 = new NodeSession({
                 crypto,
                 manager,
                 id: 2,
@@ -146,13 +146,13 @@ describe("Fabric", () => {
                 attestationKey: NO_BYTES,
                 isInitiator: true,
             });
-            fabric.addSession(secureSession2);
+            fabric.addSession(session2);
 
             manager.sessions.deleted.on(session => {
-                if (session === secureSession1) {
+                if (session === session1) {
                     session1Destroyed = true;
                 }
-                if (session === secureSession2) {
+                if (session === session2) {
                     session2Destroyed = true;
                 }
             });
@@ -162,14 +162,16 @@ describe("Fabric", () => {
                 deleted = true;
             });
 
-            await fabric.delete(secureSession2.id);
+            const activeExchange = new ProtocolMocks.Exchange({ fabric, context: { session: session2 } });
+
+            await fabric.delete(activeExchange);
 
             expect(session1Destroyed).to.be.true;
-            expect(secureSession1.closingAfterExchangeFinished).to.be.false;
-            expect(secureSession1.sendCloseMessageWhenClosing).to.be.false;
+            expect(session1.closingAfterExchangeFinished).to.be.false;
+            expect(session1.sendCloseMessageWhenClosing).to.be.false;
             expect(session2Destroyed).to.be.false; // Not destroyed directly because delayed because was session of fabric removal
-            expect(secureSession2.closingAfterExchangeFinished).to.be.true;
-            expect(secureSession2.sendCloseMessageWhenClosing).to.be.false;
+            expect(session2.closingAfterExchangeFinished).to.be.true;
+            expect(session2.sendCloseMessageWhenClosing).to.be.false;
             expect(deleted).to.be.true;
         });
 

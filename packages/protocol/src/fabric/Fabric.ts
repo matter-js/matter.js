@@ -29,6 +29,7 @@ import {
 import { FabricGroups, GROUP_SECURITY_INFO } from "#groups/FabricGroups.js";
 import { FabricAccessControl } from "#interaction/FabricAccessControl.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
+import { MessageExchange } from "#protocol/MessageExchange.js";
 import type { SecureSession } from "#session/SecureSession.js";
 import { CaseAuthenticatedTag, FabricId, FabricIndex, GroupId, NodeId, StatusResponse, VendorId } from "#types";
 
@@ -307,22 +308,22 @@ export class Fabric {
      * Devices should use this to cleanly exit a fabric.  It flushes subscriptions to ensure the "leave" event emits
      * and closes sessions.
      */
-    async leave(currentSessionId?: number) {
+    async leave(currentExchange?: MessageExchange) {
         await this.#leaving.emit();
 
-        await this.delete(currentSessionId, true);
+        await this.delete(currentExchange, true);
     }
 
     /**
      * Permanently remove the fabric.
      */
-    async delete(currentSessionId?: number, graceful = false) {
+    async delete(currentExchange?: MessageExchange, graceful = false) {
         this.#isDeleting = true;
 
         await this.#deleting.emit();
 
         for (const session of [...this.#sessions]) {
-            await session.destroy(graceful, session.id === currentSessionId, graceful); // Delay Close for current session only
+            await session.destroy(graceful, session.id === currentExchange?.session.id, graceful); // Delay Close for current session only
         }
 
         await this.#deleted.emit();

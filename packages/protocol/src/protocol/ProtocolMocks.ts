@@ -208,6 +208,7 @@ export namespace ProtocolMocks {
             config?: Omit<Partial<MessageExchange.Config>, "context"> &
                 MockSessionConfig & {
                     context?: Partial<MessageExchangeContext>;
+                    fabric?: Fabric;
                 },
         ) {
             const context = config?.context;
