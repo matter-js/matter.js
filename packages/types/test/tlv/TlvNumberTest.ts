@@ -172,8 +172,8 @@ describe("TlvNumber", () => {
             const decodedAsUInt64 = TlvUInt64.decode(encodedNowUs);
             expect(decodedAsUInt64).equal(nowUs - MATTER_EPOCH_OFFSET_US);
 
-            const decodedEpochS = TlvEpochUs.decode(encodedNowUs);
-            expect(decodedEpochS).equal(nowUs);
+            const decodedEpochUs = TlvEpochUs.decode(encodedNowUs);
+            expect(decodedEpochUs).equal(nowUs);
         });
 
         it("Throws when self-converting EpochUs values", () => {
