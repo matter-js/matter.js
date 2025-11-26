@@ -236,6 +236,7 @@ export const TlvSysTimeMS = TlvUInt64;
 /** Seconds from Unix epoch (1970-01-01) to Matter epoch (2000-01-01) */
 export const MATTER_EPOCH_OFFSET_S = 10957 * 24 * 60 * 60;
 
+/** Microseconds from Unix epoch (1970-01-01) to Matter epoch (2000-01-01) */
 export const MATTER_EPOCH_OFFSET_US = BigInt(MATTER_EPOCH_OFFSET_S * 1_000_000);
 
 /**
