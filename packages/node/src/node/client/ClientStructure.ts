@@ -270,7 +270,7 @@ export class ClientStructure {
 
             // Update version but only if this was a wildcard read
             if (scope.isWildcard(endpointId, clusterId)) {
-                currentUpdates.values![DatasourceCache.VERSION_KEY] = change.version;
+                currentUpdates.values[DatasourceCache.VERSION_KEY] = change.version;
             }
         } else {
             if (currentUpdates.values === undefined) {
