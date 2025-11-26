@@ -62,7 +62,7 @@ export class DclOtaUpdateService {
     }
 
     constructor(environment: Environment) {
-        environment.root.set(DclOtaUpdateService, this);
+        environment.set(DclOtaUpdateService, this);
         this.#crypto = environment.get(Crypto);
 
         // THe construction is async and will be enforced when needed

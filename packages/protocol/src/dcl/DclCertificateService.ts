@@ -47,7 +47,7 @@ export class DclCertificateService {
     #fetchPromise?: Promise<void>;
 
     constructor(environment: Environment, options: DclCertificateService.Options = {}) {
-        environment.root.set(DclCertificateService, this);
+        environment.set(DclCertificateService, this);
         this.#options = options;
 
         this.#construction = Construction(this, async () => {
