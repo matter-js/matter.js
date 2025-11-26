@@ -182,7 +182,7 @@ export class ClientStructure {
                         break;
 
                     case "event-value":
-                        await this.#emitEvent(change, currentUpdates);
+                        this.#emitEvent(change, currentUpdates);
                         break;
 
                     case "attr-status":
@@ -283,7 +283,7 @@ export class ClientStructure {
         return currentUpdates;
     }
 
-    async #emitEvent(occurrence: ReadResult.EventValue, currentUpdates?: AttributeUpdates) {
+    #emitEvent(occurrence: ReadResult.EventValue, currentUpdates?: AttributeUpdates) {
         const { endpointId, clusterId } = occurrence.path;
 
         const endpoint = this.#endpoints.get(endpointId);
