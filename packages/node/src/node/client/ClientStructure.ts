@@ -273,9 +273,6 @@ export class ClientStructure {
                 currentUpdates.values[DatasourceCache.VERSION_KEY] = change.version;
             }
         } else {
-            if (currentUpdates.values === undefined) {
-                currentUpdates.values = {};
-            }
             // Add value to change set for current endpoint/cluster
             currentUpdates.values[attributeId] = change.value;
         }
