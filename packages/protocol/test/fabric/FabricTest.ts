@@ -220,7 +220,7 @@ describe("Fabric", () => {
                 }
             });
 
-            fabric.removeSession(secureSession1);
+            fabric.deleteSession(secureSession1);
 
             expect(session1Destroyed).to.be.false;
             expect(session2Destroyed).to.be.false;

@@ -292,7 +292,7 @@ export class NodeSession extends SecureSession {
     /** Destroys a session. Outstanding subscription data will be discarded. */
     override async destroy(sendClose = false, closeAfterExchangeFinished = true, flushSubscriptions = false) {
         await this.clearSubscriptions(flushSubscriptions);
-        this.#fabric?.removeSession(this);
+        this.#fabric?.deleteSession(this);
         if (!sendClose) {
             this.#sendCloseMessageWhenClosing = false;
         }

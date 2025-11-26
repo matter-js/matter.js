@@ -285,7 +285,7 @@ export class Fabric {
         this.#sessions.add(session);
     }
 
-    removeSession(session: SecureSession) {
+    deleteSession(session: SecureSession) {
         this.#sessions.delete(session);
     }
 
