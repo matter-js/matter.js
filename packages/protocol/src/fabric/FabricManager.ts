@@ -41,6 +41,7 @@ export class FabricManager {
     #events = {
         added: Observable<[fabric: Fabric]>(),
         replaced: Observable<[fabric: Fabric]>(unhandled("replacing")),
+        leaving: Observable<[fabric: Fabric]>(unhandled("leaving")),
         deleting: AsyncObservable<[fabric: Fabric]>(unhandled("deleting")),
         deleted: AsyncObservable<[fabric: Fabric]>(unhandled("deleted")),
         failsafeClosed: Observable<[]>(),
@@ -178,6 +179,7 @@ export class FabricManager {
         const { fabricIndex } = fabric;
         this.#fabrics.set(fabricIndex, fabric);
 
+        fabric.leaving.on(() => this.events.leaving.emit(fabric));
         fabric.deleting.on(() => this.events.deleting.emit(fabric));
         fabric.deleted.on(() => this.#handleFabricDeleted(fabric));
 

@@ -199,7 +199,7 @@ describe("ProtocolServiceTest", () => {
         // Remove the second fabric so we can capture the leave event notification
         const fabricRemoved = interaction.receiveData(node, 3, 1);
 
-        await MockTime.resolve(fabric2.delete());
+        await MockTime.resolve(fabric2.leave());
 
         report = await MockTime.resolve(fabricRemoved);
 

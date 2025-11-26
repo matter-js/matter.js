@@ -316,6 +316,8 @@ export class Fabric {
 
     /**
      * Permanently remove the fabric.
+     *
+     * Does not emit the leave event.
      */
     async delete(currentExchange?: MessageExchange, graceful = false) {
         this.#isDeleting = true;

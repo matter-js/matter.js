@@ -117,7 +117,7 @@ export class BasicInformationServer extends Base {
         this.events.startUp.emit({ softwareVersion: this.state.softwareVersion }, this.context);
 
         const fabricManager = this.env.get(FabricManager);
-        this.reactTo(fabricManager.events.deleting, this.#handleRemovedFabric);
+        this.reactTo(fabricManager.events.leaving, this.#handleFabricLeave);
     }
 
     #goingOffline() {
@@ -128,7 +128,7 @@ export class BasicInformationServer extends Base {
         this.events.reachableChanged?.emit({ reachableNewValue: reachable }, this.context);
     }
 
-    #handleRemovedFabric({ fabricIndex }: Fabric) {
+    #handleFabricLeave({ fabricIndex }: Fabric) {
         this.events.leave.emit({ fabricIndex }, this.context);
     }
 }
