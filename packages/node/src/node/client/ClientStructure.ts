@@ -319,18 +319,18 @@ export class ClientStructure {
      *
      * This is invoked in a batch when we've collected all sequential values for the current endpoint/cluster.
      */
-    async #updateCluster(updates: AttributeUpdates) {
-        const endpoint = this.#endpointFor(updates.endpointId);
-        const cluster = this.#clusterFor(endpoint, updates.clusterId);
+    async #updateCluster(attrs: AttributeUpdates) {
+        const endpoint = this.#endpointFor(attrs.endpointId);
+        const cluster = this.#clusterFor(endpoint, attrs.clusterId);
 
-        if (cluster.behavior && FeatureMap.id in updates.values) {
-            if (!isDeepEqual(cluster.features, updates.values[FeatureMap.id])) {
+        if (cluster.behavior && FeatureMap.id in attrs.values) {
+            if (!isDeepEqual(cluster.features, attrs.values[FeatureMap.id])) {
                 cluster.behavior = undefined;
             }
         }
 
-        if (cluster.behavior && AttributeList.id in updates.values) {
-            const attributeList = updates.values[AttributeList.id];
+        if (cluster.behavior && AttributeList.id in attrs.values) {
+            const attributeList = attrs.values[AttributeList.id];
             if (
                 Array.isArray(attributeList) &&
                 !isDeepEqual(
@@ -342,8 +342,8 @@ export class ClientStructure {
             }
         }
 
-        if (cluster.behavior && AcceptedCommandList.id in updates.values) {
-            const acceptedCommands = updates.values[AcceptedCommandList.id];
+        if (cluster.behavior && AcceptedCommandList.id in attrs.values) {
+            const acceptedCommands = attrs.values[AcceptedCommandList.id];
             if (
                 Array.isArray(acceptedCommands) &&
                 !isDeepEqual(
@@ -355,7 +355,7 @@ export class ClientStructure {
             }
         }
 
-        await cluster.store.externalSet(updates.values);
+        await cluster.store.externalSet(attrs.values);
         this.#synchronizeCluster(endpoint, cluster);
     }
 
