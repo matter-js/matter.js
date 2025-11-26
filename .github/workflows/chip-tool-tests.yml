@@ -1,6 +1,6 @@
 # This workflow executes the chip tool tests against matter.js (Dockerized and not dockerized ones)
 # This workflow is triggered by:
-# * A schedule (every day at 5am UTC)
+# * A schedule
 # * A manual trigger
 # * For commits and pull requests to the main branch
 
