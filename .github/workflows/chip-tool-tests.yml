@@ -8,7 +8,7 @@ name: Chip Tool tests
 
 on:
   schedule:
-    - cron: 0 5 * * * # Every day at 05:00
+    - cron: 0 1 * * * # Every day at 01:00
   workflow_dispatch: # Manually on demand
   push:
     branches: [ "main" ]
