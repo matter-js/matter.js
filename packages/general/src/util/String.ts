@@ -326,3 +326,17 @@ export function serializeToJs(value: unknown) {
     parts.push("}");
     return parts.join("");
 }
+
+export namespace hex {
+    export function fixed(value: number | bigint, width: number) {
+        return value.toString(16).padStart(width, "0");
+    }
+
+    export function byte(value: number | bigint) {
+        return fixed(value, 2);
+    }
+
+    export function word(value: number | bigint) {
+        return fixed(value, 4);
+    }
+}

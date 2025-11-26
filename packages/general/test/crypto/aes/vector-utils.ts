@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, InternalError } from "#index.js";
+import { Bytes, hex, InternalError } from "#index.js";
 
 /**
  * Convert an array of test vector sets to objects.
@@ -37,7 +37,7 @@ export function compressBitVector(vector: string) {
     function compress() {
         const bitlen = BigInt(vector.length * 4);
         if (vector.match(/^0+$/)) {
-            return `W${(bitlen / 8n).toString(16).padStart(2, "0")}`;
+            return `W${hex.byte(bitlen / 8n)}`;
         }
 
         const bigint = BigInt(`0x${vector}`);
@@ -49,7 +49,7 @@ export function compressBitVector(vector: string) {
         for (; i < bitlen && bigint & (1n << i); i++);
 
         if (i === bitlen) {
-            return `W${(bitlen / 8n).toString(16).padStart(2, "0")}T${bits.toString(16).padStart(2, "0")}`;
+            return `W${hex.byte(bitlen / 8n)}T${hex.byte(bits)}`;
         }
 
         return vector;

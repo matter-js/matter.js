@@ -9,6 +9,7 @@ import {
     Crypto,
     Entropy,
     Environment,
+    hex,
     Logger,
     MatterAggregateError,
     MockCrypto,
@@ -54,7 +55,7 @@ export class MockSite {
         );
 
         const index = (config.index ??= this.#nextNetworkIndex++);
-        const id = (config.id ??= `node${index.toString(16).padStart(2, "0")}`);
+        const id = (config.id ??= `node${hex.byte(index)}`);
         const env = (config.environment ??= new Environment(id));
         if (!env.has(Crypto)) {
             const crypto = MockCrypto(index);

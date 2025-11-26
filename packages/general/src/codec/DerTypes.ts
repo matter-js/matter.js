@@ -6,6 +6,7 @@
 
 import { InternalError } from "#MatterError.js";
 import { Bytes } from "#util/Bytes.js";
+import { hex } from "#util/String.js";
 import {
     ContextTagged,
     ContextTaggedBytes,
@@ -112,7 +113,7 @@ export namespace X520 {
      * Also registers the OID in the reverse lookup map immediately.
      */
     const GenericString_X520 = (id: number, fieldName: string) => {
-        const oidHex = `5504${id.toString(16).padStart(2, "0")}`;
+        const oidHex = `5504${hex.byte(id)}`;
         // Register in reverse lookup map immediately at function creation time
         if (OID_TO_FIELD_MAP[oidHex] !== undefined && OID_TO_FIELD_MAP[oidHex] !== fieldName) {
             throw new InternalError(

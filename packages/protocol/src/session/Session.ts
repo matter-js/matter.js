@@ -12,6 +12,7 @@ import {
     DataWriter,
     Duration,
     Endian,
+    hex,
     ImplementationError,
     InternalError,
     Time,
@@ -180,7 +181,7 @@ export abstract class Session {
     abstract end(sendClose: boolean): Promise<void>;
 
     get idStr() {
-        return this.id.toString(16).padStart(4, "0");
+        return hex.word(this.id);
     }
 
     static idStrOf(source: Packet | PacketHeader | number) {
@@ -198,7 +199,7 @@ export abstract class Session {
             }
         }
 
-        return id.toString(16).padStart(4, "0");
+        return hex.word(id);
     }
 
     async destroy(

@@ -13,6 +13,7 @@ import {
     DataReadQueue,
     Diagnostic,
     Duration,
+    hex,
     Instant,
     InternalError,
     Logger,
@@ -222,7 +223,7 @@ export class MessageExchange {
     }
 
     get idStr() {
-        return this.#exchangeId.toString(16).padStart(4, "0");
+        return hex.word(this.#exchangeId);
     }
 
     get session() {

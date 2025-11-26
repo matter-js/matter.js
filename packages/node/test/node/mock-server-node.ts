@@ -14,6 +14,7 @@ import {
     DataReadQueue,
     Entropy,
     Environment,
+    hex,
     MaybePromise,
     MockCrypto,
     Network,
@@ -68,7 +69,7 @@ export class MockServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootE
         config.environment = environment;
 
         if (config.index) {
-            config.id = `node${networkIndex.toString(16).padStart(2, "0")}`;
+            config.id = `node${hex.byte(networkIndex)}`;
         }
         super(config);
 
