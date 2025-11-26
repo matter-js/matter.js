@@ -165,7 +165,7 @@ describe("TlvNumber", () => {
             );
         });
 
-        it("encodes an TlcEpochUs and validates that it is converted correctly", () => {
+        it("encodes an TlvEpochUs and validates that it is converted correctly", () => {
             const nowUs = BigInt(MockTime.nowMs * 1_000);
             const encodedNowUs = TlvEpochUs.encode(nowUs);
 
