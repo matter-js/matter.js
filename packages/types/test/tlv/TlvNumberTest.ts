@@ -169,8 +169,8 @@ describe("TlvNumber", () => {
             const nowUs = BigInt(MockTime.nowMs * 1_000);
             const encodedNowUs = TlvEpochUs.encode(nowUs);
 
-            const decodedAsUInt32 = TlvUInt64.decode(encodedNowUs);
-            expect(decodedAsUInt32).equal(nowUs - MATTER_EPOCH_OFFSET_US);
+            const decodedAsUInt64 = TlvUInt64.decode(encodedNowUs);
+            expect(decodedAsUInt64).equal(nowUs - MATTER_EPOCH_OFFSET_US);
 
             const decodedEpochS = TlvEpochUs.decode(encodedNowUs);
             expect(decodedEpochS).equal(nowUs);
