@@ -29,7 +29,7 @@ import {
 import { FabricGroups, GROUP_SECURITY_INFO } from "#groups/FabricGroups.js";
 import { FabricAccessControl } from "#interaction/FabricAccessControl.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
-import { Session } from "#session/Session.js";
+import type { SecureSession } from "#session/SecureSession.js";
 import { CaseAuthenticatedTag, FabricId, FabricIndex, GroupId, NodeId, StatusResponse, VendorId } from "#types";
 
 const logger = Logger.get("Fabric");
@@ -62,7 +62,7 @@ export class Fabric {
     readonly intermediateCACert: Bytes | undefined;
     readonly operationalCert: Bytes;
     readonly #keyPair: Key;
-    readonly #sessions = new Set<Session>();
+    readonly #sessions = new Set<SecureSession>();
     readonly #groups: FabricGroups;
     readonly #accessControl: FabricAccessControl;
 
@@ -280,11 +280,11 @@ export class Fabric {
         return await Promise.all(destinationIds);
     }
 
-    addSession(session: Session) {
+    addSession(session: SecureSession) {
         this.#sessions.add(session);
     }
 
-    removeSession(session: Session) {
+    removeSession(session: SecureSession) {
         this.#sessions.delete(session);
     }
 
