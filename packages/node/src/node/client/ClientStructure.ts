@@ -284,7 +284,7 @@ export class ClientStructure {
         const { endpointId, clusterId } = occurrence.path;
 
         const endpoint = this.#endpoints.get(endpointId);
-        // If we are building updates oon current cluster we do not know yet if we will delay event emission, so delay
+        // If we are building updates on current cluster or endpoint has pending changes, delay event emission
         if (
             (currentUpdates && (currentUpdates.endpointId === endpointId || currentUpdates.clusterId === clusterId)) ||
             (endpoint !== undefined && this.#pendingChanges?.has(endpoint))
