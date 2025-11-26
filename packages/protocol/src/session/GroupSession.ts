@@ -12,6 +12,7 @@ import {
     ChannelType,
     ConnectionlessTransportSet,
     CryptoDecryptError,
+    Diagnostic,
     ImplementationError,
     InternalError,
     Logger,
@@ -55,7 +56,7 @@ export class GroupSession extends SecureSession {
         manager?.registerGroupSession(this);
         fabric.addSession(this);
 
-        logger.debug(`Created secure GROUP session for fabric index ${fabric.fabricIndex}`, this.name);
+        logger.debug(this.via, `Created secure GROUP session for fabric index ${fabric.fabricIndex}`);
     }
 
     /**
@@ -114,8 +115,8 @@ export class GroupSession extends SecureSession {
         return this.#id; // we use the same peer session ID then ours because should be the same keys
     }
 
-    get name() {
-        return `group/${this.#id}`;
+    get via() {
+        return Diagnostic.via(`group/${this.idStr}`);
     }
 
     get nodeId() {
@@ -253,7 +254,7 @@ export class GroupSession extends SecureSession {
     }
 
     override async destroy() {
-        logger.info(`End group session ${this.name}`);
+        logger.info(`End group session ${this.via}`);
         await super.destroy();
         this.manager?.removeGroupSession(this);
     }

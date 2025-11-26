@@ -309,7 +309,9 @@ export class MessageCodec {
             {
                 for: forInfo ?? forType,
                 ...log,
-                msgId: `${sessionId}/${exchangeId}/${messageId}`,
+                msgId: [sessionId, exchangeId, messageId]
+                    .map(id => (id === undefined ? "?" : id.toString(16).padStart(4)))
+                    .join(":"),
                 type,
                 acked: ackedMessageId,
                 msgFlags: Diagnostic.asFlags({

@@ -84,7 +84,7 @@ export class StatusReportOnlySecureChannelProtocol implements ProtocolHandler {
 
         const { session } = exchange;
         NodeSession.assert(session);
-        logger.debug(`Peer requested to close session ${session.name}. Remove session now.`);
+        logger.debug(exchange.via, "Closed by peer");
         await session.closeByPeer();
     }
 

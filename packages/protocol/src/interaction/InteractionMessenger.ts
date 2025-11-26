@@ -26,7 +26,6 @@ import {
     EndpointNumber,
     ReceivedStatusResponseError,
     Status,
-    StatusCode,
     StatusResponseError,
     TlvAny,
     TlvAttributeReport,
@@ -118,7 +117,7 @@ class InteractionMessenger {
         return this.exchange.send(messageType, payload, options);
     }
 
-    sendStatus(status: StatusCode, options?: ExchangeSendOptions) {
+    sendStatus(status: Status, options?: ExchangeSendOptions) {
         return this.send(
             MessageType.StatusResponse,
             TlvStatusResponse.encode({ status, interactionModelRevision: Specification.INTERACTION_MODEL_REVISION }),
@@ -126,7 +125,7 @@ class InteractionMessenger {
                 ...options,
                 logContext: {
                     for: options?.logContext?.for ? `I/Status-${options?.logContext?.for}` : undefined,
-                    status: `${StatusCode[status] ?? "unknown"}(${Diagnostic.hex(status)})`,
+                    status: `${Status[status] ?? "unknown"}(${Diagnostic.hex(status)})`,
                     ...options?.logContext,
                 },
             },
@@ -197,7 +196,7 @@ class InteractionMessenger {
 
         if (messageType !== MessageType.StatusResponse) return;
         const { status } = TlvStatusResponse.decode(payload);
-        if (status !== StatusCode.Success)
+        if (status !== Status.Success)
             throw new ReceivedStatusResponseError(
                 `Received error status: ${status}${logHint ? ` (${logHint})` : ""}`,
                 status,
@@ -300,7 +299,7 @@ export class InteractionServerMessenger extends InteractionMessenger {
                         }
                         const timedRequest = TlvTimedRequest.decode(message.payload);
                         recipient.handleTimedRequest(this.exchange, timedRequest, message);
-                        await this.sendStatus(StatusCode.Success, {
+                        await this.sendStatus(Status.Success, {
                             logContext: { for: "TimedRequest" },
                         });
                         continueExchange = true;
@@ -316,17 +315,27 @@ export class InteractionServerMessenger extends InteractionMessenger {
                     break; // We do not support multiple messages in group sessions
                 }
             }
-        } catch (error: any) {
-            let errorStatusCode = StatusCode.Failure;
-            if (error instanceof StatusResponseError) {
-                logger.info(`Sending status response ${error.code} for interaction error: ${error.message}`);
-                errorStatusCode = error.code;
-            } else if (error instanceof NoResponseTimeoutError) {
-                logger.info(error);
-            } else {
-                logger.warn(error);
+        } catch (error) {
+            if (error instanceof NoResponseTimeoutError) {
+                logger.info(this.exchange.via, error);
+                return;
             }
-            if (!isGroupSession && !(error instanceof NoResponseTimeoutError)) {
+
+            let errorStatusCode = Status.Failure;
+            if (error instanceof StatusResponseError) {
+                logger.info(
+                    this.exchange.via,
+                    "Status response",
+                    Diagnostic.strong(`${Status[error.code]}#${error.code}`),
+                    "due to error:",
+                    Diagnostic.errorMessage(error),
+                );
+                errorStatusCode = error.code;
+            } else {
+                logger.warn(this.exchange.via, error);
+            }
+
+            if (!isGroupSession) {
                 await this.sendStatus(errorStatusCode);
             }
         } finally {
@@ -915,7 +924,7 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
         for await (const report of this.readDataReports()) {
             if (expectedSubscriptionIds !== undefined) {
                 if (report.subscriptionId === undefined || !expectedSubscriptionIds.includes(report.subscriptionId)) {
-                    await this.sendStatus(StatusCode.InvalidSubscription, {
+                    await this.sendStatus(Status.InvalidSubscription, {
                         multipleMessageInteraction: true,
                         logContext: {
                             subId: report.subscriptionId,
@@ -982,14 +991,14 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
             yield report;
 
             if (report.moreChunkedMessages) {
-                await this.sendStatus(StatusCode.Success, {
+                await this.sendStatus(Status.Success, {
                     multipleMessageInteraction: true,
                     logContext: this.#logContextOf(report),
                 });
             } else if (!report.suppressResponse) {
                 // We received the last message and need to send a final success, but we do not need to wait for it and
                 // also don't care if it fails
-                this.sendStatus(StatusCode.Success, {
+                this.sendStatus(Status.Success, {
                     multipleMessageInteraction: true,
                     logContext: this.#logContextOf(report),
                 }).catch(error => logger.info("Error sending success after final data report chunk", error));

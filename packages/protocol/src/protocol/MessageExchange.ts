@@ -175,12 +175,11 @@ export class MessageExchange {
         logger.debug(
             "New exchange",
             isInitiator ? "»" : "«",
-            session.name,
+            session.via,
             Diagnostic.dict({
                 protocol: this.#protocolId,
                 exId: this.#exchangeId,
-                sess: session.name,
-                peerSess: this.#peerSessionId,
+                peerSess: Session.idStrOf(this.#peerSessionId),
                 SAT: Duration.format(activeThreshold),
                 SAI: Duration.format(activeInterval),
                 SII: Duration.format(idleInterval),
@@ -220,6 +219,10 @@ export class MessageExchange {
 
     get id() {
         return this.#exchangeId;
+    }
+
+    get idStr() {
+        return this.#exchangeId.toString(16).padStart(4, "0");
     }
 
     get session() {
@@ -627,7 +630,7 @@ export class MessageExchange {
         if (!this.#used) {
             // The exchange was never in use, so we can close it directly
             // If we see that in the wild we should fix the reasons
-            logger.info(`Exchange ${this.session.name} / ${this.#exchangeId} was never used, closing directly`);
+            logger.info(this.via, `Exchange never used, closing directly`);
             return this.#close();
         }
         this.#isClosing = true;
@@ -640,10 +643,7 @@ export class MessageExchange {
             try {
                 await this.#sendStandaloneAckForMessage(messageToAck);
             } catch (error) {
-                logger.error(
-                    `An error happened when closing the exchange ${this.session.name} / ${this.#exchangeId}`,
-                    error,
-                );
+                logger.error(this.via, `Unhandled error closing exchange`, error);
             }
             if (force) {
                 // We have sent the Ack, so close here, no retries because close is forced
@@ -662,7 +662,7 @@ export class MessageExchange {
             maxResubmissionTime = Millis(maxResubmissionTime + this.channel.getMrpResubmissionBackOffTime(i));
         }
         this.#closeTimer = Time.getTimer(
-            `Message exchange cleanup ${this.session.name} / ${this.#exchangeId}`,
+            `Exchange ${this.via} close`,
             maxResubmissionTime,
             async () => await this.#close(),
         ).start();
@@ -682,10 +682,12 @@ export class MessageExchange {
 
     get via() {
         if (this.session === undefined || !this.session.isSecure) {
-            return this.channel.name; // already formatted as "via"
+            return Diagnostic.via(`${this.channel.name}/${this.idStr}`);
         }
 
-        return Diagnostic.via(`${(this.session as SecureSession).peerAddress.toString()}#${this.session.id}`);
+        return Diagnostic.via(
+            `${(this.session as SecureSession).peerAddress.toString()}/${this.session.idStr}:${this.idStr}`,
+        );
     }
 }
 

@@ -165,6 +165,16 @@ export namespace Diagnostic {
 
     /**
      * Create a value identifying the source of a diagnostic event.
+     *
+     * Conventions for via:
+     *
+     *   - Use padded hex for random(ish) fixed-width numbers
+     *
+     *   - If there is an ID associated with a name, associate using "name#id"
+     *
+     *   - If there are subcomponents, associate with ":" (e.g. "sessionId:exchangeId:messageId")
+     *
+     *   - Use "/" as a separator if there are distinct subcomponents commonly delineated with ":"
      */
     export function via(value: string) {
         if (Diagnostic.presentationOf(value)) {

@@ -437,7 +437,7 @@ export class MatterController {
             discovery: options.discovery,
             passcode: options.passcode,
         });
-        logger.warn("PASE channel established", paseSession.name, paseSession.isSecure);
+        logger.warn("PASE channel established", paseSession.via, paseSession.isSecure);
         return paseSession;
     }
 

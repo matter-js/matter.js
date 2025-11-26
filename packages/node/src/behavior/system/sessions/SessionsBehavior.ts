@@ -30,7 +30,7 @@ export class SessionsBehavior extends Behavior {
 
     #convertToExposedSession(session: NodeSession): SessionsBehavior.Session {
         return {
-            name: session.name,
+            name: session.via,
             nodeId: session.nodeId,
             peerNodeId: session.peerNodeId,
             fabric: session.fabric?.externalInformation,

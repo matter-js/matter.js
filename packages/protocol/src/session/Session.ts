@@ -20,7 +20,7 @@ import {
 } from "#general";
 import { MessageChannel } from "#protocol/MessageChannel.js";
 import { NodeId, TypeFromPartialBitSchema } from "#types";
-import { DecodedMessage, DecodedPacket, Message, Packet, SessionType } from "../codec/MessageCodec.js";
+import { DecodedMessage, DecodedPacket, Message, Packet, PacketHeader, SessionType } from "../codec/MessageCodec.js";
 import { Fabric } from "../fabric/Fabric.js";
 import { MessageCounter } from "../protocol/MessageCounter.js";
 import { MessageReceptionState } from "../protocol/MessageReceptionState.js";
@@ -29,14 +29,14 @@ import { SessionParameters } from "./SessionParameters.js";
 
 export class NonOperationalSession extends ImplementationError {
     constructor(session: Session) {
-        super(`Session ${session.name} has ended`);
+        super(`Session ${session.via} has ended`);
     }
 }
 
 export abstract class Session {
     #channel?: MessageChannel;
 
-    abstract get name(): string;
+    abstract get via(): string;
     abstract get closingAfterExchangeFinished(): boolean;
     #manager?: SessionManager;
     timestamp = Time.nowMs;
@@ -178,6 +178,29 @@ export abstract class Session {
     abstract decode(packet: DecodedPacket, aad?: Bytes): DecodedMessage;
     abstract encode(message: Message): Packet;
     abstract end(sendClose: boolean): Promise<void>;
+
+    get idStr() {
+        return this.id.toString(16).padStart(4, "0");
+    }
+
+    static idStrOf(source: Packet | PacketHeader | number) {
+        let id;
+        if (typeof source === "number") {
+            id = source;
+        } else {
+            if ("header" in source) {
+                id = source.header?.sessionId;
+            } else if ("sessionId" in source) {
+                id = source.sessionId;
+            }
+            if (typeof id !== "number") {
+                return "?";
+            }
+        }
+
+        return id.toString(16).padStart(4, "0");
+    }
+
     async destroy(
         _sendClose?: boolean,
         _closeAfterExchangeFinished?: boolean,

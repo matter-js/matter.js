@@ -115,7 +115,7 @@ export class MessageChannel implements Channel<Message> {
     }
 
     get name() {
-        return Diagnostic.via(`${this.session.name}@${this.channel.name}`);
+        return Diagnostic.via(`${this.session.via}@${this.channel.name}`);
     }
 
     get networkAddress() {

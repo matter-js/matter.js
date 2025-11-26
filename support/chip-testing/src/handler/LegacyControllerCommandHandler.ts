@@ -336,7 +336,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
         } = data;
         let client: InteractionClient;
         if (this.#paseSession) {
-            logger.info("Force reuse of PASE connection", this.#paseSession.name);
+            logger.info("Force reuse of PASE connection", this.#paseSession.via);
             client = await this.#controllerInstance.createInteractionClient(
                 this.#paseSession,
                 NodeDiscoveryType.FullDiscovery,

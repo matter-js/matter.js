@@ -122,7 +122,7 @@ export class NodeSession extends SecureSession {
 
         logger.debug(
             `Created secure ${this.isPase ? "PASE" : "CASE"} session for fabric index ${fabric?.fabricIndex}`,
-            this.name,
+            this.via,
             this.parameterDiagnostics,
         );
     }
@@ -225,11 +225,11 @@ export class NodeSession extends SecureSession {
         return this.#attestationKey;
     }
 
-    get fabric() {
+    get fabric(): Fabric | undefined {
         return this.#fabric;
     }
 
-    set(fabric: Fabric) {
+    set fabric(fabric: Fabric) {
         if (this.#fabric !== undefined) {
             throw new MatterFlowError("Session already has an associated Fabric. Cannot change this.");
         }
@@ -241,8 +241,8 @@ export class NodeSession extends SecureSession {
         return this.#id;
     }
 
-    get name() {
-        return `secure/${this.#id}`;
+    get via() {
+        return Diagnostic.via(`${this.isPase ? "pase" : "case"}:${this.idStr}`);
     }
 
     get peerSessionId(): number {
@@ -298,11 +298,11 @@ export class NodeSession extends SecureSession {
         }
 
         if (closeAfterExchangeFinished) {
-            logger.info(`Register Session ${this.name} to close when exchange is ended.`);
+            logger.info(this.via, `Register session to close when exchange is ended`);
             this.#closingAfterExchangeFinished = true;
         } else {
             this.#isClosing = true;
-            logger.info(`End ${this.isPase ? "PASE" : "CASE"} session ${this.name}`);
+            logger.info(this.via, `End session`);
             this.manager?.sessions.delete(this);
 
             // Wait for the exchange to finish closing, but ignore errors if channel is already closed

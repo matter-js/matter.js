@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto, Logger, MatterFlowError } from "#general";
+import { Bytes, Crypto, Diagnostic, Logger, MatterFlowError } from "#general";
 import { NoAssociatedFabricError } from "#protocol/errors.js";
 import { NodeId } from "#types";
 import { DecodedMessage, DecodedPacket, Message, MessageCodec, Packet, SessionType } from "../codec/MessageCodec.js";
@@ -58,12 +58,16 @@ export class UnsecuredSession extends Session {
         throw new MatterFlowError("Not supported on an unsecure session");
     }
 
-    get name() {
-        return `unsecured/${this.#initiatorNodeId}`;
+    get via() {
+        return Diagnostic.via(`unsecured:${this.#initiatorNodeId.toString(16).padStart(16)}`);
     }
 
     get id(): number {
         return UNICAST_UNSECURE_SESSION_ID;
+    }
+
+    override get idStr() {
+        return "unsecured";
     }
 
     get peerSessionId(): number {
@@ -89,7 +93,7 @@ export class UnsecuredSession extends Session {
     }
 
     async end() {
-        logger.info(`End unsecured session ${this.name}`);
+        logger.info(`End unsecured session ${this.via}`);
         this.manager?.unsecuredSessions.delete(this.nodeId);
     }
 }

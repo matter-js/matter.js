@@ -101,7 +101,7 @@ export abstract class Subscription {
     protected async destroy(): Promise<void> {
         this.#isClosed = true;
         this.#session.subscriptions.delete(this);
-        logger.debug(`Removed subscription ${this.id} from ${this.#session.name}`);
+        logger.debug(this.session.via, `Removed subscription ${this.id}`);
 
         this.#cancelled.emit(this);
     }
@@ -109,6 +109,6 @@ export abstract class Subscription {
     protected activate() {
         // TODO Do not add to session but to node/peer
         this.#session.subscriptions.add(this);
-        logger.debug(`Added subscription ${this.#id} to ${this.#session.name}`);
+        logger.debug(this.#session.via, `Added subscription ${this.#id}`);
     }
 }
