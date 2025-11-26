@@ -5,7 +5,7 @@
  */
 
 // Include this first to auto-register Crypto, Network and Time Node.js implementations
-import { Environment, Logger, StorageContext, StorageService } from "#general";
+import { Environment, Logger, SharedEnvironmentServices, StorageContext, StorageService } from "#general";
 import { DclCertificateService, DclOtaUpdateService, DclVendorInfoService } from "#protocol";
 import { NodeId } from "#types";
 import { CommissioningController, ControllerStore } from "@project-chip/matter.js";
@@ -23,6 +23,7 @@ export class MatterNode {
     readonly #nodeNum: number;
     readonly #netInterface?: string;
     #dclFetchTestCertificates = false;
+    #services?: SharedEnvironmentServices;
 
     constructor(nodeNum: number, netInterface?: string) {
         this.#environment = Environment.default;
@@ -39,25 +40,32 @@ export class MatterNode {
         return this.#environment;
     }
 
+    protected get services() {
+        if (!this.#services) {
+            this.#services = new SharedEnvironmentServices(this.#environment);
+        }
+        return this.#services;
+    }
+
     get otaService() {
         if (!this.environment.has(DclOtaUpdateService)) {
             new DclOtaUpdateService(this.environment); // Adds itself to the environment
         }
-        return this.environment.get(DclOtaUpdateService, this);
+        return this.services.get(DclOtaUpdateService);
     }
 
     get certificateService() {
         if (!this.environment.has(DclCertificateService)) {
             new DclCertificateService(this.environment, { fetchTestCertificates: this.#dclFetchTestCertificates });
         }
-        return this.environment.get(DclCertificateService, this);
+        return this.services.get(DclCertificateService);
     }
 
     get vendorInfoService() {
         if (!this.environment.has(DclVendorInfoService)) {
             new DclVendorInfoService(this.environment); // Adds itself to the environment
         }
-        return this.environment.get(DclVendorInfoService, this);
+        return this.services.get(DclVendorInfoService);
     }
 
     async initialize(resetStorage: boolean) {
@@ -115,15 +123,7 @@ export class MatterNode {
 
     async close() {
         await this.commissioningController?.close();
-        if (this.environment.has(DclOtaUpdateService)) {
-            this.environment.close(DclOtaUpdateService, this);
-        }
-        if (this.environment.has(DclCertificateService)) {
-            this.environment.close(DclCertificateService, this);
-        }
-        if (this.environment.has(DclVendorInfoService)) {
-            this.environment.close(DclVendorInfoService, this);
-        }
+        this.#services?.close();
     }
 
     async start() {

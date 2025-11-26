@@ -15,6 +15,7 @@ import {
     NetworkInterfaceDetailed,
     NoAddressAvailableError,
     ObserverGroup,
+    SharedEnvironmentServices,
     UdpInterface,
 } from "#general";
 import type { ServerNode } from "#node/ServerNode.js";
@@ -61,6 +62,12 @@ export class ServerNetworkRuntime extends NetworkRuntime {
     #ipv6UdpInterface?: UdpInterface;
     #observers = new ObserverGroup(this);
     #groupNetworking?: ServerGroupNetworking;
+    #services: SharedEnvironmentServices;
+
+    constructor(owner: ServerNode) {
+        super(owner);
+        this.#services = owner.env.asDependent();
+    }
 
     override get owner() {
         return super.owner as ServerNode;
@@ -74,7 +81,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
             const port = this.owner.state.network.operationalPort;
             const options = this.owner.state.commissioning.mdns;
             const crypto = this.owner.env.get(Crypto);
-            const { server } = this.owner.env.get(MdnsService, this.owner);
+            const { server } = this.#services.get(MdnsService);
             this.#mdnsAdvertiser = new MdnsAdvertiser(crypto, server, { ...options, port });
         }
         return this.#mdnsAdvertiser;
@@ -253,7 +260,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         await this.addTransports(interfaces);
 
         // Initialize MDNS
-        const mdns = await owner.env.load(MdnsService, owner);
+        const mdns = await this.#services.load(MdnsService);
 
         const advertiser = env.get(DeviceAdvertiser);
 
@@ -323,7 +330,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         // Now all sessions are closed, so we wait for Advertiser to be gone
         await advertisementShutdown;
 
-        await env.close(MdnsService, this.owner);
+        await this.#services.close();
 
         await env.close(ExchangeManager);
         await env.close(SecureChannelProtocol);

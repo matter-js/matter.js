@@ -8,4 +8,5 @@ export * from "./Environment.js";
 export * from "./Environmental.js";
 export * from "./RuntimeService.js";
 export * from "./ServiceBundle.js";
+export * from "./SharedEnvironmentServices.js";
 export * from "./VariableService.js";

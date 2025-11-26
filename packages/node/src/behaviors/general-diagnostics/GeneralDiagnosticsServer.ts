@@ -327,8 +327,10 @@ export class GeneralDiagnosticsServer extends Base {
     }
 
     async #updateNetworkList() {
-        const mdnsService = this.env.get(MdnsService, this.endpoint);
+        const services = this.env.asDependent();
+        const mdnsService = services.get(MdnsService);
         const mdnsLimitedToNetworkInterfaces = mdnsService.limitedToNetInterface;
+        services.close();
 
         const networkRuntime = this.env.get(NetworkRuntime) as ServerNetworkRuntime;
         const systemNetworkInterfaces = await networkRuntime.getNetworkInterfaces();

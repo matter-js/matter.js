@@ -23,7 +23,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: There are other small time changes such as converting `nowMs()` (a function) to `nowMs` (a property).
     - Breaking: SyncStorage interface got removed
     - Breaking: MaybeAsyncStorage got renamed to Storage because it is the only interface from now on
-    - Breaking: Some central services, especially MdnsService, are now tracked automatically by users and will close correctly when no longer needed. Closing MdnsService manually is not allowed anymore and would throw an exception.
+    - Breaking: Some central services, especially MdnsService, are now tracked automatically by usages and will close correctly when no longer needed. Closing MdnsService manually is not needed anymore.
     - Feature: Adds Blob support to the Storage interface
     - Feature: Add BDX (Bulk Data eXchange) protocol support according to Matter specification
     - Feature: Added support for multiple hash algorithms (SHA-256, SHA-384, SHA-512, SHA-512/224, SHA-512/256, SHA3-256) via HashAlgorithm enum with IANA identifiers

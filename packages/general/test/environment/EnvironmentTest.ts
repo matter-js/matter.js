@@ -95,28 +95,28 @@ describe("Environment", () => {
         });
     });
 
-    describe("participant tracking - get()", () => {
-        it("tracks a single participant and returns same instance", () => {
+    describe("dependent tracking - get()", () => {
+        it("tracks a single dependent and returns same instance", () => {
             const env = new Environment("test");
             const service = new TestService();
             env.set(TestService, service);
-            const participant1 = { name: "participant1" };
+            const dependent1 = env.asDependent();
 
-            const retrieved = env.get(TestService, participant1);
+            const retrieved = dependent1.get(TestService);
 
             expect(retrieved).to.equal(service);
             expect(retrieved).to.be.instanceOf(TestService);
         });
 
-        it("tracks multiple participants and returns same instance for each", () => {
+        it("tracks multiple dependents and returns same instance for each", () => {
             const env = new Environment("test");
             const service = new TestService();
             env.set(TestService, service);
-            const participant1 = { name: "participant1" };
-            const participant2 = { name: "participant2" };
+            const dependent1 = env.asDependent();
+            const dependent2 = env.asDependent();
 
-            const retrieved1 = env.get(TestService, participant1);
-            const retrieved2 = env.get(TestService, participant2);
+            const retrieved1 = dependent1.get(TestService);
+            const retrieved2 = dependent2.get(TestService);
 
             // Both should return the exact same instance
             expect(retrieved1).to.equal(service);
@@ -124,7 +124,7 @@ describe("Environment", () => {
             expect(env.has(TestService)).to.be.true;
         });
 
-        it("allows getting service without participant and returns same instance", () => {
+        it("allows getting service without dependent and returns same instance", () => {
             const env = new Environment("test");
             const service = new TestService();
             env.set(TestService, service);
@@ -135,31 +135,30 @@ describe("Environment", () => {
             expect(retrieved).to.be.instanceOf(TestService);
         });
 
-        it("enforces consistent participant mode - cannot mix with and without", () => {
+        it("allows mixing dependent and non-dependent access", () => {
             const env = new Environment("test");
             const service = new TestService();
             env.set(TestService, service);
-            const participant1 = { name: "participant1" };
+            const dependent1 = env.asDependent();
 
-            // First access without participant sets mode to "without"
+            // Access without dependent
             const retrieved1 = env.get(TestService);
             expect(retrieved1).to.equal(service);
 
-            // Second access with participant should throw
-            expect(() => env.get(TestService, participant1)).to.throw(
-                /was initialized without participants but is being accessed with participants/,
-            );
+            // Access with dependent - should work fine
+            const retrieved2 = dependent1.get(TestService);
+            expect(retrieved2).to.equal(service);
         });
 
-        it("returns same instance on repeated get with same participant", () => {
+        it("returns same instance on repeated get with same dependent", () => {
             const env = new Environment("test");
             const service = new TestService();
             env.set(TestService, service);
-            const participant1 = { name: "participant1" };
+            const dependent1 = env.asDependent();
 
-            const retrieved1 = env.get(TestService, participant1);
-            const retrieved2 = env.get(TestService, participant1);
-            const retrieved3 = env.get(TestService, participant1);
+            const retrieved1 = dependent1.get(TestService);
+            const retrieved2 = dependent1.get(TestService);
+            const retrieved3 = dependent1.get(TestService);
 
             // All should return the exact same instance
             expect(retrieved1).to.equal(service);
@@ -167,7 +166,7 @@ describe("Environment", () => {
             expect(retrieved3).to.equal(service);
         });
 
-        it("returns same instance when getting without participant multiple times", () => {
+        it("returns same instance when getting without dependent multiple times", () => {
             const env = new Environment("test");
             const service = new TestService();
             env.set(TestService, service);
@@ -183,44 +182,44 @@ describe("Environment", () => {
         });
     });
 
-    describe("participant tracking - delete()", () => {
-        it("does not delete service when participants remain", () => {
+    describe("dependent tracking - delete()", () => {
+        it("does not delete service when dependents remain", () => {
             const env = new Environment("test");
             const service = new TestService();
             env.set(TestService, service);
-            const participant1 = { name: "participant1" };
-            const participant2 = { name: "participant2" };
+            const dependent1 = env.asDependent();
+            const dependent2 = env.asDependent();
 
-            env.get(TestService, participant1);
-            env.get(TestService, participant2);
+            dependent1.get(TestService);
+            dependent2.get(TestService);
 
-            // Delete for one participant
-            env.delete(TestService, undefined, participant1);
+            // Delete for one dependent
+            dependent1.delete(TestService);
 
-            // Service should still exist
+            // Service should still exist (dependent2 still using it)
             expect(env.has(TestService)).to.be.true;
             expect(service.closed).to.be.false;
         });
 
-        it("deletes service when last participant is removed", () => {
+        it("deletes service when last dependent is removed", () => {
             const env = new Environment("test");
             const service = new TestService();
             env.set(TestService, service);
-            const participant1 = { name: "participant1" };
-            const participant2 = { name: "participant2" };
+            const dependent1 = env.asDependent();
+            const dependent2 = env.asDependent();
 
-            env.get(TestService, participant1);
-            env.get(TestService, participant2);
+            dependent1.get(TestService);
+            dependent2.get(TestService);
 
-            // Delete both participants
-            env.delete(TestService, undefined, participant1);
-            env.delete(TestService, undefined, participant2);
+            // Delete both dependents
+            dependent1.delete(TestService);
+            dependent2.delete(TestService);
 
             // Service should be deleted
             expect(env.has(TestService)).to.be.false;
         });
 
-        it("deletes service immediately without participant tracking", () => {
+        it("deletes service immediately without dependent tracking", () => {
             const env = new Environment("test");
             const service = new TestService();
             env.set(TestService, service);
@@ -264,52 +263,52 @@ describe("Environment", () => {
                 }
             });
 
-            env.delete(TestService, undefined, service);
+            env.delete(TestService, service);
 
             expect(env.has(TestService)).to.be.false;
             expect(deletedEmitted).to.be.true;
         });
     });
 
-    describe("participant tracking - close()", () => {
-        it("does not close service when participants remain", () => {
+    describe("dependent tracking - close()", () => {
+        it("does not close service when dependents remain", () => {
             const env = new Environment("test");
             const service = new TestService();
             env.set(TestService, service);
-            const participant1 = { name: "participant1" };
-            const participant2 = { name: "participant2" };
+            const dependent1 = env.asDependent();
+            const dependent2 = env.asDependent();
 
-            env.get(TestService, participant1);
-            env.get(TestService, participant2);
+            dependent1.get(TestService);
+            dependent2.get(TestService);
 
-            // Close for one participant
-            env.close(TestService, participant1);
+            // Close for one dependent
+            dependent1.close(TestService);
 
-            // Service should still exist and not be closed
+            // Service should still exist and not be closed (dependent2 still using it)
             expect(env.has(TestService)).to.be.true;
             expect(service.closed).to.be.false;
         });
 
-        it("closes service when last participant is removed", () => {
+        it("closes service when last dependent is removed", () => {
             const env = new Environment("test");
             const service = new TestService();
             env.set(TestService, service);
-            const participant1 = { name: "participant1" };
-            const participant2 = { name: "participant2" };
+            const dependent1 = env.asDependent();
+            const dependent2 = env.asDependent();
 
-            env.get(TestService, participant1);
-            env.get(TestService, participant2);
+            dependent1.get(TestService);
+            dependent2.get(TestService);
 
-            // Close both participants
-            env.close(TestService, participant1);
-            env.close(TestService, participant2);
+            // Close both dependents
+            dependent1.close(TestService);
+            dependent2.close(TestService);
 
             // Service should be closed and deleted
             expect(service.closed).to.be.true;
             expect(env.has(TestService)).to.be.false;
         });
 
-        it("closes service immediately without participant tracking", () => {
+        it("closes service immediately without dependent tracking", () => {
             const env = new Environment("test");
             const service = new TestService();
             env.set(TestService, service);
@@ -338,57 +337,79 @@ describe("Environment", () => {
         });
     });
 
-    describe("participant tracking - mixed scenarios", () => {
-        it("handles participant added multiple times", () => {
+    describe("dependent tracking - mixed scenarios", () => {
+        it("handles dependent getting service multiple times", () => {
             const env = new Environment("test");
             const service = new TestService();
             env.set(TestService, service);
-            const participant1 = { name: "participant1" };
+            const dependent1 = env.asDependent();
 
-            // Add same participant multiple times
-            env.get(TestService, participant1);
-            env.get(TestService, participant1);
-            env.get(TestService, participant1);
+            // Get same service multiple times from same dependent
+            dependent1.get(TestService);
+            dependent1.get(TestService);
+            dependent1.get(TestService);
 
-            // Should only need to remove once (Set behavior)
-            env.close(TestService, participant1);
+            // Should only need to close once
+            dependent1.close(TestService);
 
             expect(service.closed).to.be.true;
         });
 
-        it("handles participant removal when not tracked", () => {
+        it("handles closing service not tracked by dependent", () => {
             const env = new Environment("test");
             const service = new TestService();
             env.set(TestService, service);
-            const participant1 = { name: "participant1" };
+            const dependent1 = env.asDependent();
 
-            // Try to remove participant that was never added
-            env.delete(TestService, undefined, participant1);
+            // Try to close service that dependent never used
+            dependent1.delete(TestService);
 
-            // Service should be marked as deleted but not closed
-            expect(env.has(TestService)).to.be.false;
+            // Service should still exist (no dependent was using it)
+            expect(env.has(TestService)).to.be.true;
         });
 
-        it("tracks participants across multiple services independently", () => {
+        it("tracks dependents across multiple services independently", () => {
             const env = new Environment("test");
             const service1 = new TestService();
             const service2 = new AnotherService();
             env.set(TestService, service1);
             env.set(AnotherService, service2);
 
-            const participant1 = { name: "participant1" };
+            const dependent1 = env.asDependent();
 
-            env.get(TestService, participant1);
-            env.get(AnotherService, participant1);
+            dependent1.get(TestService);
+            dependent1.get(AnotherService);
 
-            // Close service1 for participant1
-            env.close(TestService, participant1);
+            // Close service1 for dependent1
+            dependent1.close(TestService);
 
             // service1 should be closed, service2 should not
             expect(service1.closed).to.be.true;
             expect(service2.closed).to.be.false;
             expect(env.has(TestService)).to.be.false;
             expect(env.has(AnotherService)).to.be.true;
+        });
+
+        it("dependent.close() closes all services used by dependent", () => {
+            const env = new Environment("test");
+            const service1 = new TestService();
+            const service2 = new AnotherService();
+            env.set(TestService, service1);
+            env.set(AnotherService, service2);
+
+            const dependent1 = env.asDependent();
+
+            dependent1.get(TestService);
+            dependent1.get(AnotherService);
+
+            // Close all services for dependent1
+            dependent1.close();
+
+            // Both services should be closed
+            expect(service1.closed).to.be.true;
+            expect(service2.closed).to.be.true;
+            expect(env.has(TestService)).to.be.false;
+            expect(env.has(AnotherService)).to.be.false;
         });
     });
 
@@ -427,22 +448,22 @@ describe("Environment", () => {
             expect(deletedEmitted).to.be.true;
         });
 
-        it("does not emit deleted event when participants remain", () => {
+        it("does not emit deleted event when dependents remain", () => {
             const env = new Environment("test");
             const service = new TestService();
-            const participant1 = { name: "participant1" };
-            const participant2 = { name: "participant2" };
+            const dependent1 = env.asDependent();
+            const dependent2 = env.asDependent();
             let deletedEmitted = false;
 
             env.set(TestService, service);
-            env.get(TestService, participant1);
-            env.get(TestService, participant2);
+            dependent1.get(TestService);
+            dependent2.get(TestService);
 
             env.deleted.on(() => {
                 deletedEmitted = true;
             });
 
-            env.delete(TestService, undefined, participant1);
+            dependent1.delete(TestService);
 
             expect(deletedEmitted).to.be.false;
         });
@@ -461,29 +482,30 @@ describe("Environment", () => {
             expect(retrieved).to.be.instanceOf(TestService);
         });
 
-        it("tracks participants in parent service and returns same instance", () => {
+        it("tracks dependents in parent service and returns same instance", () => {
             const parent = new Environment("parent");
             const child = new Environment("child", parent);
             const service = new TestService();
             parent.set(TestService, service);
 
-            const participant1 = { name: "participant1" };
-            const participant2 = { name: "participant2" };
+            const dependent1 = child.asDependent();
+            const dependent2 = child.asDependent();
 
-            // Get from child with participants
-            const retrieved1 = child.get(TestService, participant1);
-            const retrieved2 = child.get(TestService, participant2);
+            // Get from child with dependents - tracked at root
+            const retrieved1 = dependent1.get(TestService);
+            const retrieved2 = dependent2.get(TestService);
 
             // Should return the same instance from parent
             expect(retrieved1).to.equal(service);
             expect(retrieved2).to.equal(service);
             expect(retrieved1).to.equal(retrieved2);
 
-            // Delete from parent should track participants
-            parent.delete(TestService, undefined, participant1);
-            expect(parent.has(TestService)).to.be.true; // Still has participant2
+            // Delete from first dependent - service remains (second still using it)
+            dependent1.delete(TestService);
+            expect(parent.has(TestService)).to.be.true;
 
-            parent.delete(TestService, undefined, participant2);
+            // Delete from second dependent - service is now deleted (no more dependents)
+            dependent2.delete(TestService);
             expect(parent.has(TestService)).to.be.false;
         });
 
@@ -526,7 +548,7 @@ describe("Environment", () => {
             expect(fromParent).to.not.equal(fromChild);
         });
 
-        it("tracks participants separately in parent and child when overridden", () => {
+        it("shared services always operate at root level", () => {
             const parent = new Environment("parent");
             const child = new Environment("child", parent);
             const parentService = new TestService();
@@ -535,282 +557,443 @@ describe("Environment", () => {
             parent.set(TestService, parentService);
             child.set(TestService, childService);
 
-            const participant1 = { name: "participant1" };
-            const participant2 = { name: "participant2" };
+            const parentDependent = parent.asDependent();
+            const childDependent = child.asDependent();
 
-            const fromParent = parent.get(TestService, participant1);
-            const fromChild = child.get(TestService, participant2);
+            const fromParent = parentDependent.get(TestService);
+            const fromChild = childDependent.get(TestService);
 
-            // Should return different instances
+            // Both shared instances operate at root, so both get root's service
             expect(fromParent).to.equal(parentService);
-            expect(fromChild).to.equal(childService);
+            expect(fromChild).to.equal(parentService); // Also gets root's service
 
-            // Closing child's service shouldn't affect parent's
-            child.close(TestService, participant2);
-            expect(childService.closed).to.be.true;
-            expect(parentService.closed).to.be.false;
-            expect(parent.has(TestService)).to.be.true;
+            // Direct access still gets child's service
+            expect(child.get(TestService)).to.equal(childService);
+
+            // Closing one shared instance doesn't close service (other still using it)
+            childDependent.close(TestService);
+            expect(parentService.closed).to.be.false; // Still in use by parentDependent
+
+            // Closing the other releases the service
+            parentDependent.close(TestService);
+            expect(parentService.closed).to.be.true;
+
+            // Child's service unaffected (never accessed via shared)
+            expect(childService.closed).to.be.false;
+            expect(child.get(TestService)).to.equal(childService);
         });
 
-        it("closes inherited service from child when all participants are removed from parent", () => {
+        it("child dependents DO control parent-owned inherited services", () => {
             const parent = new Environment("parent");
             const child = new Environment("child", parent);
             const service = new TestService();
             parent.set(TestService, service);
 
-            const participant1 = { name: "participant1" };
-            const participant2 = { name: "participant2" };
+            const dependent1 = child.asDependent();
+            const dependent2 = child.asDependent();
 
-            // Get from child with multiple participants - they're tracked in parent
-            const retrieved1 = child.get(TestService, participant1);
-            const retrieved2 = child.get(TestService, participant2);
+            // Get from child with multiple dependents - tracked at root
+            const retrieved1 = dependent1.get(TestService);
+            const retrieved2 = dependent2.get(TestService);
 
             expect(retrieved1).to.equal(service);
             expect(retrieved2).to.equal(service);
 
-            // Close from parent for first participant - service should remain
-            parent.close(TestService, participant1);
+            // Close from first dependent - service remains (second still using it)
+            dependent1.close(TestService);
             expect(service.closed).to.be.false;
             expect(parent.has(TestService)).to.be.true;
-            expect(child.has(TestService)).to.be.true;
 
-            // Close from parent for second participant - service should be closed
-            parent.close(TestService, participant2);
+            // Close from second dependent - NOW service closes (no more dependents)
+            dependent2.close(TestService);
             expect(service.closed).to.be.true;
             expect(parent.has(TestService)).to.be.false;
-            expect(child.has(TestService)).to.be.false; // Child inherits parent's state
         });
 
-        it("closes inherited service only when participants from all environments are removed", () => {
+        it("services registered via shared are accessible directly from child environments", () => {
+            const parent = new Environment("parent");
+            const child = new Environment("child", parent);
+
+            // Create service and register at root via shared instance
+            const service = new TestService();
+            parent.set(TestService, service);
+
+            const shared = parent.asDependent();
+            const serviceViaShared = shared.get(TestService);
+            expect(serviceViaShared).to.equal(service);
+
+            // Service should be accessible directly from child environment (inherits from root)
+            const directFromChild = child.get(TestService);
+            expect(directFromChild).to.equal(service);
+
+            // Also accessible directly from parent
+            const directFromParent = parent.get(TestService);
+            expect(directFromParent).to.equal(service);
+
+            // All references point to same instance
+            expect(directFromChild).to.equal(directFromParent);
+            expect(serviceViaShared).to.equal(directFromChild);
+        });
+
+        it("closes inherited service only when dependents from all environments are removed", () => {
             const parent = new Environment("parent");
             const child = new Environment("child", parent);
             const service = new TestService();
             parent.set(TestService, service);
 
-            const parentParticipant = { name: "parentParticipant" };
-            const childParticipant1 = { name: "childParticipant1" };
-            const childParticipant2 = { name: "childParticipant2" };
+            const parentDependent = parent.asDependent();
+            const childDependent1 = child.asDependent();
+            const childDependent2 = child.asDependent();
 
-            // Get from both parent and child with participants
-            parent.get(TestService, parentParticipant);
-            child.get(TestService, childParticipant1);
-            child.get(TestService, childParticipant2);
+            // Get from both parent and child with dependents
+            parentDependent.get(TestService);
+            childDependent1.get(TestService);
+            childDependent2.get(TestService);
 
-            // Close from child for first participant
-            child.close(TestService, childParticipant1);
-            expect(service.closed).to.be.false; // Still has other participants
+            // Close from child for first dependent
+            childDependent1.close(TestService);
+            expect(service.closed).to.be.false; // Still has other dependents
             expect(parent.has(TestService)).to.be.true;
 
-            // Close from child for second participant
-            child.close(TestService, childParticipant2);
-            expect(service.closed).to.be.false; // Still has parent participant
+            // Close from child for second dependent
+            childDependent2.close(TestService);
+            expect(service.closed).to.be.false; // Still has parent dependent
             expect(parent.has(TestService)).to.be.true;
 
-            // Close from parent for last participant - now it should close
-            parent.close(TestService, parentParticipant);
+            // Close from parent for last dependent - now it should close
+            parentDependent.close(TestService);
             expect(service.closed).to.be.true;
             expect(parent.has(TestService)).to.be.false;
         });
 
-        it("allows closing inherited service from child without affecting parent participant tracking", () => {
+        it("allows closing inherited service from child without affecting parent dependent tracking", () => {
             const parent = new Environment("parent");
             const child = new Environment("child", parent);
             const service = new TestService();
             parent.set(TestService, service);
 
-            const parentParticipant = { name: "parentParticipant" };
-            const childParticipant = { name: "childParticipant" };
+            const parentDependent = parent.asDependent();
+            const childDependent = child.asDependent();
 
             // Get from both environments
-            parent.get(TestService, parentParticipant);
-            const fromChild = child.get(TestService, childParticipant);
+            parentDependent.get(TestService);
+            const fromChild = childDependent.get(TestService);
 
             expect(fromChild).to.equal(service);
 
-            // Close from child with its participant
-            child.close(TestService, childParticipant);
+            // Close from child with its dependent
+            childDependent.close(TestService);
 
-            // Service should not be closed (parent still has participant)
+            // Service should not be closed (parent still has dependent)
             expect(service.closed).to.be.false;
             expect(parent.has(TestService)).to.be.true;
 
-            // Parent can still access it (must use participant mode consistently)
-            const stillAvailable = parent.get(TestService, parentParticipant);
+            // Parent can still access it
+            const stillAvailable = parentDependent.get(TestService);
             expect(stillAvailable).to.equal(service);
         });
 
-        it("properly tracks participants when getting from multiple child environments", () => {
+        it("properly tracks dependents when getting from multiple child environments", () => {
             const parent = new Environment("parent");
             const child1 = new Environment("child1", parent);
             const child2 = new Environment("child2", parent);
             const service = new TestService();
             parent.set(TestService, service);
 
-            const participant1 = { name: "participant1" };
-            const participant2 = { name: "participant2" };
-            const participant3 = { name: "participant3" };
+            const parentDependent = parent.asDependent();
+            const child1Dependent = child1.asDependent();
+            const child2Dependent = child2.asDependent();
 
-            // Get from different environments with different participants
-            parent.get(TestService, participant1);
-            child1.get(TestService, participant2);
-            child2.get(TestService, participant3);
+            // Get from different environments with different dependents
+            parentDependent.get(TestService);
+            child1Dependent.get(TestService);
+            child2Dependent.get(TestService);
 
             // Close from child1
-            child1.close(TestService, participant2);
-            expect(service.closed).to.be.false; // Still has other participants
+            child1Dependent.close(TestService);
+            expect(service.closed).to.be.false; // Still has other dependents
             expect(parent.has(TestService)).to.be.true;
 
             // Close from child2
-            child2.close(TestService, participant3);
-            expect(service.closed).to.be.false; // Still has parent participant
+            child2Dependent.close(TestService);
+            expect(service.closed).to.be.false; // Still has parent dependent
             expect(parent.has(TestService)).to.be.true;
 
             // Close from parent - now it should close
-            parent.close(TestService, participant1);
+            parentDependent.close(TestService);
             expect(service.closed).to.be.true;
             expect(parent.has(TestService)).to.be.false;
         });
 
-        it("blocks inheritance in child when closing without removing all participants", () => {
+        it("keeps service available when some dependents remain", () => {
             const parent = new Environment("parent");
             const child = new Environment("child", parent);
             const service = new TestService();
             parent.set(TestService, service);
 
-            const participant1 = { name: "participant1" };
-            const participant2 = { name: "participant2" };
+            const dependent1 = child.asDependent();
+            const dependent2 = child.asDependent();
 
-            // Get from child with participants
-            child.get(TestService, participant1);
-            child.get(TestService, participant2);
+            // Get from child with dependents
+            dependent1.get(TestService);
+            dependent2.get(TestService);
 
-            // Close from child for one participant
-            child.close(TestService, participant1);
+            // Close from child for one dependent
+            dependent1.close(TestService);
 
-            // Service not closed yet (still has participant2)
+            // Service not closed yet (still has dependent2)
             expect(service.closed).to.be.false;
             expect(parent.has(TestService)).to.be.true;
 
-            // But child still has it via remaining participant
+            // Child still has it via remaining dependent
             expect(child.has(TestService)).to.be.true;
-            const stillAvailable = child.get(TestService, participant2);
+            const stillAvailable = dependent2.get(TestService);
             expect(stillAvailable).to.equal(service);
         });
     });
 
-    describe("participant mode enforcement", () => {
-        it("throws error when service set without participants is accessed with participant", () => {
+    describe("dependent and non-dependent access mixing", () => {
+        it("allows mixing dependent and non-dependent access to same service", () => {
             const env = new Environment("test");
             const service = new TestService();
             env.set(TestService, service);
 
-            // First access without participant - establishes "without" mode
-            env.get(TestService);
+            // Access without dependent
+            const directAccess = env.get(TestService);
+            expect(directAccess).to.equal(service);
 
-            // Try to access with participant - should throw
-            const participant = { name: "participant1" };
-            expect(() => env.get(TestService, participant)).to.throw(
-                "was initialized without participants but is being accessed with participants",
-            );
+            // Access with dependent - should work fine
+            const dependent = env.asDependent();
+            const dependentAccess = dependent.get(TestService);
+            expect(dependentAccess).to.equal(service);
         });
 
-        it("throws error when service accessed with participant is then accessed without", () => {
+        it("non-dependent close is blocked when dependents exist", () => {
             const env = new Environment("test");
             const service = new TestService();
             env.set(TestService, service);
 
-            // First access with participant - establishes "with" mode
-            const participant = { name: "participant1" };
-            env.get(TestService, participant);
+            const dependent = env.asDependent();
+            dependent.get(TestService);
 
-            // Try to access without participant - should throw
-            expect(() => env.get(TestService)).to.throw(
-                "was initialized with participants but is being accessed without participants",
-            );
-        });
-
-        it("throws error when deleting service with wrong participant mode", () => {
-            const env = new Environment("test");
-            const service = new TestService();
-            env.set(TestService, service);
-
-            // Access without participant
-            env.get(TestService);
-
-            // Try to delete with participant - should throw
-            const participant = { name: "participant1" };
-            expect(() => env.delete(TestService, undefined, participant)).to.throw(
-                "was initialized without participants but is being accessed with participants",
-            );
-        });
-
-        it("throws error when closing service with wrong participant mode", () => {
-            const env = new Environment("test");
-            const service = new TestService();
-            env.set(TestService, service);
-
-            // Access with participant
-            const participant = { name: "participant1" };
-            env.get(TestService, participant);
-
-            // Try to close without participant - should throw
-            expect(() => env.close(TestService)).to.throw(
-                "was initialized with participants but is being accessed without participants",
-            );
-        });
-
-        it("allows consistent participant mode usage throughout lifecycle", () => {
-            const env = new Environment("test");
-            const service = new TestService();
-            env.set(TestService, service);
-
-            const participant1 = { name: "participant1" };
-            const participant2 = { name: "participant2" };
-
-            // Access with participants
-            env.get(TestService, participant1);
-            env.get(TestService, participant2);
-
-            // Delete with participant
-            env.delete(TestService, undefined, participant1);
-
-            // Close with participant - should work fine
-            env.close(TestService, participant2);
-
-            expect(service.closed).to.be.true;
-        });
-
-        it("allows consistent non-participant mode usage throughout lifecycle", () => {
-            const env = new Environment("test");
-            const service = new TestService();
-            env.set(TestService, service);
-
-            // Access without participant
-            env.get(TestService);
-
-            // Close without participant - should work fine
+            // Direct close is blocked by dependent (tracked at root)
             env.close(TestService);
 
-            expect(service.closed).to.be.true;
+            // Service not closed because dependent is still using it
+            expect(service.closed).to.be.false;
+            // Service remains available (not blocked) because dependent is using it
+            expect(env.has(TestService)).to.be.true;
         });
 
-        it("enforces mode across multiple get calls", () => {
+        it("dependent close closes service and removes it", () => {
             const env = new Environment("test");
             const service = new TestService();
             env.set(TestService, service);
 
-            const participant = { name: "participant1" };
+            const dependent = env.asDependent();
+            dependent.get(TestService);
 
-            // First access with participant
-            env.get(TestService, participant);
+            // Dependent close closes the service (no other dependents)
+            dependent.close(TestService);
 
-            // Second access with participant - should work
-            env.get(TestService, participant);
+            // Service is closed and removed
+            expect(service.closed).to.be.true;
+            expect(env.has(TestService)).to.be.false;
+        });
 
-            // Third access without participant - should throw
-            expect(() => env.get(TestService)).to.throw(
-                "was initialized with participants but is being accessed without participants",
-            );
+        it("allows full lifecycle with mixed access patterns", () => {
+            const env = new Environment("test");
+            const service = new TestService();
+            env.set(TestService, service);
+
+            const dependent1 = env.asDependent();
+            const dependent2 = env.asDependent();
+
+            // Mixed access
+            env.get(TestService);
+            dependent1.get(TestService);
+            dependent2.get(TestService);
+
+            // Close first dependent - service remains (dependent2 still using)
+            dependent1.close(TestService);
+            expect(service.closed).to.be.false;
+            expect(env.has(TestService)).to.be.true;
+
+            // Close second dependent - service now closes (no more dependents)
+            dependent2.close(TestService);
+            expect(service.closed).to.be.true;
+            expect(env.has(TestService)).to.be.false;
+        });
+
+        it("dependent throws error when used after close()", () => {
+            const env = new Environment("test");
+            const service = new TestService();
+            env.set(TestService, service);
+
+            const dependent = env.asDependent();
+            dependent.get(TestService);
+
+            // Close the dependent
+            dependent.close();
+
+            // Try to use it again - should throw
+            expect(() => dependent.get(TestService)).to.throw("Dependent environment is closed");
+        });
+
+        it("dependent can be reused for multiple get calls before close", () => {
+            const env = new Environment("test");
+            const service = new TestService();
+            env.set(TestService, service);
+
+            const dependent = env.asDependent();
+
+            // Multiple gets should work
+            const access1 = dependent.get(TestService);
+            const access2 = dependent.get(TestService);
+            const access3 = dependent.get(TestService);
+
+            expect(access1).to.equal(service);
+            expect(access2).to.equal(service);
+            expect(access3).to.equal(service);
+
+            // Single close should be enough
+            dependent.close(TestService);
+            expect(service.closed).to.be.true;
+        });
+    });
+
+    describe("dependent advanced use cases", () => {
+        it("supports 3-level hierarchy with dependent bubbling to root", () => {
+            const root = new Environment("root");
+            const child = new Environment("child", root);
+            const grandchild = new Environment("grandchild", child);
+            const service = new TestService();
+            root.set(TestService, service);
+
+            // Create dependents at different levels
+            const rootDependent = root.asDependent();
+            const childDependent = child.asDependent();
+            const grandchildDependent = grandchild.asDependent();
+
+            // All get the same service from root
+            rootDependent.get(TestService);
+            childDependent.get(TestService);
+            grandchildDependent.get(TestService);
+
+            // Close from deepest level - service remains (others still using)
+            grandchildDependent.close(TestService);
+            expect(service.closed).to.be.false;
+            expect(root.has(TestService)).to.be.true;
+
+            // Close from middle level - service remains (root still using)
+            childDependent.close(TestService);
+            expect(service.closed).to.be.false;
+            expect(root.has(TestService)).to.be.true;
+
+            // Close from root level - now service closes (no more dependents)
+            rootDependent.close(TestService);
+            expect(service.closed).to.be.true;
+            expect(root.has(TestService)).to.be.false;
+        });
+
+        it("handles async service loading with dependent.load()", async () => {
+            class AsyncLoadService implements Environmental.Service {
+                static [Environmental.create](environment: Environment): AsyncLoadService {
+                    return environment.get(AsyncLoadService);
+                }
+
+                construction = Promise.resolve();
+                closed = false;
+                close() {
+                    this.closed = true;
+                }
+            }
+
+            const env = new Environment("test");
+            const asyncService = new AsyncLoadService();
+            env.set(AsyncLoadService, asyncService);
+
+            const dependent = env.asDependent();
+
+            // Load asynchronously - waits for construction promise
+            const service = await dependent.load(AsyncLoadService);
+            expect(service).to.equal(asyncService);
+
+            // Dependent should track it
+            dependent.close(AsyncLoadService);
+            expect(asyncService.closed).to.be.true;
+        });
+
+        it("can close empty dependent without using any services", () => {
+            const env = new Environment("test");
+            const dependent = env.asDependent();
+
+            // Should not throw
+            expect(() => dependent.close()).to.not.throw();
+        });
+
+        it("maybeGet returns undefined for missing service via dependent", () => {
+            class NonExistentService {
+                static [Environmental.create](environment: Environment) {
+                    return environment.get(NonExistentService);
+                }
+            }
+
+            const env = new Environment("test");
+            const dependent = env.asDependent();
+
+            const result = dependent.maybeGet(NonExistentService);
+            expect(result).to.be.undefined;
+        });
+
+        it("delete() removes from environment but does NOT close service", () => {
+            const env = new Environment("test");
+            const service = new TestService();
+            env.set(TestService, service);
+
+            const dependent = env.asDependent();
+            dependent.get(TestService);
+
+            // Delete removes from environment but doesn't call service.close()
+            dependent.delete(TestService);
+            expect(service.closed).to.be.false; // Service instance not closed
+            expect(env.has(TestService)).to.be.false; // But removed from environment
+        });
+
+        it("close() both untracks AND closes the service", () => {
+            const env = new Environment("test");
+            const service = new TestService();
+            env.set(TestService, service);
+
+            const dependent = env.asDependent();
+            dependent.get(TestService);
+
+            // Close untracks AND closes
+            dependent.close(TestService);
+            expect(service.closed).to.be.true;
+            expect(env.has(TestService)).to.be.false;
+        });
+
+        it("multiple dependents: delete() vs close() semantics", () => {
+            const env = new Environment("test");
+            const service = new TestService();
+            env.set(TestService, service);
+
+            const dependent1 = env.asDependent();
+            const dependent2 = env.asDependent();
+
+            dependent1.get(TestService);
+            dependent2.get(TestService);
+
+            // dependent1 deletes (untracks only)
+            dependent1.delete(TestService);
+            expect(service.closed).to.be.false; // Not closed (dependent2 still using)
+            expect(env.has(TestService)).to.be.true;
+
+            // dependent2 closes (untracks and closes)
+            dependent2.close(TestService);
+            expect(service.closed).to.be.true; // Now closed (no more dependents)
+            expect(env.has(TestService)).to.be.false;
         });
     });
 });
