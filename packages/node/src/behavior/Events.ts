@@ -259,7 +259,7 @@ export class QuietEvent<T extends any[] = any[], S extends ValueModel = ValueMod
         super(schema, owner);
         this.#quiet = new QuietObservable({
             shouldEmit(...args: T) {
-                const [oldValue, newValue] = args;
+                const [newValue, oldValue] = args;
 
                 return oldValue === null || (newValue === null && oldValue !== newValue) ? "now" : true;
             },
