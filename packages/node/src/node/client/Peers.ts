@@ -29,6 +29,7 @@ import {
     Seconds,
     Time,
     Timestamp,
+    UninitializedDependencyError,
 } from "#general";
 import { ClientGroup } from "#node/ClientGroup.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
@@ -69,6 +70,10 @@ export class Peers extends EndpointContainer<ClientNode> {
         this.deleted.on(this.#manageExpiration.bind(this));
 
         this.clusterInstalled(BasicInformationClient).on(this.#instrumentBasicInformation.bind(this));
+
+        const lifecycle = owner.lifecycle;
+        lifecycle.online.on(this.#nodeOnline.bind(this));
+        lifecycle.offline.on(this.#nodeOffline.bind(this));
     }
 
     /**
@@ -77,7 +82,14 @@ export class Peers extends EndpointContainer<ClientNode> {
     initialize() {
         const factory = this.owner.env.get(ClientNodeFactory);
 
-        const clientStores = this.owner.env.get(ServerNodeStore).clientStores;
+        const clientStores = this.owner.env.maybeGet(ServerNodeStore)?.clientStores;
+        if (clientStores === undefined) {
+            throw new UninitializedDependencyError(
+                "Peers",
+                "are not available because ServerNode initialization is incomplete",
+            );
+        }
+
         // Group nodes have an in-memory only store, so all nodes restored here are ClientNode
         for (const id of clientStores.knownIds) {
             this.add(
@@ -86,6 +98,21 @@ export class Peers extends EndpointContainer<ClientNode> {
                     owner: this.owner,
                 }),
             );
+        }
+    }
+
+    async #nodeOnline() {
+        // TODO start all peers on node startup in a non blocking way respecting queuing for thread and such
+        /*for (const peer of this) {
+            await peer.start();
+        }*/
+        this.#manageExpiration();
+    }
+
+    async #nodeOffline() {
+        this.#cancelExpiration();
+        for (const peer of this) {
+            await peer.cancel();
         }
     }
 
@@ -330,13 +357,13 @@ export class Peers extends EndpointContainer<ClientNode> {
 
     #onLeave(node: ClientNode, fabricIndex: FabricIndex) {
         this.#mutex.run(async () => {
-            const { fabrics: peerFabrics } = node.maybeStateOf(OperationalCredentialsClient);
-            const peerFabric = peerFabrics.find(fabric => fabric.fabricIndex === fabricIndex);
+            const { fabrics: peerFabrics } = node.maybeStateOf(OperationalCredentialsClient) ?? {};
+            const peerFabric = peerFabrics?.find(fabric => fabric.fabricIndex === fabricIndex);
             if (!peerFabric) {
                 return;
             }
 
-            const peerAddress = node.maybeStateOf(CommissioningClient).peerAddress;
+            const peerAddress = node.maybeStateOf(CommissioningClient)?.peerAddress;
             if (!peerAddress) {
                 return;
             }

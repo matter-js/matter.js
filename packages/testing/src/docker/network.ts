@@ -75,7 +75,7 @@ export function Network(docker: Docker, name: string): Network {
 
     async function inspect(): Promise<Network.Configuration | undefined> {
         const net = docker.intf.getNetwork(name);
-        let inspection;
+        let inspection: Dockerode.NetworkInspectInfo;
         try {
             inspection = await DockerError.adapt(net.inspect());
         } catch (e) {
@@ -84,7 +84,7 @@ export function Network(docker: Docker, name: string): Network {
         }
 
         return {
-            subnets: inspection.Config?.map((c: { Subnet: string }) => c.Subnet),
+            subnets: inspection.IPAM?.Config?.map(c => c.Subnet).filter(subnet => subnet !== undefined),
             hostInterfaceName: inspection.Options?.["com.docker.network.bridge.name"],
             containerInterfacePrefix: inspection.Options?.["com.docker.network.container_iface_prefix"],
         };

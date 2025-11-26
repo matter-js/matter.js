@@ -203,12 +203,12 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     /**
      * Version of {@link stateOf} that returns undefined instead of throwing if the requested behavior unsupported.
      */
-    maybeStateOf(type: string): Immutable<Val.Struct>;
+    maybeStateOf(type: string): Immutable<Val.Struct> | undefined;
 
     /**
      * Version of {@link stateOf} that returns undefined instead of throwing if the requested behavior unsupported.
      */
-    maybeStateOf<T extends Behavior.Type>(type: T): Immutable<Behavior.StateOf<T>>;
+    maybeStateOf<T extends Behavior.Type>(type: T): Immutable<Behavior.StateOf<T>> | undefined;
 
     maybeStateOf(type: Behavior.Type | string) {
         if (typeof type === "string") {

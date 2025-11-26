@@ -161,7 +161,7 @@ export namespace ClusterBehaviorType {
         /**
          * Factory for command implementations.
          *
-         * By default commands install as {@link Behavior.unimplemented}.  In client scenarios this allows the caller to
+         * By default, commands install as {@link Behavior.unimplemented}.  In client scenarios this allows the caller to
          * provide a useful default implementation.
          */
         commandFactory?: CommandFactory;
@@ -469,12 +469,11 @@ function createDefaultCommandDescriptors({ scope, base, commandFactory }: Deriva
 
         // Choose implementation, or skip if appropriate implementation is already present
         if (!conformantNames.has(name)) {
-            // Non-conformant; install as unimplemented
-            if (instance[name]) {
+            if (instance[name] && instance[name] !== Behavior.unimplemented) {
                 continue;
             }
-            implementation = Behavior.unimplemented;
-        } else if (commandFactory) {
+        }
+        if (commandFactory) {
             // With a factory, replace any existing implementation not provided by the factory
             if ((instance[name] as MarkedCommand | undefined)?.[sourceFactory] === commandFactory) {
                 continue;

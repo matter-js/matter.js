@@ -181,10 +181,8 @@ export class CommissioningClient extends Behavior {
 
         const network = this.agent.get(NetworkClient);
         network.state.defaultSubscription = opts.defaultSubscription;
-        if (opts.autoSubscribe || opts.autoSubscribe === undefined) {
-            // Nodes we commission are auto-subscribed by default, unless disabled explicitly
-            network.state.autoSubscribe = opts.autoSubscribe ?? true;
-        }
+        // Nodes we commission are auto-subscribed by default, unless disabled explicitly
+        network.state.autoSubscribe = opts.autoSubscribe !== false;
         network.state.caseAuthenticatedTags = opts.caseAuthenticatedTags;
 
         logger.notice(

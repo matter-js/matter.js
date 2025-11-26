@@ -57,7 +57,7 @@ export class ServiceAreaBaseServer extends ServiceAreaBase {
                 // • when it changes to or from 0
                 // • when it decreases
                 // • when it changes to or from null
-                this.events.estimatedEndTime$Changed.quiet.shouldEmit = (oldValue, newValue) => {
+                this.events.estimatedEndTime$Changed.quiet.shouldEmit = (newValue, oldValue) => {
                     return oldValue === null ||
                         oldValue === 0 ||
                         newValue === null ||

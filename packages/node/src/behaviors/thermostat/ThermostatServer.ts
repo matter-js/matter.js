@@ -22,6 +22,8 @@ import {
     Observable,
 } from "#general";
 import { FieldElement } from "#model";
+import { Node } from "#node/index.js";
+import { ServerNode } from "#node/ServerNode.js";
 import { hasLocalActor, Val } from "#protocol";
 import { ClusterType, StatusResponse, TypeFromPartialBitSchema } from "#types";
 import { AtomicWriteHandler } from "./AtomicWriteHandler.js";
@@ -123,10 +125,11 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             throw new ImplementationError("minSetpointDeadBand is out of valid range 0..127");
         }
 
+        const node = Node.forEndpoint(this.endpoint);
+        this.reactTo(node.lifecycle.online, this.#nodeOnline);
+
         // Initialize all the validation and logic handling
         this.#setupValidations();
-        this.#setupTemperatureMeasurementIntegration();
-        this.#setupOccupancyIntegration();
         this.#setupModeHandling();
         this.#setupThermostatLogic();
         this.#setupPresets();
@@ -134,6 +137,13 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         // We store these values internally because we need to restore them after any write try
         this.internal.minSetpointDeadBand = this.state.minSetpointDeadBand;
         this.internal.controlSequenceOfOperation = this.state.controlSequenceOfOperation;
+    }
+
+    #nodeOnline() {
+        // TODO Also react to structure changes to add/remove endpoints that are being added or removed but might be used
+        //  for temperature or occupancy sensing
+        this.#setupTemperatureMeasurementIntegration();
+        this.#setupOccupancyIntegration();
     }
 
     /**
@@ -415,20 +425,29 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         }
 
         let localTemperature = null;
-        if (!preferRemoteTemperature && this.agent.has(TemperatureMeasurementServer)) {
-            logger.debug(
-                "Using existing TemperatureMeasurement cluster on same endpoint for local temperature measurement",
-            );
-            if (this.state.externalMeasuredIndoorTemperature !== undefined) {
+        const localTempEndpoint = this.state.localIndoorTemperatureMeasurementEndpoint;
+        if (!preferRemoteTemperature && localTempEndpoint !== undefined) {
+            const endpoints = this.env.get(ServerNode).endpoints;
+            const endpoint = endpoints.has(localTempEndpoint) ? endpoints.for(localTempEndpoint) : undefined;
+            if (endpoint !== undefined && endpoint.behaviors.has(TemperatureMeasurementServer)) {
+                logger.debug(
+                    `Using existing TemperatureMeasurement cluster on endpoint #${localTempEndpoint} for local temperature measurement`,
+                );
+                if (this.state.externalMeasuredIndoorTemperature !== undefined) {
+                    logger.warn(
+                        "Both local TemperatureMeasurement cluster and externalMeasuredIndoorTemperature state are set, using local cluster",
+                    );
+                }
+                this.reactTo(
+                    endpoint.eventsOf(TemperatureMeasurementServer).measuredValue$Changed,
+                    this.#handleMeasuredTemperatureChange,
+                );
+                localTemperature = endpoint.stateOf(TemperatureMeasurementServer).measuredValue;
+            } else {
                 logger.warn(
-                    "Both local TemperatureMeasurement cluster and externalMeasuredIndoorTemperature state are set, using local cluster",
+                    `No TemperatureMeasurement cluster found on endpoint #${localTempEndpoint}, falling back to externalMeasuredIndoorTemperature state if set`,
                 );
             }
-            this.reactTo(
-                this.agent.get(TemperatureMeasurementServer).events.measuredValue$Changed,
-                this.#handleMeasuredTemperatureChange,
-            );
-            localTemperature = this.endpoint.stateOf(TemperatureMeasurementServer).measuredValue;
         } else {
             if (this.state.externalMeasuredIndoorTemperature === undefined) {
                 logger.warn(
@@ -440,7 +459,9 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             }
             this.reactTo(this.events.externalMeasuredIndoorTemperature$Changed, this.#handleMeasuredTemperatureChange);
         }
-        this.#handleMeasuredTemperatureChange(localTemperature); // and initialize
+        if (localTemperature !== null) {
+            this.#handleMeasuredTemperatureChange(localTemperature); // and initialize
+        }
     }
 
     /**
@@ -472,20 +493,30 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         if (!this.features.occupancy) {
             return;
         }
-        let currentOccupancy: boolean;
+        let currentOccupancy = true;
         const preferRemoteOccupancy = !!this.state.remoteSensing?.occupancy;
-        if (!preferRemoteOccupancy && this.agent.has(OccupancySensingServer)) {
-            logger.debug("Using existing OccupancySensing cluster on same endpoint for local occupancy sensing");
-            if (this.state.externallyMeasuredOccupancy !== undefined) {
+        const localOccupancyEndpoint = this.state.localOccupancyMeasurementEndpoint;
+        if (!preferRemoteOccupancy && localOccupancyEndpoint !== undefined) {
+            const endpoints = this.env.get(ServerNode).endpoints;
+            const endpoint = endpoints.has(localOccupancyEndpoint) ? endpoints.for(localOccupancyEndpoint) : undefined;
+            if (endpoint !== undefined && endpoint.behaviors.has(OccupancySensingServer)) {
+                logger.debug(
+                    `Using existing OccupancySensing cluster on endpoint ${localOccupancyEndpoint} for local occupancy sensing`,
+                );
+                if (this.state.externallyMeasuredOccupancy !== undefined) {
+                    logger.warn(
+                        "Both local OccupancySensing cluster and externallyMeasuredOccupancy state are set, using local cluster",
+                    );
+                }
+                this.reactTo(endpoint.eventsOf(OccupancySensingServer).occupancy$Changed, this.#handleOccupancyChange);
+                currentOccupancy = !!endpoint.stateOf(OccupancySensingServer).occupancy.occupied;
+            } else {
                 logger.warn(
-                    "Both local OccupancySensing cluster and externallyMeasuredOccupancy state are set, using local cluster",
+                    `No OccupancySensing cluster found on endpoint ${localOccupancyEndpoint}, falling back to externallyMeasuredOccupancy state if set`,
                 );
             }
-            this.reactTo(this.agent.get(OccupancySensingServer).events.occupancy$Changed, this.#handleOccupancyChange);
-            currentOccupancy = !!this.endpoint.stateOf(OccupancySensingServer).occupancy.occupied;
         } else {
             if (this.state.externallyMeasuredOccupancy === undefined) {
-                currentOccupancy = true;
                 logger.warn(
                     "No local OccupancySensing cluster available and externallyMeasuredOccupancy state not set",
                 );
@@ -1355,11 +1386,23 @@ export namespace ThermostatBaseServer {
         externalMeasuredIndoorTemperature?: number;
 
         /**
+         * Endpoint (Number or string-Id) where to find the indoor temperature measurement cluster to use as
+         * local temperature measurement for the thermostat behavior.
+         */
+        localIndoorTemperatureMeasurementEndpoint?: number | string;
+
+        /**
          * Otherwise measured occupancy as boolean.
          * Use this if you have an external occupancy sensor that should be used for thermostat control instead of a
          * internal occupancy sensing cluster.
          */
         externallyMeasuredOccupancy?: boolean;
+
+        /**
+         * Endpoint (Number or string-Id) where to find the occupancy sensing cluster to use as
+         * local occupancy measurement for the thermostat behavior.
+         */
+        localOccupancyMeasurementEndpoint?: number | string;
 
         /**
          * Use to enable the automatic mode management, implemented by this standard implementation.  This is beyond

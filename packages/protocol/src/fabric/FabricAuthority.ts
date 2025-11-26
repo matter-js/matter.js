@@ -150,6 +150,8 @@ export class FabricAuthority {
         const fabric = await fabricBuilder.build(index);
         this.#fabrics.addFabric(fabric);
 
+        fabric.persist();
+
         logger.debug(`Created new controller fabric ${index}`);
         this.#fabricAdded.emit(fabric);
 
