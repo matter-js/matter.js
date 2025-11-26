@@ -56,11 +56,11 @@ export class DummyMessageExchange {
         this.messagesQueue.write(message);
     }
 
-    async send(messageType: number, payload: Bytes, options?: ExchangeSendOptions) {
+    send(messageType: number, payload: Bytes, options?: ExchangeSendOptions) {
         const { payload: responsePayload, messageType: responseMessageType } =
             this.writeCallback?.(messageType, payload, options) ?? {};
         if (payload) {
-            return this.messagesQueue.write({
+            this.messagesQueue.write({
                 packetHeader: { sessionType: SessionType.Unicast },
                 payloadHeader: { messageType: responseMessageType },
                 payload: responsePayload,
