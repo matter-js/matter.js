@@ -169,11 +169,8 @@ export class ClientStructure {
      * Update the node structure by applying attribute changes.
      */
     async *mutate(request: Read, changes: ReadResult) {
-        // Ensure mutations run serially and integrate properly with node lifecycle
-        using _lock = await this.#node.dataUpdateMutex.lock();
-
         // We collect updates and only apply when we transition clusters
-        let currentUpdates: ClusterUpdates | undefined;
+        let currentUpdates: AttributeUpdates | undefined;
 
         // Apply changes
         const scope = ReadScope(request);
@@ -185,7 +182,7 @@ export class ClientStructure {
                         break;
 
                     case "event-value":
-                        currentUpdates = await this.#emitEvent(change, currentUpdates);
+                        await this.#emitEvent(change, currentUpdates);
                         break;
 
                     case "attr-status":
@@ -245,7 +242,7 @@ export class ClientStructure {
     async #mutateAttribute(
         change: ReadResult.AttributeValue,
         scope: ReadScope,
-        currentUpdates: undefined | ClusterUpdates,
+        currentUpdates: undefined | AttributeUpdates,
     ) {
         // We only store values when an initial subscription is defined and the fabric filter matches
         if (this.subscribedFabricFiltered !== scope.isFabricFiltered) {
@@ -286,32 +283,19 @@ export class ClientStructure {
         return currentUpdates;
     }
 
-    async #emitEvent(occurrence: ReadResult.EventValue, currentUpdates?: ClusterUpdates) {
+    async #emitEvent(occurrence: ReadResult.EventValue, currentUpdates?: AttributeUpdates) {
         const { endpointId, clusterId } = occurrence.path;
 
-        // If we are building updates to a cluster and the cluster/endpoint changes, apply the current update
-        // set
-        if (currentUpdates && (currentUpdates.endpointId !== endpointId || currentUpdates.clusterId !== clusterId)) {
-            await this.#updateCluster(currentUpdates);
-            currentUpdates = undefined;
-        }
-
-        if (currentUpdates === undefined) {
-            // Updating a new endpoint/cluster
-            currentUpdates = {
-                endpointId,
-                clusterId,
-                values: {},
-                events: [occurrence],
-            };
+        const endpoint = this.#endpoints.get(endpointId);
+        // If we are building updates oon current cluster we do not know yet if we will delay event emission, so delay
+        if (
+            (currentUpdates && (currentUpdates.endpointId === endpointId || currentUpdates.clusterId === clusterId)) ||
+            (endpoint !== undefined && this.#pendingChanges?.has(endpoint))
+        ) {
+            this.#delayedClusterEvents.push(occurrence);
         } else {
-            if (currentUpdates.events === undefined) {
-                currentUpdates.events = [];
-            }
-            currentUpdates.events.push(occurrence);
+            this.#eventEmitter(occurrence);
         }
-
-        return currentUpdates;
     }
 
     /**
@@ -338,57 +322,44 @@ export class ClientStructure {
      *
      * This is invoked in a batch when we've collected all sequential values for the current endpoint/cluster.
      */
-    async #updateCluster(updates: ClusterUpdates) {
+    async #updateCluster(updates: AttributeUpdates) {
         const endpoint = this.#endpointFor(updates.endpointId);
         const cluster = this.#clusterFor(endpoint, updates.clusterId);
 
-        if (updates.values !== undefined) {
-            if (cluster.behavior && FeatureMap.id in updates.values) {
-                if (!isDeepEqual(cluster.features, updates.values[FeatureMap.id])) {
-                    cluster.behavior = undefined;
-                }
-            }
-
-            if (cluster.behavior && AttributeList.id in updates.values) {
-                const attributeList = updates.values[AttributeList.id];
-                if (
-                    Array.isArray(attributeList) &&
-                    !isDeepEqual(
-                        cluster.attributes,
-                        attributeList.sort((a, b) => a - b),
-                    )
-                ) {
-                    cluster.behavior = undefined;
-                }
-            }
-
-            if (cluster.behavior && AcceptedCommandList.id in updates.values) {
-                const acceptedCommands = updates.values[AcceptedCommandList.id];
-                if (
-                    Array.isArray(acceptedCommands) &&
-                    !isDeepEqual(
-                        cluster.commands,
-                        acceptedCommands.sort((a, b) => a - b),
-                    )
-                ) {
-                    cluster.behavior = undefined;
-                }
-            }
-
-            await cluster.store.externalSet(updates.values);
-            this.#synchronizeCluster(endpoint, cluster);
-        }
-
-        if (updates.events?.length) {
-            if (this.#pendingChanges?.has(endpoint)) {
-                // Delay event emission until after structural changes are applied
-                this.#delayedClusterEvents.push(...updates.events);
-            } else {
-                for (const event of updates.events) {
-                    this.#eventEmitter(event);
-                }
+        if (cluster.behavior && FeatureMap.id in updates.values) {
+            if (!isDeepEqual(cluster.features, updates.values[FeatureMap.id])) {
+                cluster.behavior = undefined;
             }
         }
+
+        if (cluster.behavior && AttributeList.id in updates.values) {
+            const attributeList = updates.values[AttributeList.id];
+            if (
+                Array.isArray(attributeList) &&
+                !isDeepEqual(
+                    cluster.attributes,
+                    attributeList.sort((a, b) => a - b),
+                )
+            ) {
+                cluster.behavior = undefined;
+            }
+        }
+
+        if (cluster.behavior && AcceptedCommandList.id in updates.values) {
+            const acceptedCommands = updates.values[AcceptedCommandList.id];
+            if (
+                Array.isArray(acceptedCommands) &&
+                !isDeepEqual(
+                    cluster.commands,
+                    acceptedCommands.sort((a, b) => a - b),
+                )
+            ) {
+                cluster.behavior = undefined;
+            }
+        }
+
+        await cluster.store.externalSet(updates.values);
+        this.#synchronizeCluster(endpoint, cluster);
     }
 
     /**
@@ -827,13 +798,12 @@ export class ClientStructure {
     }
 }
 
-interface ClusterUpdates {
+interface AttributeUpdates {
     endpointId: EndpointNumber;
     clusterId: ClusterId;
-    values?: {
+    values: {
         [K in number | typeof DatasourceCache.VERSION_KEY]?: unknown;
     };
-    events?: ReadResult.EventValue[];
 }
 
 interface EndpointStructure {

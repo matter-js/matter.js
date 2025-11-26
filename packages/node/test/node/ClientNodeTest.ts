@@ -92,7 +92,6 @@ describe("ClientNode", () => {
         expect(ep1.state).deep.equals(EP1_STATE);
         const expectedEp1State = deepCopy(ep1.state);
 
-        //await peer1.set({ network: { autoSubscribe: false } });
         // *** STATE AFTER RESTART ***
 
         // Close all nodes
@@ -119,6 +118,10 @@ describe("ClientNode", () => {
         expect(ep1b.construction.status).equals("active");
         expect(ep1b.state).deep.equals(expectedEp1State);
     }).timeout(1e9);
+
+    it("commissions and reconnects endpoints after commissioning and restart", () => {
+        // TODO
+    });
 
     it("invokes, receives state updates and emits changed events", async () => {
         // *** SETUP ***

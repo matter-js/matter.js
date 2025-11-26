@@ -14,7 +14,7 @@ import { ClientNodeEndpoints } from "#endpoint/properties/ClientNodeEndpoints.js
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
-import { Diagnostic, Identity, Lifecycle, Logger, MaybePromise, Mutex } from "#general";
+import { Diagnostic, Identity, Lifecycle, Logger, MaybePromise } from "#general";
 import { Matter, MatterModel } from "#model";
 import { Interactable, OccurrenceManager, PeerAddress } from "#protocol";
 import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
@@ -36,8 +36,6 @@ const logger = Logger.get("ClientNode");
 export class ClientNode extends Node<ClientNode.RootEndpoint> {
     #matter: MatterModel;
     #interaction?: ClientNodeInteraction;
-    #startInProgress = false;
-    #dataUpdateMutex = new Mutex(this);
 
     constructor(options: ClientNode.Options) {
         const opts = {
@@ -70,10 +68,6 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
      */
     get matter() {
         return this.#matter;
-    }
-
-    get dataUpdateMutex() {
-        return this.#dataUpdateMutex;
     }
 
     override get endpoints(): ClientNodeEndpoints {
@@ -127,19 +121,6 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
             await this.act("decommission", agent => agent.commissioning.decommission());
         }
         await this.delete();
-    }
-
-    override async start() {
-        if (this.#startInProgress) {
-            return;
-        }
-
-        this.#startInProgress = true;
-        try {
-            await super.start();
-        } finally {
-            this.#startInProgress = false;
-        }
     }
 
     /**

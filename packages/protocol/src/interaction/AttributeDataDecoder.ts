@@ -70,7 +70,6 @@ export function normalizeAndDecodeReadAttributeReport(
     attributeData: DecodedAttributeReportValue<any>[];
     attributeStatus: DecodedAttributeReportStatus[];
 } {
-    // TODO Simplify this again into reach streaming once old Client API is gone
     if (leftoverAttributeReports !== undefined) {
         let chunkedArrayDataFound = false;
         let cutIndex = data.length;
