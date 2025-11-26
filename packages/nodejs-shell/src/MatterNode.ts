@@ -42,7 +42,7 @@ export class MatterNode {
 
     protected get services() {
         if (!this.#services) {
-            this.#services = new SharedEnvironmentServices(this.#environment);
+            this.#services = this.#environment.asDependent();
         }
         return this.#services;
     }
