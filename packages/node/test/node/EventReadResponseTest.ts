@@ -9,7 +9,7 @@ import { BasicInformationCluster } from "#clusters/basic-information";
 import { Messages } from "#clusters/messages";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/index.js";
-import { Bytes } from "#general";
+import { Bytes, Seconds } from "#general";
 import { ServerNode } from "#index.js";
 import { AccessLevel, Specification } from "#model";
 import { EventReadResponse, Read, ReadResult } from "#protocol";
@@ -54,7 +54,7 @@ describe("EventReadResponse", () => {
                             },
                             number: 1n,
                             priority: 2,
-                            timestamp: MockTime.epoch.getTime(),
+                            timestamp: -1,
                             tlv: {},
                             value: { softwareVersion: 0 },
                         },
@@ -90,7 +90,7 @@ describe("EventReadResponse", () => {
                             },
                             number: 3n,
                             priority: 1,
-                            timestamp: MockTime.epoch.getTime(),
+                            timestamp: -1,
                             tlv: {},
                             value: { fabricIndex: FabricIndex(4) },
                         },
@@ -123,7 +123,7 @@ describe("EventReadResponse", () => {
                             },
                             number: 3n,
                             priority: 2,
-                            timestamp: MockTime.epoch.getTime(),
+                            timestamp: -1,
                             tlv: {},
                             value: undefined,
                         },
@@ -171,7 +171,7 @@ describe("EventReadResponse", () => {
                                 },
                                 number: 3n,
                                 priority: 1,
-                                timestamp: MockTime.epoch.getTime(),
+                                timestamp: -1,
                                 tlv: {},
                                 value: {
                                     messageId: Bytes.fromHex("0011223344556677889900aabbccddeeff"),
@@ -208,7 +208,7 @@ describe("EventReadResponse", () => {
                     },
                     number: 1n,
                     priority: 2,
-                    timestamp: MockTime.epoch.getTime(),
+                    timestamp: -1,
                     tlv: {},
                     value: { softwareVersion: 0 },
                 },
@@ -376,7 +376,16 @@ export async function readEvRaw(node: MockServerNode, data: Partial<Read.Events>
                     }
                 });
             }
-            responseChunks.push(chunks);
+
+            // Normalize the timestamp.  Should be within 2 seconds depending on VM variance
+            const epoch = MockTime.epoch.getTime();
+            for (const ev of chunks as ReadResult.EventValue[]) {
+                if (typeof ev.timestamp === "number" && ev.timestamp - epoch <= Seconds(2)) {
+                    ev.timestamp = -1;
+                }
+            }
+
+            responseChunks.push(chunks as ReadResult.EventValue[]);
         }
         return { data: [...responseChunks], counts: response.counts };
     });

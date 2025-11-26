@@ -40,7 +40,7 @@ export class Peer {
             }
 
             this.#isSaving = true;
-            this.#workers.add(this.#save(), `persistence of ${this}`);
+            this.#workers.add(this.#save(), `persisting ${this}`);
         });
         this.#context = context;
 

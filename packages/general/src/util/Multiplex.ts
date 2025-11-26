@@ -39,9 +39,9 @@ export class BasicMultiplex implements PromiseLike<void> {
         const entry = {
             done: Promise.resolve(worker)
                 .catch(e => {
-                    let message = "Unhandled error";
+                    let message = "Error";
                     if (description) {
-                        message = `${message} in ${description}`;
+                        message = `${message} ${description}`;
                     }
                     logger.error(`${message}:`, e);
                 })
