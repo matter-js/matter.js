@@ -16,6 +16,7 @@ import {
     INT64_MIN,
     INT8_MAX,
     INT8_MIN,
+    ImplementationError,
     UINT16_MAX,
     UINT24_MAX,
     UINT32_MAX,
@@ -228,8 +229,47 @@ export const TlvPercent = TlvUInt8.bound({ max: 100 });
 export const TlvPercent100ths = TlvUInt16.bound({ max: 10000 });
 
 // Time Number types
-export const TlvEpochUs = TlvUInt64;
-export const TlvEpochS = TlvUInt32;
 export const TlvPosixMs = TlvUInt64;
 export const TlvSysTimeUs = TlvUInt64;
 export const TlvSysTimeMS = TlvUInt64;
+
+/** Seconds from Unix epoch (1970-01-01) to Matter epoch (2000-01-01) */
+export const MATTER_EPOCH_OFFSET_S = 10957 * 24 * 60 * 60;
+
+export const MATTER_EPOCH_OFFSET_US = BigInt(MATTER_EPOCH_OFFSET_S * 1_000_000);
+
+/**
+ * TLV Schema for Epoch time in seconds since Matter epoch (2000-01-01). You can just use the normal unix epoch
+ * time (since 1970-01-01) number and it will be converted automatically.
+ */
+export const TlvEpochS = new TlvWrapper<number, number>(
+    TlvUInt32,
+    unixEpoch => {
+        const value = unixEpoch - MATTER_EPOCH_OFFSET_S;
+        if (value < 0) {
+            throw new ImplementationError(
+                "Do not convert Epoch-values yourself, use TlvEpochS directly with unix epoch values.",
+            );
+        }
+        return value;
+    },
+    epochS => epochS + MATTER_EPOCH_OFFSET_S,
+);
+
+/**
+ * TLV Schema for Epoch time in microseconds since Matter epoch (2000-01-01). You can just use the unix epoch as
+ * microseconds (since 1970-01-01) number and it will be converted automatically.
+ */
+export const TlvEpochUs = new TlvWrapper<number | bigint, number | bigint>(
+    TlvUInt64,
+    unixEpoch => {
+        const result = BigInt(unixEpoch) - MATTER_EPOCH_OFFSET_US;
+        if (result < BigInt(0)) {
+            throw new ImplementationError(
+                "Do not convert Epoch-values yourself, use TlvEpochUs directly with unix epoch values.",
+            );
+        }
+        return result;
+    },
+    epochUs => BigInt(epochUs) + MATTER_EPOCH_OFFSET_US,
+);

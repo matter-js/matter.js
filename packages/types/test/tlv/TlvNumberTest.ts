@@ -8,7 +8,11 @@ import { ValidationError } from "#common/ValidationError.js";
 import { Bytes } from "#general";
 import { TlvAny } from "#tlv/TlvAny.js";
 import {
+    MATTER_EPOCH_OFFSET_S,
+    MATTER_EPOCH_OFFSET_US,
     TlvDouble,
+    TlvEpochS,
+    TlvEpochUs,
     TlvFloat,
     TlvInt64,
     TlvNumberSchema,
@@ -139,6 +143,44 @@ describe("TlvNumber", () => {
 
         it("does not throw an error if the value is a bigint", () => {
             expect(TlvUInt64.validate(BigInt(12345678790))).undefined;
+        });
+    });
+
+    describe("Epoch types test", () => {
+        it("encodes an TlvEpochS and validates that it is converted correctly", () => {
+            const now = Math.floor(MockTime.nowMs / 1000);
+            const encodedNow = TlvEpochS.encode(now);
+
+            const decodedAsUInt32 = TlvUInt32.decode(encodedNow);
+            expect(decodedAsUInt32).equal(now - MATTER_EPOCH_OFFSET_S);
+
+            const decodedEpochS = TlvEpochS.decode(encodedNow);
+            expect(decodedEpochS).equal(now);
+        });
+
+        it("Throws when self-converting EpochS values", () => {
+            const now = Math.floor(MockTime.nowMs / 1000);
+            expect(() => TlvEpochS.encode(now - MATTER_EPOCH_OFFSET_S)).throw(
+                "Do not convert Epoch-values yourself, use TlvEpochS directly with unix epoch values.",
+            );
+        });
+
+        it("encodes an TlcEpochUs and validates that it is converted correctly", () => {
+            const nowUs = BigInt(MockTime.nowMs * 1_000);
+            const encodedNowUs = TlvEpochUs.encode(nowUs);
+
+            const decodedAsUInt32 = TlvUInt64.decode(encodedNowUs);
+            expect(decodedAsUInt32).equal(nowUs - MATTER_EPOCH_OFFSET_US);
+
+            const decodedEpochS = TlvEpochUs.decode(encodedNowUs);
+            expect(decodedEpochS).equal(nowUs);
+        });
+
+        it("Throws when self-converting EpochUs values", () => {
+            const nowUs = BigInt(MockTime.nowMs * 1_000);
+            expect(() => TlvEpochUs.encode(nowUs - MATTER_EPOCH_OFFSET_US)).throw(
+                "Do not convert Epoch-values yourself, use TlvEpochUs directly with unix epoch values.",
+            );
         });
     });
 });

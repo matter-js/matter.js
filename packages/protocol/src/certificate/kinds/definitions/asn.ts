@@ -5,12 +5,10 @@
  */
 
 import { Bytes, DerObject, X520 } from "#general";
-import { FabricId, NodeId, VendorId } from "#types";
+import { FabricId, MATTER_EPOCH_OFFSET_S, NodeId, VendorId } from "#types";
 import { InternalError } from "@matter/general";
 
 const YEAR_S = 365 * 24 * 60 * 60;
-/** Seconds from Unix epoch (1970-01-01) to Matter epoch (2000-01-01) */
-export const MATTER_EPOCH_OFFSET_S = 10957 * 24 * 60 * 60;
 
 // TODO replace usage of Date by abstraction
 

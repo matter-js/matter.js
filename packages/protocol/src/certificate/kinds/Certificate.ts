@@ -22,13 +22,19 @@ import {
     X520,
     X962,
 } from "#general";
-import { CaseAuthenticatedTag, FabricId, NodeId, TypeFromPartialBitSchema, VendorId } from "#types";
+import {
+    CaseAuthenticatedTag,
+    FabricId,
+    MATTER_EPOCH_OFFSET_S,
+    NodeId,
+    TypeFromPartialBitSchema,
+    VendorId,
+} from "#types";
 import { assertCertificateDerSize, CertificateError, Unsigned } from "./common.js";
 import {
     FabricId_Matter,
     FirmwareSigningId_Matter,
     IcacId_Matter,
-    MATTER_EPOCH_OFFSET_S,
     MATTER_OID_TO_FIELD_MAP,
     matterToJsDate,
     NocCat_Matter,

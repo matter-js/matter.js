@@ -90,6 +90,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: (Luxni) Update UDP, BLE and Crypto usage to work with React Native
 
 - @matter/types
+    - Breaking: All "epoch-s" and "epoch-us" values are now converted automatically to the correct matter epoch, so that your own code can just use normal 1970-based epochS/US values. If you converted yourself to the Matter 2000-based values before, please remove this conversion.
     - Enhancement: The duplicate event priority definition `EventPriority` is deprecated; use the generated `Priority` enum instead
     - Fix: Ensures correct Number ranges for nullable and non-nullable numbers on TLV level
 
