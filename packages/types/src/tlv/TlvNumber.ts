@@ -244,7 +244,12 @@ export const MATTER_EPOCH_OFFSET_US = BigInt(MATTER_EPOCH_OFFSET_S * 1_000_000);
  * time (since 1970-01-01) number and it will be converted automatically.
  */
 export const TlvEpochS = new TlvWrapper<number, number>(
-    TlvUInt32,
+    new TlvNumberSchema(
+        TlvType.UnsignedInt,
+        value => TlvCodec.getUIntTlvLength(value),
+        0, // too low values will be caught in the wrapper
+        UINT32_MAX + MATTER_EPOCH_OFFSET_S,
+    ),
     unixEpoch => {
         const value = unixEpoch - MATTER_EPOCH_OFFSET_S;
         if (value < 0) {
@@ -262,7 +267,12 @@ export const TlvEpochS = new TlvWrapper<number, number>(
  * microseconds (since 1970-01-01) number and it will be converted automatically.
  */
 export const TlvEpochUs = new TlvWrapper<number | bigint, number | bigint>(
-    TlvUInt64,
+    new TlvLongNumberSchema(
+        TlvType.UnsignedInt,
+        value => TlvCodec.getUIntTlvLength(value),
+        0, // too low values will be caught in the wrapper
+        UINT64_MAX + MATTER_EPOCH_OFFSET_US,
+    ),
     unixEpoch => {
         const result = BigInt(unixEpoch) - MATTER_EPOCH_OFFSET_US;
         if (result < BigInt(0)) {
