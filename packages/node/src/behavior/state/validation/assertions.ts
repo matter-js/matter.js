@@ -108,6 +108,7 @@ assertInt.nullable["epoch-s"] = createIntAssertion(
 );
 
 // Add special epoch-us case
+// TODO Think about representing as float like other high precision time values?
 assertInt.notNullable["epoch-us"] = createIntAssertion(
     "epoch-us",
     MATTER_EPOCH_OFFSET_US,

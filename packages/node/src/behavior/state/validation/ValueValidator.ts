@@ -224,6 +224,7 @@ function createIntegerValidator(schema: ValueModel, supervisor: RootSupervisor, 
     const nullable = schema.effectiveQuality.nullable;
     let assertion;
     // Let's check schema type specific assertations first
+    // TODO maybe introduce a date type and then optimize this here later
     if (schema.type === "epoch-s" || schema.type === "epoch-us") {
         if (nullable) {
             assertion = assertInt.nullable[schema.type];

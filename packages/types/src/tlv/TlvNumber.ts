@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import {
+    Days,
     FLOAT32_MAX,
     FLOAT32_MIN,
     FLOAT64_MAX,
@@ -17,6 +18,7 @@ import {
     INT8_MAX,
     INT8_MIN,
     ImplementationError,
+    Timestamp,
     UINT16_MAX,
     UINT24_MAX,
     UINT32_MAX,
@@ -234,9 +236,11 @@ export const TlvSysTimeUs = TlvUInt64;
 export const TlvSysTimeMS = TlvUInt64;
 
 /** Seconds from Unix epoch (1970-01-01) to Matter epoch (2000-01-01) */
-export const MATTER_EPOCH_OFFSET_S = 10957 * 24 * 60 * 60;
+export const MATTER_EPOCH_OFFSET_S = Timestamp(Days(10_957));
 
-/** Microseconds from Unix epoch (1970-01-01) to Matter epoch (2000-01-01) */
+/**
+ * Microseconds from Unix epoch (1970-01-01) to Matter epoch (2000-01-01)
+ */
 export const MATTER_EPOCH_OFFSET_US = BigInt(MATTER_EPOCH_OFFSET_S * 1_000_000);
 
 /**
