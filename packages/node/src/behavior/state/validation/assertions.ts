@@ -132,7 +132,6 @@ function createVarIntAssertion(name: string, min: bigint | number, max: bigint |
         assertNumeric(value, path);
 
         if (value < min) {
-            console.log("HHEERRREEEE", path);
             throw new IntegerRangeError(path, `Value ${value} is below the ${name} minimum of ${min}`);
         }
 
