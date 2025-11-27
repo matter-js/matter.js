@@ -221,11 +221,22 @@ function createSimpleValidator(
 }
 
 function createIntegerValidator(schema: ValueModel, supervisor: RootSupervisor, name: string) {
+    const nullable = schema.effectiveQuality.nullable;
     let assertion;
-    if (schema.effectiveQuality.nullable) {
-        assertion = assertInt.nullable[name];
-    } else {
-        assertion = assertInt.notNullable[name];
+    // Let's check schema type specific assertations first
+    if (schema.type === "epoch-s" || schema.type === "epoch-us") {
+        if (nullable) {
+            assertion = assertInt.nullable[schema.type];
+        } else {
+            assertion = assertInt.notNullable[schema.type];
+        }
+    }
+    if (assertion === undefined) {
+        if (nullable) {
+            assertion = assertInt.nullable[name];
+        } else {
+            assertion = assertInt.notNullable[name];
+        }
     }
 
     if (assertion === undefined) {

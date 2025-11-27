@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, isObject } from "#general";
+import { Bytes, isObject, UINT32_MAX, UINT64_MAX } from "#general";
 import { SchemaErrorPath } from "#model";
 import { DatatypeError, IntegerRangeError, Val } from "#protocol";
+import { MATTER_EPOCH_OFFSET_S, MATTER_EPOCH_OFFSET_US } from "@matter/types";
 
 export function assertNumber(value: Val, path: SchemaErrorPath): asserts value is number {
     if (Number.isFinite(value)) {
@@ -94,6 +95,30 @@ for (let i = 1n; i < 9n; i++) {
     assertInt.nullable[intName] = createIntAssertion(`nullable ${intName}`, signedMin + 1n, signedMax);
 }
 
+// Add special epoch-s case
+assertInt.notNullable["epoch-s"] = createIntAssertion(
+    "epoch-s",
+    BigInt(MATTER_EPOCH_OFFSET_S),
+    BigInt(UINT32_MAX + MATTER_EPOCH_OFFSET_S),
+);
+assertInt.nullable["epoch-s"] = createIntAssertion(
+    `nullable epoch-s`,
+    BigInt(MATTER_EPOCH_OFFSET_S),
+    BigInt(UINT32_MAX + MATTER_EPOCH_OFFSET_S) - 1n,
+);
+
+// Add special epoch-us case
+assertInt.notNullable["epoch-us"] = createIntAssertion(
+    "epoch-us",
+    MATTER_EPOCH_OFFSET_US,
+    UINT64_MAX + MATTER_EPOCH_OFFSET_US,
+);
+assertInt.nullable["epoch-us"] = createIntAssertion(
+    `nullable epoch-us`,
+    MATTER_EPOCH_OFFSET_US,
+    UINT64_MAX + MATTER_EPOCH_OFFSET_US - 1n,
+);
+
 function createIntAssertion(name: string, lowerBoundInclusive: bigint, upperBoundExclusive: bigint) {
     if (lowerBoundInclusive < Number.MIN_SAFE_INTEGER || upperBoundExclusive > Number.MAX_SAFE_INTEGER) {
         return createVarIntAssertion(name, lowerBoundInclusive, upperBoundExclusive);
@@ -107,6 +132,7 @@ function createVarIntAssertion(name: string, min: bigint | number, max: bigint |
         assertNumeric(value, path);
 
         if (value < min) {
+            console.log("HHEERRREEEE", path);
             throw new IntegerRangeError(path, `Value ${value} is below the ${name} minimum of ${min}`);
         }
 
