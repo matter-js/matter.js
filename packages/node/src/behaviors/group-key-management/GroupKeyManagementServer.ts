@@ -91,11 +91,26 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
         // When we have group key sets, we need to ensure that they are initialized on the Fabric group manager
         if (this.state.groupKeySets.length) {
             const groupKeysForFabric = new Map<FabricIndex, GroupKeyManagement.GroupKeySet[]>();
-            for (const groupKeySet of this.state.groupKeySets) {
+            const groupKeySets = deepCopy(this.state.groupKeySets);
+            for (let i = 0; i < groupKeySets.length; i++) {
+                const groupKeySet = groupKeySets[i];
                 const fabricIndex = groupKeySet.fabricIndex;
                 const keys = groupKeysForFabric.get(fabricIndex) ?? [];
+                if (keys.length === 0 && !fabrics.has(fabricIndex)) {
+                    // Should normally not happen, but we saw such crashes without details, so handle it gracefully
+                    logger.warn(
+                        `Stored GroupKeySets for FabricIndex ${fabricIndex}, but no such fabric exists anymore. Cleaning up stale entries.`,
+                    );
+                    groupKeySets.splice(i, 1);
+                    i--;
+                    continue;
+                }
                 keys.push(groupKeySet);
                 groupKeysForFabric.set(fabricIndex, keys);
+            }
+            if (groupKeySets.length !== this.state.groupKeySets.length) {
+                // Some entries were removed, so update the persisted state
+                this.state.groupKeySets = groupKeySets;
             }
 
             for (const [fabricIndex, keys] of groupKeysForFabric.entries()) {
