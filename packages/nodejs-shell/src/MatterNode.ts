@@ -123,7 +123,7 @@ export class MatterNode {
 
     async close() {
         await this.commissioningController?.close();
-        this.#services?.close();
+        await this.#services?.close();
     }
 
     async start() {

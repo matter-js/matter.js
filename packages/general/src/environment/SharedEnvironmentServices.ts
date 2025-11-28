@@ -6,9 +6,10 @@
 
 import { Environment } from "#environment/Environment.js";
 import { Environmental } from "#environment/Environmental.js";
+import { ServiceProvider } from "#environment/ServiceProvider.js";
 import { SharedServicesManager } from "#environment/SharedServicesManager.js";
 import { ImplementationError } from "#MatterError.js";
-import { MaybePromise } from "#util/index.js";
+import { MaybePromise } from "#util/Promises.js";
 
 /**
  * Provides reference-counted access to shared environmental services.
@@ -21,7 +22,7 @@ import { MaybePromise } from "#util/index.js";
  * environment for centralized lifecycle management. All shared services are accessed
  * at the root level regardless of which environment creates the instance.
  */
-export class SharedEnvironmentServices {
+export class SharedEnvironmentServices implements ServiceProvider {
     #env: Environment;
     #serviceTypes = new Set<Environmental.ServiceType>();
     #closed = false;
@@ -137,5 +138,9 @@ export class SharedEnvironmentServices {
             this.#serviceTypes.delete(type);
             return this.#env.close(type);
         }
+    }
+
+    async [Symbol.asyncDispose]() {
+        await this.close();
     }
 }

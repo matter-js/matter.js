@@ -115,7 +115,7 @@ export class PaseCommissioner {
     async close() {
         await this.#controllerInstance?.close();
         this.#controllerInstance = undefined;
-        this.#services?.close();
+        await this.#services?.close();
     }
 
     /** Initialize the controller. */

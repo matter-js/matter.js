@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ServiceProvider } from "#environment/ServiceProvider.js";
 import { SharedEnvironmentServices } from "#environment/SharedEnvironmentServices.js";
 import { SharedServicesManager } from "#environment/SharedServicesManager.js";
 import { InternalError } from "#MatterError.js";
@@ -47,7 +48,7 @@ const logger = Logger.get("Environment");
  *
  * TODO - could remove global singletons by moving here
  */
-export class Environment {
+export class Environment implements ServiceProvider {
     #services?: Map<Environmental.ServiceType, Environmental.Service | null>;
     #name: string;
     #parent?: Environment;

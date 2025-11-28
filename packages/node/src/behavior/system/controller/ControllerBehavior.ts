@@ -97,7 +97,7 @@ export class ControllerBehavior extends Behavior {
         await this.env.close(ActiveDiscoveries);
         this.env.delete(FabricAuthority);
         this.env.delete(ScannerSet);
-        this.internal.services?.close();
+        await this.internal.services?.close();
     }
 
     get fabricAuthorityConfig(): FabricAuthorityConfiguration {
