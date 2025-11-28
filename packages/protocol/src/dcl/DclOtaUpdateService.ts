@@ -11,6 +11,7 @@ import {
     Crypto,
     Diagnostic,
     Environment,
+    Environmental,
     HashAlgorithm,
     HashFipsAlgorithmId,
     ImplementationError,
@@ -68,6 +69,10 @@ export class DclOtaUpdateService {
         this.#construction = Construction(this, async () => {
             this.#storage = (await environment.get(StorageService).open("ota")).createContext("bin");
         });
+    }
+
+    static [Environmental.create](env: Environment) {
+        return new DclOtaUpdateService(env);
     }
 
     /**

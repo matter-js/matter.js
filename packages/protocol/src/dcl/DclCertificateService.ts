@@ -212,7 +212,7 @@ export class DclCertificateService {
     /**
      * Close the service and stop all timers.
      */
-    async close() {
+    close() {
         this.#closed = true;
         this.#updateTimer?.stop();
     }

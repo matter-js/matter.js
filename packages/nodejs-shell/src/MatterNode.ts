@@ -5,7 +5,7 @@
  */
 
 // Include this first to auto-register Crypto, Network and Time Node.js implementations
-import { Environment, Logger, StorageContext, StorageService } from "#general";
+import { Environment, Logger, SharedEnvironmentServices, StorageContext, StorageService } from "#general";
 import { DclCertificateService, DclOtaUpdateService, DclVendorInfoService } from "#protocol";
 import { NodeId } from "#types";
 import { CommissioningController, ControllerStore } from "@project-chip/matter.js";
@@ -23,6 +23,7 @@ export class MatterNode {
     readonly #nodeNum: number;
     readonly #netInterface?: string;
     #dclFetchTestCertificates = false;
+    #services?: SharedEnvironmentServices;
 
     constructor(nodeNum: number, netInterface?: string) {
         this.#environment = Environment.default;
@@ -39,24 +40,32 @@ export class MatterNode {
         return this.#environment;
     }
 
+    protected get services() {
+        if (!this.#services) {
+            this.#services = this.#environment.asDependent();
+        }
+        return this.#services;
+    }
+
     get otaService() {
-        return this.environment.has(DclOtaUpdateService)
-            ? this.environment.get(DclOtaUpdateService)
-            : new DclOtaUpdateService(this.environment); // Will add itself on initial instantiation
+        if (!this.environment.has(DclOtaUpdateService)) {
+            new DclOtaUpdateService(this.environment); // Adds itself to the environment
+        }
+        return this.services.get(DclOtaUpdateService);
     }
 
     get certificateService() {
-        if (this.environment.has(DclCertificateService)) {
-            return this.environment.get(DclCertificateService);
+        if (!this.environment.has(DclCertificateService)) {
+            new DclCertificateService(this.environment, { fetchTestCertificates: this.#dclFetchTestCertificates });
         }
-
-        return new DclCertificateService(this.environment, { fetchTestCertificates: this.#dclFetchTestCertificates });
+        return this.services.get(DclCertificateService);
     }
 
     get vendorInfoService() {
-        return this.environment.has(DclVendorInfoService)
-            ? this.environment.get(DclVendorInfoService)
-            : new DclVendorInfoService(this.environment); // Will add itself on initial instantiation
+        if (!this.environment.has(DclVendorInfoService)) {
+            new DclVendorInfoService(this.environment); // Adds itself to the environment
+        }
+        return this.services.get(DclVendorInfoService);
     }
 
     async initialize(resetStorage: boolean) {
@@ -114,6 +123,7 @@ export class MatterNode {
 
     async close() {
         await this.commissioningController?.close();
+        await this.#services?.close();
     }
 
     async start() {

@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ServiceProvider } from "#environment/ServiceProvider.js";
+import { SharedEnvironmentServices } from "#environment/SharedEnvironmentServices.js";
+import { SharedServicesManager } from "#environment/SharedServicesManager.js";
 import { InternalError } from "#MatterError.js";
 import { Instant } from "#time/TimeUnit.js";
 import { MaybePromise } from "#util/Promises.js";
@@ -30,9 +33,22 @@ const logger = Logger.get("Environment");
  * * `mdns.ipv4` - Also announce/scan on IPv4 interfaces
  * * `network.interface` - Map of interface names to types, expected to be defined as object with name as key and of `{type: string|number}` objects with types: 1=Wifi, 2=Ethernet, 3=Cellular, 4=Thread (strings or numbers can be used). Can also be provided via env or cli like `MATTER_NETWORK_INTERFACE_ETH0_TYPE=Ethernet`
  *
+ * The environment supports reference-counted service sharing through shared service instances. Create
+ * a shared instance using {@link asDependent} to access services with automatic lifecycle tracking at
+ * the root environment. Shared services enable safe sharing across multiple consumers - services are
+ * protected from premature closure and only cleaned up when all consumers have released them.
+ *
+ * Services can be accessed directly via {@link get} for immediate use, or through {@link SharedEnvironmentServices}
+ * for tracked access at the root level. Direct access means services close immediately when requested.
+ * Shared access means services are registered at root and only close when all consumers have released them.
+ *
+ * When services are deleted or closed without shared tracking, the service is blocked locally and does
+ * not inherit from parent environments. When accessed through shared instances, the service is managed
+ * at the root environment and protected as long as any consumer is using it.
+ *
  * TODO - could remove global singletons by moving here
  */
-export class Environment {
+export class Environment implements ServiceProvider {
     #services?: Map<Environmental.ServiceType, Environmental.Service | null>;
     #name: string;
     #parent?: Environment;
@@ -46,16 +62,34 @@ export class Environment {
     }
 
     /**
+     * Create a shared service instance for reference-counted service access at root.
+     *
+     * Shared instances track which services they use and enable safe sharing across multiple
+     * consumers. Services are automatically protected from premature closure and only
+     * cleaned up when all consumers have released them, e.g. by calling close().
+     *
+     * All shared instances operate at the root environment for centralized lifecycle
+     * management, regardless of which environment in the hierarchy creates them.
+     *
+     * @returns A new shared service instance for accessing services with lifecycle tracking
+     */
+    asDependent(): SharedEnvironmentServices {
+        const dependent = new SharedEnvironmentServices(this.root);
+        this.get(SharedServicesManager).add(dependent);
+        return dependent;
+    }
+
+    /**
      * Determine if an environmental service is available.
      */
     has(type: Environmental.ServiceType): boolean {
-        const mine = this.#services?.get(type);
+        const instance = this.#services?.get(type);
 
-        if (mine === null) {
+        if (instance === null) {
             return false;
         }
 
-        return mine !== undefined || (this.#parent?.has(type) ?? false);
+        return instance !== undefined || (this.#parent?.has(type) ?? false);
     }
 
     /**
@@ -90,6 +124,7 @@ export class Environment {
             if (!(instance instanceof type)) {
                 throw new InternalError(`Service creation did not produce instance of ${type.name}`);
             }
+
             return instance;
         }
 
@@ -106,13 +141,18 @@ export class Environment {
     }
 
     /**
-     * Remove an environmental service and block further inheritance
+     * Remove an environmental service and block further inheritance.
      *
-     * @param type the class of the service to remove
-     * @param instance optional instance expected, if existing instance does not match it is not deleted
+     * If any consumer is currently using the service, deletion is deferred until all
+     * consumers have released it. Services accessed via {@link SharedEnvironmentServices}
+     * are protected from premature removal.
      */
     delete(type: Environmental.ServiceType, instance?: any) {
         const localInstance = this.#services?.get(type);
+
+        if (this.get(SharedServicesManager).has(type)) {
+            return;
+        }
 
         // Remove instance and replace by null to prevent inheritance from parent
         this.#services?.set(type, null);
@@ -134,13 +174,22 @@ export class Environment {
 
     /**
      * Remove and close an environmental service.
+     *
+     * Calls the service's close method if present, then removes it from the environment.
+     * If any consumer is currently using the service, closure is deferred until all
+     * consumers have released it.
      */
     close<T extends object>(
         type: Environmental.ServiceType<T>,
     ): T extends { close: () => MaybePromise<void> } ? MaybePromise<void> : void {
         const instance = this.maybeGet(type);
-        this.delete(type, instance); // delete and block inheritance
+        this.delete(type, instance);
         if (instance !== undefined) {
+            if (this.get(SharedServicesManager).has(type)) {
+                // still in use
+                return;
+            }
+
             return (instance as Partial<Destructable>).close?.() as T extends { close: () => MaybePromise<void> }
                 ? MaybePromise<void>
                 : void;
@@ -150,7 +199,7 @@ export class Environment {
     /**
      * Access an environmental service, waiting for any async initialization to complete.
      */
-    async load<T extends Environmental.Service>(type: Environmental.Factory<T>) {
+    async load<T extends Environmental.Service>(type: Environmental.Factory<T>): Promise<T> {
         const instance = this.get(type);
         await instance.construction;
         return instance;
@@ -163,6 +212,7 @@ export class Environment {
         if (!this.#services) {
             this.#services = new Map();
         }
+        // Services installed via set() don't have a participant mode yet - it will be determined on first access
         this.#services.set(type, instance as Environmental.Service);
         this.#added.emit(type, instance);
         const serviceEvents = this.#serviceEvents.get(type);
@@ -178,6 +228,13 @@ export class Environment {
         return this.#name;
     }
 
+    /**
+     * Get the root environment in the hierarchy.
+     *
+     * Recursively traverses parent links to find the topmost environment with no parent.
+     * Used internally to ensure certain services (like DependentsManager) are installed
+     * at a single, consistent location for the entire environment tree.
+     */
     get root(): Environment {
         return this.#parent?.root ?? this;
     }

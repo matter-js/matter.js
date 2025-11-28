@@ -3,7 +3,7 @@
  * Copyright 2022-2025 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { Environment, ImplementationError, Logger, Minutes } from "#general";
+import { Environment, ImplementationError, Logger, Minutes, SharedEnvironmentServices } from "#general";
 import {
     CertificateAuthority,
     CommissionableDevice,
@@ -41,8 +41,9 @@ type PaseCommissionerOptions = Omit<CommissioningControllerOptions, "environment
  * to all to complete the commissioning process.
  */
 export class PaseCommissioner {
-    private readonly environment: Environment;
-    private controllerInstance?: MatterController;
+    readonly #environment: Environment;
+    #controllerInstance?: MatterController;
+    #services?: SharedEnvironmentServices;
 
     /**
      * Creates a new CommissioningController instance
@@ -54,39 +55,40 @@ export class PaseCommissioner {
             throw new ImplementationError("You need to prove an environment for the commissioner.");
         }
         const { environment } = options.environment;
-        this.environment = environment;
+        this.#environment = environment;
     }
 
     get nodeId() {
-        return this.controllerInstance?.nodeId;
+        return this.#controllerInstance?.nodeId;
     }
 
     assertControllerIsStarted(errorText?: string) {
-        if (this.controllerInstance === undefined) {
+        if (this.#controllerInstance === undefined) {
             throw new ImplementationError(
                 errorText ?? "Controller instance not yet started. Please call start() first.",
             );
         }
-        return this.controllerInstance;
+        return this.#controllerInstance;
     }
 
     /** Internal method to initialize a MatterController instance. */
     private async initializeController() {
-        if (this.controllerInstance !== undefined) {
-            return this.controllerInstance;
+        if (this.#controllerInstance !== undefined) {
+            return this.#controllerInstance;
         }
 
         const { certificateAuthorityConfig: rootCertificateData, fabricConfig: fabricConfig } = this.options;
 
+        this.#services = this.#environment.asDependent();
         try {
-            await this.environment.load(MdnsService);
+            await this.#services.load(MdnsService);
         } catch {
             logger.debug("No networking available, using only BLE");
         }
 
         return await MatterController.createAsPaseCommissioner({
             id: "PaseCommissioner", // In Memory anyway
-            environment: this.environment,
+            environment: this.#environment,
             certificateAuthorityConfig: rootCertificateData,
             fabricConfig: fabricConfig,
             adminFabricLabel: this.options.fabricConfig.label,
@@ -111,16 +113,17 @@ export class PaseCommissioner {
 
     /** Disconnects all connected nodes and Closes the network connections and other resources of the controller. */
     async close() {
-        await this.controllerInstance?.close();
-        this.controllerInstance = undefined;
+        await this.#controllerInstance?.close();
+        this.#controllerInstance = undefined;
+        await this.#services?.close();
     }
 
     /** Initialize the controller. */
     async start() {
-        const runtime = this.environment.runtime;
+        const runtime = this.#environment.runtime;
         runtime.add(this);
-        if (this.controllerInstance === undefined) {
-            this.controllerInstance = await this.initializeController();
+        if (this.#controllerInstance === undefined) {
+            this.#controllerInstance = await this.initializeController();
         }
     }
 
