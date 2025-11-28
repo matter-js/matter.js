@@ -31,6 +31,7 @@ jobs:
       uses: easimon/maximize-build-space@v10
       with:
         remove-dotnet: 'true'
+        remove-android: 'true'
 
     - name: Checkout code
       uses: actions/checkout@v6
