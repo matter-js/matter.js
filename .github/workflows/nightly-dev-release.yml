@@ -22,11 +22,16 @@ on:
         default: false
         type: boolean
 jobs:
-  publish-config:
+  test-and-release:
     if: github.repository == 'matter-js/matter.js'
     runs-on: ubuntu-latest
 
     steps:
+    - name: Maximize build space
+      uses: easimon/maximize-build-space@master
+      with:
+        remove-dotnet: 'true'
+
     - name: Checkout code
       uses: actions/checkout@v6
       with:
