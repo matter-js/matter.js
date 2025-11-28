@@ -20,6 +20,8 @@ import "./ColorControlOverrides.js";
 import "./DoorLockOverrides.js";
 import "./duration.js";
 import "./ElectricalPowerMeasurementOverrides.js";
+import "./epoch-s.js";
+import "./epoch-us.js";
 import "./GroupKeyManagementOverrides.js";
 import "./GroupsOverrides.js";
 import "./IlluminanceMeasurementOverrides.js";

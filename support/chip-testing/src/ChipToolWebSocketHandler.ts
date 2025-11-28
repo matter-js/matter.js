@@ -19,7 +19,13 @@ import {
     NodeId,
     Observable,
 } from "@matter/main";
-import { EndpointNumber, StatusCode, StatusResponseError } from "@matter/main/types";
+import {
+    EndpointNumber,
+    MATTER_EPOCH_OFFSET_S,
+    MATTER_EPOCH_OFFSET_US,
+    StatusCode,
+    StatusResponseError,
+} from "@matter/main/types";
 import {
     AcceptedCommandList,
     AttributeList,
@@ -199,6 +205,12 @@ function convertMatterToWebSocketTagBased(value: unknown, model: ValueModel, clu
     }
 
     if (model.metabase?.metatype === "integer") {
+        // Convert Epoch timestamps to Unix timestamps we use internally
+        if (model.type === "epoch-s" && typeof value === "number") {
+            value -= MATTER_EPOCH_OFFSET_S;
+        } else if (model.type === "epoch-us" && (typeof value === "number" || typeof value === "bigint")) {
+            value = BigInt(value) - MATTER_EPOCH_OFFSET_US;
+        }
         return value;
     }
 
@@ -262,7 +274,16 @@ function convertWebsocketDataToMatter(value: any, model: ValueModel): any {
         }
     }
 
-    if (typeof value === "number" && (model.metabase?.metatype === "integer" || model.metabase?.metatype === "enum")) {
+    if (
+        (typeof value === "number" || typeof value === "bigint") &&
+        (model.metabase?.metatype === "integer" || model.metabase?.metatype === "enum")
+    ) {
+        // Convert Epoch timestamps to Unix timestamps we use internally
+        if (model.type === "epoch-s" && typeof value === "number") {
+            value += MATTER_EPOCH_OFFSET_S;
+        } else if (model.type === "epoch-us") {
+            value = BigInt(value) + MATTER_EPOCH_OFFSET_US;
+        }
         return value;
     }
 
@@ -296,7 +317,11 @@ function convertWebsocketDataToMatter(value: any, model: ValueModel): any {
             value.match(/^-?[1-9]\d*$/) ||
             value === "0"
         ) {
-            return parseNumber(value);
+            const numberValue = parseNumber(value);
+            if (model.type === "epoch-us") {
+                value = BigInt(value) + MATTER_EPOCH_OFFSET_US;
+            }
+            return numberValue;
         }
 
         if (model.metabase?.metatype === "boolean") {

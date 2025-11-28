@@ -30,13 +30,13 @@ const schema = SwitchServerBase.schema.extend({
     children: [
         FieldElement({
             name: "longPressDelay",
-            type: "epoch-s",
+            type: "duration",
             conformance: "MSL",
             default: DEFAULT_LONG_PRESS_DELAY,
         }),
         FieldElement({
             name: "multiPressDelay",
-            type: "epoch-s",
+            type: "duration",
             conformance: "MSM",
             default: DEFAULT_MULTIPRESS_DELAY,
         }),

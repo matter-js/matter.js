@@ -9,5 +9,5 @@
 import { MatterDefinition } from "../MatterDefinition.js";
 import { DatatypeElement as Datatype } from "../../elements/index.js";
 
-export const epochUs = Datatype({ name: "epoch-us", type: "uint64", isSeed: true });
+export const epochUs = Datatype({ name: "epoch-us", type: "uint64", default: 946684800000000, isSeed: true });
 MatterDefinition.children.push(epochUs);

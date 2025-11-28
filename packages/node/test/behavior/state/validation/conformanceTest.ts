@@ -576,7 +576,7 @@ const AllTests = Tests({
 
                 "rejects EstimatedEndTime without CurrentArea": {
                     record: {
-                        estimatedEndTime: 4,
+                        estimatedEndTime: 946684804,
                     },
 
                     error: {
@@ -589,14 +589,14 @@ const AllTests = Tests({
                 "accepts EstimatedEndTime with CurrentArea": {
                     record: {
                         currentArea: 1,
-                        estimatedEndTime: 4,
+                        estimatedEndTime: 946684804,
                     },
                 },
 
                 "accepts EstimatedEndTime with null CurrentArea": {
                     record: {
                         currentArea: null,
-                        estimatedEndTime: 4,
+                        estimatedEndTime: 946684804,
                     },
                 },
             },

@@ -9,7 +9,7 @@ import { GroupKeyManagement } from "#clusters/group-key-management";
 import { deepCopy, ImplementationError, Logger, MaybePromise } from "#general";
 import { DatatypeModel, FieldElement } from "#model";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
-import { assertRemoteActor, Fabric, FabricManager, hasRemoteActor } from "#protocol";
+import { assertRemoteActor, Fabric, FabricManager, hasRemoteActor, IPK_DEFAULT_EPOCH_START_TIME } from "#protocol";
 import { EndpointNumber, FabricIndex, GroupId, StatusCode, StatusResponseError } from "#types";
 import { GroupKeyManagementBehavior } from "./GroupKeyManagementBehavior.js";
 
@@ -290,7 +290,8 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
         if (epochKey0 === null || epochStartTime0 === null) {
             throw new StatusResponseError("EpochKey0 and EpochStartTime0 must be set", StatusCode.InvalidCommand);
         }
-        if (epochStartTime0 === 0) {
+        if (epochStartTime0 <= IPK_DEFAULT_EPOCH_START_TIME) {
+            // Formally can never be < IPK_DEFAULT_EPOCH_START_TIME, but let's be sure
             throw new StatusResponseError("EpochStartTime0 must not be 0", StatusCode.InvalidCommand);
         }
 
