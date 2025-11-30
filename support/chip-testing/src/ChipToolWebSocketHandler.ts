@@ -318,7 +318,9 @@ function convertWebsocketDataToMatter(value: any, model: ValueModel): any {
             value === "0"
         ) {
             const numberValue = parseNumber(value);
-            if (model.type === "epoch-us") {
+            if (model.type === "epoch-s" && typeof numberValue === "number") {
+                value += MATTER_EPOCH_OFFSET_S;
+            } else if (model.type === "epoch-us") {
                 value = BigInt(value) + MATTER_EPOCH_OFFSET_US;
             }
             return numberValue;
