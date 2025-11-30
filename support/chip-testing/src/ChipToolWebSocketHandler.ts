@@ -324,11 +324,11 @@ function convertWebsocketDataToMatter(value: any, model: ValueModel): any {
             value.match(/^-?[1-9]\d*$/) ||
             value === "0"
         ) {
-            const numberValue = parseNumber(value);
+            let numberValue = parseNumber(value);
             if (model.type === "epoch-s" && typeof numberValue === "number") {
-                value += MATTER_EPOCH_OFFSET_S;
+                numberValue += MATTER_EPOCH_OFFSET_S;
             } else if (model.type === "epoch-us") {
-                value = BigInt(value) + MATTER_EPOCH_OFFSET_US;
+                numberValue = BigInt(value) + MATTER_EPOCH_OFFSET_US;
             }
             return numberValue;
         }
