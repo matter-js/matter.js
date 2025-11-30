@@ -232,13 +232,6 @@ function parseChipJSON(json: string) {
 
 /** Use the matter.js model to convert the incoming data for write and invoke commands into the expected format. */
 function convertWebsocketDataToMatter(value: any, model: ValueModel): any {
-    logger.warn(
-        "convertWebsocketDataToMatter",
-        Diagnostic.json(value),
-        model.type,
-        model.metatype,
-        model.metabase?.metatype,
-    );
     if (value === undefined) {
         return undefined;
     }
