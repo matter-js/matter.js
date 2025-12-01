@@ -77,8 +77,10 @@ export interface OptionalWritableFabricScopedAttribute<T, F extends BitSchema> e
     fabricScoped: true;
 }
 
-export interface ConditionalWritableFabricScopedAttribute<T, F extends BitSchema>
-    extends OptionalWritableFabricScopedAttribute<T, F> {
+export interface ConditionalWritableFabricScopedAttribute<
+    T,
+    F extends BitSchema,
+> extends OptionalWritableFabricScopedAttribute<T, F> {
     isConditional: true;
 }
 
@@ -605,8 +607,11 @@ export interface OptionalCommand<RequestT, ResponseT, F extends BitSchema> exten
     optional: true;
 }
 
-export interface ConditionalCommand<RequestT, ResponseT, F extends BitSchema>
-    extends OptionalCommand<RequestT, ResponseT, F> {
+export interface ConditionalCommand<RequestT, ResponseT, F extends BitSchema> extends OptionalCommand<
+    RequestT,
+    ResponseT,
+    F
+> {
     isConditional: true;
 }
 

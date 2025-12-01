@@ -263,9 +263,11 @@ export class BasicSet<T, AddT = T> implements ImmutableSet<T>, MutableSet<T, Add
  * efficient lookup by key using {@link IndexedSet#get}, but usage like a {@link Map} is still cumbersome.  This class
  * works as an adapter to make key/value access patterns more natural.
  */
-export class MapOfIndexedSet<T, S extends ImmutableSet<T> & MutableSet<T> & IndexedSet<T>, K extends keyof T>
-    implements Map<T[K], T>
-{
+export class MapOfIndexedSet<
+    T,
+    S extends ImmutableSet<T> & MutableSet<T> & IndexedSet<T>,
+    K extends keyof T,
+> implements Map<T[K], T> {
     #set: S;
     #key: K;
 

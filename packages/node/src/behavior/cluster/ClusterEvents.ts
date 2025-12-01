@@ -94,24 +94,24 @@ export namespace ClusterEvents {
     /**
      * API for events triggered prior to attribute change.
      */
-    export interface ChangingObservable<A extends ClusterType.Attribute = ClusterType.Attribute>
-        extends OfflineEvent<
-            [value: TypeFromSchema<A["schema"]>, oldValue: TypeFromSchema<A["schema"]>, context: ActionContext],
-            AttributeModel
-        > {}
+    export interface ChangingObservable<A extends ClusterType.Attribute = ClusterType.Attribute> extends OfflineEvent<
+        [value: TypeFromSchema<A["schema"]>, oldValue: TypeFromSchema<A["schema"]>, context: ActionContext],
+        AttributeModel
+    > {}
 
     /**
      * API for events triggered after attribute change.
      */
-    export interface ChangedObservable<A extends ClusterType.Attribute = ClusterType.Attribute>
-        extends OnlineEvent<
-            [value: TypeFromSchema<A["schema"]>, oldValue: TypeFromSchema<A["schema"]>, context: ActionContext],
-            AttributeModel
-        > {}
+    export interface ChangedObservable<A extends ClusterType.Attribute = ClusterType.Attribute> extends OnlineEvent<
+        [value: TypeFromSchema<A["schema"]>, oldValue: TypeFromSchema<A["schema"]>, context: ActionContext],
+        AttributeModel
+    > {}
 
     /**
      * API for events triggered for Matter events.
      */
-    export interface EventObservable<E extends ClusterType.Event = ClusterType.Event>
-        extends OnlineEvent<[payload: TypeFromSchema<E["schema"]>, context: ActionContext], EventModel> {}
+    export interface EventObservable<E extends ClusterType.Event = ClusterType.Event> extends OnlineEvent<
+        [payload: TypeFromSchema<E["schema"]>, context: ActionContext],
+        EventModel
+    > {}
 }

@@ -30,9 +30,9 @@ const logger = Logger.get("ServerInteraction");
  *
  * - InteractionServer (significant overlap with this class)
  */
-export class ServerInteraction<SessionT extends InteractionSession = InteractionSession>
-    implements Interactable<SessionT>
-{
+export class ServerInteraction<
+    SessionT extends InteractionSession = InteractionSession,
+> implements Interactable<SessionT> {
     #node: NodeProtocol;
 
     constructor(node: NodeProtocol) {

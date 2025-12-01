@@ -281,7 +281,7 @@ function createFingerprint(analysis: DiscoveredShapeAnalysis) {
 
         for (const id of ids) {
             const block = Math.floor(id / BIT_BLOCK_SIZE);
-            blocks[block] = (blocks[block] ?? 0) | (1 << id % BIT_BLOCK_SIZE);
+            blocks[block] = (blocks[block] ?? 0) | (1 << (id % BIT_BLOCK_SIZE));
         }
 
         return Object.entries(blocks)

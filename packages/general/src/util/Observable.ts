@@ -139,8 +139,7 @@ export interface Observable<T extends any[] = any[], R = void> extends AsyncIter
  * result in rejection if awaited.
  */
 export interface ObservableValue<T extends [any, ...any[]] = [boolean], R extends MaybePromise<void> = void>
-    extends Observable<T, R>,
-        Promise<T[0]> {
+    extends Observable<T, R>, Promise<T[0]> {
     value: T[0] | undefined;
     error?: Error;
 

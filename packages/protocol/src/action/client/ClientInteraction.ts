@@ -62,9 +62,9 @@ const DEFAULT_MINIMUM_RESPONSE_TIMEOUT_WITH_FAILSAFE = Seconds(30);
 /**
  * Client-side implementation of the Matter protocol.
  */
-export class ClientInteraction<SessionT extends InteractionSession = InteractionSession>
-    implements Interactable<SessionT>
-{
+export class ClientInteraction<
+    SessionT extends InteractionSession = InteractionSession,
+> implements Interactable<SessionT> {
     readonly #exchanges: ExchangeProvider;
     readonly #subscriptions: ClientSubscriptions;
     readonly #interactions = new BasicSet<Read | Write | Invoke | Subscribe>();

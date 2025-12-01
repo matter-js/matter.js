@@ -87,8 +87,7 @@ export namespace NodeProtocol {
  * Protocol contract for a specific endpoint.
  */
 export interface EndpointProtocol
-    extends CollectionProtocol<ClusterProtocol>,
-        AddressableElementProtocol<EndpointNumber> {
+    extends CollectionProtocol<ClusterProtocol>, AddressableElementProtocol<EndpointNumber> {
     /**
      * Bitmap with each wildcard path flag bit set where this value should be skipped.
      */
