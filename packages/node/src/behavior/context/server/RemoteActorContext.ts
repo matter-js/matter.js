@@ -108,17 +108,7 @@ export function RemoteActorContext(options: RemoteActorContext.Options) {
          * apply for lifecycle management using {@link Transaction.Finalization}.
          */
         open(): RemoteActorContext & Transaction.Finalization {
-            let close;
-            let tx;
-            try {
-                close = initialize();
-                tx = Transaction.open(via, exchange);
-                tx.onClose(close);
-            } catch (e) {
-                close?.();
-                throw e;
-            }
-
+            const tx = createTransaction("rw");
             return createContext(tx, {
                 resolve: tx.resolve.bind(tx),
                 reject: tx.reject.bind(tx),
@@ -131,12 +121,12 @@ export function RemoteActorContext(options: RemoteActorContext.Options) {
          * A read-only context offers simpler lifecycle semantics than a r/w OnlineContext but you must still close the
          * context after use to properly deregister activity.
          */
-        beginReadOnly() {
-            const close = initialize();
+        beginReadOnly(): RemoteActorContext & Disposable {
+            const tx = createTransaction("snapshot");
 
-            return createContext(Transaction.open(via, exchange, "snapshot"), {
-                [Symbol.dispose]: close,
-            }) as RemoteActorContext.ReadOnly;
+            return createContext(tx, {
+                [Symbol.dispose]: tx[Symbol.dispose].bind(tx),
+            });
         },
 
         [Symbol.toStringTag]: "OnlineContext",
@@ -145,19 +135,29 @@ export function RemoteActorContext(options: RemoteActorContext.Options) {
     /**
      * Initialization stage one - initialize everything common to r/o and r/w contexts
      */
-    function initialize() {
+    function createTransaction(isolation: Transaction.IsolationLevel) {
         const activity = options.activity?.frame(via);
 
-        const close = () => {
+        let tx;
+        try {
+            tx = Transaction.open(via, exchange, isolation);
+            tx.onClose(close);
+        } catch (e) {
+            close?.();
+            tx?.[Symbol.dispose]();
+            throw e;
+        }
+
+        return tx;
+
+        function close() {
             if (message) {
                 Contextual.setContextOf(message, undefined);
             }
             if (activity) {
                 activity[Symbol.dispose]();
             }
-        };
-
-        return close;
+        }
     }
 
     /**
@@ -280,8 +280,4 @@ export namespace RemoteActorContext {
         fabricFiltered?: boolean;
         message?: Message;
     };
-
-    export interface ReadOnly extends RemoteActorContext {
-        [Symbol.dispose](): void;
-    }
 }

@@ -80,6 +80,7 @@ class Tx implements Transaction, Transaction.Finalization {
         });
 
         this.#isolation = isolation;
+
         if (isolation === "rw") {
             this.#status = Status.Shared;
         } else {
@@ -88,6 +89,17 @@ class Tx implements Transaction, Transaction.Finalization {
     }
 
     [Symbol.dispose]() {
+        switch (this.status) {
+            case Status.ReadOnly:
+            case Status.Shared:
+            case Status.Destroyed:
+                break;
+
+            default:
+                logger.error(this.via, "Disposed", this.via, "while", this.status);
+                break;
+        }
+
         using _closing = this.#lifetime.closing();
         this.#reset("dropped");
         this.#status = Status.Destroyed;

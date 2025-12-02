@@ -5,7 +5,6 @@
  */
 
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
-import type { Agent } from "#endpoint/Agent.js";
 import { Diagnostic, InternalError, Lifetime, MaybePromise, Transaction } from "#general";
 import { AccessLevel } from "#model";
 import { AccessControl } from "#protocol";
@@ -25,8 +24,6 @@ export interface LocalActorContext extends ValueSupervisor.LocalActorSession {
 /**
  * The context for operations triggered locally, either for in-process node implementations or remote nodes that are
  * peers of a local node.
- *
- * You can also use {@link LocalActorContext.ReadOnly} for read-only {@link Agent} access.
  */
 export const LocalActorContext = {
     /**
