@@ -17,12 +17,12 @@ import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import {
     Construction,
     Diagnostic,
+    DiagnosticPresentation,
     DiagnosticSource,
     Environment,
     Identity,
     ImplementationError,
     Logger,
-    RuntimeService,
 } from "#general";
 import { Interactable } from "#protocol";
 import type { EndpointNumber } from "#types";
@@ -218,7 +218,7 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
 
     protected abstract prepareRuntimeShutdown(): Promise<void>;
 
-    get [RuntimeService.label]() {
+    get [DiagnosticPresentation.name]() {
         return ["Runtime for", Diagnostic.strong(this.toString())];
     }
 

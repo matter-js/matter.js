@@ -10,3 +10,4 @@ export * from "./RuntimeService.js";
 export * from "./ServiceBundle.js";
 export * from "./SharedEnvironmentServices.js";
 export * from "./VariableService.js";
+export * from "./Worker.js";

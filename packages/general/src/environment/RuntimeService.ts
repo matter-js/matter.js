@@ -4,26 +4,29 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { DiagnosticPresentation } from "#log/DiagnosticPresentation.js";
 import { asError } from "#util/Error.js";
+import { Lifetime } from "#util/Lifetime.js";
 import { Diagnostic } from "../log/Diagnostic.js";
 import { DiagnosticSource } from "../log/DiagnosticSource.js";
 import { Logger } from "../log/Logger.js";
-import { Construction, type Constructable } from "../util/Construction.js";
-import { Cancellable, Destructable, Lifecycle } from "../util/Lifecycle.js";
-import { Multiplex } from "../util/Multiplex.js";
+import { type Constructable } from "../util/Construction.js";
+import { Destructable, Lifecycle } from "../util/Lifecycle.js";
 import { Observable } from "../util/Observable.js";
 import type { Environment } from "./Environment.js";
 import { Environmental } from "./Environmental.js";
+import type { Worker } from "./Worker.js";
 
 const logger = Logger.get("Runtime");
 
 /**
  * Handles lifecycle management of other components.
  */
-export class RuntimeService implements Multiplex {
+export class RuntimeService {
     #env: Environment;
-    #workers = new Set<RuntimeService.Worker>();
-    #cancelled = new Set<RuntimeService.Worker>();
+    #lifetime: Lifetime;
+    #workers = new Set<Worker>();
+    #cancelled = new Set<Worker>();
     #workerDeleted = Observable<[]>();
     #canceled = false;
     #started = Observable<[]>();
@@ -32,6 +35,7 @@ export class RuntimeService implements Multiplex {
 
     constructor(environment: Environment) {
         this.#env = environment;
+        this.#lifetime = this.#env.join("runtime");
         environment.set(RuntimeService, this);
         DiagnosticSource.add(this);
     }
@@ -74,7 +78,9 @@ export class RuntimeService implements Multiplex {
         if (worker.then) {
             Promise.resolve(worker)
                 .catch(error => this.#crash(error))
-                .finally(() => this.delete(worker));
+                .finally(() => {
+                    this.delete(worker);
+                });
             return;
         }
 
@@ -97,7 +103,7 @@ export class RuntimeService implements Multiplex {
     /**
      * Remove a worker.
      */
-    delete(worker: RuntimeService.Worker) {
+    delete(worker: Worker) {
         if (!this.#workers.has(worker)) {
             return;
         }
@@ -197,6 +203,8 @@ export class RuntimeService implements Multiplex {
     }
 
     async close() {
+        using _closing = this.#lifetime.closing();
+
         this.cancel();
         await this.inactive;
         this.#env.delete(RuntimeService, this);
@@ -208,9 +216,9 @@ export class RuntimeService implements Multiplex {
     }
 
     get [Diagnostic.value]() {
-        return Diagnostic.node("🛠", "Workers", {
+        return Diagnostic.node("⚙️", "Workers", {
             children: [...this.#workers].map(worker => {
-                let diagnostic: unknown = worker[RuntimeService.label];
+                let diagnostic: unknown = worker[DiagnosticPresentation.name];
 
                 if (diagnostic === undefined) {
                     diagnostic = Diagnostic.valueOf(worker);
@@ -225,7 +233,7 @@ export class RuntimeService implements Multiplex {
         });
     }
 
-    #cancelWorker(worker: RuntimeService.Worker) {
+    #cancelWorker(worker: Worker) {
         if (this.#cancelled.has(worker)) {
             return;
         }
@@ -281,50 +289,6 @@ export class RuntimeService implements Multiplex {
 }
 
 export namespace RuntimeService {
-    export const label = Symbol("label");
-
-    /**
-     * The runtime tracks individual discrete tasks as "workers".
-     *
-     * The state of the runtime is dependent on installed workers.  Any JS object may be a worker but the runtime's
-     * interaction with workers varies as documented here.
-     *
-     * If a worker is a {@link PromiseLike} the runtime will delete and/or destroy it on completion.
-     */
-    export interface Worker extends Partial<PromiseLike<any>>, Partial<Cancellable>, Partial<Destructable> {
-        /**
-         * If the worker supports {@link Construction}, the runtime will monitor the worker's lifecycle:
-         *
-         *   - If the worker crashed (e.g. experiences an error during initialization) the runtime will cancel all
-         *     workers and exit
-         *
-         *   - If the worker is destroyed the runtime deletes it from the set of known workers
-         */
-        construction?: Construction<any>;
-
-        /**
-         * If the worker supports {@link Symbol.asyncDispose} the runtime will invoke when the worker is no longer
-         * needed.  This happens if:
-         *
-         *   - The worker is a {@link PromiseLike} that resolves
-         *
-         *   - The worker's {@link construction} status changed as noted above
-         *
-         *   - The runtime is canceled via {@link RuntimeService.cancel}
-         */
-        [Symbol.asyncDispose]?: () => void | Promise<void>;
-
-        /**
-         * Workers may implement {@link Symbol.dispose} to handle disposal.  Works the same as the async equivalent.
-         */
-        [Symbol.dispose]?: () => void;
-
-        /**
-         * If label is present, it will be presented in diagnostics.  This takes precedence over [Diagnostic.value].
-         */
-        [label]?: unknown;
-    }
-
     /**
      * A function that initiates work.
      */
