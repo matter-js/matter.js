@@ -347,7 +347,7 @@ export class Environment implements ServiceProvider {
      * Display tasks that supply diagnostics.
      */
     diagnose() {
-        Time.getTimer("Diagnostics", Instant, () => {
+        Time.getTimer("diagnostics", Instant, () => {
             try {
                 logger.notice("Diagnostics follow", DiagnosticSource);
             } catch (e) {

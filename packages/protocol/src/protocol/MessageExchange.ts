@@ -134,7 +134,7 @@ export class MessageExchange {
     readonly #isInitiator: boolean;
     readonly #messagesQueue = new DataReadQueue<Message>();
     #receivedMessageToAck: Message | undefined;
-    #receivedMessageAckTimer = Time.getTimer("Ack receipt timeout", MRP.STANDALONE_ACK_TIMEOUT, () => {
+    #receivedMessageAckTimer = Time.getTimer("ack receipt timeout", MRP.STANDALONE_ACK_TIMEOUT, () => {
         if (this.#receivedMessageToAck !== undefined) {
             const messageToAck = this.#receivedMessageToAck;
             this.#receivedMessageToAck = undefined;

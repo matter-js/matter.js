@@ -51,7 +51,7 @@ export class SubscriptionClient implements ProtocolHandler {
 
             const maxInterval = Millis(subscription.maxInterval + subscription.maximumPeerResponseTime);
 
-            timer = Time.getTimer("Subscription timeout", maxInterval, () => {
+            timer = Time.getTimer("subscription timeout", maxInterval, () => {
                 logger.info(`Subscription ${id} timed out after ${Duration.format(maxInterval)}`);
                 this.delete(id);
                 onTimeout();

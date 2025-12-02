@@ -75,17 +75,15 @@ export class RvcDeviceLogic extends Behavior {
         this.reactTo((this.endpoint as Node).lifecycle.partsReady, this.#initializeNode);
 
         // Timers to simulate a device state machine
-        this.internal.cleaningTimer = Time.getTimer("CleaningTimer", CLEANING_MAPPING_ROUND_TIME, () =>
+        this.internal.cleaningTimer = Time.getTimer("cleaning", CLEANING_MAPPING_ROUND_TIME, () =>
             this.#handleCleaningDone(),
         );
-        this.internal.mappingTimer = Time.getTimer("MappingTimer", CLEANING_MAPPING_ROUND_TIME, () =>
+        this.internal.mappingTimer = Time.getTimer("mapping", CLEANING_MAPPING_ROUND_TIME, () =>
             this.#handleMappingDone(),
         );
-        this.internal.rechargingTimer = Time.getTimer("RechargingTimer", Minutes(2), () => this.#handleRechargeDone());
-        this.internal.autoWaitTimer = Time.getTimer("AutoWaitTimer", Hours(3), () => this.#handleAutoWaitDone());
-        this.internal.seekingChargerTimer = Time.getTimer("SeekingChargerTimer", Seconds(30), () =>
-            this.#handleDocking(),
-        );
+        this.internal.rechargingTimer = Time.getTimer("recharging", Minutes(2), () => this.#handleRechargeDone());
+        this.internal.autoWaitTimer = Time.getTimer("auto wait", Hours(3), () => this.#handleAutoWaitDone());
+        this.internal.seekingChargerTimer = Time.getTimer("seeking charger", Seconds(30), () => this.#handleDocking());
     }
 
     async #initializeNode() {
