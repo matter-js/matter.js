@@ -16,6 +16,7 @@ import {
     hex,
     Instant,
     InternalError,
+    Lifetime,
     Logger,
     MatterFlowError,
     Millis,
@@ -24,7 +25,7 @@ import {
 } from "#general";
 import { GroupSession } from "#session/GroupSession.js";
 import type { NodeSession } from "#session/NodeSession.js";
-import { SecureSession } from "#session/SecureSession.js";
+import type { SecureSession } from "#session/SecureSession.js";
 import { Session } from "#session/Session.js";
 import { SessionParameters } from "#session/SessionParameters.js";
 import {
@@ -101,7 +102,7 @@ export interface MessageExchangeContext {
 /**
  * A Matter "message exchange" is a sequence of messages associated with a single interaction.
  *
- * TODO - rewrite using promises and abort controller
+ * TODO - rewrite using sleeps and abort controller
  */
 export class MessageExchange {
     static fromInitialMessage(context: MessageExchangeContext, initialMessage: Message) {
@@ -133,6 +134,7 @@ export class MessageExchange {
     readonly #context: MessageExchangeContext;
     readonly #isInitiator: boolean;
     readonly #messagesQueue = new DataReadQueue<Message>();
+    readonly #lifetime: Lifetime;
     #receivedMessageToAck: Message | undefined;
     #receivedMessageAckTimer = Time.getTimer("ack receipt timeout", MRP.STANDALONE_ACK_TIMEOUT, () => {
         if (this.#receivedMessageToAck !== undefined) {
@@ -145,7 +147,7 @@ export class MessageExchange {
         }
     });
     #sentMessageToAck: Message | undefined;
-    #sentMessageAckSuccess: ((...args: any[]) => void) | undefined;
+    #sentMessageAckSuccess: ((message: Message | undefined) => void) | undefined;
     #sentMessageAckFailure: ((error?: Error) => void) | undefined;
     #retransmissionTimer: Timer | undefined;
     #retransmissionCounter = 0;
@@ -198,6 +200,7 @@ export class MessageExchange {
         );
 
         session.addExchange(this);
+        this.#lifetime = this.#context.session.join("exchange");
     }
 
     get context() {
@@ -249,6 +252,10 @@ export class MessageExchange {
         // TODO: Whenever we add support for MessageExtensions or Secured Message extensions then these need to be also
         //  considered here and their size needs to be subtracted from the maxPayloadSize of the channel.
         return this.channel.maxPayloadSize - MATTER_MESSAGE_OVERHEAD;
+    }
+
+    join(...name: unknown[]) {
+        return this.#lifetime.join(...name);
     }
 
     async onMessageReceived(message: Message, duplicate = false) {
@@ -333,10 +340,6 @@ export class MessageExchange {
     }
 
     async send(messageType: number, payload: Bytes, options: ExchangeSendOptions = {}) {
-        if (options?.requiresAck && !this.session.usesMrp) {
-            options.requiresAck = false;
-        }
-
         const {
             expectAckOnly = false,
             disableMrpLogic,
@@ -345,6 +348,7 @@ export class MessageExchange {
             logContext,
             protocolId = this.#protocolId,
         } = options;
+
         if (!this.session.usesMrp && includeAcknowledgeMessageId !== undefined) {
             throw new InternalError("Cannot include an acknowledge message ID when MRP is not used");
         }
@@ -428,7 +432,7 @@ export class MessageExchange {
             payload,
         };
 
-        let ackPromise: Promise<Message> | undefined;
+        let ackPromise: Promise<Message | undefined> | undefined;
         if (this.session.usesMrp && message.payloadHeader.requiresAck && !disableMrpLogic) {
             this.#sentMessageToAck = message;
             this.#retransmissionTimer = Time.getTimer(
@@ -436,7 +440,7 @@ export class MessageExchange {
                 this.channel.getMrpResubmissionBackOffTime(0),
                 () => this.#retransmitMessage(message, expectedProcessingTime),
             );
-            const { promise, resolver, rejecter } = createPromise<Message>();
+            const { promise, resolver, rejecter } = createPromise<Message | undefined>();
             ackPromise = promise;
             this.#sentMessageAckSuccess = resolver;
             this.#sentMessageAckFailure = rejecter;
@@ -447,16 +451,21 @@ export class MessageExchange {
         if (ackPromise !== undefined) {
             this.#retransmissionCounter = 0;
             this.#retransmissionTimer?.start();
-            // Await Response to be received (or Message retransmit limit reached which rejects the promise)
+
+            // Await response.  Resolves with message when received, undefined when aborted, and rejects on timeout
             const responseMessage = await ackPromise;
+
             this.#sentMessageAckSuccess = undefined;
             this.#sentMessageAckFailure = undefined;
-            // If we only expect an Ack without data but got data, throw an error
-            const {
-                payloadHeader: { protocolId, messageType },
-            } = responseMessage;
-            if (expectAckOnly && !SecureMessageType.isStandaloneAck(protocolId, messageType)) {
-                throw new UnexpectedMessageError("Expected ack only", this.session, responseMessage);
+
+            if (responseMessage) {
+                // If we only expect an Ack without data but got data, throw an error
+                const {
+                    payloadHeader: { protocolId, messageType },
+                } = responseMessage;
+                if (expectAckOnly && !SecureMessageType.isStandaloneAck(protocolId, messageType)) {
+                    throw new UnexpectedMessageError("Expected ack only", this.session, responseMessage);
+                }
             }
         }
     }
@@ -630,6 +639,9 @@ export class MessageExchange {
         if (this.#isDestroyed) {
             return;
         }
+
+        this.#lifetime.closing();
+
         if (this.#closeTimer !== undefined) {
             if (force) {
                 // Force close does not wait any longer
@@ -645,7 +657,7 @@ export class MessageExchange {
             logger.info(this.via, `Exchange never used, closing directly`);
             return this.#close();
         }
-        this.#closing.emit(true);
+        await this.#closing.emit(true);
 
         if (this.#receivedMessageToAck !== undefined) {
             this.#receivedMessageAckTimer.stop();
@@ -680,10 +692,15 @@ export class MessageExchange {
     }
 
     async #close() {
+        using _closing = this.#lifetime.closing();
+
         this.#retransmissionTimer?.stop();
+        this.#sentMessageAckSuccess?.(undefined);
+
         this.#closeTimer?.stop();
         this.#timedInteractionTimer?.stop();
         this.#messagesQueue.close();
+
         await this.#closed.emit(true);
     }
 

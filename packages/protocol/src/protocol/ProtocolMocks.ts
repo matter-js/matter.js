@@ -17,6 +17,7 @@ import {
     Environment,
     ImplementationError,
     IpNetworkChannel,
+    Lifetime,
     MAX_UDP_MESSAGE_SIZE,
     MaybePromise,
     MockCrypto,
@@ -115,6 +116,9 @@ export namespace ProtocolMocks {
 
             // Initialize with a mocked message channel
             this.channel = new MessageChannel({ channel, session: this });
+
+            // ...and mock lifetime
+            this.lifetime = Lifetime.mock;
         }
 
         static override async create(config: NodeSession.CreateConfig) {

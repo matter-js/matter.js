@@ -3,7 +3,7 @@
  * Copyright 2022-2025 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { Duration, Observable } from "#general";
+import { Diagnostic, Duration, Observable } from "#general";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { DEFAULT_EXPECTED_PROCESSING_TIME } from "#protocol/MessageChannel.js";
@@ -105,6 +105,11 @@ export class ReconnectableExchangeProvider extends ExchangeProvider {
 
     async initiateExchange(): Promise<MessageExchange> {
         if (!this.sessions.maybeSessionFor(this.#address)) {
+            using _connecting = this.sessions.construction.join(
+                "connecting to",
+                Diagnostic.strong(this.#address.toString()),
+            );
+
             await this.reconnectChannel();
         }
         if (!this.sessions.maybeSessionFor(this.#address)) {
