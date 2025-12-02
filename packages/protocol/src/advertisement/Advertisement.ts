@@ -258,7 +258,11 @@ export abstract class Advertisement<T extends ServiceDescription = ServiceDescri
     }
 
     async #run(context: ActivityContext, event: Advertiser.BroadcastEvent) {
-        logger.debug("Begin auto broadcast", this.dict());
+        // Diagnostics
+        const dict = this.dict();
+        using advertising = this.advertiser.join("advertising");
+        Object.assign(advertising.details, dict);
+        logger.debug("Begin auto broadcast", dict);
 
         // Perform advertisement
         try {

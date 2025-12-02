@@ -5,7 +5,7 @@
  */
 
 import { BlePeripheralInterface } from "#ble/Ble.js";
-import { Bytes, Duration, ImplementationError, Millis } from "#general";
+import { Bytes, Duration, ImplementationError, Lifetime, Millis } from "#general";
 import { DatatypeModel, FieldElement } from "#model";
 import { MAXIMUM_COMMISSIONING_TIMEOUT } from "#types";
 import { Advertisement } from "../Advertisement.js";
@@ -20,7 +20,7 @@ export class BleAdvertiser extends Advertiser {
     #isClosed = false;
 
     constructor(peripheral: BlePeripheralInterface, options?: BleAdvertiser.Options) {
-        super();
+        super(options?.lifetime);
 
         this.#peripheral = peripheral;
         this.#config = BleAdvertiser.Configuration(options);
@@ -58,6 +58,11 @@ export namespace BleAdvertiser {
      * All intervals are in milliseconds.
      */
     export interface Configuration {
+        /**
+         * Lifetime of advertiser owner.
+         */
+        readonly lifetime?: Lifetime.Owner;
+
         /**
          * Additional advertisement data.
          */

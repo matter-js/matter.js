@@ -5,15 +5,21 @@
  */
 
 import type { Fabric } from "#fabric/Fabric.js";
+import { Lifetime } from "@matter/general";
 import { Advertisement } from "./Advertisement.js";
 import type { ServiceDescription } from "./ServiceDescription.js";
 
 /**
  * A component that advertises a Matter service.
  */
-export abstract class Advertiser {
+export abstract class Advertiser implements Lifetime.Owner {
+    #lifetime: Lifetime;
     #advertisements = new Set<Advertisement>();
     #isClosed = false;
+
+    constructor(lifetime = Lifetime.process) {
+        this.#lifetime = lifetime.join("advertiser");
+    }
 
     /**
      * Begin advertising on configured schedule.
@@ -45,6 +51,7 @@ export abstract class Advertiser {
      * Destroy the instance.
      */
     async close() {
+        using _closing = this.#lifetime.closing();
         this.#isClosed = true;
         await Advertisement.closeAll(this.#advertisements);
     }
@@ -72,6 +79,10 @@ export abstract class Advertiser {
      */
     filter(predicate: (ad: Advertisement) => boolean) {
         return [...this.#advertisements].filter(predicate);
+    }
+
+    join(...name: unknown[]): Lifetime {
+        return this.#lifetime.join(...name);
     }
 }
 

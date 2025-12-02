@@ -13,6 +13,7 @@ import {
     ImplementationError,
     Instant,
     InternalError,
+    Lifetime,
     RetrySchedule,
     Seconds,
     STANDARD_MATTER_PORT,
@@ -39,7 +40,7 @@ export class MdnsAdvertiser extends Advertiser {
         readonly server: MdnsServer,
         options?: MdnsAdvertiser.Options,
     ) {
-        super();
+        super(options?.lifetime);
 
         this.port = options?.port ?? STANDARD_MATTER_PORT;
         this.omitPrivateDetails = options?.omitPrivateDetails ?? false;
@@ -153,6 +154,11 @@ export namespace MdnsAdvertiser {
      * MDNS advertisement configuration options.
      */
     export interface Options {
+        /**
+         * Lifetime of advertiser owner.
+         */
+        readonly lifetime?: Lifetime.Owner;
+
         /**
          * The port of the Matter service to advertise.
          *
