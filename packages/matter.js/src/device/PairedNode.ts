@@ -925,7 +925,7 @@ export class PairedNode {
             executeQueued: !!threadConnected, // We queue subscriptions for thread devices
             attributeListener: subscriptionHandler.attributeListener,
             eventListener: data => subscriptionHandler.eventListener(data),
-            updateTimeoutHandler: () => subscriptionHandler.updateTimeoutHandler(),
+            updateTimeoutHandler: lifetime => subscriptionHandler.updateTimeoutHandler(lifetime),
             updateReceived: () => subscriptionHandler.subscriptionAlive(),
         });
 

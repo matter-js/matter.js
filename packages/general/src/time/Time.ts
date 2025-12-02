@@ -7,6 +7,7 @@
 import { DiagnosticPresentation } from "#log/DiagnosticPresentation.js";
 import { NoProviderError } from "#MatterError.js";
 import { CancelablePromise } from "#util/Cancelable.js";
+import type { Lifetime } from "#util/Lifetime.js";
 import { Diagnostic } from "../log/Diagnostic.js";
 import { DiagnosticSource } from "../log/DiagnosticSource.js";
 import { Duration } from "./Duration.js";
@@ -143,7 +144,7 @@ export interface Timer {
 }
 
 export namespace Timer {
-    export type Callback = () => any;
+    export type Callback = (lifetime: Lifetime) => any;
 }
 
 DiagnosticSource.add({

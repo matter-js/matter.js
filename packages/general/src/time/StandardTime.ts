@@ -6,6 +6,8 @@
 
 import { ImplementationError } from "#MatterError.js";
 import { Boot } from "#util/Boot.js";
+import { decamelize } from "#util/identifier-case.js";
+import { Lifetime } from "#util/Lifetime.js";
 import { Duration } from "./Duration.js";
 import { Time, Timer } from "./Time.js";
 import { Instant } from "./TimeUnit.js";
@@ -90,11 +92,12 @@ export class StandardTimer implements Timer {
         Time.register(this);
         this.isRunning = true;
         this.#timerId = (this.isPeriodic ? setInterval : setTimeout)(() => {
+            using lifetime = Lifetime(decamelize(this.name, " "));
             if (!this.isPeriodic) {
                 Time.unregister(this);
                 this.isRunning = false;
             }
-            this.callback();
+            this.callback(lifetime);
         }, this.interval);
         return this;
     }

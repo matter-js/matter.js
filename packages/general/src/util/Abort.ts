@@ -268,7 +268,7 @@ export namespace Abort {
     export function sleep(description: string, abort: Signal | undefined, duration: Duration) {
         let timer!: Timer;
         const rested = new Promise<void>(resolve => {
-            timer = Time.getTimer(description, duration, resolve);
+            timer = Time.getTimer(description, duration, () => resolve());
         });
         return race(abort, rested).finally(timer.stop.bind(timer));
     }
