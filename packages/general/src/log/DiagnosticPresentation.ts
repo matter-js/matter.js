@@ -68,10 +68,15 @@ export namespace DiagnosticPresentation {
     /**
      * Property name allowing objects to indicate their preferred presentation.
      */
-    export const presentation: unique symbol = Symbol("presentation");
+    export const presentation: unique symbol = Symbol.for("matter.diagnostic.presentation");
 
     /**
      * Property name that redirects diagnostic presentation.
      */
-    export const value: unique symbol = Symbol.for("value");
+    export const value: unique symbol = Symbol.for("matter.diagnostic.value");
+
+    /**
+     * Property name that assigns a diagnostic segment as the name of an object.
+     */
+    export const name: unique symbol = Symbol.for("matter.diagnostic.name");
 }

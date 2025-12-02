@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { serialize } from "#util/serialize.js";
 import { ImplementationError, InternalError, MatterError } from "../MatterError.js";
 import { Bytes } from "../util/Bytes.js";
 import { Lifecycle } from "../util/Lifecycle.js";
-import { serialize } from "../util/serialize.js";
 import { isObject } from "../util/Type.js";
 import { Diagnostic } from "./Diagnostic.js";
 import { LogLevel } from "./LogLevel.js";

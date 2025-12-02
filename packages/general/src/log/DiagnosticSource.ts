@@ -27,6 +27,10 @@ export const DiagnosticSource = {
     },
 
     get [DiagnosticPresentation.value]() {
-        return sources;
+        const diagnostic = [];
+        for (const source of sources) {
+            diagnostic.push("", source);
+        }
+        return diagnostic;
     },
 };

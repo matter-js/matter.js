@@ -203,7 +203,7 @@ export namespace Diagnostic {
      * A node in a diagnostic tree.  Top-level diagnostic sources registered with DiagnosticSource should present as
      * nodes.
      */
-    export function node(icon: string, label: unknown, detail: { self?: unknown; children?: unknown[] }) {
+    export function node(icon: string, label: unknown, detail: { self?: unknown; children?: Iterable<unknown> }) {
         const result = [icon, Diagnostic.strong(label)] as unknown[];
         if (detail?.self !== undefined) {
             result.push(detail.self);
@@ -311,6 +311,10 @@ export namespace Diagnostic {
 
             toString() {
                 return Duration.format(this.time);
+            },
+
+            get [Diagnostic.value]() {
+                return this.toString();
             },
         };
     }
