@@ -6,9 +6,10 @@
 
 import type { Subscribe } from "#action/request/Subscribe.js";
 import type { ActiveSubscription } from "#action/response/SubscribeResult.js";
-import { Abort, Diagnostic, Logger } from "#general";
-import { PeerAddress } from "#peer/PeerAddress.js";
-import { ClientSubscribe } from "./ClientSubscribe.js";
+import { Abort, decamelize, Diagnostic, Lifetime, Logger } from "#general";
+import type { SubscriptionId } from "#interaction/Subscription.js";
+import type { PeerAddress } from "#peer/PeerAddress.js";
+import type { ClientSubscribe } from "./ClientSubscribe.js";
 
 const logger = Logger.get("ClientSubscription");
 
@@ -18,7 +19,6 @@ const logger = Logger.get("ClientSubscription");
 export abstract class ClientSubscription implements ActiveSubscription {
     readonly request: Subscribe;
     readonly peer: PeerAddress;
-    abstract subscriptionId: number;
     abstract maxInterval: number;
     abstract interactionModelRevision: number;
 
@@ -27,11 +27,14 @@ export abstract class ClientSubscription implements ActiveSubscription {
      */
     done?: Promise<void>;
 
+    readonly #lifetime: Lifetime;
     readonly #closed: () => void;
     readonly #abort: Abort;
     #isClosed = false;
+    #id: SubscriptionId = -1;
 
-    constructor({ request, peer, closed, abort }: ClientSubscription.Configuration) {
+    constructor({ request, peer, closed, abort, lifetime }: ClientSubscription.Configuration) {
+        this.#lifetime = lifetime.join(this.kind);
         this.request = request;
         this.peer = peer;
         this.#closed = closed;
@@ -41,10 +44,26 @@ export abstract class ClientSubscription implements ActiveSubscription {
         });
     }
 
+    get kind() {
+        return decamelize(this.constructor.name.replace(/Subscription$/, ""), " ");
+    }
+
+    get subscriptionId() {
+        return this.#id;
+    }
+
+    set subscriptionId(id: SubscriptionId) {
+        this.#id = id;
+        this.#lifetime.name = [this.kind, Diagnostic.strong(id)];
+    }
+
     close() {
         if (this.#isClosed) {
             return;
         }
+
+        const closing = this.#lifetime.closing();
+
         this.#isClosed = true;
 
         this.#abort();
@@ -58,6 +77,7 @@ export abstract class ClientSubscription implements ActiveSubscription {
             this.done
                 .finally(() => {
                     this.request.closed?.();
+                    closing[Symbol.dispose]();
                 })
                 .catch(unhandledError);
         } else {
@@ -65,6 +85,8 @@ export abstract class ClientSubscription implements ActiveSubscription {
                 this.request.closed?.();
             } catch (e) {
                 unhandledError(e);
+            } finally {
+                closing[Symbol.dispose]();
             }
         }
     }
@@ -79,10 +101,13 @@ export abstract class ClientSubscription implements ActiveSubscription {
 }
 
 export namespace ClientSubscription {
+    export const NO_SUBSCRIPTION = -1;
+
     export interface Configuration {
         request: ClientSubscribe;
         peer: PeerAddress;
         closed: () => void;
+        lifetime: Lifetime.Owner;
         abort?: AbortSignal;
     }
 }

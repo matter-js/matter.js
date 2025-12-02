@@ -6,7 +6,7 @@
 
 import { ReadResult } from "#action/response/ReadResult.js";
 import type { ActiveSubscription } from "#action/response/SubscribeResult.js";
-import { BasicSet, Environment, Environmental, Millis, Time, Timer, Timestamp } from "#general";
+import { BasicSet, Environment, Environmental, Lifetime, Millis, Time, Timer, Timestamp } from "#general";
 import { SubscriptionId } from "#interaction/Subscription.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { ClientSubscription } from "./ClientSubscription.js";
@@ -15,15 +15,24 @@ import type { PeerSubscription } from "./PeerSubscription.js";
 /**
  * A managed set of {@link ActiveSubscription} instances.
  */
-export class ClientSubscriptions {
+export class ClientSubscriptions implements Lifetime.Owner {
+    #lifetime: Lifetime;
     #active = new BasicSet<ClientSubscription>();
     #peers = new Map<PeerAddress, Map<number, PeerSubscription>>();
     #timeout?: Timer;
 
+    constructor(lifetime: Lifetime.Owner) {
+        this.#lifetime = lifetime.join("client subscriptions");
+    }
+
     static [Environmental.create](env: Environment) {
-        const instance = new ClientSubscriptions();
+        const instance = new ClientSubscriptions(env);
         env.set(ClientSubscriptions, instance);
         return instance;
+    }
+
+    join(...name: unknown[]) {
+        return this.#lifetime.join(...name);
     }
 
     /**
@@ -77,6 +86,8 @@ export class ClientSubscriptions {
      * Terminate all subscriptions.
      */
     async close() {
+        using _closing = this.#lifetime.closing();
+
         if (this.#timeout) {
             this.#timeout.stop();
             this.#timeout = undefined;

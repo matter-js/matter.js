@@ -15,7 +15,7 @@ import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { b$, Crypto, deepCopy, MockCrypto, Seconds, Time, TimeoutError } from "#general";
 import { Specification } from "#model";
 import { ServerNode } from "#node/ServerNode.js";
-import { FabricManager, SustainedSubscription } from "#protocol";
+import { ClientSubscription, FabricManager, SustainedSubscription } from "#protocol";
 import { MockSite } from "./mock-site.js";
 
 describe("ClientNode", () => {
@@ -238,7 +238,7 @@ describe("ClientNode", () => {
         const subscription = peer1.behaviors.internalsOf(NetworkClient).activeSubscription!;
         expect(subscription).not.undefined;
         const initialSubscriptionId = subscription.subscriptionId;
-        expect(initialSubscriptionId).not.equals(SustainedSubscription.NO_SUBSCRIPTION);
+        expect(initialSubscriptionId).not.equals(ClientSubscription.NO_SUBSCRIPTION);
 
         SustainedSubscription.assert(subscription);
         expect(subscription.active.value).equals(true);
@@ -252,7 +252,7 @@ describe("ClientNode", () => {
         await MockTime.resolve(subscription.inactive);
 
         // Ensure subscription ID is gone
-        expect(subscription.subscriptionId).equals(SustainedSubscription.NO_SUBSCRIPTION);
+        expect(subscription.subscriptionId).equals(ClientSubscription.NO_SUBSCRIPTION);
 
         // *** NEW SUBSCRIPTION ***
 
@@ -267,7 +267,7 @@ describe("ClientNode", () => {
         await MockTime.resolve(subscription.active);
         crypto.entropic = false;
 
-        expect(subscription.subscriptionId).not.equals(SustainedSubscription.NO_SUBSCRIPTION);
+        expect(subscription.subscriptionId).not.equals(ClientSubscription.NO_SUBSCRIPTION);
         expect(subscription.subscriptionId).not.equals(initialSubscriptionId);
 
         // *** CONFIRM SUBSCRIPTION FUNCTIONS ***

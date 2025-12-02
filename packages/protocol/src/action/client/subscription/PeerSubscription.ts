@@ -14,15 +14,15 @@ import { ClientSubscription } from "./ClientSubscription.js";
 export class PeerSubscription extends ClientSubscription {
     readonly interactionModelRevision: number;
     readonly maxInterval: number;
-    readonly subscriptionId: number;
     isReading = false;
 
     timeoutAt?: Timestamp;
 
     constructor(config: PeerSubscription.Configuration) {
+        const { subscriptionId, interactionModelRevision, maxInterval } = config.response;
+
         super(config);
 
-        const { subscriptionId, interactionModelRevision, maxInterval } = config.response;
         this.subscriptionId = subscriptionId;
         this.interactionModelRevision = interactionModelRevision;
         this.maxInterval = maxInterval;

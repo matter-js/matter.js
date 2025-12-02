@@ -81,6 +81,7 @@ export class SustainedSubscription extends ClientSubscription {
             const closed = new Promise<void>(resolve => {
                 request.closed = () => {
                     this.#subscription = undefined;
+                    this.subscriptionId = ClientSubscription.NO_SUBSCRIPTION;
                     resolve();
                 };
             });
@@ -89,6 +90,7 @@ export class SustainedSubscription extends ClientSubscription {
             for (const retry of this.#retries) {
                 try {
                     this.#subscription = await this.#subscribe(request);
+                    this.subscriptionId = this.#subscription.subscriptionId;
                     break;
                 } catch (e) {
                     if (this.abort.aborted) {
@@ -146,10 +148,6 @@ export class SustainedSubscription extends ClientSubscription {
     get maxInterval() {
         return this.#subscription?.maxInterval ?? Hours.one;
     }
-
-    get subscriptionId() {
-        return this.#subscription?.subscriptionId ?? SustainedSubscription.NO_SUBSCRIPTION;
-    }
 }
 
 export namespace SustainedSubscription {
@@ -176,8 +174,6 @@ export namespace SustainedSubscription {
             throw new ImplementationError(`Non-sustained subscription provided where sustained subscription required`);
         }
     }
-
-    export const NO_SUBSCRIPTION = -1;
 
     export const DefaultRetrySchedule: RetrySchedule.Configuration = {
         // Protocol-level level happens at the exchange level and is faster; this is an application-level retry.  Retry
