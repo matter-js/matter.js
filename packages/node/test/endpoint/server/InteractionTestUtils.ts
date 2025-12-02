@@ -3,7 +3,7 @@
  * Copyright 2022-2025 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { AsyncObservable, Bytes, DataReadQueue, MAX_UDP_MESSAGE_SIZE } from "#general";
+import { AsyncObservable, Bytes, DataReadQueue, Lifetime, MAX_UDP_MESSAGE_SIZE } from "#general";
 import {
     ExchangeSendOptions,
     MATTER_MESSAGE_OVERHEAD,
@@ -18,6 +18,7 @@ import { interaction } from "../../node/node-helpers.js";
 
 // TODO Sync with mock-exchange.ts
 export class DummyMessageExchange {
+    #lifetime = Lifetime.mock;
     messagesQueue = new DataReadQueue<Message>();
     channel = { name: "test" };
     maxPayloadSize = MAX_UDP_MESSAGE_SIZE - MATTER_MESSAGE_OVERHEAD;
@@ -35,6 +36,10 @@ export class DummyMessageExchange {
         public clearTimedInteractionCallback?: () => void,
         public closeCallback?: () => void,
     ) {}
+
+    join(...name: unknown[]) {
+        return this.#lifetime.join(...name);
+    }
 
     injectMessage(message: Message) {
         this.messagesQueue.write(message);

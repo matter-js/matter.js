@@ -318,6 +318,7 @@ describe("ServerNode", () => {
         // Simulate receiving the response to the removeFabric request which normally closes the underlying session
         // delayed
         await (contextOptions.exchange.session as NodeSession).handlePeerClose();
+        await contextOptions.exchange.close();
 
         // ...then go offline...
         if (node.lifecycle.isOnline) {

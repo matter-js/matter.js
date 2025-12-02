@@ -9,7 +9,6 @@ import { OnOffLightDevice } from "#devices/on-off-light";
 import { Agent } from "#endpoint/Agent.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import {
-    AsyncObservable,
     Crypto,
     DataReadQueue,
     Entropy,
@@ -25,7 +24,7 @@ import {
 import { AccessLevel } from "#model";
 import { Node } from "#node/Node.js";
 import { ServerNode } from "#node/ServerNode.js";
-import { ExchangeManager, FabricManager, MessageExchange, ProtocolMocks, SessionManager, TestFabric } from "#protocol";
+import { ExchangeManager, FabricManager, ProtocolMocks, SessionManager, TestFabric } from "#protocol";
 import { FabricIndex, NodeId } from "#types";
 import { MockExchange } from "./mock-exchange.js";
 
@@ -163,16 +162,10 @@ export class MockServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootE
             ...options,
         });
 
-        return {
-            channel: { name: "test" },
-            clearTimedInteraction: () => {},
-            hasTimedInteraction: () => false,
-            hasActiveTimedInteraction: () => false,
-            hasExpiredTimedInteraction: () => false,
-            session,
+        return new ProtocolMocks.Exchange({
+            context: { session },
             maxPayloadSize: 1000,
-            closing: AsyncObservable<[void]>(),
-        } as unknown as MessageExchange;
+        });
     }
 
     override async cancel() {

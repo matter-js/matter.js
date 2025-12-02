@@ -61,7 +61,7 @@ export class GeneralCommissioningServer extends GeneralCommissioningBehavior {
         ) {
             return;
         }
-        logger.debug(`New PASE session added: ${session.idStr}. Arming Failsafe for 60s.`);
+        logger.debug(session.via, `New PASE session, arming failsafe for 60s`);
         await this.#armFailSafe({ breadcrumb: this.state.breadcrumb, expiryLengthSeconds: 60 }, session);
     }
 
@@ -69,7 +69,7 @@ export class GeneralCommissioningServer extends GeneralCommissioningBehavior {
         { breadcrumb, expiryLengthSeconds }: GeneralCommissioning.ArmFailSafeRequest,
         session: SecureSession,
     ) {
-        NodeSession.assert(session, "armFailSafe can only be called on a secure session");
+        NodeSession.assert(session, "Failsafe may only be armed on a secure session");
         const commissioner = this.env.get(DeviceCommissioner);
 
         try {
@@ -85,7 +85,7 @@ export class GeneralCommissioningServer extends GeneralCommissioningBehavior {
                 !session.isPase
             ) {
                 // TODO - should this set status to Status.BusyWithOtherAdmin?
-                throw new MatterFlowError("Failed to arm failsafe using CASE while commissioning window is opened.");
+                throw new MatterFlowError("Cannot arm failsafe using CASE while commissioning window is opened");
             }
 
             if (commissioner.isFailsafeArmed) {
@@ -123,7 +123,7 @@ export class GeneralCommissioningServer extends GeneralCommissioningBehavior {
         } catch (error) {
             MatterFlowError.accept(error);
 
-            logger.debug(`Error while arming failSafe timer`, error);
+            logger.debug(`Error while arming failSafe timer:`, error);
             return {
                 errorCode: GeneralCommissioning.CommissioningError.BusyWithOtherAdmin,
                 debugText: error.message,
@@ -231,7 +231,7 @@ export class GeneralCommissioningServer extends GeneralCommissioningBehavior {
         }
         const failsafeContext = commissioner.failsafeContext;
 
-        SecureSession.assert(session, "commissioningComplete can only be called on a secure session");
+        SecureSession.assert(session, "Commissioning may only complete on a secure session");
 
         const timedFabric = failsafeContext.associatedFabric?.fabricIndex;
         if (fabric.fabricIndex !== timedFabric) {

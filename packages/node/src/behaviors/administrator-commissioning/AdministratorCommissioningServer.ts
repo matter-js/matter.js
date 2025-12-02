@@ -6,7 +6,7 @@
 
 import type { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
 import { AdministratorCommissioning } from "#clusters/administrator-commissioning";
-import { Duration, InternalError, Logger, Seconds, Time, Timer } from "#general";
+import { Duration, InternalError, Logger, Seconds, Time, Timer, Worker } from "#general";
 import { AccessLevel } from "#model";
 import {
     assertRemoteActor,
@@ -139,7 +139,7 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
             );
         }
 
-        logger.debug("Revoking commissioning window.");
+        logger.debug("Revoking commissioning window");
 
         await this.#closeCommissioningWindow();
 
@@ -237,6 +237,7 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
      * Closes the commissioning window per the matter specification.
      */
     async #closeCommissioningWindow() {
+        using _closing = this.lifetime.join("closing commissioning window");
         await this.env.get(DeviceCommissioner).endCommissioning();
     }
 
@@ -244,7 +245,12 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
      * Close commissioning window on timeout when there's nobody to await the resulting promise
      * */
     #commissioningTimeout() {
-        this.env.runtime.add(this.#closeCommissioningWindow());
+        this.env.runtime.add(
+            Worker({
+                name: "closing commissioning window",
+                done: this.#closeCommissioningWindow(),
+            }),
+        );
     }
 
     /**

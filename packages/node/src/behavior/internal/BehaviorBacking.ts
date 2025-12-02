@@ -19,6 +19,7 @@ import {
     ImplementationError,
     InternalError,
     Lifecycle,
+    Lifetime,
     Logger,
     MaybePromise,
     Observable,
@@ -113,6 +114,10 @@ export abstract class BehaviorBacking {
         } catch (e) {
             crash(e);
         }
+    }
+
+    get [Lifetime.owner]() {
+        return this.#endpoint.construction;
     }
 
     initializeDataSource() {

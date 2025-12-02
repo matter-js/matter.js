@@ -5,7 +5,7 @@
  */
 
 import { WindowCovering } from "#clusters/window-covering";
-import { Diagnostic, ImplementationError, isDeepEqual, Logger, MaybePromise } from "#general";
+import { Diagnostic, ImplementationError, isDeepEqual, Logger, MaybePromise, Worker } from "#general";
 import { ClusterType, StatusCode, StatusResponseError, TypeFromPartialBitSchema } from "#types";
 import { WindowCoveringBehavior } from "./WindowCoveringBehavior.js";
 
@@ -383,7 +383,13 @@ export class WindowCoveringBaseServer extends WindowCoveringBase {
      */
     #prepareMovement(type: MovementType, direction: MovementDirection, targetPercent100ths?: number): void {
         if (this.internal.supportsCalibration && this.internal.calibrationMode === CalibrationMode.Enabled) {
-            return this.env.runtime.add(this.#executeCalibrationAndMove(type, direction, targetPercent100ths));
+            return this.env.runtime.add(
+                Worker({
+                    name: `calibrating ${this}`,
+                    done: this.#executeCalibrationAndMove(type, direction, targetPercent100ths),
+                    lifetime: this.lifetime,
+                }),
+            );
         }
         if (type === MovementType.Lift && this.state.configStatus.liftMovementReversed) {
             logger.debug("Lift movement is reversed");
@@ -439,14 +445,22 @@ export class WindowCoveringBaseServer extends WindowCoveringBase {
                 break;
         }
 
-        this.env.runtime.add(
-            this.handleMovement(
-                type,
-                type === MovementType.Lift && !!this.state.configStatus.liftMovementReversed,
-                direction,
-                targetPercent100ths,
-            ),
+        const done = this.handleMovement(
+            type,
+            type === MovementType.Lift && !!this.state.configStatus.liftMovementReversed,
+            direction,
+            targetPercent100ths,
         );
+
+        if (done) {
+            this.env.runtime.add(
+                Worker({
+                    name: `moving ${this}`,
+                    done,
+                    lifetime: this.lifetime,
+                }),
+            );
+        }
     }
 
     #executeCalibrationAndMove(type: MovementType, direction: MovementDirection, targetPercent100ths?: number) {
@@ -455,6 +469,7 @@ export class WindowCoveringBaseServer extends WindowCoveringBase {
             this.internal.calibrationMode = CalibrationMode.Running;
             calibration = this.executeCalibration();
         }
+
         return MaybePromise.then(calibration, () => {
             this.internal.calibrationMode = CalibrationMode.Disabled;
             return this.#prepareMovement(type, direction, targetPercent100ths);

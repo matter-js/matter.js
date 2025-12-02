@@ -260,7 +260,10 @@ export class Behaviors {
         const activity = this.#endpoint.env.get(NodeActivity);
 
         // Perform initialization
-        let promise = LocalActorContext.act(`initialize<${this.#endpoint}>`, initializeBehaviors, { activity });
+        let promise = LocalActorContext.act(`initialize<${this.#endpoint}>`, initializeBehaviors, {
+            activity,
+            lifetime: this.#endpoint.construction,
+        });
 
         // Once behaviors are ready the endpoint we consider the endpoint "ready"
         const onReady = () => {
@@ -443,10 +446,12 @@ export class Behaviors {
             `close<${this.#endpoint}>`,
             dispose,
 
-            // Note - do not close in an activity because this can cause deadlock
-            //, {
-            //    activity: this.#endpoint.env.get(NodeActivity),
-            //},
+            {
+                lifetime: this.#endpoint.construction,
+
+                // Note - do not close in an activity because this can cause deadlock
+                // activity: this.#endpoint.env.get(NodeActivity),
+            },
         );
     }
 
@@ -649,7 +654,7 @@ export class Behaviors {
                 const backing = this.#backingFor(type);
                 return backing.construction.ready;
             },
-            { activity: this.#endpoint.env.get(NodeActivity) },
+            { activity: this.#endpoint.env.get(NodeActivity), lifetime: this.#endpoint.construction },
         );
 
         if (MaybePromise.is(result)) {
