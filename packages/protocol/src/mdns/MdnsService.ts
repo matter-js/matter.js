@@ -45,12 +45,13 @@ export class MdnsService {
 
         this.#construction = Construction(this, async () => {
             this.#socket = await MdnsSocket.create(network, {
+                lifetime: this.#construction,
                 enableIpv4: this.enableIpv4,
                 netInterface: this.limitedToNetInterface,
             });
 
-            this.#server = new MdnsServer(this.#socket);
-            this.#client = new MdnsClient(this.#socket);
+            this.#server = new MdnsServer(this.#socket, this.#construction);
+            this.#client = new MdnsClient(this.#socket, this.#construction);
         });
     }
 

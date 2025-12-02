@@ -14,6 +14,7 @@ import {
     DnsMessagePartiallyPreEncoded,
     DnsMessageType,
     DnsMessageTypeFlag,
+    Lifetime,
     Logger,
     MatterAggregateError,
     MAX_MDNS_MESSAGE_SIZE,
@@ -37,10 +38,14 @@ export class MdnsSocket {
         true,
     );
 
-    static async create(network: Network, options?: { enableIpv4?: boolean; netInterface?: string }) {
-        const { enableIpv4 = true, netInterface } = options ?? {};
+    static async create(
+        network: Network,
+        options?: { enableIpv4?: boolean; netInterface?: string; lifetime?: Lifetime.Owner },
+    ) {
+        const { enableIpv4 = true, netInterface, lifetime } = options ?? {};
         const socket = new MdnsSocket(
             await UdpMulticastServer.create({
+                lifetime,
                 network,
                 netInterface,
                 broadcastAddressIpv4: enableIpv4 ? MDNS_BROADCAST_IPV4 : undefined,

@@ -6,12 +6,15 @@
 
 import {
     AsyncCache,
+    describeList,
+    Diagnostic,
     DnsMessageType,
     DnsMessageTypeFlag,
     DnsRecord,
     DnsRecordType,
     Instant,
     isDeepEqual,
+    Lifetime,
     Logger,
     MatterAggregateError,
     Millis,
@@ -26,6 +29,7 @@ import { MdnsSocket } from "./MdnsSocket.js";
 const logger = Logger.get("MdnsServer");
 
 export class MdnsServer {
+    #lifetime: Lifetime;
     #observers = new ObserverGroup();
     #recordsGenerator = new Map<string, MdnsServer.RecordGenerator>();
     readonly #records = new AsyncCache<Map<string, DnsRecord<any>[]>>(
@@ -50,8 +54,9 @@ export class MdnsServer {
 
     readonly #socket: MdnsSocket;
 
-    constructor(socket: MdnsSocket) {
+    constructor(socket: MdnsSocket, lifetime = Lifetime.process) {
         this.#socket = socket;
+        this.#lifetime = lifetime.join("mdns server");
         this.#observers.on(this.#socket.receipt, this.#handleMessage.bind(this));
     }
 
@@ -68,6 +73,8 @@ export class MdnsServer {
     }
 
     async #handleMessage(incomingMessage: MdnsSocket.Message) {
+        using _processing = this.#lifetime.join("processing message");
+
         const records = await this.#records.get(incomingMessage.sourceIntf);
 
         // Ignore if we have no records for interface
@@ -166,6 +173,8 @@ export class MdnsServer {
     }
 
     async broadcast(...services: string[]) {
+        using _broadcasting = this.#lifetime.join("broadcasting", Diagnostic.strong(describeList("and", ...services)));
+
         await MatterAggregateError.allSettled(
             (await this.#getMulticastInterfacesForAnnounce()).map(async ({ name: netInterface }) => {
                 const records = await this.#records.get(netInterface);
@@ -182,6 +191,8 @@ export class MdnsServer {
     }
 
     async expireAnnouncements(...services: string[]) {
+        using _expiring = this.#lifetime.join("expiring", Diagnostic.strong(describeList("and", ...services)));
+
         await MatterAggregateError.allSettled(
             this.#records.keys().map(async netInterface => {
                 const records = await this.#records.get(netInterface);
@@ -218,6 +229,7 @@ export class MdnsServer {
     }
 
     async close() {
+        using _closing = this.#lifetime.closing();
         this.#observers.close();
         await this.#records.close();
         for (const { timer } of this.#truncatedQueryCache.values()) {

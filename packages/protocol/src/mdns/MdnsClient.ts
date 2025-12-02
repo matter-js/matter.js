@@ -20,6 +20,7 @@ import {
     Instant,
     InternalError,
     Lifespan,
+    Lifetime,
     Logger,
     Millis,
     Minutes,
@@ -34,6 +35,7 @@ import {
     createPromise,
     isIPv6,
 } from "#general";
+import { PeerAddress } from "#peer/PeerAddress.js";
 import { NodeId, VendorId } from "#types";
 import {
     CommissionableDevice,
@@ -122,6 +124,8 @@ export interface MdnsScannerTargetCriteria {
  * queries to discover various types of Matter device types and listens for announcements.
  */
 export class MdnsClient implements Scanner {
+    readonly #lifetime: Lifetime;
+
     readonly type = ChannelType.UDP;
 
     /** Active announces by queryId with queries and known answers */
@@ -164,7 +168,9 @@ export class MdnsClient implements Scanner {
     /** True, if any node is interested in MDNS traffic, else we ignore all traffic */
     #listening = false;
 
-    constructor(socket: MdnsSocket) {
+    constructor(socket: MdnsSocket, lifetime = Lifetime.process) {
+        this.#lifetime = lifetime.join("mdns client");
+
         this.#socket = socket;
         this.#observers.on(this.#socket.receipt, this.#handleMessage.bind(this));
         this.#periodicTimer = Time.getPeriodicTimer("Discovered node expiration", Minutes.one, () =>
@@ -498,7 +504,7 @@ export class MdnsClient implements Scanner {
      * IP/ports or an empty array if not found.
      */
     async findOperationalDevice(
-        { operationalId }: Fabric,
+        fabric: Fabric,
         nodeId: NodeId,
         timeout?: Duration,
         ignoreExistingRecords = false,
@@ -506,10 +512,14 @@ export class MdnsClient implements Scanner {
         if (this.#closing) {
             throw new ImplementationError("Cannot discover operational device because scanner is closing.");
         }
-        const deviceMatterQname = this.#createOperationalMatterQName(operationalId, nodeId);
+        const deviceMatterQname = this.#createOperationalMatterQName(fabric.operationalId, nodeId);
 
         let storedDevice = ignoreExistingRecords ? undefined : this.#getOperationalDeviceRecords(deviceMatterQname);
         if (storedDevice === undefined) {
+            using _finding = this.#lifetime.join(
+                "finding peer",
+                PeerAddress({ fabricIndex: fabric.fabricIndex, nodeId }),
+            );
             const promise = this.#registerWaiterPromise(deviceMatterQname, false, timeout, () =>
                 this.#getOperationalDeviceRecords(deviceMatterQname),
             );
@@ -737,6 +747,9 @@ export class MdnsClient implements Scanner {
             ? []
             : this.#getCommissionableDeviceRecords(identifier).filter(({ addresses }) => addresses.length > 0);
         if (storedRecords.length === 0) {
+            using finding = this.#lifetime.join("finding commissionable");
+            Object.assign(finding.details, identifier);
+
             const queryId = this.#buildCommissionableQueryIdentifier(identifier);
             const promise = this.#registerWaiterPromise(queryId, true, timeout, () =>
                 this.#getCommissionableDeviceRecords(identifier),
@@ -791,6 +804,9 @@ export class MdnsClient implements Scanner {
         const criteria: MdnsScannerTargetCriteria = { commissionable: true, operationalTargets: [] };
         this.targetCriteriaProviders.add(criteria);
 
+        using finding = this.#lifetime.join("finding commissionable");
+        Object.assign(finding.details, identifier);
+
         try {
             let lastDiscoveredDevices: CommissionableDevice[] | undefined = undefined;
             while (!canceled) {
@@ -832,6 +848,7 @@ export class MdnsClient implements Scanner {
      * Close all connects, end all timers and resolve all pending promises.
      */
     async close() {
+        using _closing = this.#lifetime.closing();
         this.#closing = true;
         this.#observers.close();
         this.#periodicTimer.stop();
