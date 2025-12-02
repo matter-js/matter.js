@@ -234,7 +234,6 @@ function generateDiscoveredType(analysis: DiscoveredShapeAnalysis, baseType: Beh
             return;
         }
         schema = schema.extend();
-        schema.supportedFeatures = featureNames;
         isExtended = true;
     }
 }
