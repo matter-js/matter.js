@@ -16,6 +16,7 @@ import {
     Immutable,
     ImplementationError,
     Lifecycle,
+    Lifetime,
     Logger,
     MaybePromise,
     Observable,
@@ -713,7 +714,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             context => {
                 return actor(this.agentFor(context));
             },
-            { activity: this.#activity },
+            { activity: this.#activity, lifetime: this.construction },
         );
     }
 
@@ -721,18 +722,29 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      * Perform "soft" reset of the endpoint, reverting all in-memory structures to uninitialized.
      */
     async reset() {
+        using _resetting = this.construction.join("resetting");
+
         try {
             // Revert lifecycle to uninitialized
             this.lifecycle.resetting();
 
             // Reset child parts
-            await this.parts.reset();
+            {
+                using _parts = _resetting.join("parts");
+                await this.parts.reset();
+            }
 
             // Reset behaviors
-            await this.behaviors.close();
+            {
+                using _behaviors = _resetting.join("behaviors");
+                await this.behaviors.close();
+            }
 
             // Notify
-            await this.lifecycle.reset.emit();
+            {
+                using _lifecycle = _resetting.join("lifecycle");
+                await this.lifecycle.reset.emit();
+            }
 
             // Set construction to inactive so we can restart
             this.construction.setStatus(Lifecycle.Status.Inactive);
@@ -900,6 +912,10 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             }),
             Diagnostic.list([...this.behaviors.detailedDiagnostic, ...this.parts]),
         ];
+    }
+
+    get [Lifetime.owner](): Lifetime.Owner | undefined {
+        return this.#owner?.construction;
     }
 
     /**
