@@ -5,7 +5,6 @@
  */
 
 import { ImplementationError, UnexpectedDataError } from "../MatterError.js";
-import { hex } from "./String.js";
 
 export enum Endian {
     Little,
@@ -46,7 +45,7 @@ export namespace Bytes {
         const hexArray = new Array<string>();
         const data = Bytes.of(array);
         hexArray.length = data.length;
-        data.forEach(byte => hexArray.push(hex.byte(byte)));
+        data.forEach(byte => hexArray.push(byte.toString(16).padStart(2, "0")));
         return hexArray.join("");
     }
 
