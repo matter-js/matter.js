@@ -77,8 +77,10 @@ export namespace Events {
     /**
      * Generic type for {@link Endpoint#events}.
      */
-    export interface Generic<T extends AsyncObservable = AsyncObservable>
-        extends Record<string, undefined | Record<string, undefined | T>> {}
+    export interface Generic<T extends AsyncObservable = AsyncObservable> extends Record<
+        string,
+        undefined | Record<string, undefined | T>
+    > {}
 }
 
 /**

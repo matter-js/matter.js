@@ -1197,8 +1197,9 @@ export namespace QuietObservable {
         (...payload: T): EmitDirective;
     }
 
-    export interface Configuration<T extends any[] = any[], R extends MaybePromise<void> = void>
-        extends Partial<State<T, R>> {}
+    export interface Configuration<T extends any[] = any[], R extends MaybePromise<void> = void> extends Partial<
+        State<T, R>
+    > {}
 
     export const defaults: State = {
         emitAutomatically: true,
