@@ -129,6 +129,7 @@ export abstract class NodeTestInstance extends DeviceTestInstance implements Sub
         env.vars.set("mdns.networkInterface", "en0");
          */
         try {
+            log.directive("APP STATUS: Starting event loop");
             await this.#node.start();
             const { qrPairingCode } = this.#node.state.commissioning.pairingCodes;
             // Magic logging chip testing waits for
