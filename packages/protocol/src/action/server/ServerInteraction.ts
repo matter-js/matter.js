@@ -65,17 +65,17 @@ export class ServerInteraction<
         throw new NotImplementedError();
     }
 
-    write<T extends Write>(request: T, session: SessionT): WriteResult<T> {
+    async write<T extends Write>(request: T, session: SessionT): WriteResult<T> {
         // TODO - validate request
 
         const writer = new AttributeWriteResponse(this.#node, session);
-        return writer.process(request);
+        return await writer.process(request);
     }
 
-    invoke(request: Invoke, session: SessionT): InvokeResult {
+    async *invoke(request: Invoke, session: SessionT): InvokeResult {
         // TODO -  validate request
 
         const invoker = new CommandInvokeResponse(this.#node, session);
-        return invoker.process(request);
+        yield* invoker.process(request);
     }
 }

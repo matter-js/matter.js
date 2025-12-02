@@ -53,6 +53,10 @@ export abstract class DataResponse<SessionT extends InteractionSession = Interac
         return this.#cachedNodeId;
     }
 
+    protected join(...name: unknown[]) {
+        return this.#session.transaction?.join(...name);
+    }
+
     abstract counts: {
         /**
          * Number of existent entries that were processed. Not all must have had data to send.

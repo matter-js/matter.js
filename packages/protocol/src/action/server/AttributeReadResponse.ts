@@ -64,6 +64,8 @@ export class AttributeReadResponse<
     }
 
     *process({ dataVersionFilters, attributeRequests }: Read.Attributes): Generator<ReadResult.Chunk, void, void> {
+        using _reading = this.join("reading attributes");
+
         const nodeId = hasLocalActor(this.session) ? NodeId.UNSPECIFIED_NODE_ID : this.nodeId;
 
         // Index versions

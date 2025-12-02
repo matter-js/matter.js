@@ -63,6 +63,7 @@ export class CommandInvokeResponse<
     }
 
     async *process<T extends Invoke>({ invokeRequests, suppressResponse }: T): InvokeResult {
+        using _invoking = this.join("invoking");
         const multipleInvokes = invokeRequests.length > 1;
 
         // Register paths

@@ -53,6 +53,8 @@ export class AttributeWriteResponse<
     }
 
     async process<T extends Write>({ writeRequests, suppressResponse }: T): WriteResult<T> {
+        using _writing = this.join("writing");
+
         const writeResponses = new Array<WriteResult.AttributeStatus>();
         for (const { path, data, dataVersion } of writeRequests) {
             if (path.endpointId === undefined || path.clusterId === undefined || path.attributeId === undefined) {
