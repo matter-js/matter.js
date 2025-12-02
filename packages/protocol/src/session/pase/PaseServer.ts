@@ -69,7 +69,7 @@ export class PaseServer implements ProtocolHandler {
 
     async onNewExchange(exchange: MessageExchange) {
         if (this.#closed) {
-            logger.warn("Pase server: Received new exchange but server is closed, ignoring exchange.");
+            logger.warn("Received new exchange but server is closed, ignoring exchange");
             return;
         }
 
@@ -79,11 +79,9 @@ export class PaseServer implements ProtocolHandler {
         // the commissioning channel.
         const paseSession = this.sessions.getPaseSession();
         if (paseSession !== undefined && !paseSession.isClosing) {
-            logger.info("Pase server: Pairing already in progress (PASE session exists), ignoring new exchange.");
+            logger.info("Pairing already in progress (PASE session exists), ignoring new exchange");
         } else if (this.#pairingTimer?.isRunning) {
-            logger.info(
-                "Pase server: Pairing already in progress (PASE establishment Timer running), ignoring new exchange.",
-            );
+            logger.info("Pairing already in progress (PASE establishment timer running), ignoring new exchange");
         } else if (this.#pairingMessenger !== undefined) {
             logger.info("Already handling a pairing request, ignoring new exchange.");
         } else {
@@ -106,7 +104,7 @@ export class PaseServer implements ProtocolHandler {
 
                 if (this.#pairingErrors >= PASE_COMMISSIONING_MAX_ERRORS) {
                     throw new MaximumPasePairingErrorsReachedError(
-                        `Pase server: Too many errors during PASE commissioning, aborting commissioning window`,
+                        `Too many errors during PASE commissioning, aborting commissioning window`,
                     );
                 }
             } finally {
@@ -172,7 +170,7 @@ export class PaseServer implements ProtocolHandler {
         }
 
         // All good! Creating the secure PASE session
-        await this.sessions.createSecureSession({
+        const session = await this.sessions.createSecureSession({
             channel,
             id: responderSessionId,
             fabric: undefined,
@@ -184,7 +182,7 @@ export class PaseServer implements ProtocolHandler {
             isResumption: false,
             peerSessionParameters: initiatorSessionParams,
         });
-        logger.info(Diagnostic.strong(`Session ${responderSessionId} created`), "with", messenger.channelName);
+        logger.info(session.via, "New session with", Diagnostic.strong(messenger.channelName));
 
         await messenger.sendSuccess();
         await messenger.close();
