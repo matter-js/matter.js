@@ -157,4 +157,6 @@ export class NobleBleClient {
 
         noble.stop();
     }
+
+    [Diagnostic.name] = "BLE client";
 }

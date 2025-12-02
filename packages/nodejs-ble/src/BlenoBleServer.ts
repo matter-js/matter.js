@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Channel, InternalError, Logger, Millis, Time, createPromise } from "#general";
+import { Bytes, Channel, DiagnosticPresentation, InternalError, Logger, Millis, Time, createPromise } from "#general";
 import {
     BLE_MATTER_C1_CHARACTERISTIC_UUID,
     BLE_MATTER_C2_CHARACTERISTIC_UUID,
@@ -433,4 +433,6 @@ export class BlenoBleServer extends BleChannel<Bytes> {
     get name() {
         return `${this.type}://${this.clientAddress}`;
     }
+
+    [DiagnosticPresentation.name] = "BLE server";
 }
