@@ -26,6 +26,7 @@ export * from "./Github.js";
 export * from "./identifier-case.js";
 export * from "./Ip.js";
 export * from "./Lifecycle.js";
+export * from "./Lifetime.js";
 export * from "./Map.js";
 export * from "./MockFetch.js";
 export * from "./Multiplex.js";
