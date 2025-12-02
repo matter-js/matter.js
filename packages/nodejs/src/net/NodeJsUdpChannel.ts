@@ -14,6 +14,7 @@ import {
     ImplementationError,
     isIPv4,
     isIPv6,
+    Lifetime,
     Logger,
     MAX_UDP_MESSAGE_SIZE,
     Millis,
@@ -81,11 +82,23 @@ function createDgramSocket(host: string | undefined, port: number | undefined, o
 }
 
 export class NodeJsUdpChannel implements UdpChannel {
+    readonly #lifetime: Lifetime;
     readonly #type: UdpSocketType;
     readonly #socket: dgram.Socket;
     readonly #netInterface: string | undefined;
 
-    static async create({ listeningPort, type, listeningAddress, netInterface, reuseAddress }: UdpChannelOptions) {
+    static async create({
+        lifetime: lifetimeOwner,
+        listeningPort,
+        type,
+        listeningAddress,
+        netInterface,
+        reuseAddress,
+    }: UdpChannelOptions) {
+        const name = `${listeningAddress?.includes(":") ? `[${listeningAddress}]` : (listeningAddress ?? "*")}:${listeningPort}`;
+        using lifetime = (lifetimeOwner ?? Lifetime.process).join("socket", Diagnostic.strong(name));
+        lifetime.details.intf = netInterface;
+
         let dgramType: "udp4" | "udp6";
         switch (type) {
             case "udp":
@@ -110,7 +123,12 @@ export class NodeJsUdpChannel implements UdpChannel {
             socketOptions.reuseAddr = true;
         }
 
-        const socket = await createDgramSocket(listeningAddress, listeningPort, socketOptions);
+        let socket;
+        {
+            using _creating = lifetime.join("creating");
+            socket = await createDgramSocket(listeningAddress, listeningPort, socketOptions);
+        }
+
         socket.setBroadcast(true);
         let netInterfaceZone: string | undefined;
         if (netInterface !== undefined) {
@@ -137,7 +155,7 @@ export class NodeJsUdpChannel implements UdpChannel {
             );
             socket.setMulticastInterface(multicastInterface);
         }
-        return new NodeJsUdpChannel(type, socket, netInterfaceZone);
+        return new NodeJsUdpChannel(lifetime, type, socket, netInterfaceZone);
     }
 
     readonly maxPayloadSize = MAX_UDP_MESSAGE_SIZE;
@@ -151,7 +169,8 @@ export class NodeJsUdpChannel implements UdpChannel {
     );
     readonly #sendsInProgress = new Map<Promise<void>, { sendMs: number; rejecter: (reason?: any) => void }>();
 
-    constructor(type: UdpSocketType, socket: dgram.Socket, netInterface?: string) {
+    constructor(lifetime: Lifetime, type: UdpSocketType, socket: dgram.Socket, netInterface?: string) {
+        this.#lifetime = lifetime;
         this.#type = type;
         this.#socket = socket;
         this.#netInterface = netInterface;
@@ -268,8 +287,9 @@ export class NodeJsUdpChannel implements UdpChannel {
     }
 
     async close() {
+        using _closing = this.#lifetime.closing();
         try {
-            this.#socket.close();
+            await new Promise<void>(resolve => this.#socket.close(resolve));
         } catch (error) {
             if (!(error instanceof Error) || error.message !== "Not running") {
                 logger.debug("Error on closing socket", error);

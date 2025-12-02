@@ -7,6 +7,7 @@
 import { MatterAggregateError } from "#MatterError.js";
 import { Minutes } from "#time/TimeUnit.js";
 import { Bytes } from "#util/Bytes.js";
+import { Lifetime } from "#util/Lifetime.js";
 import { Logger } from "../../log/Logger.js";
 import { Cache } from "../../util/Cache.js";
 import { asError } from "../../util/Error.js";
@@ -22,41 +23,67 @@ export interface UdpMulticastServerOptions {
     broadcastAddressIpv6: string;
     broadcastAddressIpv4?: string;
     netInterface?: string;
+    lifetime?: Lifetime.Owner;
 }
 
 export class UdpMulticastServer {
+    #lifetime: Lifetime;
+    readonly network: Network;
+    readonly netInterface: string | undefined;
+    readonly #broadcastAddressIpv4: string | undefined;
+    readonly #broadcastAddressIpv6: string;
+    readonly #broadcastPort: number;
+    readonly #serverIpv4: UdpChannel | undefined;
+    readonly #serverIpv6: UdpChannel;
+
     static async create({
         netInterface,
         broadcastAddressIpv4,
         broadcastAddressIpv6,
         listeningPort,
         network,
+        lifetime: lifetimeOwner,
     }: UdpMulticastServerOptions) {
-        let ipv4UdpChannel: UdpChannel | undefined = undefined;
-        if (broadcastAddressIpv4 !== undefined) {
+        const lifetime = (lifetimeOwner || Lifetime.process)?.join("multicast server");
+
+        try {
+            let ipv4UdpChannel: UdpChannel | undefined = undefined;
+            if (broadcastAddressIpv4 !== undefined) {
+                try {
+                    ipv4UdpChannel = await network.createUdpChannel({
+                        lifetime,
+                        type: "udp4",
+                        netInterface,
+                        listeningPort,
+                        reuseAddress: true,
+                    });
+                    await ipv4UdpChannel.addMembership(broadcastAddressIpv4);
+                } catch (error) {
+                    NoAddressAvailableError.accept(error);
+                    logger.info(
+                        `IPv4 UDP channel not created because IPv4 is not available: ${asError(error).message}`,
+                    );
+                }
+            }
+
+            let ipv6UdpChannel;
             try {
-                ipv4UdpChannel = await network.createUdpChannel({
-                    type: "udp4",
+                ipv6UdpChannel = await network.createUdpChannel({
+                    lifetime,
+                    type: "udp6",
                     netInterface,
                     listeningPort,
                     reuseAddress: true,
                 });
-                await ipv4UdpChannel.addMembership(broadcastAddressIpv4);
+                await ipv6UdpChannel.addMembership(broadcastAddressIpv6);
             } catch (error) {
                 NoAddressAvailableError.accept(error);
-                logger.info(`IPv4 UDP channel not created because IPv4 is not available: ${asError(error).message}`);
+                logger.info(`IPv6 UDP interface not created because IPv6 is not available, but required my Matter`);
+                throw error;
             }
-        }
 
-        try {
-            const ipv6UdpChannel = await network.createUdpChannel({
-                type: "udp6",
-                netInterface,
-                listeningPort,
-                reuseAddress: true,
-            });
-            await ipv6UdpChannel.addMembership(broadcastAddressIpv6);
             return new UdpMulticastServer(
+                lifetime,
                 network,
                 broadcastAddressIpv4,
                 broadcastAddressIpv6,
@@ -66,8 +93,7 @@ export class UdpMulticastServer {
                 netInterface,
             );
         } catch (error) {
-            NoAddressAvailableError.accept(error);
-            logger.info(`IPv6 UDP interface not created because IPv6 is not available, but required my Matter.`);
+            lifetime[Symbol.dispose]();
             throw error;
         }
     }
@@ -80,28 +106,38 @@ export class UdpMulticastServer {
     );
 
     private constructor(
-        readonly network: Network,
-        private readonly broadcastAddressIpv4: string | undefined,
-        private readonly broadcastAddressIpv6: string,
-        private readonly broadcastPort: number,
-        private readonly serverIpv4: UdpChannel | undefined,
-        private readonly serverIpv6: UdpChannel,
-        readonly netInterface: string | undefined,
-    ) {}
+        lifetime: Lifetime,
+        network: Network,
+        broadcastAddressIpv4: string | undefined,
+        broadcastAddressIpv6: string,
+        broadcastPort: number,
+        serverIpv4: UdpChannel | undefined,
+        serverIpv6: UdpChannel,
+        netInterface: string | undefined,
+    ) {
+        this.#lifetime = lifetime;
+        this.network = network;
+        this.#broadcastAddressIpv4 = broadcastAddressIpv4;
+        this.#broadcastAddressIpv6 = broadcastAddressIpv6;
+        this.#broadcastPort = broadcastPort;
+        this.#serverIpv4 = serverIpv4;
+        this.#serverIpv6 = serverIpv6;
+        this.netInterface = netInterface;
+    }
 
     get supportsIpv4() {
-        return this.serverIpv4 !== undefined;
+        return this.#serverIpv4 !== undefined;
     }
 
     onMessage(listener: (message: Bytes, peerAddress: string, netInterface: string) => void) {
-        this.serverIpv4?.onData((netInterface, peerAddress, _port, message) => {
+        this.#serverIpv4?.onData((netInterface, peerAddress, _port, message) => {
             if (netInterface === undefined) {
                 // Ignore Network packages not coming over any known interface
                 return;
             }
             listener(message, peerAddress, netInterface);
         });
-        this.serverIpv6.onData((netInterface, peerAddress, _port, message) => {
+        this.#serverIpv6.onData((netInterface, peerAddress, _port, message) => {
             if (netInterface === undefined) {
                 // Ignore Network packages not coming over any known interface
                 return;
@@ -118,7 +154,7 @@ export class UdpMulticastServer {
             try {
                 await (
                     await this.broadcastChannels.get(netInterface, isIPv4(uniCastTarget))
-                ).send(uniCastTarget, this.broadcastPort, message);
+                ).send(uniCastTarget, this.#broadcastPort, message);
             } catch (error) {
                 logger.info(`${netInterface} ${uniCastTarget}: ${asError(error).message}`);
             }
@@ -136,7 +172,7 @@ export class UdpMulticastServer {
                     await MatterAggregateError.allSettled(
                         ips.map(async ip => {
                             const iPv4 = ipV4.includes(ip);
-                            const broadcastTarget = iPv4 ? this.broadcastAddressIpv4 : this.broadcastAddressIpv6;
+                            const broadcastTarget = iPv4 ? this.#broadcastAddressIpv4 : this.#broadcastAddressIpv6;
                             if (broadcastTarget === undefined) {
                                 // IPv4 but disabled, so just resolve
                                 return;
@@ -144,7 +180,7 @@ export class UdpMulticastServer {
                             try {
                                 await (
                                     await this.broadcastChannels.get(netInterface, iPv4)
-                                ).send(broadcastTarget, this.broadcastPort, message);
+                                ).send(broadcastTarget, this.#broadcastPort, message);
                             } catch (error) {
                                 logger.info(`${netInterface}: ${asError(error).message}`);
                             }
@@ -159,16 +195,18 @@ export class UdpMulticastServer {
 
     private async createBroadcastChannel(netInterface: string, iPv4: string): Promise<UdpChannel> {
         return await this.network.createUdpChannel({
+            lifetime: this.#lifetime,
             type: iPv4 ? "udp4" : "udp6",
-            listeningPort: this.broadcastPort,
+            listeningPort: this.#broadcastPort,
             netInterface,
             reuseAddress: true,
         });
     }
 
     async close() {
-        await this.serverIpv4?.close();
-        await this.serverIpv6.close();
+        using _closing = this.#lifetime.closing();
+        await this.#serverIpv4?.close();
+        await this.#serverIpv6.close();
         await this.broadcastChannels.close();
     }
 }

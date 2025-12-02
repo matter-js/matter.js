@@ -8,7 +8,7 @@ import { ChannelType } from "#net/Channel.js";
 import { Bytes } from "#util/Bytes.js";
 import { NetworkError } from "../Network.js";
 import { MAX_UDP_MESSAGE_SIZE, UdpChannel, UdpChannelOptions } from "../udp/UdpChannel.js";
-import { MockNetwork } from "./MockNetwork.js";
+import type { MockNetwork } from "./MockNetwork.js";
 import { MockRouter } from "./MockRouter.js";
 
 export class MockUdpChannel implements UdpChannel {

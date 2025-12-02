@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, MaybePromise } from "#util/index.js";
+import { Bytes, Lifetime, MaybePromise } from "#util/index.js";
 import { ChannelType } from "../Channel.js";
 import { ConnectionlessTransport } from "../ConnectionlessTransport.js";
 
@@ -45,6 +45,11 @@ export interface UdpChannelOptions {
      * This is required for multicast sockets.
      */
     netInterface?: string;
+
+    /**
+     * Owning lifetime of the channel.
+     */
+    lifetime?: Lifetime;
 
     /**
      * Address+port pairs are normally may normally only be opened by a single socket.  This allows shared access to a
