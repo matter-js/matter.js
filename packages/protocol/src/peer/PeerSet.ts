@@ -19,6 +19,7 @@ import {
     ImmutableSet,
     ImplementationError,
     isIPv6,
+    Lifetime,
     Logger,
     MatterError,
     Minutes,
@@ -94,6 +95,7 @@ export interface PeerConnectionOptions {
  * Interfaces {@link PeerSet} with other components.
  */
 export interface PeerSetContext {
+    lifetime: Lifetime.Owner;
     sessions: SessionManager;
     exchanges: ExchangeManager;
     scanners: ScannerSet;
@@ -105,6 +107,7 @@ export interface PeerSetContext {
  * Manages operational connections to peers on shared fabric.
  */
 export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
+    readonly #lifetime: Lifetime;
     readonly #sessions: SessionManager;
     readonly #exchanges: ExchangeManager;
     readonly #scanners: ScannerSet;
@@ -119,8 +122,9 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     readonly #peerContext: Peer.Context;
 
     constructor(context: PeerSetContext) {
-        const { sessions, exchanges, scanners, transports: netInterfaces, store } = context;
+        const { lifetime, sessions, exchanges, scanners, transports: netInterfaces, store } = context;
 
+        this.#lifetime = lifetime.join("peers");
         this.#sessions = sessions;
         this.#exchanges = exchanges;
         this.#scanners = scanners;
@@ -129,6 +133,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         this.#caseClient = new CaseClient(this.#sessions);
 
         this.#peerContext = {
+            lifetime: this.#lifetime,
             sessions,
             savePeer: peer => this.#store.updatePeer(peer.descriptor),
             deletePeer: peer => this.#store.deletePeer(peer.address),
@@ -221,6 +226,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
 
     static [Environmental.create](env: Environment) {
         const instance = new PeerSet({
+            lifetime: env,
             sessions: env.get(SessionManager),
             exchanges: env.get(ExchangeManager),
             scanners: env.get(ScannerSet),
@@ -356,6 +362,8 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     }
 
     async close() {
+        using _closing = this.#lifetime.closing();
+
         for (const peer of this.#peers) {
             await peer.close();
         }

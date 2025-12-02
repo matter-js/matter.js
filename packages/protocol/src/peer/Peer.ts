@@ -5,7 +5,16 @@
  */
 
 import { BasicInformation } from "#clusters/basic-information";
-import { BasicMultiplex, BasicSet, Diagnostic, isIpNetworkChannel, Logger, MaybePromise } from "#general";
+import {
+    BasicMultiplex,
+    BasicSet,
+    Diagnostic,
+    isIpNetworkChannel,
+    Lifetime,
+    Logger,
+    MaybePromise,
+    Multiplex,
+} from "#general";
 import type { MdnsClient } from "#mdns/MdnsClient.js";
 import type { NodeSession } from "#session/NodeSession.js";
 import type { SecureSession } from "#session/SecureSession.js";
@@ -19,10 +28,11 @@ const logger = Logger.get("Peer");
  * A node on a fabric we are a member of.
  */
 export class Peer {
+    #lifetime: Lifetime;
     #descriptor: PeerDescriptor;
     #context: Peer.Context;
     #sessions = new BasicSet<NodeSession>();
-    #workers = new BasicMultiplex();
+    #workers: Multiplex;
     #isSaving = false;
     #limits: BasicInformation.CapabilityMinima = {
         caseSessionsPerFabric: 3,
@@ -34,13 +44,16 @@ export class Peer {
     activeReconnection?: Peer.ActiveReconnection;
 
     constructor(descriptor: PeerDescriptor, context: Peer.Context) {
+        this.#lifetime = context.lifetime.join(descriptor.address.toString());
+        this.#workers = new BasicMultiplex();
+
         this.#descriptor = new ObservablePeerDescriptor(descriptor, () => {
             if (this.#isSaving) {
                 return;
             }
 
             this.#isSaving = true;
-            this.#workers.add(this.#save(), `persisting ${this}`);
+            this.#workers.add(this.#save());
         });
         this.#context = context;
 
@@ -96,6 +109,8 @@ export class Peer {
      * Remove the peer
      */
     async close() {
+        using _lifetime = this.#lifetime.closing();
+
         if (this.activeDiscovery) {
             this.activeDiscovery.stopTimerFunc?.();
 
@@ -124,6 +139,7 @@ export class Peer {
     }
 
     async #save() {
+        using _lifetime = this.#lifetime.join("saving");
         this.#isSaving = false;
         await this.#context.savePeer(this);
     }
@@ -131,6 +147,7 @@ export class Peer {
 
 export namespace Peer {
     export interface Context {
+        lifetime: Lifetime.Owner;
         sessions: SessionManager;
         savePeer(peer: Peer): MaybePromise<void>;
         deletePeer(peer: Peer): MaybePromise<void>;
