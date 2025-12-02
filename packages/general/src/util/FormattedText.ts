@@ -6,7 +6,7 @@
 
 const INDENT = "  ";
 
-export { camelize, describeList, serialize } from "./String.js";
+export { describeList } from "./String.js";
 
 /**
  * Performs word wrap.  Input is assumed to be a series of paragraphs separated by a newline.  Output is an array of
