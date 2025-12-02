@@ -67,8 +67,8 @@ export class MqttInterface extends RemoteInterface {
             },
         });
 
-        this.addWorker(this.#listen(), "mqtt listener");
-        this.addWorker(this.#feed(), "mqtt feeder");
+        this.addWorker(this.#listen());
+        this.addWorker(this.#feed());
     }
 
     protected override async stop() {
@@ -80,6 +80,8 @@ export class MqttInterface extends RemoteInterface {
      * A background process that handles incoming MQTT messages.
      */
     async #listen() {
+        using _lifetime = this.join("listening");
+
         await Abort.race(this.abort, this.node.construction);
         if (Abort.is(this.abort)) {
             return;
@@ -191,6 +193,8 @@ export class MqttInterface extends RemoteInterface {
      * A background process that continuously updates MQTT topics.
      */
     async #feed() {
+        using _lifetime = this.join("feeding");
+
         const stream = StateStream(this.node, { abort: this.abort });
 
         for await (const change of stream) {

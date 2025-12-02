@@ -116,10 +116,11 @@ export class WebSocketInterface extends RemoteInterface {
 
         await send({ id: request.id, kind: "ok" });
 
-        this.addWorker(this.#handleSubscription(response.stream, send), "ws subscription handler");
+        this.addWorker(this.#handleSubscription(response.stream, send));
     }
 
     async #handleSubscription(stream: LocalResponse.Stream, send: (message: LocalResponse) => Promise<void>) {
+        using _streaming = this.join("streaming");
         for await (const update of stream) {
             await send(update.js);
         }
