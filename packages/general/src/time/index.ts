@@ -5,6 +5,7 @@
  */
 
 export * from "./Duration.js";
+export * from "./StandardTime.js";
 export * from "./Time.js";
 export * from "./Timespan.js";
 export * from "./Timestamp.js";

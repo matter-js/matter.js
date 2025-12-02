@@ -6,6 +6,7 @@
 
 import { UnexpectedDataError } from "#MatterError.js";
 import { Branded } from "#util/Type.js";
+import type { Duration } from "./Duration.js";
 import { Time } from "./Time.js";
 
 /**
@@ -90,5 +91,12 @@ export namespace Timestamp {
      */
     export function dateOf(timestamp: Timestamp) {
         return new Date(timestamp);
+    }
+
+    /**
+     * Compute the duration between two timestamps.
+     */
+    export function delta(from: Timestamp, to: Timestamp) {
+        return (to - from) as Duration;
     }
 }
