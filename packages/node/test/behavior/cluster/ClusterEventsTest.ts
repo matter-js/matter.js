@@ -54,7 +54,9 @@ describe("ClusterEvents", () => {
 
         it("allows optional", () => {
             undefined satisfies Ep["optAttr$Changed"];
-            void ({} as OnlineEvent<[boolean, boolean, context: ActionContext]> satisfies Ep["optAttr$Changed"]);
+            void ({} as OnlineEvent<
+                [boolean, boolean, context: ActionContext | undefined]
+            > satisfies Ep["optAttr$Changed"]);
             undefined satisfies Ep["optEv"];
             void ({} as OnlineEvent<[string, context: ActionContext]> satisfies Ep["optEv"]);
         });
@@ -112,7 +114,9 @@ describe("ClusterEvents", () => {
 
         it("allows optional", () => {
             undefined satisfies Ei["optAttr$Changed"];
-            void ({} as OnlineEvent<[boolean, boolean, context: ActionContext]> satisfies Ei["optAttr$Changed"]);
+            void ({} as OnlineEvent<
+                [boolean, boolean, context: ActionContext | undefined]
+            > satisfies Ei["optAttr$Changed"]);
             undefined satisfies Ei["optEv"];
             void ({} as OnlineEvent<[string, context: ActionContext]> satisfies Ei["optEv"]);
         });

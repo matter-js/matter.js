@@ -103,7 +103,7 @@ export namespace ClusterEvents {
      * API for events triggered after attribute change.
      */
     export interface ChangedObservable<A extends ClusterType.Attribute = ClusterType.Attribute> extends OnlineEvent<
-        [value: TypeFromSchema<A["schema"]>, oldValue: TypeFromSchema<A["schema"]>, context: ActionContext],
+        [value: TypeFromSchema<A["schema"]>, oldValue: TypeFromSchema<A["schema"]>, context: ActionContext | undefined],
         AttributeModel
     > {}
 
