@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Message, MessageCodec, PacketHeader, SessionType } from "#codec/MessageCodec.js";
+import { Message, PacketHeader, SessionType } from "#codec/MessageCodec.js";
 import {
     AsyncObservableValue,
     Bytes,
@@ -252,7 +252,7 @@ export class MessageExchange {
     }
 
     async onMessageReceived(message: Message, duplicate = false) {
-        logger.debug("Message «", MessageCodec.messageDiagnostics(message, { duplicate }));
+        logger.debug("Message «", Message.diagnosticsOf(this.session, message, { duplicate }));
 
         // Adjust the incoming message when ack was required, but this exchange does not use it to skip all relevant logic
         if (message.payloadHeader.requiresAck && !this.session.usesMrp) {
@@ -432,7 +432,7 @@ export class MessageExchange {
         if (this.session.usesMrp && message.payloadHeader.requiresAck && !disableMrpLogic) {
             this.#sentMessageToAck = message;
             this.#retransmissionTimer = Time.getTimer(
-                `Message retransmission ${message.packetHeader.messageId}`,
+                `retransmitting ${Message.identityOf(this.session, message)}`,
                 this.channel.getMrpResubmissionBackOffTime(0),
                 () => this.#retransmitMessage(message, expectedProcessingTime),
             );
@@ -456,7 +456,7 @@ export class MessageExchange {
                 payloadHeader: { protocolId, messageType },
             } = responseMessage;
             if (expectAckOnly && !SecureMessageType.isStandaloneAck(protocolId, messageType)) {
-                throw new UnexpectedMessageError("Expected ack only", responseMessage);
+                throw new UnexpectedMessageError("Expected ack only", this.session, responseMessage);
             }
         }
     }
@@ -507,10 +507,10 @@ export class MessageExchange {
                 if (finalWaitTime > 0) {
                     this.#retransmissionCounter--; // We will not resubmit the message again
                     logger.debug(
-                        `Message ${message.packetHeader.messageId}: Wait additional ${Duration.format(finalWaitTime)} for processing time and peer resubmissions after all our resubmissions`,
+                        `Message ${Message.identityOf(this.session, message)}: Wait additional ${Duration.format(finalWaitTime)} for processing time and peer resubmissions after all our resubmissions`,
                     );
                     this.#retransmissionTimer = Time.getTimer(
-                        `Message wait time after resubmissions ${message.packetHeader.messageId}`,
+                        `waiting after resubmissions for ${Message.identityOf(this.session, message)}`,
                         finalWaitTime,
                         () => this.#retransmitMessage(message),
                     ).start();
@@ -537,14 +537,14 @@ export class MessageExchange {
         this.context.retry(this.#retransmissionCounter);
         const resubmissionBackoffTime = this.channel.getMrpResubmissionBackOffTime(this.#retransmissionCounter);
         logger.debug(
-            `Resubmit message ${message.packetHeader.messageId} (retransmission attempt ${this.#retransmissionCounter}, backoff time ${Duration.format(resubmissionBackoffTime)}))`,
+            `Resubmitting ${Message.identityOf(this.session, message)} (retransmission attempt ${this.#retransmissionCounter}, backoff time ${Duration.format(resubmissionBackoffTime)}))`,
         );
 
         this.channel
             .send(message)
             .then(() => this.#initializeResubmission(message, resubmissionBackoffTime, expectedProcessingTime))
             .catch(error => {
-                logger.error("An error happened when retransmitting a message", error);
+                logger.error(`Error retransmitting ${Message.identityOf(this.session, message)}:`, error);
                 if (error instanceof SessionClosedError) {
                     this.#close().catch(error => logger.error("An error happened when closing the exchange", error));
                 } else {

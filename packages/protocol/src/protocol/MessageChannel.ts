@@ -102,7 +102,7 @@ export class MessageChannel implements Channel<Message> {
     }
 
     async send(message: Message, logContext?: ExchangeLogContext) {
-        logger.debug("Message »", MessageCodec.messageDiagnostics(message, logContext));
+        logger.debug("Message »", Message.diagnosticsOf(this.session, message, logContext));
         const packet = this.session.encode(message);
         const bytes = MessageCodec.encodePacket(packet);
         if (bytes.byteLength > this.maxPayloadSize) {
