@@ -186,6 +186,9 @@ def load_python():
             elif "No module named 'chip." in str(e):
                 # SHA e8a92c8f1037d134d8f477cdc238d2f3a8a42f8b brings in file that references obsolete package names
                 pass
+            elif "No module named 'ndef'" in str(e):
+                # NFC support
+                pass
             else:
                 raise
 
