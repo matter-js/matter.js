@@ -5,6 +5,7 @@
  */
 
 import { FabricIndex, GroupId, NodeId } from "#types";
+import { DiagnosticPresentation } from "@matter/general";
 
 /**
  * This is the "logical" address of a peer node consisting of a fabric and node ID.
@@ -53,6 +54,10 @@ export function PeerAddress<T extends undefined | PeerAddress>(address: T): T {
             toString() {
                 const nodeStr = this.nodeId > 0xffff ? `0x${this.nodeId.toString(16)}` : this.nodeId;
                 return `peer@${this.fabricIndex}:${nodeStr}`;
+            },
+
+            get [DiagnosticPresentation.value]() {
+                return this.toString();
             },
         } as PeerAddress),
     );
