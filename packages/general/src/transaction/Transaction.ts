@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Lifetime } from "#util/Lifetime.js";
 import { MaybePromise } from "#util/Promises.js";
 import { Participant } from "./Participant.js";
 import { Resource } from "./Resource.js";
@@ -27,7 +28,7 @@ import { open } from "./Tx.js";
  *
  * TODO - does prevent deadlock but we should probably add a timeout for resource locking
  */
-export interface Transaction {
+export interface Transaction extends Lifetime.Owner {
     /**
      * Diagnostic description of the transaction's source.
      */
@@ -168,8 +169,12 @@ export const Transaction = {
      * The transaction is destroyed when {@link act} returns.  You will receive an error if you access it after it is
      * destroyed.
      */
-    act<T>(via: string, actor: (transaction: Transaction) => MaybePromise<T>): MaybePromise<T> {
-        const tx = open(via);
+    act<T>(
+        via: string,
+        lifetime: Lifetime.Owner,
+        actor: (transaction: Transaction) => MaybePromise<T>,
+    ): MaybePromise<T> {
+        const tx = open(via, lifetime);
 
         let result;
         try {
@@ -188,9 +193,9 @@ export const Transaction = {
      *
      * When closed the transaction commits automatically if exclusive.
      */
-    open(via: string, isolation: Transaction.IsolationLevel = "rw") {
+    open(via: string, lifetime: Lifetime.Owner, isolation: Transaction.IsolationLevel = "rw") {
         // This function is replaced below so do not edit
-        return open(via, isolation);
+        return open(via, lifetime, isolation);
     },
 
     Status,

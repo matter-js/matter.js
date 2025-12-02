@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Lifetime } from "#index.js";
 import {
     FinalizationError,
     SynchronousTransactionConflictError,
@@ -116,7 +117,7 @@ function join3(options?: JoinOptions) {
 function test(what: string, actor: () => MaybePromise, only?: boolean) {
     const initiator = only ? it.only : it;
     initiator(what, () =>
-        Transaction.act("test", tx => {
+        Transaction.act("test", Lifetime.mock, tx => {
             transaction = tx;
             return actor();
         }),
@@ -132,7 +133,7 @@ function test2(what: string, actor: () => MaybePromise, only?: boolean) {
     test(
         what,
         () =>
-            Transaction.act("test2", tx => {
+            Transaction.act("test2", Lifetime.mock, tx => {
                 transaction2 = tx;
                 return actor();
             }),
@@ -149,7 +150,7 @@ function test3(what: string, actor: () => MaybePromise, only?: boolean) {
     test2(
         what,
         () =>
-            Transaction.act("test3", tx => {
+            Transaction.act("test3", Lifetime.mock, tx => {
                 transaction3 = tx;
                 return actor();
             }),
@@ -164,7 +165,7 @@ describe("Transaction", () => {
         it("commits synchronously", () => {
             const p = TestParticipant();
 
-            const result = Transaction.act("test", tx => {
+            const result = Transaction.act("test", Lifetime.mock, tx => {
                 tx.addParticipants(p);
                 tx.beginSync();
             });
@@ -176,7 +177,7 @@ describe("Transaction", () => {
         it("commits asynchronously", async () => {
             const p = TestParticipant();
 
-            await Transaction.act("test", async tx => {
+            await Transaction.act("test", Lifetime.mock, async tx => {
                 tx.addParticipants(p);
                 await tx.begin();
             });
@@ -188,7 +189,7 @@ describe("Transaction", () => {
             const p = TestParticipant();
 
             expect(() =>
-                Transaction.act("test", tx => {
+                Transaction.act("test", Lifetime.mock, tx => {
                     tx.addParticipants(p);
                     tx.beginSync();
                     throw new Error("oops in sync actor");
@@ -202,7 +203,7 @@ describe("Transaction", () => {
             const p = TestParticipant();
 
             await expect(
-                Transaction.act("test", async tx => {
+                Transaction.act("test", Lifetime.mock, async tx => {
                     tx.addParticipants(p);
                     tx.beginSync();
                     throw new Error("oops in async actor");
@@ -215,7 +216,7 @@ describe("Transaction", () => {
         it("multiple begin/commits asynchronously", async () => {
             const p = TestParticipant();
 
-            const result = await Transaction.act("test", async tx => {
+            const result = await Transaction.act("test", Lifetime.mock, async tx => {
                 expect(tx.participants.size).equals(0);
                 tx.addParticipants(p);
                 expect(tx.participants.size).equals(1);
@@ -586,7 +587,7 @@ describe("Transaction", () => {
     describe("after destruction", () => {
         function destroyedSync(description: string, fn: () => MaybePromise<void>) {
             it(description, () => {
-                const result = Transaction.act("destroyedSync", tx => {
+                const result = Transaction.act("destroyedSync", Lifetime.mock, tx => {
                     transaction = tx;
                 });
                 expect(result).undefined;
@@ -600,7 +601,7 @@ describe("Transaction", () => {
 
         function destroyedAsync(description: string, fn: () => Promise<void>) {
             it(description, async () => {
-                await Transaction.act("destroyedAsync", async tx => {
+                await Transaction.act("destroyedAsync", Lifetime.mock, async tx => {
                     transaction = tx;
                 });
 
@@ -622,7 +623,7 @@ describe("Transaction", () => {
     describe("read-only", () => {
         function readonlySync(description: string, fn: () => MaybePromise<void>) {
             it(description, () => {
-                transaction = Transaction.open("test", "ro");
+                transaction = Transaction.open("test", Lifetime.mock, "ro");
 
                 expect(() => {
                     const result = fn();
@@ -633,7 +634,7 @@ describe("Transaction", () => {
 
         function readonlyAsync(description: string, fn: () => Promise<void>) {
             it(description, async () => {
-                transaction = Transaction.open("test", "ro");
+                transaction = Transaction.open("test", Lifetime.mock, "ro");
 
                 await expect(fn()).rejectedWith("This view is read-only");
             });

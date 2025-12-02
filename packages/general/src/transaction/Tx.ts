@@ -11,6 +11,7 @@ import { Time, Timer } from "#time/Time.js";
 import { Timestamp } from "#time/Timestamp.js";
 import { Millis } from "#time/TimeUnit.js";
 import { asError } from "#util/Error.js";
+import { Lifetime } from "#util/Lifetime.js";
 import { Observable } from "#util/Observable.js";
 import { MaybePromise } from "#util/Promises.js";
 import { describeList } from "#util/String.js";
@@ -34,9 +35,10 @@ const MAX_CHAINED_COMMITS = 5;
  */
 export function open(
     via: string,
+    lifetime: Lifetime.Owner,
     isolation: Transaction.IsolationLevel = "rw",
 ): Transaction & Transaction.Finalization {
-    return new Tx(via, isolation);
+    return new Tx(via, lifetime, isolation);
 }
 
 /**
@@ -50,13 +52,33 @@ class Tx implements Transaction, Transaction.Finalization {
     #status;
     #waitingOn?: Iterable<Transaction>;
     #via: string;
+    #lifetime: Lifetime;
     #shared?: Observable<[]>;
     #closed?: Observable<[]>;
     #isAsync = false;
     #reportingLocks = false;
 
-    constructor(via: string, isolation: Transaction.IsolationLevel) {
+    constructor(via: string, lifetime: Lifetime.Owner, isolation: Transaction.IsolationLevel) {
         this.#via = Diagnostic.via(via);
+
+        this.#lifetime = lifetime.join("tx", via);
+        Object.defineProperties(this.#lifetime.details, {
+            status: {
+                get: () => this.#status,
+                enumerable: true,
+            },
+
+            resources: {
+                get: () => {
+                    if (!this.#resources.size) {
+                        return;
+                    }
+
+                    return [...this.#resources].join("+");
+                },
+            },
+        });
+
         this.#isolation = isolation;
         if (isolation === "rw") {
             this.#status = Status.Shared;
@@ -66,6 +88,7 @@ class Tx implements Transaction, Transaction.Finalization {
     }
 
     [Symbol.dispose]() {
+        using _closing = this.#lifetime.closing();
         this.#reset("dropped");
         this.#status = Status.Destroyed;
         this.#closed?.emit();
@@ -253,6 +276,8 @@ class Tx implements Transaction, Transaction.Finalization {
     }
 
     resolve<T>(result: T): MaybePromise<Awaited<T>> {
+        this.#lifetime.closing();
+
         // If result is a promise, we wait for resolution and then commit (success) or roll back (error)
         if (MaybePromise.is(result)) {
             this.isAsync = true;
@@ -292,6 +317,8 @@ class Tx implements Transaction, Transaction.Finalization {
     }
 
     reject(cause: unknown): MaybePromise<never> {
+        this.#lifetime.closing();
+
         if (this.#status === Status.Shared) {
             try {
                 this.#reset("released");
@@ -329,6 +356,14 @@ class Tx implements Transaction, Transaction.Finalization {
         this[Symbol.dispose]();
 
         throw cause;
+    }
+
+    join(...name: unknown[]) {
+        if (this.#isolation === "ro") {
+            throw new ReadOnlyError();
+        }
+
+        return this.#lifetime.join(...name);
     }
 
     /**

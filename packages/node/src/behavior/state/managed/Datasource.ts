@@ -11,6 +11,7 @@ import {
     ImplementationError,
     InternalError,
     isDeepEqual,
+    Lifetime,
     Logger,
     MaybePromise,
     Observable,
@@ -25,7 +26,7 @@ const logger = Logger.get("Datasource");
 
 const FEATURES_KEY = "__features__";
 
-const viewTx = Transaction.open("offline-view", "ro");
+const viewTx = Transaction.open("offline-view", Lifetime.process, "ro");
 
 /**
  * Datasource manages the canonical root of a state tree.  The "state" property of a Behavior is a reference to a

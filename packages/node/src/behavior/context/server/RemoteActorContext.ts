@@ -112,7 +112,7 @@ export function RemoteActorContext(options: RemoteActorContext.Options) {
             let tx;
             try {
                 close = initialize();
-                tx = Transaction.open(via);
+                tx = Transaction.open(via, exchange);
                 tx.onClose(close);
             } catch (e) {
                 close?.();
@@ -134,7 +134,7 @@ export function RemoteActorContext(options: RemoteActorContext.Options) {
         beginReadOnly() {
             const close = initialize();
 
-            return createContext(Transaction.open(via, "snapshot"), {
+            return createContext(Transaction.open(via, exchange, "snapshot"), {
                 [Symbol.dispose]: close,
             }) as RemoteActorContext.ReadOnly;
         },

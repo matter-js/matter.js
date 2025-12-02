@@ -6,7 +6,7 @@
 
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import type { Agent } from "#endpoint/Agent.js";
-import { Diagnostic, InternalError, MaybePromise, Transaction } from "#general";
+import { Diagnostic, InternalError, Lifetime, MaybePromise, Transaction } from "#general";
 import { AccessLevel } from "#model";
 import { AccessControl } from "#protocol";
 import { Contextual } from "../Contextual.js";
@@ -76,7 +76,7 @@ export const LocalActorContext = {
         try {
             frame = options?.activity?.begin(via);
 
-            transaction = Transaction.open(via, options?.isolation);
+            transaction = Transaction.open(via, options?.lifetime ?? Lifetime.process, options?.isolation);
 
             if (frame) {
                 transaction.onClose(frame.close.bind(frame));
@@ -143,6 +143,7 @@ export namespace LocalActorContext {
      * {@link LocalActorContext} configuration options.
      */
     export interface Options {
+        lifetime?: Lifetime.Owner;
         command?: boolean;
         activity?: NodeActivity;
         isolation?: Transaction.IsolationLevel;
