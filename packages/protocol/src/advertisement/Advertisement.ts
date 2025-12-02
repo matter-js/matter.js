@@ -257,12 +257,7 @@ export abstract class Advertisement<T extends ServiceDescription = ServiceDescri
         });
     }
 
-    async #run(context: ActivityContext, event: Advertiser.BroadcastEvent, previous?: ActivityContext) {
-        // If automatic advertisement starts when it is already active, kill the previous version
-        if (previous) {
-            await previous;
-        }
-
+    async #run(context: ActivityContext, event: Advertiser.BroadcastEvent) {
         logger.debug("Begin auto broadcast", this.dict());
 
         // Perform advertisement

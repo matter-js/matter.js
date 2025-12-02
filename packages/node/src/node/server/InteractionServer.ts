@@ -437,10 +437,13 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         const fabric = session.fabric;
 
         if (fabric !== undefined && !keepSubscriptions) {
-            const clearedCount = await this.#context.sessions.clearSubscriptionsForNode(
-                fabric.addressOf(session.peerNodeId),
-                true,
-            );
+            let clearedCount = 0;
+            for (const session of this.#context.sessions.sessions) {
+                for (const subscription of session.subscriptions) {
+                    await subscription.handlePeerCancel(true);
+                }
+                clearedCount++;
+            }
             if (clearedCount > 0) {
                 logger.debug(
                     `Cleared ${clearedCount} subscriptions for Subscriber node ${session.peerNodeId} because keepSubscriptions=false`,

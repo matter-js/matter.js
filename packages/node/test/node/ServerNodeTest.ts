@@ -37,7 +37,7 @@ import { LocalActorContext } from "#index.js";
 import { AccessLevel, BasicInformation, ElementTag, FeatureMap } from "#model";
 import { ServerEnvironment } from "#node/server/ServerEnvironment.js";
 import { ServerNode } from "#node/ServerNode.js";
-import { AttestationCertificateManager, CertificationDeclaration, ProtocolMocks, Val } from "#protocol";
+import { AttestationCertificateManager, CertificationDeclaration, NodeSession, ProtocolMocks, Val } from "#protocol";
 import { FabricIndex, VendorId } from "#types";
 import { OccurrenceManager } from "@matter/protocol";
 import { MockServerNode } from "./mock-server-node.js";
@@ -317,7 +317,7 @@ describe("ServerNode", () => {
 
         // Simulate receiving the response to the removeFabric request which normally closes the underlying session
         // delayed
-        await contextOptions.exchange.session.destroy(false, false);
+        await (contextOptions.exchange.session as NodeSession).handlePeerClose();
 
         // ...then go offline...
         if (node.lifecycle.isOnline) {

@@ -8,7 +8,7 @@ import { NetworkCommissioningBehavior } from "#behaviors/network-commissioning";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { Immutable, Lifecycle, UnsupportedDependencyError } from "#general";
 import type { ServerNode } from "#node/ServerNode.js";
-import { FabricManager, FailsafeContext } from "#protocol";
+import { FabricManager, FailsafeContext, MessageExchange } from "#protocol";
 
 /**
  * {@link FailsafeContext} for {@link ServerNode} API.
@@ -90,7 +90,7 @@ export class ServerNodeFailsafeContext extends FailsafeContext {
         });
     }
 
-    override async rollback() {
+    override async rollback(currentExchange?: MessageExchange) {
         if (!this.fabricIndex && this.hasRootCert) {
             // Update the fabric details if needed (like Trusted Root certificates) Only if fabric was not added because
             // else all data gets updated anyway
@@ -104,7 +104,7 @@ export class ServerNodeFailsafeContext extends FailsafeContext {
             }
         }
 
-        return super.rollback();
+        return super.rollback(currentExchange);
     }
 
     /*

@@ -44,7 +44,7 @@ export class DummyMessageExchange {
         const { payload: responsePayload, messageType: responseMessageType } =
             this.writeCallback?.(messageType, payload, options) ?? {};
         if (payload) {
-            return this.messagesQueue.write({
+            this.messagesQueue.write({
                 ...interaction.BarelyMockedMessage,
                 payloadHeader: { messageType: responseMessageType },
                 payload: responsePayload,

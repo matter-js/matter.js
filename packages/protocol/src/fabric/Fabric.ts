@@ -30,7 +30,7 @@ import { FabricGroups, GROUP_SECURITY_INFO } from "#groups/FabricGroups.js";
 import { FabricAccessControl } from "#interaction/FabricAccessControl.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
-import type { SecureSession } from "#session/SecureSession.js";
+import { SecureSession } from "#session/SecureSession.js";
 import { CaseAuthenticatedTag, FabricId, FabricIndex, GroupId, NodeId, StatusResponse, VendorId } from "#types";
 
 const logger = Logger.get("Fabric");
@@ -311,7 +311,13 @@ export class Fabric {
     async leave(currentExchange?: MessageExchange) {
         await this.#leaving.emit();
 
-        await this.delete(currentExchange, true);
+        for (const session of [...this.#sessions]) {
+            await session.initiateClose(async () => {
+                await session.closeSubscriptions(true);
+            });
+        }
+
+        await this.delete(currentExchange);
     }
 
     /**
@@ -319,13 +325,13 @@ export class Fabric {
      *
      * Does not emit the leave event.
      */
-    async delete(currentExchange?: MessageExchange, graceful = false) {
+    async delete(currentExchange?: MessageExchange) {
         this.#isDeleting = true;
 
         await this.#deleting.emit();
 
         for (const session of [...this.#sessions]) {
-            await session.destroy(graceful, session.id === currentExchange?.session.id, graceful); // Delay Close for current session only
+            await session.initiateForceClose(currentExchange);
         }
 
         await this.#deleted.emit();

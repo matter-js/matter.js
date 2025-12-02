@@ -253,14 +253,9 @@ export class GroupSession extends SecureSession {
         return { message, key, sessionId, sourceNodeId, keySetId, fabric };
     }
 
-    override async destroy() {
-        logger.info(`End group session ${this.via}`);
-        await super.destroy();
+    override async close() {
         this.manager?.removeGroupSession(this);
-    }
-
-    end() {
-        return this.destroy();
+        await super.close();
     }
 }
 

@@ -14,7 +14,8 @@ import {
     UnexpectedDataError,
     UninitializedDependencyError,
 } from "#general";
-import { SecureSession } from "#session/SecureSession.js";
+import type { MessageExchange } from "#protocol/MessageExchange.js";
+import type { NodeSession } from "#session/NodeSession.js";
 import { CaseAuthenticatedTag, NodeId, ValidationError, VendorId } from "#types";
 import { Fabric, FabricBuilder } from "../fabric/Fabric.js";
 import { FabricManager } from "../fabric/FabricManager.js";
@@ -63,8 +64,11 @@ export abstract class FailsafeContext {
 
             // If ExpiryLengthSeconds is non-zero and the fail-safe timer was not currently armed, then the fail-safe
             // timer SHALL be armed for that duration.
-            this.#failsafe = new FailsafeTimer(this.#associatedFabric, expiryLength, maxCumulativeFailsafe, () =>
-                this.#failSafeExpired(),
+            this.#failsafe = new FailsafeTimer(
+                this.#associatedFabric,
+                expiryLength,
+                maxCumulativeFailsafe,
+                this.#failSafeExpired.bind(this),
             );
             logger.debug(`Arm failSafe timer for ${Duration.format(expiryLength)}`);
 
@@ -78,9 +82,9 @@ export abstract class FailsafeContext {
         });
     }
 
-    async extend(fabric: Fabric | undefined, expiryLength: Duration) {
+    async extend(fabric: Fabric | undefined, expiryLength: Duration, currentExchange?: MessageExchange) {
         await this.#construction;
-        await this.#failsafe?.reArm(fabric, expiryLength);
+        await this.#failsafe?.reArm(fabric, expiryLength, currentExchange);
         if (expiryLength > 0) {
             logger.debug(`Extend failSafe timer for ${Duration.format(expiryLength)}`);
         }
@@ -141,7 +145,7 @@ export abstract class FailsafeContext {
         // TODO 3. Any temporary administrative privileges automatically granted to any open PASE session SHALL be revoked (see Section 6.6.2.8, “Bootstrapping of the Access Control Cluster”).
 
         // 4. The Secure Session Context of any PASE session still established at the Server SHALL be cleared.
-        await this.removePaseSession();
+        await this.closePaseSession();
 
         await this.close();
     }
@@ -175,19 +179,19 @@ export abstract class FailsafeContext {
         return result;
     }
 
-    async removePaseSession() {
+    async closePaseSession(currentExchange?: MessageExchange) {
         const session = this.#sessions.getPaseSession();
-        if (session !== undefined) {
-            await session.close(true);
+        if (session) {
+            await session.initiateForceClose(currentExchange);
         }
     }
 
-    async close() {
+    async close(currentExchange?: MessageExchange) {
         await this.#construction.close(async () => {
             if (this.#failsafe) {
                 await this.#failsafe.close();
                 this.#failsafe = undefined;
-                await this.rollback();
+                await this.rollback(currentExchange);
             }
         });
     }
@@ -262,21 +266,21 @@ export abstract class FailsafeContext {
         return this.#associatedFabric;
     }
 
-    async #failSafeExpired() {
+    async #failSafeExpired(currentExchange?: MessageExchange) {
         logger.info("Failsafe timer expired; resetting fabric builder");
 
-        await this.close();
+        await this.close(currentExchange);
     }
 
-    protected async rollback() {
-        if (this.associatedFabric && !this.#forUpdateNoc) {
+    protected async rollback(currentExchange?: MessageExchange) {
+        if (this.fabricIndex !== undefined && !this.#forUpdateNoc) {
             logger.debug(`Revoking fabric index ${this.fabricIndex}`);
-            await this.#associatedFabric?.delete();
+            await this.#associatedFabric?.delete(currentExchange);
         }
 
         // On expiry of the fail-safe timer, the following actions SHALL be performed in order:
         // 1. Terminate any open PASE secure session by clearing any associated Secure Session Context at the Server.
-        await this.removePaseSession();
+        await this.closePaseSession(currentExchange);
 
         // TODO 2. Revoke the temporary administrative privileges granted to any open PASE session (see Section 6.6.2.8, “Bootstrapping of the Access Control Cluster”) at the Server.
 
@@ -286,9 +290,8 @@ export abstract class FailsafeContext {
             const fabricIndex = this.fabricIndex;
             if (this.#fabrics.has(fabricIndex)) {
                 fabric = this.#fabrics.for(fabricIndex);
-                const session = this.#sessions.maybeSessionFor(fabric.addressOf(fabric.rootNodeId));
-                if (session !== undefined && session.isSecure) {
-                    await session.close(false);
+                for (const session of this.#sessions.sessionsForFabricIndex(fabricIndex)) {
+                    await session.initiateForceClose(currentExchange);
                 }
             }
         }
@@ -344,6 +347,6 @@ export namespace FailsafeContext {
         fabrics: FabricManager;
         expiryLength: Duration;
         maxCumulativeFailsafe: Duration;
-        session: SecureSession;
+        session: NodeSession;
     }
 }

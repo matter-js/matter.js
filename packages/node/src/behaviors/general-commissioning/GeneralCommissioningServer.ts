@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
 import { AdministratorCommissioningServer } from "#behaviors/administrator-commissioning";
 import { BasicInformationServer } from "#behaviors/basic-information";
 import { AdministratorCommissioning } from "#clusters/administrator-commissioning";
@@ -88,7 +89,11 @@ export class GeneralCommissioningServer extends GeneralCommissioningBehavior {
             }
 
             if (commissioner.isFailsafeArmed) {
-                await commissioner.failsafeContext.extend(session.fabric, Seconds(expiryLengthSeconds));
+                await commissioner.failsafeContext.extend(
+                    session.fabric,
+                    Seconds(expiryLengthSeconds),
+                    (this.context as RemoteActorContext).exchange,
+                );
             } else {
                 // If ExpiryLengthSeconds is 0 and the fail-safe timer was not armed, then this command invocation SHALL
                 // lead to a success response with no side effect against the fail-safe context.

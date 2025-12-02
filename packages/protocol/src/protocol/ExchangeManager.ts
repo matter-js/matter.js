@@ -15,6 +15,7 @@ import {
     Entropy,
     Environment,
     Environmental,
+    hex,
     ImplementationError,
     Logger,
     MatterFlowError,
@@ -50,45 +51,41 @@ const MAXIMUM_CONCURRENT_OUTGOING_EXCHANGES_PER_SESSION = 30;
 export interface ExchangeManagerContext {
     entropy: Entropy;
     netInterface: ConnectionlessTransportSet;
-    sessionManager: SessionManager;
+    sessions: SessionManager;
 }
 
 export class ExchangeManager {
     readonly #transports: ConnectionlessTransportSet;
-    readonly #sessionManager: SessionManager;
+    readonly #sessions: SessionManager;
     readonly #exchangeCounter: ExchangeCounter;
     readonly #exchanges = new Map<number, MessageExchange>();
     readonly #protocols = new Map<number, ProtocolHandler>();
     readonly #listeners = new Map<ConnectionlessTransport, ConnectionlessTransport.Listener>();
     readonly #workers = new BasicMultiplex();
     readonly #observers = new ObserverGroup(this);
-    #closing = false;
+    readonly #sessionObservers = new Map<Session, ObserverGroup>();
+    #isClosing = false;
 
     constructor(context: ExchangeManagerContext) {
         this.#transports = context.netInterface;
-        this.#sessionManager = context.sessionManager;
+        this.#sessions = context.sessions;
         this.#exchangeCounter = new ExchangeCounter(context.entropy);
 
         for (const netInterface of this.#transports) {
-            this.#addListener(netInterface);
+            this.#addTransport(netInterface);
         }
 
-        this.#observers.on(this.#transports.added, this.#addListener);
-        this.#observers.on(this.#transports.deleted, this.#deleteListener);
-
-        this.#observers.on(this.#sessionManager.sessions.deleted, session => {
-            if (!session.closingAfterExchangeFinished) {
-                // Delayed closing is executed when exchange is closed
-                session.closer = this.#closeSession(session);
-            }
-        });
+        this.#observers.on(this.#transports.added, this.#addTransport);
+        this.#observers.on(this.#transports.deleted, this.#deleteTransport);
+        this.#observers.on(this.#sessions.sessions.added, this.#addSession);
+        this.#observers.on(this.#sessions.sessions.deleted, this.#deleteSession);
     }
 
     static [Environmental.create](env: Environment) {
         const instance = new ExchangeManager({
             entropy: env.get(Entropy),
             netInterface: env.get(ConnectionlessTransportSet),
-            sessionManager: env.get(SessionManager),
+            sessions: env.get(SessionManager),
         });
         env.set(ExchangeManager, instance);
         return instance;
@@ -110,7 +107,7 @@ export class ExchangeManager {
     }
 
     initiateExchange(address: PeerAddress, protocolId: number) {
-        return this.initiateExchangeForSession(this.#sessionManager.sessionFor(address), protocolId);
+        return this.initiateExchangeForSession(this.#sessions.sessionFor(address), protocolId);
     }
 
     initiateExchangeForSession(session: Session, protocolId: number) {
@@ -122,15 +119,19 @@ export class ExchangeManager {
     }
 
     async close() {
-        this.#closing = true;
-        for (const protocol of this.#protocols.values()) {
-            await protocol.close();
+        if (this.#isClosing) {
+            return;
+        }
+        this.#isClosing = true;
+
+        for (const exchange of this.#exchanges.values()) {
+            this.#workers.add(exchange.close(true), `closing exchange ${exchange.via}`);
         }
 
         await this.#workers;
 
         for (const listeners of this.#listeners.keys()) {
-            this.#deleteListener(listeners);
+            this.#deleteTransport(listeners);
         }
 
         await this.#workers;
@@ -142,6 +143,7 @@ export class ExchangeManager {
         await this.#workers;
 
         this.#exchanges.clear();
+        this.#observers.close();
     }
 
     async #onMessage(channel: Channel<Bytes>, messageBytes: Bytes) {
@@ -156,26 +158,27 @@ export class ExchangeManager {
         let message: DecodedMessage | undefined;
         if (packet.header.sessionType === SessionType.Unicast) {
             if (packet.header.sessionId === UNICAST_UNSECURE_SESSION_ID) {
-                if (this.#closing) return;
+                if (this.#isClosing) return;
                 const initiatorNodeId = packet.header.sourceNodeId ?? NodeId.UNSPECIFIED_NODE_ID;
                 session =
-                    this.#sessionManager.getUnsecuredSession(initiatorNodeId) ??
-                    this.#sessionManager.createUnsecuredSession({
+                    this.#sessions.getUnsecuredSession(initiatorNodeId) ??
+                    this.#sessions.createUnsecuredSession({
                         channel,
                         initiatorNodeId,
                     });
             } else {
-                session = this.#sessionManager.getSession(packet.header.sessionId);
+                session = this.#sessions.getSession(packet.header.sessionId);
             }
 
             if (session === undefined) {
-                throw new MatterFlowError(
-                    `Cannot find a session for ID ${packet.header.sessionId}${
+                logger.warn(
+                    `Ignoring message for unknown session ${Session.idStrOf(packet)}${
                         packet.header.sourceNodeId !== undefined
-                            ? ` and source NodeId ${packet.header.sourceNodeId}`
+                            ? ` from node ${hex.fixed(packet.header.sourceNodeId, 16)}`
                             : ""
                     }`,
                 );
+                return;
             }
 
             message = session.decode(packet, aad);
@@ -188,13 +191,13 @@ export class ExchangeManager {
                 isDuplicate = true;
             }
         } else if (packet.header.sessionType === SessionType.Group) {
-            if (this.#closing) return;
+            if (this.#isClosing) return;
             if (packet.header.sourceNodeId === undefined) {
                 throw new UnexpectedDataError("Group session message must include a source NodeId");
             }
 
             let key: Bytes;
-            ({ session, message, key } = await this.#sessionManager.groupSessionFromPacket(packet, aad));
+            ({ session, message, key } = await this.#sessions.groupSessionFromPacket(packet, aad));
 
             try {
                 session.updateMessageCounter(messageId, packet.header.sourceNodeId, key);
@@ -250,10 +253,10 @@ export class ExchangeManager {
 
             await exchange.onMessageReceived(message, isDuplicate);
         } else {
-            if (this.#closing) return;
-            if (session.closingAfterExchangeFinished) {
+            if (this.#isClosing) return;
+            if (session.isClosing) {
                 throw new MatterFlowError(
-                    `Session with ID ${packet.header.sessionId} marked for closure, decline new exchange creation.`,
+                    `Declining new exchange because session ${Session.idStrOf(packet)} is closing`,
                 );
             }
 
@@ -314,55 +317,7 @@ export class ExchangeManager {
     }
 
     async deleteExchange(exchangeIndex: number) {
-        const exchange = this.#exchanges.get(exchangeIndex);
-        if (exchange === undefined) {
-            logger.info(`Exchange with index ${exchangeIndex} to delete not found or already deleted.`);
-            return;
-        }
-        const { session } = exchange;
         this.#exchanges.delete(exchangeIndex);
-        if (NodeSession.is(session) && session.closingAfterExchangeFinished) {
-            logger.debug(
-                `Exchange index ${exchangeIndex} on Session ${session.via} is already marked for closure. Close session now.`,
-            );
-            try {
-                await this.#closeSession(session);
-            } catch (error) {
-                logger.error(`Error closing session ${session.via}. Ignoring.`, error);
-            }
-        }
-    }
-
-    async #closeSession(session: NodeSession) {
-        const sessionId = session.id;
-        const sessionName = session.via;
-
-        const asExchangeSession = session as { closedByExchange?: boolean };
-        if (asExchangeSession.closedByExchange) {
-            // Session already removed, so we do not need to close again
-            return;
-        }
-        asExchangeSession.closedByExchange = true;
-
-        for (const [_exchangeIndex, exchange] of this.#exchanges.entries()) {
-            if (exchange.session.id === sessionId) {
-                await exchange.destroy();
-            }
-        }
-        if (session.sendCloseMessageWhenClosing) {
-            await using exchange = this.initiateExchangeForSession(session, SECURE_CHANNEL_PROTOCOL_ID);
-            logger.debug(`Initiated exchange ${exchange.id} to close session ${sessionName}`);
-            try {
-                const messenger = new SecureChannelMessenger(exchange);
-                await messenger.sendCloseSession();
-                await messenger.close();
-            } catch (error) {
-                logger.error("Error closing session", error);
-            }
-        }
-        if (session.closingAfterExchangeFinished) {
-            await session.destroy(false, false);
-        }
     }
 
     #addExchange(exchangeIndex: number, exchange: MessageExchange) {
@@ -399,7 +354,7 @@ export class ExchangeManager {
     calculateMaximumPeerResponseTimeMsFor(session: Session, expectedProcessingTime = DEFAULT_EXPECTED_PROCESSING_TIME) {
         return session.channel.calculateMaximumPeerResponseTime(
             session.parameters,
-            this.#sessionManager.sessionParameters,
+            this.#sessions.sessionParameters,
             expectedProcessingTime,
         );
     }
@@ -407,12 +362,12 @@ export class ExchangeManager {
     #messageExchangeContextFor(session: Session): MessageExchangeContext {
         return {
             session,
-            localSessionParameters: this.#sessionManager.sessionParameters,
-            retry: number => this.#sessionManager.retry.emit(session, number),
+            localSessionParameters: this.#sessions.sessionParameters,
+            retry: number => this.#sessions.retry.emit(session, number),
         };
     }
 
-    #addListener(netInterface: ConnectionlessTransport) {
+    #addTransport(netInterface: ConnectionlessTransport) {
         const udpInterface = netInterface instanceof UdpInterface;
         this.#listeners.set(
             netInterface,
@@ -429,7 +384,7 @@ export class ExchangeManager {
         );
     }
 
-    #deleteListener(netInterface: ConnectionlessTransport) {
+    #deleteTransport(netInterface: ConnectionlessTransport) {
         const listener = this.#listeners.get(netInterface);
         if (listener === undefined) {
             return;
@@ -437,6 +392,41 @@ export class ExchangeManager {
         this.#listeners.delete(netInterface);
 
         this.#workers.add(listener.close(), `closing network listener`);
+    }
+
+    #addSession(session: Session) {
+        if (!(session instanceof NodeSession)) {
+            return;
+        }
+
+        let observers = this.#sessionObservers.get(session);
+        if (!observers) {
+            this.#sessionObservers.set(session, (observers = new ObserverGroup()));
+        }
+
+        observers.on(session.gracefulClose, () => this.#sendCloseSession(session));
+    }
+
+    #deleteSession(session: Session) {
+        const observers = this.#sessionObservers.get(session);
+        if (!observers) {
+            return;
+        }
+
+        observers.close();
+        this.#sessionObservers.delete(session);
+    }
+
+    async #sendCloseSession(session: NodeSession) {
+        await using exchange = this.initiateExchangeForSession(session, SECURE_CHANNEL_PROTOCOL_ID);
+        logger.debug(exchange.via, "Closing session");
+        try {
+            const messenger = new SecureChannelMessenger(exchange);
+            await messenger.sendCloseSession();
+            await messenger.close();
+        } catch (error) {
+            logger.error(exchange.via, "Error closing session:", error);
+        }
     }
 }
 

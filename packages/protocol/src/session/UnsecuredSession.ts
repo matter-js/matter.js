@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto, Diagnostic, Logger, MatterFlowError } from "#general";
+import { Bytes, Crypto, Diagnostic, hex, MatterFlowError } from "#general";
 import { NoAssociatedFabricError } from "#protocol/errors.js";
 import { NodeId } from "#types";
 import { DecodedMessage, DecodedPacket, Message, MessageCodec, Packet, SessionType } from "../codec/MessageCodec.js";
@@ -13,8 +13,6 @@ import { MessageCounter } from "../protocol/MessageCounter.js";
 import { MessageReceptionStateUnencryptedWithRollover } from "../protocol/MessageReceptionState.js";
 import { Session } from "./Session.js";
 import { SessionParameters } from "./SessionParameters.js";
-
-const logger = Logger.get("UnsecuredSession");
 
 export const UNICAST_UNSECURE_SESSION_ID = 0x0000;
 
@@ -59,7 +57,7 @@ export class UnsecuredSession extends Session {
     }
 
     get via() {
-        return Diagnostic.via(`unsecured:${this.#initiatorNodeId.toString(16).padStart(16)}`);
+        return Diagnostic.via(`unsecured:${hex.fixed(this.#initiatorNodeId, 16)}`);
     }
 
     get id(): number {
@@ -86,14 +84,8 @@ export class UnsecuredSession extends Session {
         throw new NoAssociatedFabricError("Session needs to be a secure session");
     }
 
-    override async destroy() {
-        await this.end();
-        await super.destroy();
-        await this.destroyed.emit();
-    }
-
-    async end() {
-        logger.info(`End unsecured session ${this.via}`);
+    override async initiateClose() {
+        await super.initiateClose();
         this.manager?.unsecuredSessions.delete(this.nodeId);
     }
 }

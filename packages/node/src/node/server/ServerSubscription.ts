@@ -435,9 +435,9 @@ export class ServerSubscription extends Subscription {
                     error instanceof NetworkError ||
                     error instanceof SessionClosedError
                 ) {
-                    // Let's consider this subscription as dead and wait for a reconnect
-                    this.isCanceledByPeer = true; // We handle this case like  if the controller canceled the subscription
-                    await this.destroy();
+                    // Let's consider this subscription as dead and wait for a reconnect.  We handle as if the
+                    // controller cancelled
+                    await this.handlePeerCancel();
                     return;
                 } else {
                     throw error;
@@ -590,31 +590,32 @@ export class ServerSubscription extends Subscription {
         }
     }
 
-    protected override async destroy() {
+    /**
+     * Closes the subscription and flushes all outstanding data updates if requested.
+     */
+    override async close(flush = false) {
+        if (this.isClosed) {
+            return;
+        }
+        this.isClosed = true;
+
         this.#sendUpdatesActivated = false;
 
         this.#changeHandlers.close();
 
-        this.#updateTimer.stop();
-        this.#sendDelayTimer.stop();
-        await super.destroy();
-    }
-
-    /**
-     * Closes the subscription and flushes all outstanding data updates if requested.
-     */
-    override async close(flush = false, cancelledByPeer = false) {
-        if (this.isClosed) {
-            return;
-        }
-        if (cancelledByPeer) {
-            this.isCanceledByPeer = true;
-        }
-        await this.destroy();
-
         if (flush) {
             await this.#flush();
         }
+
+        this.#updateTimer.stop();
+        this.#sendDelayTimer.stop();
+        this.isClosed = true;
+
+        this.session.subscriptions.delete(this);
+        logger.debug(`Removed subscription ${this.id} from ${this.session.via}`);
+
+        this.cancelled.emit(this);
+
         if (this.#currentUpdatePromise) {
             await this.#currentUpdatePromise;
         }
@@ -716,13 +717,12 @@ export class ServerSubscription extends Subscription {
             }
         } catch (error) {
             if (StatusResponseError.is(error, StatusCode.InvalidSubscription, StatusCode.Failure)) {
-                logger.info(`Subscription ${this.id} cancelled by peer.`);
-                this.isCanceledByPeer = true;
-                await this.close(false);
+                logger.info(`Subscription ${this.id} cancelled by peer`);
+                await this.handlePeerCancel();
             } else {
                 StatusResponseError.accept(error);
                 logger.info(`Subscription ${this.id} update failed:`, error);
-                await this.close(false);
+                await this.close();
             }
         } finally {
             await messenger.close();

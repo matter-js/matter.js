@@ -275,8 +275,6 @@ export namespace ProtocolMocks {
             return this.#responses.read();
         }
 
-        override async close() {}
-
         get #mockChannel() {
             const channel = this.channel;
             if (!(channel instanceof MessageChannel)) {

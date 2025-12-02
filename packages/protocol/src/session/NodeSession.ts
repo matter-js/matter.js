@@ -8,19 +8,22 @@ import { Subject } from "#action/server/Subject.js";
 import { DecodedMessage, DecodedPacket, Message, MessageCodec, Packet, SessionType } from "#codec/MessageCodec.js";
 import { Fabric } from "#fabric/Fabric.js";
 import {
+    AsyncObservableValue,
     BasicSet,
     Bytes,
     CRYPTO_SYMMETRIC_KEY_LENGTH,
     Crypto,
     Diagnostic,
     Duration,
+    InternalError,
     Logger,
     MatterFlowError,
 } from "#general";
-import type { Subscription } from "#interaction/Subscription.js";
+import { Subscription } from "#interaction/Subscription.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
-import { NoAssociatedFabricError, SessionClosedError } from "#protocol/errors.js";
+import { NoAssociatedFabricError } from "#protocol/errors.js";
 import { MessageCounter } from "#protocol/MessageCounter.js";
+import { MessageExchange } from "#protocol/MessageExchange.js";
 import { MessageReceptionStateEncryptedWithoutRollover } from "#protocol/MessageReceptionState.js";
 import { SecureChannelMessenger } from "#securechannel/SecureChannelMessenger.js";
 import { CaseAuthenticatedTag, FabricIndex, NodeId } from "#types";
@@ -35,9 +38,6 @@ const SESSION_RESUMPTION_KEYS_INFO = Bytes.fromString("SessionResumptionKeys");
 
 export class NodeSession extends SecureSession {
     readonly #crypto: Crypto;
-    readonly #subscriptions = new BasicSet<Subscription>();
-    #closingAfterExchangeFinished = false;
-    #sendCloseMessageWhenClosing = true;
     readonly #id: number;
     readonly #isInitiator: boolean;
     #fabric: Fabric | undefined;
@@ -47,9 +47,13 @@ export class NodeSession extends SecureSession {
     readonly #encryptKey: Bytes;
     readonly #attestationKey: Bytes;
     #caseAuthenticatedTags: CaseAuthenticatedTag[];
-    #isClosing = false;
     readonly supportsMRP = true;
     readonly type = SessionType.Unicast;
+    readonly #closedByPeer = AsyncObservableValue();
+    #isPeerLost = false;
+
+    // TODO - currently server specific; should move out or be integrated with client
+    readonly #subscriptions = new BasicSet<Subscription>();
 
     static async create(config: NodeSession.CreateConfig) {
         const { manager, sharedSecret, salt, isResumption, peerSessionParameters, isInitiator } = config;
@@ -101,7 +105,9 @@ export class NodeSession extends SecureSession {
             messageCounter: new MessageCounter(crypto, async () => {
                 // Secure Session Message Counter
                 // Expire/End the session before the counter rolls over
-                return this.end(true, true);
+                await this.initiateClose(async () => {
+                    await this.closeSubscriptions(true);
+                });
             }),
             messageReceptionState: new MessageReceptionStateEncryptedWithoutRollover(),
         });
@@ -147,14 +153,6 @@ export class NodeSession extends SecureSession {
         return this.#caseAuthenticatedTags;
     }
 
-    get closingAfterExchangeFinished() {
-        return this.#closingAfterExchangeFinished;
-    }
-
-    get sendCloseMessageWhenClosing() {
-        return this.#sendCloseMessageWhenClosing;
-    }
-
     get isPase(): boolean {
         return this.#peerNodeId === NodeId.UNSPECIFIED_NODE_ID;
     }
@@ -167,22 +165,11 @@ export class NodeSession extends SecureSession {
         return this.#isInitiator;
     }
 
-    get isClosing() {
-        return this.#isClosing;
-    }
-
     subjectFor(_message?: Message): Subject {
         return Subject.Node({
             id: this.peerNodeId,
             catSubjects: this.#caseAuthenticatedTags.map(cat => NodeId.fromCaseAuthenticatedTag(cat)),
         });
-    }
-
-    async close(closeAfterExchangeFinished?: boolean) {
-        if (closeAfterExchangeFinished === undefined) {
-            closeAfterExchangeFinished = this.isPeerActive; // We delay session close if the peer is actively communicating with us
-        }
-        await this.end(true, closeAfterExchangeFinished);
     }
 
     decode({ header, applicationPayload, messageExtension }: DecodedPacket, aad: Bytes): DecodedMessage {
@@ -230,11 +217,11 @@ export class NodeSession extends SecureSession {
     }
 
     set fabric(fabric: Fabric) {
-        if (this.#fabric !== undefined) {
-            throw new MatterFlowError("Session already has an associated Fabric. Cannot change this.");
+        if (this.#fabric !== undefined && this.#fabric !== fabric) {
+            throw new InternalError("Cannot change session fabric");
         }
         this.#fabric = fabric;
-        this.#fabric.addSession(this);
+        fabric.addSession(this);
     }
 
     get id() {
@@ -270,56 +257,89 @@ export class NodeSession extends SecureSession {
         return this.#fabric;
     }
 
-    async clearSubscriptions(flushSubscriptions = false, cancelledByPeer = false) {
+    override async closeSubscriptions(flush = false) {
         const subscriptions = [...this.#subscriptions]; // get all values because subscriptions will remove themselves when cancelled
         for (const subscription of subscriptions) {
-            await subscription.close(flushSubscriptions, cancelledByPeer);
+            await subscription.close(flush);
         }
         return subscriptions.length;
     }
 
-    /** Ends a session. Outstanding subscription data will be flushed before the session is destroyed. */
-    async end(sendClose: boolean, closeAfterExchangeFinished = false) {
-        await this.clearSubscriptions(true);
-        await this.destroy(sendClose, closeAfterExchangeFinished);
+    get closedByPeer() {
+        return this.#closedByPeer;
     }
 
-    async closeByPeer() {
-        await this.destroy(false, false);
-        await this.closedByPeer.emit();
+    async handlePeerClose() {
+        this.#isPeerLost = true;
+        await this.#closedByPeer.emit(true);
+        await this.handlePeerLoss();
     }
 
-    /** Destroys a session. Outstanding subscription data will be discarded. */
-    override async destroy(sendClose = false, closeAfterExchangeFinished = true, flushSubscriptions = false) {
-        await this.clearSubscriptions(flushSubscriptions);
-        this.#fabric?.deleteSession(this);
-        if (!sendClose) {
-            this.#sendCloseMessageWhenClosing = false;
-        }
+    async handlePeerLoss(currentExchange?: MessageExchange) {
+        this.#isPeerLost = true;
+        await this.initiateForceClose(currentExchange);
+    }
 
-        if (closeAfterExchangeFinished) {
-            logger.info(this.via, `Register session to close when exchange is ended`);
-            this.#closingAfterExchangeFinished = true;
-        } else {
-            this.#isClosing = true;
-            logger.info(this.via, `End session`);
-            this.manager?.sessions.delete(this);
+    get isPeerLost() {
+        return this.#isPeerLost;
+    }
 
-            // Wait for the exchange to finish closing, but ignore errors if channel is already closed
-            if (this.closer) {
-                try {
-                    await this.closer;
-                } catch (error) {
-                    SessionClosedError.accept(error);
-                } finally {
-                    await super.destroy();
-                    await this.destroyed.emit();
-                }
-                return;
+    /**
+     * Close the session.
+     *
+     * If there are open subscriptions they are closed without flushing.  To flush, use {@link closeSubscriptions}
+     * before invoking.
+     *
+     * TODO - subscription handling is only relevant for server; needs to move to server-specific component
+     *
+     * If there are active exchanges the close is deferred until the final exchange closes.  To close sooner, use
+     * {@link initiateForceClose}.
+     *
+     * A final exchange will be opened to notify the peer of closure unless the peer is marked as lost.
+     */
+    override async initiateClose(shutdownLogic?: () => Promise<void>) {
+        await super.initiateClose(async () => {
+            await shutdownLogic?.();
+
+            // If there are active exchanges defer closing until they complete
+            if (this.hasActiveExchanges) {
+                logger.debug(this.via, "Session ends when exchanges end");
+                this.deferredClose = true;
             }
-            await super.destroy();
-            await this.destroyed.emit();
+        });
+    }
+
+    override async initiateForceClose(currentExchange?: MessageExchange) {
+        this.#isPeerLost = true;
+        await super.initiateForceClose(currentExchange);
+    }
+
+    override addExchange(exchange: MessageExchange) {
+        super.addExchange(exchange);
+        exchange.closed.on(async () => {
+            this.exchanges.delete(exchange);
+            if (this.deferredClose && !this.exchanges.size) {
+                this.deferredClose = false;
+                await this.close();
+            }
+        });
+    }
+
+    protected override async close() {
+        if (!this.#isPeerLost) {
+            try {
+                await this.gracefulClose.emit();
+            } catch (e) {
+                logger.error(`Unhandled error in ${this.via} graceful close handler:`, e);
+            }
         }
+
+        await this.closeSubscriptions();
+
+        this.#fabric?.deleteSession(this);
+        await super.close();
+
+        this.manager?.sessions.delete(this);
     }
 
     /**

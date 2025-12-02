@@ -70,7 +70,7 @@ export class CaseServer implements ProtocolHandler {
             }
         } finally {
             // Destroy the unsecure session used to establish the secure Case session
-            await exchange.session.destroy();
+            await exchange.session.initiateClose();
         }
     }
 
@@ -163,7 +163,7 @@ export class CaseServer implements ProtocolHandler {
             });
         } catch (error) {
             // If we fail to send the resume message, we destroy the session
-            await secureSession.destroy(false);
+            await secureSession.initiateClose();
             throw error;
         }
 

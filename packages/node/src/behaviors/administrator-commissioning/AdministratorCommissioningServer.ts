@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
 import { AdministratorCommissioning } from "#clusters/administrator-commissioning";
 import { Duration, InternalError, Logger, Seconds, Time, Timer } from "#general";
 import { AccessLevel } from "#model";
@@ -145,7 +146,7 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
         if (this.env.has(FailsafeContext)) {
             const failsafeContext = this.env.get(FailsafeContext);
             if (failsafeContext) {
-                await failsafeContext.close();
+                await failsafeContext.close((this.context as RemoteActorContext).exchange);
             }
         }
     }

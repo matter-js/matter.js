@@ -5,6 +5,7 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
+import { Events as BaseEvents } from "#behavior/Events.js";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import {
     Diagnostic,
@@ -12,6 +13,7 @@ import {
     ImplementationError,
     Logger,
     NotImplementedError,
+    Observable,
     ServerAddress,
     Time,
     Timestamp,
@@ -43,6 +45,7 @@ import {
     FabricAuthority,
     FabricManager,
     LocatedNodeCommissioningOptions,
+    PeerSet,
     PeerAddress as ProtocolPeerAddress,
     SessionIntervals as ProtocolSessionIntervals,
     Subscribe,
@@ -70,6 +73,7 @@ const logger = Logger.get("CommissioningClient");
  */
 export class CommissioningClient extends Behavior {
     declare state: CommissioningClient.State;
+    declare events: CommissioningClient.Events;
 
     static override readonly early = true;
 
@@ -86,6 +90,7 @@ export class CommissioningClient extends Behavior {
         }
 
         this.reactTo((this.endpoint as Node).lifecycle.partsReady, this.#initializeNode);
+        this.reactTo(this.events.peerAddress$Changed, this.#peerAddressChanged);
     }
 
     commission(passcode: number): Promise<ClientNode>;
@@ -247,6 +252,24 @@ export class CommissioningClient extends Behavior {
     #initializeNode() {
         const endpoint = this.endpoint as ClientNode;
         endpoint.lifecycle.initialized.emit(this.state.peerAddress !== undefined);
+    }
+
+    #peerAddressChanged(addr?: ProtocolPeerAddress) {
+        const node = this.endpoint as ClientNode;
+
+        if (addr) {
+            const peer = node.env.get(PeerSet).for(addr);
+            if (peer) {
+                if (peer.descriptor.operationalAddress) {
+                    this.state.addresses = [peer.descriptor.operationalAddress];
+                }
+                this.descriptor = peer.descriptor.discoveryData;
+            }
+
+            node.lifecycle.commissioned.emit(this.context);
+        } else {
+            node.lifecycle.decommissioned.emit(this.context);
+        }
     }
 }
 
@@ -434,6 +457,12 @@ export namespace CommissioningClient {
          */
         @field(bool, nonvolatile)
         longIdleTimeOperatingMode?: boolean;
+    }
+
+    export class Events extends BaseEvents {
+        peerAddress$Changed = new Observable<
+            [value: ProtocolPeerAddress | undefined, oldValue: ProtocolPeerAddress | undefined]
+        >();
     }
 
     /**

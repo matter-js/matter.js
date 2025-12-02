@@ -376,7 +376,7 @@ describe("ClientNode", () => {
         expect(controller.peers.size).equals(0);
     });
 
-    it("invokes command on a otherwise known peer", async () => {
+    it("invokes command on an undiscovered peer", async () => {
         // *** SETUP ***
 
         await using site = new MockSite();
@@ -400,7 +400,7 @@ describe("ClientNode", () => {
         await ep1.commandsOf(OnOffClient).toggle();
 
         await ep1.commandsOf(OnOffClient).offWithEffect({ effectIdentifier: 0, effectVariant: 0 });
-    }).timeout(1e9);
+    });
 
     it("handles shutdown event and reestablishes connection", () => {
         // TODO
@@ -440,8 +440,8 @@ const PEER1_STATE = {
         discoveredAt: expect.NUMBER,
         onlineAt: undefined,
         offlineAt: undefined,
-        ttl: undefined,
-        deviceIdentifier: "0202020202020202",
+        ttl: 120000,
+        deviceIdentifier: expect.STRING,
         discriminator: 0x202,
         commissioningMode: 1,
         vendorId: 0xfff1,

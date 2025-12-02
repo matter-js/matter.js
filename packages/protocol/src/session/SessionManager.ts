@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DecodedPacket } from "#codec/MessageCodec.js";
+import type { DecodedPacket } from "#codec/MessageCodec.js";
 import { SupportedTransportsSchema } from "#common/SupportedTransportsBitmap.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import {
@@ -26,19 +26,20 @@ import {
     ObserverGroup,
     StorageContext,
     StorageManager,
+    Timestamp,
     toHex,
 } from "#general";
-import { Subscription } from "#interaction/Subscription.js";
+import type { Subscription } from "#interaction/Subscription.js";
 import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
 import { SessionClosedError } from "#protocol/errors.js";
 import { GroupSession } from "#session/GroupSession.js";
 import { CaseAuthenticatedTag, FabricId, FabricIndex, GroupId, NodeId } from "#types";
 import { UnexpectedDataError } from "@matter/general";
-import { ExposedFabricInformation, Fabric } from "../fabric/Fabric.js";
+import type { ExposedFabricInformation, Fabric } from "../fabric/Fabric.js";
 import { MessageCounter } from "../protocol/MessageCounter.js";
 import { NodeSession } from "./NodeSession.js";
 import { SecureSession } from "./SecureSession.js";
-import { Session } from "./Session.js";
+import type { Session } from "./Session.js";
 import { SessionParameters } from "./SessionParameters.js";
 import { UnsecuredSession } from "./UnsecuredSession.js";
 
@@ -119,13 +120,14 @@ export class SessionManager {
     #nextSessionId: number;
     #resumptionRecords = new PeerAddressMap<ResumptionRecord>();
     readonly #globalUnencryptedMessageCounter;
-    readonly #subscriptionsChanged = Observable<[session: NodeSession, subscription: Subscription]>();
     #sessionParameters: SessionParameters;
-    readonly #retry = Observable<[session: Session, number: number]>();
     readonly #construction: Construction<SessionManager>;
     readonly #observers = new ObserverGroup();
     readonly #subscriptionUpdateMutex = new Mutex(this);
     #idUpperBound = ID_SPACE_UPPER_BOUND;
+
+    readonly #subscriptionsChanged = Observable<[session: NodeSession, subscription: Subscription]>();
+    readonly #retry = Observable<[session: Session, number: number]>();
 
     constructor(context: SessionManagerContext) {
         this.#context = context;
@@ -356,7 +358,10 @@ export class SessionManager {
 
         // All session ids are taken, search for the oldest unused session, and close it and re-use its ID
         const oldestSession = this.findOldestInactiveSession();
-        await oldestSession.end(true, false);
+
+        await oldestSession.initiateClose(async () => {
+            await oldestSession.closeSubscriptions(true);
+        });
         this.#nextSessionId = oldestSession.id;
         return this.#nextSessionId++;
     }
@@ -370,9 +375,7 @@ export class SessionManager {
     getPaseSession() {
         this.#construction.assert();
 
-        return [...this.#sessions].find(
-            session => NodeSession.is(session) && session.isPase && !session.closingAfterExchangeFinished,
-        );
+        return [...this.#sessions].find(session => NodeSession.is(session) && session.isPase && !session.isClosing);
     }
 
     forFabric(fabric: Fabric) {
@@ -403,17 +406,28 @@ export class SessionManager {
         });
     }
 
-    async removeSessionsFor(address: PeerAddress, sendClose = false, closeBeforeCreatedTimestamp?: number) {
+    sessionsFor(address: PeerAddress) {
+        address = PeerAddress(address);
+        return this.#sessions.filter(session => session.peerAddress === address && !session.isClosing);
+    }
+
+    sessionsForFabricIndex(fabricIndex: FabricIndex) {
+        return this.#sessions.filter(session => session.fabric?.fabricIndex === fabricIndex);
+    }
+
+    async handlePeerLoss(address: PeerAddress, asOf?: Timestamp) {
         await this.#construction;
 
         for (const session of this.#sessions) {
-            if (!session.isSecure) continue;
-            if (closeBeforeCreatedTimestamp !== undefined && session.createdAt >= closeBeforeCreatedTimestamp) continue;
-            const secureSession = session;
-            if (secureSession.peerIs(address)) {
-                await secureSession.destroy(sendClose, false);
-                this.#sessions.delete(session);
+            if (!session.peerIs(address)) {
+                continue;
             }
+
+            if (asOf !== undefined && session.createdAt >= asOf) {
+                continue;
+            }
+
+            await session.handlePeerLoss();
         }
     }
 
@@ -632,30 +646,44 @@ export class SessionManager {
         }
 
         this.#observers.close();
+        await this.#storeResumptionRecords();
 
         await this.closeAllSessions();
     }
 
     async clear() {
+        if (this.#construction.status === Lifecycle.Status.Initializing) {
+            await this.#construction;
+        }
+
         await this.closeAllSessions();
         await this.#context.storage.clear();
         this.#resumptionRecords.clear();
     }
 
     async closeAllSessions() {
+        if (this.#construction.status === Lifecycle.Status.Initializing) {
+            await this.#construction;
+        }
+
         await this.#subscriptionUpdateMutex;
 
-        await this.#storeResumptionRecords();
         const closePromises = this.#sessions.map(async session => {
-            await session?.end(false);
+            await session.closeSubscriptions(true);
+
+            // TODO - some CHIP tests (CASERecovery for one) expect us to exit without closing the session and will fail
+            // if we end gracefully.  Not clear why this behavior would be desirable as it leads to a timeout when the
+            // node attempts contact even if we've already restarted
+            await session.initiateForceClose();
+
             this.#sessions.delete(session);
         });
         for (const session of this.#unsecuredSessions.values()) {
-            closePromises.push(session?.end());
+            closePromises.push(session.initiateClose());
         }
         for (const sessions of this.#groupSessions.values()) {
             for (const session of sessions) {
-                closePromises.push(session?.end());
+                closePromises.push(session.initiateClose());
             }
         }
         await MatterAggregateError.allSettled(closePromises, "Error closing sessions").catch(error =>
@@ -671,17 +699,6 @@ export class SessionManager {
                 }
             }
         });
-    }
-
-    /** Clears all subscriptions for a given node and returns how many were cleared. */
-    async clearSubscriptionsForNode(peerAddress: PeerAddress, flushSubscriptions?: boolean) {
-        let clearedCount = 0;
-        for (const session of this.#sessions) {
-            if (PeerAddress.is(session.peerAddress, peerAddress)) {
-                clearedCount += await session.clearSubscriptions(flushSubscriptions, true);
-            }
-        }
-        return clearedCount;
     }
 
     /**

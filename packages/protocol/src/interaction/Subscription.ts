@@ -22,6 +22,8 @@ export interface SubscriptionCriteria {
 
 /**
  * A single active subscription.
+ *
+ * TODO - requires refactoring as this is only used on the server; should probably integrate with ActiveSubscription
  */
 export abstract class Subscription {
     #session: NodeSession;
@@ -81,33 +83,19 @@ export abstract class Subscription {
      */
     async update() {}
 
-    /**
-     * This flag is set on closed sessions when the close was initiated by the peer.
-     */
-    protected set isCanceledByPeer(value: boolean) {
-        this.#isCanceledByPeer = value;
-    }
-
     protected set isClosed(value: boolean) {
         this.#isClosed = value;
     }
 
-    /** Close the subscription with the option to gracefully flush outstanding data. */
-    abstract close(graceful: boolean, cancelledByPeer?: boolean): Promise<void>;
-
-    /**
-     * Destroy the subscription. Unsubscribe from all attributes and events and stop all timers.
-     */
-    protected async destroy(): Promise<void> {
-        this.#isClosed = true;
-        this.#session.subscriptions.delete(this);
-        logger.debug(this.session.via, `Removed subscription ${this.id}`);
-
-        this.#cancelled.emit(this);
+    async handlePeerCancel(flush = false) {
+        this.#isCanceledByPeer = true;
+        await this.close(flush);
     }
 
+    /** Close the subscription with the option to gracefully flush outstanding data. */
+    abstract close(flush?: boolean): Promise<void>;
+
     protected activate() {
-        // TODO Do not add to session but to node/peer
         this.#session.subscriptions.add(this);
         logger.debug(this.#session.via, `Added subscription ${this.#id}`);
     }

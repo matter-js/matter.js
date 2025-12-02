@@ -5,6 +5,7 @@
  */
 
 import { Duration, Logger, MatterFlowError, Time, Timer } from "#general";
+import { MessageExchange } from "#protocol/MessageExchange.js";
 import { Fabric } from "../fabric/Fabric.js";
 import type { FailsafeContext } from "./FailsafeContext.js";
 
@@ -16,7 +17,7 @@ const logger = Logger.get("FailsafeTimer");
  * Manages the failsafe timer associated with a {@link FailsafeContext}.
  */
 export class FailsafeTimer {
-    #expiryCallback: () => Promise<void>;
+    #expiryCallback: (currentExchange?: MessageExchange) => Promise<void>;
     #failsafeTimer: Timer;
     #maxCumulativeFailsafeTimer: Timer;
     #completed = false;
@@ -25,7 +26,7 @@ export class FailsafeTimer {
         public associatedFabric: Fabric | undefined,
         expiryLength: Duration,
         maxCumulativeFailsafe: Duration,
-        expiryCallback: () => Promise<void>,
+        expiryCallback: (currentExchange?: MessageExchange) => Promise<void>,
     ) {
         this.#expiryCallback = expiryCallback;
         this.#failsafeTimer = this.#startFailsafeTimer(expiryLength);
@@ -44,7 +45,7 @@ export class FailsafeTimer {
     }
 
     /** Handle "Re-Arming" an existing FailSafe context to extend the timer, expire or fail if not allowed. */
-    async reArm(associatedFabric: Fabric | undefined, expiry: Duration) {
+    async reArm(associatedFabric: Fabric | undefined, expiry: Duration, currentExchange?: MessageExchange) {
         if (!this.#failsafeTimer.isRunning) {
             throw new MatterFlowError("FailSafe already expired.");
         }
@@ -61,7 +62,7 @@ export class FailsafeTimer {
             // If ExpiryLengthSeconds is 0 and the fail-safe timer was already armed and the accessing fabric matches
             // the Fabric currently associated with the fail-safe context, then the fail-safe timer SHALL be
             // immediately expired (see further below for side-effects of expiration).
-            await this.expire();
+            await this.expire(currentExchange);
         } else {
             // If ExpiryLengthSeconds is non-zero and the fail-safe timer was currently armed, and the accessing Fabric
             // matches the fail-safe context’s associated Fabric, then the fail-safe timer SHALL be re- armed to expire
@@ -76,13 +77,13 @@ export class FailsafeTimer {
     }
 
     /** Expire the FailSafe context. This is called by the timer and can also be called manually if needed. */
-    async expire() {
+    async expire(currentExchange?: MessageExchange) {
         if (this.#completed) {
             // Completion was already triggered, so do nothing
             return;
         }
         this.complete();
-        await this.#expiryCallback();
+        await this.#expiryCallback(currentExchange);
     }
 
     /** Complete the FailSafe context. This is called when the commissioning is completed. */

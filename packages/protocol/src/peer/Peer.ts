@@ -46,7 +46,7 @@ export class Peer {
 
         this.#sessions.added.on(session => {
             // Remove channel when destroyed
-            session.destroyed.on(() => {
+            session.closing.on(() => {
                 this.#sessions.delete(session);
             });
 
@@ -87,7 +87,7 @@ export class Peer {
      */
     async delete() {
         logger.info("Removing", Diagnostic.strong(this.toString()));
-        await this.close(false);
+        await this.close();
         await this.#context.deletePeer(this);
         await this.#context.sessions.deleteResumptionRecord(this.address);
     }
@@ -95,7 +95,7 @@ export class Peer {
     /**
      * Remove the peer
      */
-    async close(sendSessionClose = true) {
+    async close() {
         if (this.activeDiscovery) {
             this.activeDiscovery.stopTimerFunc?.();
 
@@ -110,7 +110,9 @@ export class Peer {
             this.activeReconnection = undefined;
         }
 
-        await this.#context.sessions.removeSessionsFor(this.address, sendSessionClose);
+        for (const session of this.#context.sessions.sessionsFor(this.address)) {
+            await session.initiateClose();
+        }
 
         await this.#workers;
 
