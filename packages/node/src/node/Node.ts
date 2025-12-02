@@ -247,6 +247,7 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
         await this.cancelWithMutex();
         await super[Construction.destruct]();
         DiagnosticSource.delete(this);
+        this.#environment[Symbol.dispose]();
     }
 }
 

@@ -78,7 +78,10 @@ export class ServerNetworkRuntime extends NetworkRuntime {
     get mdnsAdvertiser() {
         if (!this.#mdnsAdvertiser) {
             const port = this.owner.state.network.operationalPort;
-            const options = this.owner.state.commissioning.mdns;
+            const options = {
+                lifetime: this.construction,
+                ...this.owner.state.commissioning.mdns,
+            };
             const crypto = this.owner.env.get(Crypto);
             const { server } = this.#services.get(MdnsService);
             this.#mdnsAdvertiser = new MdnsAdvertiser(crypto, server, { ...options, port });
@@ -118,7 +121,10 @@ export class ServerNetworkRuntime extends NetworkRuntime {
     protected get bleAdvertiser() {
         if (this.#bleAdvertiser === undefined) {
             const { peripheralInterface } = this.owner.env.get(Ble);
-            const options = this.owner.state.commissioning.ble;
+            const options = {
+                lifetime: this.construction,
+                ...this.owner.state.commissioning.ble,
+            };
             this.#bleAdvertiser = new BleAdvertiser(peripheralInterface, options);
         }
         return this.#bleAdvertiser;
@@ -310,7 +316,11 @@ export class ServerNetworkRuntime extends NetworkRuntime {
 
         const { env } = this.owner;
 
-        await env.close(DeviceCommissioner);
+        {
+            using _lifetime = this.construction.join("commissioner");
+            await env.close(DeviceCommissioner);
+        }
+
         // Shutdown the Broadcaster if DeviceAdvertiser is not initialized
         // We kick-off the Advertiser shutdown to prevent re-announces when removing sessions and wait a bit later
         const advertisementShutdown = this.owner.env.has(DeviceAdvertiser)
@@ -318,21 +328,49 @@ export class ServerNetworkRuntime extends NetworkRuntime {
             : this.#mdnsAdvertiser?.close();
         this.#mdnsAdvertiser = undefined;
 
-        await this.owner.prepareRuntimeShutdown();
+        {
+            using _lifetime = this.construction.join("preparing");
+            await this.owner.prepareRuntimeShutdown();
+        }
 
         this.#groupNetworking?.close();
         this.#groupNetworking = undefined;
 
         // Now all sessions are closed, so we wait for Advertiser to be gone
-        await advertisementShutdown;
+        {
+            using _advertiser = this.construction.join("advertisement");
+            await advertisementShutdown;
+        }
 
-        await this.#services.close();
+        {
+            using _lifetime = this.construction.join("services");
+            await this.#services.close();
+        }
 
-        await env.close(ExchangeManager);
-        await env.close(SecureChannelProtocol);
-        await env.close(ConnectionlessTransportSet);
-        await env.close(InteractionServer);
-        await env.close(PeerSet);
+        {
+            using _lifetime = this.construction.join("exchanges");
+            await env.close(ExchangeManager);
+        }
+
+        {
+            using _lifetime = this.construction.join("protocols");
+            await env.close(SecureChannelProtocol);
+        }
+
+        {
+            using _lifetime = this.construction.join("transports");
+            await env.close(ConnectionlessTransportSet);
+        }
+
+        {
+            using _lifetime = this.construction.join("interactions");
+            await env.close(InteractionServer);
+        }
+
+        {
+            using _lifetime = this.construction.join("peers");
+            await env.close(PeerSet);
+        }
     }
 
     async #initializeGroupNetworking() {

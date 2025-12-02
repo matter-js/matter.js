@@ -12,6 +12,7 @@ import {
     Diagnostic,
     Duration,
     InternalError,
+    Lifetime,
     Logger,
     MatterError,
     MaybePromise,
@@ -118,6 +119,7 @@ export interface InteractionContext {
  * Translates interactions from the Matter protocol to matter.js APIs.
  */
 export class InteractionServer implements ProtocolHandler, InteractionRecipient {
+    readonly #lifetime: Lifetime;
     readonly id = INTERACTION_PROTOCOL_ID;
     readonly requiresSecureSession = true;
     #context: InteractionContext;
@@ -134,6 +136,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
     #serverInteraction: OnlineServerInteraction;
 
     constructor(node: ServerNode, sessions: SessionManager) {
+        this.#lifetime = node.construction.join("interaction server");
+
         this.#nextSubscriptionId = node.env.get(Crypto).randomUint32;
 
         this.#context = {
@@ -884,5 +888,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
 
     async close() {
         this.#isClosing = true;
+        this.#lifetime[Symbol.dispose]();
     }
 }

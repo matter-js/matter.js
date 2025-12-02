@@ -121,6 +121,7 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
      * Perform a factory reset of the node.
      */
     override async erase() {
+        using _erasing = this.construction.join("erasing");
         await this.lifecycle.mutex.produce(this.eraseWithMutex.bind(this));
     }
 
