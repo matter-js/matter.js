@@ -139,7 +139,7 @@ export class MessageExchange {
         if (this.#receivedMessageToAck !== undefined) {
             const messageToAck = this.#receivedMessageToAck;
             this.#receivedMessageToAck = undefined;
-            // TODO: We need to track this promise later
+            // TODO await
             this.#sendStandaloneAckForMessage(messageToAck).catch(error =>
                 logger.error("An error happened when sending a standalone ack", error),
             );
@@ -182,10 +182,9 @@ export class MessageExchange {
         logger.debug(
             "New exchange",
             isInitiator ? "»" : "«",
-            session.via,
+            this.via,
             Diagnostic.dict({
                 protocol: this.#protocolId,
-                exId: this.#exchangeId,
                 peerSess: Session.idStrOf(this.#peerSessionId),
                 SAT: Duration.format(activeThreshold),
                 SAI: Duration.format(activeInterval),
@@ -199,7 +198,9 @@ export class MessageExchange {
         );
 
         session.addExchange(this);
-        this.#lifetime = this.#context.session.join("exchange");
+
+        // Only do partial via because other details are in parent lifetime
+        this.#lifetime = this.#context.session.join("exchange", Diagnostic.via(hex.word(this.id)));
     }
 
     get context() {
@@ -290,6 +291,7 @@ export class MessageExchange {
         if (messageId === this.#sentMessageToAck?.payloadHeader.ackedMessageId) {
             // Received a message retransmission. This means that the other side didn't get our ack
             // Resending the previous reply message which contains the ack
+            using _acking = this.join("resending ack");
             await this.channel.send(this.#sentMessageToAck);
             return;
         }
@@ -445,6 +447,7 @@ export class MessageExchange {
             this.#sentMessageAckFailure = rejecter;
         }
 
+        using sending = this.join("sending", Diagnostic.strong(Message.identityOf(this.session, message)));
         await this.channel.send(message, logContext);
 
         if (ackPromise !== undefined) {
@@ -452,6 +455,7 @@ export class MessageExchange {
             this.#retransmissionTimer?.start();
 
             // Await response.  Resolves with message when received, undefined when aborted, and rejects on timeout
+            using _waiting = sending.join("waiting for ack");
             const responseMessage = await ackPromise;
 
             this.#sentMessageAckSuccess = undefined;
@@ -535,7 +539,8 @@ export class MessageExchange {
             }
             if (this.#closeTimer !== undefined) {
                 // All resubmissions done and in closing, no need to wait further
-                this.#close().catch(error => logger.error("An error happened when closing the exchange", error));
+                // TODO await
+                this.#close().catch(error => logger.error("Error closing exchange", error));
             }
             return;
         }
@@ -548,6 +553,7 @@ export class MessageExchange {
             `Resubmitting ${Message.identityOf(this.session, message)} (retransmission attempt ${this.#retransmissionCounter}, backoff time ${Duration.format(resubmissionBackoffTime)}))`,
         );
 
+        // TODO await
         this.channel
             .send(message)
             .then(() => this.#initializeResubmission(message, resubmissionBackoffTime, expectedProcessingTime))
