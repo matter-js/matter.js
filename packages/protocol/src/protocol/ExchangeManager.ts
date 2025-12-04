@@ -44,7 +44,7 @@ const logger = Logger.get("ExchangeManager");
 
 /**
  * Maximum number of concurrent outgoing exchanges per session.
- * We chose 30 under the assumption that each exchange have one message in flight and the usual SecureSession message
+ * We chose 30 under the assumption that each exchange has one message in flight and the usual SecureSession message
  * counter window tracks 32 messages. So we have "2 spare messages" if really someone uses that many parallel exchanges.
  * TODO: Change this into an exchange creation queue instead of hard limiting it.
  */
