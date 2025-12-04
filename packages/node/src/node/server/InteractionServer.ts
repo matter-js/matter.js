@@ -572,15 +572,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
 
     async #establishSubscription(
         id: number,
-        {
-            minIntervalFloorSeconds,
-            maxIntervalCeilingSeconds,
-            attributeRequests,
-            dataVersionFilters,
-            eventRequests,
-            eventFilters,
-            isFabricFiltered,
-        }: SubscribeRequest,
+        request: SubscribeRequest,
         messenger: InteractionServerMessenger,
         session: NodeSession,
         exchange: MessageExchange,
@@ -596,19 +588,11 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         const subscription = new ServerSubscription({
             id,
             context,
-            criteria: {
-                attributeRequests,
-                dataVersionFilters,
-                eventRequests,
-                eventFilters,
-                isFabricFiltered,
-            },
-            minIntervalFloor: Seconds(minIntervalFloorSeconds),
-            maxIntervalCeiling: Seconds(maxIntervalCeilingSeconds),
+            request,
             subscriptionOptions: this.#subscriptionConfig,
         });
 
-        const readContext = this.#prepareOnlineContext(exchange, message, isFabricFiltered);
+        const readContext = this.#prepareOnlineContext(exchange, message, request.isFabricFiltered);
         try {
             // Send the initial data report to prime the subscription with initial data
             await subscription.sendInitialReport(messenger, readContext);
@@ -621,8 +605,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             "Subscribe successful »",
             exchange.via,
             Diagnostic.dict({
-                ...Subscription.diagnosticOf(id),
-                timing: `${Duration.format(Seconds(minIntervalFloorSeconds))} - ${Duration.format(Seconds(maxIntervalCeilingSeconds))} => ${Duration.format(subscription.maxInterval)}`,
+                ...Subscription.diagnosticOf(subscription),
+                timing: `${Duration.format(subscription.minIntervalFloor)} - ${subscription.maxIntervalCeiling} => ${Duration.format(subscription.maxInterval)}`,
                 sendInterval: Duration.format(subscription.sendInterval),
             }),
         );
@@ -667,12 +651,12 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         const subscription = new ServerSubscription({
             id: subscriptionId,
             context,
-            minIntervalFloor,
-            maxIntervalCeiling,
-            criteria: {
+            request: {
                 attributeRequests,
                 eventRequests,
                 isFabricFiltered,
+                minIntervalFloorSeconds: minIntervalFloor,
+                maxIntervalCeilingSeconds: maxIntervalCeiling,
             },
             subscriptionOptions: this.#subscriptionConfig,
             useAsMaxInterval: maxInterval,

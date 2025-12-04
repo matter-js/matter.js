@@ -36,7 +36,6 @@ import {
     ReadResult,
     SessionClosedError,
     Subscription,
-    SubscriptionCriteria,
 } from "#protocol";
 import {
     AttributeId,
@@ -46,6 +45,7 @@ import {
     INTERACTION_PROTOCOL_ID,
     StatusCode,
     StatusResponseError,
+    SubscribeRequest,
 } from "#types";
 
 const logger = Logger.get("ServerSubscription");
@@ -133,8 +133,6 @@ export class ServerSubscription extends Subscription {
     #seededClusterDetails? = new Map<string, number>();
     #latestSeededEventNumber? = EventNumber(0);
     readonly #sendInterval: Duration;
-    readonly #minIntervalFloor: Duration;
-    readonly #maxIntervalCeiling: Duration;
     readonly #peerAddress: PeerAddress;
 
     #sendNextUpdateImmediately = false;
@@ -144,30 +142,17 @@ export class ServerSubscription extends Subscription {
     constructor(options: {
         id: number;
         context: ServerSubscriptionContext;
-        criteria: SubscriptionCriteria;
-        minIntervalFloor: Duration;
-        maxIntervalCeiling: Duration;
+        request: Omit<SubscribeRequest, "interactionModelRevision" | "keepSubscriptions">;
         subscriptionOptions: ServerSubscriptionConfig;
         useAsMaxInterval?: Duration;
         useAsSendInterval?: Duration;
     }) {
-        const {
-            id,
-            context,
-            criteria,
-            minIntervalFloor,
-            maxIntervalCeiling,
-            subscriptionOptions,
-            useAsMaxInterval,
-            useAsSendInterval,
-        } = options;
+        const { id, context, request, subscriptionOptions, useAsMaxInterval, useAsSendInterval } = options;
 
-        super(context.session, id, criteria);
+        super(context.session, id, request);
         this.#context = context;
 
         this.#peerAddress = this.session.peerAddress;
-        this.#minIntervalFloor = minIntervalFloor;
-        this.#maxIntervalCeiling = maxIntervalCeiling;
 
         let maxInterval: Duration;
         let sendInterval: Duration;
@@ -205,8 +190,8 @@ export class ServerSubscription extends Subscription {
                     Duration.max(
                         subscriptionMinInterval,
                         Duration.max(
-                            this.#minIntervalFloor,
-                            Duration.min(subscriptionMaxInterval, this.#maxIntervalCeiling),
+                            this.minIntervalFloor,
+                            Duration.min(subscriptionMaxInterval, this.maxIntervalCeiling),
                         ),
                     ) +
                         subscriptionRandomizationWindow * Math.random(),
@@ -219,7 +204,7 @@ export class ServerSubscription extends Subscription {
             // But if we have no chance of at least one full resubmission process we do like chip-tool.
             // One full resubmission process takes 33-45 seconds. So 60s means we reach at least first 2 retries of a
             // second subscription report after first failed.
-            sendInterval = Duration.max(this.#minIntervalFloor, Millis.floor(Millis(maxInterval * 0.8)));
+            sendInterval = Duration.max(this.minIntervalFloor, Millis.floor(Millis(maxInterval * 0.8)));
         }
         if (sendInterval < subscriptionMinInterval) {
             // But not faster than once every 2s
@@ -285,7 +270,7 @@ export class ServerSubscription extends Subscription {
     }
 
     #sendEventUrgently({ endpointId, clusterId, eventId }: ReadResult.ConcreteEventPath): boolean {
-        return (this.criteria.eventRequests ?? []).some(
+        return (this.request.eventRequests ?? []).some(
             ({ endpointId: reqEndpointId, clusterId: reqClusterId, eventId: reqEventId, isUrgent }) =>
                 isUrgent &&
                 (reqEndpointId === undefined || reqEndpointId === endpointId) &&
@@ -299,19 +284,19 @@ export class ServerSubscription extends Subscription {
     }
 
     get minIntervalFloor() {
-        return this.#minIntervalFloor;
+        return Seconds(this.request.minIntervalFloorSeconds);
     }
 
     get maxIntervalCeiling() {
-        return this.#maxIntervalCeiling;
+        return Seconds(this.request.maxIntervalCeilingSeconds);
     }
 
     override activate() {
         super.activate();
 
         // We do not need these data anymore, so we can free some memory
-        if (this.criteria.eventFilters !== undefined) this.criteria.eventFilters.length = 0;
-        if (this.criteria.dataVersionFilters !== undefined) this.criteria.dataVersionFilters.length = 0;
+        if (this.request.eventFilters !== undefined) this.request.eventFilters.length = 0;
+        if (this.request.dataVersionFilters !== undefined) this.request.dataVersionFilters.length = 0;
 
         this.#sendUpdatesActivated = true;
 
@@ -351,11 +336,11 @@ export class ServerSubscription extends Subscription {
         this.#updateTimer.stop();
         const now = Time.nowMs;
         const timeSinceLastUpdate = Millis(now - this.#lastUpdateTime);
-        if (timeSinceLastUpdate < this.#minIntervalFloor) {
+        if (timeSinceLastUpdate < this.minIntervalFloor) {
             // Respect minimum delay time between updates
             this.#updateTimer = Time.getTimer(
                 "Subscription update",
-                Millis(this.#minIntervalFloor - timeSinceLastUpdate),
+                Millis(this.minIntervalFloor - timeSinceLastUpdate),
                 () => this.#prepareDataUpdate(),
             ).start();
             return;
@@ -462,7 +447,7 @@ export class ServerSubscription extends Subscription {
      */
     async *#processAttributesAndEventsReport(context: RemoteActorContext.Options, suppressStatusReports = false) {
         const request = {
-            ...this.criteria,
+            ...this.request,
             interactionModelRevision: Specification.INTERACTION_MODEL_REVISION, // irrelevant here, set to our version
         };
 
@@ -563,13 +548,13 @@ export class ServerSubscription extends Subscription {
         this.#updateTimer.stop();
 
         // Register change handlers, so that we get changes directly
-        if (this.criteria.attributeRequests?.length) {
+        if (this.request.attributeRequests?.length) {
             this.#changeHandlers.on(
                 this.#context.node.protocol.attrsChanged,
                 this.#handleClusterStateChanges.bind(this),
             );
         }
-        if (this.criteria.eventRequests?.length) {
+        if (this.request.eventRequests?.length) {
             this.#changeHandlers.on(this.#context.node.protocol.eventHandler.added, this.#handleAddedEvents.bind(this));
         }
 
@@ -579,7 +564,7 @@ export class ServerSubscription extends Subscription {
                 subscriptionId: this.id,
                 interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
             },
-            forFabricFilteredRead: this.criteria.isFabricFiltered,
+            forFabricFilteredRead: this.request.isFabricFiltered,
             payload: this.#processAttributesAndEventsReport(readContext, suppressStatusReports),
         });
     }
@@ -637,7 +622,7 @@ export class ServerSubscription extends Subscription {
         eventsMinNumber: EventNumber | undefined,
     ) {
         const request = {
-            ...this.criteria,
+            ...this.request,
             interactionModelRevision: Specification.INTERACTION_MODEL_REVISION, // irrelevant here, set to our version
         };
 
@@ -701,7 +686,7 @@ export class ServerSubscription extends Subscription {
                         subscriptionId: this.id,
                         interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
                     },
-                    forFabricFilteredRead: this.criteria.isFabricFiltered,
+                    forFabricFilteredRead: this.request.isFabricFiltered,
                     waitForAck: !this.isClosed, // Do not wait for ack when closed
                 });
             } else {
@@ -714,7 +699,7 @@ export class ServerSubscription extends Subscription {
                         subscriptionId: this.id,
                         interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
                     },
-                    forFabricFilteredRead: this.criteria.isFabricFiltered,
+                    forFabricFilteredRead: this.request.isFabricFiltered,
                     payload: this.#iterateDataUpdate(exchange, attributeFilter, eventsMinNumber),
                     waitForAck: !this.isClosed, // Do not wait for ack when closed
                     suppressEmptyReport: onlyWithData,

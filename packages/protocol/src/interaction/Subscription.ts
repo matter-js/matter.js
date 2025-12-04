@@ -6,38 +6,32 @@
 
 import { AsyncObservable, Diagnostic, Duration, hex, InternalError, Logger } from "#general";
 import { NodeSession } from "#session/NodeSession.js";
-import { TlvAttributePath, TlvDataVersionFilter, TlvEventFilter, TlvEventPath, TypeFromSchema } from "#types";
+import { SubscribeRequest } from "#types";
 
 const logger = Logger.get("Subscription");
 
 export type SubscriptionId = number;
 
-export interface SubscriptionCriteria {
-    attributeRequests?: TypeFromSchema<typeof TlvAttributePath>[];
-    dataVersionFilters?: TypeFromSchema<typeof TlvDataVersionFilter>[];
-    eventRequests?: TypeFromSchema<typeof TlvEventPath>[];
-    eventFilters?: TypeFromSchema<typeof TlvEventFilter>[];
-    isFabricFiltered: boolean;
-}
-
 /**
  * A single active subscription.
- *
- * TODO - requires refactoring as this is only used on the server; should probably integrate with ActiveSubscription
  */
 export abstract class Subscription {
     #session: NodeSession;
     #id: SubscriptionId;
     #isClosed?: boolean;
     #isCanceledByPeer?: boolean;
-    #criteria: SubscriptionCriteria;
+    #request: Omit<SubscribeRequest, "interactionModelRevision" | "keepSubscriptions">;
     #cancelled = AsyncObservable<[subscription: Subscription]>();
     #maxInterval?: Duration;
 
-    constructor(session: NodeSession, id: SubscriptionId, criteria: SubscriptionCriteria) {
+    constructor(
+        session: NodeSession,
+        id: SubscriptionId,
+        request: Omit<SubscribeRequest, "interactionModelRevision" | "keepSubscriptions">,
+    ) {
         this.#session = session;
         this.#id = id;
-        this.#criteria = criteria;
+        this.#request = request;
     }
 
     get id() {
@@ -66,8 +60,8 @@ export abstract class Subscription {
         };
     }
 
-    get criteria() {
-        return this.#criteria;
+    get request() {
+        return this.#request;
     }
 
     get isClosed() {

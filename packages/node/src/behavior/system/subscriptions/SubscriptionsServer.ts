@@ -138,7 +138,7 @@ export class SubscriptionsBehavior extends Behavior {
         if (this.state.persistenceEnabled === false || !(subscription instanceof ServerSubscription)) return;
 
         const {
-            criteria: { attributeRequests, eventRequests, isFabricFiltered },
+            request: { attributeRequests, eventRequests, isFabricFiltered },
             session,
             maxInterval,
             sendInterval,
