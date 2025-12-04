@@ -1169,7 +1169,7 @@ export class InteractionClient {
                 Mark.INBOUND,
                 messenger.exchange.via,
                 Diagnostic.dict({
-                    ...Subscription.diagnosticOf(subscriptionId),
+                    ...Subscription.diagnosticOf(subscribeResponse.subscriptionId),
                     maxInterval: Duration.format(Seconds(subscribeResponse.maxInterval)),
                 }),
             );
@@ -1196,7 +1196,7 @@ export class InteractionClient {
             const { attributeReports, eventReports } = dataReport;
 
             // We emit events first because events usually happened and lead to a new final attribute value
-            if (eventReports !== undefined) {
+            if (eventReports?.length) {
                 let maxEventNumber = this.#nodeStore?.maxEventNumber ?? eventReports[0].events[0].eventNumber;
                 eventReports.forEach(data => {
                     logger.debug(
