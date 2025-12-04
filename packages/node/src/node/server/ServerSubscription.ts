@@ -453,6 +453,7 @@ export class ServerSubscription implements Subscription {
             } catch (error) {
                 if (this.#isClosed) {
                     // No need to care about resubmissions when the server is closing
+                    // TODO - implement proper abort so we don't need to ignore errors
                     return;
                 }
 
@@ -503,7 +504,7 @@ export class ServerSubscription implements Subscription {
                 break;
             }
 
-            logger.debug("Sending delayed update immediately after last one was sent.");
+            logger.debug("Sending delayed update immediately after last one was sent");
             this.#sendNextUpdateImmediately = false;
             onlyWithData = true; // In subsequent iterations only send if non-empty
         }
@@ -642,7 +643,7 @@ export class ServerSubscription implements Subscription {
             logger.debug(`Flushing subscription ${this.idStr}${this.#isClosed ? " (for closing)" : ""}`);
             this.#triggerSendUpdate(true);
             if (this.#currentUpdatePromise) {
-                using _waiting = this.#lifetime?.closing()?.join("waiting");
+                using _waiting = this.#lifetime?.join("waiting on flush");
                 await this.#currentUpdatePromise;
             }
         }
@@ -660,6 +661,7 @@ export class ServerSubscription implements Subscription {
         await this.#cancel(flush);
 
         if (this.#currentUpdatePromise) {
+            using _waiting = this.#lifetime?.closing()?.join("waiting on update");
             await this.#currentUpdatePromise;
         }
     }
@@ -790,9 +792,11 @@ export class ServerSubscription implements Subscription {
                 StatusResponseError.accept(error);
                 logger.info(`Subscription ${this.idStr} update failed:`, error);
             }
+
             using _canceling = lifetime?.join("canceling");
             await this.#cancel();
         } finally {
+            using _closing = lifetime?.join("closing messenger");
             await messenger.close();
         }
         return true;

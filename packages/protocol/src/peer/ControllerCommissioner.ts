@@ -374,7 +374,7 @@ export class ControllerCommissioner {
             );
         } catch (e) {
             // Close the exchange and rethrow
-            await paseExchange.close();
+            await unsecuredSession.initiateForceClose();
             if (e instanceof ChannelStatusResponseError) {
                 throw new NoResponseTimeoutError(
                     `Establishing PASE channel failed with channel status response error ${e.message}`,
@@ -382,6 +382,9 @@ export class ControllerCommissioner {
             }
             throw e;
         }
+
+        // If pairing succeeds, do not close the unsecured session because the channel is moved to the returned
+        // NodeSession
     }
 
     /** Validate if a Peer Address is already known and commissioned */
@@ -504,14 +507,12 @@ export class ControllerCommissioner {
             await this.#context.clients.peers.get(address)?.delete();
             throw error;
         } finally {
-            if (!paseSession.isClosed) {
-                /*
-                    In concurrent connection commissioning flow the commissioning channel SHALL terminate after
-                    successful step 15 (CommissioningComplete command invocation).
-                    If PaseSecureMessageChannel is not already closed, we are in non-concurrent connection commissioning flow.
-                 */
-                await paseSession.initiateClose(); // We are done, so close PASE session
-            }
+            /*
+                In concurrent connection commissioning flow the commissioning channel SHALL terminate after
+                successful step 15 (CommissioningComplete command invocation).
+                If PaseSecureMessageChannel is not already closed, we are in non-concurrent connection commissioning flow.
+                */
+            await paseSession.initiateClose(); // We are done, so close PASE session
         }
 
         return address;
