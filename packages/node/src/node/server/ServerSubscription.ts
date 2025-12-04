@@ -382,74 +382,78 @@ export class ServerSubscription extends Subscription {
      * Determine all attributes that have changed since the last update and send them out to the subscriber.
      */
     async #sendUpdate(onlyWithData = false) {
-        // Get all outstanding updates, make sure the order is correct per endpoint and cluster
-        const attributeFilter = this.#outstandingAttributeUpdates;
-        this.#outstandingAttributeUpdates = undefined;
+        while (true) {
+            // Get all outstanding updates, make sure the order is correct per endpoint and cluster
+            const attributeFilter = this.#outstandingAttributeUpdates;
+            this.#outstandingAttributeUpdates = undefined;
 
-        const eventsMinNumber = this.#outstandingEventsMinNumber;
-        this.#outstandingEventsMinNumber = undefined;
+            const eventsMinNumber = this.#outstandingEventsMinNumber;
+            this.#outstandingEventsMinNumber = undefined;
 
-        if (onlyWithData && attributeFilter === undefined && eventsMinNumber === undefined) {
-            return;
-        }
-
-        this.#lastUpdateTime = Time.nowMs;
-
-        try {
-            if (await this.#sendUpdateMessage(attributeFilter, eventsMinNumber, onlyWithData)) {
-                this.#sendUpdateErrorCounter = 0;
-            }
-        } catch (error) {
-            if (this.isClosed) {
-                // No need to care about resubmissions when the server is closing
+            if (onlyWithData && attributeFilter === undefined && eventsMinNumber === undefined) {
                 return;
             }
 
-            this.#sendUpdateErrorCounter++;
-            logger.info(
-                `Error sending subscription update message (error count=${this.#sendUpdateErrorCounter}):`,
-                (error instanceof MatterError && error.message) || error,
-            );
-            if (this.#sendUpdateErrorCounter <= 2) {
-                // fill the data back in the queue to resend with next try
-                if (attributeFilter !== undefined) {
-                    for (const [endpointId, clusters] of Object.entries(attributeFilter)) {
-                        for (const [clusterId, attributes] of Object.entries(clusters)) {
-                            this.#addOutstandingAttributes(
-                                EndpointNumber(parseInt(endpointId)),
-                                ClusterId(parseInt(clusterId)),
-                                Array.from(attributes),
-                            );
+            this.#lastUpdateTime = Time.nowMs;
+
+            try {
+                if (await this.#sendUpdateMessage(attributeFilter, eventsMinNumber, onlyWithData)) {
+                    this.#sendUpdateErrorCounter = 0;
+                }
+            } catch (error) {
+                if (this.isClosed) {
+                    // No need to care about resubmissions when the server is closing
+                    return;
+                }
+
+                this.#sendUpdateErrorCounter++;
+                logger.info(
+                    `Error sending subscription update message (error count=${this.#sendUpdateErrorCounter}):`,
+                    (error instanceof MatterError && error.message) || error,
+                );
+                if (this.#sendUpdateErrorCounter <= 2) {
+                    // fill the data back in the queue to resend with next try
+                    if (attributeFilter !== undefined) {
+                        for (const [endpointId, clusters] of Object.entries(attributeFilter)) {
+                            for (const [clusterId, attributes] of Object.entries(clusters)) {
+                                this.#addOutstandingAttributes(
+                                    EndpointNumber(parseInt(endpointId)),
+                                    ClusterId(parseInt(clusterId)),
+                                    Array.from(attributes),
+                                );
+                            }
                         }
                     }
-                }
-                if (eventsMinNumber !== undefined) {
-                    this.#outstandingEventsMinNumber = eventsMinNumber; // newer number are always higher, so we can just set it
-                }
-            } else {
-                logger.info(
-                    `Sending update failed 3 times in a row, canceling subscription ${this.id} and let controller subscribe again.`,
-                );
-                this.#sendNextUpdateImmediately = false;
-                if (
-                    error instanceof NoResponseTimeoutError ||
-                    error instanceof NetworkError ||
-                    error instanceof SessionClosedError
-                ) {
-                    // Let's consider this subscription as dead and wait for a reconnect.  We handle as if the
-                    // controller cancelled
-                    await this.handlePeerCancel();
-                    return;
+                    if (eventsMinNumber !== undefined) {
+                        this.#outstandingEventsMinNumber = eventsMinNumber; // newer number are always higher, so we can just set it
+                    }
                 } else {
-                    throw error;
+                    logger.info(
+                        `Sending update failed 3 times in a row, canceling subscription ${this.id} and let controller subscribe again.`,
+                    );
+                    this.#sendNextUpdateImmediately = false;
+                    if (
+                        error instanceof NoResponseTimeoutError ||
+                        error instanceof NetworkError ||
+                        error instanceof SessionClosedError
+                    ) {
+                        // Let's consider this subscription as dead and wait for a reconnect.  We handle as if the
+                        // controller cancelled
+                        await this.handlePeerCancel();
+                        return;
+                    } else {
+                        throw error;
+                    }
                 }
             }
-        }
 
-        if (this.#sendNextUpdateImmediately) {
+            if (!this.#sendNextUpdateImmediately) {
+                break;
+            }
+
             logger.debug("Sending delayed update immediately after last one was sent.");
             this.#sendNextUpdateImmediately = false;
-            await this.#sendUpdate(true); // Send but only if non-empty
+            onlyWithData = true; // In subsequent iterations only send if non-empty
         }
     }
 
