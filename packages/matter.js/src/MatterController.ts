@@ -426,7 +426,7 @@ export class MatterController {
 
     async disconnect(nodeId: NodeId) {
         this.#construction.assert();
-        return this.#peers?.get(this.#fabric!.addressOf(nodeId))?.delete();
+        return this.#peers?.get(this.#fabric!.addressOf(nodeId))?.close();
     }
 
     async connectPaseChannel(options: NodeCommissioningOptions) {
@@ -535,12 +535,12 @@ export class MatterController {
         return this.#node!.env.get(InteractionClientProvider).connect(this.#fabric!.addressOf(peerNodeId), options);
     }
 
-    createInteractionClient(peerNodeIdOrChannel: NodeId | SecureSession, options: PeerConnectionOptions = {}) {
-        if (peerNodeIdOrChannel instanceof SecureSession) {
-            return this.#node!.env.get(InteractionClientProvider).interactionClientFor(peerNodeIdOrChannel);
+    createInteractionClient(peerNodeIdOrSession: NodeId | SecureSession, options: PeerConnectionOptions = {}) {
+        if (peerNodeIdOrSession instanceof SecureSession) {
+            return this.#node!.env.get(InteractionClientProvider).interactionClientFor(peerNodeIdOrSession);
         }
         return this.#node!.env.get(InteractionClientProvider).getInteractionClient(
-            this.#fabric!.addressOf(peerNodeIdOrChannel),
+            this.#fabric!.addressOf(peerNodeIdOrSession),
             options,
         );
     }
