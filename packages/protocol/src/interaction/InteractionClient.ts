@@ -6,6 +6,7 @@
 
 import { ReadScope } from "#action/client/ReadScope.js";
 import { AccessControl } from "#clusters/access-control";
+import { Mark } from "#common/Mark.js";
 import {
     Diagnostic,
     Duration,
@@ -555,7 +556,8 @@ export class InteractionClient {
     ): Promise<DecodedDataReport> {
         const { attributeRequests, eventRequests, dataVersionFilters, eventFilters, isFabricFiltered } = request;
         logger.debug(() => [
-            "Read »",
+            "Read",
+            Mark.OUTBOUND,
             messenger.exchange.via,
             Diagnostic.dict({
                 attributes: attributeRequests?.length
@@ -591,7 +593,8 @@ export class InteractionClient {
 
         if (attributeReports.length || eventReports.length || attributeStatus?.length || eventStatus?.length) {
             logger.debug(() => [
-                "Read «",
+                "Read",
+                Mark.INBOUND,
                 messenger.exchange.via,
                 Diagnostic.dict({
                     attributes: attributeReports.length
@@ -612,7 +615,7 @@ export class InteractionClient {
                 }),
             ]);
         } else {
-            logger.debug("Read «", messenger.exchange.via, "empty response");
+            logger.debug("Read", Mark.INBOUND, messenger.exchange.via, "empty response");
         }
 
         return response;
@@ -740,7 +743,8 @@ export class InteractionClient {
                 }
 
                 logger.debug(() => [
-                    "Write »",
+                    "Write",
+                    Mark.OUTBOUND,
                     messenger.exchange.via,
                     Diagnostic.dict({
                         attributes: attributes
@@ -849,7 +853,8 @@ export class InteractionClient {
             maximumPeerResponseTime: Duration;
         }>(async messenger => {
             logger.debug(() => [
-                "Subscribe »",
+                "Subscribe",
+                Mark.OUTBOUND,
                 messenger.exchange.via,
                 Diagnostic.dict({
                     attributes: resolveAttributeName({ endpointId, clusterId, attributeId }),
@@ -954,7 +959,8 @@ export class InteractionClient {
             maximumPeerResponseTime: Duration;
         }>(async messenger => {
             logger.debug(() => [
-                "Subscribe »",
+                "Subscribe",
+                Mark.OUTBOUND,
                 messenger.exchange.via,
                 Diagnostic.dict({
                     events: resolveEventName({ endpointId, clusterId, eventId }),
@@ -1125,7 +1131,8 @@ export class InteractionClient {
             maximumPeerResponseTime: Duration;
         }>(async messenger => {
             logger.debug(() => [
-                "Subscribe »",
+                "Subscribe",
+                Mark.OUTBOUND,
                 messenger.exchange.via,
                 Diagnostic.dict({
                     attributes: attributeRequests.length
@@ -1158,7 +1165,8 @@ export class InteractionClient {
             );
 
             logger.info(
-                "Subscription successful «",
+                "Subscription successful",
+                Mark.INBOUND,
                 messenger.exchange.via,
                 Diagnostic.dict({
                     ...Subscription.diagnosticOf(subscriptionId),
@@ -1191,7 +1199,9 @@ export class InteractionClient {
             if (eventReports !== undefined) {
                 let maxEventNumber = this.#nodeStore?.maxEventNumber ?? eventReports[0].events[0].eventNumber;
                 eventReports.forEach(data => {
-                    logger.debug(`Event update « ${resolveEventName(data.path)}: ${Diagnostic.json(data.events)}`);
+                    logger.debug(
+                        `Event update ${Mark.INBOUND} ${resolveEventName(data.path)}: ${Diagnostic.json(data.events)}`,
+                    );
                     const { events } = data;
 
                     maxEventNumber =
@@ -1262,7 +1272,7 @@ export class InteractionClient {
                 await this.#nodeStore?.persistAttributes([data], scope);
             }
             logger.debug(
-                `Attribute update «${changed ? " (value changed)" : ""}: ${resolveAttributeName({
+                `Attribute update ${Mark.INBOUND}${changed ? " (value changed)" : ""}: ${resolveAttributeName({
                     endpointId,
                     clusterId,
                     attributeId,
@@ -1407,11 +1417,15 @@ export class InteractionClient {
             }
             const response = responseSchema.decodeTlv(commandFields);
             logger.debug(
-                `Invoke « ${resolveCommandName({
+                "Invoke",
+                Mark.INBOUND,
+                resolveCommandName({
                     endpointId,
                     clusterId,
                     commandId: requestId,
-                })} with ${Diagnostic.json(response)})}`,
+                }),
+                "with",
+                Diagnostic.json(response),
             );
             return response;
         }
@@ -1481,11 +1495,13 @@ export class InteractionClient {
         }, executeQueued);
 
         logger.debug(
-            `Invoke successful « ${resolveCommandName({
+            "Invoke successful",
+            Mark.INBOUND,
+            resolveCommandName({
                 endpointId,
                 clusterId,
                 commandId: requestId,
-            })}`,
+            }),
         );
     }
 

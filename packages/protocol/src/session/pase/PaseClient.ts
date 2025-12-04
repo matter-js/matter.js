@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Mark } from "#common/Mark.js";
 import { Bytes, Channel, Crypto, ec, Logger, PbkdfParameters, Spake2p, UnexpectedDataError } from "#general";
 import { SessionManager } from "#session/SessionManager.js";
 import { SessionParameters } from "#session/SessionParameters.js";
@@ -112,7 +113,7 @@ export class PaseClient {
             peerSessionParameters,
         });
         await messenger.close();
-        logger.info("Paired successfully »", messenger.channelName);
+        logger.info("Paired successfully", Mark.OUTBOUND, messenger.channelName);
 
         return secureSession;
     }

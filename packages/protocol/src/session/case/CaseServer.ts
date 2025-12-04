@@ -5,6 +5,7 @@
  */
 
 import { Noc } from "#certificate/kinds/Noc.js";
+import { Mark } from "#common/Mark.js";
 import {
     Bytes,
     Channel,
@@ -75,7 +76,7 @@ export class CaseServer implements ProtocolHandler {
     }
 
     async #handleSigma1(messenger: CaseServerMessenger) {
-        logger.info("Received pairing request «", Diagnostic.via(messenger.channelName));
+        logger.info("Received pairing request", Mark.INBOUND, Diagnostic.via(messenger.channelName));
 
         // Initialize context with information from peer
         const { sigma1Bytes, sigma1 } = await messenger.readSigma1();

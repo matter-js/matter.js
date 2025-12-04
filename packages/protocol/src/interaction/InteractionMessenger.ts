@@ -5,6 +5,7 @@
  */
 
 import { ReadResult } from "#action/response/ReadResult.js";
+import { Mark } from "#common/Mark.js";
 import {
     Bytes,
     Diagnostic,
@@ -328,6 +329,7 @@ export class InteractionServerMessenger extends InteractionMessenger {
                 logger.info(
                     this.exchange.via,
                     "Status response",
+                    Mark.OUTBOUND,
                     Diagnostic.strong(`${Status[error.code]}#${error.code}`),
                     "due to error:",
                     Diagnostic.errorMessage(error),

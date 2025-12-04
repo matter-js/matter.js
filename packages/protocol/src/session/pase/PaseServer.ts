@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Mark } from "#common/Mark.js";
 import {
     Bytes,
     Channel,
@@ -118,7 +119,7 @@ export class PaseServer implements ProtocolHandler {
     private async handlePairingRequest(crypto: Crypto, channel: Channel<Bytes>) {
         const messenger = this.#pairingMessenger!;
 
-        logger.info("Received pairing request «", Diagnostic.via(messenger.channelName));
+        logger.info("Received pairing request", Mark.INBOUND, Diagnostic.via(messenger.channelName));
 
         this.#pairingTimer = Time.getTimer("PASE pairing timeout", PASE_PAIRING_TIMEOUT_MS, () =>
             this.cancelPairing(messenger),

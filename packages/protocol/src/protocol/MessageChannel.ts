@@ -5,6 +5,7 @@
  */
 
 import { Message, MessageCodec } from "#codec/MessageCodec.js";
+import { Mark } from "#common/Mark.js";
 import {
     Bytes,
     Channel,
@@ -102,7 +103,7 @@ export class MessageChannel implements Channel<Message> {
     }
 
     async send(message: Message, logContext?: ExchangeLogContext) {
-        logger.debug("Message »", Message.diagnosticsOf(this.session, message, logContext));
+        logger.debug("Message", Mark.OUTBOUND, Message.diagnosticsOf(this.session, message, logContext));
         const packet = this.session.encode(message);
         const bytes = MessageCodec.encodePacket(packet);
         if (bytes.byteLength > this.maxPayloadSize) {

@@ -39,6 +39,7 @@ import {
     EventTypeProtocol,
     FabricManager,
     hasRemoteActor,
+    Mark,
     OccurrenceManager,
     toWildcardOrHexPath,
     Val,
@@ -562,7 +563,8 @@ function invokeCommand(
     const context = session as ActionContext;
 
     logger.info(
-        "Invoke «",
+        "Invoke",
+        Mark.INBOUND,
         Diagnostic.strong(`${path.toString()}.${command.name}`),
         session.transaction.via,
         requestDiagnostic,

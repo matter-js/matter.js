@@ -13,6 +13,7 @@ import { Write } from "#action/request/Write.js";
 import { DecodedInvokeResult, InvokeResult } from "#action/response/InvokeResult.js";
 import { ReadResult } from "#action/response/ReadResult.js";
 import { WriteResult } from "#action/response/WriteResult.js";
+import { Mark } from "#common/Mark.js";
 import {
     Abort,
     BasicSet,
@@ -127,7 +128,7 @@ export class ClientInteraction<
         await using context = await this.#begin("reading", request, session);
         const { checkAbort, messenger } = context;
 
-        logger.debug("Read »", messenger.exchange.via, request);
+        logger.debug("Read", Mark.OUTBOUND, messenger.exchange.via, request);
         await messenger.sendReadRequest(request);
         checkAbort();
 
@@ -144,7 +145,8 @@ export class ClientInteraction<
         }
 
         logger.debug(
-            "Read «",
+            "Read",
+            Mark.INBOUND,
             messenger.exchange.via,
             Diagnostic.weak(
                 attributeReportCount + eventReportCount === 0
@@ -169,7 +171,7 @@ export class ClientInteraction<
             checkAbort();
         }
 
-        logger.info("Write »", messenger.exchange.via, request);
+        logger.info("Write", Mark.OUTBOUND, messenger.exchange.via, request);
 
         const response = await messenger.sendWriteCommand(request);
         checkAbort();
@@ -208,7 +210,8 @@ export class ClientInteraction<
         ) as Awaited<WriteResult<T>>;
 
         logger.info(
-            "Write «",
+            "Write",
+            Mark.INBOUND,
             messenger.exchange.via,
             Diagnostic.weak(
                 successCount + failureCount === 0
@@ -233,7 +236,8 @@ export class ClientInteraction<
         }
 
         logger.info(
-            "Invoke »",
+            "Invoke",
+            Mark.OUTBOUND,
             messenger.exchange.via,
             Diagnostic.asFlags({ suppressResponse: request.suppressResponse, timed: request.timedRequest }),
             request,
@@ -275,7 +279,8 @@ export class ClientInteraction<
                                 commandFields === undefined ? undefined : responseSchema.decodeTlv(commandFields);
 
                             logger.info(
-                                "Invoke «",
+                                "Invoke",
+                                Mark.INBOUND,
                                 messenger.exchange.via,
                                 Diagnostic.strong(resolvePathForSpecifier(cmd)),
                                 isObject(data) ? Diagnostic.dict(data) : Diagnostic.weak("(no payload)"),
@@ -387,7 +392,8 @@ export class ClientInteraction<
             const response = TlvSubscribeResponse.decode(responseMessage.payload);
 
             logger.info(
-                "Subscription successful «",
+                "Subscription successful",
+                Mark.INBOUND,
                 messenger.exchange.via,
                 Diagnostic.dict({
                     id: response.subscriptionId,

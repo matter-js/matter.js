@@ -29,6 +29,7 @@ import {
     InteractionRecipient,
     InteractionServerMessenger,
     InvokeRequest,
+    Mark,
     Message,
     MessageExchange,
     MessageType,
@@ -264,7 +265,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         } = readRequest;
 
         logger.debug(() => [
-            "Read «",
+            "Read",
+            Mark.INBOUND,
             exchange.via,
             Diagnostic.asFlags({ fabricFiltered: isFabricFiltered }),
             Diagnostic.dict({
@@ -317,7 +319,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         const sessionType = message.packetHeader.sessionType;
 
         logger.info(() => [
-            "Write «",
+            "Write",
+            Mark.INBOUND,
             exchange.via,
             Diagnostic.asFlags({ suppressResponse, moreChunkedMessages }),
             Diagnostic.weak(writeRequests.map(req => this.#node.protocol.inspectPath(req.path)).join(", ")),
@@ -415,7 +418,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         } = request;
 
         logger.info(() => [
-            "Subscribe «",
+            "Subscribe",
+            Mark.INBOUND,
             exchange.via,
             Diagnostic.asFlags({ fabricFiltered: isFabricFiltered, keepSubscriptions }),
             Diagnostic.dict({
@@ -464,7 +468,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         }
 
         logger.debug(() => [
-            "Subscribe request details «",
+            "Subscribe request details",
+            Mark.INBOUND,
             exchange.via,
             Diagnostic.dict({
                 attributes: attributeRequests?.length
@@ -533,7 +538,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 logger.info(
                     "Status",
                     Diagnostic.strong(`${Status[error.code]}(${error.code})`),
-                    "»",
+                    Mark.OUTBOUND,
                     exchange.via,
                     "Error:",
                     Diagnostic.errorMessage(error),
@@ -602,7 +607,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         }
 
         logger.info(
-            "Subscribe successful »",
+            "Subscribe successful",
+            Mark.OUTBOUND,
             exchange.via,
             Diagnostic.dict({
                 ...Subscription.diagnosticOf(subscription),
@@ -631,7 +637,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         const message = {} as Message;
 
         logger.info(
-            `Reestablish subscription »`,
+            `Reestablish subscription`,
+            Mark.OUTBOUND,
             exchange.via,
             Diagnostic.dict({
                 ...Subscription.diagnosticOf(subscriptionId),
@@ -674,7 +681,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             subscription.activate();
 
             logger.info(
-                `Subscription successfully reestablished »`,
+                `Subscription successfully reestablished`,
+                Mark.OUTBOUND,
                 exchange.via,
                 Diagnostic.dict({
                     ...Subscription.diagnosticOf(subscriptionId),
@@ -697,7 +705,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
     ): Promise<void> {
         const { invokeRequests, timedRequest, suppressResponse, interactionModelRevision } = request;
         logger.info(() => [
-            "Invoke «",
+            "Invoke",
+            Mark.INBOUND,
             exchange.via,
             Diagnostic.asFlags({ suppressResponse, timedRequest }),
             Diagnostic.dict({
@@ -786,7 +795,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 if (invokeResponseMessage.invokeResponses.length > 0) {
                     if (invokeRequests.length > 1) {
                         logger.debug(
-                            `${lastMessageProcessed ? "Final " : ""}Invoke response »`,
+                            `${lastMessageProcessed ? "Final " : ""}Invoke response`,
+                            Mark.OUTBOUND,
                             Diagnostic.dict({ commands: invokeResponseMessage.invokeResponses.length }),
                         );
                     }
@@ -855,7 +865,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         const interval = Millis(timeout);
 
         logger.debug(() => [
-            "Timed request «",
+            "Timed request",
+            Mark.INBOUND,
             exchange.via,
             Diagnostic.dict({
                 interval: Duration.format(interval),

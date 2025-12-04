@@ -5,6 +5,7 @@
  */
 
 import { DecodedMessage, MessageCodec, SessionType } from "#codec/MessageCodec.js";
+import { Mark } from "#common/Mark.js";
 import {
     BasicMultiplex,
     Bytes,
@@ -255,7 +256,9 @@ export class ExchangeManager {
             if (exchange.session.id !== packet.header.sessionId || (exchange.isClosing && !isStandaloneAck)) {
                 logger.debug(
                     exchange.via,
-                    "Ignore « message because",
+                    "Ignore",
+                    Mark.INBOUND,
+                    "message because",
                     exchange.isClosing
                         ? "exchange is closing"
                         : `session ID mismatch (header session is ${Session.idStrOf(packet)}`,
@@ -288,7 +291,9 @@ export class ExchangeManager {
             // TODO When adding Group sessions, we need to check how to adjust that handling
             if (handlerSecurityMismatch) {
                 logger.debug(
-                    `Ignore « message because not matching the security requirements (${protocolHandler.requiresSecureSession} vs. ${session.isSecure})`,
+                    "Ignore",
+                    Mark.INBOUND,
+                    `message because not matching the security requirements (${protocolHandler.requiresSecureSession} vs. ${session.isSecure})`,
                     messageDiagnostics,
                 );
             }
@@ -300,7 +305,7 @@ export class ExchangeManager {
                 !handlerSecurityMismatch
             ) {
                 if (isStandaloneAck && !message.payloadHeader.requiresAck) {
-                    logger.debug("Ignore « unsolicited standalone ack message", messageDiagnostics);
+                    logger.debug("Ignore", Mark.INBOUND, "unsolicited standalone ack message", messageDiagnostics);
                     return;
                 }
 
@@ -318,7 +323,7 @@ export class ExchangeManager {
                     protocolId: SECURE_CHANNEL_PROTOCOL_ID,
                 });
                 await exchange.close();
-                logger.debug("Ignore « unsolicited message", messageDiagnostics);
+                logger.debug("Ignore", Mark.INBOUND, "unsolicited message", messageDiagnostics);
             } else {
                 if (protocolHandler === undefined) {
                     throw new MatterFlowError(`Unsupported protocol ${message.payloadHeader.protocolId}`);
@@ -326,12 +331,18 @@ export class ExchangeManager {
                 if (isDuplicate) {
                     if (message.packetHeader.destGroupId === undefined) {
                         // Duplicate Non-Group messages are still interesting to log to know them
-                        logger.debug("Ignore « duplicate message", messageDiagnostics);
+                        logger.debug("Ignore", Mark.INBOUND, "duplicate message", messageDiagnostics);
                     }
                     return;
                 }
                 if (!isStandaloneAck) {
-                    logger.info("Discard « unexpected message", messageDiagnostics, Diagnostic.json(message));
+                    logger.info(
+                        "Discard",
+                        Mark.INBOUND,
+                        "unexpected message",
+                        messageDiagnostics,
+                        Diagnostic.json(message),
+                    );
                 }
             }
         }
