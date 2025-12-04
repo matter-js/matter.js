@@ -81,9 +81,14 @@ export class UnsecuredSession extends Session {
         throw new NoAssociatedFabricError("Session needs to be a secure session");
     }
 
-    override async initiateClose() {
-        await super.initiateClose();
+    override detachChannel() {
         this.manager?.unsecuredSessions.delete(this.nodeId);
+        return super.detachChannel();
+    }
+
+    override async close() {
+        this.manager?.unsecuredSessions.delete(this.nodeId);
+        await super.close();
     }
 }
 

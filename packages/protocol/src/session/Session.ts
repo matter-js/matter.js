@@ -301,15 +301,21 @@ export abstract class Session {
         return 0;
     }
 
+    detachChannel() {
+        const channel = this.#channel;
+        this.#channel = undefined;
+        logger.info(this.via, "Channel detached");
+        return channel;
+    }
+
     protected async close() {
         using _closting = this.#lifetime?.closing();
 
         if (this.#channel) {
             await this.#channel.close();
             this.#channel = undefined;
+            logger.info(this.via, "Session ended");
         }
-
-        logger.info(this.via, "Session ended");
     }
 
     protected get manager() {

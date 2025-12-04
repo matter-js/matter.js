@@ -366,25 +366,25 @@ export class ControllerCommissioner {
         );
 
         try {
-            return await this.#paseClient.pair(
+            const caseSession = await this.#paseClient.pair(
                 this.#context.sessions.sessionParameters,
                 paseExchange,
                 paseChannel,
                 passcode,
             );
+            unsecuredSession.detachChannel();
+            return caseSession;
         } catch (e) {
             // Close the exchange and rethrow
-            await unsecuredSession.initiateForceClose();
             if (e instanceof ChannelStatusResponseError) {
                 throw new NoResponseTimeoutError(
                     `Establishing PASE channel failed with channel status response error ${e.message}`,
                 );
             }
             throw e;
+        } finally {
+            await unsecuredSession.initiateForceClose();
         }
-
-        // If pairing succeeds, do not close the unsecured session because the channel is moved to the returned
-        // NodeSession
     }
 
     /** Validate if a Peer Address is already known and commissioned */

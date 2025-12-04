@@ -121,11 +121,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         if (this.lifecycle.isCommissioned) {
             this.statusUpdate("decommissioning");
 
-            try {
-                await this.act("decommission", agent => agent.commissioning.decommission());
-            } catch (e) {
-                logger.error(`Error decommissioning ${this}:`, e);
-            }
+            await this.act("decommission", agent => agent.commissioning.decommission());
         }
         await this.delete();
     }
