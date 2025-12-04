@@ -8,7 +8,7 @@ import { ReadResult } from "#action/response/ReadResult.js";
 import { Diagnostic, InternalError, Logger } from "#general";
 import { DecodedDataReport } from "#interaction/DecodedDataReport.js";
 import { IncomingInteractionClientMessenger } from "#interaction/InteractionMessenger.js";
-import { SubscriptionId } from "#interaction/Subscription.js";
+import { Subscription, SubscriptionId } from "#interaction/Subscription.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { ProtocolHandler } from "#protocol/ProtocolHandler.js";
 import { SecureSession } from "#session/SecureSession.js";
@@ -94,9 +94,7 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
 async function sendInvalid(messenger: IncomingInteractionClientMessenger, subscriptionId?: SubscriptionId) {
     await messenger.sendStatus(Status.InvalidSubscription, {
         multipleMessageInteraction: true,
-        logContext: {
-            subId: subscriptionId,
-        },
+        logContext: Subscription.diagnosticOf(subscriptionId),
     });
     await messenger.close();
 }

@@ -5,16 +5,7 @@
  */
 
 import { BasicInformation } from "#clusters/basic-information";
-import {
-    BasicMultiplex,
-    BasicSet,
-    Diagnostic,
-    isIpNetworkChannel,
-    Lifetime,
-    Logger,
-    MaybePromise,
-    Multiplex,
-} from "#general";
+import { BasicMultiplex, BasicSet, Diagnostic, isIpNetworkChannel, Lifetime, Logger, MaybePromise } from "#general";
 import type { MdnsClient } from "#mdns/MdnsClient.js";
 import type { NodeSession } from "#session/NodeSession.js";
 import type { SecureSession } from "#session/SecureSession.js";
@@ -32,7 +23,7 @@ export class Peer {
     #descriptor: PeerDescriptor;
     #context: Peer.Context;
     #sessions = new BasicSet<NodeSession>();
-    #workers: Multiplex;
+    #workers: BasicMultiplex;
     #isSaving = false;
     #limits: BasicInformation.CapabilityMinima = {
         caseSessionsPerFabric: 3,
@@ -106,7 +97,7 @@ export class Peer {
     }
 
     /**
-     * Remove the peer
+     * Close the peer without removing persistent state.
      */
     async close() {
         using _lifetime = this.#lifetime.closing();

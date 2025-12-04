@@ -13,6 +13,7 @@ import {
     ConnectionlessTransportSet,
     CryptoDecryptError,
     Diagnostic,
+    hex,
     ImplementationError,
     InternalError,
     Logger,
@@ -116,7 +117,7 @@ export class GroupSession extends SecureSession {
     }
 
     get via() {
-        return Diagnostic.via(`group/${this.idStr}`);
+        return Diagnostic.via(`group#${hex.word(this.id)}`);
     }
 
     get nodeId() {

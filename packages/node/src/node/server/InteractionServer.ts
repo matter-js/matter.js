@@ -39,6 +39,7 @@ import {
     SessionManager,
     SessionType,
     SubscribeRequest,
+    Subscription,
     TimedRequest,
     WriteRequest,
     WriteResponse,
@@ -525,7 +526,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             );
         } catch (error) {
             logger.error(
-                `Subscription ${subscriptionId} for Session ${session.idStr}: Error while sending initial data reports:`,
+                `Subscription ${Subscription.idStrOf(subscriptionId)} for session ${session.via}: Error while sending initial data reports:`,
                 error instanceof MatterError ? error.message : error,
             );
             if (error instanceof StatusResponseError && !(error instanceof ReceivedStatusResponseError)) {
@@ -559,8 +560,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             }),
             {
                 logContext: {
-                    subId: subscriptionId,
-                    maxInterval,
+                    ...Subscription.diagnosticOf(subscriptionId),
+                    maxInterval: Duration.format(maxInterval),
                 },
             },
         );
@@ -620,7 +621,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             "Subscribe successful »",
             exchange.via,
             Diagnostic.dict({
-                subId: id,
+                ...Subscription.diagnosticOf(id),
                 timing: `${Duration.format(Seconds(minIntervalFloorSeconds))} - ${Duration.format(Seconds(maxIntervalCeilingSeconds))} => ${Duration.format(subscription.maxInterval)}`,
                 sendInterval: Duration.format(subscription.sendInterval),
             }),
@@ -649,7 +650,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             `Reestablish subscription »`,
             exchange.via,
             Diagnostic.dict({
-                subId: subscriptionId,
+                ...Subscription.diagnosticOf(subscriptionId),
                 isFabricFiltered,
                 maxInterval: Duration.format(maxInterval),
                 sendInterval: Duration.format(sendInterval),
@@ -692,7 +693,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 `Subscription successfully reestablished »`,
                 exchange.via,
                 Diagnostic.dict({
-                    subId: subscriptionId,
+                    ...Subscription.diagnosticOf(subscriptionId),
                     timing: `${Duration.format(minIntervalFloor)} - ${Duration.format(maxIntervalCeiling)} => ${Duration.format(subscription.maxInterval)}`,
                     sendInterval: Duration.format(subscription.sendInterval),
                 }),

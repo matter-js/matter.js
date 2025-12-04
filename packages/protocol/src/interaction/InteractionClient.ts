@@ -62,6 +62,7 @@ import { DecodedAttributeReportStatus, DecodedAttributeReportValue } from "./Att
 import { DecodedDataReport } from "./DecodedDataReport.js";
 import { DecodedEventData, DecodedEventReportStatus, DecodedEventReportValue } from "./EventDataDecoder.js";
 import { InteractionClientMessenger, ReadRequest } from "./InteractionMessenger.js";
+import { Subscription } from "./Subscription.js";
 import { RegisteredSubscription, SubscriptionClient } from "./SubscriptionClient.js";
 
 const logger = Logger.get("InteractionClient");
@@ -818,7 +819,7 @@ export class InteractionClient {
         if (!keepSubscriptions) {
             for (const subscriptionId of this.#ownSubscriptionIds) {
                 logger.debug(
-                    `Removing subscription with ID ${subscriptionId} from InteractionClient because new subscription replaces it`,
+                    `Removing subscription ${Subscription.idStrOf(subscriptionId)} from InteractionClient because new subscription replaces it`,
                 );
                 this.removeSubscription(subscriptionId);
             }
@@ -1091,7 +1092,7 @@ export class InteractionClient {
         if (!keepSubscriptions) {
             for (const subscriptionId of this.#ownSubscriptionIds) {
                 logger.debug(
-                    `Removing subscription with ID ${subscriptionId} from InteractionClient because new subscription replaces it`,
+                    `Removing subscription with ID ${Subscription.idStrOf(subscriptionId)} from InteractionClient because new subscription replaces it`,
                 );
                 this.removeSubscription(subscriptionId);
             }
@@ -1160,7 +1161,7 @@ export class InteractionClient {
                 "Subscription successful «",
                 messenger.exchange.via,
                 Diagnostic.dict({
-                    subId: subscribeResponse.subscriptionId,
+                    ...Subscription.diagnosticOf(subscriptionId),
                     maxInterval: Duration.format(Seconds(subscribeResponse.maxInterval)),
                 }),
             );

@@ -25,7 +25,6 @@ import {
 } from "#general";
 import { GroupSession } from "#session/GroupSession.js";
 import type { NodeSession } from "#session/NodeSession.js";
-import type { SecureSession } from "#session/SecureSession.js";
 import { Session } from "#session/Session.js";
 import { SessionParameters } from "#session/SessionParameters.js";
 import {
@@ -709,13 +708,7 @@ export class MessageExchange {
             return Diagnostic.via(`exchange#${this.idStr}`);
         }
 
-        if (!this.session.isSecure) {
-            return Diagnostic.via(`unsecured/${this.idStr}`);
-        }
-
-        return Diagnostic.via(
-            `${(this.session as SecureSession).peerAddress.toString()}/${this.session.idStr}:${this.idStr}`,
-        );
+        return Diagnostic.via(`${this.session.via}:${this.idStr}`);
     }
 }
 

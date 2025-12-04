@@ -208,10 +208,6 @@ export abstract class Session {
     abstract decode(packet: DecodedPacket, aad?: Bytes): DecodedMessage;
     abstract encode(message: Message): Packet;
 
-    get idStr() {
-        return hex.word(this.id);
-    }
-
     static idStrOf(source: Packet | PacketHeader | number) {
         let id;
         if (typeof source === "number") {
@@ -231,10 +227,11 @@ export abstract class Session {
     }
 
     /**
-     * Close the exchange.
+     * Close the session.
      *
-     * Note that with current design we may not have fully removed the session once close returns because we defer the
-     * close if there are active exchanges.
+     * This begins the close process.  {@link shutdownLogic} is logic that should run once the session no longer accepts
+     * new exchanges.  It may set {@link deferredClose} to prevent the close from proceeding until all exchanges are
+     * finished.  Otherwise the close will proceed immediately.
      */
     async initiateClose(shutdownLogic?: () => Promise<void>) {
         if (this.isClosing) {
@@ -260,7 +257,7 @@ export abstract class Session {
      * This terminates subscriptions and exchanges without notifying peers.  It places the session in a closing state
      * so no further exchanges are accepted.
      *
-     * @param except an exchange to skip; this allows the current exchange to remain open
+     * @param except an exchange that should not be forced close; this allows the current exchange to remain open
      */
     async initiateForceClose(except?: MessageExchange) {
         await this.initiateClose(async () => {

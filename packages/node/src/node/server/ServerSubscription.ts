@@ -8,6 +8,7 @@ import { NodeActivity } from "#behavior/context/NodeActivity.js";
 import { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
 import {
     Duration,
+    hex,
     Hours,
     Logger,
     MatterError,
@@ -612,7 +613,7 @@ export class ServerSubscription extends Subscription {
         this.isClosed = true;
 
         this.session.subscriptions.delete(this);
-        logger.debug(`Removed subscription ${this.id} from ${this.session.via}`);
+        logger.debug(this.session.via, "Deleted subscription", hex.fixed(this.id, 8));
 
         this.cancelled.emit(this);
 

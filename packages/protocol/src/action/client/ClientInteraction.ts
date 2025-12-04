@@ -29,6 +29,7 @@ import {
     Seconds,
 } from "#general";
 import { InteractionClientMessenger, MessageType } from "#interaction/InteractionMessenger.js";
+import { Subscription } from "#interaction/Subscription.js";
 import { ExchangeProvider } from "#protocol/ExchangeProvider.js";
 import { SecureSession } from "#session/SecureSession.js";
 import { Status, TlvAttributeReport, TlvNoResponse, TlvSubscribeResponse, TypeFromSchema } from "#types";
@@ -335,7 +336,7 @@ export class ClientInteraction<
         if (!request.keepSubscriptions) {
             for (const subscription of this.#subscriptions) {
                 logger.debug(
-                    `Removing subscription with ID ${subscription.subscriptionId} because new subscription replaces it`,
+                    `Removing subscription with ID ${Subscription.idStrOf(subscription)} because new subscription replaces it`,
                 );
                 subscription.close();
             }

@@ -228,7 +228,9 @@ export class SubscriptionsBehavior extends Behavior {
                 logger.debug(`Skip reestablishing former subscription to ${peerAddress}`);
                 continue;
             }
-            logger.debug(`Try to reestablish former subscription ${subscriptionId} to ${peerAddress}`);
+            logger.debug(
+                `Try to reestablish former subscription ${Subscription.idStrOf(subscription)} to ${peerAddress}`,
+            );
             if (sessions.maybeSessionFor(peerAddress) !== undefined) {
                 logger.debug(`We already have and existing session for peer ${peerAddress}`);
             } else {
@@ -252,7 +254,9 @@ export class SubscriptionsBehavior extends Behavior {
             try {
                 if (peerStopList.has(peerAddress)) {
                     // To prevent concurrency issues, check again if there is a stop reason for this fabric
-                    logger.debug(`Skip re-establishing former subscription ${subscriptionId} to ${peerAddress}`);
+                    logger.debug(
+                        `Skip re-establishing former subscription ${Subscription.idStrOf(subscriptionId)} to ${peerAddress}`,
+                    );
                     continue;
                 }
                 const session = sessions.maybeSessionFor(peerAddress);
@@ -264,7 +268,7 @@ export class SubscriptionsBehavior extends Behavior {
                 await interactionServer.establishFormerSubscription(subscription, session);
             } catch (error) {
                 logger.debug(
-                    `Failed to re-establish former subscription ${subscriptionId} to ${peerAddress}`,
+                    `Failed to re-establish former subscription ${Subscription.idStrOf(subscriptionId)} to ${peerAddress}`,
                     StatusResponseError.is(error)
                         ? error.code === StatusCode.InvalidSubscription
                             ? "Subscription no langer valid for peer"

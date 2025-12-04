@@ -18,6 +18,7 @@ import {
     InternalError,
     Logger,
     MatterFlowError,
+    hex,
 } from "#general";
 import { Subscription } from "#interaction/Subscription.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
@@ -229,7 +230,7 @@ export class NodeSession extends SecureSession {
     }
 
     get via() {
-        return Diagnostic.via(`${this.isPase ? "pase" : "case"}:${this.idStr}`);
+        return Diagnostic.via(`${this.peerAddress.toString()}/${hex.word(this.id)}`);
     }
 
     get peerSessionId(): number {

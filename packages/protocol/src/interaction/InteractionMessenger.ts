@@ -9,6 +9,7 @@ import {
     Bytes,
     Diagnostic,
     Duration,
+    hex,
     InternalError,
     Logger,
     MatterFlowError,
@@ -59,6 +60,7 @@ import {
     encodeEventPayload,
     EventReportPayload,
 } from "./AttributeDataEncoder.js";
+import { Subscription } from "./Subscription.js";
 
 export enum MessageType {
     StatusResponse = 0x01,
@@ -691,7 +693,7 @@ export class InteractionServerMessenger extends InteractionMessenger {
         }
 
         const logContext = {
-            subId: dataReportToSend.subscriptionId,
+            ...Subscription.diagnosticOf(dataReportToSend),
             interactionFlags: Diagnostic.asFlags({
                 empty: !dataReportToSend.attributeReports?.length && !dataReportToSend.eventReports?.length,
                 suppressResponse: dataReportToSend.suppressResponse,
@@ -926,20 +928,18 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
                 if (report.subscriptionId === undefined || !expectedSubscriptionIds.includes(report.subscriptionId)) {
                     await this.sendStatus(Status.InvalidSubscription, {
                         multipleMessageInteraction: true,
-                        logContext: {
-                            subId: report.subscriptionId,
-                        },
+                        logContext: Subscription.diagnosticOf(report),
                     });
                     throw new UnexpectedDataError(
                         report.subscriptionId === undefined
                             ? "Invalid Data report without Subscription ID"
-                            : `Invalid Data report with unexpected subscription ID ${report.subscriptionId}`,
+                            : `Invalid Data report with unexpected subscription ID ${Subscription.idStrOf(report)}`,
                     );
                 }
             }
 
             if (result?.subscriptionId !== undefined && report.subscriptionId !== result.subscriptionId) {
-                throw new UnexpectedDataError(`Invalid subscription ID ${report.subscriptionId} received`);
+                throw new UnexpectedDataError(`Invalid subscription ID ${Subscription.idStrOf(report)} received`);
             }
 
             report.attributeReports = report.attributeReports ?? [];
@@ -1012,7 +1012,7 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
 
     #logContextOf(report: DataReport) {
         return {
-            subId: report.subscriptionId,
+            subId: report.subscriptionId === undefined ? undefined : hex.fixed(report.subscriptionId, 8),
             dataReportFlags: Diagnostic.asFlags({
                 empty: !report.attributeReports?.length && !report.eventReports?.length,
                 suppressResponse: report.suppressResponse,
@@ -1143,7 +1143,7 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
 
         if (subscribeResponse.subscriptionId !== subscriptionId) {
             throw new MatterFlowError(
-                `Received subscription ID ${subscribeResponse.subscriptionId} instead of ${subscriptionId}`,
+                `Received subscription ID ${Subscription.idStrOf(subscribeResponse.subscriptionId)} instead of ${Subscription.idStrOf(subscriptionId)}`,
             );
         }
 

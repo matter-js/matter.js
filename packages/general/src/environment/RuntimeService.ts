@@ -11,7 +11,7 @@ import { Diagnostic } from "../log/Diagnostic.js";
 import { DiagnosticSource } from "../log/DiagnosticSource.js";
 import { Logger } from "../log/Logger.js";
 import { type Constructable } from "../util/Construction.js";
-import { Destructable, Lifecycle } from "../util/Lifecycle.js";
+import { type Destructable, Lifecycle } from "../util/Lifecycle.js";
 import { Observable } from "../util/Observable.js";
 import type { Environment } from "./Environment.js";
 import { Environmental } from "./Environmental.js";

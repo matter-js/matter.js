@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AsyncObservable, Duration, InternalError, Logger } from "#general";
+import { AsyncObservable, Diagnostic, Duration, hex, InternalError, Logger } from "#general";
 import { NodeSession } from "#session/NodeSession.js";
 import { TlvAttributePath, TlvDataVersionFilter, TlvEventFilter, TlvEventPath, TypeFromSchema } from "#types";
 
@@ -42,6 +42,28 @@ export abstract class Subscription {
 
     get id() {
         return this.#id;
+    }
+
+    get subscriptionId() {
+        return this.#id;
+    }
+
+    static idStrOf(subscription: undefined | number | { subscriptionId?: number }) {
+        if (typeof subscription === "object") {
+            subscription = subscription.subscriptionId;
+        }
+
+        if (subscription === undefined) {
+            return undefined;
+        }
+
+        return hex.fixed(subscription, 8);
+    }
+
+    static diagnosticOf(subscription: undefined | number | { subscriptionId?: number }) {
+        return {
+            "sub#": this.idStrOf(subscription),
+        };
     }
 
     get criteria() {
@@ -97,6 +119,6 @@ export abstract class Subscription {
 
     protected activate() {
         this.#session.subscriptions.add(this);
-        logger.debug(this.#session.via, `Added subscription ${this.#id}`);
+        logger.debug(this.#session.via, "New subscription", Diagnostic.strong(hex.fixed(this.#id, 8)));
     }
 }

@@ -57,15 +57,11 @@ export class UnsecuredSession extends Session {
     }
 
     get via() {
-        return Diagnostic.via(`unsecured:${hex.fixed(this.#initiatorNodeId, 16)}`);
+        return Diagnostic.via(`unsecured#${hex.fixed(this.#initiatorNodeId, 16)}`);
     }
 
     get id(): number {
         return UNICAST_UNSECURE_SESSION_ID;
-    }
-
-    override get idStr() {
-        return "unsecured";
     }
 
     get peerSessionId(): number {
