@@ -42,7 +42,13 @@ import { ProtocolHandler } from "./ProtocolHandler.js";
 
 const logger = Logger.get("ExchangeManager");
 
-const MAXIMUM_CONCURRENT_EXCHANGES_PER_SESSION = 5;
+/**
+ * Maximum number of concurrent outgoing exchanges per session.
+ * We chose 30 under the assumption that each exchange have one message in flight and the usual SecureSession message
+ * counter window tracks 32 messages. So we have "2 spare messages" if really someone uses that many parallel exchanges.
+ * TODO: Change this into an exchange creation queue instead of hard limiting it.
+ */
+const MAXIMUM_CONCURRENT_OUTGOING_EXCHANGES_PER_SESSION = 30;
 
 /**
  * Interfaces {@link ExchangeManager} with other components.
@@ -409,14 +415,17 @@ export class ExchangeManager {
             return;
         }
         const sessionExchanges = Array.from(this.#exchanges.values()).filter(
-            exchange => exchange.session.id === sessionId && !exchange.isClosing,
+            exchange => exchange.session.id === sessionId && !exchange.isClosing && exchange.isInitiator,
         );
-        if (sessionExchanges.length <= MAXIMUM_CONCURRENT_EXCHANGES_PER_SESSION) {
+        if (sessionExchanges.length <= MAXIMUM_CONCURRENT_OUTGOING_EXCHANGES_PER_SESSION) {
             return;
         }
         // let's use the first entry in the Map as the oldest exchange and close it
+        // TODO: Adjust this logic into a Exchange creation queue instead of hard closing
         const exchangeToClose = sessionExchanges[0];
-        logger.debug(`Closing oldest exchange ${exchangeToClose.id} for session ${sessionId}`);
+        logger.info(
+            `Closing oldest exchange ${exchangeToClose.id} for session ${sessionId} because of too many concurrent outgoing exchanges. Ensure to not send that many parallel messages to one peer.`,
+        );
         exchangeToClose.close().catch(error => logger.error("Error closing exchange", error)); // TODO Promise??
     }
 

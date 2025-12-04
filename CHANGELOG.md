@@ -84,6 +84,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: MDNS client and server efficiency is improved with a shared socket and message parser
     - Enhancement: MDNS Truncated Queries are now handled correctly
     - Enhancement: matter.js no longer uses SO_REUSEADDR on the Matter port so you can no longer accidentally start two nodes at the same address simultaneously
+    - Enhancement: Increases the limitation of parallel exchanges when sending messages to 30 (was 5 before)
     - Fix: Controller networking was previously throwing the incorrect error after a communication timeout
     - Fix: Ensures to only include the MaxTcpMessageSize in Session parameters when TCP is enabled
     - Fix: Fixes the used ACL level for wildcard writes
