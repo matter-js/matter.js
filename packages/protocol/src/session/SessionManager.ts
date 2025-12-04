@@ -400,11 +400,19 @@ export class SessionManager {
     maybeSessionFor(address: PeerAddress) {
         this.#construction.assert();
 
-        //TODO: It can have multiple sessions for one node ...
-        return [...this.#sessions].find(session => {
-            if (!session.isSecure) return false;
-            return session.peerIs(address);
-        });
+        // Prefer the most recently used session.  Older ones may not work with broken peers (e.g. CHIP test harness)
+        let found: NodeSession | undefined;
+        for (const session of this.#sessions) {
+            if (!session.peerIs(address)) {
+                continue;
+            }
+
+            if (!found || found.timestamp < session.timestamp) {
+                found = session;
+            }
+        }
+
+        return found;
     }
 
     sessionsFor(address: PeerAddress) {

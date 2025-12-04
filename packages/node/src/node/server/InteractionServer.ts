@@ -606,7 +606,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             exchange.via,
             Diagnostic.dict({
                 ...Subscription.diagnosticOf(subscription),
-                timing: `${Duration.format(subscription.minIntervalFloor)} - ${subscription.maxIntervalCeiling} => ${Duration.format(subscription.maxInterval)}`,
+                timing: `${Duration.format(subscription.minIntervalFloor)} - ${Duration.format(subscription.maxIntervalCeiling)} => ${Duration.format(subscription.maxInterval)}`,
                 sendInterval: Duration.format(subscription.sendInterval),
             }),
         );
