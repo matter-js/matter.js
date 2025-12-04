@@ -225,9 +225,9 @@ export class ServerSubscription implements Subscription {
         this.#maxInterval = value;
     }
 
-    async handlePeerCancel(flush = false) {
+    async handlePeerCancel() {
         this.#isCanceledByPeer = true;
-        await this.close(flush);
+        await this.#cancel(true);
     }
 
     #determineSendingIntervals(
@@ -481,8 +481,9 @@ export class ServerSubscription implements Subscription {
                     ) {
                         // Let's consider this subscription as dead and wait for a reconnect.  We handle as if the
                         // controller cancelled
-                        await this.handlePeerCancel();
-                        return;
+                        this.#isCanceledByPeer = true;
+                        await this.#cancel();
+                        break;
                     } else {
                         throw error;
                     }
@@ -646,6 +647,14 @@ export class ServerSubscription implements Subscription {
         }
         this.#isClosed = true;
 
+        await this.#cancel(flush);
+
+        if (this.#currentUpdatePromise) {
+            await this.#currentUpdatePromise;
+        }
+    }
+
+    async #cancel(flush = false) {
         this.#sendUpdatesActivated = false;
 
         this.#changeHandlers.close();
@@ -661,10 +670,6 @@ export class ServerSubscription implements Subscription {
         logger.debug(this.session.via, "Deleted subscription", hex.fixed(this.subscriptionId, 8));
 
         this.cancelled.emit(this);
-
-        if (this.#currentUpdatePromise) {
-            await this.#currentUpdatePromise;
-        }
     }
 
     /**
@@ -764,11 +769,12 @@ export class ServerSubscription implements Subscription {
         } catch (error) {
             if (StatusResponseError.is(error, StatusCode.InvalidSubscription, StatusCode.Failure)) {
                 logger.info(`Subscription ${this.subscriptionId} cancelled by peer`);
-                await this.handlePeerCancel();
+                this.#isCanceledByPeer = true;
+                await this.#cancel();
             } else {
                 StatusResponseError.accept(error);
                 logger.info(`Subscription ${this.subscriptionId} update failed:`, error);
-                await this.close();
+                await this.#cancel();
             }
         } finally {
             await messenger.close();
