@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Mark } from "#common/Mark.js";
 import {
     Bytes,
     DataReader,
@@ -16,7 +17,6 @@ import {
     UnexpectedDataError,
 } from "#general";
 import type { ExchangeLogContext } from "#protocol/MessageExchange.js";
-import type { Session } from "#session/Session.js";
 import { GroupId, INTERACTION_PROTOCOL_ID, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "#types";
 import { MessageType } from "../interaction/InteractionMessenger.js";
 
@@ -64,14 +64,11 @@ export interface Message {
 }
 
 export namespace Message {
-    export function identityOf(
-        { id: sessionId }: Session,
-        { packetHeader: { messageId }, payloadHeader: { exchangeId } }: Message,
-    ) {
-        return `${hex.word(sessionId)}:${hex.word(exchangeId)}:${hex.fixed(messageId, 8)}`;
+    export function via({ via }: { via: string }, { packetHeader: { messageId } }: Message) {
+        return Diagnostic.via(`${via}${Mark.MESSAGE}${hex.fixed(messageId, 8)}`);
     }
 
-    export function diagnosticsOf(session: Session, message: Message, logContext?: ExchangeLogContext) {
+    export function diagnosticsOf(context: { via: string }, message: Message, logContext?: ExchangeLogContext) {
         const {
             payloadHeader: { messageType, protocolId, ackedMessageId, requiresAck },
             payload,
@@ -87,7 +84,7 @@ export namespace Message {
             {
                 for: forInfo ?? forType,
                 ...log,
-                id: Message.identityOf(session, message),
+                id: Message.via(context, message),
                 type,
                 acked: ackedMessageId === undefined ? undefined : hex.fixed(ackedMessageId, 8),
                 msgFlags: Diagnostic.asFlags({

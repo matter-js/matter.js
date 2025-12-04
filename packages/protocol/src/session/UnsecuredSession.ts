@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto, Diagnostic, hex, MatterFlowError } from "#general";
+import { Mark } from "#common/Mark.js";
+import { Bytes, Crypto, Diagnostic, MatterFlowError } from "#general";
 import { NoAssociatedFabricError } from "#protocol/errors.js";
 import { NodeId } from "#types";
 import { DecodedMessage, DecodedPacket, Message, MessageCodec, Packet, SessionType } from "../codec/MessageCodec.js";
@@ -57,7 +58,7 @@ export class UnsecuredSession extends Session {
     }
 
     get via() {
-        return Diagnostic.via(`unsecured#${hex.fixed(this.#initiatorNodeId, 16)}`);
+        return Diagnostic.via(`${Mark.SESSION}unsecured#${this.#initiatorNodeId.toString(16)}`);
     }
 
     get id(): number {

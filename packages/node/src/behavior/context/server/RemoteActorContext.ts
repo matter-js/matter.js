@@ -5,11 +5,18 @@
  */
 
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
-import { AsyncObservable, Diagnostic, InternalError, MaybePromise, Transaction } from "#general";
+import { AsyncObservable, InternalError, MaybePromise, Transaction } from "#general";
 import { AccessLevel } from "#model";
 import type { Node } from "#node/Node.js";
-import type { Message, NodeProtocol } from "#protocol";
-import { AccessControl, AclEndpointContext, FabricAccessControl, MessageExchange, SecureSession } from "#protocol";
+import {
+    AccessControl,
+    AclEndpointContext,
+    FabricAccessControl,
+    Message,
+    MessageExchange,
+    NodeProtocol,
+    SecureSession,
+} from "#protocol";
 import { FabricIndex, Priority } from "#types";
 import { Contextual } from "../Contextual.js";
 import { NodeActivity } from "../NodeActivity.js";
@@ -78,9 +85,7 @@ export function RemoteActorContext(options: RemoteActorContext.Options) {
     const accessControl = fabric?.accessControl ?? new FabricAccessControl();
 
     // If we have subjects, the first is the main one, used for diagnostics
-    const via = Diagnostic.via(
-        `online#${message?.packetHeader?.messageId?.toString(16) ?? "?"}@${subject.id.toString(16)}`,
-    );
+    const via = message ? Message.via(exchange, message) : exchange.via;
 
     return {
         /**
@@ -129,7 +134,7 @@ export function RemoteActorContext(options: RemoteActorContext.Options) {
             });
         },
 
-        [Symbol.toStringTag]: "OnlineContext",
+        [Symbol.toStringTag]: "RemoteActorContext",
     };
 
     /**

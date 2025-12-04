@@ -8,6 +8,7 @@ export * from "../peer/PeerAddress.js";
 export * from "./ExpandedPath.js";
 export * from "./FailsafeContext.js";
 export * from "./FailsafeTimer.js";
+export * from "./Mark.js";
 export * from "./OperationalCredentialsTypes.js";
 export * from "./Scanner.js";
 export * from "./SupportedTransportsBitmap.js";

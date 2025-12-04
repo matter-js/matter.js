@@ -5,6 +5,7 @@
  */
 
 import { Message, PacketHeader, SessionType } from "#codec/MessageCodec.js";
+import { Mark } from "#common/Mark.js";
 import {
     AsyncObservableValue,
     Bytes,
@@ -259,7 +260,7 @@ export class MessageExchange {
     }
 
     async onMessageReceived(message: Message, duplicate = false) {
-        logger.debug("Message «", Message.diagnosticsOf(this.session, message, { duplicate }));
+        logger.debug("Message «", Message.diagnosticsOf(this, message, { duplicate }));
 
         // Adjust the incoming message when ack was required, but this exchange does not use it to skip all relevant logic
         if (message.payloadHeader.requiresAck && !this.session.usesMrp) {
@@ -437,7 +438,7 @@ export class MessageExchange {
         if (this.session.usesMrp && message.payloadHeader.requiresAck && !disableMrpLogic) {
             this.#sentMessageToAck = message;
             this.#retransmissionTimer = Time.getTimer(
-                `retransmitting ${Message.identityOf(this.session, message)}`,
+                `retransmitting ${Message.via(this, message)}`,
                 this.channel.getMrpResubmissionBackOffTime(0),
                 () => this.#retransmitMessage(message, expectedProcessingTime),
             );
@@ -447,7 +448,7 @@ export class MessageExchange {
             this.#sentMessageAckFailure = rejecter;
         }
 
-        using sending = this.join("sending", Diagnostic.strong(Message.identityOf(this.session, message)));
+        using sending = this.join("sending", Diagnostic.strong(Message.via(this, message)));
         await this.channel.send(message, logContext);
 
         if (ackPromise !== undefined) {
@@ -519,10 +520,10 @@ export class MessageExchange {
                 if (finalWaitTime > 0) {
                     this.#retransmissionCounter--; // We will not resubmit the message again
                     logger.debug(
-                        `Message ${Message.identityOf(this.session, message)}: Wait additional ${Duration.format(finalWaitTime)} for processing time and peer resubmissions after all our resubmissions`,
+                        `Message ${Message.via(this, message)}: Wait additional ${Duration.format(finalWaitTime)} for processing time and peer resubmissions after all our resubmissions`,
                     );
                     this.#retransmissionTimer = Time.getTimer(
-                        `waiting after resubmissions for ${Message.identityOf(this.session, message)}`,
+                        `waiting after resubmissions for ${Message.via(this, message)}`,
                         finalWaitTime,
                         () => this.#retransmitMessage(message),
                     ).start();
@@ -550,7 +551,7 @@ export class MessageExchange {
         this.context.retry(this.#retransmissionCounter);
         const resubmissionBackoffTime = this.channel.getMrpResubmissionBackOffTime(this.#retransmissionCounter);
         logger.debug(
-            `Resubmitting ${Message.identityOf(this.session, message)} (retransmission attempt ${this.#retransmissionCounter}, backoff time ${Duration.format(resubmissionBackoffTime)}))`,
+            `Resubmitting ${Message.via(this, message)} (retransmission attempt ${this.#retransmissionCounter}, backoff time ${Duration.format(resubmissionBackoffTime)}))`,
         );
 
         // TODO await
@@ -558,7 +559,7 @@ export class MessageExchange {
             .send(message)
             .then(() => this.#initializeResubmission(message, resubmissionBackoffTime, expectedProcessingTime))
             .catch(error => {
-                logger.error(`Error retransmitting ${Message.identityOf(this.session, message)}:`, error);
+                logger.error(`Error retransmitting ${Message.via(this, message)}:`, error);
                 if (error instanceof SessionClosedError) {
                     this.#close().catch(error => logger.error("An error happened when closing the exchange", error));
                 } else {
@@ -711,10 +712,10 @@ export class MessageExchange {
 
     get via() {
         if (this.session === undefined) {
-            return Diagnostic.via(`exchange#${this.idStr}`);
+            return Diagnostic.via(`${Mark.EXCHANGE}${this.idStr}`);
         }
 
-        return Diagnostic.via(`${this.session.via}:${this.idStr}`);
+        return Diagnostic.via(`${this.session.via}${Mark.EXCHANGE}${this.idStr}`);
     }
 }
 

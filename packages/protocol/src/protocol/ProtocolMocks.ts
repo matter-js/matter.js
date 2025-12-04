@@ -251,6 +251,9 @@ export namespace ProtocolMocks {
          */
         async writeStatus(status = Status.Success) {
             await this.write({
+                packetHeader: {
+                    messageId: 123,
+                },
                 payloadHeader: {
                     messageType: MessageType.StatusResponse,
                 },

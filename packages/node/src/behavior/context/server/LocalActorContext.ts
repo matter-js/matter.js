@@ -7,7 +7,7 @@
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import { Diagnostic, InternalError, Lifetime, MaybePromise, Transaction } from "#general";
 import { AccessLevel } from "#model";
-import { AccessControl } from "#protocol";
+import { AccessControl, Mark } from "#protocol";
 import { Contextual } from "../Contextual.js";
 import type { NodeActivity } from "../NodeActivity.js";
 export let nextInternalId = 1;
@@ -65,7 +65,7 @@ export const LocalActorContext = {
     open(purpose: string, options?: LocalActorContext.Options): LocalActorContext & Transaction.Finalization {
         const id = nextInternalId;
         nextInternalId = (nextInternalId + 1) % 65535;
-        const via = Diagnostic.via(`${purpose}#${id.toString(16)}`);
+        const via = Diagnostic.via(`${Mark.LOCAL_SESSION}${purpose}#${id.toString(16)}`);
 
         let frame: NodeActivity.Activity | undefined;
         let transaction: (Transaction & Transaction.Finalization) | undefined;
@@ -132,7 +132,7 @@ export const LocalActorContext = {
         return ReadOnly;
     },
 
-    [Symbol.toStringTag]: "OfflineContext",
+    [Symbol.toStringTag]: "LocalActorContext",
 };
 
 export namespace LocalActorContext {

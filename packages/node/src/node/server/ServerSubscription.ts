@@ -685,7 +685,7 @@ export class ServerSubscription implements Subscription {
         const session = RemoteActorContext({
             activity: (exchange as NodeActivity.WithActivity)[NodeActivity.activityKey],
             fabricFiltered: request.isFabricFiltered,
-            message: {} as Message,
+            message: { packetHeader: { messageId: 123 } } as Message,
             exchange,
             node: this.#context.node,
         }).beginReadOnly();

@@ -5,6 +5,7 @@
  */
 import { Subject } from "#action/server/Subject.js";
 import { DecodedMessage, DecodedPacket, Message, MessageCodec, Packet, SessionType } from "#codec/MessageCodec.js";
+import { Mark } from "#common/Mark.js";
 import type { Fabric } from "#fabric/Fabric.js";
 import type { FabricManager } from "#fabric/FabricManager.js";
 import {
@@ -117,7 +118,7 @@ export class GroupSession extends SecureSession {
     }
 
     get via() {
-        return Diagnostic.via(`group#${hex.word(this.id)}`);
+        return Diagnostic.via(`${Mark.SESSION}group#${hex.word(this.id)}`);
     }
 
     get nodeId() {

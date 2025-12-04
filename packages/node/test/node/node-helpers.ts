@@ -241,11 +241,11 @@ export namespace interaction {
     } as InteractionServerMessenger;
 
     export const BarelyMockedMessage = {
-        packetHeader: { sessionType: SessionType.Unicast },
+        packetHeader: { sessionType: SessionType.Unicast, messageId: 123 },
     } as Message;
 
     export const BarelyMockedGroupMessage = {
-        packetHeader: { sessionType: SessionType.Group },
+        packetHeader: { sessionType: SessionType.Group, messageId: 123 },
     } as Message;
 
     export async function connect(node: MockServerNode, fabric: Fabric) {

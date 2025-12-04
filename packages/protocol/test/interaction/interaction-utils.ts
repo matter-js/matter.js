@@ -129,9 +129,9 @@ export async function createDummyMessageExchange(
 }
 
 export const DummyUnicastMessage = {
-    packetHeader: { sessionType: SessionType.Unicast },
+    packetHeader: { sessionType: SessionType.Unicast, messageId: 123 },
 } as Message;
 
 export const DummyGroupcastMessage = {
-    packetHeader: { sessionType: SessionType.Group },
+    packetHeader: { sessionType: SessionType.Group, messageId: 123 },
 } as Message;
