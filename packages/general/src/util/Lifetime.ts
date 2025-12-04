@@ -45,9 +45,19 @@ export interface Lifetime extends Disposable, Diagnostic, Lifetime.Owner {
     readonly details: Record<string, unknown>;
 
     /**
-     * Set if the lifetime is disposed prior to disposal of all {@link spans}.
+     * The inverse of {@link isClosing}.
      */
-    readonly zombie: boolean;
+    readonly isOpen: boolean;
+
+    /**
+     * Set when the lifetime begins closing (via {@link closing}) or {@link isClosed} is true.
+     */
+    readonly isClosing: boolean;
+
+    /**
+     * Set when the lifetime has exited.
+     */
+    readonly isClosed: boolean;
 
     /**
      * The lifetime enclosing this lifetime.
@@ -78,7 +88,7 @@ class LifetimeImplementation implements Lifetime, Lifetime.Owner {
     #details?: Record<string, unknown>;
     #spans?: Set<Lifetime>;
     #closing?: Lifetime;
-    #zombie = false;
+    #isClosed = false;
 
     declare [Diagnostic.presentation]: unknown;
 
@@ -113,10 +123,6 @@ class LifetimeImplementation implements Lifetime, Lifetime.Owner {
 
     get details() {
         return this.#details ?? {};
-    }
-
-    get zombie() {
-        return this.#zombie;
     }
 
     get owner() {
@@ -159,6 +165,18 @@ class LifetimeImplementation implements Lifetime, Lifetime.Owner {
         return this.#closing;
     }
 
+    get isOpen() {
+        return this.#closing === undefined && !this.#isClosed;
+    }
+
+    get isClosing() {
+        return this.#closing !== undefined || this.#isClosed;
+    }
+
+    get isClosed() {
+        return this.#isClosed;
+    }
+
     get [DiagnosticPresentation.value]() {
         // Special case for process lifetime
         if (!this.#owner) {
@@ -169,7 +187,7 @@ class LifetimeImplementation implements Lifetime, Lifetime.Owner {
 
         const header: unknown[] = [this.#name];
 
-        if (this.zombie) {
+        if (this.isClosed) {
             header.push(Diagnostic.weak("(zombie)"));
         }
 
@@ -195,9 +213,10 @@ class LifetimeImplementation implements Lifetime, Lifetime.Owner {
             return;
         }
 
+        this.#isClosed = true;
+
         // If we are disposed with active sublifetimess we become a zombie
         if (this.#spans?.size) {
-            this.#zombie = true;
             return;
         }
 
@@ -211,8 +230,7 @@ function removeSpan(owner: Lifetime | undefined, span: Lifetime) {
     }
 
     owner.spans.delete(span);
-    if (owner.zombie && !owner.spans?.size) {
-        removeSpan(owner.owner, owner);
+    if (owner.isClosed && !owner.spans?.size) {
         owner[Symbol.dispose]();
     }
 }
