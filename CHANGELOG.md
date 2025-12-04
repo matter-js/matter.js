@@ -24,6 +24,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: SyncStorage interface got removed
     - Breaking: MaybeAsyncStorage got renamed to Storage because it is the only interface from now on
     - Breaking: Some central services, especially MdnsService, are now tracked automatically by usages and will close correctly when no longer needed. Closing MdnsService manually is not needed anymore.
+    - Breaking: The types for observables with synchronous emitters no longer accept async observers.  Most observables are async but if you encounter a type error you need to track your promise outside of the observable
     - Feature: Adds Blob support to the Storage interface
     - Feature: Add BDX (Bulk Data eXchange) protocol support according to Matter specification
     - Feature: Added support for multiple hash algorithms (SHA-256, SHA-384, SHA-512, SHA-512/224, SHA-512/256, SHA3-256) via HashAlgorithm enum with IANA identifiers
@@ -45,6 +46,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: `SubscriptionBehavior` is renamed to `SubscriptionsServer` with corresponding ID change to "subscriptions". This means in part that matter.js will ignore saved subscriptions but devices will recreate them automatically
     - Breaking: The `agentFor` method of `ActionContext` has moved to `Endpoint`. You likely do not use this directly but if you do you must change `context.agentFor(endpoint)` to `endpoint.agentFor(context)`
     - Breaking: We have refactored the `ActionContext` class to better delineate fields that apply to operations triggered locally vs those triggered by authenticated peers. `ActionContext` may be a `RemoteActorContext` or `LocalActorContext`. You can determine the actor type and access relevant fields using new type guards `hasRemoteActor` or `hasLocalActor` and new type assertion `assertRemoteActor`. These replace the former `offline` field of `ActionContext`
+    - Breaking: The `FabricAction` enum emitted by CommissioningServer is replaced with a simple string type
     - Feature: matter.js now natively supports remote access to Matter nodes via non-Matter protocols. You can add `HttpServer`, `WebSocketServer` and/or `MqttServer` to your `ServerNode` to enable HTTP, WebSocket and MQTT access respectively
     - Feature: You can now use Ecma TC39 stage 3 decorators to customize the schema associated with a `Behavior` implementation
     - Feature: New `StateStream` component offers a high-level API for monitoring changes across multiple nodes

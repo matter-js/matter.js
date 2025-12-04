@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { DiagnosticPresentation } from "#general";
 import { FabricIndex, GroupId, NodeId } from "#types";
-import { DiagnosticPresentation } from "@matter/general";
 
 /**
  * This is the "logical" address of a peer node consisting of a fabric and node ID.
