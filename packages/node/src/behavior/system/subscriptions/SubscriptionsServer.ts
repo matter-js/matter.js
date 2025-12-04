@@ -142,7 +142,7 @@ export class SubscriptionsBehavior extends Behavior {
             session,
             maxInterval,
             sendInterval,
-            id,
+            subscriptionId: id,
             maxIntervalCeiling,
             minIntervalFloor,
         } = subscription;
@@ -182,7 +182,7 @@ export class SubscriptionsBehavior extends Behavior {
 
     #subscriptionCancelled(subscription: Subscription): MaybePromise {
         if (subscription.isCanceledByPeer && this.state.persistenceEnabled !== false) {
-            const { id } = subscription;
+            const { subscriptionId: id } = subscription;
             const subscriptionIndex = this.state.subscriptions.findIndex(({ subscriptionId }) => id === subscriptionId);
             if (subscriptionIndex !== -1) {
                 return this.#removeSubscriptionIndex(subscriptionIndex);

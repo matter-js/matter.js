@@ -53,7 +53,7 @@ export class NodeSession extends SecureSession {
     readonly #closedByPeer = AsyncObservableValue();
     #isPeerLost = false;
 
-    // TODO - currently server specific; should move out or be integrated with client
+    // TODO - remove this; subscriptions should be owned by the peer, not the session
     readonly #subscriptions = new BasicSet<Subscription>();
 
     static async create(config: NodeSession.CreateConfig) {

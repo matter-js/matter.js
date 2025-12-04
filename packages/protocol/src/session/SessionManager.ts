@@ -694,16 +694,6 @@ export class SessionManager {
         );
     }
 
-    updateAllSubscriptions() {
-        this.#subscriptionUpdateMutex.run(async () => {
-            for (const session of this.#sessions) {
-                for (const subscription of session.subscriptions) {
-                    await subscription.update();
-                }
-            }
-        });
-    }
-
     /**
      * Compress range of IDs.  This is intended for testing.
      */
