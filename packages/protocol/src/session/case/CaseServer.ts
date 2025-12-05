@@ -60,13 +60,13 @@ export class CaseServer implements ProtocolHandler {
         try {
             await this.#handleSigma1(messenger);
         } catch (error) {
-            logger.error("Error establishing CASE session", error);
-
             if (error instanceof FabricNotFoundError) {
+                logger.error("Error establishing CASE session:", Diagnostic.errorMessage(error));
                 await messenger.sendError(SecureChannelStatusCode.NoSharedTrustRoots);
             }
             // If we received a ChannelStatusResponseError we do not need to send one back, so just cancel pairing
             else if (!(error instanceof ChannelStatusResponseError)) {
+                logger.error("Error establishing CASE session", error);
                 await messenger.sendError(SecureChannelStatusCode.InvalidParam);
             }
         } finally {
