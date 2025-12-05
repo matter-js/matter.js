@@ -223,7 +223,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
 
     #prepareOnlineContext(
         exchange: MessageExchange,
-        message: Message,
+        message?: Message,
         fabricFiltered?: boolean,
         timed = false,
     ): RemoteActorContext.Options {
@@ -634,7 +634,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         session: NodeSession,
     ) {
         const exchange = this.#context.exchangeManager.initiateExchange(session.peerAddress, INTERACTION_PROTOCOL_ID);
-        const message = {} as Message;
 
         logger.info(
             `Reestablish subscription`,
@@ -670,7 +669,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             useAsSendInterval: sendInterval,
         });
 
-        const readContext = this.#prepareOnlineContext(exchange, message, isFabricFiltered);
+        const readContext = this.#prepareOnlineContext(exchange, undefined, isFabricFiltered);
         try {
             // Send initial data report to prime the subscription with initial data
             await subscription.sendInitialReport(

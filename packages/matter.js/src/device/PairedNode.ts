@@ -8,7 +8,6 @@ import { AdministratorCommissioning, BasicInformation, Descriptor, OperationalCr
 import {
     AsyncObservable,
     AtLeastOne,
-    BasicSet,
     Construction,
     Crypto,
     Diagnostic,
@@ -34,8 +33,8 @@ import {
     DecodedEventReportValue,
     InteractionClient,
     NodeDiscoveryType,
-    NodeSession,
     PaseClient,
+    SessionManager,
     StructuredReadAttributeData,
     UnknownNodeError,
     structureReadAttributeDataToClusterObject,
@@ -327,7 +326,7 @@ export class PairedNode {
         interactionClient: InteractionClient,
         reconnectFunc: ReconnectionCallback,
         assignDisconnectedHandler: (handler: () => Promise<void>) => void,
-        sessions: BasicSet<NodeSession>,
+        sessions: SessionManager,
         crypto: Crypto,
         storedAttributeData?: DecodedAttributeReportValue<any>[],
     ): Promise<PairedNode> {
@@ -355,7 +354,7 @@ export class PairedNode {
         interactionClient: InteractionClient,
         reconnectFunc: ReconnectionCallback,
         assignDisconnectedHandler: (handler: () => Promise<void>) => void,
-        sessions: BasicSet<NodeSession, NodeSession>,
+        sessions: SessionManager,
         crypto: Crypto,
         storedAttributeData?: DecodedAttributeReportValue<any>[],
     ) {
@@ -399,7 +398,7 @@ export class PairedNode {
         this.#nodeDetails = new DeviceInformation(nodeId, knownNodeDetails);
         logger.info(`Node ${this.nodeId}: Created paired node with device data`, this.#nodeDetails.meta);
 
-        sessions.added.on(session => {
+        sessions.sessions.added.on(session => {
             if (
                 session.isInitiator || // If we initiated the session we do not need to react on it
                 session.peerNodeId !== this.nodeId || // no session for this node
@@ -414,6 +413,11 @@ export class PairedNode {
             // We try to initialize from stored data already
             if (storedAttributeData !== undefined) {
                 await this.#initializeFromStoredData(storedAttributeData);
+            }
+
+            if (sessions.maybeSessionFor(this.#interactionClient.address)) {
+                this.#setConnectionState(NodeStates.Connected);
+                return;
             }
 
             if (this.#options.autoConnect !== false) {

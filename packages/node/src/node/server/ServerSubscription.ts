@@ -28,7 +28,7 @@ import {
 } from "#general";
 import { Specification } from "#model";
 import type { ServerNode } from "#node/ServerNode.js";
-import type { DirtyState, Message, MessageExchange, NodeSession, SubscriptionId } from "#protocol";
+import type { DirtyState, MessageExchange, NodeSession, SubscriptionId } from "#protocol";
 import {
     AttributeReadResponse,
     AttributeSubscriptionResponse,
@@ -705,7 +705,6 @@ export class ServerSubscription implements Subscription {
         const session = RemoteActorContext({
             activity: (exchange as NodeActivity.WithActivity)[NodeActivity.activityKey],
             fabricFiltered: request.isFabricFiltered,
-            message: { packetHeader: { messageId: 123 } } as Message,
             exchange,
             node: this.#context.node,
         }).beginReadOnly();

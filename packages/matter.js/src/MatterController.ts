@@ -360,7 +360,7 @@ export class MatterController {
 
     get sessions() {
         this.#construction.assert();
-        return this.#node!.env.get(SessionManager).sessions;
+        return this.#node!.env.get(SessionManager);
     }
 
     getFabrics() {
