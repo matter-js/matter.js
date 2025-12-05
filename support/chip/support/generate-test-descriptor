@@ -179,6 +179,8 @@ def load_python():
         try:
             importlib.import_module(name)
         except ModuleNotFoundError as e:
+            sys.stderr.write(f"Error in {path}: {e}\n")
+
             # Skip files with whitelisted errors.  Do not skip all errors or build problems may go unnoticed
             if "No module named 'matter.webrtc'" in str(e):
                 # We neither test nor install webrtc support.  Test does not fail gracefully

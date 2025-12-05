@@ -19,24 +19,6 @@ describe("SC", () => {
     before(async () => {
         await chip.clearMdns();
 
-        const sc41 = chip.testFor("SC/4.1");
-        await sc41.edit(
-            edit.sed(
-                // We can pass values to YAML tests using e.g. .args("--", "deviceType", 257)...  But AFAICT there is no
-                // support for converting this value to an integer, even though the config schema specifies "int16u"
-                // explicitly.  So, the test then fails because 257 !== "257".  Instead we just rewrite the test
-                // definition
-                "s/defaultValue: 65535/defaultValue: 257/",
-
-                // We do not like ridiculously long waits; reduce commissioning timeout.  Unfortunately test framework
-                // is slow so we can't reduce to a reasonable level but 10s is still way better than 3m.
-                "s/value: 180/value: 10/",
-
-                // Also reduce the test delay that waits for timeout
-                "s/value: 180000/value: 10000/",
-            ),
-        );
-
         const sc71 = chip.testFor("SC/7.1");
         await sc71.edit(
             edit.sed(
@@ -53,14 +35,17 @@ describe("SC", () => {
 
     chip("SC/*").exclude(
         // These require additional configuration below
-        "SC/4.1",
+        "SC/4.1/*",
         "SC/7.1",
     );
 
-    // SC/4.1 needs MDNS cleared
-    chip("SC/4.1").beforeStart(async () => {
-        await chip.clearMdns();
-    });
+    // SC/4.1 needs MDNS cleared.  run1 has the wrong manual code; run2 has a pairing code that works.  Not sure what's
+    // up with that.  run3 is LIT ICD so not relevant for us
+    [chip("SC/4.1/run1").args("--manual-code", "34970112332"), chip("SC/4.1/run2")].forEach(builder =>
+        builder.beforeStart(async () => {
+            await chip.clearMdns();
+        }),
+    );
 
     // 7.1 must start factory fresh
     chip("SC/7.1").uncommissioned();
