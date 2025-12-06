@@ -158,7 +158,7 @@ export abstract class Session {
      * Once set this flag prevents establishment of new exchanges.
      */
     get isClosing(): boolean {
-        return this.#closing.value || this.deferredClose;
+        return this.#closing.value;
     }
 
     protected static generateNonce(securityFlags: number, messageId: number, nodeId: NodeId) {
@@ -309,7 +309,7 @@ export abstract class Session {
     }
 
     protected async close() {
-        using _closting = this.#lifetime?.closing();
+        using _closing = this.#lifetime?.closing();
 
         if (this.#channel) {
             await this.#channel.close();
