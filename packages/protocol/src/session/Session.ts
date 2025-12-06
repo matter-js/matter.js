@@ -158,7 +158,7 @@ export abstract class Session {
      * Once set this flag prevents establishment of new exchanges.
      */
     get isClosing(): boolean {
-        return this.#closing.value;
+        return this.#closing.value || this.deferredClose;
     }
 
     protected static generateNonce(securityFlags: number, messageId: number, nodeId: NodeId) {
@@ -231,7 +231,7 @@ export abstract class Session {
      *
      * This begins the close process.  {@link shutdownLogic} is logic that should run once the session no longer accepts
      * new exchanges.  It may set {@link deferredClose} to prevent the close from proceeding until all exchanges are
-     * finished.  Otherwise the close will proceed immediately.
+     * finished.  Otherwise, the close will proceed immediately.
      */
     async initiateClose(shutdownLogic?: () => Promise<void>) {
         if (this.isClosing) {
