@@ -450,7 +450,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             let clearedCount = 0;
             for (const session of this.#context.sessions.sessions) {
                 for (const subscription of session.subscriptions) {
-                    await subscription.handlePeerCancel(session);
+                    await subscription.handlePeerCancel();
                 }
                 clearedCount++;
             }

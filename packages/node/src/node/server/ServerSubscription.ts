@@ -241,9 +241,9 @@ export class ServerSubscription implements Subscription {
         this.#maxInterval = value;
     }
 
-    async handlePeerCancel(peerSession: Session) {
+    async handlePeerCancel() {
         this.#isCanceledByPeer = true;
-        await this.close(peerSession);
+        await this.close();
     }
 
     #determineSendingIntervals(

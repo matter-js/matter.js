@@ -17,7 +17,7 @@ export interface Subscription {
 
     // TODO - these should reside in a server-specific interface
     isCanceledByPeer: boolean;
-    handlePeerCancel(flushViaSession?: Session): Promise<void>;
+    handlePeerCancel(): Promise<void>;
     close(flushViaSession?: Session): Promise<void>;
 }
 
