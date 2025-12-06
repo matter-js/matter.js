@@ -294,7 +294,9 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                 rejecter(error);
             });
 
-        return promise;
+        if (options.discoveryOptions?.discoveryType !== NodeDiscoveryType.FullDiscovery) {
+            return promise;
+        }
     }
 
     /**
