@@ -331,6 +331,8 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             if (!this.#sessions.maybeSessionFor(address)) {
                 throw new RetransmissionLimitReachedError(`Device ${PeerAddress(address)} is unreachable`);
             }
+
+            // Close all sessions
             await this.#sessions.handlePeerLoss(address);
 
             // Enrich discoveryData with data from the node store when not provided
@@ -344,9 +346,10 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                     `Re-discovering device failed (no address found), remove all sessions for ${PeerAddress(address)}`,
                 );
                 // We remove all sessions, this also informs the PairedNode class
-                await this.#sessions.handlePeerLoss(address);
                 throw new RetransmissionLimitReachedError(`No operational address found for ${PeerAddress(address)}`);
             }
+
+            // Try to reconnect to last known address
             if (
                 (await this.#reconnectKnownAddress(address, operationalAddress, discoveryData, {
                     expectedProcessingTime: Seconds(2),
@@ -613,7 +616,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             await this.#addOrUpdatePeer(address, operationalAddress);
             return session;
         } catch (error) {
-            if (error instanceof NoResponseTimeoutError) {
+            if (error instanceof NoResponseTimeoutError || error instanceof ChannelStatusResponseError) {
                 logger.debug(
                     `Failed to resume connection to ${address} connection with ${ip}:${port}, discovering the node now:`,
                     error.message ? error.message : error,
