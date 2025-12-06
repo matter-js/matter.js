@@ -110,7 +110,7 @@ export class ControllerTestInstance extends TestInstance {
                         id: "alpha",
                     },
                     autoConnect: false, // Do not auto connect to the commissioned nodes
-                    adminFabricLabel: "alpha",
+                    adminFabricLabel: "",
                     rootNodeId: NodeId(0x112233),
                 }),
             ),
@@ -128,7 +128,7 @@ export class ControllerTestInstance extends TestInstance {
                         id: "beta",
                     },
                     autoConnect: false, // Do not auto connect to the commissioned nodes
-                    adminFabricLabel: "beta",
+                    adminFabricLabel: "",
                     rootNodeId: NodeId(0x112233),
                 }),
             ),
@@ -146,7 +146,7 @@ export class ControllerTestInstance extends TestInstance {
                         id: "gamma",
                     },
                     autoConnect: false, // Do not auto connect to the commissioned nodes
-                    adminFabricLabel: "gamma",
+                    adminFabricLabel: "",
                     rootNodeId: NodeId(0x112233),
                 }),
             ),
