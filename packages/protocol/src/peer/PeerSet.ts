@@ -272,6 +272,10 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
 
         const peer = this.for(address);
 
+        if (this.#sessions.maybeSessionFor(address) || peer.activeDiscovery?.type === NodeDiscoveryType.FullDiscovery) {
+            return;
+        }
+
         const { promise: existingReconnectPromise } = peer.activeReconnection ?? {};
         if (existingReconnectPromise !== undefined) {
             return existingReconnectPromise;
