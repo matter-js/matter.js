@@ -642,7 +642,7 @@ export class MessageExchange {
         return this.#timedInteractionTimer !== undefined && !this.#timedInteractionTimer.isRunning;
     }
 
-    async close(force = false) {
+    async close(force = this.isInitiator) {
         if (this.#isDestroyed) {
             return;
         }
@@ -676,7 +676,7 @@ export class MessageExchange {
                 logger.error(this.via, `Unhandled error closing exchange`, error);
             }
             if (force) {
-                // We have sent the Ack, so close here, no retries because close is forced
+                // We have sent the Ack, so close here, no retries needed
                 return this.#close();
             }
         } else if (this.#sentMessageToAck === undefined || force) {
