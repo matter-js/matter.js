@@ -509,7 +509,7 @@ export class CommissioningController {
             });
         }
         return controller.connect(nodeIdOrSession, {
-            discoveryOptions: { discoveryType },
+            discoveryOptions: { discoveryType, timeout: discoveryTimeout },
             allowUnknownPeer: forcedConnection,
             caseAuthenticatedTags,
         });

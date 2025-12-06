@@ -339,8 +339,9 @@ export class LegacyControllerCommandHandler extends CommandHandler {
             logger.info("Force reuse of PASE connection", this.#paseSession.via);
             client = await this.#controllerInstance.createInteractionClient(
                 this.#paseSession,
-                NodeDiscoveryType.FullDiscovery,
+                NodeDiscoveryType.TimedDiscovery,
                 {
+                    discoveryTimeout: Seconds(10),
                     forcedConnection: true,
                 },
             );
@@ -348,7 +349,8 @@ export class LegacyControllerCommandHandler extends CommandHandler {
             const node = await this.#controllerInstance.getNode(nodeId, true);
             client = node.isConnected
                 ? await (await this.#controllerInstance.getNode(nodeId, true)).getInteractionClient()
-                : await this.#controllerInstance.createInteractionClient(nodeId, NodeDiscoveryType.FullDiscovery, {
+                : await this.#controllerInstance.createInteractionClient(nodeId, NodeDiscoveryType.TimedDiscovery, {
+                      discoveryTimeout: Seconds(10),
                       forcedConnection: true,
                   });
         }
