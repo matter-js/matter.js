@@ -36,9 +36,9 @@ fi
 
 export VERSION="$ACTOR-$(date -u +%Y%m%dT%H%M%S)-$(git rev-parse HEAD | cut -c 1-12)"
 
-
+# We only write to /tmp/chip.tar but the entitlement path to that specific file no longer works
 docker buildx bake \
     --file "$CHIP_DIR/docker-bake.hcl" \
     --builder matter.js-chip \
-    --allow=fs.write=/tmp/chip.tar \
+    --allow=fs.write=/tmp \
     $*

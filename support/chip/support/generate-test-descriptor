@@ -179,12 +179,17 @@ def load_python():
         try:
             importlib.import_module(name)
         except ModuleNotFoundError as e:
+            sys.stderr.write(f"Error in {path}: {e}\n")
+
             # Skip files with whitelisted errors.  Do not skip all errors or build problems may go unnoticed
             if "No module named 'matter.webrtc'" in str(e):
                 # We neither test nor install webrtc support.  Test does not fail gracefully
                 pass
             elif "No module named 'chip." in str(e):
                 # SHA e8a92c8f1037d134d8f477cdc238d2f3a8a42f8b brings in file that references obsolete package names
+                pass
+            elif "No module named 'ndef'" in str(e):
+                # NFC support
                 pass
             else:
                 raise
