@@ -262,7 +262,7 @@ export class NodeSession extends SecureSession {
     override async closeSubscriptions(flush = false) {
         const subscriptions = [...this.#subscriptions]; // get all values because subscriptions will remove themselves when cancelled
         for (const subscription of subscriptions) {
-            await subscription.close(flush);
+            await subscription.close(flush ? this : undefined);
         }
         return subscriptions.length;
     }

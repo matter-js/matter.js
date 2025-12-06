@@ -37,6 +37,7 @@ import {
     PeerAddress,
     ProtocolHandler,
     ReadRequest,
+    Session,
     SessionManager,
     SessionType,
     SubscribeRequest,
@@ -449,7 +450,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             let clearedCount = 0;
             for (const session of this.#context.sessions.sessions) {
                 for (const subscription of session.subscriptions) {
-                    await subscription.handlePeerCancel();
+                    await subscription.handlePeerCancel(session);
                 }
                 clearedCount++;
             }
@@ -575,6 +576,13 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         subscription.activate();
     }
 
+    #initiateSubscriptionExchange(addressOrSession: PeerAddress | Session, protocolId: number) {
+        if (addressOrSession instanceof Session) {
+            return this.#context.exchangeManager.initiateExchangeForSession(addressOrSession, protocolId);
+        }
+        return this.#context.exchangeManager.initiateExchange(addressOrSession, protocolId);
+    }
+
     async #establishSubscription(
         id: number,
         request: SubscribeRequest,
@@ -586,8 +594,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         const context: ServerSubscriptionContext = {
             session,
             node: this.#node,
-            initiateExchange: (address: PeerAddress, protocolId) =>
-                this.#context.exchangeManager.initiateExchange(address, protocolId),
+            initiateExchange: (addressOrSession, protocolId) =>
+                this.#initiateSubscriptionExchange(addressOrSession, protocolId),
         };
 
         const subscription = new ServerSubscription({
@@ -650,8 +658,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         const context: ServerSubscriptionContext = {
             session,
             node: this.#node,
-            initiateExchange: (address: PeerAddress, protocolId) =>
-                this.#context.exchangeManager.initiateExchange(address, protocolId),
+            initiateExchange: (addressOrSession, protocolId) =>
+                this.#initiateSubscriptionExchange(addressOrSession, protocolId),
         };
 
         const subscription = new ServerSubscription({

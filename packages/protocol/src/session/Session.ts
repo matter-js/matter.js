@@ -119,7 +119,7 @@ export abstract class Session {
     }
 
     get closing() {
-        return this.#closing;
+        return this.#closing || this.deferredClose;
     }
 
     notifyActivity(messageReceived: boolean) {

@@ -5,6 +5,7 @@
  */
 
 import { hex } from "#general";
+import { Session } from "#session/Session.js";
 
 export type SubscriptionId = number;
 
@@ -16,8 +17,8 @@ export interface Subscription {
 
     // TODO - these should reside in a server-specific interface
     isCanceledByPeer: boolean;
-    handlePeerCancel(flush?: boolean): Promise<void>;
-    close(flush?: boolean): Promise<void>;
+    handlePeerCancel(flushViaSession?: Session): Promise<void>;
+    close(flushViaSession?: Session): Promise<void>;
 }
 
 export namespace Subscription {

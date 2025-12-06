@@ -28,7 +28,7 @@ import {
 } from "#general";
 import { Specification } from "#model";
 import type { ServerNode } from "#node/ServerNode.js";
-import type { DirtyState, MessageExchange, NodeSession, SubscriptionId } from "#protocol";
+import type { DirtyState, MessageExchange, NodeSession, Session, SubscriptionId } from "#protocol";
 import {
     AttributeReadResponse,
     AttributeSubscriptionResponse,
@@ -116,7 +116,7 @@ export interface ServerSubscriptionContext {
     // TODO - remove this.  Subscriptions are associated with a peer, not a session
     session: NodeSession;
     node: ServerNode;
-    initiateExchange(address: PeerAddress, protocolId: number): MessageExchange;
+    initiateExchange(addressOrSession: PeerAddress | Session, protocolId: number): MessageExchange;
 }
 
 /**
@@ -241,9 +241,9 @@ export class ServerSubscription implements Subscription {
         this.#maxInterval = value;
     }
 
-    async handlePeerCancel() {
+    async handlePeerCancel(peerSession: Session) {
         this.#isCanceledByPeer = true;
-        await this.close(true);
+        await this.close(peerSession);
     }
 
     #determineSendingIntervals(
@@ -414,13 +414,13 @@ export class ServerSubscription implements Subscription {
         ).start();
     }
 
-    #triggerSendUpdate(onlyWithData: boolean = false) {
+    #triggerSendUpdate(onlyWithData: boolean = false, session?: Session) {
         if (this.#currentUpdatePromise !== undefined) {
             logger.debug("Sending update already in progress, delaying update ...");
             this.#sendNextUpdateImmediately = true;
             return;
         }
-        this.#currentUpdatePromise = this.#sendUpdate(onlyWithData)
+        this.#currentUpdatePromise = this.#sendUpdate(onlyWithData, session)
             .catch(error => logger.warn("Sending subscription update failed:", error))
             .finally(() => (this.#currentUpdatePromise = undefined));
     }
@@ -428,7 +428,7 @@ export class ServerSubscription implements Subscription {
     /**
      * Determine all attributes that have changed since the last update and send them out to the subscriber.
      */
-    async #sendUpdate(onlyWithData = false) {
+    async #sendUpdate(onlyWithData = false, session?: Session) {
         using updating = this.#lifetime?.join("updating");
 
         while (true) {
@@ -447,7 +447,7 @@ export class ServerSubscription implements Subscription {
 
             try {
                 using sending = updating?.join("sending");
-                if (await this.#sendUpdateMessage(sending, attributeFilter, eventsMinNumber, onlyWithData)) {
+                if (await this.#sendUpdateMessage(sending, attributeFilter, eventsMinNumber, onlyWithData, session)) {
                     this.#sendUpdateErrorCounter = 0;
                 }
             } catch (error) {
@@ -637,11 +637,11 @@ export class ServerSubscription implements Subscription {
         });
     }
 
-    async #flush() {
+    async #flush(flushViaSession?: Session) {
         this.#sendDelayTimer.stop();
         if (this.#outstandingAttributeUpdates !== undefined || this.#outstandingEventsMinNumber !== undefined) {
             logger.debug(`Flushing subscription ${this.idStr}${this.#isClosed ? " (for closing)" : ""}`);
-            this.#triggerSendUpdate(true);
+            this.#triggerSendUpdate(true, flushViaSession);
             if (this.#currentUpdatePromise) {
                 using _waiting = this.#lifetime?.join("waiting on flush");
                 await this.#currentUpdatePromise;
@@ -652,13 +652,13 @@ export class ServerSubscription implements Subscription {
     /**
      * Closes the subscription and flushes all outstanding data updates if requested.
      */
-    async close(flush = false) {
+    async close(flushViaSession?: Session) {
         if (this.#isClosed) {
             return;
         }
         this.#isClosed = true;
 
-        await this.#cancel(flush);
+        await this.#cancel(flushViaSession);
 
         if (this.#currentUpdatePromise) {
             using _waiting = this.#lifetime?.closing()?.join("waiting on update");
@@ -666,16 +666,16 @@ export class ServerSubscription implements Subscription {
         }
     }
 
-    async #cancel(flush = false) {
+    async #cancel(flushViaSession?: Session) {
         const closing = this.#lifetime?.closing();
 
         this.#sendUpdatesActivated = false;
 
         this.#changeHandlers.close();
 
-        if (flush) {
+        if (flushViaSession !== undefined) {
             using _flushing = closing?.join("flushing");
-            await this.#flush();
+            await this.#flush(flushViaSession);
         }
 
         this.#updateTimer.stop();
@@ -748,8 +748,9 @@ export class ServerSubscription implements Subscription {
         attributeFilter: DirtyState.ForCluster | undefined,
         eventsMinNumber: EventNumber | undefined,
         onlyWithData: boolean,
+        session?: Session,
     ) {
-        const exchange = this.#context.initiateExchange(this.#peerAddress, INTERACTION_PROTOCOL_ID);
+        const exchange = this.#context.initiateExchange(session ?? this.#peerAddress, INTERACTION_PROTOCOL_ID);
         if (exchange === undefined) return false;
 
         const messenger = new InteractionServerMessenger(exchange);
