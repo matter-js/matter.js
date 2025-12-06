@@ -565,7 +565,8 @@ export class LegacyControllerCommandHandler extends CommandHandler {
                 // ignore
             }
         }
-        await this.#controllerInstance.createInteractionClient(nodeId, NodeDiscoveryType.FullDiscovery, {
+        await this.#controllerInstance.createInteractionClient(nodeId, NodeDiscoveryType.TimedDiscovery, {
+            discoveryTimeout: Seconds(10),
             forcedConnection: expireExistingSession,
         });
     }
