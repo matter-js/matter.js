@@ -41,6 +41,7 @@ import {
     ValueModel,
 } from "@matter/model";
 import { CommissionableDeviceIdentifiers, RetransmissionLimitReachedError } from "@matter/protocol";
+import { NodeNotConnectedError } from "@project-chip/matter.js/device";
 import { WebSocketServer } from "ws";
 import { log } from "./GenericTestApp.js";
 import { AttributeResponseData, EventResponseData } from "./handler/CommandHandler.js";
@@ -1277,7 +1278,7 @@ export class ChipToolWebSocketHandler {
                 ],
             };
         }
-        if (error instanceof RetransmissionLimitReachedError) {
+        if (error instanceof RetransmissionLimitReachedError || error instanceof NodeNotConnectedError) {
             // Needed because Chip tests expect a failure and not an automatic reconnection
             await (await this.#commandHandlerFor(commissionerName)).disconnectNode(NodeId(parseNumber(destinationId)));
         }

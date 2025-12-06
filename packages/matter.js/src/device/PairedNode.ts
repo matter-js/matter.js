@@ -360,8 +360,8 @@ export class PairedNode {
     ) {
         assignDisconnectedHandler(async () => {
             logger.info(
-                `Node ${this.nodeId}: Session disconnected${
-                    this.#connectionState !== NodeStates.Disconnected ? ", trying to reconnect ..." : ""
+                `Node ${this.nodeId}: Session disconnected while Node is ${NodeStates[this.#connectionState]}${
+                    this.#connectionState === NodeStates.Connected ? ", trying to reconnect ..." : ""
                 }`,
             );
             if (this.#connectionState === NodeStates.Connected) {
@@ -413,11 +413,6 @@ export class PairedNode {
             // We try to initialize from stored data already
             if (storedAttributeData !== undefined) {
                 await this.#initializeFromStoredData(storedAttributeData);
-            }
-
-            if (sessions.maybeSessionFor(this.#interactionClient.address)) {
-                this.#setConnectionState(NodeStates.Connected);
-                return;
             }
 
             if (this.#options.autoConnect !== false) {

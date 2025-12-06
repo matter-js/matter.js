@@ -231,7 +231,7 @@ export abstract class Session {
      *
      * This begins the close process.  {@link shutdownLogic} is logic that should run once the session no longer accepts
      * new exchanges.  It may set {@link deferredClose} to prevent the close from proceeding until all exchanges are
-     * finished.  Otherwise the close will proceed immediately.
+     * finished.  Otherwise, the close will proceed immediately.
      */
     async initiateClose(shutdownLogic?: () => Promise<void>) {
         if (this.isClosing) {
@@ -309,7 +309,7 @@ export abstract class Session {
     }
 
     protected async close() {
-        using _closting = this.#lifetime?.closing();
+        using _closing = this.#lifetime?.closing();
 
         if (this.#channel) {
             await this.#channel.close();

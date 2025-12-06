@@ -9,6 +9,7 @@ import { ControllerStore } from "#ControllerStore.js";
 import {
     ClassExtends,
     Crypto,
+    Duration,
     Environment,
     ImplementationError,
     InternalError,
@@ -490,20 +491,25 @@ export class CommissioningController {
         nodeIdOrSession: NodeId | SecureSession,
         discoveryType?: NodeDiscoveryType,
         options?: {
+            discoveryTimeout?: Duration;
             forcedConnection?: boolean;
             caseAuthenticatedTags?: CaseAuthenticatedTag[];
         },
     ): Promise<InteractionClient> {
         const controller = this.#assertControllerIsStarted();
-        const { forcedConnection, caseAuthenticatedTags = this.#options.caseAuthenticatedTags } = options ?? {};
+        const {
+            forcedConnection,
+            caseAuthenticatedTags = this.#options.caseAuthenticatedTags,
+            discoveryTimeout,
+        } = options ?? {};
         if (nodeIdOrSession instanceof Session || !forcedConnection) {
             return controller.createInteractionClient(nodeIdOrSession, {
-                discoveryOptions: { discoveryType },
+                discoveryOptions: { discoveryType, timeout: discoveryTimeout },
                 caseAuthenticatedTags,
             });
         }
         return controller.connect(nodeIdOrSession, {
-            discoveryOptions: { discoveryType },
+            discoveryOptions: { discoveryType, timeout: discoveryTimeout },
             allowUnknownPeer: forcedConnection,
             caseAuthenticatedTags,
         });
