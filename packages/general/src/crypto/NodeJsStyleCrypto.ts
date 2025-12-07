@@ -8,7 +8,6 @@ import { ImplementationError } from "#MatterError.js";
 import { Bytes } from "#util/Bytes.js";
 import { asError } from "#util/Error.js";
 import { MaybePromise } from "#util/Promises.js";
-import { Identity } from "#util/Type.js";
 import {
     Crypto,
     CRYPTO_AUTH_TAG_LENGTH,
@@ -23,16 +22,109 @@ import { CryptoDecryptError, CryptoVerifyError } from "./CryptoError.js";
 import { EcdsaSignature } from "./EcdsaSignature.js";
 import { PrivateKey, PublicKey } from "./Key.js";
 
-// Note that this is a type-only import, not a runtime dependency.
-import type * as NodeJsCryptoApi from "node:crypto";
-
 // Ensure we don't reference global crypto accidentally
 declare const crypto: never;
 
 /**
  * A crypto API implemented in the style of Node.js.
+ *
+ * This defines the limited subset of the Node API that we use and nothing more.
  */
-export interface NodeJsCryptoApiLike extends Identity<typeof NodeJsCryptoApi> {}
+export interface NodeJsCryptoApiLike {
+    createCipheriv(
+        algorithm: "aes-128-ccm",
+        key: NodeJsCryptoApiLike.BinaryLike,
+        iv: NodeJsCryptoApiLike.BinaryLike,
+        options: NodeJsCryptoApiLike.CipherCcmOptions,
+    ): NodeJsCryptoApiLike.CipherCcm;
+
+    createDecipheriv(
+        algorithm: "aes-128-ccm",
+        key: NodeJsCryptoApiLike.BinaryLike,
+        iv: NodeJsCryptoApiLike.BinaryLike,
+        options: NodeJsCryptoApiLike.CipherCcmOptions,
+    ): NodeJsCryptoApiLike.DecipherCcm;
+
+    randomBytes(count: number): NodeJsCryptoApiLike.BinaryLike;
+
+    createECDH(crv: string): NodeJsCryptoApiLike.Ecdh;
+
+    createHash(algo: string): NodeJsCryptoApiLike.Hash;
+
+    pbkdf2(
+        password: NodeJsCryptoApiLike.BinaryLike,
+        salt: NodeJsCryptoApiLike.BinaryLike,
+        iterations: number,
+        keylen: number,
+        digest: string,
+        callback: (err: Error | null, derivedKey: NodeJsCryptoApiLike.BinaryLike) => void,
+    ): void;
+
+    hkdf(
+        digest: string,
+        irm: NodeJsCryptoApiLike.BinaryLike,
+        salt: NodeJsCryptoApiLike.BinaryLike,
+        info: NodeJsCryptoApiLike.BinaryLike,
+        keylen: number,
+        callback: (err: Error | null, derivedKey: ArrayBuffer) => void,
+    ): void;
+
+    createHmac(algo: string, key: NodeJsCryptoApiLike.BinaryLike): NodeJsCryptoApiLike.Hash;
+
+    createSign(algo: string): NodeJsCryptoApiLike.Sign;
+
+    createVerify(algo: string): NodeJsCryptoApiLike.Verify;
+}
+
+export namespace NodeJsCryptoApiLike {
+    export type CipherKey = {
+        key: any; // Definitely typed is wrong here, should be JsonWebKey
+        format: "jwk";
+        type: "pkcs8" | "spki";
+        dsaEncoding: "ieee-p1363";
+    };
+    export type BinaryLike = Uint8Array<ArrayBufferLike>;
+    export interface CipherCcmOptions {
+        authTagLength: number;
+    }
+
+    export interface CipherCcm {
+        update(data: BinaryLike): BinaryLike;
+        final(): BinaryLike;
+        setAAD(buffer: BinaryLike, options: { plaintextLength: number }): this;
+        getAuthTag(): BinaryLike;
+    }
+
+    export interface DecipherCcm {
+        update(data: BinaryLike): BinaryLike;
+        final(): BinaryLike;
+        setAAD(buffer: BinaryLike, options: { plaintextLength: number }): this;
+        setAuthTag(data: BinaryLike): this;
+    }
+
+    export interface Ecdh {
+        generateKeys(): BinaryLike;
+        getPublicKey(): BinaryLike;
+        getPrivateKey(): BinaryLike;
+        setPrivateKey(key: BinaryLike): void;
+        computeSecret(data: BinaryLike): BinaryLike;
+    }
+
+    export interface Hash {
+        update(data: BinaryLike): this;
+        digest(): BinaryLike;
+    }
+
+    export interface Sign {
+        update(data: BinaryLike): this;
+        sign(key: CipherKey): Uint8Array<ArrayBuffer>;
+    }
+
+    export interface Verify {
+        update(data: BinaryLike): this;
+        verify(key: CipherKey, signature: BinaryLike): boolean;
+    }
+}
 
 /**
  * A crypto implementation that uses the Node.js crypto API.
@@ -107,7 +199,7 @@ export class NodeJsStyleCrypto extends Crypto {
         };
     }
 
-    async #hashAsyncIteratorData(hasher: NodeJsCryptoApi.Hash, iteratorFunc: () => Promise<IteratorResult<Bytes>>) {
+    async #hashAsyncIteratorData(hasher: NodeJsCryptoApiLike.Hash, iteratorFunc: () => Promise<IteratorResult<Bytes>>) {
         while (true) {
             const { value, done } = await iteratorFunc();
             if (value === undefined || done) break;
