@@ -66,7 +66,7 @@ export interface Container {
     /**
      * Retrieve the response of a command as a string.
      */
-    execAndRead<T extends Terminal.Factory>(command: string | string[]): Promise<string>;
+    execAndRead(command: string | string[]): Promise<string>;
 
     /**
      * Retrieve the response of a command using a terminal.

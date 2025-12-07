@@ -30,7 +30,7 @@ export async function* asyncLinesOf<C, T extends AsyncIterable<C>>(input: T, fil
 
     for await (let chunk of input) {
         if (filter) {
-            chunk = filter(chunk) as C;
+            chunk = filter(chunk) as Awaited<C>;
         }
 
         if (chunk === undefined || chunk === null) {

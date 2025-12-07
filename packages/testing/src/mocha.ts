@@ -74,7 +74,7 @@ export function generalSetup(mocha: Mocha) {
 
     mocha.suite.beforeEach(function (done) {
         this.timeout(TEST_HOOK_TIMEOUT);
-        return (this.currentTest as HookableTest)[beforeOneHook]?.call(this, done);
+        return ((this.currentTest as HookableTest)[beforeOneHook] as any)?.call(this, done);
     });
 
     mocha.suite.afterEach(function (done) {
@@ -82,7 +82,7 @@ export function generalSetup(mocha: Mocha) {
         for (const hook of LoggerHooks.afterEach) {
             hook(mocha);
         }
-        return (this.currentTest as HookableTest)[afterOneHook]?.call(this, done);
+        return ((this.currentTest as HookableTest)[afterOneHook] as any)?.call(this, done);
     });
 
     TextDiff.generator = Base.generateDiff.bind(Base);
