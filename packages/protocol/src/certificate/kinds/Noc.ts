@@ -160,17 +160,22 @@ export class Noc extends OperationalBase<OperationalCertificate.Noc> {
             throw new CertificateError(`Noc certificate authorityKeyIdentifier must be 160 bit.`);
         }
 
-        // Validate authority key identifier against subject key identifier
-        if (!Bytes.areEqual(authorityKeyIdentifier, (ica?.cert ?? root.cert).extensions.subjectKeyIdentifier)) {
+        let issuer: Rcac | Icac | undefined;
+        if (Bytes.areEqual(authorityKeyIdentifier, root.cert.extensions.subjectKeyIdentifier)) {
+            issuer = root;
+        } else if (
+            ica !== undefined &&
+            Bytes.areEqual(authorityKeyIdentifier, ica.cert.extensions.subjectKeyIdentifier)
+        ) {
+            issuer = ica;
+        }
+
+        if (issuer === undefined) {
             throw new CertificateError(
                 `Noc certificate authorityKeyIdentifier must be equal to Root/Ica subjectKeyIdentifier.`,
             );
         }
 
-        await crypto.verifyEcdsa(
-            PublicKey((ica?.cert ?? root.cert).ellipticCurvePublicKey),
-            this.asUnsignedAsn1(),
-            this.signature,
-        );
+        await crypto.verifyEcdsa(PublicKey(issuer.cert.ellipticCurvePublicKey), this.asUnsignedAsn1(), this.signature);
     }
 }
