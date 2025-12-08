@@ -39,7 +39,7 @@ export async function createSolutionBuilderContext(
 
     function currentContext() {
         if (context === undefined) {
-            throw new Error("Build context accessed with no ");
+            throw new Error("Build context accessed with no context");
         }
         return context;
     }

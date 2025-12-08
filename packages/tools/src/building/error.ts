@@ -11,16 +11,16 @@ export class InternalBuildError extends Error {
 }
 
 export class BuildError extends Error {
-    constructor(readonly diagnostics: string) {
+    constructor(readonly diagnostics?: string) {
         super();
     }
 
     override get stack() {
-        return this.diagnostics;
+        return this.diagnostics ?? super.stack;
     }
 
     override toString() {
-        return this.diagnostics;
+        return this.diagnostics ?? "Build error";
     }
 
     inspect() {
