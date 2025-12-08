@@ -6,6 +6,7 @@
 
 import { type TypescriptContext } from "./typescript/context.js";
 import { createSolutionBuilderContext } from "./typescript/solution-builder.js";
+export { createTsgoContext } from "./typescript/tsgo.js";
 
 /**
  * Create a {@link TypescriptContext} for validating types and optionally emitting .d.ts file.

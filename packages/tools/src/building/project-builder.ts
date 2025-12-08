@@ -9,7 +9,7 @@ import { Progress } from "../util/progress.js";
 import { BuildError } from "./error.js";
 import { Graph } from "./graph.js";
 import { BuildInformation, Project } from "./project.js";
-import { createTypescriptContext } from "./typescript.js";
+import { createTsgoContext, createTypescriptContext } from "./typescript.js";
 import { TypescriptContext } from "./typescript/context.js";
 
 export enum Target {
@@ -23,6 +23,7 @@ export interface Options {
     targets?: Target[];
     clean?: boolean;
     graph?: Graph;
+    tsgo?: boolean;
 }
 
 /**
@@ -34,11 +35,13 @@ export class ProjectBuilder {
     unconditional: boolean;
     tsContext?: TypescriptContext;
     graph?: Graph;
+    tsgo?: boolean;
 
     constructor(private options: Options = {}) {
         this.graph = options.graph;
         this.unconditional =
             options.clean || (options.targets !== undefined && options.targets?.indexOf(Target.clean) !== -1);
+        this.tsgo = options.tsgo;
     }
 
     get hasClean() {
@@ -112,7 +115,12 @@ export class ProjectBuilder {
                 // Obtain or initialize typescript solution builder
                 let context = this.tsContext;
                 if (context === undefined) {
-                    context = this.tsContext = await createTypescriptContext(project.pkg.workspace, graph);
+                    if (this.tsgo) {
+                        context = createTsgoContext(project.pkg.workspace);
+                    } else {
+                        context = await createTypescriptContext(project.pkg.workspace, graph);
+                    }
+                    this.tsContext = context;
                 }
 
                 const refreshCallback = progress.refresh.bind(progress);
@@ -152,8 +160,10 @@ export class ProjectBuilder {
                 }
             } catch (e) {
                 if (e instanceof BuildError) {
+                    if (e.diagnostics) {
+                        process.stderr.write(`${e.diagnostics}\n`);
+                    }
                     progress.failure("Terminating due to type errors");
-                    process.stderr.write(`${e.diagnostics}\n`);
                     process.exit(1);
                 }
                 throw e;
