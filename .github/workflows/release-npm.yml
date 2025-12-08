@@ -5,6 +5,7 @@ name: Automatic Labeled NPM Release
 permissions:
   contents: write
   pull-requests: write
+  id-token: write  # Required for OIDC
 
 on:
   pull_request:
@@ -120,8 +121,7 @@ jobs:
         env:
           PRERELEASE: ${{ contains(steps.version.outputs.result, '-') }}
         run: |
-          npm config set //registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}
-          npm whoami
+          npm install -g npm@latest
           
           if [[ "$PRERELEASE" == "true" ]]; then
             npm publish --workspaces --tag dev
