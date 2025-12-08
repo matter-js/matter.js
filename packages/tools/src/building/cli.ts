@@ -37,7 +37,8 @@ export async function main(argv = process.argv) {
     const program = commander("matter-build", "Builds packages adhering to matter.js standards.")
         .option("-p, --prefix <path>", "specify build directory", ".")
         .option("-c, --clean", "clean before build", false)
-        .option("-d, --dependencies", "build dependencies", false);
+        .option("-d, --dependencies", "build dependencies", false)
+        .option("--tsgo", "use experimental TS 7 compiler", false);
 
     program
         .command("build")
