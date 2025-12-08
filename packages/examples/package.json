@@ -59,7 +59,7 @@
         "@matter/nodejs": "*",
         "@matter/tools": "*",
         "@project-chip/matter.js": "*",
-        "esbuild": "^0.27.0",
+        "esbuild": "^0.27.1",
         "@matter/nodejs-ble": "*",
         "@matter/mqtt": "*",
         "@matter/nodejs-ws": "*"
