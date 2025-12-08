@@ -441,7 +441,7 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
                 const next = await promise;
                 if (next) {
                     promise = next.promise;
-                    yield next.value;
+                    yield next.value[0];
                 }
             }
         } finally {
