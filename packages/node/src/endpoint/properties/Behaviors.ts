@@ -273,7 +273,7 @@ export class Behaviors {
     has<T extends Behavior.Type>(type: T): boolean;
 
     /**
-     * Does the {@link Endpoint} support a specified behavior by it's behavior Id?
+     * Does the {@link Endpoint} support a specified behavior by its behavior Id?
      */
     has(typeId: string): boolean;
 
