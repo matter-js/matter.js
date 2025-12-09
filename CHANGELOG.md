@@ -65,6 +65,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Exposes Node's native HTTP server via new abstractions in `@matter/general`
     - Fix: Corrects network interface selection logic for windows
 
+- @matter/nodejs-ble
+  - Fix: Updating Noble and Bleno to enhance compatibility on macOS and Windows
+
 - @matter/nodejs-shell
     - Feature: Added `cert` command for DCL certificate management with subcommands: list, details, as-pem, delete, and update
     - Feature: Added `ota` command for OTA update management with subcommands: info, extract, verify, list, add, delete, and copy for managing OTA image files in storage
@@ -91,6 +94,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Controller networking was previously throwing the incorrect error after a communication timeout
     - Fix: Ensures to only include the MaxTcpMessageSize in Session parameters when TCP is enabled
     - Fix: Fixes the used ACL level for wildcard writes
+    - Fix: (@ArtemisMucaj) Fixes noc trust chain verification; verify against both rcac and icac
 
 - @matter/react-native
     - Fix: (Luxni) Update UDP, BLE and Crypto usage to work with React Native
