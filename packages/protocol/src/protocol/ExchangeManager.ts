@@ -277,9 +277,8 @@ export class ExchangeManager {
         } else {
             if (this.#isClosing) return;
             if (session.isClosing) {
-                throw new MatterFlowError(
-                    `Declining new exchange because session ${Session.idStrOf(packet)} is closing`,
-                );
+                logger.debug(`Declining new exchange because session ${Session.idStrOf(packet)} is closing`);
+                return;
             }
 
             const protocolHandler = this.#protocols.get(message.payloadHeader.protocolId);
