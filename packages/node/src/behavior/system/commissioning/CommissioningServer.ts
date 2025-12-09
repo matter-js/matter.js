@@ -98,8 +98,6 @@ export class CommissioningServer extends Behavior {
         this.reactTo((this.endpoint as Node).lifecycle.online, this.#enterOnlineMode);
 
         this.reactTo((this.endpoint as Node).lifecycle.goingOffline, this.#enterOfflineMode);
-
-        this.reactTo(this.env.get(FabricManager).events.added, this.enterOperationalMode);
     }
 
     override async [Symbol.asyncDispose]() {
@@ -203,6 +201,8 @@ export class CommissioningServer extends Behavior {
     }
 
     async #enterOnlineMode() {
+        this.reactTo(this.env.get(FabricManager).events.added, this.enterOperationalMode);
+
         // If already commissioned, trigger operational announcement
         if ((this.endpoint.lifecycle as NodeLifecycle).isCommissioned) {
             // Restore subscriptions if we have some persisted

@@ -88,7 +88,7 @@ export class ControllerBehavior extends Behavior {
 
         this.reactTo(node.lifecycle.online, this.#nodeOnline);
         if (node.lifecycle.isOnline) {
-            this.#nodeOnline();
+            await this.#nodeOnline();
         }
         this.reactTo(node.lifecycle.goingOffline, this.#nodeGoingOffline);
     }
@@ -108,7 +108,7 @@ export class ControllerBehavior extends Behavior {
         };
     }
 
-    #nodeOnline() {
+    async #nodeOnline() {
         // Configure network connections
         const netTransports = this.env.get(ConnectionlessTransportSet);
         if (this.state.ble) {
@@ -116,9 +116,12 @@ export class ControllerBehavior extends Behavior {
             netTransports.add(this.env.get(Ble).centralInterface);
         }
 
-        // Add each pre-existing fabric to discovery criteria
+        // Add each pre-existing fabric to discovery criteria and update fabric label if needed
         const authority = this.env.get(FabricAuthority);
         for (const fabric of authority.fabrics) {
+            if (fabric.label !== this.state.adminFabricLabel) {
+                await fabric.setLabel(this.state.adminFabricLabel);
+            }
             this.#enableScanningForFabric(fabric);
         }
         this.reactTo(authority.fabricAdded, this.#enableScanningForFabric);

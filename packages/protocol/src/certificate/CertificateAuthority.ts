@@ -77,7 +77,7 @@ export class CertificateAuthority {
                 this.#rootKeyIdentifier = certValues.rootKeyIdentifier;
                 this.#rootCertBytes = certValues.rootCertBytes;
                 this.#nextCertificateId = BigInt(certValues.nextCertificateId);
-                logger.info(`Loaded stored credentials with ID ${this.#rootCertId}`);
+                logger.info(`Loaded stored credentials with certificate ID ${this.#rootCertId}`);
                 return;
             }
 

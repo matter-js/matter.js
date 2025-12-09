@@ -5,4 +5,5 @@
  */
 
 export * from "./NetworkBehavior.js";
+export * from "./NetworkClient.js";
 export * from "./NetworkServer.js";

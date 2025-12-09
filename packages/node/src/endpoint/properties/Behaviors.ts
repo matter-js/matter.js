@@ -6,7 +6,6 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import type { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
-import { limitEndpointAttributeDataToAllowedFabrics } from "#behavior/cluster/FabricScopedDataHandler.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { NodeActivity } from "#behavior/context/NodeActivity.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
@@ -28,7 +27,7 @@ import {
 } from "#general";
 import { FeatureSet } from "#model";
 import { ProtocolService } from "#node/integration/ProtocolService.js";
-import { ClusterTypeProtocol, FabricManager, Val } from "#protocol";
+import { ClusterTypeProtocol, Val } from "#protocol";
 import { ClusterType, VoidSchema } from "#types";
 import type { Agent } from "../Agent.js";
 import type { Endpoint } from "../Endpoint.js";
@@ -243,16 +242,6 @@ export class Behaviors {
                 promise = endpointInitializer.behaviorsInitialized(agent);
             }
 
-            if (this.#endpoint.env.has(FabricManager)) {
-                const fabricIndices = this.#endpoint.env.get(FabricManager).fabrics.map(fabric => fabric.fabricIndex);
-                if (fabricIndices.length > 0) {
-                    // Make sure the state on startup only includes allowed Fabric scoped data
-                    return MaybePromise.then(promise, () =>
-                        limitEndpointAttributeDataToAllowedFabrics(this.#endpoint, fabricIndices),
-                    );
-                }
-            }
-
             return promise;
         };
 
@@ -281,7 +270,17 @@ export class Behaviors {
     /**
      * Does the {@link Endpoint} support a specified behavior?
      */
-    has<T extends Behavior.Type>(type: T) {
+    has<T extends Behavior.Type>(type: T): boolean;
+
+    /**
+     * Does the {@link Endpoint} support a specified behavior by it's behavior Id?
+     */
+    has(typeId: string): boolean;
+
+    has(type: Behavior.Type | string): boolean {
+        if (typeof type === "string") {
+            return !!this.#supported[type];
+        }
         const myType = this.#supported[type.id];
         return myType === type || myType?.supports(type);
     }
@@ -609,7 +608,18 @@ export class Behaviors {
     /**
      * Obtain current data version of behavior.
      */
-    versionOf(type: Behavior.Type) {
+    versionOf(type: Behavior.Type): number;
+
+    /**
+     * Obtain current data version of behavior by its behavior Id, if existing
+     */
+    versionOf(typeId: string): number | undefined;
+
+    versionOf(type: Behavior.Type | string) {
+        if (typeof type === "string") {
+            const backing = this.#backings[type];
+            return backing?.maybeDatasource?.version;
+        }
         const backing = this.#backingFor(type);
         return backing.datasource.version;
     }

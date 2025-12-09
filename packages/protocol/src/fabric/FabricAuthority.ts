@@ -89,6 +89,9 @@ export class FabricAuthority {
             return fabric;
         }
 
+        // TODO somehow verify when we have not found a valid fabric but have commissioned nodes and at least log this
+        // "Fabric certificate changed, but commissioned nodes are still present. Please clear the storage."
+
         // Create a new fabric
         return await this.createFabric(config);
     }

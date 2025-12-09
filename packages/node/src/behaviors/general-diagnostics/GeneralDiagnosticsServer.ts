@@ -64,7 +64,7 @@ export class GeneralDiagnosticsServer extends Base {
     declare state: GeneralDiagnosticsServer.State;
     static override readonly schema = schema;
 
-    override initialize(): MaybePromise {
+    override initialize() {
         if (this.state.testEventTriggersEnabled === undefined) {
             this.state.testEventTriggersEnabled = false;
         } else if (this.state.testEventTriggersEnabled) {

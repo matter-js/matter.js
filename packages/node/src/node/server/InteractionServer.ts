@@ -448,11 +448,15 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
 
         if (fabric !== undefined && !keepSubscriptions) {
             let clearedCount = 0;
-            for (const session of this.#context.sessions.sessions) {
-                for (const subscription of session.subscriptions) {
-                    await subscription.handlePeerCancel();
+            for (const sess of this.#context.sessions.sessions) {
+                if (!PeerAddress.is(sess.peerAddress, session.peerAddress)) {
+                    // Ignore subscriptions from other peers
+                    continue;
                 }
-                clearedCount++;
+                for (const subscription of sess.subscriptions) {
+                    await subscription.handlePeerCancel();
+                    clearedCount++;
+                }
             }
             if (clearedCount > 0) {
                 logger.debug(

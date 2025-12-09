@@ -61,14 +61,14 @@ export class Endpoints implements ImmutableSet<Endpoint> {
         return this.#list[Symbol.iterator]();
     }
 
-    for(number: number | string): Endpoint {
-        if (number === 0) {
+    for(id: number | string): Endpoint {
+        if (id === 0) {
             return this.#node;
         }
 
-        const endpoint = typeof number === "string" ? this.#idIndex[number] : this.#index[number];
+        const endpoint = typeof id === "string" ? this.#idIndex[id] : this.#index[id];
         if (endpoint === undefined) {
-            throw new StatusResponse.NotFoundError(`Endpoint ${number} does not exist`);
+            throw new StatusResponse.NotFoundError(`Endpoint ${id} does not exist`);
         }
         return endpoint;
     }

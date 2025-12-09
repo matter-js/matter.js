@@ -94,7 +94,7 @@ export class CancelablePromise<T = void> implements Promise<T>, Cancelable {
     }
 
     /**
-     * Implement cancelation.  This is only invoked if the promise has not resolved.
+     * Implement cancellation.  This is only invoked if the promise has not resolved.
      *
      * Throwing causes the promise to reject with the error thrown.  The default implementation rethrows {@link reason}.
      *

@@ -183,6 +183,10 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
     }
 
     override async close() {
+        if (this.lifecycle.shouldBeOffline) {
+            // Target state is already offline, no need to do anything
+            return;
+        }
         this.lifecycle.targetState = "offline";
         await this.lifecycle.mutex.close();
         await this.closeWithMutex();

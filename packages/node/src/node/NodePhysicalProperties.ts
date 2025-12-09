@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { DescriptorClient } from "#behaviors/descriptor";
 import { NetworkCommissioningClient } from "#behaviors/network-commissioning";
 import { PowerSourceClient } from "#behaviors/power-source";
 import { ThreadNetworkDiagnosticsClient } from "#behaviors/thread-network-diagnostics";
@@ -20,7 +21,7 @@ import { ClusterId } from "#types";
  * Inspects a node to generate {@link PhysicalDeviceProperties}.
  */
 export function NodePhysicalProperties(node: Node) {
-    const rootEndpointServerList = [...node.state.descriptor.serverList];
+    const rootEndpointServerList = [...(node.maybeStateOf(DescriptorClient)?.serverList ?? [])];
 
     const properties: PhysicalDeviceProperties = {
         threadConnected: false,
@@ -58,8 +59,9 @@ function inspectEndpoint(endpoint: Endpoint, properties: PhysicalDevicePropertie
     const powerSource = endpoint.behaviors.typeFor(PowerSourceClient);
     if (powerSource) {
         const features = powerSource.schema.supportedFeatures;
+        const status = endpoint.stateOf(PowerSourceClient).status;
         if (features.has("WIRED")) {
-            if (endpoint.stateOf(PowerSourceClient).status === PowerSource.PowerSourceStatus.Active) {
+            if (status === PowerSource.PowerSourceStatus.Active) {
                 // Should we only consider A/C "mains" powered?  What is a DC adapter?  What is an external battery?
                 // For now assuming "wired" means "don't worry about power consumption"
                 properties.isMainsPowered = true;
@@ -71,9 +73,9 @@ function inspectEndpoint(endpoint: Endpoint, properties: PhysicalDevicePropertie
             endpoint.behaviors.elementsOf(powerSource).attributes.has("batChargeLevel")
         ) {
             if (
-                endpoint.stateOf(PowerSourceClient).status === PowerSource.PowerSourceStatus.Active ||
+                status === PowerSource.PowerSourceStatus.Active ||
                 // Some devices do not properly specify state as active
-                endpoint.stateOf(PowerSourceClient).status === PowerSource.PowerSourceStatus.Unspecified
+                status === PowerSource.PowerSourceStatus.Unspecified
             ) {
                 properties.isBatteryPowered = true;
             }

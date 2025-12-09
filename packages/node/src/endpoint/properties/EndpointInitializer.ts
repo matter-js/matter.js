@@ -7,6 +7,7 @@
 import type { Behavior } from "#behavior/Behavior.js";
 import type { BehaviorBacking } from "#behavior/internal/BehaviorBacking.js";
 import type { Agent } from "#endpoint/Agent.js";
+import { MaybePromise } from "#general";
 import type { Endpoint } from "../Endpoint.js";
 
 /**
@@ -40,5 +41,5 @@ export abstract class EndpointInitializer {
     /**
      * Invoked after behaviors are initialized but before the initialization transaction commits.
      */
-    behaviorsInitialized(_agent: Agent) {}
+    behaviorsInitialized(_agent: Agent): MaybePromise {}
 }

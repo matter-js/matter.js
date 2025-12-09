@@ -5,11 +5,14 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
+import { limitEndpointAttributeDataToAllowedFabrics } from "#behavior/cluster/FabricScopedDataHandler.js";
 import { BehaviorBacking } from "#behavior/internal/BehaviorBacking.js";
 import { ServerBehaviorBacking } from "#behavior/internal/ServerBehaviorBacking.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import type { Agent } from "#endpoint/index.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
-import { Environment, InternalError, Logger } from "#general";
+import { Environment, InternalError, Logger, MaybePromise } from "#general";
+import { FabricManager } from "#protocol";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { DescriptorServer } from "../../behaviors/descriptor/DescriptorServer.js";
 
@@ -104,5 +107,15 @@ export class ServerEndpointInitializer extends EndpointInitializer {
         logger.warn(`Using fallback ID of ${id} for child of ${endpoint.owner}; assign ID to remove this warning`);
 
         return id;
+    }
+
+    override behaviorsInitialized(agent: Agent): MaybePromise {
+        // Make sure the state only includes allowed Fabric scoped data when an endpoint is added after node is online
+        if (agent.env.has(FabricManager)) {
+            const fabricIndices = agent.env.get(FabricManager).fabrics.map(fabric => fabric.fabricIndex);
+            if (fabricIndices.length > 0) {
+                return limitEndpointAttributeDataToAllowedFabrics(agent.endpoint, fabricIndices);
+            }
+        }
     }
 }

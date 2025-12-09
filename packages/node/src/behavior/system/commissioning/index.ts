@@ -6,3 +6,4 @@
 
 export * from "./CommissioningClient.js";
 export * from "./CommissioningServer.js";
+export * from "./RemoteDescriptor.js";

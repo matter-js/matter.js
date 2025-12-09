@@ -7,11 +7,14 @@
 import { Behavior } from "#behavior/Behavior.js";
 import { Events as BaseEvents } from "#behavior/Events.js";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
+import { OperationalCredentials } from "#clusters/operational-credentials";
 import {
+    ClassExtends,
     Diagnostic,
     Duration,
     ImplementationError,
     Logger,
+    MatterError,
     NotImplementedError,
     Observable,
     ServerAddress,
@@ -40,6 +43,7 @@ import { IdentityService } from "#node/server/IdentityService.js";
 import {
     CommissioningMode,
     ControllerCommissioner,
+    ControllerCommissioningFlow,
     DiscoveryData,
     Fabric,
     FabricAuthority,
@@ -113,7 +117,7 @@ export class CommissioningClient extends Behavior {
 
         // Validate passcode
         let { passcode } = opts;
-        if (typeof passcode !== "number" || !Number.isFinite(passcode)) {
+        if (!Number.isFinite(passcode)) {
             passcode = Number.parseInt(passcode as unknown as string);
             if (!Number.isFinite(passcode)) {
                 throw new ImplementationError(`You must provide the numeric passcode to commission a node`);
@@ -162,6 +166,7 @@ export class CommissioningClient extends Behavior {
             nodeId: address.nodeId,
             passcode,
             discoveryData: this.descriptor,
+            commissioningFlowImpl: options.commissioningFlowImpl,
         };
 
         if (this.finalizeCommissioning !== CommissioningClient.prototype.finalizeCommissioning) {
@@ -217,7 +222,16 @@ export class CommissioningClient extends Behavior {
 
         const opcreds = this.agent.get(OperationalCredentialsClient);
 
-        await opcreds.removeFabric({ fabricIndex: opcreds.state.currentFabricIndex });
+        const fabricIndex = opcreds.state.currentFabricIndex;
+        logger.debug(`Removing node ${peerAddress.toString()} by removing fabric ${fabricIndex} on the node`);
+
+        const result = await opcreds.removeFabric({ fabricIndex });
+
+        if (result.statusCode !== OperationalCredentials.NodeOperationalCertStatus.Ok) {
+            throw new MatterError(
+                `Removing node ${peerAddress.toString()} failed with status ${result.statusCode} "${result.debugText}".`,
+            );
+        }
 
         this.state.peerAddress = undefined;
 
@@ -485,6 +499,11 @@ export namespace CommissioningClient {
          * environment.
          */
         fabricAuthority?: FabricAuthority;
+
+        /**
+         * Custom commissioning flow implementation to use instead of the default.
+         */
+        commissioningFlowImpl?: ClassExtends<ControllerCommissioningFlow>;
 
         /**
          * Discovery capabilities to use for discovery. These are included in the QR code normally and defined if BLE

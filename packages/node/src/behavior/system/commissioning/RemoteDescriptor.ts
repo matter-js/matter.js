@@ -148,9 +148,9 @@ export namespace RemoteDescriptor {
         return result;
     }
 
-    export function toLongForm(descriptor: RemoteDescriptor | undefined, long: Long) {
+    export function toLongForm(descriptor: RemoteDescriptor | undefined, long: Long = {}) {
         if (!descriptor) {
-            descriptor = {};
+            return long;
         }
 
         const { addresses, discoveredAt, ttl, deviceIdentifier, VP, DT, DN, RI, PH, PI, SII, SAI, SAT, T, ICD } =
@@ -206,5 +206,6 @@ export namespace RemoteDescriptor {
         if ("CM" in descriptor) {
             long.commissioningMode = descriptor.CM;
         }
+        return long;
     }
 }

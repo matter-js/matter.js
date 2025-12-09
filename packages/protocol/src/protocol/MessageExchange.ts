@@ -684,7 +684,7 @@ export class MessageExchange {
             return this.#close();
         }
 
-        // Wait until all potential Resubmissions are done, also for Standalone-Acks.
+        // Wait until all potential outstanding Resubmissions are done, also for Standalone-Acks.
         // We might wait a bit longer then needed but because this is mainly a failsafe mechanism it is acceptable.
         // in normal case this timer is cancelled before it triggers when all retries are done.
         let maxResubmissionTime = Instant;

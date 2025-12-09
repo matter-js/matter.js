@@ -6,7 +6,7 @@
 
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { GroupKeyManagement } from "#clusters/group-key-management";
-import { deepCopy, ImplementationError, Logger, MaybePromise } from "#general";
+import { deepCopy, ImplementationError, Logger } from "#general";
 import { DatatypeModel, FieldElement } from "#model";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
 import { assertRemoteActor, Fabric, FabricManager, hasRemoteActor, IPK_DEFAULT_EPOCH_START_TIME } from "#protocol";
@@ -47,7 +47,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
     declare state: GroupKeyManagementServer.State;
     static override readonly schema = schema;
 
-    override initialize(): MaybePromise {
+    override initialize() {
         if (this.features.cacheAndSync) {
             throw new ImplementationError("The CacheAndSync feature is provisional. Do not use it.");
         }
