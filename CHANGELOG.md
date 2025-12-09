@@ -66,7 +66,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Corrects network interface selection logic for windows
 
 - @matter/nodejs-ble
-  - Fix: Updating Noble and Bleno to enhance compatibility on macOS and WIndows
+  - Fix: Updating Noble and Bleno to enhance compatibility on macOS and Windows
 
 - @matter/nodejs-shell
     - Feature: Added `cert` command for DCL certificate management with subcommands: list, details, as-pem, delete, and update
