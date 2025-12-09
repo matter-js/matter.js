@@ -41,6 +41,7 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
     #environment: Environment;
     #runtime?: NetworkRuntime;
     #startInProgress = false;
+    #closeInProgress = false;
 
     constructor(config: Node.Configuration<T>) {
         const parentEnvironment = config.environment ?? config.owner?.env ?? Environment.default;
@@ -183,13 +184,17 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
     }
 
     override async close() {
-        if (this.lifecycle.shouldBeOffline) {
-            // Target state is already offline, no need to do anything
+        if (this.#closeInProgress) {
             return;
         }
-        this.lifecycle.targetState = "offline";
-        await this.lifecycle.mutex.close();
-        await this.closeWithMutex();
+        this.#closeInProgress = true;
+        try {
+            this.lifecycle.targetState = "offline";
+            await this.lifecycle.mutex.close();
+            await this.closeWithMutex();
+        } finally {
+            this.#closeInProgress = false;
+        }
     }
 
     protected async closeWithMutex() {
