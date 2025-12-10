@@ -68,14 +68,14 @@ export class CertificateAuthority {
 
     static async create(
         crypto: Crypto,
-        options?: StorageContext | CertificateAuthority.Configuration | CertificateAuthority.PartialConfiguration,
+        options?: StorageContext | CertificateAuthority.Configuration | CertificateAuthority.CreationConfiguration,
     ) {
         return asyncNew(CertificateAuthority, crypto, options);
     }
 
     constructor(
         crypto: Crypto,
-        options?: StorageContext | CertificateAuthority.Configuration | CertificateAuthority.PartialConfiguration,
+        options?: StorageContext | CertificateAuthority.Configuration | CertificateAuthority.CreationConfiguration,
     ) {
         this.#crypto = crypto;
 
@@ -366,7 +366,7 @@ interface IcacProps {
 }
 
 export namespace CertificateAuthority {
-    export type PartialConfiguration = {
+    export type CreationConfiguration = {
         intermediateCert?: boolean;
     };
 
