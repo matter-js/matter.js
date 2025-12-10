@@ -26,7 +26,7 @@ Please follow these steps to setup all this locally:
 
 You can execute tests starting from the connectedhomeip directory (without activating the sdk environment) by using:
 
-`scripts/run_in_build_env.sh 'scripts/tests/run_test_suite.py --runner chip_tool_python --log-level info --target-glob "{...tests...}" run --app-path all-clusters: <path-to-matter.js>/support/chip-testing/dist/esm/AllClustersTestApp.js --app-path bridge: <path-to-matter.js>/support/chip-testing/dist/esm/BridgeTestApp.js'`
+`scripts/run_in_build_env.sh 'scripts/tests/run_test_suite.py --runner chip_tool_python --log-level info --target-glob "{...tests...}" run --app-path all-clusters:<path-to-matter.js>/support/chip-testing/dist/esm/AllClustersTestApp.js --app-path bridge:<path-to-matter.js>/support/chip-testing/dist/esm/BridgeTestApp.js'`
 
 Replace the "<path-to-matter.js>" placeholder with the local path to your matter.js repository.
 
