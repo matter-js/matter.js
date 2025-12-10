@@ -11,7 +11,7 @@ import { Descriptor } from "#clusters/descriptor";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { RootEndpoint } from "#endpoints/root";
-import { Diagnostic, InternalError, isDeepEqual, Logger } from "#general";
+import { Diagnostic, InternalError, isDeepEqual, Logger, Observable } from "#general";
 import {
     AcceptedCommandList,
     AttributeList,
@@ -25,8 +25,8 @@ import {
 import type { ClientNode } from "#node/ClientNode.js";
 import type { Node } from "#node/Node.js";
 import { ReadScope, type Read, type ReadResult } from "#protocol";
+import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
 import { DatasourceCache } from "#storage/client/DatasourceCache.js";
-import { ClientNodeStore } from "#storage/index.js";
 import type { AttributeId, ClusterId, ClusterType, CommandId, EndpointNumber } from "#types";
 import { Status } from "#types";
 import { ClientEventEmitter } from "./ClientEventEmitter.js";
@@ -52,6 +52,7 @@ export class ClientStructure {
     #pendingStructureEvents = Array<PendingEvent>();
     #delayedClusterEvents = new Array<ReadResult.EventValue>();
     #events: ClientStructureEvents;
+    #changed = Observable<[void]>();
 
     constructor(node: ClientNode) {
         this.#node = node;
@@ -62,6 +63,10 @@ export class ClientStructure {
         });
         this.#eventEmitter = ClientEventEmitter(node, this);
         this.#events = this.#node.env.get(ClientStructureEvents);
+    }
+
+    get changed() {
+        return this.#changed;
     }
 
     /**
@@ -175,14 +180,16 @@ export class ClientStructure {
         // Apply changes
         const scope = ReadScope(request);
         for await (const chunk of changes) {
+            const chunkData = new Array<ReadResult.Report>();
             for (const change of chunk) {
+                chunkData.push(change);
                 switch (change.kind) {
                     case "attr-value":
                         currentUpdates = await this.#mutateAttribute(change, scope, currentUpdates);
                         break;
 
                     case "event-value":
-                        this.#emitEvent(change, currentUpdates);
+                        await this.#emitEvent(change, currentUpdates);
                         break;
 
                     case "attr-status":
@@ -197,7 +204,7 @@ export class ClientStructure {
                 }
             }
 
-            yield chunk;
+            yield chunkData;
         }
 
         // The last cluster still needs its changes applied
@@ -226,6 +233,7 @@ export class ClientStructure {
 
         // Likewise, we don't emit events until we've applied all structural changes
         this.#emitPendingStructureEvents();
+        await this.#emitPendingEvents();
     }
 
     /** Reference to the default subscription used when the node was started. */
@@ -280,7 +288,7 @@ export class ClientStructure {
         return currentUpdates;
     }
 
-    #emitEvent(occurrence: ReadResult.EventValue, currentUpdates?: AttributeUpdates) {
+    async #emitEvent(occurrence: ReadResult.EventValue, currentUpdates?: AttributeUpdates) {
         const { endpointId, clusterId } = occurrence.path;
 
         const endpoint = this.#endpoints.get(endpointId);
@@ -291,7 +299,7 @@ export class ClientStructure {
         ) {
             this.#delayedClusterEvents.push(occurrence);
         } else {
-            this.#eventEmitter(occurrence);
+            await this.#eventEmitter(occurrence);
         }
     }
 
@@ -628,7 +636,7 @@ export class ClientStructure {
     /**
      * Replace clusters after activation because fixed global attributes have changed.
      *
-     * Currently we apply granular updates to clusters.  This will possibly result in subtle errors if peers change in
+     * Currently, we apply granular updates to clusters.  This will possibly result in subtle errors if peers change in
      * incompatible ways, but the backings are designed to be fairly resilient to this.  This is simpler for API users
      * to deal with in the common case where they can just ignore. If it becomes problematic we can revert to replacing
      * entire endpoints or behaviors when there are structural changes.
@@ -742,8 +750,6 @@ export class ClientStructure {
      */
     #emitPendingStructureEvents() {
         const structureEvents = this.#pendingStructureEvents;
-        const clusterEvents = this.#delayedClusterEvents;
-        this.#delayedClusterEvents = [];
         this.#pendingStructureEvents = [];
         for (const event of structureEvents) {
             switch (event.kind) {
@@ -789,6 +795,12 @@ export class ClientStructure {
                 }
             }
         }
+        this.#changed.emit();
+    }
+
+    async #emitPendingEvents() {
+        const clusterEvents = this.#delayedClusterEvents;
+        this.#delayedClusterEvents = [];
         for (const occurrence of clusterEvents) {
             this.#eventEmitter(occurrence);
         }

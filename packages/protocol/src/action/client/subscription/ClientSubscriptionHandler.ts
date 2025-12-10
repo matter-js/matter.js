@@ -6,13 +6,12 @@
 
 import { ReadResult } from "#action/response/ReadResult.js";
 import { Diagnostic, InternalError, Logger } from "#general";
-import { DecodedDataReport } from "#interaction/DecodedDataReport.js";
 import { IncomingInteractionClientMessenger } from "#interaction/InteractionMessenger.js";
 import { Subscription, SubscriptionId } from "#interaction/Subscription.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { ProtocolHandler } from "#protocol/ProtocolHandler.js";
 import { SecureSession } from "#session/SecureSession.js";
-import { DataReport, INTERACTION_PROTOCOL_ID, Status } from "#types";
+import { DataReport, INTERACTION_PROTOCOL_ID, Status, TlvAttributeReport, TypeFromSchema } from "#types";
 import { InputChunk } from "../InputChunk.js";
 import { ClientSubscriptions } from "./ClientSubscriptions.js";
 
@@ -55,16 +54,8 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
         SecureSession.assert(session);
         const subscription = this.#subscriptions.getPeer(session.peerAddress, subscriptionId);
         if (subscription === undefined) {
-            logger.debug("Ignoring data report for unknown subscription ID", Diagnostic.strong(subscriptionId));
+            logger.info("Ignoring data report for unknown subscription ID", Diagnostic.strong(subscriptionId));
             await sendInvalid(messenger, subscriptionId);
-            return;
-        }
-
-        // If this is just a ping, only reset the timeout
-        if (!initialReport.attributeReports?.length && !initialReport.eventReports?.length) {
-            subscription.timeoutAt = undefined;
-            this.#subscriptions.resetTimer();
-            await exchange.close();
             return;
         }
 
@@ -72,19 +63,29 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
         try {
             subscription.isReading = true;
 
-            if (subscription.request.updated) {
-                await subscription.request.updated(processReports(initialReport, reports, messenger));
+            // If this is just a ping, only reset the timeout
+            if (!initialReport.attributeReports?.length && !initialReport.eventReports?.length) {
+                // Read the next report to trigger success message sent out
+                const ending = await reports.next();
+                if (!ending.done) {
+                    logger.warn("Unexpected data reports after empty report", Diagnostic.strong(subscriptionId));
+                    for await (const _chunk of reports); // Read over these extraneous reports
+                }
             } else {
-                // It doesn't make sense to have the callback undefined but we allow it in the type because they may
-                // be handled by intermediate interactables.  So we handle the case here too, but just iterate and throw
-                // away the reports
-                for await (const _chunk of reports);
+                if (subscription.request.updated) {
+                    await subscription.request.updated(processReports(initialReport, reports, messenger));
+                } else {
+                    // It doesn't make sense to have the callback undefined, but we allow it in the type because they may
+                    // be handled by intermediate interactable.  So we handle the case here too, but just iterate and throw
+                    // away the reports
+                    for await (const _chunk of reports);
+                }
             }
         } finally {
             subscription.isReading = false;
             subscription.timeoutAt = undefined;
             this.#subscriptions.resetTimer();
-            await exchange.close();
+            await messenger.close();
         }
     }
 
@@ -109,28 +110,26 @@ async function* processReports(
     otherReports: AsyncIterable<DataReport>,
     messenger: IncomingInteractionClientMessenger,
 ): ReadResult {
-    yield InputChunk(initialReport);
+    const leftOverData = new Array<TypeFromSchema<typeof TlvAttributeReport>>();
+
+    yield InputChunk(initialReport, leftOverData);
 
     const { subscriptionId } = initialReport;
 
     for await (const report of otherReports) {
-        const decoded = DecodedDataReport(report);
-
-        if (decoded.subscriptionId === undefined) {
+        const { subscriptionId: reportSubscriptionId } = report;
+        if (reportSubscriptionId === undefined) {
             logger.debug("Ignoring data report with missing subscription id");
-            await sendInvalid(messenger, decoded.subscriptionId);
+            await sendInvalid(messenger, reportSubscriptionId);
             continue;
         }
 
-        if (decoded.subscriptionId !== subscriptionId) {
-            logger.debug(
-                "Ignoring data report for incorrect subscription id",
-                Diagnostic.strong(decoded.subscriptionId),
-            );
-            await sendInvalid(messenger, decoded.subscriptionId);
+        if (reportSubscriptionId !== subscriptionId) {
+            logger.debug("Ignoring data report for incorrect subscription id", Diagnostic.strong(reportSubscriptionId));
+            await sendInvalid(messenger, reportSubscriptionId);
             continue;
         }
 
-        yield InputChunk(report);
+        yield InputChunk(report, leftOverData);
     }
 }

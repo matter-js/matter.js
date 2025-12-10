@@ -14,22 +14,27 @@ import { ClientSubscription } from "./ClientSubscription.js";
 export class PeerSubscription extends ClientSubscription {
     readonly interactionModelRevision: number;
     readonly maxInterval: number;
+    readonly #maxPeerResponseTime: Duration;
     isReading = false;
 
     timeoutAt?: Timestamp;
 
     constructor(config: PeerSubscription.Configuration) {
-        const { subscriptionId, interactionModelRevision, maxInterval } = config.response;
+        const {
+            maxPeerResponseTime,
+            response: { subscriptionId, interactionModelRevision, maxInterval },
+        } = config;
 
         super(config);
 
         this.subscriptionId = subscriptionId;
         this.interactionModelRevision = interactionModelRevision;
         this.maxInterval = maxInterval;
+        this.#maxPeerResponseTime = maxPeerResponseTime;
     }
 
     get timeout() {
-        return Millis(Seconds(this.maxInterval) + (this.request.maxPeerResponseTime ?? 0));
+        return Millis(Seconds(this.maxInterval) + this.#maxPeerResponseTime * 2);
     }
 
     timedOut() {
@@ -47,5 +52,6 @@ export class PeerSubscription extends ClientSubscription {
 export namespace PeerSubscription {
     export interface Configuration extends ClientSubscription.Configuration {
         response: SubscribeResponse;
+        maxPeerResponseTime: Duration;
     }
 }

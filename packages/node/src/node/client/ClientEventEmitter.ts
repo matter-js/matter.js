@@ -5,6 +5,7 @@
  */
 
 import type { ElementEvent, Events } from "#behavior/Events.js";
+import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { camelize, Diagnostic, isObject, Logger } from "#general";
 import { ClusterModel, EventModel, MatterModel } from "#model";
 import type { ClientNode } from "#node/ClientNode.js";
@@ -18,10 +19,9 @@ const logger = Logger.get("ClientEventEmitter");
  * Event handler for Matter events transmitted by a peer.
  *
  * TODO - set priority on context when split for server vs. client
- * TODO - record latest event number for each subscription shape (or just wildcard?)
  */
 export interface ClientEventEmitter {
-    (event: ReadResult.EventValue): void;
+    (event: ReadResult.EventValue): Promise<void>;
 }
 
 /**
@@ -40,7 +40,7 @@ const warnedForUnknown = new Set<ClusterId | `${ClusterId}-${EventId}`>();
 export function ClientEventEmitter(node: ClientNode, structure: ClientStructure) {
     return emitClientEvent;
 
-    function emitClientEvent(occurrence: ReadResult.EventValue) {
+    async function emitClientEvent(occurrence: ReadResult.EventValue) {
         const names = getNames(node.matter, occurrence);
         if (!names) {
             return;
@@ -48,10 +48,18 @@ export function ClientEventEmitter(node: ClientNode, structure: ClientStructure)
 
         const event = getEvent(node, occurrence, names.cluster, names.event);
         if (event) {
-            node.act(agent => {
+            await node.act(async agent => {
                 // Current ActionContext is not writable, could skip act() but meh, see TODO above
                 //agent.context.priority = occurrence.priority;
                 event.emit(occurrence.value, agent.context);
+
+                const network = agent.get(NetworkClient);
+                if (occurrence.number > network.state.maxEventNumber) {
+                    await agent.context.transaction.addResources(network);
+                    await agent.context.transaction.begin();
+                    network.state.maxEventNumber = occurrence.number;
+                    await agent.context.transaction.commit();
+                }
             });
         }
     }

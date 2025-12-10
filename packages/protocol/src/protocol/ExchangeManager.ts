@@ -253,13 +253,13 @@ export class ExchangeManager {
 
         if (exchange !== undefined) {
             this.#lifetime.details.exchange = exchange.idStr;
-            if (exchange.session.id !== packet.header.sessionId || (exchange.isClosing && !isStandaloneAck)) {
+            if (exchange.session.id !== packet.header.sessionId || (exchange.considerClosed && !isStandaloneAck)) {
                 logger.debug(
                     exchange.via,
                     "Ignore",
                     Mark.INBOUND,
                     "message because",
-                    exchange.isClosing
+                    exchange.considerClosed
                         ? "exchange is closing"
                         : `session ID mismatch (header session is ${Session.idStrOf(packet)}`,
                     messageDiagnostics,

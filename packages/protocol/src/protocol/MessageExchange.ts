@@ -217,6 +217,10 @@ export class MessageExchange {
         return this.#closed;
     }
 
+    get considerClosed() {
+        return this.#closed.value || (this.#isInitiator && this.isClosing);
+    }
+
     /**
      * Emit when the exchange is closing, but not yet closed. We only wait for acks and retries to happen, but the
      * actual interaction logic is already done.
@@ -505,7 +509,7 @@ export class MessageExchange {
 
     #retransmitMessage(message: Message, expectedProcessingTime?: Duration) {
         this.#retransmissionCounter++;
-        if (this.isClosing || this.#retransmissionCounter >= MRP.MAX_TRANSMISSIONS) {
+        if (this.considerClosed || this.#retransmissionCounter >= MRP.MAX_TRANSMISSIONS) {
             // Ok all 4 resubmissions are done, but we need to wait a bit longer because of processing time and
             // the resubmissions from the other side
             if (expectedProcessingTime && !this.isClosing) {
@@ -642,7 +646,12 @@ export class MessageExchange {
         return this.#timedInteractionTimer !== undefined && !this.#timedInteractionTimer.isRunning;
     }
 
-    async close(force = this.isInitiator) {
+    /**
+     * Closes the exchange.
+     * If force is true, the exchange will be closed immediately, even if there are still messages to send.
+     * If force is false, the exchange will be closed only after all messages have been sent.
+     */
+    async close(force = false) {
         if (this.#isDestroyed) {
             return;
         }
@@ -660,7 +669,7 @@ export class MessageExchange {
         }
         if (!this.#used) {
             // The exchange was never in use, so we can close it directly
-            // If we see that in the wild we should fix the reasons
+            // If we see that in the wild, we should fix the reasons
             logger.info(this.via, `Exchange never used, closing directly`);
             return this.#close();
         }
@@ -685,8 +694,8 @@ export class MessageExchange {
         }
 
         // Wait until all potential outstanding Resubmissions are done, also for Standalone-Acks.
-        // We might wait a bit longer then needed but because this is mainly a failsafe mechanism it is acceptable.
-        // in normal case this timer is cancelled before it triggers when all retries are done.
+        // We might wait a bit longer then needed, but because this is mainly a failsafe mechanism, it is acceptable.
+        // in normal case this timer is canceled before it triggers when all retries are done.
         let maxResubmissionTime = Instant;
         for (let i = this.#retransmissionCounter; i <= MRP.MAX_TRANSMISSIONS; i++) {
             maxResubmissionTime = Millis(maxResubmissionTime + this.channel.getMrpResubmissionBackOffTime(i));

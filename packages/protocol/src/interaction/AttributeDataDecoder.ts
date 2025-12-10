@@ -28,7 +28,7 @@ import {
 
 const logger = Logger.get("AttributeDataDecoder");
 
-type DecodedAttributeReportEntry = {
+export type DecodedAttributeReportEntry = {
     path: {
         nodeId?: NodeId;
         endpointId: EndpointNumber;

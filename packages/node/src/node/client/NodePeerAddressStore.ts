@@ -5,12 +5,12 @@
  */
 
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
+import { Crypto, ServerAddress, ServerAddressUdp } from "#general";
 import type { ClientNode } from "#node/ClientNode.js";
 import { IdentityService } from "#node/server/IdentityService.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import { PeerAddress, PeerAddressMap, PeerAddressStore, PeerDescriptor } from "#protocol";
 import { FabricIndex, NodeId } from "#types";
-import { Crypto, ServerAddress, ServerAddressUdp } from "@matter/general";
 
 /**
  * This is an adapter for lower-level components in the protocol package.
@@ -74,17 +74,20 @@ export class NodePeerAddressStore extends PeerAddressStore {
 
     async updatePeer(peer: PeerDescriptor) {
         const node = this.#owner.peers.get(peer.address);
-        if (!node) {
+        if (!node || !node.lifecycle.isInstalled) {
             return;
         }
 
-        await node.act(agent => {
+        await node.act(async agent => {
+            await agent.context.transaction.addResources(agent.commissioning);
+            await agent.context.transaction.begin();
             const state = agent.commissioning.state;
             RemoteDescriptor.toLongForm(peer.discoveryData, state);
             if (peer.operationalAddress) {
                 // TODO - modify lower tiers to pass along full set of operational addresses
                 state.addresses = [peer.operationalAddress];
             }
+            await agent.context.transaction.commit();
         });
     }
 
