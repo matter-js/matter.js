@@ -802,7 +802,7 @@ export class ClientStructure {
         const clusterEvents = this.#delayedClusterEvents;
         this.#delayedClusterEvents = [];
         for (const occurrence of clusterEvents) {
-            this.#eventEmitter(occurrence);
+            await this.#eventEmitter(occurrence);
         }
     }
 }
