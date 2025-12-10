@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { DiscoveryError } from "#behavior/system/controller/discovery/DiscoveryError.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { BasicInformationBehavior } from "#behaviors/basic-information";
@@ -15,7 +16,8 @@ import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { b$, Crypto, deepCopy, MockCrypto, Seconds, Time, TimeoutError } from "#general";
 import { Specification } from "#model";
 import { ServerNode } from "#node/ServerNode.js";
-import { ClientSubscription, FabricManager, SustainedSubscription } from "#protocol";
+import { ClientSubscription, FabricManager, SustainedSubscription, Val } from "#protocol";
+import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
 import { MockSite } from "./mock-site.js";
 
 describe("ClientNode", () => {
@@ -400,6 +402,30 @@ describe("ClientNode", () => {
         await ep1.commandsOf(OnOffClient).toggle();
 
         await ep1.commandsOf(OnOffClient).offWithEffect({ effectIdentifier: 0, effectVariant: 0 });
+    });
+
+    it.only("properly supports unknown clusters", async () => {
+        // *** SETUP ***
+
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair({
+            device: {
+                type: ServerNode.RootEndpoint.with(MyBehavior),
+            },
+        });
+        const peer = controller.peers.get("peer1")!;
+
+        // *** VERIFY STRUCTURE ***
+
+        const behavior = peer.behaviors.supported.cluster$1;
+        expect(typeof behavior).equals("function");
+        expect((behavior as ClusterBehavior.Type).schema.id).equals(1);
+        expect((behavior as ClusterBehavior.Type).cluster.id).equals(1);
+
+        const state = peer.maybeStateOf("cluster$1");
+        expect(typeof state).equals("object");
+        expect((state as Val.Struct)[1]).equals("hello");
+        expect((state as Val.Struct).attr$1).equals("hello");
     });
 
     it("handles shutdown event and reestablishes connection", () => {

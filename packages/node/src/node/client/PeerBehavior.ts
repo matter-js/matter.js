@@ -25,6 +25,7 @@ import {
     ClusterComposer,
     ClusterId,
     ClusterRegistry,
+    ClusterType,
     Command,
     CommandId,
     MutableCluster,
@@ -103,12 +104,10 @@ function instrumentDiscoveredShape(shape: PeerBehavior.DiscoveredClusterShape) {
         return type;
     }
 
-    let baseType: Behavior.Type;
+    let baseType: Behavior.Type | undefined;
     const standardCluster = ClusterRegistry.get(shape.id);
-    if (standardCluster) {
+    if (standardCluster && !standardCluster.name.startsWith("Unknown cluster 0x")) {
         baseType = ClusterBehavior.for(standardCluster);
-    } else {
-        baseType = ClusterBehavior;
     }
 
     type = discoveredCache[fingerprint] = generateDiscoveredType(analysis, baseType);
@@ -138,21 +137,30 @@ function instrumentKnownShape(shape: PeerBehavior.KnownClusterShape) {
     return type;
 }
 
-function generateDiscoveredType(analysis: DiscoveredShapeAnalysis, baseType: Behavior.Type): ClusterBehavior.Type {
-    // Ensure the input type is a ClusterBehavior
-    if (!ClusterBehavior.is(baseType)) {
-        throw new InternalError(`Base for cluster ${analysis.schema.name} is not a ClusterBehavior`);
-    }
-
+function generateDiscoveredType(analysis: DiscoveredShapeAnalysis, baseType?: Behavior.Type): ClusterBehavior.Type {
     let { schema } = analysis;
-    let isExtended = false;
-    const { attrSupportOverrides, extraAttrs, commandSupportOverrides, extraCommands } = analysis;
 
-    // Obtain a ClusterType.  This provides TLV for known elements
-    let { cluster } = baseType;
-    if (!cluster) {
+    let isExtended: boolean;
+    let cluster: ClusterType;
+
+    if (baseType) {
+        isExtended = false;
+
+        // Ensure the input type is a ClusterBehavior
+        if (!ClusterBehavior.is(baseType)) {
+            throw new InternalError(`Base for cluster ${analysis.schema.name} is not a ClusterBehavior`);
+        }
+
+        cluster = baseType.cluster;
+    } else {
+        isExtended = true;
+
         cluster = MutableCluster({ id: schema.id, name: schema.name, revision: schema.revision });
+
+        baseType = ClusterBehavior;
     }
+
+    const { attrSupportOverrides, extraAttrs, commandSupportOverrides, extraCommands } = analysis;
 
     // Identify known features the device supports
     let supportedFeatures = analysis.shape.features;
