@@ -461,6 +461,7 @@ const PEER1_STATE = {
         operationalPort: -1,
         defaultSubscription: undefined,
         caseAuthenticatedTags: undefined,
+        maxEventNumber: 0n,
     },
     basicInformation: {
         clusterRevision: 5,
