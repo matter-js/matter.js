@@ -360,8 +360,16 @@ export class ClientInteraction<
             logger.debug("Subscribe interactions with more then 3 paths might be not allowed by the device.");
         }
 
+        SecureSession.assert(this.#exchanges.session);
+        const peer = this.#exchanges.session.peerAddress;
+
         if (!request.keepSubscriptions) {
             for (const subscription of this.subscriptions) {
+                // TODO Adjust this filtering when subscriptions move to Peer
+                if (!PeerAddress.is(peer, subscription.peer)) {
+                    // Ignore subscriptions from other peers
+                    continue;
+                }
                 logger.debug(
                     `Removing subscription with ID ${Subscription.idStrOf(subscription)} because new subscription replaces it`,
                 );
@@ -381,9 +389,6 @@ export class ClientInteraction<
                 )}) is less than minIntervalFloor (${Duration.format(minIntervalFloor)})`,
             );
         }
-
-        SecureSession.assert(this.#exchanges.session);
-        const peer = this.#exchanges.session.peerAddress;
 
         const subscribe = async (request: ClientSubscribe) => {
             await using context = await this.#begin("subscribing", request, session);

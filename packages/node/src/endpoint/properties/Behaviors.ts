@@ -761,9 +761,9 @@ export class Behaviors {
         const { id, Events } = type;
 
         const get = () => this.#backingFor(type).stateView;
-        Object.defineProperty(this.#endpoint.state, id, { get, enumerable: true });
+        Object.defineProperty(this.#endpoint.state, id, { get, enumerable: true, configurable: true });
         if (type.schema.id !== undefined) {
-            Object.defineProperty(this.#endpoint.state, type.schema.id, { get });
+            Object.defineProperty(this.#endpoint.state, type.schema.id, { get, configurable: true });
         }
 
         Object.defineProperty(this.#endpoint.events, id, {
@@ -780,6 +780,7 @@ export class Behaviors {
             },
 
             enumerable: true,
+            configurable: true,
         });
     }
 }

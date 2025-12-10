@@ -449,6 +449,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         if (fabric !== undefined && !keepSubscriptions) {
             let clearedCount = 0;
             for (const sess of this.#context.sessions.sessions) {
+                // TODO Adjust this filtering when subscriptions move to Peer
                 if (!PeerAddress.is(sess.peerAddress, session.peerAddress)) {
                     // Ignore subscriptions from other peers
                     continue;

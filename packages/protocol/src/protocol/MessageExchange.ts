@@ -218,7 +218,7 @@ export class MessageExchange {
     }
 
     get considerClosed() {
-        return this.#closed.value || (this.#isInitiator && this.isClosing);
+        return this.#closed.value || (this.#isInitiator && this.#closing.value);
     }
 
     /**
@@ -227,10 +227,6 @@ export class MessageExchange {
      */
     get closing() {
         return this.#closing;
-    }
-
-    get isClosing() {
-        return this.#closing.value;
     }
 
     get id() {
@@ -512,7 +508,7 @@ export class MessageExchange {
         if (this.considerClosed || this.#retransmissionCounter >= MRP.MAX_TRANSMISSIONS) {
             // Ok all 4 resubmissions are done, but we need to wait a bit longer because of processing time and
             // the resubmissions from the other side
-            if (expectedProcessingTime && !this.isClosing) {
+            if (expectedProcessingTime && !this.considerClosed) {
                 // We already have waited after the last message was sent, so deduct this time from the final wait time
                 const finalWaitTime = Millis(
                     this.channel.calculateMaximumPeerResponseTime(

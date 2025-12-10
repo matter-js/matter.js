@@ -367,7 +367,7 @@ export class ExchangeManager {
             return;
         }
         const sessionExchanges = Array.from(this.#exchanges.values()).filter(
-            exchange => exchange.session.id === sessionId && !exchange.isClosing && exchange.isInitiator,
+            exchange => exchange.session.id === sessionId && !exchange.considerClosed,
         );
         if (sessionExchanges.length <= MAXIMUM_CONCURRENT_OUTGOING_EXCHANGES_PER_SESSION) {
             return;
