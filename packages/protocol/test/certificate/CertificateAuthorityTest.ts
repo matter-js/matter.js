@@ -150,7 +150,7 @@ describe("CertificateAuthority", () => {
     });
 
     describe("Configuration behavior", () => {
-        it("resets intermediateCert to false when storage has no ICAC data", async () => {
+        it("throws ImplementationError when intermediateCert=true but no ICAC data in storage", async () => {
             const storage = new StorageManager(new StorageBackendMemory());
             await storage.initialize();
             const context = storage.createContext("test");
@@ -161,13 +161,23 @@ describe("CertificateAuthority", () => {
             const config = ca1.config;
             config.intermediateCert = true;
 
-            const ca2 = await CertificateAuthority.create(crypto, config);
-            await ca2.construction;
-
-            expect(ca2.config.intermediateCert).equal(false);
-            expect(ca2.icacCert).undefined;
+            await expect(CertificateAuthority.create(crypto, config)).rejectedWith(
+                "CA intermediateCert property is true but icac properties do not exist in storage",
+            );
 
             await storage.close();
+        });
+
+        it("throws ImplementationError when ICAC data exists but intermediateCert=false", async () => {
+            const ca1 = await CertificateAuthority.create(crypto, { intermediateCert: true });
+            await ca1.construction;
+
+            const config = ca1.config;
+            config.intermediateCert = false;
+
+            await expect(CertificateAuthority.create(crypto, config)).rejectedWith(
+                "CA intermediateCert property is false but icac properties exist in storage",
+            );
         });
     });
 

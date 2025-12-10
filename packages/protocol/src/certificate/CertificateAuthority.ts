@@ -11,6 +11,7 @@ import {
     Crypto,
     Environment,
     Environmental,
+    ImplementationError,
     InternalError,
     Logger,
     PrivateKey,
@@ -82,25 +83,22 @@ export class CertificateAuthority {
             const certValues = options instanceof StorageContext ? await options.values() : (options ?? {});
 
             if (this.#isValidStoredRootCertificate(certValues)) {
-                const hasIcacInStorage = this.#isValidStoredIcacCertificate(certValues);
-                if (hasIcacInStorage) {
-                    this.#intermediateCert = true;
-                } else if (typeof certValues.intermediateCert === "boolean") {
-                    this.#intermediateCert = certValues.intermediateCert;
-                } else {
-                    this.#intermediateCert = false;
+                this.#intermediateCert =
+                    typeof certValues.intermediateCert === "boolean" ? certValues.intermediateCert : false;
+
+                const icac = this.#isValidStoredIcacCertificate(certValues);
+                if (icac && this.#intermediateCert === false) {
+                    throw new ImplementationError(
+                        "CA intermediateCert property is false but icac properties exist in storage",
+                    );
+                }
+                if (!icac && this.#intermediateCert === true) {
+                    throw new ImplementationError(
+                        "CA intermediateCert property is true but icac properties do not exist in storage",
+                    );
                 }
 
                 this.#loadFromStorage(certValues);
-
-                // Reset intermediateCert to false if set but no ICAC data exists
-                if (this.#intermediateCert && !hasIcacInStorage) {
-                    logger.warn(
-                        "intermediateCert=true in configuration but no valid ICAC data in storage. Resetting to 2-tier PKI.",
-                    );
-                    this.#intermediateCert = false;
-                }
-
                 logger.info(`Loaded stored credentials with ID ${this.#rootCertId}`);
                 return;
             }
