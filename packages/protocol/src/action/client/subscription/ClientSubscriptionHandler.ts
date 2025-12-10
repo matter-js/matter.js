@@ -76,7 +76,7 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
                     await subscription.request.updated(processReports(initialReport, reports, messenger));
                 } else {
                     // It doesn't make sense to have the callback undefined, but we allow it in the type because they may
-                    // be handled by intermediate interactable.  So we handle the case here too, but just iterate and throw
+                    // be handled by intermediate interactables.  So we handle the case here too, but just iterate and throw
                     // away the reports
                     for await (const _chunk of reports);
                 }
