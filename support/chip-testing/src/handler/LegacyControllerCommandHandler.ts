@@ -549,15 +549,6 @@ export class LegacyControllerCommandHandler extends CommandHandler {
             certSigningRequest,
         );
 
-        if (ca.icacCert !== undefined) {
-            return {
-                IPK: identityProtectionKey,
-                NOC: await ca.generateNoc(operationalPublicKey, fabricId, nodeId),
-                ICAC: ca.icacCert,
-                RCAC: rootCertBytes,
-            };
-        }
-
         return {
             IPK: identityProtectionKey,
             NOC: await ca.generateNoc(operationalPublicKey, fabricId, nodeId),
