@@ -95,6 +95,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensures to only include the MaxTcpMessageSize in Session parameters when TCP is enabled
     - Fix: Fixes the used ACL level for wildcard writes
     - Fix: (@ArtemisMucaj) Fixes noc trust chain verification; verify against both rcac and icac
+    - Feature: (@ArtemisMucaj) Add support to pass / generate an intermediate CA in the CertificateAuthority class, when used the NOCs are signed with the ICAC cert.
 
 - @matter/react-native
     - Fix: (Luxni) Update UDP, BLE and Crypto usage to work with React Native
