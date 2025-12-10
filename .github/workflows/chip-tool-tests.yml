@@ -165,26 +165,26 @@ jobs:
           ./scripts/run_in_build_env.sh  \
             './scripts/tests/run_test_suite.py \
               --runner chip_tool_python \
-              --chip-tool ../bin/chip-tool \
               --log-level debug \
               --target-glob "{TestSelfFabricRemoval}" \
               run \
               --iterations 1 \
-              --all-clusters-app ../support/chip-testing/AllClustersTestApp.sh \
-              --bridge-app ../support/chip-testing/dist/esm/BridgeTestApp.js \
-              --tv-app ../support/chip-testing/dist/esm/TvTestApp.js \
+              --tool-path chip-tool: ../bin/chip-tool \
+              --app-path all-clusters: ../support/chip-testing/AllClustersTestApp.sh \
+              --app-path bridge: ../support/chip-testing/dist/esm/BridgeTestApp.js \
+              --app-path tv: ../support/chip-testing/dist/esm/TvTestApp.js \
              || (cat ./test_allclusters.log && exit 1)'
           ./scripts/run_in_build_env.sh  \
             './scripts/tests/run_test_suite.py \
               --runner chip_tool_python \
-              --chip-tool ../bin/chip-tool \
               --log-level info \
               --target-glob "{Test_TC_ACE_*,Test_TC_ACL_*,Test_AddNewFabricFromExistingFabric,Test_TC_BINFO_*,Test_TC_BRBINFO_*,Test_TC_CADMIN_*,Test_TC_CGEN_*,Test_TC_CNET_*,Test_TC_DGGEN_*,Test_TC_OPCREDS_*,TestAccessControlC*,TestArmFailSafe,TestCASERecovery,TestCommandsById,TestCommissionerNodeId,TestCommissioningWindow,TestFabricRemovalWhileSubscribed,TestGeneralCommissioning,TestMultiAdmin,TestOperationalCredentialsCluster,TestSubscribe_*,TestDiscovery}" \
               run \
               --iterations 1 \
-              --all-clusters-app ../support/chip-testing/dist/esm/AllClustersTestApp.js \
-              --bridge-app ../support/chip-testing/dist/esm/BridgeTestApp.js \
-              --tv-app ../support/chip-testing/dist/esm/TvTestApp.js \
+              --tool-path chip-tool: ../bin/chip-tool \
+              --app-path all-clusters: ../support/chip-testing/dist/esm/AllClustersTestApp.js \
+              --app-path bridge: ../support/chip-testing/dist/esm/BridgeTestApp.js \
+              --app-path tv: ../support/chip-testing/dist/esm/TvTestApp.js \
             '
 
 
@@ -210,27 +210,27 @@ jobs:
           ./scripts/run_in_build_env.sh  \
             './scripts/tests/run_test_suite.py \
               --runner chip_tool_python \
-              --chip-tool ../support/chip-testing/dist/esm/ControllerWebSocketTestApp.js \
+              --tool-path chip-tool: ../support/chip-testing/dist/esm/ControllerWebSocketTestApp.js \
               --log-level debug \
               --target-glob "{TestSelfFabricRemoval}" \
               run \
               --iterations 1 \
-              --all-clusters-app ../support/chip-testing/AllClustersTestApp.sh \
-              --bridge-app ../support/chip-testing/dist/esm/BridgeTestApp.js \
-              --tv-app ../support/chip-testing/dist/esm/TvTestApp.js \
+              --app-path all-clusters: ../support/chip-testing/AllClustersTestApp.sh \
+              --app-path bridge: ../support/chip-testing/dist/esm/BridgeTestApp.js \
+              --app-path tv: ../support/chip-testing/dist/esm/TvTestApp.js \
              || (cat ./test_allclusters.log && exit 1)'
           ./scripts/run_in_build_env.sh  \
             './scripts/tests/run_test_suite.py \
               --runner chip_tool_python \
-              --chip-tool ../support/chip-testing/dist/esm/ControllerWebSocketTestApp.js \
+              --tool-path chip-tool: ../support/chip-testing/dist/esm/ControllerWebSocketTestApp.js \
               --log-level info \
               --target-glob "{Test_TC_ACE_*,Test_TC_ACL_*,Test_AddNewFabricFromExistingFabric,Test_TC_BINFO_*,Test_TC_BRBINFO_*,Test_TC_CADMIN_*,Test_TC_CGEN_*,Test_TC_CNET_*,Test_TC_DGGEN_*,Test_TC_DESC_*,Test_TC_OPCREDS_*,TestAccessControlC*,TestArmFailSafe,TestCASERecovery,TestCommandsById,TestCommissionerNodeId,TestCommissioningWindow,TestFabricRemovalWhileSubscribed,TestGeneralCommissioning,TestMultiAdmin,TestOperationalCredentialsCluster,TestSubscribe_*,TestDiscovery}" \
               --target-skip-glob "{TestCASERecovery,TestOperationalCredentialsCluster}" \
               run \
               --iterations 1 \
-              --all-clusters-app ../support/chip-testing/dist/esm/AllClustersTestApp.js \
-              --bridge-app ../support/chip-testing/dist/esm/BridgeTestApp.js \
-              --tv-app ../support/chip-testing/dist/esm/TvTestApp.js \
+              --app-path all-clusters: ../support/chip-testing/dist/esm/AllClustersTestApp.js \
+              --app-path bridge: ../support/chip-testing/dist/esm/BridgeTestApp.js \
+              --app-path tv: ../support/chip-testing/dist/esm/TvTestApp.js \
             '
 
   # Execute the fast application cluster tests
@@ -256,15 +256,15 @@ jobs:
           ./scripts/run_in_build_env.sh  \
             './scripts/tests/run_test_suite.py \
               --runner chip_tool_python \
-              --chip-tool ../bin/chip-tool \
+              --tool-path chip-tool: ../bin/chip-tool \
               --log-level info \
               --target-glob "{Test_TC_ACFREMON_*,Test_TC_AIRQUAL_*,Test_TC_APBSC_*,Test_TC_BOOL_*,Test_TC_*CONC_*,Test_TC_FLABEL_*,Test_TC_FLW_*,Test_TC_HEPAFREMON_*,Test_TC_I_*,Test_TC_ILL_*,Test_TC_LCFG_*,Test_TC_LOWPOWER_*,Test_TC_LTIME_*,Test_TC_LUNIT_*,Test_TC_MOD_*,Test_TC_OO_*,Test_TC_PCC_*,Test_TC_PRS_*,Test_TC_PS_*,Test_TC_RH_*,Test_TC_SWTCH_*,Test_TC_TMP_*,Test_TC_TSUIC_*,Test_TC_ULABEL_*,Test_TC_WAKEONLAN_*,TestUserLabelCluster}" \
               --target-skip-glob "{Test_TC_OO_2_7}" \
               run \
               --iterations 1 \
-              --all-clusters-app ../support/chip-testing/dist/esm/AllClustersTestApp.js \
-              --bridge-app ../support/chip-testing/dist/esm/BridgeTestApp.js \
-              --tv-app ../support/chip-testing/dist/esm/TvTestApp.js \
+              --app-path all-clusters: ../support/chip-testing/dist/esm/AllClustersTestApp.js \
+              --app-path bridge: ../support/chip-testing/dist/esm/BridgeTestApp.js \
+              --app-path tv: ../support/chip-testing/dist/esm/TvTestApp.js \
             '
 
   matterjs-tests-app-fast:
@@ -289,17 +289,17 @@ jobs:
           ./scripts/run_in_build_env.sh  \
             './scripts/tests/run_test_suite.py \
               --runner chip_tool_python \
-              --chip-tool ../support/chip-testing/dist/esm/ControllerWebSocketTestApp.js \
+              --tool-path chip-tool: ../support/chip-testing/dist/esm/ControllerWebSocketTestApp.js \
               --log-level info \
               --target-glob "{Test_TC_ACFREMON_*,Test_TC_AIRQUAL_*,Test_TC_APBSC_*,Test_TC_BOOL_*,Test_TC_*CONC_*,Test_TC_DEMM_*,Test_TC_EEVSEM_*,Test_TC_FLABEL_*,Test_TC_FLW_*,Test_TC_HEPAFREMON_*,Test_TC_I_*,Test_TC_ILL_*,Test_TC_LCFG_*,Test_TC_LOWPOWER_*,Test_TC_LTIME_*,Test_TC_LUNIT_*,Test_TC_LWM_*,Test_TC_MOD_*,Test_TC_OCC_*,Test_TC_OO_*,Test_TC_OTCCM_*,Test_TC_PCC_*,Test_TC_PRS_*,Test_TC_PS_*,Test_TC_PWRTL_*,Test_TC_RH_*,Test_TC_SWTCH_*,Test_TC_TMP_*,Test_TC_TSUIC_*,Test_TC_ULABEL_*,Test_TC_WAKEONLAN_*,TestUserLabelCluster}" \
               --target-skip-glob "{Test_TC_OO_2_7}" \
               run \
               --iterations 1 \
-              --all-clusters-app ../support/chip-testing/dist/esm/AllClustersTestApp.js \
-              --bridge-app ../support/chip-testing/dist/esm/BridgeTestApp.js \
-              --tv-app ../support/chip-testing/dist/esm/TvTestApp.js \
-              --energy-gateway-app ../support/chip-testing/dist/esm/AllClustersTestApp.js \
-              --energy-management-app ../support/chip-testing/dist/esm/AllClustersTestApp.js \
+              --app-path all-clusters: ../support/chip-testing/dist/esm/AllClustersTestApp.js \
+              --app-path bridge: ../support/chip-testing/dist/esm/BridgeTestApp.js \
+              --app-path tv: ../support/chip-testing/dist/esm/TvTestApp.js \
+              --app-path energy-gateway: ../support/chip-testing/dist/esm/AllClustersTestApp.js \
+              --app-path energy-management: ../support/chip-testing/dist/esm/AllClustersTestApp.js \
             '
 
   # Execute the slower (because simulated) application cluster tests
@@ -325,16 +325,16 @@ jobs:
           ./scripts/run_in_build_env.sh  \
             './scripts/tests/run_test_suite.py \
               --runner chip_tool_python \
-              --chip-tool ../bin/chip-tool \
+              --tool-path chip-tool: ../bin/chip-tool \
               --log-level info \
               --target-glob "{Test_TC_CC_*,Test_TC_LVL_*,Test_TC_WNCV_*}" \
               --target-skip-glob "{Test_TC_LVL_9_1,Test_TC_CC_9_1,Test_TC_CC_9_2,Test_TC_CC_9_3}" \
               --include-tags MANUAL \
               run \
               --iterations 1 \
-              --all-clusters-app ../support/chip-testing/dist/esm/AllClustersTestApp.js \
-              --bridge-app ../support/chip-testing/dist/esm/BridgeTestApp.js \
-              --tv-app ../support/chip-testing/dist/esm/TvTestApp.js \
+              --app-path all-clusters: ../support/chip-testing/dist/esm/AllClustersTestApp.js \
+              --app-path bridge: ../support/chip-testing/dist/esm/BridgeTestApp.js \
+              --app-path tv: ../support/chip-testing/dist/esm/TvTestApp.js \
             '
 
   chip-tests-long:
@@ -359,13 +359,13 @@ jobs:
           ./scripts/run_in_build_env.sh  \
             './scripts/tests/run_test_suite.py \
               --runner chip_tool_python \
-              --chip-tool ../bin/chip-tool \
+              --tool-path chip-tool: ../bin/chip-tool \
               --log-level info \
               --target-glob "{Test_TC_CADMIN_1_3,Test_TC_CADMIN_1_4,Test_TC_CADMIN_1_5,Test_TC_CADMIN_1_6,Test_TC_CADMIN_1_9,Test_TC_CADMIN_1_10,Test_TC_CADMIN_1_16,Test_TC_CADMIN_1_23,Test_TC_CADMIN_1_24}" \
               --include-tags MANUAL \
               run \
-              --all-clusters-app ../support/chip-testing/dist/esm/AllClustersTestApp.js \
-              --bridge-app ../support/chip-testing/dist/esm/BridgeTestApp.js \
+              --app-path all-clusters: ../support/chip-testing/dist/esm/AllClustersTestApp.js \
+              --app-path bridge: ../support/chip-testing/dist/esm/BridgeTestApp.js \
             '
   matterjs-tests-long:
     needs: [prepare-chip-build, chip-tests-needed]
@@ -389,13 +389,13 @@ jobs:
           ./scripts/run_in_build_env.sh  \
             './scripts/tests/run_test_suite.py \
               --runner chip_tool_python \
-              --chip-tool ../support/chip-testing/dist/esm/ControllerWebSocketTestApp.js \
+              --tool-path chip-tool: ../support/chip-testing/dist/esm/ControllerWebSocketTestApp.js \
               --log-level info \
               --target-glob "{Test_TC_CADMIN_1_3,Test_TC_CADMIN_1_4,Test_TC_CADMIN_1_5,Test_TC_CADMIN_1_6,Test_TC_CADMIN_1_9,Test_TC_CADMIN_1_10,Test_TC_CADMIN_1_16,Test_TC_CADMIN_1_23,Test_TC_CADMIN_1_24}" \
               --include-tags MANUAL \
               run \
-              --all-clusters-app ../support/chip-testing/dist/esm/AllClustersTestApp.js \
-              --bridge-app ../support/chip-testing/dist/esm/BridgeTestApp.js \
+              --app-path all-clusters: ../support/chip-testing/dist/esm/AllClustersTestApp.js \
+              --app-path bridge: ../support/chip-testing/dist/esm/BridgeTestApp.js \
             '
 
   python-repl-tests-core:

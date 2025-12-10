@@ -104,21 +104,21 @@ jobs:
           ./scripts/run_in_build_env.sh  \
             './scripts/tests/run_test_suite.py \
               --runner chip_tool_python \
-              --chip-tool ../support/chip-testing/dist/esm/ControllerWebSocketTestApp.js \
               --log-level info \
               --target-glob "{Test_*,}" \
               --target-skip-glob "{Test_TC_BDX_*,Test_TC_DGTHREAD*,Test_TC_DGWIFI*,Test_TC_S_2_3}" \
               run \
-              --all-clusters-app ../bin/chip-all-clusters-app \
-              --lock-app ../bin/chip-lock-app \
-              --bridge-app ../bin/chip-bridge-app \
-              --tv-app ../bin/chip-tv-app \
-              --lit-icd-app ../bin/lit-icd-app \
-              --microwave-oven-app ../bin/chip-microwave-oven-app \
-              --rvc-app ../bin/chip-rvc-app \
-              --network-manager-app ../bin/matter-network-manager-app \
-              --energy-gateway-app ../bin/chip-energy-gateway-app \
-              --energy-management-app ../bin/chip-energy-management-app \
+              --tool-path chip-tool: ../support/chip-testing/dist/esm/ControllerWebSocketTestApp.js \
+              --app-path all-clusters: ../bin/chip-all-clusters-app \
+              --app-path lock: ../bin/chip-lock-app \
+              --app-path bridge: ../bin/chip-bridge-app \
+              --app-path tv: ../bin/chip-tv-app \
+              --app-path lit-icd: ../bin/lit-icd-app \
+              --app-path microwave-oven: ../bin/chip-microwave-oven-app \
+              --app-path rvc: ../bin/chip-rvc-app \
+              --app-path network-manager: ../bin/matter-network-manager-app \
+              --app-path energy-gateway: ../bin/chip-energy-gateway-app \
+              --app-path energy-management: ../bin/chip-energy-management-app \
             '
       - name: Verify that Matter.js controller was used
         shell: bash
