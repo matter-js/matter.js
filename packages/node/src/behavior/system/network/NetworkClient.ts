@@ -5,12 +5,13 @@
  */
 
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
+import { BasicInformationClient } from "#behaviors/basic-information";
 import { Observable, ServerAddress, ServerAddressUdp } from "#general";
 import { DatatypeModel, FieldElement } from "#model";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
 import { ActiveSubscription, PeerSet, Subscribe } from "#protocol";
-import { CaseAuthenticatedTag } from "#types";
+import { CaseAuthenticatedTag, EventNumber } from "#types";
 import { ClientNetworkRuntime } from "./ClientNetworkRuntime.js";
 import { NetworkBehavior } from "./NetworkBehavior.js";
 
@@ -46,6 +47,12 @@ export class NetworkClient extends NetworkBehavior {
                     );
                 }
             }
+            if (!this.#node.lifecycle.isCommissioned) {
+                const capabilityMinima = this.#node.maybeStateOf(BasicInformationClient)?.capabilityMinima;
+                if (capabilityMinima !== undefined) {
+                    peerSet.for(peerAddress).limits = capabilityMinima;
+                }
+            }
         }
 
         await this.#handleAutoSubscribeChanged();
@@ -71,6 +78,7 @@ export class NetworkClient extends NetworkBehavior {
         if (subscriptionDesired) {
             const subscribe = Subscribe({
                 fabricFilter: true,
+                keepSubscriptions: false,
                 attributes: [{}],
                 events: [{ isUrgent: true }],
                 ...this.state.defaultSubscription,
@@ -122,6 +130,13 @@ export class NetworkClient extends NetworkBehavior {
                 type: "bool",
                 quality: "N",
                 default: false,
+            }),
+
+            FieldElement({
+                name: "maxEventNumber",
+                type: "event-no",
+                quality: "N",
+                default: EventNumber(0),
             }),
 
             FieldElement({
@@ -188,6 +203,11 @@ export namespace NetworkClient {
          * commissioning process.
          */
         caseAuthenticatedTags?: CaseAuthenticatedTag[];
+
+        /**
+         * The highest event number seen from this node for the default read/subscription.
+         */
+        maxEventNumber = EventNumber(0);
     }
 
     export class Events extends NetworkBehavior.Events {

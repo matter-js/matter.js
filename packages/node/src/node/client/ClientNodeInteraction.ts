@@ -74,7 +74,7 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
                 request,
             }),
 
-            sustain: request.sustain === undefined ? true : request.sustain,
+            sustain: request.sustain !== false,
 
             updated: async data => {
                 const result = this.structure.mutate(request, data);

@@ -8,11 +8,11 @@ import type { ActionContext } from "#behavior/index.js";
 import { ImplementationError } from "#general";
 import {
     ClientInvoke,
+    ClientSubscription,
     DecodedInvokeResult,
     Read,
     ReadResult,
     Subscribe,
-    SubscribeResult,
     Write,
     WriteResult,
 } from "#protocol";
@@ -27,7 +27,7 @@ export class ClientGroupInteraction extends ClientNodeInteraction {
     }
 
     /** Groups do not support reading or subscribing to attributes */
-    override async subscribe(_request: Subscribe, _context?: ActionContext): SubscribeResult {
+    override async subscribe(_request: Subscribe, _context?: ActionContext): Promise<ClientSubscription> {
         throw new InvalidGroupOperationError("Groups do not support subscribing to attributes");
     }
 
@@ -64,6 +64,8 @@ export class ClientGroupInteraction extends ClientNodeInteraction {
         if (request.timedRequest) {
             throw new InvalidGroupOperationError("Timed requests are not supported for group address invokes.");
         }
+
+        request.suppressResponse = true; // Invoking on a group does not yield a response by definition
 
         return super.invoke(request, context);
     }

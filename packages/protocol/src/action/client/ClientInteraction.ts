@@ -31,6 +31,7 @@ import {
 } from "#general";
 import { InteractionClientMessenger, MessageType } from "#interaction/InteractionMessenger.js";
 import { Subscription } from "#interaction/Subscription.js";
+import { PeerAddress } from "#peer/index.js";
 import { ExchangeProvider } from "#protocol/ExchangeProvider.js";
 import { SecureSession } from "#session/SecureSession.js";
 import { Status, TlvAttributeReport, TlvNoResponse, TlvSubscribeResponse, TypeFromSchema } from "#types";
@@ -43,10 +44,15 @@ import { SustainedSubscription } from "./subscription/SustainedSubscription.js";
 
 const logger = Logger.get("ClientInteraction");
 
+export type SubscriptionResult<T extends ClientSubscribe = ClientSubscribe> = Promise<
+    T extends { sustain: true } ? SustainedSubscription : PeerSubscription
+>;
+
 export interface ClientInteractionContext {
     environment: Environment;
     abort?: Abort.Signal;
     sustainRetries?: RetrySchedule.Configuration;
+    exchangeProvider?: ExchangeProvider;
 }
 
 export const DEFAULT_MIN_INTERVAL_FLOOR = Seconds(1);
@@ -68,16 +74,20 @@ const DEFAULT_MINIMUM_RESPONSE_TIMEOUT_WITH_FAILSAFE = Seconds(30);
 export class ClientInteraction<
     SessionT extends InteractionSession = InteractionSession,
 > implements Interactable<SessionT> {
+    readonly #environment: Environment;
     readonly #lifetime: Lifetime;
     readonly #exchanges: ExchangeProvider;
-    readonly #subscriptions: ClientSubscriptions;
     readonly #interactions = new BasicSet<Read | Write | Invoke | Subscribe>();
+    #subscriptions?: ClientSubscriptions;
     readonly #abort: Abort;
     readonly #sustainRetries: RetrySchedule;
 
-    constructor({ environment, abort, sustainRetries }: ClientInteractionContext) {
-        this.#exchanges = environment.get(ExchangeProvider);
-        this.#subscriptions = environment.get(ClientSubscriptions);
+    constructor({ environment, abort, sustainRetries, exchangeProvider }: ClientInteractionContext) {
+        this.#environment = environment;
+        this.#exchanges = exchangeProvider ?? environment.get(ExchangeProvider);
+        if (environment.has(ClientSubscriptions)) {
+            this.#subscriptions = environment.get(ClientSubscriptions);
+        }
         this.#abort = Abort.subtask(abort);
         this.#sustainRetries = new RetrySchedule(
             environment.get(Entropy),
@@ -96,6 +106,10 @@ export class ClientInteraction<
         });
     }
 
+    get exchanges() {
+        return this.#exchanges;
+    }
+
     get session() {
         return this.#exchanges.session;
     }
@@ -111,6 +125,9 @@ export class ClientInteraction<
     }
 
     get subscriptions() {
+        if (this.#subscriptions === undefined) {
+            this.#subscriptions = this.#environment.get(ClientSubscriptions);
+        }
         return this.#subscriptions;
     }
 
@@ -119,6 +136,9 @@ export class ClientInteraction<
      */
     async *read(request: Read, session?: SessionT): ReadResult {
         const readPathsCount = (request.attributeRequests?.length ?? 0) + (request.eventRequests?.length ?? 0);
+        if (readPathsCount === 0) {
+            throw new ImplementationError("When reading attributes and events, at least one must be specified.");
+        }
         if (readPathsCount > 9) {
             logger.debug(
                 "Read interactions with more then 9 paths might be not allowed by the device. Consider splitting then into several read requests.",
@@ -332,14 +352,25 @@ export class ClientInteraction<
     /**
      * Subscribe to attribute values and events.
      */
-    async subscribe(request: ClientSubscribe, session?: SessionT) {
+    async subscribe<T extends ClientSubscribe>(request: T, session?: SessionT): SubscriptionResult<T> {
         const subscriptionPathsCount = (request.attributeRequests?.length ?? 0) + (request.eventRequests?.length ?? 0);
+        if (subscriptionPathsCount === 0) {
+            throw new ImplementationError("When subscribing to attributes and events, at least one must be specified.");
+        }
         if (subscriptionPathsCount > 3) {
             logger.debug("Subscribe interactions with more then 3 paths might be not allowed by the device.");
         }
 
+        SecureSession.assert(this.#exchanges.session);
+        const peer = this.#exchanges.session.peerAddress;
+
         if (!request.keepSubscriptions) {
-            for (const subscription of this.#subscriptions) {
+            for (const subscription of this.subscriptions) {
+                // TODO Adjust this filtering when subscriptions move to Peer
+                if (!PeerAddress.is(peer, subscription.peer)) {
+                    // Ignore subscriptions from other peers
+                    continue;
+                }
                 logger.debug(
                     `Removing subscription with ID ${Subscription.idStrOf(subscription)} because new subscription replaces it`,
                 );
@@ -359,9 +390,6 @@ export class ClientInteraction<
                 )}) is less than minIntervalFloor (${Duration.format(minIntervalFloor)})`,
             );
         }
-
-        SecureSession.assert(this.#exchanges.session);
-        const peer = this.#exchanges.session.peerAddress;
 
         const subscribe = async (request: ClientSubscribe) => {
             await using context = await this.#begin("subscribing", request, session);
@@ -402,14 +430,15 @@ export class ClientInteraction<
             );
 
             const subscription = new PeerSubscription({
-                lifetime: this.#subscriptions,
+                lifetime: this.subscriptions,
                 request,
                 peer,
-                closed: () => this.#subscriptions.delete(subscription),
+                closed: () => this.subscriptions.delete(subscription),
                 response,
                 abort: session?.abort,
+                maxPeerResponseTime: this.#exchanges.maximumPeerResponseTime(),
             });
-            this.#subscriptions.addPeer(subscription);
+            this.subscriptions.addPeer(subscription);
 
             return subscription;
         };
@@ -417,10 +446,10 @@ export class ClientInteraction<
         let subscription: ClientSubscription;
         if (request.sustain) {
             subscription = new SustainedSubscription({
-                lifetime: this.#subscriptions,
+                lifetime: this.subscriptions,
                 subscribe,
                 peer,
-                closed: () => this.#subscriptions.delete(subscription),
+                closed: () => this.subscriptions.delete(subscription),
                 request,
                 abort: session?.abort,
                 retries: this.#sustainRetries,
@@ -429,9 +458,9 @@ export class ClientInteraction<
             subscription = await subscribe(request);
         }
 
-        this.#subscriptions.addActive(subscription);
+        this.subscriptions.addActive(subscription);
 
-        return subscription;
+        return subscription as unknown as SubscriptionResult<T>;
     }
 
     async #handleSubscriptionResponse(request: Subscribe, result: ReadResult) {
