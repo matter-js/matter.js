@@ -31,6 +31,7 @@ import {
 } from "#general";
 import { InteractionClientMessenger, MessageType } from "#interaction/InteractionMessenger.js";
 import { Subscription } from "#interaction/Subscription.js";
+import { PeerAddress } from "#peer/index.js";
 import { ExchangeProvider } from "#protocol/ExchangeProvider.js";
 import { SecureSession } from "#session/SecureSession.js";
 import { Status, TlvAttributeReport, TlvNoResponse, TlvSubscribeResponse, TypeFromSchema } from "#types";
