@@ -19,6 +19,7 @@ import {
     DeviceClassification,
     DeviceTypeModel,
     FeatureMap,
+    GeneratedCommandList,
     Matter,
     type FeatureBitmap,
 } from "#model";
@@ -378,7 +379,7 @@ export class ClientStructure {
     #synchronizeCluster(structure: EndpointStructure, cluster: ClusterStructure) {
         const { endpoint } = structure;
 
-        // Generate a behavior if enough information is available
+        // Generate a behavior if enough             information is available
         if (cluster.behavior === undefined) {
             if (cluster.store.initialValues) {
                 const {
@@ -386,6 +387,7 @@ export class ClientStructure {
                     [FeatureMap.id]: features,
                     [AttributeList.id]: attributeList,
                     [AcceptedCommandList.id]: commandList,
+                    [GeneratedCommandList.id]: generatedCommandList,
                 } = cluster.store.initialValues;
 
                 if (typeof clusterRevision === "number") {
@@ -407,13 +409,21 @@ export class ClientStructure {
                         (a, b) => a - b,
                     );
                 }
+
+                if (Array.isArray(generatedCommandList)) {
+                    cluster.generatedCommands = (
+                        generatedCommandList.filter(cmd => typeof cmd === "number") as CommandId[]
+                    ).sort((a, b) => a - b);
+                }
             }
 
             if (
-                cluster.revision !== undefined &&
-                cluster.features !== undefined &&
-                cluster.attributes !== undefined &&
-                cluster.commands !== undefined
+                // All global attributes have fallbacks so we can't wait until we're sure we have them all.  Instead
+                // wait until we are sure there is something useful.  We therefore rely on unspecified behavior that all
+                // attributes travel consecutively to ensure we initialize fully as we have no other choice
+                cluster.attributes?.length ||
+                cluster.commands?.length ||
+                cluster.generatedCommands?.length
             ) {
                 const behaviorType = PeerBehavior(cluster as PeerBehavior.ClusterShape);
 

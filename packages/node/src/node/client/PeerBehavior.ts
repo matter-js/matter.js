@@ -79,11 +79,10 @@ export namespace PeerBehavior {
         kind: "discovered";
         id: ClusterId;
         revision: number;
-        features: FeatureBitmap | number;
-        attributes: AttributeId[];
-        commands: CommandId[];
-        attributeNames: Record<AttributeId, string>;
-        commandNames: Record<CommandId, string>;
+        features?: FeatureBitmap | number;
+        attributes?: AttributeId[];
+        commands?: CommandId[];
+        generatedCommands?: CommandId[];
     }
 
     /**
@@ -165,11 +164,10 @@ function generateDiscoveredType(analysis: DiscoveredShapeAnalysis, baseType?: Be
     // Identify known features the device supports
     let supportedFeatures = analysis.shape.features;
     if (typeof supportedFeatures === "number") {
-        if (supportedFeatures) {
-            supportedFeatures = cluster.attributes.featureMap.schema.decode(supportedFeatures as any) as FeatureBitmap;
-        } else {
-            supportedFeatures = {};
-        }
+        supportedFeatures = cluster.attributes.featureMap.schema.decode(supportedFeatures as any) as FeatureBitmap;
+    }
+    if (supportedFeatures === undefined) {
+        supportedFeatures = {};
     }
 
     // If there are features supported, customize the ClusterModel and ClusterType accordingly
@@ -362,18 +360,18 @@ function DiscoveredShapeAnalysis(shape: PeerBehavior.DiscoveredClusterShape): Di
     if (typeof shape.features === "number") {
         featureBitmap = shape.features;
     } else {
-        featureBitmap = EncodedBitmap(schema.featureMap, shape.features);
+        featureBitmap = EncodedBitmap(schema.featureMap, shape.features ?? {});
     }
 
     const attrSupportOverrides = new Map<AttributeModel, boolean>();
-    const extraAttrs = new Set<number>(shape.attributes);
+    const extraAttrs = new Set<number>(shape.attributes ?? []);
     for (const attr of schema.attributes) {
         maybeOverrideSupport(standardCluster, attr, extraAttrs, attrSupportOverrides);
         extraAttrs.delete(attr.id as AttributeId);
     }
 
     const commandSupportOverrides = new Map<CommandModel, boolean>();
-    const extraCommands = new Set(shape.commands);
+    const extraCommands = new Set(shape.commands ?? []);
     for (const command of schema.commands) {
         maybeOverrideSupport(standardCluster, command, extraCommands, commandSupportOverrides);
         extraCommands.delete(command.id as CommandId);
