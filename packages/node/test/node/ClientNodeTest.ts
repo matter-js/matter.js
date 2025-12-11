@@ -408,24 +408,38 @@ describe("ClientNode", () => {
         // *** SETUP ***
 
         await using site = new MockSite();
-        const { controller } = await site.addCommissionedPair({
+        let { controller } = await site.addCommissionedPair({
             device: {
                 type: ServerNode.RootEndpoint.with(MyBehavior),
             },
         });
-        const peer = controller.peers.get("peer1")!;
 
         // *** VERIFY STRUCTURE ***
 
-        const behavior = peer.behaviors.supported.cluster$1;
-        expect(typeof behavior).equals("function");
-        expect((behavior as ClusterBehavior.Type).schema.id).equals(1);
-        expect((behavior as ClusterBehavior.Type).cluster.id).equals(1);
+        verifyStructure();
 
-        const state = peer.maybeStateOf("cluster$1");
-        expect(typeof state).equals("object");
-        expect((state as Val.Struct)[1]).equals("hello");
-        expect((state as Val.Struct).attr$1).equals("hello");
+        // *** RECREATE CONTROLLER ***
+
+        await MockTime.resolve(controller.close());
+        controller = await site.addController({ index: 1 });
+
+        // *** REVERIFY STRUCTURE ***
+
+        verifyStructure();
+
+        function verifyStructure() {
+            const peer = controller.peers.get("peer1")!;
+
+            const behavior = peer.behaviors.supported.cluster$1;
+            expect(typeof behavior).equals("function");
+            expect((behavior as ClusterBehavior.Type).schema.id).equals(1);
+            expect((behavior as ClusterBehavior.Type).cluster.id).equals(1);
+
+            const state = peer.maybeStateOf("cluster$1");
+            expect(typeof state).equals("object");
+            expect((state as Val.Struct)[1]).equals("hello");
+            expect((state as Val.Struct).attr$1).equals("hello");
+        }
     });
 
     it("handles structure change and cluster recreation while device online", () => {
