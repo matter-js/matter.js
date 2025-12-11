@@ -404,7 +404,7 @@ describe("ClientNode", () => {
         await ep1.commandsOf(OnOffClient).offWithEffect({ effectIdentifier: 0, effectVariant: 0 });
     });
 
-    it.only("properly supports unknown clusters", async () => {
+    it("properly supports unknown clusters", async () => {
         // *** SETUP ***
 
         await using site = new MockSite();
