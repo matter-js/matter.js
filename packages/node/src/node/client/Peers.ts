@@ -132,16 +132,19 @@ export class Peers extends EndpointContainer<ClientNode> {
     }
 
     /**
-     * Find a specific commissionable node.
+     * Find a specific commissionable node, or, if no discovery options are provided, returns the first discovered node.
+     * TODO: Allow to provide an array of options for multiple discoveries (e.g. from a Multi QR code).
      */
     locate(options?: Discovery.Options) {
         return new InstanceDiscovery(this.owner, options);
     }
 
     /**
-     * Employ discovery to find a set of commissionable nodes.
+     * Employ discovery to find a set of commissionable nodes, the options can be used to limit the discovered devices
+     * (e.g. just a specific vendor).
+     * TODO: Allow to provide an array of options for multiple discoveries (e.g. from a Multi QR code).
      *
-     * If you do not provide a timeout value, will search until canceled and you need to add a listener to
+     * If you do not provide a timeout value, will search until canceled, and you need to add a listener to
      * {@link Discovery#discovered} or {@link added} to receive discovered nodes.
      */
     discover(options?: Discovery.Options) {
@@ -176,14 +179,15 @@ export class Peers extends EndpointContainer<ClientNode> {
     /**
      * Emits when fixed attributes
      */
-
     override get(id: number | string | PeerAddress) {
         if (typeof id !== "string" && typeof id !== "number") {
             const address = PeerAddress(id);
             for (const node of this) {
-                const nodeAddress = node.state.commissioning.peerAddress;
-                if (nodeAddress && PeerAddress.is(nodeAddress, address)) {
-                    return node;
+                if (node.behaviors.active.some(({ id }) => id === "commissioning")) {
+                    const nodeAddress = node.maybeStateOf("commissioning")?.peerAddress as PeerAddress | undefined;
+                    if (nodeAddress !== undefined && PeerAddress.is(nodeAddress, address)) {
+                        return node;
+                    }
                 }
             }
             return undefined;
@@ -258,17 +262,14 @@ export class Peers extends EndpointContainer<ClientNode> {
      * If required, installs a listener in the environment's {@link InteractionServer} to handle subscription responses.
      */
     #configureInteractionServer() {
-        if (this.#closed || this.size > 0 || !this.owner.env.has(InteractionServer)) {
+        if (this.#closed || this.#subscriptionHandler !== undefined || !this.owner.env.has(InteractionServer)) {
             return;
         }
 
         const subscriptions = this.owner.env.get(ClientSubscriptions);
         const interactionServer = this.owner.env.get(InteractionServer);
 
-        if (!this.#subscriptionHandler) {
-            this.#subscriptionHandler = new ClientSubscriptionHandler(subscriptions);
-        }
-
+        this.#subscriptionHandler = new ClientSubscriptionHandler(subscriptions);
         interactionServer.clientHandler = this.#subscriptionHandler;
     }
 
@@ -297,6 +298,9 @@ export class Peers extends EndpointContainer<ClientNode> {
     }
 
     #onExpirationIntervalElapsed() {
+        if (this.#closed) {
+            return;
+        }
         this.#mutex.run(() =>
             this.#cullExpiredNodesAndAddresses()
                 .catch(error => {
@@ -313,7 +317,13 @@ export class Peers extends EndpointContainer<ClientNode> {
             const now = Time.nowMs;
 
             for (const node of this) {
-                const state = node.state.commissioning;
+                if (!node.lifecycle.isReady) {
+                    continue;
+                }
+                const state = node.maybeStateOf(CommissioningClient);
+                if (state === undefined) {
+                    continue;
+                }
                 const { addresses } = state;
                 const isCommissioned = state.peerAddress !== undefined;
 
@@ -374,6 +384,10 @@ export class Peers extends EndpointContainer<ClientNode> {
         node.eventsOf(type).capabilityMinima$Changed.on(setPeerLimits);
 
         function setPeerLimits() {
+            if (!node.env.has(PeerSet)) {
+                // Node is not yet online, delay setting limits
+                return;
+            }
             const peerAddress = node.maybeStateOf(CommissioningClient)?.peerAddress;
             if (peerAddress) {
                 node.env.get(PeerSet).for(peerAddress).limits = node.stateOf(type).capabilityMinima;
