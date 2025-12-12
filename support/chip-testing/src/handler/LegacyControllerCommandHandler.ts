@@ -552,6 +552,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
         return {
             IPK: identityProtectionKey,
             NOC: await ca.generateNoc(operationalPublicKey, fabricId, nodeId),
+            ICAC: ca.icacCert,
             RCAC: rootCertBytes,
         };
     }

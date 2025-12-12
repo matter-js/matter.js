@@ -845,7 +845,7 @@ export class ControllerCommissioningFlow {
         const addNocResponse = await operationalCredentialsClusterClient.addNoc(
             {
                 nocValue: peerOperationalCert,
-                icacValue: new Uint8Array(0),
+                icacValue: this.ca.icacCert ?? new Uint8Array(0),
                 ipkValue: this.fabric.identityProtectionKey,
                 adminVendorId: this.fabric.rootVendorId,
                 caseAdminSubject: this.fabric.rootNodeId,

@@ -141,6 +141,7 @@ export class FabricAuthority {
         const fabricId = config.adminFabricId ?? FabricId(this.#fabrics.crypto.randomBigInt(8));
         await fabricBuilder.setOperationalCert(
             await this.#ca.generateNoc(fabricBuilder.publicKey, fabricId, rootNodeId, config.caseAuthenticatedTags),
+            this.#ca.icacCert,
         );
 
         let index = config.adminFabricIndex;
