@@ -52,14 +52,22 @@ export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: W
     } else {
         options = optionsOrData;
     }
-    const { writes: writeRequests = [], timed, timeout, chunkLists } = options;
+    const {
+        writes: writeRequests = [],
+        timed,
+        timeout,
+        chunkLists,
+        suppressResponse,
+        interactionModelRevision = Specification.INTERACTION_MODEL_REVISION,
+    } = options;
 
     const result = {
         timedRequest: !!timed || !!timeout,
         timeout,
         writeRequests,
         moreChunkedMessages: false,
-        interactionModelRevision: options.interactionModelRevision ?? Specification.INTERACTION_MODEL_REVISION,
+        suppressResponse,
+        interactionModelRevision,
 
         [Diagnostic.value]: () =>
             Diagnostic.list(
@@ -158,6 +166,7 @@ export namespace Write {
         timeout?: Duration;
         interactionModelRevision?: number;
         chunkLists?: boolean;
+        suppressResponse?: boolean;
     }
 
     /**

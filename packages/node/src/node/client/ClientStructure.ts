@@ -238,9 +238,17 @@ export class ClientStructure {
     }
 
     /** Reference to the default subscription used when the node was started. */
-    protected get subscribedFabricFiltered() {
+    protected get subscribedFabricFiltered(): boolean {
         if (this.#subscribedFabricFiltered === undefined) {
-            this.#subscribedFabricFiltered = this.#node.state.network.defaultSubscription?.isFabricFiltered ?? true;
+            const defaultSubscription =
+                this.#node.state.network.defaultSubscription ??
+                ({} as { isFabricFiltered?: boolean; fabricFiltered?: boolean }); // Either Subscribe or Options
+            this.#subscribedFabricFiltered =
+                ("isFabricFiltered" in defaultSubscription
+                    ? defaultSubscription.isFabricFiltered
+                    : "fabricFiltered" in defaultSubscription
+                      ? defaultSubscription.fabricFiltered
+                      : true) ?? true;
             this.#node.events.network.defaultSubscription$Changed.on(newSubscription => {
                 this.#subscribedFabricFiltered = newSubscription?.isFabricFiltered ?? true;
             });
