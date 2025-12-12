@@ -3,14 +3,8 @@
  * Copyright 2022-2025 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import {
-    CertificateAuthority,
-    ControllerCommissioningFlow,
-    ControllerCommissioningFlowOptions,
-    Fabric,
-    InteractionClient,
-    PeerAddress,
-} from "@matter/main/protocol";
+import { ControllerCommissioningFlow, ControllerCommissioningFlowOptions, InteractionClient } from "@matter/main/node";
+import { CertificateAuthority, Fabric, PeerAddress } from "@matter/main/protocol";
 
 /**
  * Custom commissioning Flow for Chip Controller Tests which does not update the Fabric Label,

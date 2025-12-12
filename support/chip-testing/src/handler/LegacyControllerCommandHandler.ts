@@ -7,10 +7,10 @@
 import { Bytes, Logger, Seconds } from "@matter/general";
 import { NodeId, Observable, ServerAddressUdp } from "@matter/main";
 import { GeneralCommissioning, GroupKeyManagement } from "@matter/main/clusters";
+import { InteractionClient } from "@matter/main/node";
 import {
     Certificate,
     CertificateAuthority,
-    InteractionClient,
     IPK_DEFAULT_EPOCH_START_TIME,
     NodeDiscoveryType,
     SecureSession,
