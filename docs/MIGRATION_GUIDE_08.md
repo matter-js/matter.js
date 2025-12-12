@@ -70,8 +70,8 @@ Afterward you start the node. Here you have two options:
 The following methods are also existing on the ServerNode:
 
 -   **`cancel()`**: This brings the node offline and removes all network sockets but leave state and structure intact, so it can be started again.
--   **`factoryReset()`**: This factory resets the device. If started it is stopped and restarted afterward.
--   **`destroy()`**: This destroys the node, taking it offline and removing it from the environment workers-
+-   **`erase()`**: This factory resets the device. If started it is stopped and restarted afterward.
+-   **`delete()`**: This destroys the node, taking it offline and removing it from the environment workers-
 
 ### New:Endpoint <--> Legacy:Endpoint and Device-Classes/Clusters
 
