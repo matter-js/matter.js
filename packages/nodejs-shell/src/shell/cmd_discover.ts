@@ -8,7 +8,7 @@ import { Diagnostic, Seconds } from "#general";
 import { CommissionableDeviceIdentifiers } from "#protocol";
 import { ManualPairingCodeCodec, VendorId } from "#types";
 import type { Argv } from "yargs";
-import { MatterNode } from "../MatterNode";
+import { MatterNode } from "../MatterNode.js";
 
 export default function commands(theNode: MatterNode) {
     return {

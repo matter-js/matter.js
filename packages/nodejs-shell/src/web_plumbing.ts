@@ -8,7 +8,7 @@ import { Logger, LogLevel, NotImplementedError } from "@matter/general";
 import { Readable, Writable } from "node:stream";
 import WebSocket, { Data, WebSocketServer } from "ws";
 import { MatterNode } from "./MatterNode.js";
-import { Shell } from "./shell/Shell";
+import { Shell } from "./shell/Shell.js";
 
 import fs from "fs";
 import http, { Server } from "node:http";

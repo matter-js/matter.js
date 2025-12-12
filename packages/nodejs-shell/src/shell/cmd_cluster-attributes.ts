@@ -4,14 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic } from "#general";
+import { camelize, Diagnostic } from "#general";
 import { AttributeModel, ClusterModel, MatterModel } from "#model";
 import { SupportedAttributeClient } from "#node";
 import { AttributeId, ClusterId, EndpointNumber, ValidationError } from "#types";
 import type { Argv } from "yargs";
-import { MatterNode } from "../MatterNode";
-import { convertJsonDataWithModel } from "../util/Json";
-import { camelize } from "../util/String";
+import { MatterNode } from "../MatterNode.js";
+import { convertJsonDataWithModel } from "../util/Json.js";
 
 function generateAllAttributeHandlersForCluster(yargs: Argv, theNode: MatterNode) {
     MatterModel.standard.clusters.forEach(cluster => {

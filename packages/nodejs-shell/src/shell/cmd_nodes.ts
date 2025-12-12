@@ -8,7 +8,7 @@ import { capitalize, decamelize, Diagnostic } from "#general";
 import { NodeId, VendorId } from "#types";
 import { CommissioningControllerNodeOptions, NodeStateInformation } from "@project-chip/matter.js/device";
 import type { Argv } from "yargs";
-import { MatterNode } from "../MatterNode";
+import { MatterNode } from "../MatterNode.js";
 
 export function createDiagnosticCallbacks(): Partial<CommissioningControllerNodeOptions> {
     return {
