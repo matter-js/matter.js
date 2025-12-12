@@ -8,7 +8,7 @@
 import { Environment, Logger, SharedEnvironmentServices, StorageContext, StorageService } from "#general";
 import { DclCertificateService, DclOtaUpdateService, DclVendorInfoService } from "#protocol";
 import { NodeId } from "#types";
-import { CommissioningController, ControllerStore } from "@project-chip/matter.js";
+import { CommissioningController } from "@project-chip/matter.js";
 import { CommissioningControllerNodeOptions, Endpoint, PairedNode } from "@project-chip/matter.js/device";
 import { join } from "node:path";
 
@@ -45,6 +45,13 @@ export class MatterNode {
             this.#services = this.#environment.asDependent();
         }
         return this.#services;
+    }
+
+    get node() {
+        if (this.commissioningController === undefined) {
+            throw new Error("CommissioningController not initialized. Start first");
+        }
+        return this.commissioningController.node;
     }
 
     get otaService() {
@@ -90,22 +97,20 @@ export class MatterNode {
                 autoConnect: false,
                 adminFabricLabel: "matter.js Shell",
             });
-            await this.commissioningController.initializeControllerStore();
-
-            const controllerStore = this.commissioningController.env.get(ControllerStore);
-            if (resetStorage) {
-                await controllerStore.erase();
-            }
-            this.#storageContext = controllerStore.storage.createContext("Node");
-
-            // Read DCL test certificates setting
-            this.#dclFetchTestCertificates = await this.#storageContext.get<boolean>("DclFetchTestCertificates", false);
 
             const storageService = this.commissioningController.env.get(StorageService);
             const baseLocation = storageService.location;
             if (baseLocation !== undefined) {
                 this.#storageLocation = join(baseLocation, id);
             }
+
+            if (resetStorage) {
+                await this.commissioningController.node.erase();
+            }
+            this.#storageContext = (await storageService.open(id)).createContext("Node");
+
+            // Read DCL test certificates setting
+            this.#dclFetchTestCertificates = await this.#storageContext.get<boolean>("DclFetchTestCertificates", false);
         } else {
             console.log(
                 "Legacy support was removed in Matter.js 0.13. Please downgrade or migrate the storage manually",
@@ -158,7 +163,9 @@ export class MatterNode {
             return await this.commissioningController.connect(connectOptions);
         }
 
-        const node = await this.commissioningController.connectNode(nodeId, connectOptions);
+        const node = await this.commissioningController.connectNode(nodeId, {
+            ...connectOptions /*autoConnect: false*/,
+        });
         if (!node.initialized) {
             await node.events.initialized;
         }
