@@ -8,9 +8,10 @@
 import { Environment, LogDestination, LogFormat, Logger, LogLevel } from "#general";
 import { createFileLogger } from "#nodejs";
 import "@matter/nodejs-ble";
-import yargs from "yargs/yargs";
+import yargs from "yargs";
+import { hideBin } from "yargs/helpers";
 import { MatterNode } from "./MatterNode.js";
-import { Shell } from "./shell/Shell";
+import { Shell } from "./shell/Shell.js";
 import { initializeWebPlumbing } from "./web_plumbing.js";
 
 const PROMPT = "matter> ";
@@ -45,7 +46,7 @@ export function setLogLevel(identifier: string, level: string): void {
  * @file Top level application for Matter Node.
  */
 async function main() {
-    const yargsInstance = yargs(process.argv.slice(2))
+    const yargsInstance = yargs()
         .command(
             "* [node-num] [node-type]",
             "Matter Node Shell",
@@ -63,9 +64,11 @@ async function main() {
                         type: "string",
                     })
                     .options({
-                        ble: {
+                        "ble-enable": {
                             description: "Enable BLE support.",
                             type: "boolean",
+                            default: false,
+                            alias: "b",
                         },
                         bleHciId: {
                             description:
@@ -107,11 +110,13 @@ async function main() {
                     });
             },
             async argv => {
-                if (argv.help) return;
+                if (argv.help) {
+                    return;
+                }
 
                 const {
                     nodeNum,
-                    ble,
+                    bleEnable,
                     bleHciId,
                     nodeType,
                     factoryReset,
@@ -147,15 +152,15 @@ async function main() {
                     theShell = new Shell(theNode, nodeNum, PROMPT, process.stdin, process.stdout);
                 }
 
+                if (bleEnable) {
+                    Environment.default.vars.set("ble.enable", true);
+                }
+
                 if (bleHciId !== undefined) {
                     Environment.default.vars.set("ble.hci.id", bleHciId);
                 }
 
-                if (ble) {
-                    Environment.default.vars.set("ble.enable", true);
-                }
-
-                console.log(`Started Node #${nodeNum} (Type: ${nodeType}) ${ble ? "with" : "without"} BLE`);
+                console.log(`Started Node #${nodeNum} (Type: ${nodeType}) ${bleEnable ? "with" : "without"} BLE`);
                 if (!webSocketInterface) {
                     theShell.start(theNode.storageLocation);
                 }
@@ -164,7 +169,7 @@ async function main() {
         .version(false)
         .scriptName("shell")
         .strict();
-    await yargsInstance.wrap(yargsInstance.terminalWidth()).parseAsync();
+    await yargsInstance.wrap(yargsInstance.terminalWidth()).parse(hideBin(process.argv));
 }
 
 process.on("message", function (message) {

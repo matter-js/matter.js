@@ -22,6 +22,7 @@
         "type": "git",
         "url": "git+https://github.com/matter-js/matter.js.git"
     },
+    "type": "module",
     "scripts": {
         "clean": "matter-build clean",
         "build": "matter-build",

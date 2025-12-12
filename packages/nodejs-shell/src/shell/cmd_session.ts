@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MatterNode } from "../MatterNode";
+import { MatterNode } from "../MatterNode.js";
 
 export default function commands(theNode: MatterNode) {
     return {

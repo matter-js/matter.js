@@ -114,6 +114,10 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/mqtt
     - Feature: New package implementing `@matter/main` MQTT abstraction using MQTT.js
 
+- @matter/nodejs-shell
+  - Fix: Changed the shell CLI option to enable ble to "--ble-enable" to not conflict with internal variables
+  - Adjustment: Adjusted to build ESM package by default
+
 - @matter/nodejs-ws
     - Feature: New package implementing `@matter/main` WebSocket abstraction using ws package and Node.js HTTP server
 
