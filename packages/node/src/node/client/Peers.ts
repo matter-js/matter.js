@@ -33,7 +33,14 @@ import {
 } from "#general";
 import { ClientGroup } from "#node/ClientGroup.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
-import { ClientSubscriptionHandler, ClientSubscriptions, FabricManager, PeerAddress, PeerSet } from "#protocol";
+import {
+    ClientSubscriptionHandler,
+    ClientSubscriptions,
+    FabricManager,
+    InteractionQueue,
+    PeerAddress,
+    PeerSet,
+} from "#protocol";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { FabricIndex } from "@matter/types";
 import { ClientNode } from "../ClientNode.js";
@@ -56,6 +63,7 @@ export class Peers extends EndpointContainer<ClientNode> {
     #subscriptionHandler?: ClientSubscriptionHandler;
     #mutex = new Mutex(this);
     #closed = false;
+    #queue?: InteractionQueue;
 
     constructor(owner: ServerNode) {
         super(owner);
@@ -99,6 +107,13 @@ export class Peers extends EndpointContainer<ClientNode> {
                 }),
             );
         }
+    }
+
+    get queue() {
+        if (!this.#queue) {
+            this.#queue = this.owner.env.get(InteractionQueue);
+        }
+        return this.#queue;
     }
 
     async #nodeOnline() {
@@ -218,6 +233,7 @@ export class Peers extends EndpointContainer<ClientNode> {
 
     override async close() {
         this.#closed = true;
+        this.#queue?.close();
         await this.#subscriptionHandler?.close();
         this.#cancelExpiration();
         await this.#mutex;

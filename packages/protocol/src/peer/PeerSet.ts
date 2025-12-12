@@ -44,7 +44,6 @@ import { Session } from "#session/Session.js";
 import { SessionManager } from "#session/SessionManager.js";
 import { CaseAuthenticatedTag, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "#types";
 import { ControllerDiscovery, DiscoveryError, PairRetransmissionLimitReachedError } from "./ControllerDiscovery.js";
-import { InteractionQueue } from "./InteractionQueue.js";
 import { Peer } from "./Peer.js";
 import { PeerAddressStore, PeerDataStore } from "./PeerAddressStore.js";
 import { PeerDescriptor } from "./PeerDescriptor.js";
@@ -116,7 +115,6 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     readonly #peers = new BasicSet<Peer>();
     readonly #construction: Construction<PeerSet>;
     readonly #store: PeerAddressStore;
-    readonly #interactionQueue = new InteractionQueue();
     readonly #nodeCachedData = new PeerAddressMap<PeerDataStore>(); // Temporarily until we store it in new API
     readonly #disconnected = AsyncObservable<[peer: Peer]>();
     readonly #peerContext: Peer.Context;
@@ -239,10 +237,6 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
 
     get peers() {
         return this.#peers;
-    }
-
-    get interactionQueue() {
-        return this.#interactionQueue;
     }
 
     async connect(address: PeerAddress, options: PeerConnectionOptions & { operationalAddress?: ServerAddressUdp }) {
@@ -376,8 +370,6 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         for (const peer of this.#peers) {
             await peer.close();
         }
-
-        this.#interactionQueue.close();
     }
 
     /**
