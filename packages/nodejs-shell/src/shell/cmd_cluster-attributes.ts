@@ -6,7 +6,7 @@
 
 import { camelize, Diagnostic } from "#general";
 import { AttributeModel, ClusterModel, MatterModel } from "#model";
-import { SupportedAttributeClient } from "#node";
+import { SupportedAttributeClient } from "#protocol";
 import { AttributeId, ClusterId, EndpointNumber, ValidationError } from "#types";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
