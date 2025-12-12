@@ -5,9 +5,9 @@
  */
 
 import { Duration, ImplementationError } from "#general";
+import { DecodedEventData } from "#protocol";
 import { ClusterId, EndpointNumber, Event, EventId, EventNumber } from "#types";
-import { DecodedEventData } from "../../interaction/EventDataDecoder.js";
-import { InteractionClient } from "../../interaction/InteractionClient.js";
+import { InteractionClient } from "./InteractionClient.js";
 
 /**
  * Factory function to create an EVentClient for a given event.
@@ -58,8 +58,8 @@ export class EventClient<T> {
     }
 
     async subscribe(
-        minIntervalFloor: Duration,
-        maxIntervalCeiling: Duration,
+        minIntervalFloorSeconds: Duration,
+        maxIntervalCeilingSeconds: Duration,
         isUrgent = true,
         minimumEventNumber?: EventNumber,
         isFabricFiltered?: boolean,
@@ -71,8 +71,8 @@ export class EventClient<T> {
             endpointId: this.endpointId,
             clusterId: this.clusterId,
             event: this.event,
-            minIntervalFloor,
-            maxIntervalCeiling,
+            minIntervalFloorSeconds,
+            maxIntervalCeilingSeconds,
             isUrgent,
             minimumEventNumber,
             isFabricFiltered,
