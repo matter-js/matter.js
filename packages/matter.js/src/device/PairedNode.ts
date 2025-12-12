@@ -4,14 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AdministratorCommissioning, BasicInformation, Descriptor, OperationalCredentials } from "#clusters";
+import { AdministratorCommissioning, BasicInformation, Descriptor } from "#clusters";
 import {
     AsyncObservable,
     AtLeastOne,
+    camelize,
     Construction,
     Crypto,
     Diagnostic,
     Duration,
+    Immutable,
     ImplementationError,
     InternalError,
     Logger,
@@ -23,21 +25,32 @@ import {
     Time,
     Timer,
 } from "#general";
-import { Behavior, Commands } from "#node";
+import { AcceptedCommandList, AttributeList, ClusterRevision, FeatureMap } from "#model";
 import {
-    AttributeClientValues,
-    ChannelStatusResponseError,
+    Behavior,
+    Endpoint as ClientEndpoint,
+    ClientNode,
+    ClientNodeInteraction,
+    ClusterBehavior,
     ClusterClient,
+    Commands,
+    CommissioningClient,
+    InteractionClient,
+    NetworkClient,
+} from "#node";
+import {
+    ChannelStatusResponseError,
+    ClientSubscription,
     ClusterClientObj,
     DecodedAttributeReportValue,
     DecodedEventReportValue,
-    InteractionClient,
     NodeDiscoveryType,
     PaseClient,
+    Read,
+    ReadResult,
     SessionManager,
-    StructuredReadAttributeData,
+    Subscribe,
     UnknownNodeError,
-    structureReadAttributeDataToClusterObject,
 } from "#protocol";
 import {
     AttributeId,
@@ -49,14 +62,16 @@ import {
     DiscoveryCapabilitiesSchema,
     EndpointNumber,
     EventId,
+    getClusterAttributeById,
+    getClusterById,
+    getClusterEventById,
     ManualPairingCodeCodec,
     NodeId,
     QrPairingCodeCodec,
     StatusCode,
     StatusResponseError,
-    getClusterById,
 } from "#types";
-import { AcceptedCommandList, AttributeList, ClusterRevision, FeatureMap } from "@matter/model";
+import { DescriptorClient } from "@matter/node/behaviors/descriptor";
 import { ClusterServer } from "../cluster/server/ClusterServer.js";
 import { AttributeInitialValues, ClusterServerObj, isClusterServer } from "../cluster/server/ClusterServerTypes.js";
 import { CommissioningController } from "../CommissioningController.js";
@@ -67,11 +82,10 @@ import { DeviceInformation, DeviceInformationData } from "./DeviceInformation.js
 import {
     DeviceTypeDefinition,
     DeviceTypes,
-    UnknownDeviceType,
     getDeviceTypeDefinitionFromModelByCode,
+    UnknownDeviceType,
 } from "./DeviceTypes.js";
 import { Endpoint } from "./Endpoint.js";
-import { EndpointPropertiesProxy } from "./EndpointPropertiesProxy.js";
 import { asClusterClientInternal, isClusterClient } from "./TypeHelpers.js";
 
 const logger = Logger.get("PairedNode");
@@ -226,19 +240,17 @@ export type CommissioningControllerNodeOptions = {
 export class NodeNotConnectedError extends MatterError {}
 
 interface SubscriptionHandlerCallbacks {
-    attributeListener: (data: DecodedAttributeReportValue<any>, valueChanged?: boolean, oldValue?: unknown) => void;
+    attributeListener: (data: DecodedAttributeReportValue<any>) => void;
     eventListener: (data: DecodedEventReportValue<any>) => void;
-    updateTimeoutHandler: Timer.Callback;
+    updateTimeoutHandler: () => void;
     subscriptionAlive: () => void;
 }
-
-type DescriptorData = AttributeClientValues<typeof Descriptor.Complete.attributes>;
 
 /**
  * Tooling function to check if a list of numbers is the same as another list of numbers.
  * it uses Sets to prevent duplicate entries and ordering to cause issues if they ever happen.
  */
-function areNumberListsSame(list1: number[], list2: number[]) {
+function areNumberListsSame(list1: Immutable<number[]>, list2: Immutable<number[]>) {
     const set1 = new Set(list1);
     const set2 = new Set(list2);
     if (set1.size !== set2.size) return false;
@@ -253,6 +265,7 @@ function areNumberListsSame(list1: number[], list2: number[]) {
  * the CommissioningController on commissioning or when connecting.
  */
 export class PairedNode {
+    readonly #clientNode: ClientNode;
     readonly #endpoints = new Map<number, Endpoint>();
     #interactionClient: InteractionClient;
     #reconnectDelayTimer?: Timer;
@@ -288,6 +301,7 @@ export class PairedNode {
     #construction: Construction<PairedNode>;
     #clientReconnectInProgress = false;
     #currentSubscriptionHandler?: SubscriptionHandlerCallbacks;
+    #currentSubscription?: ClientSubscription;
     readonly #commissioningController: CommissioningController;
     #options: CommissioningControllerNodeOptions;
     readonly #reconnectFunc: ReconnectionCallback;
@@ -308,7 +322,7 @@ export class PairedNode {
         initializedFromRemote: AsyncObservable<[details: DeviceInformationData]>(),
         deviceInformationChanged: AsyncObservable<[details: DeviceInformationData]>(),
         stateChanged: Observable<[nodeState: NodeStates]>(),
-        attributeChanged: Observable<[data: DecodedAttributeReportValue<any>, oldValue: any]>(),
+        attributeChanged: Observable<[data: DecodedAttributeReportValue<any>]>(),
         eventTriggered: Observable<[DecodedEventReportValue<any>]>(),
         structureChanged: Observable<[void]>(),
         nodeEndpointAdded: Observable<[EndpointNumber]>(),
@@ -322,25 +336,23 @@ export class PairedNode {
         nodeId: NodeId,
         commissioningController: CommissioningController,
         options: CommissioningControllerNodeOptions = {},
-        knownNodeDetails: DeviceInformationData,
+        clientNode: ClientNode,
         interactionClient: InteractionClient,
         reconnectFunc: ReconnectionCallback,
         assignDisconnectedHandler: (handler: () => Promise<void>) => void,
         sessions: SessionManager,
         crypto: Crypto,
-        storedAttributeData?: DecodedAttributeReportValue<any>[],
     ): Promise<PairedNode> {
         const node = new PairedNode(
             nodeId,
             commissioningController,
             options,
-            knownNodeDetails,
+            clientNode,
             interactionClient,
             reconnectFunc,
             assignDisconnectedHandler,
             sessions,
             crypto,
-            storedAttributeData,
         );
         await node.construction;
         return node;
@@ -350,13 +362,12 @@ export class PairedNode {
         readonly nodeId: NodeId,
         commissioningController: CommissioningController,
         options: CommissioningControllerNodeOptions = {},
-        knownNodeDetails: DeviceInformationData,
+        clientNode: ClientNode,
         interactionClient: InteractionClient,
         reconnectFunc: ReconnectionCallback,
         assignDisconnectedHandler: (handler: () => Promise<void>) => void,
         sessions: SessionManager,
         crypto: Crypto,
-        storedAttributeData?: DecodedAttributeReportValue<any>[],
     ) {
         assignDisconnectedHandler(async () => {
             logger.info(
@@ -373,6 +384,7 @@ export class PairedNode {
         this.#options = options;
         this.#reconnectFunc = reconnectFunc;
         this.#crypto = crypto;
+        this.#clientNode = clientNode;
 
         this.#interactionClient = interactionClient;
         if (this.#interactionClient.isReconnectable) {
@@ -395,7 +407,7 @@ export class PairedNode {
                 `Node ${this.nodeId}: InteractionClient is not reconnectable, no automatic reconnection will happen in case of errors.`,
             );
         }
-        this.#nodeDetails = new DeviceInformation(nodeId, knownNodeDetails);
+        this.#nodeDetails = new DeviceInformation(clientNode);
         logger.info(`Node ${this.nodeId}: Created paired node with device data`, this.#nodeDetails.meta);
 
         sessions.sessions.added.on(session => {
@@ -409,11 +421,26 @@ export class PairedNode {
             this.#newChannelReconnectDelayTimer.stop().start();
         });
 
+        // For now this means we are connected with a session
+        /*this.#clientNode.lifecycle.online.on(() => {
+            if (this.#connectionState )
+            this.#setConnectionState(NodeStates.Connected)
+        });
+        this.#clientNode.lifecycle.offline.on(() => this.#setConnectionState(NodeStates.Disconnected));
+        */
+
+        this.#clientNode.lifecycle.decommissioned.on(() => this.#setConnectionState(NodeStates.Disconnected));
+        this.#clientNode.eventsOf(NetworkClient).subscriptionStatusChanged.on(isActive => {
+            if (isActive) {
+                this.#setConnectionState(NodeStates.Connected);
+            } else if (this.#connectionState === NodeStates.Connected) {
+                this.#setConnectionState(NodeStates.Reconnecting);
+            }
+        });
+
         this.#construction = Construction(this, async () => {
             // We try to initialize from stored data already
-            if (storedAttributeData !== undefined) {
-                await this.#initializeFromStoredData(storedAttributeData);
-            }
+            await this.#initializeFromStoredData();
 
             if (this.#options.autoConnect !== false) {
                 // This kicks of the remote initialization and automatic reconnection handling if it can not be connected
@@ -466,7 +493,11 @@ export class PairedNode {
         return this.#remoteInitializationDone || this.#localInitializationDone;
     }
 
-    /** If a subscription is established then this is the interval in seconds, otherwise undefined */
+    get id() {
+        return this.#clientNode.id;
+    }
+
+    /** If a subscription is established, then this is the interval in seconds, otherwise undefined */
     get currentSubscriptionIntervalSeconds() {
         return this.#currentSubscriptionIntervalS;
     }
@@ -546,7 +577,7 @@ export class PairedNode {
      * This method is mainly used internally to reconnect after the active session
      * was closed or the device went offline and was detected as being online again.
      * Please note that this method does not return until the device is reconnected.
-     * Please use triggerReconnect method for a non-blocking reconnection triggering.
+     * Please use the triggerReconnect method for a non-blocking reconnection triggering.
      */
     async reconnect(connectOptions?: CommissioningControllerNodeOptions) {
         if (connectOptions !== undefined) {
@@ -567,7 +598,7 @@ export class PairedNode {
             this.#setConnectionState(NodeStates.Reconnecting);
 
             try {
-                // First try a reconnect to known addresses to see if the device is reachable
+                // First, try a reconnection to a known address to see if the device is reachable
                 await this.#handleReconnect(NodeDiscoveryType.None);
                 this.#reconnectionInProgress = false;
                 await this.#initialize();
@@ -615,51 +646,59 @@ export class PairedNode {
 
     /** Ensure that the node is connected by creating a new InteractionClient if needed. */
     async #ensureConnection(forceConnect = false): Promise<InteractionClient> {
-        if (this.#connectionState === NodeStates.Disconnected) {
-            // Disconnected and having an InteractionClient means we initialized with an Offline one, so we do
-            // connection now on usage
-            this.#setConnectionState(NodeStates.Reconnecting);
-            return this.#interactionClient;
-        }
-        if (this.#connectionState === NodeStates.Connected && !forceConnect) {
-            return this.#interactionClient;
+        if (this.#clientNode.lifecycle.isOnline) {
+            if (this.#connectionState === NodeStates.Connected && !forceConnect) {
+                return this.#interactionClient;
+            }
+            if (this.#connectionState !== NodeStates.Connected) {
+                // Disconnected and having an InteractionClient means we initialized with an Offline one, so we do
+                // connection now on usage
+                this.#setConnectionState(NodeStates.Reconnecting);
+                return this.#interactionClient;
+            }
         }
 
         if (forceConnect) {
             this.#setConnectionState(NodeStates.WaitingForDeviceDiscovery);
         }
 
-        await this.#handleReconnect(NodeDiscoveryType.FullDiscovery);
+        await this.#handleReconnect(
+            this.#connectionState === NodeStates.Disconnected || !forceConnect
+                ? NodeDiscoveryType.None
+                : NodeDiscoveryType.FullDiscovery,
+        );
         if (!forceConnect) {
             this.#setConnectionState(NodeStates.Connected);
         }
         return this.#interactionClient;
     }
 
-    async #initializeFromStoredData(storedAttributeData: DecodedAttributeReportValue<any>[]) {
+    async #initializeFromStoredData() {
         const { autoSubscribe } = this.#options;
         if (this.#remoteInitializationDone || this.#localInitializationDone || autoSubscribe === false) return;
 
         // Minimum sanity check that we have at least data for the Root endpoint and one other endpoint to initialize
         let rootEndpointIncluded = false;
         let otherEndpointIncluded = false;
-        if (
-            !storedAttributeData.some(({ path: { endpointId } }) => {
-                if (endpointId === 0) {
-                    rootEndpointIncluded = true;
-                } else {
-                    otherEndpointIncluded = true;
-                }
-                return rootEndpointIncluded && otherEndpointIncluded;
-            })
-        ) {
-            return;
+        for (const ep of this.#clientNode.endpoints) {
+            const epClusters = ep.behaviors.active.filter(behavior => ClusterBehavior.is(behavior));
+            if (epClusters.length === 0) {
+                continue;
+            }
+            if (ep.number === 0) {
+                rootEndpointIncluded = true;
+            } else {
+                otherEndpointIncluded = true;
+            }
+            if (rootEndpointIncluded && otherEndpointIncluded) {
+                break;
+            }
         }
 
-        await this.#initializeEndpointStructure(storedAttributeData, false);
+        await this.#initializeEndpointStructure(false);
 
         // Inform interested parties that the node is initialized
-        await this.events.initialized.emit(this.#nodeDetails.toStorageData());
+        await this.events.initialized.emit(this.#nodeDetails.details);
         this.#localInitializationDone = true;
     }
 
@@ -674,23 +713,16 @@ export class PairedNode {
         this.#remoteInitializationInProgress = true;
         try {
             // Enforce a new Connection
-            await this.#ensureConnection(true); // This sets state to connected when successful!
+            await this.#ensureConnection(this.#connectionState !== NodeStates.Disconnected); // This sets state to connected when successful!
             const { autoSubscribe, attributeChangedCallback, eventTriggeredCallback } = this.#options;
-
-            let deviceDetailsUpdated = false;
-            // We need to query some Device metadata because we do not have them (or update them anyway)
-            if (!this.#nodeDetails.valid || (autoSubscribe === false && !this.#remoteInitializationDone)) {
-                await this.#nodeDetails.enhanceDeviceDetailsFromRemote(this.#interactionClient);
-                deviceDetailsUpdated = true;
-            }
 
             const anyInitializationDone = this.#localInitializationDone || this.#remoteInitializationDone;
             if (autoSubscribe !== false) {
-                const { attributeReports, maxInterval } = await this.subscribeAllAttributesAndEvents({
+                const maxInterval = await this.subscribeAllAttributesAndEvents({
                     ignoreInitialTriggers: !anyInitializationDone, // Trigger on updates only after initialization
-                    attributeChangedCallback: (data, oldValue) => {
+                    attributeChangedCallback: data => {
                         attributeChangedCallback?.(this.nodeId, data);
-                        this.events.attributeChanged.emit(data, oldValue);
+                        this.events.attributeChanged.emit(data);
                     },
                     eventTriggeredCallback: data => {
                         eventTriggeredCallback?.(this.nodeId, data);
@@ -698,23 +730,14 @@ export class PairedNode {
                     },
                 }); // Ignore Triggers from Subscribing during initialization
 
-                if (attributeReports === undefined) {
-                    throw new InternalError("No attribute reports received when subscribing to all values!");
-                }
-                await this.#initializeEndpointStructure(attributeReports);
+                await this.#initializeEndpointStructure();
 
                 this.#remoteInitializationInProgress = false; // We are done, rest is bonus and should not block reconnections
 
-                if (!deviceDetailsUpdated) {
-                    const rootEndpoint = this.getRootEndpoint();
-                    if (rootEndpoint !== undefined) {
-                        await this.#nodeDetails.enhanceDeviceDetailsFromCache(rootEndpoint);
-                    }
-                }
                 this.#currentSubscriptionIntervalS = maxInterval;
             } else {
-                const allClusterAttributes = await this.readAllAttributes();
-                await this.#initializeEndpointStructure(allClusterAttributes);
+                await this.#readAllAttributes();
+                await this.#initializeEndpointStructure();
                 this.#remoteInitializationInProgress = false; // We are done, rest is bonus and should not block reconnections
             }
             if (!this.#remoteInitializationDone) {
@@ -726,10 +749,10 @@ export class PairedNode {
             }
             this.#reconnectErrorCount = 0;
             this.#remoteInitializationDone = true;
-            await this.events.initializedFromRemote.emit(this.#nodeDetails.toStorageData());
+            await this.events.initializedFromRemote.emit(this.#nodeDetails.details);
             if (!this.#localInitializationDone) {
                 this.#localInitializationDone = true;
-                await this.events.initialized.emit(this.#nodeDetails.toStorageData());
+                await this.events.initialized.emit(this.#nodeDetails.details);
             }
             this.#setConnectionState(NodeStates.Connected);
         } finally {
@@ -753,7 +776,7 @@ export class PairedNode {
             logger.info(`Node ${this.nodeId} has not yet been initialized!`);
             return;
         }
-        logger.info(this);
+        logger.info(this.#clientNode);
     }
 
     /**
@@ -762,22 +785,20 @@ export class PairedNode {
      */
     async subscribeAllAttributesAndEvents(options?: {
         ignoreInitialTriggers?: boolean;
-        attributeChangedCallback?: (data: DecodedAttributeReportValue<any>, oldValue: any) => void;
+        attributeChangedCallback?: (data: DecodedAttributeReportValue<any>) => void;
         eventTriggeredCallback?: (data: DecodedEventReportValue<any>) => void;
     }) {
         options = options ?? {};
         const { attributeChangedCallback, eventTriggeredCallback } = options;
         let { ignoreInitialTriggers = false } = options;
 
-        const { minIntervalFloorSeconds, maxIntervalCeilingSeconds } =
-            this.#nodeDetails.determineSubscriptionParameters(this.#options);
-        const { threadConnected } = this.#nodeDetails.meta ?? {};
+        const { subscribeMinIntervalFloorSeconds, subscribeMaxIntervalCeilingSeconds } = this.#options;
 
         this.#invalidateSubscriptionHandler();
 
         const subscriptionHandler: SubscriptionHandlerCallbacks = {
-            attributeListener: (data, changed, oldValue) => {
-                if (ignoreInitialTriggers || changed === false) {
+            attributeListener: data => {
+                if (ignoreInitialTriggers) {
                     return;
                 }
                 const {
@@ -803,11 +824,11 @@ export class PairedNode {
                 logger.debug(
                     `Node ${this.nodeId} Trigger attribute update for ${endpointId}.${cluster.name}.${attributeId} to ${Diagnostic.json(
                         value,
-                    )} (changed: ${changed})`,
+                    )}`,
                 );
 
                 asClusterClientInternal(cluster)._triggerAttributeUpdate(attributeId, value);
-                attributeChangedCallback?.(data, oldValue);
+                attributeChangedCallback?.(data);
 
                 this.#checkAttributesForNeededUpdates(endpointId, clusterId, attributeId);
             },
@@ -840,26 +861,9 @@ export class PairedNode {
 
                 this.#checkEventsForNeededStructureUpdate(endpointId, clusterId, eventId);
             },
-            updateTimeoutHandler: async () => {
+            updateTimeoutHandler: () => {
                 logger.info(`Node ${this.nodeId}: Subscription timed out ... trying to re-establish ...`);
-                this.#setConnectionState(NodeStates.Reconnecting);
-                this.#reconnectionInProgress = true;
-                try {
-                    const { maxInterval } = await this.subscribeAllAttributesAndEvents({
-                        ...options,
-                        ignoreInitialTriggers: false,
-                    });
-                    this.#setConnectionState(NodeStates.Connected);
-                    this.#currentSubscriptionIntervalS = maxInterval;
-                } catch (error) {
-                    logger.info(
-                        `Node ${this.nodeId}: Error resubscribing to all attributes and events. Try to reconnect ...`,
-                        error,
-                    );
-                    this.#scheduleReconnect();
-                } finally {
-                    this.#reconnectionInProgress = false;
-                }
+                this.triggerReconnect();
             },
             subscriptionAlive: () => {
                 if (this.#reconnectDelayTimer?.isRunning && this.#connectionState === NodeStates.Reconnecting) {
@@ -879,15 +883,7 @@ export class PairedNode {
                 } else if (this.#deviceInformationUpdateNeeded) {
                     const rootEndpoint = this.getRootEndpoint();
                     if (rootEndpoint !== undefined) {
-                        this.#nodeDetails
-                            .enhanceDeviceDetailsFromCache(rootEndpoint)
-                            .then(() => this.events.deviceInformationChanged.emit(this.#nodeDetails.toStorageData()))
-                            .catch(error =>
-                                logger.warn(
-                                    `Node ${this.nodeId}: Error updating device information from root endpoint`,
-                                    error,
-                                ),
-                            );
+                        this.events.deviceInformationChanged.emit(this.#nodeDetails.details);
                     }
                 }
                 this.#deviceInformationUpdateNeeded = false;
@@ -902,44 +898,118 @@ export class PairedNode {
         };
         this.#currentSubscriptionHandler = subscriptionHandler;
 
-        const maxKnownEventNumber = this.#interactionClient.maxKnownEventNumber;
-
-        // We first update all values by doing a read all on the device
-        // We do not enrich existing data because we just want to store updated data
-        await this.#interactionClient.getAllAttributes({
-            dataVersionFilters: this.#interactionClient.getCachedClusterDataVersions(),
-            executeQueued: !!threadConnected, // We queue subscriptions for thread devices
-            attributeChangeListener: subscriptionHandler.attributeListener,
+        const read = Read({
+            fabricFilter: true,
+            attributes: [{}],
         });
 
-        // If we subscribe anything we use these data to create the endpoint structure, so we do not need to fetch again
-        const initialSubscriptionData = await this.#interactionClient.subscribeAllAttributesAndEvents({
-            isUrgent: true,
-            minIntervalFloorSeconds,
-            maxIntervalCeilingSeconds,
+        const convert = (entry: ReadResult.Report) => {
+            switch (entry.kind) {
+                case "attr-value": {
+                    const {
+                        path: { endpointId, clusterId, attributeId },
+                        value,
+                        version,
+                    } = entry;
+
+                    const cluster = getClusterById(clusterId);
+                    const attribute = getClusterAttributeById(cluster, attributeId);
+                    subscriptionHandler.attributeListener({
+                        path: {
+                            endpointId,
+                            clusterId,
+                            attributeId,
+                            attributeName: attribute?.name ?? `Unknown (${Diagnostic.hex(attributeId)})`,
+                        },
+                        value,
+                        version,
+                    });
+                    break;
+                }
+
+                case "event-value": {
+                    const {
+                        path: { endpointId, clusterId, eventId },
+                        number,
+                        timestamp,
+                        priority,
+                        value,
+                    } = entry;
+
+                    const cluster = getClusterById(clusterId);
+                    const event = getClusterEventById(cluster, eventId);
+                    subscriptionHandler.eventListener({
+                        path: {
+                            endpointId,
+                            clusterId,
+                            eventId,
+                            eventName: event?.name ?? `Unknown (${Diagnostic.hex(eventId)})`,
+                        },
+                        events: [{ eventNumber: number, epochTimestamp: timestamp, priority, data: value }],
+                    });
+                    break;
+                }
+            }
+        };
+
+        // First, read.  This allows us to retrieve attributes that do not support subscription and gives us
+        // physical device information required to optimize subscription parameters
+        for await (const chunk of this.#clientNode.interaction.read(read)) {
+            for (const entry of chunk) {
+                convert(entry);
+            }
+        }
+
+        const subscribe = Subscribe({
+            fabricFilter: true,
+            minIntervalFloor:
+                subscribeMinIntervalFloorSeconds !== undefined ? Seconds(subscribeMinIntervalFloorSeconds) : undefined,
+            maxIntervalCeiling:
+                subscribeMaxIntervalCeilingSeconds !== undefined
+                    ? Seconds(subscribeMaxIntervalCeilingSeconds)
+                    : undefined,
             keepSubscriptions: false,
-            dataVersionFilters: this.#interactionClient.getCachedClusterDataVersions(),
-            enrichCachedAttributeData: true,
-            eventFilters: maxKnownEventNumber !== undefined ? [{ eventMin: maxKnownEventNumber + 1n }] : undefined,
-            executeQueued: !!threadConnected, // We queue subscriptions for thread devices
-            attributeListener: subscriptionHandler.attributeListener,
-            eventListener: data => subscriptionHandler.eventListener(data),
-            updateTimeoutHandler: lifetime => subscriptionHandler.updateTimeoutHandler(lifetime),
-            updateReceived: () => subscriptionHandler.subscriptionAlive(),
+            attributes: [{}],
+            events: [{ isUrgent: true }],
+            eventFilters: [{ eventMin: this.#clientNode.stateOf(NetworkClient).maxEventNumber + 1n }],
         });
+
+        // Now subscribe for subsequent updates
+        const subscription = await (this.#clientNode.interaction as ClientNodeInteraction).subscribe({
+            ...subscribe,
+            sustain: false, // We handle reconnections ourselves for now
+            updated: async reports => {
+                for await (const chunk of reports) {
+                    for (const entry of chunk) {
+                        convert(entry);
+                    }
+                }
+                subscriptionHandler.subscriptionAlive();
+            },
+            closed: () => {
+                if (this.#connectionState === NodeStates.Connected) {
+                    subscriptionHandler.updateTimeoutHandler();
+                }
+                this.#clientNode.behaviors.internalsOf(NetworkClient).activeSubscription = this.#currentSubscription =
+                    undefined;
+            },
+        });
+        this.#clientNode.behaviors.internalsOf(NetworkClient).activeSubscription = this.#currentSubscription =
+            subscription;
 
         // After initial data are processed we want to send out callbacks, so we set ignoreInitialTriggers to false
         ignoreInitialTriggers = false;
 
-        return initialSubscriptionData;
+        return Seconds(subscription.maxInterval);
     }
 
     /** Read all attributes of the devices and return them. If a stored state exists this is used to minimize needed traffic. */
-    async readAllAttributes() {
-        return this.#interactionClient.getAllAttributes({
-            dataVersionFilters: this.#interactionClient.getCachedClusterDataVersions(),
-            enrichCachedAttributeData: true,
+    async #readAllAttributes() {
+        const read = Read({
+            fabricFilter: true,
+            attributes: [{}],
         });
+        for await (const _chunk of this.#clientNode.interaction.read(read));
     }
 
     #checkAttributesForNeededUpdates(endpointId: EndpointNumber, clusterId: ClusterId, attributeId: AttributeId) {
@@ -1005,44 +1075,45 @@ export class PairedNode {
     }
 
     async #updateEndpointStructure() {
-        const allClusterAttributes = this.#interactionClient.getAllCachedClusterData();
-        await this.#initializeEndpointStructure(allClusterAttributes, true);
+        await this.#initializeEndpointStructure(true);
 
         const rootEndpoint = this.getRootEndpoint();
         if (rootEndpoint !== undefined) {
-            await this.#nodeDetails.enhanceDeviceDetailsFromCache(rootEndpoint);
-            await this.events.deviceInformationChanged.emit(this.#nodeDetails.toStorageData());
+            await this.events.deviceInformationChanged.emit(this.#nodeDetails.details);
         }
     }
 
     /**
-     * Traverse the structure data and collect all data for the given endpointId.
-     * Return true if data for the endpoint was found, otherwise false.
+     * Traverse the structure data and collect the endpoints for the given endpointId.
      * If data was found it is added to the collectedData map.
      */
-    collectDescriptorData(
-        structure: StructuredReadAttributeData,
-        endpointId: EndpointNumber,
-        collectedData: Map<EndpointNumber, DescriptorData>,
-    ) {
+    #collectEndpoints(endpointId: EndpointNumber, collectedData: Map<EndpointNumber, ClientEndpoint>) {
         if (collectedData.has(endpointId)) {
             return;
         }
-        const endpointData = structure[endpointId];
-        const descriptorData = endpointData?.[Descriptor.Complete.id] as DescriptorData | undefined;
-        if (endpointData === undefined || descriptorData === undefined) {
+        if (!this.#clientNode.endpoints.has(endpointId)) {
+            logger.info(`Endpoint ${endpointId} not found on node ${this.nodeId}! Ignoring endpoint ...`);
+            return;
+        }
+        const endpoint = this.#clientNode.endpoints.for(endpointId);
+        const descriptorData = endpoint.maybeStateOf(DescriptorClient);
+        if (descriptorData === undefined) {
             logger.info(`Descriptor data for endpoint ${endpointId} not found in structure! Ignoring endpoint ...`);
             return;
         }
-        collectedData.set(endpointId, descriptorData);
+        collectedData.set(endpointId, endpoint);
         if (descriptorData.partsList.length) {
             for (const partEndpointId of descriptorData.partsList) {
-                this.collectDescriptorData(structure, partEndpointId, collectedData);
+                this.#collectEndpoints(partEndpointId, collectedData);
             }
         }
     }
 
-    #hasEndpointChanged(device: Endpoint, descriptorData: DescriptorData) {
+    #hasEndpointChanged(device: Endpoint, endpoint?: ClientEndpoint) {
+        const descriptorData = endpoint?.maybeStateOf(DescriptorClient);
+        if (!descriptorData) {
+            return true;
+        }
         // Check if the device types (ignoring revision for now), or cluster server or cluster clients differ
         return !(
             areNumberListsSame(
@@ -1064,7 +1135,6 @@ export class PairedNode {
 
     /** Reads all data from the device and create a device object structure out of it. */
     async #initializeEndpointStructure(
-        allClusterAttributes: DecodedAttributeReportValue<any>[],
         updateStructure = this.#localInitializationDone || this.#remoteInitializationDone,
     ) {
         if (this.#updateEndpointStructureTimer.isRunning) {
@@ -1074,23 +1144,21 @@ export class PairedNode {
         const structureUpdateDetails = this.#registeredEndpointStructureChanges;
         this.#registeredEndpointStructureChanges = new Map();
 
-        const allData = structureReadAttributeDataToClusterObject(allClusterAttributes);
-
         // Collect the descriptor data for all endpoints referenced in the structure
-        const descriptors = new Map<EndpointNumber, DescriptorData>();
-        this.collectDescriptorData(allData, EndpointNumber(0), descriptors);
+        const endpoints = new Map<EndpointNumber, ClientEndpoint>();
+        this.#collectEndpoints(EndpointNumber(0), endpoints);
 
         if (updateStructure) {
             // Find out what we need to remove or retain
             const endpointsToRemove = new Set<number>(this.#endpoints.keys());
-            for (const endpointId of descriptors.keys()) {
+            for (const endpointId of endpoints.keys()) {
                 const device = this.#endpoints.get(endpointId);
                 if (device !== undefined) {
                     // Check if there are any changes to the device that require a re-creation
                     // When structureUpdateDetails from subscription updates state changes we do a deep validation
                     // to prevent ordering changes to cause unnecessary device re-creations
                     const hasChanged = structureUpdateDetails.has(endpointId);
-                    if (!hasChanged || !this.#hasEndpointChanged(device, descriptors.get(endpointId)!)) {
+                    if (!hasChanged || !this.#hasEndpointChanged(device, endpoints.get(endpointId))) {
                         logger.debug(
                             `Node ${this.nodeId}: Retaining endpoint`,
                             endpointId,
@@ -1123,11 +1191,9 @@ export class PairedNode {
             this.#endpoints.clear();
         }
 
-        for (const endpointId of descriptors.keys()) {
-            const clusters = allData[endpointId];
-
+        for (const [endpointId, endpoint] of endpoints.entries()) {
             if (this.#endpoints.has(endpointId)) {
-                // Endpoint exists already, so mo need to create device instance again
+                // Endpoint exists already, so no need to create device instance again
                 continue;
             }
 
@@ -1135,16 +1201,18 @@ export class PairedNode {
             logger.debug(
                 `Node ${this.nodeId}: ${isRecreation ? "Recreating" : "Creating"} endpoint`,
                 endpointId,
-                Diagnostic.json(clusters),
+                Diagnostic.json(endpoint.state),
             );
-            this.#endpoints.set(endpointId, this.#createDevice(endpointId, clusters, this.#interactionClient));
+            this.#endpoints.set(endpointId, this.#createDevice(endpointId, endpoint, this.#interactionClient));
             if (!isRecreation) {
                 eventsToEmit.set(endpointId, "nodeEndpointAdded");
             }
         }
 
         // Remove all children that are not in the partsList anymore
-        for (const [endpointId, { partsList }] of descriptors.entries()) {
+        for (const [endpointId, clientEndpoint] of endpoints.entries()) {
+            const partsList = clientEndpoint.stateOf(DescriptorClient).partsList ?? [];
+
             const endpoint = this.#endpoints.get(endpointId);
             if (endpoint === undefined) {
                 // Should not happen or endpoint was invalid and that's why not created, then we ignore it
@@ -1161,21 +1229,9 @@ export class PairedNode {
             });
         }
 
-        this.#structureEndpoints(descriptors);
+        this.#structureEndpoints(endpoints);
 
         if (updateStructure && eventsToEmit.size) {
-            for (const [endpointId, eventName] of eventsToEmit.entries()) {
-                // Cleanup storage data for removed or updated endpoints
-                if (eventName !== "nodeEndpointAdded") {
-                    // For removed or changed endpoints we need to cleanup the stored data
-                    const clusterServers = descriptors.get(endpointId)?.serverList;
-                    await this.#interactionClient.cleanupAttributeData(
-                        endpointId,
-                        eventName === "nodeEndpointRemoved" ? undefined : clusterServers,
-                    );
-                }
-            }
-
             const emitChangeEvents = () => {
                 for (const [endpointId, eventName] of eventsToEmit.entries()) {
                     logger.debug(`Node ${this.nodeId}: Emitting event ${eventName} for endpoint ${endpointId}`);
@@ -1203,9 +1259,9 @@ export class PairedNode {
      * Bring the endpoints in a structure based on their partsList attribute. This method only adds endpoints into the
      * right place as children, Cleanup is not happening here
      */
-    #structureEndpoints(descriptors: Map<EndpointNumber, DescriptorData>) {
+    #structureEndpoints(descriptors: Map<EndpointNumber, ClientEndpoint>) {
         const partLists = Array.from(descriptors.entries()).map(
-            ([ep, { partsList }]) => [ep, partsList] as [EndpointNumber, EndpointNumber[]], // else Typescript gets confused
+            ([epNo, ep]) => [epNo, ep.stateOf(DescriptorClient).partsList] as [EndpointNumber, EndpointNumber[]], // else Typescript gets confused
         );
         logger.debug(`Node ${this.nodeId}: Endpoints from PartsLists`, Diagnostic.json(partLists));
 
@@ -1276,12 +1332,8 @@ export class PairedNode {
     }
 
     /** Create a device object from the data read from the device. */
-    #createDevice(
-        endpointId: EndpointNumber,
-        data: { [key: ClusterId]: { [key: string]: any } },
-        interactionClient: InteractionClient,
-    ) {
-        const descriptorData = data[Descriptor.Complete.id] as DescriptorData;
+    #createDevice(endpointId: EndpointNumber, endpoint: ClientEndpoint, interactionClient: InteractionClient) {
+        const descriptorData = endpoint.stateOf(DescriptorClient);
 
         const deviceTypes = descriptorData.deviceTypeList.flatMap(({ deviceType, revision }) => {
             const deviceTypeDefinition = getDeviceTypeDefinitionFromModelByCode(deviceType);
@@ -1308,7 +1360,12 @@ export class PairedNode {
         // Add ClusterClients for all server clusters of the device
         for (const clusterId of descriptorData.serverList) {
             const cluster = getClusterById(clusterId);
-            const clusterClient = ClusterClient(cluster, endpointId, interactionClient, data[clusterId]);
+            let clusterName = cluster.name;
+            if (cluster.unknown) {
+                clusterName = `Cluster$${cluster.id.toString(16)}`;
+            }
+            const data = (endpoint.state as any)[camelize(clusterName)];
+            const clusterClient = ClusterClient(cluster, endpointId, interactionClient, data);
             endpointClusters.push(clusterClient);
         }
 
@@ -1316,7 +1373,7 @@ export class PairedNode {
         // Add ClusterServers for all client clusters of the device
         for (const clusterId of descriptorData.clientList) {
             const cluster = getClusterById(clusterId);
-            const clusterData = (data[clusterId] ?? {}) as AttributeInitialValues<Attributes>; // TODO correct typing
+            const clusterData = {} as AttributeInitialValues<Attributes>; // TODO correct typing
             // Todo add logic for Events
             endpointClusters.push(
                 ClusterServer(
@@ -1331,7 +1388,7 @@ export class PairedNode {
 
         if (endpointId === 0) {
             // Endpoint 0 is the root endpoint, so we use a RootEndpoint object
-            const rootEndpoint = new RootEndpoint();
+            const rootEndpoint = new RootEndpoint(endpoint);
             rootEndpoint.setDeviceTypes(deviceTypes as AtLeastOne<DeviceTypeDefinition>); // Ideally only root one as defined
             endpointClusters.forEach(cluster => {
                 if (isClusterServer(cluster)) {
@@ -1343,7 +1400,7 @@ export class PairedNode {
             return rootEndpoint;
         } else if (deviceTypes.find(deviceType => deviceType.code === DeviceTypes.AGGREGATOR.code) !== undefined) {
             // When AGGREGATOR is in the device type list, this is an aggregator
-            const aggregator = new Aggregator([], { endpointId });
+            const aggregator = new Aggregator(endpoint, [], { endpointId });
             aggregator.setDeviceTypes(deviceTypes as AtLeastOne<DeviceTypeDefinition>);
             endpointClusters.forEach(cluster => {
                 // TODO There should be none?
@@ -1357,7 +1414,7 @@ export class PairedNode {
         } else {
             // It seems to be device but has a partsList, so it is a composed device
             if (descriptorData.partsList.length > 0) {
-                const composedDevice = new ComposedDevice(deviceTypes[0], [], { endpointId });
+                const composedDevice = new ComposedDevice(endpoint, deviceTypes[0], [], { endpointId });
                 composedDevice.setDeviceTypes(deviceTypes as AtLeastOne<DeviceTypeDefinition>);
                 endpointClusters.forEach(cluster => {
                     if (isClusterServer(cluster)) {
@@ -1370,7 +1427,12 @@ export class PairedNode {
             } else {
                 // else it's a normal Device
                 // TODO Should we find the really correct Device derived class to instance?
-                return new PairedDevice(deviceTypes as AtLeastOne<DeviceTypeDefinition>, endpointClusters, endpointId);
+                return new PairedDevice(
+                    endpoint,
+                    deviceTypes as AtLeastOne<DeviceTypeDefinition>,
+                    endpointClusters,
+                    endpointId,
+                );
             }
         }
     }
@@ -1397,9 +1459,6 @@ export class PairedNode {
 
     /** De-Commission (unpair) the device from this controller by removing the fabric from the device. */
     async decommission() {
-        if (!this.#commissioningController.isNodeCommissioned(this.nodeId)) {
-            throw new ImplementationError(`This Node ${this.nodeId} is not commissioned.`);
-        }
         if (
             this.#connectionState === NodeStates.Reconnecting ||
             this.#connectionState === NodeStates.WaitingForDeviceDiscovery
@@ -1408,22 +1467,9 @@ export class PairedNode {
                 `This Node ${this.nodeId} is currently in a reconnect state, decommissioning is not possible.`,
             );
         }
-        const operationalCredentialsCluster = this.getRootClusterClient(OperationalCredentials.Cluster);
 
-        if (operationalCredentialsCluster === undefined) {
-            throw new ImplementationError(`OperationalCredentialsCluster for node ${this.nodeId} not found.`);
-        }
+        await this.#clientNode.act(agent => agent.get(CommissioningClient).decommission());
 
-        const fabricIndex = await operationalCredentialsCluster.getCurrentFabricIndexAttribute(true);
-
-        logger.debug(`Removing node ${this.nodeId} by removing fabric ${fabricIndex} on the node.`);
-
-        const result = await operationalCredentialsCluster.commands.removeFabric({ fabricIndex });
-        if (result.statusCode !== OperationalCredentials.NodeOperationalCertStatus.Ok) {
-            throw new MatterError(
-                `Removing node ${this.nodeId} failed with status ${result.statusCode} "${result.debugText}".`,
-            );
-        }
         this.#setConnectionState(NodeStates.Disconnected);
         await this.#commissioningController.removeNode(this.nodeId, false);
     }
@@ -1543,6 +1589,7 @@ export class PairedNode {
             this.events.decommissioned.emit();
         }
         this.#setConnectionState(NodeStates.Disconnected);
+        this.#currentSubscription?.close();
     }
 
     /**
@@ -1620,7 +1667,7 @@ export class PairedNode {
      * Returns immutable cached attribute values from cluster clients
      */
     get state() {
-        return this.getRootEndpoint()?.state ?? ({} as EndpointPropertiesProxy.State);
+        return this.#clientNode.state;
     }
 
     /**
@@ -1628,7 +1675,7 @@ export class PairedNode {
      * Returns async functions that can be called to invoke commands on cluster clients
      */
     get commands() {
-        return this.getRootEndpoint()?.commands ?? ({} as EndpointPropertiesProxy.Commands);
+        return this.#clientNode.commands;
     }
 
     /**
@@ -1636,11 +1683,7 @@ export class PairedNode {
      * Returns immutable cached attribute values from cluster clients
      */
     stateOf<T extends Behavior.Type>(type: T) {
-        const root = this.getRootEndpoint();
-        if (root === undefined) {
-            throw new ImplementationError(`Root endpoint for node ${this.nodeId} not found.`);
-        }
-        return root.stateOf(type);
+        return this.#clientNode.stateOf(type);
     }
 
     /**
@@ -1648,11 +1691,7 @@ export class PairedNode {
      * Returns async functions that can be called to invoke commands on cluster clients
      */
     commandsOf<T extends Behavior.Type>(type: T): Commands.OfBehavior<T> {
-        const root = this.getRootEndpoint();
-        if (root === undefined) {
-            throw new ImplementationError(`Root endpoint for node ${this.nodeId} not found.`);
-        }
-        return root.commandsOf(type);
+        return this.#clientNode.commandsOf(type);
     }
 }
 
@@ -1690,18 +1729,16 @@ export namespace PairedNode {
         /** Emitted when the state of the node changes. */
         stateChanged: Observable<[nodeState: NodeStates]>;
 
-        /**
-         * Emitted when an attribute value changes. If the oldValue is undefined then no former value was known.
-         */
-        attributeChanged: Observable<[data: DecodedAttributeReportValue<any>, oldValue: any]>;
+        /** Emitted when an attribute value changes. */
+        attributeChanged: Observable<[data: DecodedAttributeReportValue<any>]>;
 
         /** Emitted when an event is triggered. */
         eventTriggered: Observable<[DecodedEventReportValue<any>]>;
 
         /**
          * Emitted when all node structure changes were applied (Endpoints got added or also removed).
-         * You can alternatively use the nodeEndpointAdded, nodeEndpointRemoved and nodeEndpointChanged events to react on specific changes.
-         * This event is emitted after all nodeEndpointAdded, nodeEndpointRemoved and nodeEndpointChanged events are emitted.
+         * You can alternatively use the nodeEndpointAdded, nodeEndpointRemoved, and nodeEndpointChanged events to react on specific changes.
+         * This event is emitted after all nodeEndpointAdded, nodeEndpointRemoved, and nodeEndpointChanged events are emitted.
          */
         structureChanged: Observable<[void]>;
 

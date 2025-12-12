@@ -6,6 +6,7 @@
 
 import { Binding, BridgedDeviceBasicInformationCluster } from "#clusters";
 import { AtLeastOne, HandlerFunction, ImplementationError, NamedHandler, NotImplementedError } from "#general";
+import { Endpoint as NodeEndpoint } from "#node";
 import { ClusterClientObj } from "#protocol";
 import { Cluster, ClusterType, EndpointNumber } from "#types";
 import { ClusterServer } from "../cluster/server/ClusterServer.js";
@@ -59,16 +60,18 @@ export class PairedDevice extends Endpoint {
     /**
      * Create a new PairedDevice instance. All data are automatically parsed from the paired device!
      *
+     * @param endpoint Underlying ClientEndpoint instance
      * @param definition DeviceTypeDefinitions of the paired device as reported by the device
      * @param clusters Clusters of the paired device as reported by the device
      * @param endpointId Endpoint ID of the paired device as reported by the device
      */
     constructor(
+        endpoint: NodeEndpoint,
         definition: AtLeastOne<DeviceTypeDefinition>,
         clusters: (ClusterServerObj | ClusterClientObj)[] = [],
         endpointId: EndpointNumber,
     ) {
-        super(definition, { endpointId });
+        super(endpoint, definition, { endpointId });
         clusters.forEach(cluster => {
             if (isClusterServer(cluster)) {
                 this.addClusterServer(cluster);
@@ -110,8 +113,8 @@ export class RootEndpoint extends Endpoint {
     /**
      * Create a new RootEndpoint instance. This is automatically instanced by the CommissioningServer class.
      */
-    constructor() {
-        super([DeviceTypes.ROOT], { endpointId: EndpointNumber(0) });
+    constructor(endpoint: NodeEndpoint) {
+        super(endpoint, [DeviceTypes.ROOT], { endpointId: EndpointNumber(0) });
     }
 
     /**
@@ -155,14 +158,15 @@ export class Device extends Endpoint {
     /**
      * Create a new Device instance.
      *
+     * @param endpoint Underlying ClientEndpoint instance
      * @param definition DeviceTypeDefinitions of the device
      * @param options Optional endpoint options
      */
-    constructor(definition: DeviceTypeDefinition, options: EndpointOptions = {}) {
+    constructor(endpoint: NodeEndpoint, definition: DeviceTypeDefinition, options: EndpointOptions = {}) {
         if (definition.deviceClass === DeviceClasses.Node) {
             throw new NotImplementedError("MatterNode devices are not supported");
         }
-        super([definition], options);
+        super(endpoint, [definition], options);
         if (definition.deviceClass === DeviceClasses.Simple || definition.deviceClass === DeviceClasses.Client) {
             this.addClusterServer(
                 ClusterServer(

@@ -5,9 +5,9 @@
  */
 
 import * as MatterClusters from "#clusters";
+import { capitalize } from "#general";
+import { MatterModel } from "#model";
 import { ClusterId, DeviceTypeId } from "#types";
-import { capitalize } from "@matter/general";
-import { MatterModel } from "@matter/model";
 
 /**
  * General device classification categories.
