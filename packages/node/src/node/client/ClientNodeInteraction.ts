@@ -6,6 +6,7 @@
 
 import type { ActionContext } from "#behavior/context/ActionContext.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
+import { ImplementationError } from "#general";
 import type { ClientNode } from "#node/ClientNode.js";
 import { NodePhysicalProperties } from "#node/NodePhysicalProperties.js";
 import {
@@ -18,12 +19,12 @@ import {
     DecodedInvokeResult,
     Interactable,
     PhysicalDeviceProperties,
-    Read,
     ReadResult,
-    SubscribeResult,
-    Write,
+    RequestContext,
+    Val,
     WriteResult,
 } from "#protocol";
+import { EndpointNumber } from "#types";
 import { ClientEndpointInitializer } from "./ClientEndpointInitializer.js";
 
 /**
@@ -157,5 +158,20 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
 
     get structure() {
         return (this.#node.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+    }
+
+    /**
+     * Temporary accessor of cached data, if any are stored. This will be implemented by the ClientNodeInteraction and
+     * point to the node state of the relevant endpoint and is needed to support the old API behavior for
+     * AttributeClient.
+     * TODO Remove when we remove the legacy controller API
+     * @deprecated
+     */
+    localStateFor(endpointId: EndpointNumber): Record<string, Record<string, Val.Struct> | undefined> | undefined {
+        if (!this.#node.endpoints.has(endpointId)) {
+            return;
+        }
+        const endpoint = this.#node.endpoints.for(endpointId);
+        return endpoint.state as unknown as Record<string, Record<string, Val.Struct> | undefined>;
     }
 }
