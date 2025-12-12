@@ -18,7 +18,6 @@ import {
 import {
     ControllerCommissioningFlow,
     DiscoveryAndCommissioningOptions,
-    Endpoint,
     InteractionClient,
     NetworkClient,
     ServerNode,

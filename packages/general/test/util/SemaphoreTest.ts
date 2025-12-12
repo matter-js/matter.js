@@ -87,7 +87,7 @@ describe("Semaphore", () => {
             const task1 = (async () => {
                 using _slot = await queue.obtainSlot();
                 executionOrder.push("task1-start");
-                await MockTime.advance(10);
+                await new Promise(resolve => setTimeout(resolve, 10));
                 executionOrder.push("task1-end");
             })();
 
@@ -109,14 +109,14 @@ describe("Semaphore", () => {
             const task1 = (async () => {
                 using _slot = await queue.obtainSlot();
                 executionOrder.push("task1-start");
-                await MockTime.advance(20);
+                await new Promise(resolve => setTimeout(resolve, 20));
                 executionOrder.push("task1-end");
             })();
 
             const task2 = (async () => {
                 using _slot = await queue.obtainSlot();
                 executionOrder.push("task2-start");
-                await MockTime.advance(10);
+                await new Promise(resolve => setTimeout(resolve, 10));
                 executionOrder.push("task2-end");
             })();
 
@@ -136,7 +136,7 @@ describe("Semaphore", () => {
                     using _slot = await queue.obtainSlot();
                     runningCount++;
                     maxRunning = Math.max(maxRunning, runningCount);
-                    await MockTime.advance(10);
+                    await new Promise(resolve => setTimeout(resolve, 10));
                     runningCount--;
                 })();
 
@@ -154,7 +154,7 @@ describe("Semaphore", () => {
                 (async () => {
                     using _slot = await queue.obtainSlot();
                     startOrder.push(id);
-                    await MockTime.advance(delay);
+                    await new Promise(resolve => setTimeout(resolve, delay));
                     endOrder.push(id);
                 })();
 
@@ -182,7 +182,7 @@ describe("Semaphore", () => {
                 (async () => {
                     using _slot = await queue.obtainSlot();
                     events.push(`start-${id}`);
-                    await MockTime.advance(delay);
+                    await new Promise(resolve => setTimeout(resolve, delay));
                     events.push(`end-${id}`);
                 })();
 
@@ -240,7 +240,7 @@ describe("Semaphore", () => {
             })();
 
             // Wait for tasks to queue up
-            await MockTime.advance(10);
+            await new Promise(resolve => setTimeout(resolve, 10));
 
             // Release the blocker
             resolveBlocker();
@@ -393,8 +393,8 @@ describe("Semaphore", () => {
             const queue = new Semaphore(1);
 
             const slot1 = await queue.obtainSlot();
-            await queue.obtainSlot(); // This will be orphaned
-            await queue.obtainSlot(); // This will be orphaned
+            void queue.obtainSlot(); // This will be orphaned
+            void queue.obtainSlot(); // This will be orphaned
 
             expect(queue.count).equals(2);
 
@@ -497,7 +497,7 @@ describe("Semaphore", () => {
             async function* gen1() {
                 executionOrder.push("gen1-start");
                 yield "a";
-                await MockTime.advance(10);
+                await new Promise(resolve => setTimeout(resolve, 10));
                 yield "b";
                 executionOrder.push("gen1-end");
             }
@@ -640,7 +640,7 @@ describe("Semaphore", () => {
 
             const task1 = withOptionalQueue(queue, true, async () => {
                 executionOrder.push("task1-start");
-                await MockTime.advance(10);
+                await new Promise(resolve => setTimeout(resolve, 10));
                 executionOrder.push("task1-end");
                 return "t1";
             });
@@ -663,7 +663,7 @@ describe("Semaphore", () => {
             // Block the queue
             const blocker = withOptionalQueue(queue, true, async () => {
                 executionOrder.push("blocker-start");
-                await MockTime.advance(50);
+                await new Promise(resolve => setTimeout(resolve, 50));
                 executionOrder.push("blocker-end");
             });
 
@@ -701,7 +701,7 @@ describe("Semaphore", () => {
             async function* gen1() {
                 executionOrder.push("gen1-start");
                 yield "a";
-                await MockTime.advance(10);
+                await new Promise(resolve => setTimeout(resolve, 10));
                 yield "b";
                 executionOrder.push("gen1-end");
             }
@@ -744,7 +744,7 @@ describe("Semaphore", () => {
             const iterPromise = collect(iterableWithQueue(queue, true, generator));
 
             // Give time for any incorrect immediate execution
-            await MockTime.advance(10);
+            await new Promise(resolve => setTimeout(resolve, 10));
 
             // Generator should NOT have started yet
             expect(executionOrder).deep.equals(["blocker-start"]);
@@ -800,9 +800,9 @@ describe("Semaphore", () => {
 
             async function* generator() {
                 yield 1;
-                await MockTime.advance(20);
+                await new Promise(resolve => setTimeout(resolve, 20));
                 yield 2;
-                await MockTime.advance(20);
+                await new Promise(resolve => setTimeout(resolve, 20));
                 yield 3;
             }
 

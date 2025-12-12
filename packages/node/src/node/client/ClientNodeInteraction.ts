@@ -20,7 +20,6 @@ import {
     Interactable,
     PhysicalDeviceProperties,
     ReadResult,
-    RequestContext,
     Val,
     WriteResult,
 } from "#protocol";

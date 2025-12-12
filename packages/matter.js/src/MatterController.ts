@@ -46,7 +46,6 @@ import {
     ControllerCommissioner,
     ControllerCommissioningFlow,
     DiscoveryAndCommissioningOptions,
-    Endpoint,
     InteractionClientProvider,
     NetworkClient,
     NodePhysicalProperties,
@@ -361,8 +360,6 @@ export class MatterController {
 
             this.#peers = this.#node.env.get(PeerSet);
         });
-    }
-
     }
 
     get ble() {

@@ -6,7 +6,7 @@
 
 import { Diagnostic } from "#general";
 import { AttributeModel, ClusterModel, MatterModel } from "#model";
-import { SupportedAttributeClient } from "#protocol";
+import { SupportedAttributeClient } from "#node";
 import { AttributeId, ClusterId, EndpointNumber, ValidationError } from "#types";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode";
