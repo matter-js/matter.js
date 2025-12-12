@@ -14,6 +14,7 @@ export function capitalize<T extends string>(text: T) {
 /**
  * Converts identifiers of the form "foo-bar", "foo_bar", "foo bar", "foo*bar",
  * "fooBar" or "FOOBar" into "fooBar" or "FooBar".
+ * Stops processing when a "$" is reached
  */
 export function camelize(name: string, upperFirst = false) {
     const pieces = new Array<string>();
@@ -28,6 +29,9 @@ export function camelize(name: string, upperFirst = false) {
     }
 
     for (; i < name.length; i++) {
+        if (name[i] === "$") {
+            break;
+        }
         if (name[i] >= "A" && name[i] <= "Z") {
             if (sawLower) {
                 addPiece(i);
@@ -55,7 +59,6 @@ export function camelize(name: string, upperFirst = false) {
         }
 
         pieceStart = i + 1;
-        continue;
     }
     addPiece(i);
 
@@ -75,6 +78,10 @@ export function camelize(name: string, upperFirst = false) {
 
     // Special case so "100ths" doesn't become "100Ths" which is formally correct but goofy
     result = result.replace(/(\d)Ths/i, "$1ths");
+
+    if (i < name.length) {
+        result += name.slice(i);
+    }
 
     return result;
 }
