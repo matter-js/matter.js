@@ -54,6 +54,13 @@ export class MatterNode {
         return this.commissioningController.node;
     }
 
+    get ota() {
+        if (this.commissioningController === undefined) {
+            throw new Error("CommissioningController not initialized. Start first");
+        }
+        return this.commissioningController.ota;
+    }
+
     get otaService() {
         if (!this.environment.has(DclOtaUpdateService)) {
             new DclOtaUpdateService(this.environment); // Adds itself to the environment
