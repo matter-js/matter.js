@@ -111,7 +111,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: `PairedNode.state` renamed to `PairedNode.connectionState`!
     - Breaking: PairedNode attribute change callbacks and events does _not_ contain the `changed` and `oldValue` properties anymore
     - Breaking: Some PairedNode API methods got slightly reduced in functionality, but that should not affect most users
-    - Breaking: The Storage location of the controller base data has moved. The data will be migrated automatically on first start of the new version
+    - Breaking: The Storage location of the controller base data has moved. The data will be migrated automatically on the first start of the new version (be aware, this can take some seconds!)
       - Cached node attribute data (formerly "node-<ID>.*" in main storage) are now located in nodes.peerX.endpoints.* because they are now managed
       - The fabric (formerly "credentials.fabric") is now located at "fabrics.*"
       - The certificates (formerly other "credentials.*") are now located in "certificates.*"
