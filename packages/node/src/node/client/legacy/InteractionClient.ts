@@ -901,7 +901,7 @@ export class InteractionClient {
             eventReports: [],
         };
 
-        const subscribe = await this.#interaction.subscribe({
+        const subscribe = await (this.#interaction as ClientNodeInteraction).subscribe({
             ...Subscribe({
                 interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
                 attributes: attributeRequests,
@@ -916,6 +916,7 @@ export class InteractionClient {
                 maxIntervalCeiling: Seconds(maxIntervalCeilingSeconds),
                 fabricFilter: isFabricFiltered,
             }),
+            sustain: false,
             updated: async (data: ReadResult) => {
                 const isUpdate = fullReport === undefined;
                 const newData = await this.#processReadResult(data, {
