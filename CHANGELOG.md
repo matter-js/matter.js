@@ -32,7 +32,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Added platform abstractions for of HTTP, WebSockets and MQTT
     - Enhancement: Added polyfills and additional types for decorators
     - Enhancement: Split out access to random values from Crypto interface to an Entropy interface
-    - Enhancement: Added support for shared Environment services by tracking usages and closing when last user is gone
+    - Enhancement: Added support for shared Environment services by tracking usages and closing when the last user is gone
+    - Enhancement: Specializes `camelize()` to stop processing when $ is reached to better handle special names for custom clusters
+    - Enhancement: Convert PromiseQueue to Semaphore with obtain/release approach
     - Fix: Ensures that StandaloneAck messages are always considering the corresponding Secure channel protocol ID
 
 - @matter/model
@@ -76,6 +78,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: The platform-specific BLE abstraction has changed so that higher-level logic may be shared across platforms
     - Breaking: Low-level advertising APIs have changed significantly; in particular, `MdnsBroadcaster`, `MdnsInstanceBroadcaster` and `MdnsScanner` are replaced by `MdnsServer`, `MdnsAdvertisement` and `MdnsClient`
     - Breaking: The `Ble.get()` singleton is removed; components now instead retrieve the `Ble` service from the environment
+    - Breaking: Moved some controller API classes (Attribute/Event/Command/InteractionClient) into @matter/node package and adjusted to use Node Interactable as backing
     - Feature: Adds support for advertising of TCP and ICD services (but matter.js does not yet implement those features otherwise)
     - Feature: Adds support for extended advertisement
     - Feature: Added support for Case Authenticated Tags (CATs) in operational CASE sessions for enhanced access control
@@ -105,7 +108,15 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensures correct Number ranges for nullable and non-nullable numbers on TLV level
 
 - @project-chip/matter.js
-    - BREAKING: `PairedNode.state` renamed to `PairedNode.connectionState`!
+    - Breaking: `PairedNode.state` renamed to `PairedNode.connectionState`!
+    - Breaking: PairedNode attribute change callbacks and events does _not_ contain the `changed` and `oldValue` properties anymore
+    - Breaking: Some PairedNode API methods got slightly reduced in functionality, but that should not affect most users
+    - Breaking: The Storage location of the controller base data has moved. The data will be migrated automatically on first start of the new version
+      - Cached node attribute data (formerly "node-<ID>.*" in main storage) are now located in nodes.peerX.endpoints.* because they are now managed
+      - The fabric (formerly "credentials.fabric") is now located at "fabrics.*"
+      - The certificates (formerly other "credentials.*") are now located in "certificates.*"
+      - The list of commissioned nodes (formerly "nodes.commissionedNodes") is now integrated in the node peer data (nodes.peerX)
+    - Enhancement: The PairedNode is data wise now backend by a ServerNode instance which acts as controller and provides all datamanagement and peer access. This API can alredy be moved directly by using `PairedNode.node` - some convenience methods are also dorectly mapped on the PairedNode itself (see below). initial connection and reconnection management is still handled by PairedNode and will move later.
     - Enhancement: Added more convenient accessors for endpoint cached read-only state: `Endpoint.state` property for attributes for all clusters in generic way and `Endpoint.stateOf()` for a typed access for a defined Client behavior
     - Enhancement: Added more convenient accessors for endpoint commands: `Endpoint.commands` property for commands for all clusters in generic way and `Endpoint.commandsOf()` for a types access for a defined Client behavior
     - Enhancement: Added `PairedNode.parts` and `Endpoint.parts` as Map property to access all endpoints of a node
