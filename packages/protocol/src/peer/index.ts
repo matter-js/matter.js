@@ -4,8 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export * from "./ControllerCommissioner.js";
-export * from "./ControllerCommissioningFlow.js";
+export * from "./CommissioningError.js";
 export * from "./ControllerDiscovery.js";
 export * from "./InteractionQueue.js";
 export * from "./PeerAddress.js";

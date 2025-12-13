@@ -1682,7 +1682,6 @@ describe("InteractionProtocol", () => {
                 (messageType, payload) => {
                     expect(messageType).equals(MessageType.StatusResponse);
                     result = TlvStatusResponse.decode(payload);
-                    console.log(result);
                 },
                 () => {
                     timedInteractionCleared = true;

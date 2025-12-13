@@ -14,7 +14,6 @@ import {
     Seconds,
     ServerAddress,
 } from "#general";
-import { CommissionableDeviceDiscoveryFailedError } from "#peer/ControllerCommissioningFlow.js";
 import { RetransmissionLimitReachedError } from "#protocol/errors.js";
 import { NodeId } from "#types";
 import {
@@ -27,8 +26,12 @@ import {
 } from "../common/Scanner.js";
 import { Fabric } from "../fabric/Fabric.js";
 import { MdnsClient } from "../mdns/MdnsClient.js";
+import { CommissioningError } from "./CommissioningError.js";
 
 const logger = Logger.get("ControllerDiscovery");
+
+/** Error that throws when the device could not be discovered using the provided details. */
+export class CommissionableDeviceDiscoveryFailedError extends CommissioningError {}
 
 export class DiscoveryError extends RetransmissionLimitReachedError {}
 

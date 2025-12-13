@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Certificate } from "#certificate/kinds/Certificate.js";
 import { BasicInformation } from "#clusters/basic-information";
 import { Descriptor } from "#clusters/descriptor";
 import { GeneralCommissioning } from "#clusters/general-commissioning";
@@ -18,7 +17,6 @@ import {
     Duration,
     Instant,
     Logger,
-    MatterError,
     Millis,
     Minutes,
     repackErrorAs,
@@ -28,6 +26,17 @@ import {
     Timestamp,
     UnexpectedDataError,
 } from "#general";
+import { ClusterClient } from "#node/client/legacy/ClusterClient.js";
+import { InteractionClient } from "#node/client/legacy/InteractionClient.js";
+import {
+    Certificate,
+    CertificateAuthority,
+    ClusterClientObj,
+    CommissioningError,
+    Fabric,
+    PeerAddress,
+    TlvCertSigningRequest,
+} from "#protocol";
 import {
     ClusterId,
     ClusterType,
@@ -38,13 +47,6 @@ import {
     TypeFromSchema,
     VendorId,
 } from "#types";
-import { CertificateAuthority } from "../certificate/CertificateAuthority.js";
-import { ClusterClient } from "../cluster/client/ClusterClient.js";
-import { ClusterClientObj } from "../cluster/client/ClusterClientTypes.js";
-import { TlvCertSigningRequest } from "../common/OperationalCredentialsTypes.js";
-import { Fabric } from "../fabric/Fabric.js";
-import { InteractionClient } from "../interaction/InteractionClient.js";
-import { PeerAddress } from "./PeerAddress.js";
 
 const logger = Logger.get("ControllerCommissioner");
 
@@ -146,12 +148,6 @@ type CollectedCommissioningData = {
     fabricIndex?: FabricIndex;
 };
 
-/**
- * Error that throws when Commissioning fails and a process cannot be continued, and no more specific error
- * information is available.
- */
-export class CommissioningError extends MatterError {}
-
 /** The number of fabrics that can be commissioned is already reached. */
 export class MaximumCommissionedFabricsReachedError extends CommissioningError {}
 
@@ -175,9 +171,6 @@ export class ThreadNetworkSetupFailedError extends CommissioningError {}
 
 /** Error that throws when the NodeId is already used in the fabric. */
 export class NodeIdConflictError extends CommissioningError {}
-
-/** Error that throws when the device could not be discovered using the provided details. */
-export class CommissionableDeviceDiscoveryFailedError extends CommissioningError {}
 
 /** Error that throws when the device could not be connected using the operational discovery and no session could be created. */
 export class OperativeConnectionFailedError extends CommissioningError {}
@@ -644,7 +637,7 @@ export class ControllerCommissioningFlow {
             logger.debug(`Failsafe timer has only ${timeLeft}s left, re-arming for at least ${minFailsafeTime}`);
             await this.#armFailsafe(Duration.max(minFailsafeTime, this.#defaultFailSafeTime));
         } else {
-            logger.debug(`Failsafe timer is already set for at least ${timeLeft}s`);
+            logger.debug(`Failsafe timer is already set for at least ${Seconds.of(timeLeft)}s`);
         }
     }
 

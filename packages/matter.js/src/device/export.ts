@@ -5,8 +5,6 @@
  */
 
 export * from "./Aggregator.js";
-export * from "./CachedClientNodeStore.js";
-export * from "./ClientEndpointStore.js";
 export * from "./ComposedDevice.js";
 export * from "./Device.js";
 export * from "./DeviceInformation.js";

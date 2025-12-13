@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ClientRead } from "#action/client/ClientRead.js";
 import { Interactable, InteractionSession } from "#action/Interactable.js";
 import { ClientInvoke, Invoke } from "#action/request/Invoke.js";
 import { Read } from "#action/request/Read.js";
-import { resolvePathForSpecifier } from "#action/request/Specifier.js";
 import { Subscribe } from "#action/request/Subscribe.js";
 import { Write } from "#action/request/Write.js";
 import { DecodedInvokeResult, InvokeResult } from "#action/response/InvokeResult.js";
@@ -35,6 +35,7 @@ import { PeerAddress } from "#peer/index.js";
 import { ExchangeProvider } from "#protocol/ExchangeProvider.js";
 import { SecureSession } from "#session/SecureSession.js";
 import { Status, TlvAttributeReport, TlvNoResponse, TlvSubscribeResponse, TypeFromSchema } from "#types";
+import { ClientWrite } from "./ClientWrite.js";
 import { InputChunk } from "./InputChunk.js";
 import { ClientSubscribe } from "./subscription/ClientSubscribe.js";
 import { ClientSubscription } from "./subscription/ClientSubscription.js";
@@ -134,7 +135,7 @@ export class ClientInteraction<
     /**
      * Read attributes and events.
      */
-    async *read(request: Read, session?: SessionT): ReadResult {
+    async *read(request: ClientRead, session?: SessionT): ReadResult {
         const readPathsCount = (request.attributeRequests?.length ?? 0) + (request.eventRequests?.length ?? 0);
         if (readPathsCount === 0) {
             throw new ImplementationError("When reading attributes and events, at least one must be specified.");
@@ -182,7 +183,7 @@ export class ClientInteraction<
      * Writes with the Matter protocol are generally not atomic, so this method only throws if the entire action fails.
      * You must check each {@link WriteResult.AttributeStatus} to determine whether individual updates failed.
      */
-    async write<T extends Write>(request: T, session?: SessionT): WriteResult<T> {
+    async write<T extends ClientWrite>(request: T, session?: SessionT): WriteResult<T> {
         await using context = await this.#begin("writing", request, session);
         const { checkAbort, messenger } = context;
 
@@ -288,7 +289,7 @@ export class ClientInteraction<
                                     `No response schema found for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId})`,
                                 );
                             }
-                            const responseSchema = Invoke.commandOf(cmd).responseSchema;
+                            const responseSchema = cmd.responseSchema;
                             if (commandFields === undefined && responseSchema !== TlvNoResponse) {
                                 throw new ImplementationError(
                                     `No command fields found for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId})`,
@@ -302,7 +303,7 @@ export class ClientInteraction<
                                 "Invoke",
                                 Mark.INBOUND,
                                 messenger.exchange.via,
-                                Diagnostic.strong(resolvePathForSpecifier(cmd)),
+                                Diagnostic.strong(cmd),
                                 isObject(data) ? Diagnostic.dict(data) : Diagnostic.weak("(no payload)"),
                             );
 

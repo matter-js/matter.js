@@ -4,10 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
 import { GeneralCommissioning } from "#clusters/general-commissioning";
-import { CommissionableDevice, CommissionableDeviceIdentifiers, DiscoveryData, ScannerSet } from "#common/Scanner.js";
-import { Fabric } from "#fabric/Fabric.js";
 import {
     Bytes,
     Channel,
@@ -27,24 +24,35 @@ import {
     Seconds,
     ServerAddress,
 } from "#general";
-import { InteractionClient, InteractionClientProvider } from "#interaction/InteractionClient.js";
-import { MdnsClient } from "#mdns/MdnsClient.js";
+import { InteractionClient, InteractionClientProvider } from "#node/client/legacy/InteractionClient.js";
 import {
+    CertificateAuthority,
+    ChannelStatusResponseError,
+    ClientInteraction,
+    CommissionableDevice,
+    CommissionableDeviceIdentifiers,
     CommissioningError,
+    ControllerDiscovery,
+    DedicatedChannelExchangeProvider,
+    DiscoveryData,
+    ExchangeManager,
+    Fabric,
+    MdnsClient,
+    NodeDiscoveryType,
+    NodeSession,
+    PairRetransmissionLimitReachedError,
+    PaseClient,
+    PeerAddress,
+    PeerSet,
+    ScannerSet,
+    SessionManager,
+} from "#protocol";
+import { DiscoveryCapabilitiesBitmap, NodeId, SECURE_CHANNEL_PROTOCOL_ID, TypeFromPartialBitSchema } from "#types";
+import {
     ControllerCommissioningFlow,
     ControllerCommissioningFlowOptions,
     NodeIdConflictError,
-} from "#peer/ControllerCommissioningFlow.js";
-import { ControllerDiscovery, PairRetransmissionLimitReachedError } from "#peer/ControllerDiscovery.js";
-import { ExchangeManager } from "#protocol/ExchangeManager.js";
-import { DedicatedChannelExchangeProvider } from "#protocol/ExchangeProvider.js";
-import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
-import { NodeSession } from "#session/NodeSession.js";
-import { PaseClient } from "#session/pase/PaseClient.js";
-import { SessionManager } from "#session/SessionManager.js";
-import { DiscoveryCapabilitiesBitmap, NodeId, SECURE_CHANNEL_PROTOCOL_ID, TypeFromPartialBitSchema } from "#types";
-import { PeerAddress } from "./PeerAddress.js";
-import { NodeDiscoveryType, PeerSet } from "./PeerSet.js";
+} from "./ControllerCommissioningFlow.js";
 
 const logger = Logger.get("PeerCommissioner");
 
@@ -134,6 +142,7 @@ export interface ControllerCommissionerContext {
     sessions: SessionManager;
     exchanges: ExchangeManager;
     ca: CertificateAuthority;
+    environment: Environment;
 }
 
 /**
@@ -157,13 +166,14 @@ export class ControllerCommissioner {
             sessions: env.get(SessionManager),
             exchanges: env.get(ExchangeManager),
             ca: env.get(CertificateAuthority),
+            environment: env,
         });
         env.set(ControllerCommissioner, instance);
         return instance;
     }
 
     /**
-     * Commmission a previously discovered node.
+     * Commission a previously discovered node.
      */
     async commission(options: LocatedNodeCommissioningOptions): Promise<PeerAddress> {
         const { passcode, addresses, discoveryData, fabric, nodeId } = options;
@@ -463,11 +473,15 @@ export class ControllerCommissioner {
         logger.info(
             `Start commissioning of node ${address.nodeId} into fabric ${fabric.fabricId} (index ${address.fabricIndex})`,
         );
+        const exchangeProvider = new DedicatedChannelExchangeProvider(this.#context.exchanges, paseSession);
         const commissioningManager = new commissioningFlowImpl(
             // Use the created secure session to do the commissioning
             new InteractionClient(
-                new DedicatedChannelExchangeProvider(this.#context.exchanges, paseSession),
-                undefined,
+                new ClientInteraction({
+                    environment: this.#context.environment,
+                    exchangeProvider,
+                }),
+                exchangeProvider,
                 address,
             ),
             this.#context.ca,
@@ -489,14 +503,16 @@ export class ControllerCommissioner {
                 }
 
                 // Look for the device broadcast over MDNS and do CASE pairing
-                return await this.#context.clients.connect(address, {
+                await this.#context.peers.connect(address, {
                     discoveryOptions: {
                         discoveryType: NodeDiscoveryType.TimedDiscovery,
                         timeout: Minutes(2),
                         discoveryData,
                     },
-                    allowUnknownPeer: true,
-                }); // Wait maximum 120s to find the operational device for commissioning process
+                }); // Wait maximum 120s to find the operational device for the commissioning process
+
+                // And we use a ClientInteraction backed Interaction client to finish the commissioning because
+                return await this.#context.clients.interactionClientFor(address);
             },
         );
 

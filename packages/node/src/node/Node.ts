@@ -107,6 +107,9 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
             this.lifecycle.targetState = "online";
 
             await this.lifecycle.mutex.produce(this.startWithMutex.bind(this));
+        } catch (error) {
+            this.lifecycle.targetState = "offline";
+            throw error;
         } finally {
             this.#startInProgress = false;
         }
@@ -130,6 +133,17 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
             await this.#runtime.construction.ready;
             await this.act("network startup", agent => agent.get(NetworkBehavior).startup());
         } catch (e) {
+            // If runtime instance got created, tear it down
+            if (this.#runtime) {
+                this.#environment.delete(NetworkRuntime, this.#runtime);
+                try {
+                    await this.#runtime.close();
+                } catch {
+                    // Ignore all errors that might, likely we cannot tear down because construction never completed
+                }
+                this.#runtime = undefined;
+                this.behaviors.internalsOf(NetworkBehavior).runtime = undefined;
+            }
             this.env.runtime.delete(this);
             throw e;
         }

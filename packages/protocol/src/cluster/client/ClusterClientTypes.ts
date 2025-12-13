@@ -16,7 +16,9 @@ import {
     CommandId,
     Commands,
     EndpointNumber,
+    Event,
     EventId,
+    EventNumber,
     EventType,
     Events,
     GlobalAttributeNames,
@@ -35,15 +37,53 @@ import {
     WritableAttribute,
 } from "#types";
 import { DecodedEventData } from "../../interaction/EventDataDecoder.js";
-import { AttributeClient } from "./AttributeClient.js";
-import { EventClient } from "./EventClient.js";
+
+export interface AttributeClientObj<T = any> {
+    readonly id: AttributeId;
+    readonly attribute: Attribute<T, any>;
+    readonly name: string;
+    readonly endpointId: EndpointNumber | undefined;
+    readonly clusterId: ClusterId;
+    readonly fabricScoped: boolean;
+    set(value: T, dataVersion?: number): Promise<void>;
+    getLocal(): T | undefined;
+    get(requestFromRemote?: boolean, isFabricFiltered?: boolean): Promise<T | undefined>;
+    subscribe(
+        minIntervalFloorSeconds: number,
+        maxIntervalCeilingSeconds: number,
+        knownDataVersion?: number,
+        isFabricFiltered?: boolean,
+    ): Promise<{ maxInterval: number }>;
+    update(value: T): void;
+    addListener(listener: (newValue: T) => void): void;
+    removeListener(listener: (newValue: T) => void): void;
+}
+
+export interface EventClientObj<T> {
+    readonly id: EventId;
+    readonly event: Event<T, any>;
+    readonly name: string;
+    readonly endpointId: EndpointNumber | undefined;
+    readonly clusterId: ClusterId;
+    get(minimumEventNumber?: EventNumber, isFabricFiltered?: boolean): Promise<DecodedEventData<T>[] | undefined>;
+    subscribe(
+        minIntervalFloorSeconds: Duration,
+        maxIntervalCeilingSeconds: Duration,
+        isUrgent?: boolean,
+        minimumEventNumber?: EventNumber,
+        isFabricFiltered?: boolean,
+    ): Promise<{ maxInterval: number }>;
+    update(newEvent: DecodedEventData<T>): void;
+    addListener(listener: (newValue: DecodedEventData<T>) => void): void;
+    removeListener(listener: (newValue: DecodedEventData<T>) => void): void;
+}
 
 export type AttributeClients<F extends BitSchema, A extends Attributes> = Merge<
     Merge<
-        { [P in MandatoryAttributeNames<A>]: AttributeClient<AttributeJsType<A[P]>> },
-        { [P in OptionalAttributeNames<A>]: AttributeClient<AttributeJsType<A[P]> | undefined> }
+        { [P in MandatoryAttributeNames<A>]: AttributeClientObj<AttributeJsType<A[P]>> },
+        { [P in OptionalAttributeNames<A>]: AttributeClientObj<AttributeJsType<A[P]> | undefined> }
     >,
-    { [P in GlobalAttributeNames<F>]: AttributeClient<AttributeJsType<GlobalAttributes<F>[P]>> }
+    { [P in GlobalAttributeNames<F>]: AttributeClientObj<AttributeJsType<GlobalAttributes<F>[P]>> }
 >;
 
 export type AttributeClientValues<A extends Attributes> = Merge<
@@ -52,8 +92,8 @@ export type AttributeClientValues<A extends Attributes> = Merge<
 >;
 
 export type EventClients<E extends Events> = Merge<
-    { [P in MandatoryEventNames<E>]: EventClient<EventType<E[P]>> },
-    { [P in OptionalEventNames<E>]: EventClient<EventType<E[P]> | undefined> }
+    { [P in MandatoryEventNames<E>]: EventClientObj<EventType<E[P]>> },
+    { [P in OptionalEventNames<E>]: EventClientObj<EventType<E[P]> | undefined> }
 >;
 
 export type SignatureFromCommandSpec<C extends Command<any, any, any>> = (

@@ -5,6 +5,7 @@
  */
 import { BridgedDeviceBasicInformationCluster } from "#clusters";
 import { ImplementationError } from "#general";
+import { Endpoint as NodeEndpoint } from "#node";
 import { ClusterServer } from "../cluster/server/ClusterServer.js";
 import { AttributeInitialValues } from "../cluster/server/ClusterServerTypes.js";
 import { ComposedDevice } from "./ComposedDevice.js";
@@ -23,12 +24,14 @@ export class Aggregator extends Endpoint {
     /**
      * Create a new Aggregator instance and optionally directly add devices to it. If this is used the devices must
      * already have the BridgedDeviceBasicInformationCluster added!
+     *
+     * @param endpoint Underlying ClientEndpoint instance
      * @param devices Array of devices to add
      * @param options Optional Endpoint options
      */
-    constructor(devices: Device[] = [], options: EndpointOptions = {}) {
+    constructor(endpoint: NodeEndpoint, devices: Device[] = [], options: EndpointOptions = {}) {
         // Aggregator is a Composed device with an DeviceTypes.AGGREGATOR device type
-        super([DeviceTypes.AGGREGATOR], options);
+        super(endpoint, [DeviceTypes.AGGREGATOR], options);
         devices.forEach(device => this.addBridgedDevice(device));
     }
 

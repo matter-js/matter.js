@@ -78,7 +78,7 @@ export namespace PhysicalDeviceProperties {
         }
         if (maxIntervalCeiling < defaultCeiling) {
             logger.debug(
-                `${description}: maxIntervalCeilingSeconds ideally is ${defaultCeiling}s instead of ${maxIntervalCeiling}s due to device type`,
+                `${description}: maxIntervalCeilingSeconds ideally is ${Duration.format(defaultCeiling)}s instead of ${Duration.format(maxIntervalCeiling)}s due to device type`,
             );
         }
 

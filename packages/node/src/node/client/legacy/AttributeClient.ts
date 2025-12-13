@@ -6,9 +6,9 @@
 
 import { ImplementationError } from "#general";
 import { FabricIndex as FabricIndexElement } from "#model";
-import { NoAssociatedFabricError } from "#protocol/errors.js";
+import { NoAssociatedFabricError } from "#protocol";
 import { Attribute, AttributeError, AttributeId, ClusterId, EndpointNumber, FabricIndex, TlvSchema } from "#types";
-import { InteractionClient } from "../../interaction/InteractionClient.js";
+import { InteractionClient } from "./InteractionClient.js";
 
 /**
  * Factory function to create an AttributeClient for a given attribute.
@@ -138,31 +138,6 @@ export class AttributeClient<T = any> {
             requestFromRemote = true;
         }
         return await this.#interactionClient.getAttribute({
-            endpointId: this.endpointId,
-            clusterId: this.clusterId,
-            attribute: this.attribute,
-            isFabricFiltered,
-            requestFromRemote,
-        });
-    }
-
-    /**
-     * Get the value with version of the attribute. Fabric scoped reads are always done with the remote.
-     * The `requestFromRemote` parameter allowed to force or prevent remote reads:
-     * - `true` forces a remote read
-     * - `false` forces a local read, return undefined if no value is available
-     * - `undefined` returns local values if available or if the read is fabric filtered, otherwise remote read
-     */
-    async getWithVersion(requestFromRemote?: boolean, isFabricFiltered = true) {
-        if (this.endpointId === undefined) {
-            throw new ImplementationError(`Cannot read attribute ${this.name} without endpointId.`);
-        }
-        if (requestFromRemote === undefined) {
-            requestFromRemote = this.#isFabricScoped || !this.#updatedBySubscriptions ? true : undefined;
-        } else if (!requestFromRemote && this.#isFabricScoped) {
-            requestFromRemote = true;
-        }
-        return await this.#interactionClient.getAttributeWithVersion({
             endpointId: this.endpointId,
             clusterId: this.clusterId,
             attribute: this.attribute,

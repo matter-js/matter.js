@@ -79,8 +79,9 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         return this.env.get(ServerNodeStore).clientStores.storeForNode(this);
     }
 
-    override initialize() {
+    override async initialize() {
         const store = this.store;
+        await store.construction;
 
         this.env.set(ClientNodeStore, store);
 
@@ -91,7 +92,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
 
         initializer.structure.loadCache();
 
-        return super.initialize();
+        await super.initialize();
     }
 
     override get owner(): ServerNode | undefined {

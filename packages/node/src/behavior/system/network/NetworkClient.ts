@@ -8,9 +8,10 @@ import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescripto
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { Observable, ServerAddress, ServerAddressUdp } from "#general";
 import { DatatypeModel, FieldElement } from "#model";
+import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
-import { ActiveSubscription, PeerSet, Subscribe } from "#protocol";
+import { ClientSubscription, PeerSet, Subscribe, SustainedSubscription } from "#protocol";
 import { CaseAuthenticatedTag, EventNumber } from "#types";
 import { ClientNetworkRuntime } from "./ClientNetworkRuntime.js";
 import { NetworkBehavior } from "./NetworkBehavior.js";
@@ -86,16 +87,42 @@ export class NetworkClient extends NetworkBehavior {
 
             // First, read.  This allows us to retrieve attributes that do not support subscription and gives us
             // physical device information required to optimize subscription parameters
-            for await (const _chunk of this.#node.interaction.read(subscribe));
+            for await (const _chunk of this.#node.interaction.read({
+                ...subscribe,
+                eventFilters: undefined,
+                eventRequests: undefined,
+            }));
 
             // Now subscribe for subsequent updates
-            const subscription = await this.#node.interaction.subscribe(subscribe);
-
-            this.internal.activeSubscription = subscription;
+            this.internal.activeSubscription = await (this.#node.interaction as ClientNodeInteraction).subscribe({
+                ...subscribe,
+                eventFilters: [{ eventMin: this.state.maxEventNumber + 1n }],
+                updated: async update => {
+                    // Read over all changes
+                    for await (const _chunk of update);
+                    this.events.subscriptionAlive.emit(); // Inform that subscription is alive
+                },
+                closed: () => {
+                    if (!(this.internal.activeSubscription instanceof SustainedSubscription)) {
+                        this.events.subscriptionStatusChanged.emit(false);
+                    }
+                    this.internal.activeSubscription = undefined;
+                },
+            });
+            if (this.internal.activeSubscription instanceof SustainedSubscription) {
+                this.internal.activeSubscription.active.on(() => this.events.subscriptionStatusChanged.emit(true));
+                this.internal.activeSubscription.inactive.on(() => this.events.subscriptionStatusChanged.emit(false));
+            }
         } else {
             this.internal.activeSubscription?.close();
             this.internal.activeSubscription = undefined;
         }
+    }
+
+    override async [Symbol.asyncDispose]() {
+        // Clean up any active subscription
+        this.internal.activeSubscription?.close();
+        this.internal.activeSubscription = undefined;
     }
 
     get #node() {
@@ -162,20 +189,21 @@ export namespace NetworkClient {
         /**
          * The active default subscription.
          */
-        activeSubscription?: ActiveSubscription;
+        activeSubscription?: ClientSubscription;
     }
 
     export class State extends NetworkBehavior.State {
         /**
          * This subscription defines the default set of attributes and events to which the node will automatically
-         * subscribe when started, if autoSubscribe is true.
+         * subscribe when started, if autoSubscribe is true. Alternatively, also just Subscribe.Options can be provided
+         * to adjust chosen default subscription parameters (see below).
          *
          * The default subscription is a wildcard for all attributes of the node.  You can set to undefined or filter
          * the fields and values but only values selected by this subscription will update automatically.
          *
          * The default subscription updates automatically if you change this property.
          */
-        defaultSubscription?: Subscribe;
+        defaultSubscription?: Subscribe | Subscribe.Options;
 
         /**
          * Represents the current operational network state of the node. When true the node is enabled and operational.
@@ -213,5 +241,7 @@ export namespace NetworkClient {
     export class Events extends NetworkBehavior.Events {
         autoSubscribe$Changed = new Observable<[value: boolean, oldValue: boolean]>();
         defaultSubscription$Changed = new Observable<[value: Subscribe | undefined, oldValue: Subscribe | undefined]>();
+        subscriptionStatusChanged = new Observable<[isActive: boolean]>();
+        subscriptionAlive = new Observable<[]>();
     }
 }

@@ -38,17 +38,13 @@ import {
     vendorId,
 } from "#model";
 import type { ClientNode } from "#node/ClientNode.js";
-import type { Node } from "#node/Node.js";
 import { IdentityService } from "#node/server/IdentityService.js";
 import {
     CommissioningMode,
-    ControllerCommissioner,
-    ControllerCommissioningFlow,
     DiscoveryData,
     Fabric,
     FabricAuthority,
     FabricManager,
-    LocatedNodeCommissioningOptions,
     PeerSet,
     PeerAddress as ProtocolPeerAddress,
     SessionIntervals as ProtocolSessionIntervals,
@@ -66,6 +62,8 @@ import {
 } from "#types";
 import { ControllerBehavior } from "../controller/ControllerBehavior.js";
 import { NetworkClient } from "../network/NetworkClient.js";
+import { ControllerCommissioner, LocatedNodeCommissioningOptions } from "./ControllerCommissioner.js";
+import { ControllerCommissioningFlow } from "./ControllerCommissioningFlow.js";
 import { RemoteDescriptor } from "./RemoteDescriptor.js";
 
 const logger = Logger.get("CommissioningClient");
@@ -93,11 +91,19 @@ export class CommissioningClient extends Behavior {
             this.state.discoveredAt = Time.nowMs;
         }
 
-        this.reactTo((this.endpoint as Node).lifecycle.partsReady, this.#initializeNode);
+        const node = this.endpoint as ClientNode;
+        this.reactTo(node.lifecycle.partsReady, this.#initializeNode);
+        this.reactTo(node.lifecycle.online, this.#nodeOnline);
         this.reactTo(this.events.peerAddress$Changed, this.#peerAddressChanged);
     }
 
-    commission(passcode: number): Promise<ClientNode>;
+    #nodeOnline() {
+        if (this.state.peerAddress !== undefined) {
+            this.#updateAddresses(this.state.peerAddress);
+        }
+    }
+
+    commission(passcode: number | string): Promise<ClientNode>;
 
     commission(options: CommissioningClient.CommissioningOptions): Promise<ClientNode>;
 
@@ -268,17 +274,26 @@ export class CommissioningClient extends Behavior {
         endpoint.lifecycle.initialized.emit(this.state.peerAddress !== undefined);
     }
 
+    #updateAddresses(addr: ProtocolPeerAddress) {
+        const node = this.endpoint as ClientNode;
+        if (!node.env.has(PeerSet)) {
+            return;
+        }
+
+        const peer = node.env.get(PeerSet).for(addr);
+        if (peer) {
+            if (peer.descriptor.operationalAddress) {
+                this.state.addresses = [peer.descriptor.operationalAddress];
+            }
+            this.descriptor = peer.descriptor.discoveryData;
+        }
+    }
+
     #peerAddressChanged(addr?: ProtocolPeerAddress) {
         const node = this.endpoint as ClientNode;
 
         if (addr) {
-            const peer = node.env.get(PeerSet).for(addr);
-            if (peer) {
-                if (peer.descriptor.operationalAddress) {
-                    this.state.addresses = [peer.descriptor.operationalAddress];
-                }
-                this.descriptor = peer.descriptor.discoveryData;
-            }
+            this.#updateAddresses(addr);
 
             node.lifecycle.commissioned.emit(this.context);
         } else {
