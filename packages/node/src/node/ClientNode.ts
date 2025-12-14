@@ -134,7 +134,12 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
      * this method as fallback.  You should also tell the user that he needs to manually factory-reset the device.
      */
     override async delete() {
+        // TODO If we know a peer address, get the Peer for it to delete it as well
+        //const peerAddress = this.behaviors.maybeStateOf("commissioning")?.peerAddress as PeerAddress | undefined;
+        //const peer = peerAddress !== undefined ? this.owner?.env.get(PeerSet).for(peerAddress) : undefined;
+
         await super.delete();
+        //await peer?.delete();
     }
 
     override async erase() {

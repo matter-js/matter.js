@@ -424,9 +424,25 @@ export class SessionManager {
         return this.#sessions.filter(session => session.fabric?.fabricIndex === fabricIndex);
     }
 
-    async handlePeerLoss(address: PeerAddress, asOf?: Timestamp) {
+    /**
+     * Removes all Peer sessions but keeps subscriptions intact because they could be refreshed on restart when the
+     * device supports persistent subscriptions.
+     */
+    handlePeerShutdown(address: PeerAddress, asOf?: Timestamp) {
+        return this.#handlePeerLoss({ address, asOf, keepSubscriptions: true });
+    }
+
+    /**
+     * Removes all Peer sessions and closes subscriptions.
+     */
+    handlePeerLoss(address: PeerAddress, asOf?: Timestamp) {
+        return this.#handlePeerLoss({ address, asOf });
+    }
+
+    async #handlePeerLoss(options: { address: PeerAddress; asOf?: Timestamp; keepSubscriptions?: boolean }) {
         await this.#construction;
 
+        const { address, asOf, keepSubscriptions } = options;
         for (const session of this.#sessions) {
             if (!session.peerIs(address)) {
                 continue;
@@ -436,7 +452,7 @@ export class SessionManager {
                 continue;
             }
 
-            await session.handlePeerLoss();
+            await session.handlePeerLoss({ keepSubscriptions });
         }
     }
 

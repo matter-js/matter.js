@@ -45,6 +45,7 @@ import {
     Fabric,
     FabricAuthority,
     FabricManager,
+    PeerAddress,
     PeerSet,
     PeerAddress as ProtocolPeerAddress,
     SessionIntervals as ProtocolSessionIntervals,
@@ -89,6 +90,11 @@ export class CommissioningClient extends Behavior {
 
         if (this.state.discoveredAt === undefined) {
             this.state.discoveredAt = Time.nowMs;
+        }
+
+        if (this.state.peerAddress !== undefined) {
+            // If restored from the storage ensure we have the proper logging sugar, else it is "just" an object
+            this.state.peerAddress = PeerAddress(this.state.peerAddress);
         }
 
         const node = this.endpoint as ClientNode;

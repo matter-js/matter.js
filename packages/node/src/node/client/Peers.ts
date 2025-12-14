@@ -40,6 +40,7 @@ import {
     InteractionQueue,
     PeerAddress,
     PeerSet,
+    SessionManager,
 } from "#protocol";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { FabricIndex } from "@matter/types";
@@ -428,8 +429,15 @@ export class Peers extends EndpointContainer<ClientNode> {
         });
     }
 
-    #onShutdown(_node: ClientNode) {
-        // TODO
+    async #onShutdown(node: ClientNode) {
+        if (!node.lifecycle.isReady || !node.lifecycle.isOnline) {
+            return;
+        }
+        const peerAddress = node.maybeStateOf(CommissioningClient)?.peerAddress;
+        if (peerAddress !== undefined) {
+            // Shutdown event means the device reboots, handle it like a peer loss and remove all sessions
+            await this.owner.env.get(SessionManager).handlePeerShutdown(peerAddress);
+        }
     }
 }
 

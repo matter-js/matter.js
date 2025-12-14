@@ -277,9 +277,10 @@ export class NodeSession extends SecureSession {
         await this.handlePeerLoss();
     }
 
-    async handlePeerLoss(currentExchange?: MessageExchange) {
+    async handlePeerLoss(data: { currentExchange?: MessageExchange; keepSubscriptions?: boolean } = {}) {
         this.#isPeerLost = true;
-        await this.initiateForceClose(currentExchange);
+        const { currentExchange, keepSubscriptions } = data;
+        await this.initiateForceClose(currentExchange, keepSubscriptions);
     }
 
     get isPeerLost() {
@@ -311,9 +312,9 @@ export class NodeSession extends SecureSession {
         });
     }
 
-    override async initiateForceClose(currentExchange?: MessageExchange) {
+    override async initiateForceClose(currentExchange?: MessageExchange, keepSubscriptions = false) {
         this.#isPeerLost = true;
-        await super.initiateForceClose(currentExchange);
+        await super.initiateForceClose(currentExchange, keepSubscriptions);
     }
 
     override addExchange(exchange: MessageExchange) {

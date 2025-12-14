@@ -280,7 +280,7 @@ export class PairedNode {
                 logger.info(
                     `Node ${this.nodeId}: Still not connected after new session establishment, trying to reconnect ...`,
                 );
-                // Try last known address first to speed up reconnection
+                // Try the last known address first to speed up reconnection
                 this.#setConnectionState(NodeStates.Reconnecting);
                 this.#scheduleReconnect(0);
             }
@@ -389,17 +389,17 @@ export class PairedNode {
         this.#interactionClient = interactionClient;
         if (this.#interactionClient.isReconnectable) {
             this.#interactionClient.channelUpdated.on(() => {
-                // When we had planned a reconnect because of a disconnect we can stop the timer now
+                // When we had planned a reconnection because of a disconnect, we can stop the timer now
                 if (
                     this.#reconnectDelayTimer?.isRunning &&
                     !this.#clientReconnectInProgress &&
                     !this.#reconnectionInProgress &&
                     this.#connectionState === NodeStates.Reconnecting
                 ) {
-                    logger.info(`Node ${this.nodeId}: Got a reconnect, so reconnection not needed anymore ...`);
                     this.#reconnectDelayTimer?.stop();
                     this.#reconnectDelayTimer = undefined;
-                    this.#setConnectionState(NodeStates.Connected);
+                    logger.info(`Node ${this.nodeId}: Got a reconnect, lets force a reconnection ...`);
+                    this.#scheduleReconnect(RECONNECT_DELAY);
                 }
             });
         } else {
@@ -412,7 +412,7 @@ export class PairedNode {
 
         sessions.sessions.added.on(session => {
             if (
-                session.isInitiator || // If we initiated the session we do not need to react on it
+                session.isInitiator || // If we initiated the session, we do not need to react to it
                 session.peerNodeId !== this.nodeId || // no session for this node
                 this.connectionState !== NodeStates.WaitingForDeviceDiscovery
             ) {
@@ -863,10 +863,16 @@ export class PairedNode {
             },
             updateTimeoutHandler: () => {
                 logger.info(`Node ${this.nodeId}: Subscription timed out ... trying to re-establish ...`);
-                this.triggerReconnect();
+                if (this.#connectionState === NodeStates.Connected || !this.#reconnectDelayTimer?.isRunning) {
+                    this.triggerReconnect();
+                }
             },
             subscriptionAlive: () => {
-                if (this.#reconnectDelayTimer?.isRunning && this.#connectionState === NodeStates.Reconnecting) {
+                if (
+                    this.#reconnectDelayTimer?.isRunning &&
+                    this.#connectionState === NodeStates.Reconnecting &&
+                    !this.#nodeShutdownDetected
+                ) {
                     logger.info(`Node ${this.nodeId}: Got subscription update, so reconnection not needed anymore ...`);
                     this.#reconnectDelayTimer.stop();
                     this.#reconnectDelayTimer = undefined;
@@ -977,7 +983,6 @@ export class PairedNode {
         // Now subscribe for subsequent updates
         const subscription = await (this.#clientNode.interaction as ClientNodeInteraction).subscribe({
             ...subscribe,
-            sustain: false, // We handle reconnections ourselves for now
             updated: async reports => {
                 for await (const chunk of reports) {
                     for (const entry of chunk) {

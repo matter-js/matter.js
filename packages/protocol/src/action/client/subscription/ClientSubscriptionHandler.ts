@@ -54,7 +54,10 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
         SecureSession.assert(session);
         const subscription = this.#subscriptions.getPeer(session.peerAddress, subscriptionId);
         if (subscription === undefined) {
-            logger.info("Ignoring data report for unknown subscription ID", Diagnostic.strong(subscriptionId));
+            logger.info(
+                "Ignoring data report for unknown subscription ID",
+                Diagnostic.strong(Subscription.idStrOf(subscriptionId)),
+            );
             await sendInvalid(messenger, subscriptionId);
             return;
         }
@@ -68,7 +71,10 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
                 // Read the next report to trigger success message sent out
                 const ending = await reports.next();
                 if (!ending.done) {
-                    logger.warn("Unexpected data reports after empty report", Diagnostic.strong(subscriptionId));
+                    logger.warn(
+                        "Unexpected data reports after empty report",
+                        Diagnostic.strong(Subscription.idStrOf(subscriptionId)),
+                    );
                     for await (const _chunk of reports); // Read over these extraneous reports
                 }
             } else {
@@ -125,7 +131,12 @@ async function* processReports(
         }
 
         if (reportSubscriptionId !== subscriptionId) {
-            logger.debug("Ignoring data report for incorrect subscription id", Diagnostic.strong(reportSubscriptionId));
+            logger.debug(
+                "Ignoring data report for incorrect subscription id",
+                Diagnostic.strong(Subscription.idStrOf(reportSubscriptionId)),
+                "expected",
+                Subscription.idStrOf(subscriptionId),
+            );
             await sendInvalid(messenger, reportSubscriptionId);
             continue;
         }

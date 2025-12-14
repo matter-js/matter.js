@@ -119,14 +119,6 @@ export class Semaphore {
      */
     #grantSlot(): WorkSlot {
         this.#runningCount++;
-        logger.debug(
-            "Slot granted. Running:",
-            this.#runningCount,
-            "Delayed:",
-            this.#delayCount,
-            "Queued:",
-            this.#queue.length,
-        );
 
         let released = false;
 
@@ -153,14 +145,6 @@ export class Semaphore {
         if (this.#delay > 0) {
             this.#delayCount++;
         }
-        logger.debug(
-            "Slot released. Running:",
-            this.#runningCount,
-            "Delayed:",
-            this.#delayCount,
-            "Queued:",
-            this.#queue.length,
-        );
 
         if (this.#delay > 0) {
             // Keep the slot blocked during delay, then release

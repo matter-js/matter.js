@@ -10,12 +10,12 @@ import {
     Bytes,
     Diagnostic,
     Duration,
-    hex,
     InternalError,
     Logger,
     MatterFlowError,
     Millis,
     NoResponseTimeoutError,
+    Time,
     UnexpectedDataError,
 } from "#general";
 import { DecodedAttributeReportValue } from "#interaction/AttributeDataDecoder.js";
@@ -1014,7 +1014,7 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
 
     #logContextOf(report: DataReport) {
         return {
-            subId: report.subscriptionId === undefined ? undefined : hex.fixed(report.subscriptionId, 8),
+            subId: report.subscriptionId === undefined ? undefined : Subscription.idStrOf(report.subscriptionId),
             dataReportFlags: Diagnostic.asFlags({
                 empty: !report.attributeReports?.length && !report.eventReports?.length,
                 suppressResponse: report.suppressResponse,
@@ -1041,6 +1041,7 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
 
     /** Implements a send method with an automatic reconnection mechanism */
     override async send(messageType: number, payload: Bytes, options?: ExchangeSendOptions) {
+        const now = Time.nowMs;
         try {
             if (this.exchange.channel.closed) {
                 throw new SessionClosedError("The exchange channel is closed. Please connect the device first.");
@@ -1059,7 +1060,7 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
                     `${error instanceof RetransmissionLimitReachedError ? "Retransmission limit reached" : "Channel not connected"}, trying to reconnect and resend the message.`,
                 );
                 await this.exchange.close();
-                if (await this.#exchangeProvider.reconnectChannel()) {
+                if (await this.#exchangeProvider.reconnectChannel(now)) {
                     this.exchange = await this.#exchangeProvider.initiateExchange();
                     return await this.exchange.send(messageType, payload, options);
                 }

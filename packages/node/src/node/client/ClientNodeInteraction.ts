@@ -6,7 +6,7 @@
 
 import type { ActionContext } from "#behavior/context/ActionContext.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
-import { ImplementationError } from "#general";
+import { ImplementationError, WorkSlot } from "#general";
 import type { ClientNode } from "#node/ClientNode.js";
 import { NodePhysicalProperties } from "#node/NodePhysicalProperties.js";
 import {
@@ -94,6 +94,11 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
      *
      * By default, matter.js subscribes to all attributes and events of the peer and updates {@link ClientNode} state
      * automatically.  So you normally do not need to subscribe manually.
+     *
+     * When providing the "sustain" flag, a SustainedSubscription is returned immediately. You need to use the events to
+     * know when/if a subscription could be established.  This class handles reconnections automatically.
+     * When not providing the "sustain" flag, a PeerSubscription is returned after a subscription have been successfully
+     * established; or an error is returned if this was not possible.
      */
     async subscribe(request: ClientSubscribe, context?: ActionContext): Promise<ClientSubscription> {
         const intermediateRequest: ClientSubscribe = {
@@ -104,7 +109,7 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
                 request,
             }),
 
-            sustain: request.sustain !== false,
+            sustain: !!request.sustain,
 
             updated: async data => {
                 const result = this.structure.mutate(request, data);

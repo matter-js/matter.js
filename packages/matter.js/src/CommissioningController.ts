@@ -34,6 +34,7 @@ import {
     FabricGroups,
     NodeDiscoveryType,
     NodeSession,
+    PeerSet,
     SecureSession,
     Session,
     SessionManager,
@@ -389,6 +390,10 @@ export class CommissioningController {
             throw new ImplementationError(`Node ${nodeId} is not connected!`);
         }
         await this.#controllerInstance?.disconnect(nodeId);
+        if (force) {
+            const peer = this.node.env.get(PeerSet).for(this.fabric.addressOf(nodeId));
+            await peer.delete();
+        }
     }
 
     /**
@@ -468,7 +473,7 @@ export class CommissioningController {
             await this.createInteractionClient(nodeId, NodeDiscoveryType.None, {
                 forcedConnection: false,
                 caseAuthenticatedTags,
-            }), // First connect without discovery to last known address
+            }), // First, connect without discovery to the last known address
             async (discoveryType?: NodeDiscoveryType) =>
                 void (await controller.connect(nodeId, {
                     discoveryOptions: { discoveryType },
@@ -623,7 +628,6 @@ export class CommissioningController {
 
         await this.#controllerInstance.start();
 
-        // TODO Replace?
         this.#controllerInstance.node.env.get(SessionManager).sessions.deleted.on(session => {
             if (!session.isSecure) {
                 return;

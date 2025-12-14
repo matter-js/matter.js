@@ -318,11 +318,11 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             return new DedicatedChannelExchangeProvider(this.#exchanges, session);
         }
         let initiallyConnected = !!this.#sessions.maybeSessionFor(address);
-        return new ReconnectableExchangeProvider(this.#exchanges, this.#sessions, address, async () => {
+        return new ReconnectableExchangeProvider(this.#exchanges, this.#sessions, address, async (asOf?: Timestamp) => {
             const { caseAuthenticatedTags, discoveryOptions } = options;
 
             if (!initiallyConnected && !this.#sessions.maybeSessionFor(address)) {
-                // When we know that we have no operational address do a 10s discovery initially, else we use last known address
+                // When we know that we have no operational address, do a 10s discovery initially, else we use the last known address
                 const discoveryType =
                     this.#getLastOperationalAddress(address) === undefined
                         ? NodeDiscoveryType.TimedDiscovery
@@ -346,7 +346,12 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             }
 
             // Close all sessions
-            await this.#sessions.handlePeerLoss(address);
+            await this.#sessions.handlePeerLoss(address, asOf);
+
+            if (this.#sessions.maybeSessionFor(address)) {
+                // Ok, it seems we got a new session after provided Timestamp, so use this
+                return;
+            }
 
             // Enrich discoveryData with data from the node store when not provided
             const { discoveryData } = discoveryOptions ?? {
@@ -362,7 +367,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                 throw new RetransmissionLimitReachedError(`No operational address found for ${PeerAddress(address)}`);
             }
 
-            // Try to reconnect to last known address
+            // Try to reconnect to the last known address
             if (
                 (await this.#reconnectKnownAddress(address, operationalAddress, discoveryData, {
                     expectedProcessingTime: Seconds(2),

@@ -3,7 +3,7 @@
  * Copyright 2022-2025 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { Diagnostic, Duration, Observable } from "#general";
+import { Diagnostic, Duration, Observable, Timestamp } from "#general";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { DEFAULT_EXPECTED_PROCESSING_TIME } from "#protocol/MessageChannel.js";
@@ -37,7 +37,7 @@ export abstract class ExchangeProvider {
 
     abstract maximumPeerResponseTime(expectedProcessingTime?: Duration): Duration;
     abstract initiateExchange(): Promise<MessageExchange>;
-    abstract reconnectChannel(): Promise<boolean>;
+    abstract reconnectChannel(asOf?: Timestamp): Promise<boolean>;
     abstract session: Session;
 
     get channelType() {
@@ -80,7 +80,7 @@ export class DedicatedChannelExchangeProvider extends ExchangeProvider {
 export class ReconnectableExchangeProvider extends ExchangeProvider {
     readonly supportsReconnect = true;
     readonly #address: PeerAddress;
-    readonly #reconnectChannelFunc: () => Promise<void>;
+    readonly #reconnectChannelFunc: (asOf?: Timestamp) => Promise<void>;
     readonly #channelUpdated = Observable<[void]>();
 
     constructor(
@@ -118,9 +118,9 @@ export class ReconnectableExchangeProvider extends ExchangeProvider {
         return this.exchangeManager.initiateExchange(this.#address, INTERACTION_PROTOCOL_ID);
     }
 
-    async reconnectChannel() {
+    async reconnectChannel(asOf?: Timestamp) {
         if (this.#reconnectChannelFunc === undefined) return false;
-        await this.#reconnectChannelFunc();
+        await this.#reconnectChannelFunc(asOf);
         return true;
     }
 

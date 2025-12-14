@@ -916,7 +916,6 @@ export class InteractionClient {
                 maxIntervalCeiling: Seconds(maxIntervalCeilingSeconds),
                 fabricFilter: isFabricFiltered,
             }),
-            sustain: false,
             updated: async (data: ReadResult) => {
                 const isUpdate = fullReport === undefined;
                 const newData = await this.#processReadResult(data, {

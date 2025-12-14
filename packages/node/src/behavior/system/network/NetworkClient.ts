@@ -95,6 +95,7 @@ export class NetworkClient extends NetworkBehavior {
 
             // Now subscribe for subsequent updates
             this.internal.activeSubscription = await (this.#node.interaction as ClientNodeInteraction).subscribe({
+                sustain: true,
                 ...subscribe,
                 eventFilters: [{ eventMin: this.state.maxEventNumber + 1n }],
                 updated: async update => {

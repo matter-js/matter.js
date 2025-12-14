@@ -420,16 +420,6 @@ export class ClientInteraction<
             const responseMessage = await messenger.nextMessage(MessageType.SubscribeResponse);
             const response = TlvSubscribeResponse.decode(responseMessage.payload);
 
-            logger.info(
-                "Subscription successful",
-                Mark.INBOUND,
-                messenger.exchange.via,
-                Diagnostic.dict({
-                    id: response.subscriptionId,
-                    interval: Duration.format(Seconds(response.maxInterval)),
-                }),
-            );
-
             const subscription = new PeerSubscription({
                 lifetime: this.subscriptions,
                 request,
@@ -440,6 +430,17 @@ export class ClientInteraction<
                 maxPeerResponseTime: this.#exchanges.maximumPeerResponseTime(),
             });
             this.subscriptions.addPeer(subscription);
+
+            logger.info(
+                "Subscription successful",
+                Mark.INBOUND,
+                messenger.exchange.via,
+                Diagnostic.dict({
+                    id: Subscription.idStrOf(response.subscriptionId),
+                    interval: Duration.format(Seconds(response.maxInterval)),
+                    timeout: Duration.format(subscription.timeout),
+                }),
+            );
 
             return subscription;
         };
