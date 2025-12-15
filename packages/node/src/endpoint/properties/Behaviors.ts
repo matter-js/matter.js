@@ -13,9 +13,11 @@ import { Events } from "#behavior/Events.js";
 import { BehaviorBacking } from "#behavior/internal/BehaviorBacking.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import {
+    BasicObservable,
     camelize,
     Construction,
     describeList,
+    DetachedObservers,
     Diagnostic,
     EventEmitter,
     Immutable,
@@ -56,6 +58,7 @@ export class Behaviors {
     #events: Record<string, EventEmitter> = {};
     #options: Record<string, object | undefined>;
     #protocol?: ProtocolService;
+    #detachedObservers?: Record<string, DetachedObservers>;
 
     /**
      * The {@link SupportedBehaviors} of the {@link Endpoint}.
@@ -508,9 +511,30 @@ export class Behaviors {
         if (backing) {
             logger.warn(`Removing ${backing} from active endpoint`);
             promise = backing.close();
+            delete this.#backings[id];
         }
 
         this.#endpoint.lifecycle.change(EndpointLifecycle.Change.ServersChanged);
+
+        // Detach observers for reuse if present
+        const events = this.#events[id];
+        if (events) {
+            let detachedObservers: undefined | Record<string, DetachedObservers>;
+
+            for (const key in events) {
+                const observable = (events as unknown as Record<string, BasicObservable | undefined>)[key];
+                if (observable && "detachObservers" in observable) {
+                    const detached = observable.detachObservers();
+                    if (detached) {
+                        (detachedObservers ??= {})[key] = detached;
+                    }
+                }
+            }
+
+            if (detachedObservers) {
+                (this.#detachedObservers ??= {})[id] = detachedObservers;
+            }
+        }
 
         return promise;
     }
@@ -664,7 +688,7 @@ export class Behaviors {
                 const backing = this.#backingFor(type);
                 return backing.construction.ready;
             },
-            { activity: this.#endpoint.env.get(NodeActivity), lifetime: this.#endpoint.construction },
+            { lifetime: this.#endpoint.construction },
         );
 
         if (MaybePromise.is(result)) {
@@ -764,6 +788,20 @@ export class Behaviors {
         Object.defineProperty(this.#endpoint.state, id, { get, enumerable: true, configurable: true });
         if (type.schema.id !== undefined) {
             Object.defineProperty(this.#endpoint.state, type.schema.id, { get, configurable: true });
+        }
+
+        // When replacing a behavior, transplant listeners from previous incarnation if present
+        const detachedObservers = this.#detachedObservers?.[type.id];
+        if (detachedObservers) {
+            delete this.#detachedObservers![type.id];
+            const newEvents = new Events();
+            for (const key in detachedObservers) {
+                const newEvent = (newEvents as unknown as Record<string, BasicObservable | undefined>)[key];
+                if (newEvent && "attachObservers" in newEvent) {
+                    newEvent.attachObservers(detachedObservers);
+                }
+            }
+            this.#events[id] = newEvents;
         }
 
         Object.defineProperty(this.#endpoint.events, id, {
