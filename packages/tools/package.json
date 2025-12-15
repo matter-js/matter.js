@@ -73,7 +73,7 @@
     },
     "devDependencies": {
         "@types/madge": "^5.0.3",
-        "@types/node": "^24.10.2",
+        "@types/node": "^25.0.2",
         "@typescript/native-preview": "^7.0.0-dev.20251209.1",
         "detective-typescript": "^14.0.0"
     },
