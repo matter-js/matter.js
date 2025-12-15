@@ -90,22 +90,22 @@ mkdir -p certificates
 ./out/linux-x64-chip-tool/chip-cert convert-key \
   certificates/icac1_key.pem certificates/icac1_key.bin --chip
 
-# Generate ICAC for matter.js controller
+# Generate ICAC 2 (for matter.js controller)
 ./out/linux-x64-chip-tool/chip-cert gen-att-cert \
   --type i \
-  --subject-cn "Matter Test ICA" \
+  --subject-cn "Matter Test ICA 2" \
   --ca-cert certificates/rcac.pem \
   --ca-key certificates/rcac_key.pem \
   --valid-from "2024-01-01 00:00:00" \
   --lifetime 3650 \
-  --out-key certificates/icac_key.pem \
-  --out certificates/icac.pem
+  --out-key certificates/icac2_key.pem \
+  --out certificates/icac2.pem
 
-# Convert ICAC to Matter formats
+# Convert ICAC 2 to Matter formats
 ./out/linux-x64-chip-tool/chip-cert convert-cert \
-  certificates/icac.pem certificates/icac.chip --chip
+  certificates/icac2.pem certificates/icac2.chip --chip
 ./out/linux-x64-chip-tool/chip-cert convert-key \
-  certificates/icac_key.pem certificates/icac_key.bin --chip
+  certificates/icac2_key.pem certificates/icac2_key.bin --chip
 ```
 
 ### 2. Commission Device with Controller 1 (chip-tool)
@@ -170,8 +170,8 @@ The multi-controller reads certificates from environment variables or defaults:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MATTER_CERTDIR` | `./certificates` | Certificate directory (must contain rcac.chip, icac.chip, icac_key.bin) |
-| `MATTER_FABRICID` | `1` | Fabric ID |
+| `MATTER_CERTDIR` | `.../connectedhomeip/certificates` | Certificate directory |
+| `MATTER_FABRICID` | `2` | Fabric ID |
 | `MATTER_NODEID` | `200` | This controller's Node ID |
 | `MATTER_TARGETNODEID` | `1` | Target device Node ID |
 | `MATTER_ENDPOINT` | `1` | Target endpoint on the device |
@@ -198,7 +198,7 @@ npm run matter-cmd read
 
 ```bash
 MATTER_CERTDIR=/path/to/certificates \
-MATTER_FABRICID=1 \
+MATTER_FABRICID=2 \
 MATTER_NODEID=200 \
 MATTER_TARGETNODEID=1 \
 MATTER_ENDPOINT=1 \
@@ -211,8 +211,8 @@ npm run matter-cmd toggle
 
 The controller loads only **three files** (no RCAC private key needed!):
 - **RCAC certificate** (`rcac.chip`) - The shared root CA (public key only)
-- **ICAC certificate** (`icac.chip`) - This controller's intermediate CA
-- **ICAC key** (`icac_key.bin`) - For signing NOCs
+- **ICAC certificate** (`icac2.chip`) - This controller's intermediate CA
+- **ICAC key** (`icac2_key.bin`) - For signing NOCs
 
 **Security Note**: The RCAC private key is NOT required when using ICAC. This is the proper
 security model - the RCAC private key should remain securely stored and only used to sign
@@ -319,4 +319,4 @@ A fabric is uniquely identified by:
 
 - [Matter Specification](https://csa-iot.org/developer-resource/specifications-download-request/)
 - [chip-tool Documentation](https://github.com/project-chip/connectedhomeip/tree/master/examples/chip-tool)
-- [matter.js Documentation](https://github.com/matter-js/matter.js)
+- [matter.js Documentation](https://github.com/project-chip/matter.js)
