@@ -1060,7 +1060,7 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
                     `${error instanceof RetransmissionLimitReachedError ? "Retransmission limit reached" : "Channel not connected"}, trying to reconnect and resend the message.`,
                 );
                 await this.exchange.close();
-                if (await this.#exchangeProvider.reconnectChannel(now)) {
+                if (await this.#exchangeProvider.reconnectChannel({ asOf: now })) {
                     this.exchange = await this.#exchangeProvider.initiateExchange();
                     return await this.exchange.send(messageType, payload, options);
                 }

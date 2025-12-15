@@ -317,11 +317,19 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             const session = await this.#sessions.groupSessionForAddress(address, this.#transports);
             return new DedicatedChannelExchangeProvider(this.#exchanges, session);
         }
+        const peer = this.for(address);
         let initiallyConnected = !!this.#sessions.maybeSessionFor(address);
-        return new ReconnectableExchangeProvider(this.#exchanges, this.#sessions, address, async (asOf?: Timestamp) => {
+        return new ReconnectableExchangeProvider(this.#exchanges, this.#sessions, address, async reconnOptions => {
+            const { asOf, resetInitialState } = reconnOptions ?? {};
             const { caseAuthenticatedTags, discoveryOptions } = options;
 
-            if (!initiallyConnected && !this.#sessions.maybeSessionFor(address)) {
+            const fullDiscoveryRunning = peer.activeDiscovery?.type === NodeDiscoveryType.FullDiscovery;
+
+            if (resetInitialState && !fullDiscoveryRunning) {
+                initiallyConnected = !!this.#sessions.maybeSessionFor(address);
+            }
+
+            if (!initiallyConnected && !this.#sessions.maybeSessionFor(address) && !fullDiscoveryRunning) {
                 // When we know that we have no operational address, do a 10s discovery initially, else we use the last known address
                 const discoveryType =
                     this.#getLastOperationalAddress(address) === undefined
@@ -329,10 +337,16 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                         : NodeDiscoveryType.None;
                 // We got an uninitialized node, so do the first connection as usual
                 await this.#ensureConnection(address, {
-                    discoveryOptions: { discoveryType, timeout: RETRANSMISSION_DISCOVERY_TIMEOUT },
+                    discoveryOptions: {
+                        discoveryType,
+                        timeout:
+                            discoveryType === NodeDiscoveryType.TimedDiscovery
+                                ? RETRANSMISSION_DISCOVERY_TIMEOUT
+                                : undefined,
+                    },
                     caseAuthenticatedTags,
                 });
-                initiallyConnected = true; // We only do this connection once, rest is handled in following code
+                initiallyConnected = true; // We only do this connection once, the rest is handled in the following code
                 if (this.#sessions.maybeSessionFor(address)) {
                     return;
                 }
@@ -340,7 +354,8 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
 
             if (
                 !this.#sessions.maybeSessionFor(address) &&
-                discoveryOptions?.discoveryType !== NodeDiscoveryType.FullDiscovery
+                discoveryOptions?.discoveryType !== NodeDiscoveryType.FullDiscovery &&
+                (!peer.activeDiscovery || peer.activeDiscovery.type === NodeDiscoveryType.FullDiscovery) // The above value might be outdated
             ) {
                 throw new RetransmissionLimitReachedError(`Device ${PeerAddress(address)} is unreachable`);
             }
@@ -355,7 +370,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
 
             // Enrich discoveryData with data from the node store when not provided
             const { discoveryData } = discoveryOptions ?? {
-                discoveryData: this.get(address)?.descriptor.discoveryData,
+                discoveryData: peer.descriptor.discoveryData,
             };
             // Try to use the first result for one last try before we need to reconnect
             const operationalAddress = this.#knownOperationalAddressFor(address, true);

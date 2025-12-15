@@ -26,6 +26,7 @@ import {
     ObserverGroup,
     StorageContext,
     StorageManager,
+    Time,
     Timestamp,
     toHex,
 } from "#general";
@@ -429,14 +430,14 @@ export class SessionManager {
      * device supports persistent subscriptions.
      */
     handlePeerShutdown(address: PeerAddress, asOf?: Timestamp) {
-        return this.#handlePeerLoss({ address, asOf, keepSubscriptions: true });
+        return this.#handlePeerLoss({ address, asOf: asOf ?? Time.nowMs, keepSubscriptions: true });
     }
 
     /**
      * Removes all Peer sessions and closes subscriptions.
      */
     handlePeerLoss(address: PeerAddress, asOf?: Timestamp) {
-        return this.#handlePeerLoss({ address, asOf });
+        return this.#handlePeerLoss({ address, asOf: asOf ?? Time.nowMs });
     }
 
     async #handlePeerLoss(options: { address: PeerAddress; asOf?: Timestamp; keepSubscriptions?: boolean }) {

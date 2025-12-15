@@ -29,6 +29,8 @@ import {
     Minutes,
     RetrySchedule,
     Seconds,
+    Time,
+    TimeoutError,
 } from "#general";
 import { InteractionClientMessenger, MessageType } from "#interaction/InteractionMessenger.js";
 import { Subscription } from "#interaction/Subscription.js";
@@ -76,7 +78,7 @@ const DEFAULT_MINIMUM_RESPONSE_TIMEOUT_WITH_FAILSAFE = Seconds(30);
 export class ClientInteraction<
     SessionT extends InteractionSession = InteractionSession,
 > implements Interactable<SessionT> {
-    readonly #environment: Environment;
+    protected readonly environment: Environment;
     readonly #lifetime: Lifetime;
     readonly #exchanges: ExchangeProvider;
     readonly #interactions = new BasicSet<Read | Write | Invoke | Subscribe>();
@@ -488,7 +490,21 @@ export class ClientInteraction<
 
         const checkAbort = Abort.checkerFor(session);
 
-        const messenger = await InteractionClientMessenger.create(this.#exchanges);
+        const now = Time.nowMs;
+        let messenger: InteractionClientMessenger;
+        try {
+            messenger = await InteractionClientMessenger.create(this.#exchanges);
+        } catch (error) {
+            TimeoutError.accept(error);
+
+            // This logic implements a very basic automatic reconnection mechanism which is a bit like PairedNode
+            // The exchange creation fails only when the node is considered to be unavailable, so in this case we
+            // either try the last addresses again (if existing), or do a short-timed re-discovery. This would block
+            // the execution max 10s. What's missing is that one layer (like Sustained Subscription) would trigger a
+            // FullDiscovery instead of just a timed one, but for the tests and currently this should be enough.
+            await this.exchanges.reconnectChannel({ asOf: now, resetInitialState: true });
+            messenger = await InteractionClientMessenger.create(this.#exchanges);
+        }
 
         this.#interactions.add(request);
 
