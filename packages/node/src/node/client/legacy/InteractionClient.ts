@@ -1010,9 +1010,10 @@ export class InteractionClient {
             expectedProcessingTime,
             useExtendedFailSafeMessageResponseTimeout = false,
             skipValidation,
+            request,
         } = options;
         const { timed } = command;
-        let { suppressResponse, request } = options;
+        let { suppressResponse } = options;
         const timedRequest =
             (timed && !skipValidation) || asTimedRequest === true || options.timedRequestTimeout !== undefined;
 
