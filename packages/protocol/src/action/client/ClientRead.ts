@@ -5,10 +5,6 @@
  */
 
 import { Read } from "#action/request/Read.js";
+import { ClientRequest } from "./ClientRequest.js";
 
-export interface ClientRead extends Read {
-    /**
-     * If true, the request will be queued over all peers of the node
-     */
-    queued?: boolean;
-}
+export interface ClientRead extends Read, ClientRequest {}

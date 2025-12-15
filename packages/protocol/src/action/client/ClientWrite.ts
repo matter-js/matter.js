@@ -5,10 +5,6 @@
  */
 
 import { Write } from "#action/request/Write.js";
+import { ClientRequest } from "./ClientRequest.js";
 
-export interface ClientWrite extends Write {
-    /**
-     * If true, the request will be queued over all peers of the node
-     */
-    queued?: boolean;
-}
+export interface ClientWrite extends Write, ClientRequest {}
