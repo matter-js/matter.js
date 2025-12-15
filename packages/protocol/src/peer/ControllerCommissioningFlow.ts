@@ -6,7 +6,7 @@
 
 import { ClientInteraction } from "#action/client/ClientInteraction.js";
 import { ClientRead } from "#action/client/ClientRead.js";
-import { ClientInvoke, Invoke } from "#action/request/Invoke.js";
+import { Invoke } from "#action/request/Invoke.js";
 import { Read } from "#action/request/Read.js";
 import { Certificate } from "#certificate/kinds/Certificate.js";
 import { BasicInformation } from "#clusters/basic-information";
@@ -34,6 +34,7 @@ import {
 } from "#general";
 import {
     ClusterId,
+    ClusterType,
     EndpointNumber,
     FabricIndex,
     Status,
@@ -358,8 +359,16 @@ export class ControllerCommissioningFlow {
     }
 
     // TODO improve response typing
-    async #invokeCommand(request: ClientInvoke) {
-        for await (const data of this.interaction.invoke(request)) {
+    async #invokeCommand<const C extends ClusterType>(
+        request: Invoke.ConcreteCommandRequest<C>,
+        options: Omit<Invoke.Definition, "commands"> = {},
+    ) {
+        for await (const data of this.interaction.invoke(
+            Invoke({
+                commands: [request],
+                ...options,
+            }),
+        )) {
             for (const entry of data) {
                 // We send only one command, so we only get one response back
                 switch (entry.kind) {
@@ -686,19 +695,15 @@ export class ControllerCommissioningFlow {
         const expiryLength = time ?? this.#defaultFailSafeTime;
         this.#ensureGeneralCommissioningSuccess(
             "armFailSafe",
-            await this.#invokeCommand(
-                Invoke(
-                    Invoke.ConcreteCommandRequest({
-                        endpoint: RootEndpointNumber,
-                        cluster: GeneralCommissioning.Complete,
-                        command: "armFailSafe",
-                        fields: {
-                            breadcrumb: this.lastBreadcrumb,
-                            expiryLengthSeconds: Seconds.of(expiryLength),
-                        },
-                    }),
-                ),
-            ),
+            await this.#invokeCommand({
+                endpoint: RootEndpointNumber,
+                cluster: GeneralCommissioning.Complete,
+                command: "armFailSafe",
+                fields: {
+                    breadcrumb: this.lastBreadcrumb,
+                    expiryLengthSeconds: Seconds.of(expiryLength),
+                },
+            }),
         );
         this.#currentFailSafeEndTime = Timestamp(Time.nowMs + expiryLength);
         return {
@@ -729,19 +734,15 @@ export class ControllerCommissioningFlow {
     async #resetFailsafeTimer() {
         if (this.#currentFailSafeEndTime === undefined) return;
         try {
-            await this.#invokeCommand(
-                Invoke(
-                    Invoke.ConcreteCommandRequest({
-                        endpoint: RootEndpointNumber,
-                        cluster: GeneralCommissioning.Complete,
-                        command: "armFailSafe",
-                        fields: {
-                            breadcrumb: this.lastBreadcrumb,
-                            expiryLengthSeconds: 0,
-                        },
-                    }),
-                ),
-            );
+            await this.#invokeCommand({
+                endpoint: RootEndpointNumber,
+                cluster: GeneralCommissioning.Complete,
+                command: "armFailSafe",
+                fields: {
+                    breadcrumb: this.lastBreadcrumb,
+                    expiryLengthSeconds: 0,
+                },
+            });
             this.#currentFailSafeEndTime = undefined; // No failsafe active anymore
         } catch (error) {
             logger.error(`Error while resetting failsafe timer`, error);
@@ -789,21 +790,19 @@ export class ControllerCommissioningFlow {
             }
             let countryCode = this.commissioningOptions.regulatoryCountryCode;
             const regulatoryResult = await this.#invokeCommand(
-                Invoke({
-                    commands: [
-                        Invoke.ConcreteCommandRequest({
-                            endpoint: RootEndpointNumber,
-                            cluster: GeneralCommissioning.Complete,
-                            command: "setRegulatoryConfig",
-                            fields: {
-                                breadcrumb: this.lastBreadcrumb++,
-                                newRegulatoryConfig: locationCapability,
-                                countryCode,
-                            },
-                        }),
-                    ],
+                {
+                    endpoint: RootEndpointNumber,
+                    cluster: GeneralCommissioning.Complete,
+                    command: "setRegulatoryConfig",
+                    fields: {
+                        breadcrumb: this.lastBreadcrumb++,
+                        newRegulatoryConfig: locationCapability,
+                        countryCode,
+                    },
+                },
+                {
                     useExtendedFailSafeMessageResponseTimeout: true,
-                }),
+                },
             );
             if (
                 regulatoryResult.errorCode === GeneralCommissioning.CommissioningError.ValueOutsideRange &&
@@ -816,21 +815,19 @@ export class ControllerCommissioningFlow {
                 this.#ensureGeneralCommissioningSuccess(
                     "setRegulatoryConfig",
                     await this.#invokeCommand(
-                        Invoke({
-                            commands: [
-                                Invoke.ConcreteCommandRequest({
-                                    endpoint: RootEndpointNumber,
-                                    cluster: GeneralCommissioning.Complete,
-                                    command: "setRegulatoryConfig",
-                                    fields: {
-                                        breadcrumb: this.lastBreadcrumb,
-                                        newRegulatoryConfig: locationCapability,
-                                        countryCode,
-                                    },
-                                }),
-                            ],
+                        {
+                            endpoint: RootEndpointNumber,
+                            cluster: GeneralCommissioning.Complete,
+                            command: "setRegulatoryConfig",
+                            fields: {
+                                breadcrumb: this.lastBreadcrumb,
+                                newRegulatoryConfig: locationCapability,
+                                countryCode,
+                            },
+                        },
+                        {
                             useExtendedFailSafeMessageResponseTimeout: true,
-                        }),
+                        },
                     ),
                 );
             } else {
@@ -879,53 +876,47 @@ export class ControllerCommissioningFlow {
      */
     async #deviceAttestation() {
         const { certificate: deviceAttestation } = await this.#invokeCommand(
-            Invoke({
-                commands: [
-                    Invoke.ConcreteCommandRequest({
-                        endpoint: RootEndpointNumber,
-                        cluster: OperationalCredentials.Complete,
-                        command: "certificateChainRequest",
-                        fields: {
-                            certificateType: OperationalCredentials.CertificateChainType.DacCertificate,
-                        },
-                    }),
-                ],
+            {
+                endpoint: RootEndpointNumber,
+                cluster: OperationalCredentials.Complete,
+                command: "certificateChainRequest",
+                fields: {
+                    certificateType: OperationalCredentials.CertificateChainType.DacCertificate,
+                },
+            },
+            {
                 useExtendedFailSafeMessageResponseTimeout: true,
-            }),
+            },
         );
 
         // TODO: extract device public key from deviceAttestation
         const { certificate: productAttestation } = await this.#invokeCommand(
-            Invoke({
-                commands: [
-                    Invoke.ConcreteCommandRequest({
-                        endpoint: RootEndpointNumber,
-                        cluster: OperationalCredentials.Complete,
-                        command: "certificateChainRequest",
-                        fields: {
-                            certificateType: OperationalCredentials.CertificateChainType.PaiCertificate,
-                        },
-                    }),
-                ],
+            {
+                endpoint: RootEndpointNumber,
+                cluster: OperationalCredentials.Complete,
+                command: "certificateChainRequest",
+                fields: {
+                    certificateType: OperationalCredentials.CertificateChainType.PaiCertificate,
+                },
+            },
+            {
                 useExtendedFailSafeMessageResponseTimeout: true,
-            }),
+            },
         );
 
         // TODO: validate deviceAttestation and productAttestation
         const { attestationElements, attestationSignature } = await this.#invokeCommand(
-            Invoke({
-                commands: [
-                    Invoke.ConcreteCommandRequest({
-                        endpoint: RootEndpointNumber,
-                        cluster: OperationalCredentials.Complete,
-                        command: "attestationRequest",
-                        fields: {
-                            attestationNonce: this.fabric.crypto.randomBytes(32),
-                        },
-                    }),
-                ],
+            {
+                endpoint: RootEndpointNumber,
+                cluster: OperationalCredentials.Complete,
+                command: "attestationRequest",
+                fields: {
+                    attestationNonce: this.fabric.crypto.randomBytes(32),
+                },
+            },
+            {
                 useExtendedFailSafeMessageResponseTimeout: true,
-            }),
+            },
         );
 
         // TODO: validate attestationSignature using device public key
@@ -964,17 +955,15 @@ export class ControllerCommissioningFlow {
      */
     async #certificates() {
         const { nocsrElements, attestationSignature: csrSignature } = await this.#invokeCommand(
-            Invoke({
-                commands: [
-                    Invoke.ConcreteCommandRequest({
-                        endpoint: RootEndpointNumber,
-                        cluster: OperationalCredentials.Complete,
-                        command: "csrRequest",
-                        fields: { csrNonce: this.fabric.crypto.randomBytes(32) },
-                    }),
-                ],
+            {
+                endpoint: RootEndpointNumber,
+                cluster: OperationalCredentials.Complete,
+                command: "csrRequest",
+                fields: { csrNonce: this.fabric.crypto.randomBytes(32) },
+            },
+            {
                 useExtendedFailSafeMessageResponseTimeout: true,
-            }),
+            },
         );
 
         if (nocsrElements.byteLength === 0 || csrSignature.byteLength === 0) {
@@ -986,19 +975,17 @@ export class ControllerCommissioningFlow {
         const operationalPublicKey = await Certificate.getPublicKeyFromCsr(this.ca.crypto, certSigningRequest);
 
         await this.#invokeCommand(
-            Invoke({
-                commands: [
-                    Invoke.ConcreteCommandRequest({
-                        endpoint: RootEndpointNumber,
-                        cluster: OperationalCredentials.Complete,
-                        command: "addTrustedRootCertificate",
-                        fields: {
-                            rootCaCertificate: this.ca.rootCert,
-                        },
-                    }),
-                ],
+            {
+                endpoint: RootEndpointNumber,
+                cluster: OperationalCredentials.Complete,
+                command: "addTrustedRootCertificate",
+                fields: {
+                    rootCaCertificate: this.ca.rootCert,
+                },
+            },
+            {
                 useExtendedFailSafeMessageResponseTimeout: true,
-            }),
+            },
         );
 
         const peerOperationalCert = await this.ca.generateNoc(
@@ -1008,23 +995,21 @@ export class ControllerCommissioningFlow {
         );
 
         const addNocResponse = await this.#invokeCommand(
-            Invoke({
-                commands: [
-                    Invoke.ConcreteCommandRequest({
-                        endpoint: RootEndpointNumber,
-                        cluster: OperationalCredentials.Complete,
-                        command: "addNoc",
-                        fields: {
-                            nocValue: peerOperationalCert,
-                            icacValue: this.ca.icacCert ?? new Uint8Array(0),
-                            ipkValue: this.fabric.identityProtectionKey,
-                            adminVendorId: this.fabric.rootVendorId,
-                            caseAdminSubject: this.fabric.rootNodeId,
-                        },
-                    }),
-                ],
+            {
+                endpoint: RootEndpointNumber,
+                cluster: OperationalCredentials.Complete,
+                command: "addNoc",
+                fields: {
+                    nocValue: peerOperationalCert,
+                    icacValue: this.ca.icacCert ?? new Uint8Array(0),
+                    ipkValue: this.fabric.identityProtectionKey,
+                    adminVendorId: this.fabric.rootVendorId,
+                    caseAdminSubject: this.fabric.rootNodeId,
+                },
+            },
+            {
                 useExtendedFailSafeMessageResponseTimeout: true,
-            }),
+            },
         );
 
         this.#ensureOperationalCredentialsSuccess("addNoc", addNocResponse);
@@ -1057,19 +1042,15 @@ export class ControllerCommissioningFlow {
         try {
             this.#ensureOperationalCredentialsSuccess(
                 "updateFabricLabel",
-                await this.#invokeCommand(
-                    Invoke(
-                        Invoke.ConcreteCommandRequest({
-                            endpoint: RootEndpointNumber,
-                            cluster: OperationalCredentials.Complete,
-                            command: "updateFabricLabel",
-                            fields: {
-                                label: this.fabric.label,
-                                fabricIndex,
-                            },
-                        }),
-                    ),
-                ),
+                await this.#invokeCommand({
+                    endpoint: RootEndpointNumber,
+                    cluster: OperationalCredentials.Complete,
+                    command: "updateFabricLabel",
+                    fields: {
+                        label: this.fabric.label,
+                        fabricIndex,
+                    },
+                }),
             );
         } catch (error) {
             // convert error
@@ -1212,20 +1193,18 @@ export class ControllerCommissioningFlow {
             await this.#ensureFailsafeTimerFor(Seconds(scanMaxTimeSeconds));
 
             const { networkingStatus, wiFiScanResults, debugText } = await this.#invokeCommand(
-                Invoke({
-                    commands: [
-                        Invoke.ConcreteCommandRequest({
-                            endpoint: RootEndpointNumber,
-                            cluster: NetworkCommissioning.Complete,
-                            command: "scanNetworks",
-                            fields: {
-                                ssid,
-                                breadcrumb: this.lastBreadcrumb++,
-                            },
-                        }),
-                    ],
+                {
+                    endpoint: RootEndpointNumber,
+                    cluster: NetworkCommissioning.Complete,
+                    command: "scanNetworks",
+                    fields: {
+                        ssid,
+                        breadcrumb: this.lastBreadcrumb++,
+                    },
+                },
+                {
                     expectedProcessingTime: Seconds(scanMaxTimeSeconds),
-                }),
+                },
             );
 
             if (networkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
@@ -1243,21 +1222,19 @@ export class ControllerCommissioningFlow {
             debugText: addDebugText,
             networkIndex,
         } = await this.#invokeCommand(
-            Invoke({
-                commands: [
-                    Invoke.ConcreteCommandRequest({
-                        endpoint: RootEndpointNumber,
-                        cluster: NetworkCommissioning.Complete,
-                        command: "addOrUpdateWiFiNetwork",
-                        fields: {
-                            ssid,
-                            credentials,
-                            breadcrumb: this.lastBreadcrumb++,
-                        },
-                    }),
-                ],
+            {
+                endpoint: RootEndpointNumber,
+                cluster: NetworkCommissioning.Complete,
+                command: "addOrUpdateWiFiNetwork",
+                fields: {
+                    ssid,
+                    credentials,
+                    breadcrumb: this.lastBreadcrumb++,
+                },
+            },
+            {
                 useExtendedFailSafeMessageResponseTimeout: true,
-            }),
+            },
         );
 
         if (addNetworkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
@@ -1300,20 +1277,18 @@ export class ControllerCommissioningFlow {
         await this.#ensureFailsafeTimerFor(Seconds(connectMaxTimeSeconds));
 
         const connectResult = await this.#invokeCommand(
-            Invoke({
-                commands: [
-                    Invoke.ConcreteCommandRequest({
-                        endpoint: RootEndpointNumber,
-                        cluster: NetworkCommissioning.Complete,
-                        command: "connectNetwork",
-                        fields: {
-                            networkId: networkId,
-                            breadcrumb: this.lastBreadcrumb++,
-                        },
-                    }),
-                ],
+            {
+                endpoint: RootEndpointNumber,
+                cluster: NetworkCommissioning.Complete,
+                command: "connectNetwork",
+                fields: {
+                    networkId: networkId,
+                    breadcrumb: this.lastBreadcrumb++,
+                },
+            },
+            {
                 expectedProcessingTime: Seconds(connectMaxTimeSeconds),
-            }),
+            },
         );
 
         if (connectResult.networkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
@@ -1398,17 +1373,15 @@ export class ControllerCommissioningFlow {
             await this.#ensureFailsafeTimerFor(Seconds(scanMaxTimeSeconds));
 
             const { networkingStatus, threadScanResults, debugText } = (await this.#invokeCommand(
-                Invoke({
-                    commands: [
-                        Invoke.ConcreteCommandRequest({
-                            endpoint: RootEndpointNumber,
-                            cluster: NetworkCommissioning.Complete,
-                            command: "scanNetworks",
-                            fields: { breadcrumb: this.lastBreadcrumb++ },
-                        }),
-                    ],
+                {
+                    endpoint: RootEndpointNumber,
+                    cluster: NetworkCommissioning.Complete,
+                    command: "scanNetworks",
+                    fields: { breadcrumb: this.lastBreadcrumb++ },
+                },
+                {
                     expectedProcessingTime: Seconds(scanMaxTimeSeconds),
-                }),
+                },
             )) as NetworkCommissioning.ScanNetworksResponse;
 
             if (networkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
@@ -1443,22 +1416,18 @@ export class ControllerCommissioningFlow {
             debugText: addDebugText,
             networkIndex,
         } = await this.#invokeCommand(
-            Invoke({
-                commands: [
-                    Invoke.ConcreteCommandRequest({
-                        endpoint: RootEndpointNumber,
-                        cluster: NetworkCommissioning.Complete,
-                        command: "addOrUpdateThreadNetwork",
-                        fields: {
-                            operationalDataset: Bytes.fromHex(
-                                this.commissioningOptions.threadNetwork.operationalDataset,
-                            ),
-                            breadcrumb: this.lastBreadcrumb++,
-                        },
-                    }),
-                ],
+            {
+                endpoint: RootEndpointNumber,
+                cluster: NetworkCommissioning.Complete,
+                command: "addOrUpdateThreadNetwork",
+                fields: {
+                    operationalDataset: Bytes.fromHex(this.commissioningOptions.threadNetwork.operationalDataset),
+                    breadcrumb: this.lastBreadcrumb++,
+                },
+            },
+            {
                 useExtendedFailSafeMessageResponseTimeout: true,
-            }),
+            },
         );
 
         if (addNetworkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
@@ -1500,20 +1469,18 @@ export class ControllerCommissioningFlow {
         await this.#ensureFailsafeTimerFor(Seconds(connectMaxTimeSeconds));
 
         const connectResult = await this.#invokeCommand(
-            Invoke({
-                commands: [
-                    Invoke.ConcreteCommandRequest({
-                        endpoint: RootEndpointNumber,
-                        cluster: NetworkCommissioning.Complete,
-                        command: "connectNetwork",
-                        fields: {
-                            networkId: networkId,
-                            breadcrumb: this.lastBreadcrumb++,
-                        },
-                    }),
-                ],
+            {
+                endpoint: RootEndpointNumber,
+                cluster: NetworkCommissioning.Complete,
+                command: "connectNetwork",
+                fields: {
+                    networkId: networkId,
+                    breadcrumb: this.lastBreadcrumb++,
+                },
+            },
+            {
                 expectedProcessingTime: Seconds(connectMaxTimeSeconds),
-            }),
+            },
         );
 
         if (connectResult.networkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
@@ -1616,16 +1583,14 @@ export class ControllerCommissioningFlow {
         this.#ensureGeneralCommissioningSuccess(
             "commissioningComplete",
             await this.#invokeCommand(
-                Invoke({
-                    commands: [
-                        Invoke.ConcreteCommandRequest({
-                            endpoint: RootEndpointNumber,
-                            cluster: GeneralCommissioning.Complete,
-                            command: "commissioningComplete",
-                        }),
-                    ],
+                {
+                    endpoint: RootEndpointNumber,
+                    cluster: GeneralCommissioning.Complete,
+                    command: "commissioningComplete",
+                },
+                {
                     useExtendedFailSafeMessageResponseTimeout: true,
-                }),
+                },
             ),
         );
         this.#currentFailSafeEndTime = undefined; // gets deactivated when successful

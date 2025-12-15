@@ -12,7 +12,7 @@ import { Logger } from "../log/Logger.js";
 import { Abort } from "./Abort.js";
 import { createPromise } from "./Promises.js";
 
-const logger = Logger.get("PromiseQueue");
+const logger = Logger.get("Semaphore");
 
 /**
  * A work slot that must be released when work is complete.
@@ -22,7 +22,7 @@ export interface WorkSlot extends Disposable {
      * Release the slot manually.
      * This is called automatically when using `using` syntax.
      */
-    release(): void;
+    close(): void;
 
     /**
      * Release the slot automatically when the object is garbage collected.
@@ -75,9 +75,7 @@ export class Semaphore {
         const signal = abort ? ("signal" in abort ? abort.signal : abort) : undefined;
 
         // Check if already aborted
-        if (signal?.aborted) {
-            throw signal.reason ?? new AbortedError();
-        }
+        signal?.throwIfAborted();
 
         // If we have capacity, grant a slot immediately
         if (this.#runningCount + this.#delayCount < this.#concurrency) {
@@ -97,13 +95,13 @@ export class Semaphore {
         // Set up abort listener if signal provided
         if (signal) {
             entry.abortListener = () => {
-                // Remove from queue
+                // Remove from the queue if it is still in
                 const index = this.#queue.indexOf(entry);
                 if (index !== -1) {
                     this.#queue.splice(index, 1);
                     logger.debug("Slot request aborted, removed from queue. Remaining:", this.#queue.length);
+                    rejecter(signal.reason ?? new AbortedError());
                 }
-                rejecter(signal.reason ?? new AbortedError());
             };
             signal.addEventListener("abort", entry.abortListener, { once: true });
         }
@@ -123,7 +121,7 @@ export class Semaphore {
         let released = false;
 
         return {
-            release: () => {
+            close: () => {
                 if (released) {
                     return;
                 }
@@ -132,7 +130,7 @@ export class Semaphore {
             },
 
             [Symbol.dispose]() {
-                this.release();
+                this.close();
             },
         } satisfies WorkSlot;
     }
@@ -183,18 +181,14 @@ export class Semaphore {
 
     /**
      * Clear the queue.
-     *
-     * @param reject - If true, reject all pending slot requests with an AbortedError
      */
-    clear(reject: boolean): void {
-        if (reject) {
-            for (const entry of this.#queue) {
-                // Clean up abort listener
-                if (entry.abortListener && entry.signal) {
-                    entry.signal.removeEventListener("abort", entry.abortListener);
-                }
-                entry.reject(new AbortedError("Queue cleared"));
+    clear(): void {
+        for (const entry of this.#queue) {
+            // Clean up abort listener
+            if (entry.abortListener && entry.signal) {
+                entry.signal.removeEventListener("abort", entry.abortListener);
             }
+            entry.reject(new AbortedError("Queue cleared"));
         }
         this.#queue.length = 0;
     }
@@ -218,9 +212,9 @@ export class Semaphore {
      */
     close(): void {
         this.#closed = true;
-        this.clear(true);
         for (const delay of this.#delays) {
             delay.stop();
         }
+        this.clear();
     }
 }

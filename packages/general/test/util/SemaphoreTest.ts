@@ -18,7 +18,7 @@ describe("Semaphore", () => {
             expect(queue.running).equals(1);
             expect(queue.count).equals(0);
 
-            slot.release();
+            slot.close();
         });
 
         it("queues when at capacity", async () => {
@@ -41,7 +41,7 @@ describe("Semaphore", () => {
             expect(queue.count).equals(1);
 
             // Release first slot
-            slot1.release();
+            slot1.close();
 
             // Now slot2 should be granted
             const slot2 = await slot2Promise;
@@ -49,7 +49,7 @@ describe("Semaphore", () => {
             expect(queue.running).equals(1);
             expect(queue.count).equals(0);
 
-            slot2.release();
+            slot2.close();
         });
 
         it("releases slot via dispose", async () => {
@@ -70,11 +70,11 @@ describe("Semaphore", () => {
             const slot = await queue.obtainSlot();
             expect(queue.running).equals(1);
 
-            slot.release();
+            slot.close();
             expect(queue.running).equals(0);
 
             // Second release should be no-op
-            slot.release();
+            slot.close();
             expect(queue.running).equals(0);
         });
     });
@@ -293,7 +293,7 @@ describe("Semaphore", () => {
             expect(error).to.be.instanceOf(AbortedError);
             expect(queue.count).equals(0); // Should be removed from queue
 
-            slot1.release();
+            slot1.close();
         });
 
         it("abort does not affect requests without abort signal", async () => {
@@ -324,12 +324,12 @@ describe("Semaphore", () => {
             expect(queue.count).equals(1); // slot3 still waiting
 
             // Release first slot - slot3 should get it
-            slot1.release();
+            slot1.close();
 
             const slot3 = await slot3Promise;
             expect(queue.running).equals(1);
 
-            slot3.release();
+            slot3.close();
         });
 
         it("works with Abort utility class", async () => {
@@ -356,7 +356,7 @@ describe("Semaphore", () => {
 
             expect(error).to.be.instanceOf(AbortedError);
 
-            slot1.release();
+            slot1.close();
             abort.close();
         });
     });
@@ -378,33 +378,18 @@ describe("Semaphore", () => {
             const slot3Promise = queue.obtainSlot();
             expect(queue.count).equals(2);
 
-            slot1.release();
+            slot1.close();
             const slot2 = await slot2Promise;
             expect(queue.count).equals(1);
 
-            slot2.release();
+            slot2.close();
             const slot3 = await slot3Promise;
             expect(queue.count).equals(0);
 
-            slot3.release();
+            slot3.close();
         });
 
-        it("clear(false) removes pending requests without rejecting", async () => {
-            const queue = new Semaphore(1);
-
-            const slot1 = await queue.obtainSlot();
-            void queue.obtainSlot(); // This will be orphaned
-            void queue.obtainSlot(); // This will be orphaned
-
-            expect(queue.count).equals(2);
-
-            queue.clear(false);
-
-            expect(queue.count).equals(0);
-            slot1.release();
-        });
-
-        it("clear(true) rejects all pending requests", async () => {
+        it("clear rejects all pending requests", async () => {
             const queue = new Semaphore(1);
 
             const slot1 = await queue.obtainSlot();
@@ -413,7 +398,7 @@ describe("Semaphore", () => {
 
             expect(queue.count).equals(2);
 
-            queue.clear(true);
+            queue.clear();
 
             expect(queue.count).equals(0);
 
@@ -434,7 +419,7 @@ describe("Semaphore", () => {
             expect(error2).to.be.instanceOf(AbortedError);
             expect(error3).to.be.instanceOf(AbortedError);
 
-            slot1.release();
+            slot1.close();
         });
 
         it("close() marks queue as closed and rejects pending", async () => {
@@ -463,7 +448,7 @@ describe("Semaphore", () => {
             }
             expect(newError).to.be.instanceOf(AbortedError);
 
-            slot1.release();
+            slot1.close();
         });
     });
 
@@ -568,7 +553,7 @@ describe("Semaphore", () => {
 
             expect(rejected).equals(true);
 
-            slot1.release();
+            slot1.close();
         });
     });
 
@@ -586,7 +571,7 @@ describe("Semaphore", () => {
                 try {
                     return await work();
                 } finally {
-                    slot.release();
+                    slot.close();
                 }
             }
             return work();
@@ -607,7 +592,7 @@ describe("Semaphore", () => {
                         yield value;
                     }
                 } finally {
-                    slot.release();
+                    slot.close();
                 }
             } else {
                 yield* invoke();
