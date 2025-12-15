@@ -40,19 +40,17 @@ export class Semaphore {
     readonly #delay: Duration;
     readonly #queue = new Array<{
         resolve: (slot: WorkSlot) => void;
-        reject: (reason?: any) => void;
-        abortListener?: () => void;
-        signal?: AbortSignal;
     }>();
-    #delays = new Set<Timer>();
+    #delayTimer: Timer;
     readonly #concurrency: number;
     #runningCount = 0;
-    #delayCount = 0;
+    #abort = new Abort();
     #closed = false;
 
     constructor(concurrency = 1, delay = Instant) {
         this.#concurrency = concurrency;
         this.#delay = delay;
+        this.#delayTimer = Time.getTimer("Queue delay", this.#delay, () => this.#processNextInQueue());
     }
 
     /**
@@ -60,56 +58,82 @@ export class Semaphore {
      *
      * This method returns a promise that resolves when a slot is available.
      * The returned slot must be released when work is complete, either by
-     * calling `release()` or by using the `using` syntax.
+     * calling `close()` or by using the `using` syntax.
      *
      * @param abort - Optional abort signal to cancel waiting for a slot
      * @returns A disposable work slot
      * @throws AbortedError if the abort signal is triggered before a slot is obtained
      */
     async obtainSlot(abort?: Abort.Signal): Promise<WorkSlot> {
+        // Check if closed or already aborted before proceeding
         if (this.#closed) {
             throw new AbortedError("Queue is closed");
         }
+        if (abort) {
+            const signal = "signal" in abort ? abort.signal : abort;
+            signal.throwIfAborted();
+        }
 
-        // Normalize signal
-        const signal = abort ? ("signal" in abort ? abort.signal : abort) : undefined;
+        // Combine caller's abort with our internal abort for unified cancellation
+        using combinedAbort = new Abort({ abort: abort ? [abort, this.#abort] : [this.#abort] });
 
-        // Check if already aborted
-        signal?.throwIfAborted();
+        // Check if we can grant it immediately:
+        // - Must have capacity
+        // - No one else waiting in the queue
+        // - Either no delay configured, or delay timer not running (a cooldown period passed)
+        const canGrantImmediately =
+            this.#runningCount < this.#concurrency &&
+            this.#queue.length === 0 &&
+            (this.#delay === 0 || !this.#delayTimer.isRunning);
 
-        // If we have capacity, grant a slot immediately
-        if (this.#runningCount + this.#delayCount < this.#concurrency) {
+        if (canGrantImmediately) {
             return this.#grantSlot();
         }
 
-        // Otherwise, queue up and wait
-        const { promise, resolver, rejecter } = createPromise<WorkSlot>();
+        // Need to queue - either no capacity or delay hasn't passed yet
+        const { promise, resolver } = createPromise<WorkSlot>();
 
-        const entry = {
-            resolve: resolver,
-            reject: rejecter,
-            signal,
-            abortListener: undefined as (() => void) | undefined,
-        };
-
-        // Set up abort listener if signal provided
-        if (signal) {
-            entry.abortListener = () => {
-                // Remove from the queue if it is still in
-                const index = this.#queue.indexOf(entry);
-                if (index !== -1) {
-                    this.#queue.splice(index, 1);
-                    logger.debug("Slot request aborted, removed from queue. Remaining:", this.#queue.length);
-                    rejecter(signal.reason ?? new AbortedError());
-                }
-            };
-            signal.addEventListener("abort", entry.abortListener, { once: true });
-        }
+        const entry = { resolve: resolver };
 
         logger.debug("Queueing slot request at position", this.#queue.length + 1);
         this.#queue.push(entry);
 
-        return promise;
+        // Ensure the timer is running to process queue (handles both capacity-wait and delay-wait)
+        this.#scheduleProcessing();
+
+        // Race the promise against abort - if aborted, remove from the queue and throw
+        const result = await combinedAbort.race(promise);
+        if (result === undefined) {
+            // Aborted - remove from queue if still present
+            const index = this.#queue.indexOf(entry);
+            if (index !== -1) {
+                this.#queue.splice(index, 1);
+                logger.debug("Slot request aborted, removed from queue. Remaining:", this.#queue.length);
+            }
+            // Throw AbortedError (use reason if it's already an AbortedError)
+            const reason = combinedAbort.reason;
+            throw reason instanceof AbortedError ? reason : new AbortedError();
+        }
+
+        return result;
+    }
+
+    /**
+     * Schedule processing of the queue if there's capacity and items waiting.
+     */
+    #scheduleProcessing(): void {
+        if (this.#delayTimer.isRunning) return;
+        if (this.#queue.length === 0) return;
+        if (this.#runningCount >= this.#concurrency) return;
+
+        const delayMs = this.#delay;
+        if (delayMs === 0) {
+            // No delay configured, process immediately
+            this.#processNextInQueue();
+        } else {
+            // Start the delay timer
+            this.#delayTimer.start();
+        }
     }
 
     /**
@@ -117,6 +141,11 @@ export class Semaphore {
      */
     #grantSlot(): WorkSlot {
         this.#runningCount++;
+
+        // Start a delay timer to enforce cooldown before the next grant
+        if (this.#delay > 0) {
+            this.#delayTimer.start();
+        }
 
         let released = false;
 
@@ -140,23 +169,7 @@ export class Semaphore {
      */
     #releaseSlot(): void {
         this.#runningCount--;
-        if (this.#delay > 0) {
-            this.#delayCount++;
-        }
-
-        if (this.#delay > 0) {
-            // Keep the slot blocked during delay, then release
-            const delay = Time.getTimer("Queue delay", this.#delay, () => {
-                this.#delays.delete(delay);
-                if (this.#delayCount > 0) {
-                    this.#delayCount--;
-                }
-                this.#processNextInQueue();
-            }).start();
-            this.#delays.add(delay);
-        } else {
-            this.#processNextInQueue();
-        }
+        this.#scheduleProcessing();
     }
 
     /**
@@ -166,29 +179,28 @@ export class Semaphore {
         if (this.#queue.length === 0) {
             return;
         }
+        if (this.#runningCount >= this.#concurrency) {
+            return;
+        }
 
         const next = this.#queue.shift()!;
-
-        // Clean up abort listener if present
-        if (next.abortListener && next.signal) {
-            next.signal.removeEventListener("abort", next.abortListener);
-        }
 
         // Grant the slot to the next waiter
         const slot = this.#grantSlot();
         next.resolve(slot);
+
+        // Schedule next processing if more items in queue
+        this.#scheduleProcessing();
     }
 
     /**
-     * Clear the queue.
+     * Clear the queue (entries will be rejected via abort).
      */
     clear(): void {
-        for (const entry of this.#queue) {
-            // Clean up abort listener
-            if (entry.abortListener && entry.signal) {
-                entry.signal.removeEventListener("abort", entry.abortListener);
-            }
-            entry.reject(new AbortedError("Queue cleared"));
+        if (this.#queue.length > 0) {
+            // Abort current waiters and create fresh abort for future requests
+            this.#abort.abort(new AbortedError("Queue cleared"));
+            this.#abort = new Abort();
         }
         this.#queue.length = 0;
     }
@@ -212,9 +224,8 @@ export class Semaphore {
      */
     close(): void {
         this.#closed = true;
-        for (const delay of this.#delays) {
-            delay.stop();
-        }
+        this.#abort.abort(new AbortedError("Queue is closed"));
         this.clear();
+        this.#delayTimer.stop();
     }
 }

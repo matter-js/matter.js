@@ -405,9 +405,9 @@ describe("ClientNode", () => {
 
         // *** INVOCATION ***
 
-        await ep1.commandsOf(OnOffClient).toggle();
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle());
 
-        await ep1.commandsOf(OnOffClient).offWithEffect({ effectIdentifier: 0, effectVariant: 0 });
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).offWithEffect({ effectIdentifier: 0, effectVariant: 0 }));
     });
 
     it("properly supports unknown clusters", async () => {
