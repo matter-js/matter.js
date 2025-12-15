@@ -9,7 +9,6 @@ import {
     Diagnostic,
     Duration,
     ImplementationError,
-    isObject,
     MatterFlowError,
     Millis,
     Seconds,
@@ -52,15 +51,12 @@ import {
     Event,
     EventId,
     EventNumber,
-    FabricIndex,
     getClusterAttributeById,
     getClusterById,
     getClusterEventById,
     NodeId,
-    ObjectSchema,
     RequestType,
     resolveAttributeName,
-    resolveCommandName,
     resolveEventName,
     ResponseType,
     StatusCode,
@@ -1005,18 +1001,17 @@ export class InteractionClient {
     async #invoke<C extends Command<any, any, any>>(
         options: InvokeOptions<C> & { suppressResponse: boolean },
     ): Promise<ResponseType<C>> {
-        const { command: commandObj } = options;
-
         const {
             endpointId,
             clusterId,
-            command: { requestId, requestSchema, timed },
+            command,
             asTimedRequest,
             timedRequestTimeout: timedRequestTimeoutMs = DEFAULT_TIMED_REQUEST_TIMEOUT,
             expectedProcessingTime,
             useExtendedFailSafeMessageResponseTimeout = false,
             skipValidation,
         } = options;
+        const { timed } = command;
         let { suppressResponse, request } = options;
         const timedRequest =
             (timed && !skipValidation) || asTimedRequest === true || options.timedRequestTimeout !== undefined;
@@ -1031,56 +1026,34 @@ export class InteractionClient {
             suppressResponse = true;
         }
 
-        if (requestSchema instanceof ObjectSchema) {
-            if (request === undefined) {
-                // If developer did not provide a request object, create an empty one if it needs to be an object
-                // This can happen when all object properties are optional
-                request = {} as RequestType<C>;
-            }
-            if (requestSchema.isFabricScoped && request.fabricIndex === undefined) {
-                request.fabricIndex = FabricIndex.NO_FABRIC;
-            }
-        }
-
-        if (!skipValidation) {
-            requestSchema.validate(request);
-        }
-        const commandFields = requestSchema.encodeTlv(request);
-
-        const invokeRequests = [
-            {
-                commandPath: {
-                    endpointId,
-                    clusterId,
-                    commandId: requestId,
-                },
-                commandFields,
-                timed: timedRequest ?? false,
-                command: commandObj,
-            },
-        ];
-        const invoke = this.#interaction.invoke({
-            ...Invoke({
-                invokeRequests,
+        const cluster = getClusterById(clusterId);
+        const invoke = this.#interaction.invoke(
+            Invoke({
+                commands: [
+                    endpointId === undefined
+                        ? Invoke.WildcardCommandRequest({
+                              cluster,
+                              command,
+                              fields: request,
+                          })
+                        : Invoke.ConcreteCommandRequest({
+                              endpoint: endpointId,
+                              cluster,
+                              command,
+                              fields: request,
+                          }),
+                ],
+                skipValidation,
                 timeout: timedRequest ? Millis(timedRequestTimeoutMs) : undefined,
+                timed: timedRequest ?? false,
                 suppressResponse: suppressResponse ?? false,
+                expectedProcessingTime:
+                    expectedProcessingTime ??
+                    (useExtendedFailSafeMessageResponseTimeout
+                        ? DEFAULT_MINIMUM_RESPONSE_TIMEOUT_WITH_FAILSAFE
+                        : undefined),
             }),
-            expectedProcessingTime:
-                expectedProcessingTime ??
-                (useExtendedFailSafeMessageResponseTimeout
-                    ? DEFAULT_MINIMUM_RESPONSE_TIMEOUT_WITH_FAILSAFE
-                    : undefined),
-            [Diagnostic.value]: () =>
-                Diagnostic.list(
-                    invokeRequests.map(({ commandPath }) => {
-                        return [
-                            Diagnostic.strong(resolveCommandName(commandPath)),
-                            "with",
-                            isObject(request) ? Diagnostic.dict(request) : "(no payload)",
-                        ];
-                    }),
-                ),
-        });
+        );
 
         for await (const chunks of invoke) {
             for (const chunk of chunks) {

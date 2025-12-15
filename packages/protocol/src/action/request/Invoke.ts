@@ -4,26 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic, Duration, InternalError, isObject } from "#general";
+import { ClientRequest } from "#action/client/ClientRequest.js";
+import { Diagnostic, Duration, isObject } from "#general";
 import { SessionParameters } from "#session/SessionParameters.js";
-import {
-    ClusterType,
-    CommandData,
-    FabricIndex,
-    InvokeRequest,
-    ObjectSchema,
-    resolveCommandName,
-    TlvSchema,
-    TypeFromSchema,
-} from "#types";
+import { ClusterType, CommandData, FabricIndex, InvokeRequest, ObjectSchema, TlvSchema, TypeFromSchema } from "#types";
 import { MalformedRequestError } from "./MalformedRequestError.js";
 import { resolvePathForSpecifier, Specifier } from "./Specifier.js";
 
-export interface InvokeCommandData<
-    C extends Specifier.Cluster = Specifier.Cluster,
-    CMD extends Specifier.Command<Specifier.ClusterFor<C>> = Specifier.Command<Specifier.ClusterFor<C>>,
-> extends CommandData {
-    command: CMD;
+export interface InvokeCommandData extends CommandData {
     timed?: boolean;
 }
 
@@ -36,11 +24,6 @@ export interface Invoke extends InvokeRequest {
 
     /** Whether to use extended timeout for fail-safe messages.  Overwrites the expectedProcessingTime if both are set */
     useExtendedFailSafeMessageResponseTimeout?: boolean;
-
-    /**
-     * If true, the request will be queued over all peers of the node
-     */
-    queued?: boolean;
 }
 
 export interface CommandDecodeDetails {
@@ -48,8 +31,8 @@ export interface CommandDecodeDetails {
     [Diagnostic.value]: () => unknown;
 }
 
-export interface ClientInvoke extends Invoke {
-    commands: Map<number | undefined, CommandDecodeDetails>;
+export interface ClientInvoke extends Invoke, ClientRequest {
+    commands: Map<number | undefined, Invoke.CommandRequest<any>>;
 }
 
 /**
@@ -76,18 +59,15 @@ export function Invoke(
     }
 
     let options;
-    if ("commands" in optionsOrData || "invokeRequests" in optionsOrData) {
+    if ("commands" in optionsOrData) {
         options = optionsOrData;
-        if (optionsOrData.commands !== undefined) {
-            commands = [...optionsOrData.commands, ...commands];
-        }
+        commands = [...optionsOrData.commands, ...commands];
     } else {
-        commands = [optionsOrData as Invoke.CommandRequest<any>, ...commands];
+        commands = [optionsOrData, ...commands];
         options = {};
     }
 
     const {
-        invokeRequests = [],
         interactionModelRevision = SessionParameters.fallbacks.interactionModelRevision,
         suppressResponse = false,
         timeout,
@@ -97,34 +77,11 @@ export function Invoke(
     } = options;
     let timedRequest = !!options.timed || !!timeout;
 
-    if (!commands?.length && !invokeRequests.length) {
+    if (!commands?.length) {
         throw new MalformedRequestError(`Invocation requires at least one command`);
     }
 
-    const commandMap = new Map<number | undefined, CommandDecodeDetails>();
-    if (invokeRequests.length) {
-        invokeRequests.forEach(req => {
-            timedRequest ||= !!req.timed;
-            commandMap.set(req.commandRef, {
-                responseSchema: Invoke.commandOf(req).responseSchema,
-                [Diagnostic.value]: () => resolveCommandName(req.commandPath),
-            });
-        });
-    }
-
-    invokeRequests.push(
-        ...commands.map(cmd => {
-            const cmdData = Invoke.Command(cmd, skipValidation);
-            timedRequest ||= !!cmdData.timed;
-            commandMap.set(cmdData.commandRef, {
-                responseSchema: Invoke.commandOf(cmd).responseSchema,
-                [Diagnostic.value]: () => resolvePathForSpecifier(cmd),
-            });
-            return cmdData;
-        }),
-    );
-
-    if (invokeRequests.length > 1 && commandMap.size !== invokeRequests.length) {
+    if (commands.length > 1) {
         const commandRefs = new Set<number>();
         for (const { commandRef } of commands) {
             if (commandRef === undefined) {
@@ -136,6 +93,14 @@ export function Invoke(
             commandRefs.add(commandRef);
         }
     }
+
+    const commandMap = new Map<number | undefined, Invoke.CommandRequest<any>>();
+    const invokeRequests: InvokeCommandData[] = commands.map(cmd => {
+        const cmdData = Invoke.Command(cmd, skipValidation);
+        timedRequest ||= !!cmdData.timed;
+        commandMap.set(cmdData.commandRef, cmd);
+        return cmdData;
+    });
 
     return {
         timedRequest,
@@ -168,10 +133,7 @@ export function Invoke(
 export namespace Invoke {
     export interface Definition {
         /** List of commands to invoke */
-        commands?: Invoke.CommandRequest<any>[];
-
-        /** List of prepared raw commands to invoke */
-        invokeRequests?: InvokeCommandData[];
+        commands: Invoke.CommandRequest<any>[];
 
         /** Tell the server to not send a response */
         suppressResponse?: boolean;
@@ -230,7 +192,6 @@ export namespace Invoke {
             commandFields,
             timed: timed ?? false,
             commandRef,
-            command,
         };
 
         // Optional endpoint is handled by the Specifier utility, so we can just cast here
@@ -280,24 +241,16 @@ export namespace Invoke {
         return data;
     }
 
-    export function commandOf<const C extends Specifier.Cluster, R extends CommandRequest<C>>(
-        request: Omit<R, "cluster"> & { cluster?: C },
-    ): ClusterType.Command {
+    export function commandOf<const R extends CommandRequest>(request: R): ClusterType.Command {
         if (typeof request.command === "string") {
-            if (request.cluster === undefined) {
-                throw new InternalError("Cluster must be defined to resolve command by name");
-            }
             const cluster = Specifier.clusterFor(request.cluster);
-            if (cluster === undefined) {
-                throw new MalformedRequestError(`Cannot designate command "${request.command}" without cluster`);
-            }
             const command = cluster.commands[request.command];
             if (command === undefined) {
                 throw new MalformedRequestError(`Cluster ${cluster.name} does not define command ${request.command}`);
             }
-            return command;
+            return command as Specifier.CommandFor<Specifier.ClusterOf<R>, R["command"]>;
         }
-        return request.command;
+        return request.command as Specifier.CommandFor<Specifier.ClusterOf<R>, R["command"]>;
     }
 
     export type Fields<S extends TlvSchema<any>> =

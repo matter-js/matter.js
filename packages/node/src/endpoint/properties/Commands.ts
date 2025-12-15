@@ -65,7 +65,7 @@ function Implementation(endpoint: Endpoint, type: Behavior.Type, name: string): 
                 return Promise.resolve(context2.reject(e));
             }
 
-            // Create function to perform invocation
+            // Create a function to perform invocation
             function invokerFor(context: ActionContext) {
                 const agent = endpoint.agentFor(context);
                 const behavior = agent.get(type);

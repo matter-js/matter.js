@@ -8,6 +8,7 @@ import { ClientRead } from "#action/client/ClientRead.js";
 import { Interactable, InteractionSession } from "#action/Interactable.js";
 import { ClientInvoke, Invoke } from "#action/request/Invoke.js";
 import { Read } from "#action/request/Read.js";
+import { resolvePathForSpecifier } from "#action/request/Specifier.js";
 import { Subscribe } from "#action/request/Subscribe.js";
 import { Write } from "#action/request/Write.js";
 import { DecodedInvokeResult, InvokeResult } from "#action/response/InvokeResult.js";
@@ -289,7 +290,7 @@ export class ClientInteraction<
                                     `No response schema found for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId})`,
                                 );
                             }
-                            const responseSchema = cmd.responseSchema;
+                            const responseSchema = Invoke.commandOf(cmd).responseSchema;
                             if (commandFields === undefined && responseSchema !== TlvNoResponse) {
                                 throw new ImplementationError(
                                     `No command fields found for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId})`,
@@ -303,7 +304,7 @@ export class ClientInteraction<
                                 "Invoke",
                                 Mark.INBOUND,
                                 messenger.exchange.via,
-                                Diagnostic.strong(cmd),
+                                Diagnostic.strong(resolvePathForSpecifier(cmd)),
                                 isObject(data) ? Diagnostic.dict(data) : Diagnostic.weak("(no payload)"),
                             );
 

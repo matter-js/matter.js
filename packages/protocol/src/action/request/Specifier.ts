@@ -57,7 +57,10 @@ export namespace Specifier {
     /**
      * Extract a cluster type from a cluster specifier.
      */
-    export function clusterFor<const T extends Cluster>(specifier: T) {
+    export function clusterFor<const T extends Cluster>(specifier?: T) {
+        if (specifier === undefined) {
+            throw new MalformedRequestError(`Cannot designate command "${specifier}" without a cluster`);
+        }
         if ("cluster" in specifier) {
             return specifier["cluster"] as ClusterFor<T>;
         }
