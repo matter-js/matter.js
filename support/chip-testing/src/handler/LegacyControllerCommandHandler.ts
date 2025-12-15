@@ -7,7 +7,6 @@
 import { Bytes, Logger, Seconds } from "@matter/general";
 import { NodeId, Observable, ServerAddressUdp } from "@matter/main";
 import { GeneralCommissioning, GroupKeyManagement } from "@matter/main/clusters";
-import { InteractionClient } from "@matter/main/node";
 import {
     Certificate,
     CertificateAuthority,
@@ -37,6 +36,7 @@ import {
     VendorId,
 } from "@matter/main/types";
 import { CommissioningController, NodeCommissioningOptions } from "@project-chip/matter.js";
+import { InteractionClient } from "@project-chip/matter.js/cluster";
 import { CustomCommissioningFlow } from "../CustomCommissioningFlow.js";
 import {
     CommandHandler,

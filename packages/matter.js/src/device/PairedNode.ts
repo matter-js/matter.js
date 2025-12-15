@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ClusterClient } from "#cluster/client/ClusterClient.js";
+import { InteractionClient } from "#cluster/client/InteractionClient.js";
 import { AdministratorCommissioning, BasicInformation, Descriptor } from "#clusters";
 import {
     AsyncObservable,
@@ -32,10 +34,8 @@ import {
     ClientNode,
     ClientNodeInteraction,
     ClusterBehavior,
-    ClusterClient,
     Commands,
     CommissioningClient,
-    InteractionClient,
     NetworkClient,
 } from "#node";
 import {

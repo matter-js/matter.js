@@ -11,6 +11,8 @@
  */
 
 import { BasicInformationClient } from "#behaviors/basic-information";
+import { ClusterClient } from "#cluster/client/ClusterClient.js";
+import { InteractionClientProvider } from "#cluster/client/InteractionClient.js";
 import { GeneralCommissioning } from "#clusters";
 import type { NodeCommissioningOptions } from "#CommissioningController.js";
 import { ControllerStore, ControllerStoreInterface } from "#ControllerStore.js";
@@ -41,12 +43,7 @@ import {
 } from "#general";
 import {
     ClientNode,
-    ClusterClient,
     CommissioningClient,
-    ControllerCommissioner,
-    ControllerCommissioningFlow,
-    DiscoveryAndCommissioningOptions,
-    InteractionClientProvider,
     NetworkClient,
     NodePhysicalProperties,
     RemoteDescriptor,
@@ -56,6 +53,9 @@ import {
 import {
     CertificateAuthority,
     CommissioningError,
+    ControllerCommissioner,
+    ControllerCommissioningFlow,
+    DiscoveryAndCommissioningOptions,
     DiscoveryData,
     Fabric,
     FabricAuthority,
@@ -242,6 +242,7 @@ export class MatterController {
     #node?: ServerNode;
     #peers?: PeerSet;
     #fabric?: Fabric;
+    #clients?: InteractionClientProvider;
 
     get construction() {
         return this.#construction;
@@ -569,23 +570,25 @@ export class MatterController {
             await node.setStateOf(NetworkClient, { caseAuthenticatedTags: options.caseAuthenticatedTags });
         }
         await node.enable();
-        return this.node.env.get(InteractionClientProvider).connect(this.fabric.addressOf(peerNodeId), options);
+        return this.#clients!.connect(this.fabric.addressOf(peerNodeId), options);
     }
 
     createInteractionClient(peerNodeIdOrSession: NodeId | SecureSession, options: PeerConnectionOptions = {}) {
         if (peerNodeIdOrSession instanceof SecureSession) {
-            return this.node.env.get(InteractionClientProvider).interactionClientFor(peerNodeIdOrSession);
+            return this.#clients!.interactionClientFor(peerNodeIdOrSession);
         }
         const address = this.fabric.addressOf(peerNodeIdOrSession);
-        return this.node.env.get(InteractionClientProvider).getNodeInteractionClient(address, options);
+        return this.#clients!.getNodeInteractionClient(address, options);
     }
 
     async start() {
         await this.node.start();
+        this.#clients = new InteractionClientProvider(this.node);
     }
 
     async close() {
         await this.#node?.close();
+        this.#clients = undefined;
     }
 
     getActiveSessionInformation() {

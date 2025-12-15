@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AccessControl } from "#clusters/access-control";
+import { AccessControl } from "#clusters";
 import {
     Diagnostic,
     Duration,
@@ -16,8 +16,8 @@ import {
     UnexpectedDataError,
 } from "#general";
 import { Specification } from "#model";
-import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
-import type { ServerNode } from "#node/ServerNode.js";
+import type { ServerNode } from "#node";
+import { ClientNodeInteraction } from "#node";
 import {
     ClientInteraction,
     DecodedAttributeReportStatus,
@@ -202,6 +202,11 @@ export class InteractionClient {
         this.#interaction = interaction;
         this.#exchanges = exchanges;
         this.isGroupAddress = address !== undefined ? PeerAddress.isGroup(address) : false;
+    }
+
+    // TODO
+    get interaction() {
+        return this.#interaction;
     }
 
     get address() {

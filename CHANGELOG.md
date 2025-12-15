@@ -78,7 +78,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: The platform-specific BLE abstraction has changed so that higher-level logic may be shared across platforms
     - Breaking: Low-level advertising APIs have changed significantly; in particular, `MdnsBroadcaster`, `MdnsInstanceBroadcaster` and `MdnsScanner` are replaced by `MdnsServer`, `MdnsAdvertisement` and `MdnsClient`
     - Breaking: The `Ble.get()` singleton is removed; components now instead retrieve the `Ble` service from the environment
-    - Breaking: Moved some controller API classes (Attribute/Event/Command/InteractionClient) into @matter/node package and adjusted to use Node Interactable as backing
+    - Breaking: Moved some controller API classes (Attribute/Event/Command/InteractionClient) into @project-chip/matter.js/cluster package and adjusted to use Node Interactable as backing
     - Feature: Adds support for advertising of TCP and ICD services (but matter.js does not yet implement those features otherwise)
     - Feature: Adds support for extended advertisement
     - Feature: Added support for Case Authenticated Tags (CATs) in operational CASE sessions for enhanced access control
@@ -87,18 +87,19 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Added DclOtaUpdateService for checking and downloading Over-The-Air (OTA) software updates from DCL with full validation and checksum verification
     - Feature: Added DclVendorInfoService for retrieving vendor information from DCL
     - Feature: Added OTA image processing utilities (OtaImageReader, OtaImageWriter) for reading, validating, extracting, and creating Matter OTA update files
+    - Feature: (@ArtemisMucaj) Add support to pass / generate an intermediate CA in the CertificateAuthority class, when used the NOCs are signed with the ICAC cert.
     - Enhancement: MDNS broadcasts more aggressively until a connection is established
     - Enhancement: MDNS and BLE advertising schedules are now configurable and conform to Matter and DNS-SD specifications
     - Enhancement: MDNS client and server efficiency is improved with a shared socket and message parser
     - Enhancement: MDNS Truncated Queries are now handled correctly
     - Enhancement: matter.js no longer uses SO_REUSEADDR on the Matter port so you can no longer accidentally start two nodes at the same address simultaneously
     - Enhancement: Increases the limitation of parallel exchanges when sending messages to 30 (was 5 before)
+    - Enhancement: Migrate Commissioning Flow to ClientInteraction as bases
     - Adjustment: Subscription data are no longer being flushed when a subscription is replaced by a new one with keepSubscriptions=false
     - Fix: Controller networking was previously throwing the incorrect error after a communication timeout
     - Fix: Ensures to only include the MaxTcpMessageSize in Session parameters when TCP is enabled
     - Fix: Fixes the used ACL level for wildcard writes
     - Fix: (@ArtemisMucaj) Fixes noc trust chain verification; verify against both rcac and icac
-    - Feature: (@ArtemisMucaj) Add support to pass / generate an intermediate CA in the CertificateAuthority class, when used the NOCs are signed with the ICAC cert.
 
 - @matter/react-native
     - Fix: (Luxni) Update UDP, BLE and Crypto usage to work with React Native

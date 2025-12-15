@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { SupportedAttributeClient, UnknownSupportedAttributeClient } from "#cluster/client/AttributeClient.js";
 import { BasicInformationCluster, BridgedDeviceBasicInformationCluster } from "#clusters";
 import { AtLeastOne, Diagnostic, ImplementationError, InternalError, NotImplementedError } from "#general";
-import { Behavior, Endpoint as ClientEndpoint, SupportedAttributeClient, UnknownSupportedAttributeClient } from "#node";
+import { Behavior, Endpoint as ClientEndpoint } from "#node";
 import { ClusterClientObj } from "#protocol";
 import {
     Attributes,

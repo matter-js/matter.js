@@ -57,6 +57,7 @@ export interface ClientInteractionContext {
     abort?: Abort.Signal;
     sustainRetries?: RetrySchedule.Configuration;
     exchangeProvider?: ExchangeProvider;
+    address?: PeerAddress;
 }
 
 export const DEFAULT_MIN_INTERVAL_FLOOR = Seconds(1);
@@ -85,8 +86,9 @@ export class ClientInteraction<
     #subscriptions?: ClientSubscriptions;
     readonly #abort: Abort;
     readonly #sustainRetries: RetrySchedule;
+    readonly #address?: PeerAddress;
 
-    constructor({ environment, abort, sustainRetries, exchangeProvider }: ClientInteractionContext) {
+    constructor({ environment, abort, sustainRetries, exchangeProvider, address }: ClientInteractionContext) {
         this.environment = environment;
         this.#exchanges = exchangeProvider ?? environment.get(ExchangeProvider);
         if (environment.has(ClientSubscriptions)) {
@@ -97,6 +99,7 @@ export class ClientInteraction<
             environment.get(Entropy),
             RetrySchedule.Configuration(SustainedSubscription.DefaultRetrySchedule, sustainRetries),
         );
+        this.#address = address;
 
         this.#lifetime = environment.join("interactions");
         Object.defineProperties(this.#lifetime.details, {
@@ -532,6 +535,22 @@ export class ClientInteraction<
         }
 
         return context;
+    }
+
+    get channelType() {
+        return this.#exchanges.channelType;
+    }
+
+    /** Calculates the current maximum response time for a message use in additional logic like timers. */
+    maximumPeerResponseTime(expectedProcessingTime?: Duration) {
+        return this.#exchanges.maximumPeerResponseTime(expectedProcessingTime);
+    }
+
+    get address() {
+        if (this.#address === undefined) {
+            throw new ImplementationError("This InteractionClient is not bound to a specific peer.");
+        }
+        return this.#address;
     }
 }
 

@@ -19,7 +19,6 @@ import {
     UdpInterface,
 } from "#general";
 import type { ServerNode } from "#node/ServerNode.js";
-import { InteractionClientProvider } from "#node/client/legacy/InteractionClient.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
 import {
     Advertiser,
@@ -303,10 +302,6 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         this.owner.env.get(ScannerSet).add(mdns.client);
 
         await env.load(PeerSet);
-
-        // TODO Remove when InteractionClient is no longer used for commissioning peers
-        //  (can then be moved to MatterController after start)
-        env.set(InteractionClientProvider, new InteractionClientProvider(owner));
 
         // Prevent new connections when aborted
         this.abortSignal.addEventListener("abort", () =>

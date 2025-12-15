@@ -41,10 +41,13 @@ import type { ClientNode } from "#node/ClientNode.js";
 import { IdentityService } from "#node/server/IdentityService.js";
 import {
     CommissioningMode,
+    ControllerCommissioner,
+    ControllerCommissioningFlow,
     DiscoveryData,
     Fabric,
     FabricAuthority,
     FabricManager,
+    LocatedNodeCommissioningOptions,
     PeerAddress,
     PeerSet,
     PeerAddress as ProtocolPeerAddress,
@@ -63,8 +66,6 @@ import {
 } from "#types";
 import { ControllerBehavior } from "../controller/ControllerBehavior.js";
 import { NetworkClient } from "../network/NetworkClient.js";
-import { ControllerCommissioner, LocatedNodeCommissioningOptions } from "./ControllerCommissioner.js";
-import { ControllerCommissioningFlow } from "./ControllerCommissioningFlow.js";
 import { RemoteDescriptor } from "./RemoteDescriptor.js";
 
 const logger = Logger.get("CommissioningClient");

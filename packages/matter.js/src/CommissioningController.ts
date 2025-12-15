@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InteractionClient } from "#cluster/client/InteractionClient.js";
 import { OperationalCredentials } from "#clusters";
 import {
     ClassExtends,
@@ -15,20 +16,16 @@ import {
     Minutes,
     UnexpectedDataError,
 } from "#general";
-import {
-    ControllerCommissioningFlow,
-    DiscoveryAndCommissioningOptions,
-    InteractionClient,
-    NetworkClient,
-    ServerNode,
-} from "#node";
+import { NetworkClient, ServerNode } from "#node";
 import {
     ActiveSessionInformation,
     Ble,
     CertificateAuthority,
     CommissionableDevice,
     CommissionableDeviceIdentifiers,
+    ControllerCommissioningFlow,
     ControllerDiscovery,
+    DiscoveryAndCommissioningOptions,
     DiscoveryData,
     Fabric,
     FabricGroups,

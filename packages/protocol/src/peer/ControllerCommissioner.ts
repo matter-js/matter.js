@@ -4,7 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ClientInteraction } from "#action/client/ClientInteraction.js";
+import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
 import { GeneralCommissioning } from "#clusters/general-commissioning";
+import { CommissionableDevice, CommissionableDeviceIdentifiers, DiscoveryData, ScannerSet } from "#common/Scanner.js";
+import { Fabric } from "#fabric/Fabric.js";
 import {
     Bytes,
     Channel,
@@ -24,35 +28,23 @@ import {
     Seconds,
     ServerAddress,
 } from "#general";
-import { InteractionClient, InteractionClientProvider } from "#node/client/legacy/InteractionClient.js";
-import {
-    CertificateAuthority,
-    ChannelStatusResponseError,
-    ClientInteraction,
-    CommissionableDevice,
-    CommissionableDeviceIdentifiers,
-    CommissioningError,
-    ControllerDiscovery,
-    DedicatedChannelExchangeProvider,
-    DiscoveryData,
-    ExchangeManager,
-    Fabric,
-    MdnsClient,
-    NodeDiscoveryType,
-    NodeSession,
-    PairRetransmissionLimitReachedError,
-    PaseClient,
-    PeerAddress,
-    PeerSet,
-    ScannerSet,
-    SessionManager,
-} from "#protocol";
-import { DiscoveryCapabilitiesBitmap, NodeId, SECURE_CHANNEL_PROTOCOL_ID, TypeFromPartialBitSchema } from "#types";
+import { MdnsClient } from "#mdns/MdnsClient.js";
+import { CommissioningError } from "#peer/CommissioningError.js";
 import {
     ControllerCommissioningFlow,
     ControllerCommissioningFlowOptions,
     NodeIdConflictError,
-} from "./ControllerCommissioningFlow.js";
+} from "#peer/ControllerCommissioningFlow.js";
+import { ControllerDiscovery, PairRetransmissionLimitReachedError } from "#peer/ControllerDiscovery.js";
+import { ExchangeManager } from "#protocol/ExchangeManager.js";
+import { DedicatedChannelExchangeProvider } from "#protocol/ExchangeProvider.js";
+import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
+import { NodeSession } from "#session/NodeSession.js";
+import { PaseClient } from "#session/pase/PaseClient.js";
+import { SessionManager } from "#session/SessionManager.js";
+import { DiscoveryCapabilitiesBitmap, NodeId, SECURE_CHANNEL_PROTOCOL_ID, TypeFromPartialBitSchema } from "#types";
+import { PeerAddress } from "./PeerAddress.js";
+import { NodeDiscoveryType, PeerSet } from "./PeerSet.js";
 
 const logger = Logger.get("PeerCommissioner");
 
@@ -136,7 +128,6 @@ export interface DiscoveryAndCommissioningOptions extends CommissioningOptions {
  */
 export interface ControllerCommissionerContext {
     peers: PeerSet;
-    clients: InteractionClientProvider;
     scanners: ScannerSet;
     transports: ConnectionlessTransportSet;
     sessions: SessionManager;
@@ -160,7 +151,6 @@ export class ControllerCommissioner {
     static [Environmental.create](env: Environment) {
         const instance = new ControllerCommissioner({
             peers: env.get(PeerSet),
-            clients: env.get(InteractionClientProvider),
             scanners: env.get(ScannerSet),
             transports: env.get(ConnectionlessTransportSet),
             sessions: env.get(SessionManager),
@@ -476,14 +466,11 @@ export class ControllerCommissioner {
         const exchangeProvider = new DedicatedChannelExchangeProvider(this.#context.exchanges, paseSession);
         const commissioningManager = new commissioningFlowImpl(
             // Use the created secure session to do the commissioning
-            new InteractionClient(
-                new ClientInteraction({
-                    environment: this.#context.environment,
-                    exchangeProvider,
-                }),
+            new ClientInteraction({
+                environment: this.#context.environment,
                 exchangeProvider,
                 address,
-            ),
+            }),
             this.#context.ca,
             fabric,
             commissioningOptions,
@@ -512,7 +499,12 @@ export class ControllerCommissioner {
                 }); // Wait maximum 120s to find the operational device for the commissioning process
 
                 // And we use a ClientInteraction backed Interaction client to finish the commissioning because
-                return await this.#context.clients.interactionClientFor(address);
+                const exchangeProvider = await this.#context.peers.exchangeProviderFor(address);
+                return new ClientInteraction({
+                    environment: this.#context.environment,
+                    exchangeProvider,
+                    address,
+                });
             },
         );
 
@@ -520,7 +512,7 @@ export class ControllerCommissioner {
             await commissioningManager.executeCommissioning();
         } catch (error) {
             // We might have added data for an operational address that we need to cleanup
-            await this.#context.clients.peers.get(address)?.delete();
+            await this.#context.peers.get(address)?.delete();
             throw error;
         } finally {
             /*
