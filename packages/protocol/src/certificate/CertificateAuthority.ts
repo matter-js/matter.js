@@ -146,12 +146,16 @@ export class CertificateAuthority {
     get config(): CertificateAuthority.Configuration {
         const config: CertificateAuthority.Configuration = {
             rootCertId: this.#rootCertId,
-            rootKeyPair: this.construction.assert("root key pair", this.#rootKeyPair).keyPair,
             rootKeyIdentifier: this.construction.assert("root key identifier", this.#rootKeyIdentifier),
             rootCertBytes: this.construction.assert("root cert bytes", this.#rootCertBytes),
             nextCertificateId: this.#nextCertificateId,
             intermediateCert: this.#intermediateCert,
         };
+
+        // rootKeyPair is optional when using ICAC
+        if (this.#rootKeyPair) {
+            config.rootKeyPair = this.#rootKeyPair.keyPair;
+        }
 
         if (this.#icacProps) {
             config.icacCertId = this.#icacProps.certId;
@@ -275,13 +279,23 @@ export class CertificateAuthority {
     }
 
     #isValidStoredRootCertificate(certValues: Record<string, unknown>): boolean {
-        return (
+        const hasBasicFields =
             (typeof certValues.rootCertId === "number" || typeof certValues.rootCertId === "bigint") &&
-            (Bytes.isBytes(certValues.rootKeyPair) || typeof certValues.rootKeyPair === "object") &&
             Bytes.isBytes(certValues.rootKeyIdentifier) &&
             Bytes.isBytes(certValues.rootCertBytes) &&
-            (typeof certValues.nextCertificateId === "number" || typeof certValues.nextCertificateId === "bigint")
-        );
+            (typeof certValues.nextCertificateId === "number" || typeof certValues.nextCertificateId === "bigint");
+
+        if (!hasBasicFields) {
+            return false;
+        }
+
+        // rootKeyPair is optional when ICAC is present (3-tier PKI without RCAC private key)
+        const hasRootKeyPair =
+            certValues.rootKeyPair === undefined ||
+            Bytes.isBytes(certValues.rootKeyPair) ||
+            typeof certValues.rootKeyPair === "object";
+
+        return hasRootKeyPair;
     }
 
     #isValidStoredIcacCertificate(certValues: Record<string, unknown>): boolean {
@@ -295,7 +309,10 @@ export class CertificateAuthority {
 
     #loadFromStorage(certValues: Record<string, unknown>): void {
         this.#rootCertId = BigInt(certValues.rootCertId as bigint | number);
-        this.#rootKeyPair = PrivateKey(certValues.rootKeyPair as BinaryKeyPair);
+        // rootKeyPair is optional when using ICAC (3-tier PKI without RCAC private key)
+        if (certValues.rootKeyPair !== undefined) {
+            this.#rootKeyPair = PrivateKey(certValues.rootKeyPair as BinaryKeyPair);
+        }
         this.#rootKeyIdentifier = certValues.rootKeyIdentifier as Bytes;
         this.#rootCertBytes = certValues.rootCertBytes as Bytes;
         this.#nextCertificateId = BigInt(certValues.nextCertificateId as bigint | number);
@@ -308,17 +325,28 @@ export class CertificateAuthority {
                 certBytes: certValues.icacCertBytes as Bytes,
             };
         }
+
+        // Validate: if no ICAC, rootKeyPair is required for signing NOCs
+        if (!this.#icacProps && !this.#rootKeyPair) {
+            throw new ImplementationError(
+                "rootKeyPair is required when not using ICAC (2-tier PKI requires RCAC private key to sign NOCs)",
+            );
+        }
     }
 
     #buildStorageData(): CertificateAuthority.StorageData {
         const data: CertificateAuthority.StorageData = {
             rootCertId: this.#rootCertId,
-            rootKeyPair: this.#initializedRootKeyPair.keyPair,
             rootKeyIdentifier: this.#initializedRootKeyIdentifier,
             rootCertBytes: this.#initializedRootCertBytes,
             nextCertificateId: this.#nextCertificateId,
             intermediateCert: this.#intermediateCert,
         };
+
+        // rootKeyPair is optional when using ICAC
+        if (this.#rootKeyPair) {
+            data.rootKeyPair = this.#rootKeyPair.keyPair;
+        }
 
         if (this.#icacProps) {
             data.icacCertId = this.#icacProps.certId;
@@ -370,9 +398,16 @@ export namespace CertificateAuthority {
         intermediateCert?: boolean;
     };
 
+    /**
+     * Configuration for CertificateAuthority with external certificates.
+     *
+     * When using ICAC (3-tier PKI), the rootKeyPair can be omitted since NOCs are signed
+     * by the ICAC, not the RCAC. This allows controllers to operate without access to
+     * the RCAC private key.
+     */
     export type Configuration = {
         rootCertId: bigint;
-        rootKeyPair: BinaryKeyPair;
+        rootKeyPair?: BinaryKeyPair; // Optional when using ICAC - only public key needed from rootCertBytes
         rootKeyIdentifier: Bytes;
         rootCertBytes: Bytes;
         nextCertificateId: bigint;
@@ -385,7 +420,7 @@ export namespace CertificateAuthority {
 
     export type StorageData = {
         rootCertId: bigint;
-        rootKeyPair: BinaryKeyPair;
+        rootKeyPair?: BinaryKeyPair; // Optional when using ICAC
         rootKeyIdentifier: Bytes;
         rootCertBytes: Bytes;
         nextCertificateId: bigint;
