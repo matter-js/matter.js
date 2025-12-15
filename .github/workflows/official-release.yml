@@ -133,7 +133,7 @@ jobs:
 
       - name: Create Pull Request
         id: cpr
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.PR_TOKEN }}
           commit-message: "[OFFICIAL RELEASE] ${{ steps.version.outputs.result }}"
