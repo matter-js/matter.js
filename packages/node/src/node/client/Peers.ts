@@ -64,7 +64,7 @@ export class Peers extends EndpointContainer<ClientNode> {
     #subscriptionHandler?: ClientSubscriptionHandler;
     #mutex = new Mutex(this);
     #closed = false;
-    #queue?: InteractionQueue;
+    #queue: InteractionQueue;
 
     constructor(owner: ServerNode) {
         super(owner);
@@ -74,6 +74,8 @@ export class Peers extends EndpointContainer<ClientNode> {
         }
 
         owner.env.applyTo(InteractionServer, this.#configureInteractionServer.bind(this));
+
+        this.#queue = this.owner.env.get(InteractionQueue); // Queue is Node wide
 
         this.added.on(this.#handlePeerAdded.bind(this));
         this.deleted.on(this.#manageExpiration.bind(this));
@@ -108,13 +110,6 @@ export class Peers extends EndpointContainer<ClientNode> {
                 }),
             );
         }
-    }
-
-    get queue() {
-        if (!this.#queue) {
-            this.#queue = this.owner.env.get(InteractionQueue);
-        }
-        return this.#queue;
     }
 
     async #nodeOnline() {

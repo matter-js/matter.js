@@ -6,7 +6,6 @@
 
 import type { ActionContext } from "#behavior/context/ActionContext.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
-import { ImplementationError, WorkSlot } from "#general";
 import type { ClientNode } from "#node/ClientNode.js";
 import { NodePhysicalProperties } from "#node/NodePhysicalProperties.js";
 import {
@@ -19,6 +18,7 @@ import {
     DecodedInvokeResult,
     Interactable,
     PhysicalDeviceProperties,
+    QueuedClientInteraction,
     ReadResult,
     Val,
     WriteResult,
@@ -46,25 +46,11 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
         }
     }
 
-    get #queue() {
-        const queue = this.#node.owner?.peers.queue;
-        if (queue === undefined) {
-            throw new ImplementationError(
-                "Client Node is not owned by any Server Node, cannot use queued interactions",
-            );
-        }
-        return queue;
-    }
-
-    #queued(request: { queued?: boolean }) {
-        return request.queued ?? !!this.physicalProperties?.threadConnected;
-    }
-
     get physicalProperties() {
         if (this.#physicalProps === undefined) {
             this.#physicalProps = NodePhysicalProperties(this.#node);
             this.structure.changed.on(() => {
-                // When structure changes physical properties may change, so clear cached value to recompute on next access
+                // When structure changes, physical properties may change, so clear cached value to recompute on the next access
                 this.#physicalProps = undefined;
             });
         }
@@ -80,8 +66,6 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
     async *read(request: ClientRead, context?: ActionContext): ReadResult {
         request = this.structure.injectVersionFilters(request);
         const interaction = await this.#connect();
-
-        using _slot = this.#queued(request) ? await this.#queue.obtainSlot() : undefined;
 
         const response = interaction.read(request, context);
         yield* this.structure.mutate(request, response);
@@ -125,7 +109,6 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
 
         const client = await this.#connect();
 
-        using _slot = this.#queued(request) ? await this.#queue.obtainSlot() : undefined;
         return client.subscribe(intermediateRequest, context);
     }
 
@@ -136,7 +119,6 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
     async write<T extends ClientWrite>(request: T, context?: ActionContext): WriteResult<T> {
         const client = await this.#connect();
 
-        using _slot = this.#queued(request) ? await this.#queue.obtainSlot() : undefined;
         return client.write(request, context);
     }
 
@@ -147,17 +129,19 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
     async *invoke(request: ClientInvoke, context?: ActionContext): DecodedInvokeResult {
         const client = await this.#connect();
 
-        using _slot = this.#queued(request) ? await this.#queue.obtainSlot() : undefined;
-
-        const result = client.invoke(request, context);
-        yield* result;
+        yield* client.invoke(request, context);
     }
 
     async #connect(): Promise<ClientInteraction> {
         if (!this.#node.lifecycle.isOnline) {
             await this.#node.start();
         }
-        return this.#node.env.get(ClientInteraction);
+        const props = this.physicalProperties;
+        // When we have a thread device, then we use the queue, or when we do not know anything
+        // (usually before the initial subscription)
+        return props.threadConnected || !props.rootEndpointServerList.length
+            ? this.#node.env.get(QueuedClientInteraction)
+            : this.#node.env.get(ClientInteraction);
     }
 
     get structure() {

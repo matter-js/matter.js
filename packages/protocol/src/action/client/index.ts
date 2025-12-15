@@ -8,5 +8,6 @@ export * from "./ClientInteraction.js";
 export * from "./ClientRead.js";
 export * from "./ClientWrite.js";
 export * from "./InputChunk.js";
+export * from "./QueuedClientInteraction.js";
 export * from "./ReadScope.js";
 export * from "./subscription/index.js";
