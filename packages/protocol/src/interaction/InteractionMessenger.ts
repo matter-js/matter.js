@@ -1055,7 +1055,7 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
                 !options?.multipleMessageInteraction
             ) {
                 // When retransmission failed (most likely due to a lost connection or invalid session),
-                // try to reconnect if possible and resend the message once
+                // try to reconnect if possible and resend the message one more time
                 logger.debug(
                     `${error instanceof RetransmissionLimitReachedError ? "Retransmission limit reached" : "Channel not connected"}, trying to reconnect and resend the message.`,
                 );

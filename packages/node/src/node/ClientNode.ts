@@ -114,7 +114,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
      * Remove this node from the fabric (if commissioned) and locally.
      * This method tries to communicate with the device to decommission it properly and will fail if the device is
      * unreachable.
-     * If you can not reach the device, use {@link delete} instead.
+     * If you cannot reach the device, use {@link delete} instead.
      */
     async decommission() {
         this.lifecycle.change(EndpointLifecycle.Change.Destroying);
@@ -130,7 +130,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     /**
      * Force-remove the node without first decommissioning.
      *
-     * If the node is still available you should use {@link decommission} to remove it properly from the fabric and only use
+     * If the node is still available, you should use {@link decommission} to remove it properly from the fabric and only use
      * this method as fallback.  You should also tell the user that he needs to manually factory-reset the device.
      */
     override async delete() {

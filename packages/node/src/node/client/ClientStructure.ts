@@ -237,7 +237,7 @@ export class ClientStructure {
         await this.#emitPendingEvents();
     }
 
-    /** Reference to the default subscription used when the node was started. */
+    /** Determines if the subscription is fabric filtered */
     protected get subscribedFabricFiltered(): boolean {
         if (this.#subscribedFabricFiltered === undefined) {
             const defaultSubscription =

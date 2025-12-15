@@ -188,9 +188,9 @@ export type CommissioningControllerNodeOptions = {
     readonly autoConnect?: boolean;
 
     /**
-     * Unless set to false all events and attributes are subscribed and value changes are reflected in the ClusterClient
+     * Unless set to false, all events and attributes are subscribed and value changes are reflected in the ClusterClient
      * instances. With this reading attributes values is mostly looked up in the locally cached data.
-     * Additionally more features like reaction on shutdown event or endpoint structure changes (for bridges) are done
+     * Additionally, more features like reaction on shutdown event or endpoint structure changes (for bridges) are done
      * internally automatically.
      */
     readonly autoSubscribe?: boolean;
@@ -204,7 +204,7 @@ export type CommissioningControllerNodeOptions = {
     /**
      * Maximum subscription interval when values are changed. This is also used as a keepalive mechanism to validate
      * that the device is still available. matter.js tries to set meaningful values based on the device type, connection
-     * type and other details. So ideally do not set this parameter unless you know it better.
+     * type, and other details. So ideally do not set this parameter unless you know it better.
      */
     readonly subscribeMaxIntervalCeilingSeconds?: number;
 
@@ -226,7 +226,7 @@ export type CommissioningControllerNodeOptions = {
      * Optional callback method which is called when the state of the node changes. This can be used to detect when
      * the node goes offline or comes back online.
      * @deprecated Please use the events.nodeStateChanged observable and the extra events for structureCHanged and
-     *  decomissioned instead.
+     *  decommissioned instead.
      */
     readonly stateInformationCallback?: (nodeId: NodeId, state: NodeStateInformation) => void;
 

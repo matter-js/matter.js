@@ -85,7 +85,7 @@ export class ClientInteraction<
     readonly #sustainRetries: RetrySchedule;
 
     constructor({ environment, abort, sustainRetries, exchangeProvider }: ClientInteractionContext) {
-        this.#environment = environment;
+        this.environment = environment;
         this.#exchanges = exchangeProvider ?? environment.get(ExchangeProvider);
         if (environment.has(ClientSubscriptions)) {
             this.#subscriptions = environment.get(ClientSubscriptions);
@@ -128,7 +128,7 @@ export class ClientInteraction<
 
     get subscriptions() {
         if (this.#subscriptions === undefined) {
-            this.#subscriptions = this.#environment.get(ClientSubscriptions);
+            this.#subscriptions = this.environment.get(ClientSubscriptions);
         }
         return this.#subscriptions;
     }
@@ -485,13 +485,14 @@ export class ClientInteraction<
         if (this.#abort.aborted) {
             throw new ImplementationError("Client interaction unavailable after close");
         }
-        this.#interactions.add(request);
 
         const checkAbort = Abort.checkerFor(session);
 
         const messenger = await InteractionClientMessenger.create(this.#exchanges);
 
-        // Provide via dynamically so is up-to-date if exchange changes due to retry
+        this.#interactions.add(request);
+
+        // Provide via dynamically so is up to date if exchange changes due to retry
         Object.defineProperty(lifetime.details, "via", {
             get() {
                 return messenger.exchange.via;

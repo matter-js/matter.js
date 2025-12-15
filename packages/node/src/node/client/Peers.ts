@@ -61,7 +61,7 @@ const EXPIRATION_INTERVAL = Minutes.one;
  */
 export class Peers extends EndpointContainer<ClientNode> {
     #expirationInterval?: CancelablePromise;
-    #subscriptionHandler?: ClientSubscriptionHandler;
+    #installedSubscriptionHandler?: ClientSubscriptionHandler;
     #mutex = new Mutex(this);
     #closed = false;
     #queue: InteractionQueue;
@@ -138,7 +138,7 @@ export class Peers extends EndpointContainer<ClientNode> {
     /**
      * Employ discovery to find a set of commissionable nodes, the options can be used to limit the discovered devices
      * (e.g. just a specific vendor).
-     * TODO: Allow to provide an array of options for multiple discoveries (e.g. from a Multi QR code).
+     * TODO: Allow to provide multiple identifiers for multiple discoveries (e.g. from a Multi QR code).
      *
      * If you do not provide a timeout value, will search until canceled, and you need to add a listener to
      * {@link Discovery#discovered} or {@link added} to receive discovered nodes.
@@ -233,8 +233,8 @@ export class Peers extends EndpointContainer<ClientNode> {
 
     override async close() {
         this.#closed = true;
-        this.#queue?.close();
-        await this.#subscriptionHandler?.close();
+        this.#queue.close();
+        await this.#installedSubscriptionHandler?.close();
         this.#cancelExpiration();
         await this.#mutex;
         await super.close();
@@ -258,15 +258,19 @@ export class Peers extends EndpointContainer<ClientNode> {
      * If required, installs a listener in the environment's {@link InteractionServer} to handle subscription responses.
      */
     #configureInteractionServer() {
-        if (this.#closed || this.#subscriptionHandler !== undefined || !this.owner.env.has(InteractionServer)) {
+        if (
+            this.#closed ||
+            this.#installedSubscriptionHandler !== undefined ||
+            !this.owner.env.has(InteractionServer)
+        ) {
             return;
         }
 
         const subscriptions = this.owner.env.get(ClientSubscriptions);
         const interactionServer = this.owner.env.get(InteractionServer);
 
-        this.#subscriptionHandler = new ClientSubscriptionHandler(subscriptions);
-        interactionServer.clientHandler = this.#subscriptionHandler;
+        this.#installedSubscriptionHandler = new ClientSubscriptionHandler(subscriptions);
+        interactionServer.clientHandler = this.#installedSubscriptionHandler;
     }
 
     /**

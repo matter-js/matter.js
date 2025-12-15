@@ -215,16 +215,17 @@ describe("ClientNode", () => {
 
         // *** INVOKE ***
 
-        const toggle = MockTime.resolve(ep1.commandsOf(OnOffClient).toggle());
+        // We detected tge device as offline, and so we get a failure on execution
+        await expect(MockTime.resolve(ep1.commandsOf(OnOffClient).toggle())).rejectedWith(TimeoutError);
 
         // Delay
         await MockTime.resolve(Time.sleep("waiting to start device", Seconds(5)));
 
-        // Bring device online
+        // Bring the device online again
         await MockTime.resolve(device.start());
 
         // Toggle should now complete
-        await MockTime.resolve(toggle);
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle());
     });
 
     it("resubscribes on timeout", async () => {
@@ -265,7 +266,7 @@ describe("ClientNode", () => {
         // Bring peer back online
         await MockTime.resolve(device.start());
 
-        // Wait for subscription to stablish
+        // Wait for subscription to establish
         await MockTime.resolve(subscription.active);
         crypto.entropic = false;
 
