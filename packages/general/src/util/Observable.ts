@@ -449,6 +449,30 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
         }
     }
 
+    detachObservers(): DetachedObservers<T, R> | undefined {
+        if (!this.#observers) {
+            return;
+        }
+
+        return {
+            observers: this.#observers,
+            once: this.#once,
+        };
+    }
+
+    attachObservers(detached: DetachedObservers<T, R>) {
+        if (!detached.observers) {
+            return;
+        }
+        for (const observer of detached.observers) {
+            if (this.#once?.has(observer)) {
+                this.once(observer);
+            } else {
+                this.on(observer);
+            }
+        }
+    }
+
     #addIterator() {
         if (this.#joinIteration) {
             return this.#joinIteration();
@@ -881,6 +905,14 @@ export class ObserverGroup {
         this.#observers.clear();
         this.#boundObservers.clear();
     }
+}
+
+/**
+ * {@link Observer}s detached from an {@link Observable}.
+ */
+export interface DetachedObservers<T extends any[] = any[], R = void> {
+    observers?: Set<Observer<T, R>>;
+    once?: Set<Observer<T, R>>;
 }
 
 export namespace ObserverGroup {
