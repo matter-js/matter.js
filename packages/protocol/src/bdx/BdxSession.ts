@@ -77,10 +77,13 @@ export class BdxSession {
         this.#config = new BdxSessionConfiguration(options);
 
         const exchange = messenger.exchange;
-        if (!exchange.channel.isReliable) {
-            throw new BdxError("Bdx Protocol requires a reliable channel for message exchange");
+        if (!exchange.session.isSecure) {
+            throw new BdxError("Bdx Protocol requires a secure session.");
         }
         exchange.closed.on(async () => {
+            if (this.#isClosed) {
+                return;
+            }
             logger.debug(`Closing BDX session for exchange ${exchange.id}`);
             await this.close();
         });
@@ -173,6 +176,11 @@ export class BdxSession {
 
     get closed() {
         return this.#closed;
+    }
+
+    get peerAddress() {
+        SecureSession.assert(this.#messenger.exchange.session);
+        return this.#messenger.exchange.session.peerAddress;
     }
 
     async close(error?: unknown) {
