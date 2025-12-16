@@ -509,8 +509,8 @@ function instrumentReplToMaintainPrompt(repl: AugmentedRepl) {
  * Inject our janky little line prefix that prevents node from processing "dot" commands.
  */
 function instrumentReplToAddLineProtector(repl: REPLServer) {
-    const realEmit = repl.emit as (...args: unknown[]) => boolean;
-    repl.emit = (event, ...args: any[]) => {
+    const realEmit = repl.emit as (event: string, ...args: unknown[]) => boolean;
+    repl.emit = (event: string, ...args: any[]) => {
         if (event === "line") {
             args[0] = `${LINE_PROTECTOR_CHAR}${args[0]}`;
         }
