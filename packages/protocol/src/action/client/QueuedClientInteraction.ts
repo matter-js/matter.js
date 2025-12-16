@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import {
+    ClientBdxOptions,
+    ClientBdxResponse,
     ClientInvoke,
     ClientSubscribe,
     ClientWrite,
@@ -87,5 +89,11 @@ export class QueuedClientInteraction<
         using _slot = await this.queue.obtainSlot();
 
         yield* super.invoke(request, session);
+    }
+
+    override async initBdx(request: ClientBdxOptions, session?: SessionT): Promise<ClientBdxResponse> {
+        const slot = await this.queue.obtainSlot();
+
+        return { ...(await super.initBdx(request, session)), slot };
     }
 }
