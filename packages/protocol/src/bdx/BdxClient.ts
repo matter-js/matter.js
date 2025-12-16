@@ -36,6 +36,14 @@ export class BdxClient {
         this.#session = bdxSession;
     }
 
+    get progressInfo() {
+        return this.#session.progressInfo;
+    }
+
+    get progressFinished() {
+        return this.#session.progressFinished;
+    }
+
     /** This is the main entry point to initiate and process the BDX transfer. */
     processTransfer() {
         return this.#session.processTransfer();

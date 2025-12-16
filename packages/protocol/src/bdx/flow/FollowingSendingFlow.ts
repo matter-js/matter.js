@@ -22,6 +22,8 @@ export class FollowingSendingFlow extends InboundFlow {
         } = await this.messenger.readBlock();
         this.validateCounter(blockCounter);
 
+        this.transferredBytes += data.byteLength;
+
         // Write the received data chunk into the writing stream
         if (this.writeDataChunk(writeController, data, messageType)) {
             this.finalBlockCounter = blockCounter;
