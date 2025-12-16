@@ -9,7 +9,7 @@ import { AdministratorCommissioningServer } from "#behaviors/administrator-commi
 import { BasicInformationServer } from "#behaviors/basic-information";
 import { AdministratorCommissioning } from "#clusters/administrator-commissioning";
 import { GeneralCommissioning } from "#clusters/general-commissioning";
-import { Bytes, Diagnostic, hex, Logger, MatterFlowError, MaybePromise, Seconds } from "#general";
+import { Diagnostic, hex, Logger, MatterFlowError, MaybePromise, Seconds } from "#general";
 import type { ServerNode } from "#node/ServerNode.js";
 import {
     assertRemoteActor,
@@ -257,7 +257,7 @@ export class GeneralCommissioningServer extends GeneralCommissioningBehavior {
         logger.info(
             "Commissioned",
             Diagnostic.dict({
-                fabric: `${Bytes.toHex(fabric.operationalId)} (#${fabric.fabricIndex})`,
+                fabric: `${hex.fixed(fabric.globalId, 16)} (#${fabric.fabricIndex})`,
                 node: hex.fixed(fabric.nodeId, 16),
             }),
         );

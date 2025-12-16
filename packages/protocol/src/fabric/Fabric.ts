@@ -31,7 +31,16 @@ import { FabricAccessControl } from "#interaction/FabricAccessControl.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { SecureSession } from "#session/SecureSession.js";
-import { CaseAuthenticatedTag, FabricId, FabricIndex, GroupId, NodeId, StatusResponse, VendorId } from "#types";
+import {
+    CaseAuthenticatedTag,
+    FabricId,
+    FabricIndex,
+    GlobalFabricId,
+    GroupId,
+    NodeId,
+    StatusResponse,
+    VendorId,
+} from "#types";
 
 const logger = Logger.get("Fabric");
 
@@ -54,7 +63,7 @@ export class Fabric {
     readonly fabricId: FabricId;
     readonly nodeId: NodeId;
     readonly rootNodeId: NodeId;
-    readonly operationalId: Bytes;
+    readonly globalId: GlobalFabricId;
     readonly rootPublicKey: Bytes;
     #rootVendorId: VendorId;
     readonly rootCert: Bytes;
@@ -84,7 +93,7 @@ export class Fabric {
         this.fabricId = config.fabricId;
         this.nodeId = config.nodeId;
         this.rootNodeId = config.rootNodeId;
-        this.operationalId = config.operationalId;
+        this.globalId = config.globalId;
         this.rootPublicKey = config.rootPublicKey;
         this.#rootVendorId = config.rootVendorId;
         this.rootCert = config.rootCert;
@@ -110,7 +119,7 @@ export class Fabric {
             fabricId: this.fabricId,
             nodeId: this.nodeId,
             rootNodeId: this.rootNodeId,
-            operationalId: this.operationalId,
+            globalId: this.globalId,
             rootPublicKey: this.rootPublicKey,
             keyPair: this.#keyPair.keyPair,
             rootVendorId: this.rootVendorId,
@@ -519,7 +528,7 @@ export class FabricBuilder {
         this.#fabricIndex = fabricIndex;
         const saltWriter = new DataWriter();
         saltWriter.writeUInt64(this.#fabricId);
-        const operationalId = await this.#crypto.createHkdfKey(
+        const globalId = await this.#crypto.createHkdfKey(
             Bytes.of(this.#rootPublicKey).slice(1),
             saltWriter.toByteArray(),
             COMPRESSED_FABRIC_ID_INFO,
@@ -531,7 +540,7 @@ export class FabricBuilder {
             fabricId: this.#fabricId,
             nodeId: this.#nodeId,
             rootNodeId: this.#rootNodeId,
-            operationalId: operationalId,
+            globalId: GlobalFabricId(globalId),
             rootPublicKey: this.#rootPublicKey,
             keyPair: this.#keyPair,
             rootVendorId: this.#rootVendorId,
@@ -539,7 +548,7 @@ export class FabricBuilder {
             identityProtectionKey: this.#identityProtectionKey, // Epoch Key
             operationalIdentityProtectionKey: await this.#crypto.createHkdfKey(
                 this.#identityProtectionKey,
-                operationalId,
+                globalId,
                 GROUP_SECURITY_INFO,
             ),
             intermediateCACert: this.#intermediateCACert,
@@ -557,7 +566,7 @@ export namespace Fabric {
         fabricId: FabricId;
         nodeId: NodeId;
         rootNodeId: NodeId;
-        operationalId: Bytes;
+        globalId: GlobalFabricId;
         rootPublicKey: Bytes;
         keyPair: BinaryKeyPair;
         rootVendorId: VendorId;
@@ -570,4 +579,9 @@ export namespace Fabric {
         operationalCert: Bytes;
         label: string;
     };
+
+    /**
+     * An object that may be used to identify a fabric.
+     */
+    export type Identifier = FabricIndex | GlobalFabricId | { fabricIndex: FabricIndex };
 }

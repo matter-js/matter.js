@@ -5,7 +5,7 @@
  */
 
 import { GroupId } from "#datatype/GroupId.js";
-import { Branded, Bytes, Crypto, DataWriter, hex, UnexpectedDataError } from "#general";
+import { Branded, Crypto, hex, UnexpectedDataError } from "#general";
 import { TlvUInt64 } from "../tlv/TlvNumber.js";
 import { TlvWrapper } from "../tlv/TlvWrapper.js";
 import { CaseAuthenticatedTag } from "./CaseAuthenticatedTag.js";
@@ -32,11 +32,9 @@ export namespace NodeId {
      */
     export const UNSPECIFIED_NODE_ID = NodeId(0);
 
-    export const toHexString = (nodeId: NodeId) => {
-        const writer = new DataWriter();
-        writer.writeUInt64(nodeId);
-        return Bytes.toHex(writer.toByteArray()).toUpperCase();
-    };
+    export function strOf(nodeId: NodeId) {
+        return hex.fixed(nodeId, 16);
+    }
 
     /**
      * An Operational Node ID is a 64-bit number that uniquely identifies an individual Node on a Fabric. All messages

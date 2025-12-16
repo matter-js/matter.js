@@ -394,7 +394,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
     override async removeFabric({ fabricIndex }: OperationalCredentials.RemoveFabricRequest) {
         assertRemoteActor(this.context);
 
-        const fabric = this.env.get(FabricManager).maybeForIndex(fabricIndex);
+        const fabric = this.env.get(FabricManager).maybeFor(fabricIndex);
 
         if (fabric === undefined) {
             return {
