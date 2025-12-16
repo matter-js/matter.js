@@ -31,6 +31,7 @@ import "./ModeBaseOverrides.js";
 import "./ModeSelectOverrides.js";
 import "./namespace.js";
 import "./OperationalCredentialsOverrides.js";
+import "./OtaSoftwareUpdateRequestor.js";
 import "./PumpConfigurationAndControlOverrides.js";
 import "./ScenesManagementOverrides.js";
 import "./ScenesOverrides.js";
