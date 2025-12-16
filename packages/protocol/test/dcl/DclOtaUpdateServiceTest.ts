@@ -5,7 +5,6 @@
  */
 
 import { DclOtaUpdateService, OtaUpdateError } from "#dcl/DclOtaUpdateService.js";
-import { OtaImageWriter } from "#dcl/OtaImageWriter.js";
 import {
     Crypto,
     DataWriter,
@@ -15,15 +14,17 @@ import {
     MockFetch,
     StorageBackendMemory,
     StorageService,
+    StreamingStandardCrypto,
 } from "#general";
+import { OtaImageWriter } from "#ota/OtaImageWriter.js";
 import { VendorId } from "#types";
-import { createOtaImage, createVersionMetadata, mockVersionsList, StreamingCrypto } from "./dcl-ota-test-helpers.js";
+import { createOtaImage, createVersionMetadata, mockVersionsList } from "./dcl-ota-test-helpers.js";
 
 describe("DclOtaUpdateService", () => {
     let fetchMock: MockFetch;
     let environment: Environment;
     let storage: StorageBackendMemory;
-    const crypto = new StreamingCrypto();
+    const crypto = new StreamingStandardCrypto();
 
     beforeEach(async () => {
         fetchMock = new MockFetch();
@@ -48,7 +49,12 @@ describe("DclOtaUpdateService", () => {
             fetchMock.install();
 
             const service = new DclOtaUpdateService(environment);
-            const update = await service.checkForUpdate(0xfff1, 0x8000, 2, true);
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 2,
+                isProduction: true,
+            });
 
             expect(update).to.not.be.undefined;
             expect(update?.softwareVersion).to.equal(3);
@@ -62,7 +68,12 @@ describe("DclOtaUpdateService", () => {
             fetchMock.install();
 
             const service = new DclOtaUpdateService(environment);
-            const update = await service.checkForUpdate(0xfff1, 0x8000, 3, true);
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 3,
+                isProduction: true,
+            });
 
             expect(update).to.be.undefined;
         });
@@ -74,7 +85,12 @@ describe("DclOtaUpdateService", () => {
             fetchMock.install();
 
             const service = new DclOtaUpdateService(environment);
-            const update = await service.checkForUpdate(0xfff1, 0x8000, 1, true);
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 1,
+                isProduction: true,
+            });
 
             expect(update).to.not.be.undefined;
             expect(update?.softwareVersion).to.equal(2);
@@ -87,7 +103,12 @@ describe("DclOtaUpdateService", () => {
             fetchMock.install();
 
             const service = new DclOtaUpdateService(environment);
-            const update = await service.checkForUpdate(0xfff1, 0x8000, 1, true);
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 1,
+                isProduction: true,
+            });
 
             expect(update).to.not.be.undefined;
             expect(update?.softwareVersion).to.equal(2);
@@ -100,7 +121,12 @@ describe("DclOtaUpdateService", () => {
             fetchMock.install();
 
             const service = new DclOtaUpdateService(environment);
-            const update = await service.checkForUpdate(0xfff1, 0x8000, 1, true);
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 1,
+                isProduction: true,
+            });
 
             expect(update).to.be.undefined;
         });
@@ -124,13 +150,23 @@ describe("DclOtaUpdateService", () => {
             const service = new DclOtaUpdateService(environment);
 
             // Current version 2 is within range [2, 2]
-            const update1 = await service.checkForUpdate(0xfff1, 0x8000, 2, true);
+            const update1 = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 2,
+                isProduction: true,
+            });
             expect(update1).to.not.be.undefined;
             expect(update1?.softwareVersion).to.equal(3);
 
             // Current version 1 is below range [2, 2] for v3, but version 2 is also not applicable (range [0, 0])
             fetchMock.clearCallLog();
-            const update2 = await service.checkForUpdate(0xfff1, 0x8000, 1, true);
+            const update2 = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 1,
+                isProduction: true,
+            });
             expect(update2).to.be.undefined;
         });
 
@@ -140,7 +176,14 @@ describe("DclOtaUpdateService", () => {
 
             const service = new DclOtaUpdateService(environment);
 
-            expect(await service.checkForUpdate(0xfff1, 0x8000, 1, true)).to.be.undefined;
+            expect(
+                await service.checkForUpdate({
+                    vendorId: 0xfff1,
+                    productId: 0x8000,
+                    currentSoftwareVersion: 1,
+                    isProduction: true,
+                }),
+            ).to.be.undefined;
         });
 
         it("uses test DCL when production is false", async () => {
@@ -153,7 +196,12 @@ describe("DclOtaUpdateService", () => {
             fetchMock.install();
 
             const service = new DclOtaUpdateService(environment);
-            const update = await service.checkForUpdate(0xfff1, 0x8000, 2, false); // test DCL (isProduction = false)
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 2,
+                isProduction: false,
+            });
 
             expect(update).to.not.be.undefined;
             const callLog = fetchMock.getCallLog();
@@ -166,7 +214,13 @@ describe("DclOtaUpdateService", () => {
             fetchMock.install();
 
             const service = new DclOtaUpdateService(environment);
-            const update = await service.checkForUpdate(0xfff1, 0x8000, 1, true, 2); // Current: 1, Target: 2
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 1,
+                isProduction: true,
+                targetSoftwareVersion: 2,
+            }); // Current: 1, Target: 2
 
             expect(update).to.not.be.undefined;
             expect(update?.softwareVersion).to.equal(2);
@@ -188,7 +242,13 @@ describe("DclOtaUpdateService", () => {
 
             const service = new DclOtaUpdateService(environment);
             // Current version 1 is outside the applicable range [2, 2]
-            const update = await service.checkForUpdate(0xfff1, 0x8000, 1, true, 3);
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 1,
+                isProduction: true,
+                targetSoftwareVersion: 3,
+            });
 
             expect(update).to.be.undefined;
         });
@@ -204,7 +264,12 @@ describe("DclOtaUpdateService", () => {
             fetchMock.install();
 
             const service = new DclOtaUpdateService(environment);
-            const update = await service.checkForUpdate(0xfff1, 0x8000, 2, true);
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 2,
+                isProduction: true,
+            });
 
             // Should return undefined because the URL is not HTTPS
             expect(update).to.be.undefined;
@@ -230,7 +295,12 @@ describe("DclOtaUpdateService", () => {
             fetchMock.install();
 
             const service = new DclOtaUpdateService(environment);
-            const update = await service.checkForUpdate(0xfff1, 0x8000, 1, true);
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 1,
+                isProduction: true,
+            });
 
             // Should return undefined because DCL URLs must be HTTPS
             expect(update).to.be.undefined;
@@ -266,7 +336,8 @@ describe("DclOtaUpdateService", () => {
 
             // Verify file was created
             expect(fileDesignator.exists()).to.be.true;
-            expect(fileDesignator.text).to.equal("fff1-8000-prod");
+            expect(fileDesignator.blobName).to.equal("fff1-8000-prod");
+            expect(fileDesignator.text).to.equal("ota/fff1-8000-prod");
 
             // Verify stored in storage with correct filename
             const stored = await fileDesignator.openBlob();
@@ -554,7 +625,12 @@ describe("DclOtaUpdateService", () => {
             const service = new DclOtaUpdateService(environment);
 
             // Check for update
-            const update = await service.checkForUpdate(0xfff1, 0x8000, 2, true);
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 2,
+                isProduction: true,
+            });
             expect(update).to.not.be.undefined;
             expect(update?.otaFileSize).to.equal(otaImage.byteLength);
 
@@ -562,7 +638,8 @@ describe("DclOtaUpdateService", () => {
             const fileDesignator = await service.downloadUpdate(update!, true);
 
             expect(fileDesignator.exists()).to.be.true;
-            expect(fileDesignator.text).to.equal("fff1-8000-prod");
+            expect(fileDesignator.blobName).to.equal("fff1-8000-prod");
+            expect(fileDesignator.text).to.equal("ota/fff1-8000-prod");
         });
     });
 
@@ -702,7 +779,7 @@ describe("DclOtaUpdateService", () => {
             const countBefore = (await service.find({})).length;
             expect(countBefore).to.equal(2);
 
-            await service.delete({ filename: "fff1-8000-prod" });
+            expect(await service.delete({ filename: "fff1-8000-prod" })).to.equal(1);
 
             const countAfter = (await service.find({})).length;
             expect(countAfter).to.equal(1);
@@ -815,7 +892,8 @@ describe("DclOtaUpdateService", () => {
 
             const fileDesignator = await service.fileDesignatorForUpdate("fff1-8000-prod");
             expect(fileDesignator).to.not.be.undefined;
-            expect(fileDesignator.text).to.equal("fff1-8000-prod");
+            expect(fileDesignator.blobName).to.equal("fff1-8000-prod");
+            expect(fileDesignator.text).to.equal("ota/fff1-8000-prod");
             expect(await fileDesignator.exists()).to.be.true;
         });
 

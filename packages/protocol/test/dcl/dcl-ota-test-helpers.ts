@@ -4,37 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { OtaImageWriter } from "#dcl/OtaImageWriter.js";
-import { Bytes, Crypto, HashAlgorithm, StandardCrypto } from "#general";
+import { Crypto } from "#general";
+import { OtaImageWriter } from "#ota/OtaImageWriter.js";
 import { DeviceSoftwareVersionModelDclSchema, VendorId } from "#types";
-
-/**
- * Crypto implementation that supports streaming by wrapping StandardCrypto.
- * Collects chunks from async iterators before computing the hash.
- */
-export class StreamingCrypto extends StandardCrypto {
-    override computeHash(data: Parameters<Crypto["computeHash"]>[0], algorithmId: HashAlgorithm) {
-        // If it's an async iterator, collect all chunks first
-        if (typeof data === "object" && data !== null && ("next" in data || Symbol.asyncIterator in data)) {
-            const chunks: Uint8Array[] = [];
-            const iterator: AsyncIterator<any> =
-                Symbol.asyncIterator in data ? (data as any)[Symbol.asyncIterator]() : (data as AsyncIterator<any>);
-
-            const collectAndHash = async () => {
-                while (true) {
-                    const result = await iterator.next();
-                    if (result.done) break;
-                    const chunk = result.value instanceof Uint8Array ? result.value : new Uint8Array(result.value);
-                    chunks.push(chunk);
-                }
-                const combined = Bytes.concat(...chunks);
-                return super.computeHash(combined, algorithmId);
-            };
-            return collectAndHash();
-        }
-        return super.computeHash(data, algorithmId);
-    }
-}
 
 /**
  * Helper to create a valid OTA image for testing.
