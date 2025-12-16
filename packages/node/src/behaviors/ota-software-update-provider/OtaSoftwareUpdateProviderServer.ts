@@ -69,7 +69,7 @@ export enum OtaSoftwareUpdateConsentState {
  * * `checkUpdateAvailable`: By default, the implementation uses the SoftwareUpdatemanager to check for available
  *     updates from the DCL or being available in the local OTA storage. If this needs to be more vendor-specific it
  *     can be implemented by overriding this method.
- * * `requestUserConsentForUpdate`: If the client is able to gaul user update consent via other means, then this can be
+ * * `requestUserConsentForUpdate`: If the client is able to gauther user update consent via other means, then this can be
  *     implemented by overriding this method. One example could be that users state "automatic update" for certain peers
  *     or device types (e.g., sensors and lights but not sockets). This method then can be used to get such automatic
  *     consents that will be then applied in a queue.

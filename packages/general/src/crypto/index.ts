@@ -13,5 +13,5 @@ export * from "./MockCrypto.js";
 export * from "./NodeJsStyleCrypto.js";
 export * from "./Spake2p.js";
 export * from "./StandardCrypto.js";
-export * from "./StreamingStandardCrypro.js";
+export * from "./StreamingStandardCrypto.js";
 export * from "./WebCrypto.js";

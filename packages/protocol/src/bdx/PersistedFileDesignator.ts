@@ -12,7 +12,7 @@ const logger = Logger.get("PersistedFileDesignator");
 
 /**
  * A FileDesignator that points to a persisted file in a given StorageContext.
- * If the file is supposed to be used for Bdx transfers where it could be requested ba a client and is not actively
+ * If the file is supposed to be used for Bdx transfers where it could be requested by a client and is not actively
  * sent or the location to store a received file, you need to pass a ScopedStorage to allow automatic target detection
  * for BDX.
  */
