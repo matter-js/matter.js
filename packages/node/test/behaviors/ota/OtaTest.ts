@@ -189,7 +189,7 @@ describe("Ota", () => {
                 targetSoftwareVersion: null,
             },
         ]);
-    });
+    }).timeout(10_000); // locally needs 1s, but CI might be slower
 
     // TODO Add more test cases for edge cases and error cases
 });

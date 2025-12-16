@@ -76,6 +76,7 @@ enum ScheduleReason {
     NoUpdateAvailable,
     Busy,
     Announced,
+    Commissioned,
 }
 
 class OtaDownloadError extends MatterError {
@@ -110,6 +111,30 @@ const schema = OtaSoftwareUpdateRequestorBehavior.schema.extend(
 
 /**
  * This is the default server implementation of {@link OtaSoftwareUpdateRequestorBehavior}.
+ *
+ * To use OTA updates for matter.js based devices, you need to implement "applying the update" yourself!
+ * The default implementation provides anything needed to check for updates and transfer new updates, according to the
+ * Matter specification, but applying the update is too specific to your use case and the environment where the device
+ * is used.
+ *
+ * The following custom state attributes are available to configure the behavior of the cluster:
+ * * `updateQueryInterval`: Interval to check for updates, default: 24h as defined in Matter specification
+ * * `transferProtocolsSupported`: List of Transfer protocols that are announced as supported. By default, we only
+ *     export BDX; we also support HTTPS (but basically no one else)
+ * * `canConsent`: Can the node request consent from the user for the update itself? Default is set to true, and the
+ *     controller needs to take care
+ * * `downloadLocation`: Option to provide a custom storage location (also backed by an own Storage solution) to store
+ *     the received update file in.  If not provided, a default location is used.
+ *
+ * For this the following extension points exist that needs to be implemented:
+ * * `requestUserConsent`: This method is needed to be implemented when you set `canConsent` to true and needs to
+ *     implement user consent gathering.
+ * * `applyUpdate`: The method is called with the new SoftwareVersion and the PersistedFileDescriptor where a downloaded
+ *     update is placed and needs to trigger the update process including shutdown and restart of the node and also
+ *     sending "bootReason" event after the update!
+ * * `validateUpdateFile`: This method in default implementation reads the received OTA file and validates header and
+ *     checksums and basic details. Override this method and use this.downloadLocation for access if any custom
+ *     validations are needed
  */
 export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestorBehavior {
     declare protected internal: OtaSoftwareUpdateRequestorServer.Internal;
@@ -140,8 +165,8 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
         this.reactTo(node.lifecycle.online, this.#online);
         this.reactTo(node.lifecycle.goingOffline, this.#goingOffline);
 
-        // TODO React on commissioningCompleted to schedule an update query 30s later if any providers were configured
-        //  during commissioning
+        // After commissioningComplete we should do an update query 30s later if anything was configured
+        this.reactTo(node.lifecycle.commissioned, this.#scheduleInitialQuery);
     }
 
     get downloadLocation(): PersistedFileDesignator {
@@ -191,6 +216,10 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
 
     #goingOffline() {
         this.internal.updateQueryTimer?.stop();
+    }
+
+    #scheduleInitialQuery() {
+        this.#scheduleUpdateQuery(Seconds(30), ScheduleReason.Commissioned);
     }
 
     async #handlePreviousUpdateOnStart({ newSoftwareVersion, location, updateToken }: UpdateInProgressDetails) {
