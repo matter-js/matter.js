@@ -16,7 +16,7 @@ import {
     Minutes,
     UnexpectedDataError,
 } from "#general";
-import { NetworkClient, ServerNode } from "#node";
+import { Endpoint, NetworkClient, ServerNode } from "#node";
 import {
     ActiveSessionInformation,
     Ble,
@@ -45,6 +45,7 @@ import {
     TypeFromPartialBitSchema,
     VendorId,
 } from "#types";
+import { OtaProviderEndpoint } from "@matter/node/endpoints";
 import { CommissioningControllerNodeOptions, NodeStates, PairedNode } from "./device/PairedNode.js";
 import { MatterController, PairedNodeDetails } from "./MatterController.js";
 
@@ -140,6 +141,12 @@ export type CommissioningControllerOptions = CommissioningControllerNodeOptions 
      * or stored certificate authority. If provided then rootFabricId, rootFabricIndex and rootFabricLabel are ignored.
      */
     readonly rootFabric?: Fabric;
+
+    /**
+     * Enable the OTA provider endpoint on the controller node. This enabled OTA management and allows connected nodes
+     * to download OTA updates.
+     */
+    readonly enableOtaProvider?: boolean;
 };
 
 /** Options needed to commission a new node */
@@ -191,6 +198,14 @@ export class CommissioningController {
         return this.#assertControllerIsStarted().node;
     }
 
+    /**
+     * Returns the OTA provider endpoint on the controller node, if enabled and controller node was started.
+     * Else throws an error.
+     */
+    get otaProvider(): Endpoint<OtaProviderEndpoint> {
+        return this.#assertControllerIsStarted().node.endpoints.for("ota-provider") as Endpoint<OtaProviderEndpoint>;
+    }
+
     get crypto() {
         return this.#crypto;
     }
@@ -235,6 +250,7 @@ export class CommissioningController {
             rootNodeId,
             rootCertificateAuthority,
             rootFabric,
+            enableOtaProvider,
         } = this.#options;
 
         // Initialize the Storage in a compatible way for the legacy API and new style for new API
@@ -255,6 +271,7 @@ export class CommissioningController {
             listeningAddressIpv6: this.#listeningAddressIpv6,
             localPort,
             environment: this.#environment,
+            enableOtaProvider,
         });
 
         if (!controller.ble) {
