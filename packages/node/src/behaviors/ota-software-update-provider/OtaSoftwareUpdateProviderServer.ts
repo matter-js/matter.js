@@ -61,7 +61,18 @@ export enum OtaSoftwareUpdateConsentState {
 /**
  * This is the default server implementation of {@link OtaSoftwareUpdateProviderBehavior}.
  *
- * This cluster usually exists within the Client and allows Servers to handle OTA software updates.
+ * This cluster is usually used within the Client and allows Servers to handle OTA software updates.
+ * For the state and detailed usage for Clients, please check the SoftwareUpdateManager behavior which provides
+ * configurability for this.
+ *
+ * For special use cases the cluster provides the following extension point methods:
+ * * `checkUpdateAvailable`: By default, the implementation uses the SoftwareUpdatemanager to check for available
+ *     updates from the DCL or being available in the local OTA storage. If this needs to be more vendor-specific it
+ *     can be implemented by overriding this method.
+ * * `requestUserConsentForUpdate`: If the client is able to gaul user update consent via other means, then this can be
+ *     implemented by overriding this method. One example could be that users state "automatic update" for certain peers
+ *     or device types (e.g., sensors and lights but not sockets). This method then can be used to get such automatic
+ *     consents that will be then applied in a queue.
  */
 export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBehavior {
     declare readonly internal: OtaSoftwareUpdateProviderServer.Internal;
@@ -71,11 +82,6 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
 
         this.agent.require(SoftwareUpdateManager);
         await this.agent.load(SoftwareUpdateManager);
-
-        // TODO: [10] Announce existence to all nodes in the network? AnnounceOTAProvider command.
-        //  Who does that?
-        // TODO Do this "at most" every 24h (SimpleAnnouncement/UpdateAvailable), OR when we haven an UrgentUpdateAvailable then earlier
-        // When announcing to multiple nodes min 1s pause between, and the daily start time should have a random jitter of + >= 60s
 
         // Verify and adjust ACL if needed
         const node = this.env.get(ServerNode);
@@ -187,7 +193,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
         this.#updateInProgressDetails(peerAddress, updateToken, OtaUpdateStatus.Querying, newSoftwareVersion);
 
         // If the requestor can consent, we send the update without asking for a consent
-        //  else we need to ask for a consent if required by the update details
+        //  else we need to ask for consent if required by the update details
         if (consentRequired && !request.requestorCanConsent) {
             const { consentState, delayTime = Seconds(120) } = await this.requestUserConsentForUpdate(
                 request,

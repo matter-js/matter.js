@@ -84,9 +84,18 @@ export enum OtaUpdateStatus {
 export interface SoftwareUpdateInfo extends Omit<DeviceSoftwareVersionModelDclSchema, "schemaVersion"> {}
 
 /**
- * Software Update Manager to handle the available update for all peers of a Node. It gets installed on the endpoint
- * where the OtaSoftwareUpdateProvider behavior is installed.
- * It uses the generic DclOtaUpdateService which exists globally.
+ * The Software Update Manager is the instance to bridge between the central OTA store and DCL service and mange the
+ * updates for all peers of a node. It gets installed on the endpoint where the OtaSoftwareUpdateProvider behavior is
+ * installed. It uses the generic DclOtaUpdateService, which exists globally, to request and get new updates.
+ *
+ * The following state allows configuring the behavior:
+ * * `startupConsents`: Use this to pre-initialize consent to allow nodes to update automatically. The value will not
+ *     be persisted, and change during runtime is only supported via `addUpdateConsent`.
+ * * `allowTestOtaImages`: When set to true, we also query the Test DCL additionally to the production DCL for update
+ *     and use this when a newer version is found. Default is false
+ * * `updateCheckInterval`: By default, we check the DCL for updates every 24h. This state value allows adjusting this.
+ * * `announceAsDefaultProvider`: By default, we announce ourselves as a default update provider to all nodes in the fabric.
+ *     Set to "false" if this is not wanted and updates are only pushed on availability
  */
 export class SoftwareUpdateManager extends Behavior {
     static override readonly id = "softwareupdates";
@@ -188,7 +197,7 @@ export class SoftwareUpdateManager extends Behavior {
         }
 
         const candidatesWithConsent: UpdateConsentEntry[] = candidates.map(candidate => {
-            const consent = this.state.consents
+            const consent = this.state.startupConsents
                 .filter(consent => consent.vendorId === candidate.vendorId && consent.productId === candidate.productId)
                 .filter(consent => consent.targetSoftwareVersion >= candidate.softwareVersion); // Consent for this or higher version applies
 
@@ -320,7 +329,7 @@ export class SoftwareUpdateManager extends Behavior {
 
         // Request consent or notify peers about the update if we have consent
         for (const { endpoint, peerAddress } of otaEndpoints) {
-            const hasConsent = this.state.consents.some(
+            const hasConsent = this.state.startupConsents.some(
                 consent =>
                     consent.vendorId === vendorId &&
                     consent.productId === productId &&
@@ -623,7 +632,7 @@ export class SoftwareUpdateManager extends Behavior {
         targetSoftwareVersion: number,
     ) {
         // Filter out all existing consents for this peer, they are replaced by the new one
-        const consents = this.state.consents.filter(
+        const consents = this.state.startupConsents.filter(
             consent =>
                 consent.peerAddress.fabricIndex !== peerAddress.fabricIndex &&
                 consent.peerAddress.nodeId !== peerAddress.nodeId,
@@ -646,7 +655,7 @@ export class SoftwareUpdateManager extends Behavior {
             targetSoftwareVersion,
             peerAddress,
         });
-        this.state.consents = consents;
+        this.state.startupConsents = consents;
 
         if (otaEndpoint === undefined) {
             logger.info(
@@ -705,7 +714,7 @@ export class SoftwareUpdateManager extends Behavior {
 export namespace SoftwareUpdateManager {
     export class State {
         /** Use this to pre-initialize consent to allow nodes to update automatically. The content will not be persisted! */
-        consents = new Array<UpdateConsent>();
+        startupConsents = new Array<UpdateConsent>();
 
         /** Set this to true to also allow updates from the Test DCL */
         allowTestOtaImages = false;
