@@ -371,6 +371,8 @@ export class ServerNetworkRuntime extends NetworkRuntime {
             using _lifetime = this.construction.join("peers");
             await env.close(PeerSet);
         }
+
+        env.delete(ScannerSet);
     }
 
     async #initializeGroupNetworking() {
