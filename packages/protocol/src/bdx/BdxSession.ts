@@ -16,7 +16,6 @@ import { DrivingReceivingFlow } from "./flow/DrivingReceivingFlow.js";
 import { Flow } from "./flow/Flow.js";
 import { FollowingReceivingFlow } from "./flow/FollowingReceivingFlow.js";
 import { FollowingSendingFlow } from "./flow/FollowingSendingFlow.js";
-import { PersistedFileDesignator } from "./PersistedFileDesignator.js";
 
 const logger = Logger.get("BdxSession");
 
@@ -52,13 +51,13 @@ export class BdxSession {
         return new BdxSession(messenger, { isSender: false, ...options });
     }
 
-    /** Initializes a BdxSession from an incoming *Init message. The message determines the direction of the transfer. */
-    static fromMessage(
-        storage: StorageContext,
-        messenger: BdxMessenger,
-        options: BdxSessionConfiguration.ReceiverOptions,
-    ): BdxSession {
-        const { initMessageType, initMessage } = options;
+    /**
+     * Initializes a BdxSession from an incoming *Init message. The message determines the direction of the transfer.
+     * The provided storages allow to map the file designator to a storage context depending on the path prefix in the
+     * file designator.
+     */
+    static fromMessage(messenger: BdxMessenger, options: BdxSessionConfiguration.ReceiverOptions): BdxSession {
+        const { initMessageType } = options;
         if (initMessageType !== BdxMessageType.SendInit && initMessageType !== BdxMessageType.ReceiveInit) {
             throw new BdxError(
                 `Invalid message type for BDX session initialization: ${BdxMessageType[initMessageType]} (${initMessageType})`,
@@ -66,11 +65,8 @@ export class BdxSession {
             );
         }
 
-        const { fileDesignator } = initMessage;
-
         return new BdxSession(messenger, {
             isSender: initMessageType === BdxMessageType.ReceiveInit,
-            fileDesignator: new PersistedFileDesignator(fileDesignator, storage),
             ...options,
         });
     }

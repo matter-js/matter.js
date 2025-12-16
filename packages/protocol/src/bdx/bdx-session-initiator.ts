@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { FileDesignator } from "#bdx/FileDesignator.js";
 import { ImplementationError, InternalError, Logger } from "#general";
 import { BdxStatusCode, TypeFromPartialBitSchema } from "#types";
 import { BdxError } from "./BdxError.js";
@@ -44,6 +45,14 @@ export async function bdxSessionInitiator(messenger: BdxMessenger, config: BdxSe
         throw new InternalError("Initial message must be set before starting from initial message");
     }
     logger.debug(`Initialize BDX ${config.isSender ? "ReceiveInit" : "SendInit"} from incoming Message`, initMessage);
+
+    const incomingFileDesignator = new FileDesignator(initMessage.fileDesignator);
+    if (incomingFileDesignator.text !== config.transferFileDesignator.text) {
+        throw new BdxError(
+            `File designator in Init message (${incomingFileDesignator.text}) does not match the configured transfer file designator (${config.transferFileDesignator.text})`,
+            BdxStatusCode.FileDesignatorUnknown,
+        );
+    }
 
     if (config.isSender) {
         // We are Sender and Responder
@@ -100,7 +109,7 @@ export async function bdxSessionInitiator(messenger: BdxMessenger, config: BdxSe
             preferredDriverModes,
             asynchronousTransferAllowed,
         } = config.transferConfig;
-        const { isSender, fileDesignator } = config;
+        const { isSender, fileDesignator, transferFileDesignator } = config;
 
         let startOffset: number | undefined;
         let maxLength: number | undefined;
@@ -153,7 +162,7 @@ export async function bdxSessionInitiator(messenger: BdxMessenger, config: BdxSe
                 asynchronousTransfer: asynchronousTransferAllowed, // always false for now
             },
             maxBlockSize,
-            fileDesignator: fileDesignator.bytes,
+            fileDesignator: transferFileDesignator.bytes,
             startOffset,
             maxLength,
         };
