@@ -26,7 +26,8 @@ import {
     Time,
     Timestamp,
 } from "#general";
-import { ServerNode } from "#node/ServerNode.js";
+import { Node } from "#node/Node.js";
+import type { ServerNode } from "#node/ServerNode.js";
 import {
     assertRemoteActor,
     BdxProtocol,
@@ -84,7 +85,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
         await this.agent.load(SoftwareUpdateManager);
 
         // Verify and adjust ACL if needed
-        const node = this.env.get(ServerNode);
+        const node = Node.forEndpoint(this.endpoint) as ServerNode;
         this.reactTo(node.lifecycle.online, this.#nodeOnline);
         if (node.lifecycle.isOnline) {
             await this.#nodeOnline();
@@ -108,7 +109,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
             return;
         }
 
-        const node = this.env.get(ServerNode);
+        const node = Node.forEndpoint(this.endpoint) as ServerNode;
         await node.act(agent => agent.load(AccessControlServer));
         if (node.behaviors.has(AccessControlServer)) {
             if (

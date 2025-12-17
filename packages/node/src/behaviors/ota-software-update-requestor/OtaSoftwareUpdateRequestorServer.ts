@@ -33,7 +33,7 @@ import { FieldElement } from "#model";
 import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
-import { ServerNode } from "#node/ServerNode.js";
+import type { ServerNode } from "#node/ServerNode.js";
 import {
     BdxClient,
     BdxError,
@@ -368,7 +368,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
         );
 
         const peerAddress = PeerAddress({ nodeId: providerNodeId, fabricIndex });
-        await this.env.get(ServerNode).peers.forAddress(peerAddress); // Initialize the client node and store address
+        await (Node.forEndpoint(this.endpoint) as ServerNode).peers.forAddress(peerAddress); // Initialize the client node and store address
 
         if (announcementReason !== OtaSoftwareUpdateRequestor.AnnouncementReason.SimpleAnnouncement) {
             // If Urgent or UpdateAvailable, we schedule an update query earlier as we would have done before
@@ -400,7 +400,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
         }
 
         const peerAddress = PeerAddress({ nodeId: providerNodeId, fabricIndex });
-        await this.env.get(ServerNode).peers.forAddress(peerAddress); // Initialize client node and store address
+        await (Node.forEndpoint(this.endpoint) as ServerNode).peers.forAddress(peerAddress); // Initialize client node and store address
     }
 
     /** Removes an OTA provider from the active and default list */
@@ -520,7 +520,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
 
         logger.debug(`Establish connection for OTA to ${peerAddress}`);
 
-        const node = await this.env.get(ServerNode).peers.forAddress(peerAddress);
+        const node = await (Node.forEndpoint(this.endpoint) as ServerNode).peers.forAddress(peerAddress);
         const ep = node.endpoints.require(endpoint);
         ep.behaviors.require(OtaSoftwareUpdateProviderClient);
 
@@ -1143,7 +1143,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
     }
 
     #basicInformationState() {
-        const rootEndpoint = this.env.get(ServerNode);
+        const rootEndpoint = Node.forEndpoint(this.endpoint) as ServerNode;
         if (!rootEndpoint.behaviors.has(BasicInformationBehavior)) {
             throw new InternalError("BasicInformationBehavior missing"); // Should never happen
         }

@@ -3,21 +3,17 @@
  * Copyright 2022-2025 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import {
-    ClientBdxOptions,
-    ClientBdxResponse,
-    ClientInvoke,
-    ClientSubscribe,
-    ClientWrite,
-    DecodedInvokeResult,
-    InteractionSession,
-    ReadResult,
-    SubscriptionResult,
-    WriteResult,
-} from "#action/index.js";
-import { InteractionQueue } from "#peer/index.js";
-import { ClientInteraction, ClientInteractionContext } from "./ClientInteraction.js";
+import { ClientBdxOptions, ClientBdxResponse } from "#action/client/ClientBdx.js";
+import { InteractionSession } from "#action/Interactable.js";
+import { ClientInvoke } from "#action/request/Invoke.js";
+import { DecodedInvokeResult } from "#action/response/InvokeResult.js";
+import { ReadResult } from "#action/response/ReadResult.js";
+import { WriteResult } from "#action/response/WriteResult.js";
+import { InteractionQueue } from "#peer/InteractionQueue.js";
+import { ClientInteraction, ClientInteractionContext, SubscriptionResult } from "./ClientInteraction.js";
 import { ClientRead } from "./ClientRead.js";
+import { ClientWrite } from "./ClientWrite.js";
+import { ClientSubscribe } from "./subscription/ClientSubscribe.js";
 
 export interface QueuedClientInteractionContext extends ClientInteractionContext {
     queue: InteractionQueue;

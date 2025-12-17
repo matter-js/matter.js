@@ -6,12 +6,15 @@
 
 import { SoftwareUpdateManager } from "#behavior/system/software-update/SoftwareUpdateManager.js";
 import { BasicInformationServer } from "#behaviors/basic-information";
-import { OtaSoftwareUpdateRequestorClient } from "#behaviors/ota-software-update-requestor";
+import {
+    OtaSoftwareUpdateRequestorClient,
+    OtaSoftwareUpdateRequestorServer,
+} from "#behaviors/ota-software-update-requestor";
 import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import { OtaRequestorEndpoint } from "#endpoints/ota-requestor";
 import { Bytes, Crypto, Entropy, Environment, MockCrypto, StreamingStandardCrypto } from "#general";
 import { ServerNode } from "#node/ServerNode.js";
-import { PeerAddress } from "#protocol";
+import { FabricAuthority, PeerAddress } from "#protocol";
 import { FabricIndex, VendorId } from "#types";
 import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters";
 import { MockSite } from "../../node/mock-site.js";
@@ -84,8 +87,19 @@ describe("Ota", () => {
             agent.get(SoftwareUpdateManager).state.allowTestOtaImages = true;
         });
 
+        const fabric = await otaProvider.act(agent => agent.env.get(FabricAuthority).fabrics[0]);
+
         expect(device.state.commissioning.commissioned).equals(true);
         expect(controller.peers.size).equals(1);
+
+        // Verify that the Provider was correctly identified and written to the device
+        expect(otaRequestor.stateOf(OtaSoftwareUpdateRequestorServer).defaultOtaProviders).deep.equals([
+            {
+                endpoint: otaProvider.number,
+                fabricIndex: fabric.fabricIndex,
+                providerNodeId: fabric.rootNodeId,
+            },
+        ]);
 
         // *** GENERATE AND STORE OTA IMAGE ***
 

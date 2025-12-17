@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { RequestContext } from "#action/index.js";
-import { BdxMessenger } from "#bdx/index.js";
+import { RequestContext } from "#action/client/ClientInteraction.js";
+import { BdxMessenger } from "#bdx/BdxMessenger.js";
 import { Duration, WorkSlot } from "#general";
 
 export interface ClientBdxOptions {

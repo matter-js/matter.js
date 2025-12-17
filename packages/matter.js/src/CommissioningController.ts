@@ -16,7 +16,7 @@ import {
     Minutes,
     UnexpectedDataError,
 } from "#general";
-import { Endpoint, NetworkClient, ServerNode } from "#node";
+import { Endpoint, NetworkClient, ServerNode, SoftwareUpdateManager } from "#node";
 import {
     ActiveSessionInformation,
     Ble,
@@ -308,6 +308,18 @@ export class CommissioningController {
         const controller = this.#assertControllerIsStarted();
 
         const { connectNodeAfterCommissioning = true, commissioningFlowImpl } = commissionOptions ?? {};
+
+        // IF OTA is enabled on the controller and no custom OTA provider location is provided, set it to the controller node
+        if (
+            this.#options.enableOtaProvider &&
+            nodeOptions.commissioning.otaUpdateProviderLocation === undefined &&
+            this.otaProvider.stateOf(SoftwareUpdateManager).announceAsDefaultProvider
+        ) {
+            nodeOptions.commissioning.otaUpdateProviderLocation = {
+                nodeId: this.fabric.rootNodeId,
+                endpoint: this.otaProvider.number,
+            };
+        }
 
         const nodeId = await controller.commission(nodeOptions, { commissioningFlowImpl });
 

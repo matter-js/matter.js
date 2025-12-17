@@ -31,7 +31,7 @@ import {
 } from "#general";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
-import { ServerNode } from "#node/ServerNode.js";
+import type { ServerNode } from "#node/ServerNode.js";
 import { DclOtaUpdateService, Fabric, FabricAuthority, FileDesignator, OtaUpdateError, PeerAddress } from "#protocol";
 import { DeviceSoftwareVersionModelDclSchema, VendorId } from "#types";
 import { CommissioningClient } from "../commissioning/CommissioningClient.js";
@@ -256,7 +256,7 @@ export class SoftwareUpdateManager extends Behavior {
      */
     async queryUpdates(options: { peerToCheck?: ClientNode; includeStoredUpdates?: boolean } = {}) {
         const { peerToCheck, includeStoredUpdates = false } = options;
-        const rootNode = this.env.get(ServerNode);
+        const rootNode = Node.forEndpoint(this.endpoint) as ServerNode;
 
         // Collect all client nodes and their versions, so we only need to check each version once
         const updateDetails = new Map<string, CollectedNodesUpdateInfo>();
@@ -638,8 +638,7 @@ export class SoftwareUpdateManager extends Behavior {
                 consent.peerAddress.nodeId !== peerAddress.nodeId,
         );
 
-        const rootNode = this.env.get(ServerNode);
-        const node = await rootNode.peers.forAddress(peerAddress);
+        const node = await (Node.forEndpoint(this.endpoint) as ServerNode).peers.forAddress(peerAddress);
         const {
             otaEndpoint,
             vendorId: nodeVendorId,
@@ -721,6 +720,9 @@ export namespace SoftwareUpdateManager {
 
         /** Default Update check Interval */
         updateCheckInterval = Hours(24);
+
+        /** Announce this controller as Update provider to all nodes */
+        announceAsDefaultProvider = true;
     }
 
     export class Internal {
@@ -735,6 +737,8 @@ export namespace SoftwareUpdateManager {
         updateQueue = new Array<UpdateQueueEntry>();
 
         updateQueueTimer?: Timer;
+
+        announcementTimer?: Timer;
 
         versionUpdateObservers = new ObserverGroup();
 
