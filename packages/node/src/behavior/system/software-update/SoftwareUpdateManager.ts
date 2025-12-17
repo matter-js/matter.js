@@ -3,10 +3,10 @@
  * Copyright 2022-2025 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+
 import { Behavior } from "#behavior/Behavior.js";
-import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
+import { OtaAnnouncements } from "#behavior/system/software-update/OtaAnnouncements.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
-import { OtaSoftwareUpdateRequestorClient } from "#behaviors/ota-software-update-requestor";
 import { OtaSoftwareUpdateProvider } from "#clusters/ota-software-update-provider";
 import { OtaSoftwareUpdateRequestor } from "#clusters/ota-software-update-requestor";
 import { Endpoint } from "#endpoint/Endpoint.js";
@@ -19,7 +19,6 @@ import {
     ImplementationError,
     InternalError,
     Logger,
-    MatterError,
     Millis,
     Minutes,
     Observable,
@@ -32,9 +31,8 @@ import {
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { DclOtaUpdateService, Fabric, FabricAuthority, FileDesignator, OtaUpdateError, PeerAddress } from "#protocol";
+import { DclOtaUpdateService, FabricAuthority, FileDesignator, OtaUpdateError, PeerAddress } from "#protocol";
 import { DeviceSoftwareVersionModelDclSchema, VendorId } from "#types";
-import { CommissioningClient } from "../commissioning/CommissioningClient.js";
 
 const logger = Logger.get("SoftwareUpdateManager");
 
@@ -111,26 +109,36 @@ export class SoftwareUpdateManager extends Behavior {
         const node = Node.forEndpoint(this.endpoint);
         this.reactTo(node.lifecycle.online, this.#nodeOnline);
         if (node.lifecycle.isOnline) {
-            this.#nodeOnline();
+            await this.#nodeOnline();
         }
     }
 
-    #nodeOnline() {
-        if (this.internal.ownFabric === undefined) {
-            const fabricAuthority = this.env.get(FabricAuthority);
-            const ownFabric = fabricAuthority.fabrics[0];
-            if (!ownFabric) {
-                // Can only happen if the SoftwareUpdateManager is used without any commissioned nodes
-                logger.info(`No owning fabric yet, cannot check for OTA updates. Wait for Fabric being added.`);
-                fabricAuthority.fabricAdded.once(() => this.#nodeOnline());
-                return;
-            }
-            this.internal.ownFabric = ownFabric;
+    async #nodeOnline() {
+        if (this.internal.announcements !== undefined) {
+            await this.internal.announcements.close();
+            this.internal.announcements = undefined;
+        }
+
+        const fabricAuthority = this.env.get(FabricAuthority);
+        const ownFabric = fabricAuthority.fabrics[0];
+        if (!ownFabric) {
+            // Can only happen if the SoftwareUpdateManager is used without any commissioned nodes
+            logger.info(`No commissioned peers yet, cannot check for OTA updates. Wait for Fabric being added.`);
+            fabricAuthority.fabricAdded.once(this.callback(this.#nodeOnline));
+            return;
+        }
+        if (this.state.announceAsDefaultProvider) {
+            this.internal.announcements = new OtaAnnouncements(
+                this.endpoint,
+                ownFabric,
+                this.state.announcementInterval,
+            );
         }
 
         // Randomly force the first update check 5-10 minutes after startup
-        const delay = Millis(Seconds(Math.floor(Math.random() * 5 * 60)) + Minutes(5));
+        const delay = Millis(Seconds(Math.floor(Math.random() * 300)) + Minutes(10));
         logger.info(`Scheduling first OTA update check in ${Duration.format(delay)}`);
+        this.internal.checkForUpdateTimer?.stop();
         this.internal.checkForUpdateTimer = Time.getTimer(
             "initializeUpdateCheck",
             delay,
@@ -265,7 +273,7 @@ export class SoftwareUpdateManager extends Behavior {
                 continue;
             }
 
-            const details = this.#peerApplicableForUpdate(peer);
+            const details = this.#preparePeerForUpdate(peer);
             if (details === undefined) {
                 continue;
             }
@@ -355,44 +363,19 @@ export class SoftwareUpdateManager extends Behavior {
         return [...otaEndpoints.values()].map(({ peerAddress }) => peerAddress);
     }
 
-    /** Searches all endpoints of a peer for the OtaSoftwareUpdateRequestor cluster and returns it if found */
-    #findOtaRequestorEndpointOn(peer: ClientNode): Endpoint | undefined {
-        for (const ep of peer.endpoints) {
-            if (ep.behaviors.has(OtaSoftwareUpdateRequestorClient)) {
-                return ep;
-            }
-        }
-    }
-
     /**
      * Determine if we can request an update for the given node and return node meta-data needed for the process.
      * The Node needs to be commissioned (have a peer address), being not disabled, and having an active subscription
      * (to not work with outdated data).
      * When a node is applicable for updates, it also subscribes to softwareVersion changes to be able to react
      */
-    #peerApplicableForUpdate(peer: ClientNode) {
-        if (peer.isGroup || !peer.behaviors.has(BasicInformationClient)) {
+    #preparePeerForUpdate(peer: ClientNode) {
+        const otaData = this.internal.announcements?.peerApplicableForUpdate(peer);
+        if (otaData === undefined) {
             // We need more information on the node to request an update
             return;
         }
-        const peerAddress = peer.stateOf(CommissioningClient).peerAddress;
-        if (
-            !peer.behaviors.has(NetworkClient) ||
-            peerAddress === undefined ||
-            peer.stateOf(NetworkClient).isDisabled ||
-            peer.behaviors.internalsOf(NetworkClient).activeSubscription === undefined
-        ) {
-            // Node is disabled or not connected via an active subscription
-            logger.debug(`Node`, (peerAddress ?? peer.id).toString(), ` is currently not applicable for OTA updates`);
-            return;
-        }
-
-        const otaEndpoint = this.#findOtaRequestorEndpointOn(peer);
-        if (otaEndpoint === undefined) {
-            // Node has no OtaSoftwareUpdateRequestor cluster, so we cannot notify it about updates
-            logger.debug(`Node`, (peerAddress ?? peer.id).toString(), ` does not support OTA updates`);
-            return;
-        }
+        const { peerAddress, otaEndpoint } = otaData;
 
         const { vendorId, productId, softwareVersion, softwareVersionString } = peer.stateOf(BasicInformationClient);
 
@@ -444,31 +427,6 @@ export class SoftwareUpdateManager extends Behavior {
         this.internal.updateQueue.splice(entryIndex, 1);
 
         this.#triggerQueuedUpdate();
-    }
-
-    /** Announce ourselves as OTA Provider to the given node's endpoint */
-    async #announceOtaProviderToNode(
-        ownFabric: Fabric,
-        endpoint: Endpoint,
-        peerAddress: PeerAddress,
-        announcementReason = OtaSoftwareUpdateRequestor.AnnouncementReason.SimpleAnnouncement,
-    ) {
-        try {
-            // Find the endpoint with Requestor behavior
-            await endpoint.commandsOf(OtaSoftwareUpdateRequestorClient).announceOtaProvider({
-                providerNodeId: ownFabric.rootNodeId,
-                vendorId: ownFabric.rootVendorId,
-                fabricIndex: ownFabric.fabricIndex,
-                announcementReason,
-                endpoint: this.endpoint.number,
-            });
-        } catch (error) {
-            MatterError.accept(error);
-            logger.error(
-                `Failed to notify node ${peerAddress.toString()}/ep${endpoint.number} about available OTA update:`,
-                error,
-            );
-        }
     }
 
     /**
@@ -553,8 +511,8 @@ export class SoftwareUpdateManager extends Behavior {
      * The node usually calls queryImage as a result of this when it processes the announcement.
      */
     async #triggerUpdateOnNode(entry: UpdateQueueEntry) {
-        if (this.internal.ownFabric == undefined) {
-            logger.info(`No owning fabric, cannot announce OTA provider`);
+        if (this.internal.announcements == undefined) {
+            logger.info(`Not yet initialized with peers, can not trigger update on node`, entry.peerAddress);
             return;
         }
 
@@ -563,8 +521,7 @@ export class SoftwareUpdateManager extends Behavior {
 
         try {
             logger.info(`Announcing OTA provider to node ${peerAddress.toString()}`);
-            await this.#announceOtaProviderToNode(
-                this.internal.ownFabric,
+            await this.internal.announcements.announceOtaProvider(
                 endpoint,
                 peerAddress,
                 OtaSoftwareUpdateRequestor.AnnouncementReason.UpdateAvailable,
@@ -643,7 +600,7 @@ export class SoftwareUpdateManager extends Behavior {
             otaEndpoint,
             vendorId: nodeVendorId,
             productId: nodeProductId,
-        } = this.#peerApplicableForUpdate(node) ?? {};
+        } = this.#preparePeerForUpdate(node) ?? {};
         if (otaEndpoint !== undefined && (nodeVendorId !== vendorId || nodeProductId !== productId)) {
             throw new ImplementationError(`Node at ${peerAddress.toString()} does not match given vendorId/productId`);
         }
@@ -704,6 +661,7 @@ export class SoftwareUpdateManager extends Behavior {
     override async [Symbol.asyncDispose]() {
         this.internal.checkForUpdateTimer?.stop();
         this.internal.updateQueueTimer?.stop();
+        this.internal.announcements?.close();
         this.internal.services?.close(DclOtaUpdateService);
         this.internal.versionUpdateObservers.close();
         await super[Symbol.asyncDispose]?.();
@@ -723,6 +681,9 @@ export namespace SoftwareUpdateManager {
 
         /** Announce this controller as Update provider to all nodes */
         announceAsDefaultProvider = true;
+
+        /** Interval to Announces this controller as Update provider. Must not be lower than 24h! */
+        announcementInterval = Hours(24);
     }
 
     export class Internal {
@@ -730,15 +691,13 @@ export namespace SoftwareUpdateManager {
 
         otaService!: DclOtaUpdateService;
 
-        ownFabric?: Fabric;
-
         checkForUpdateTimer!: Timer;
 
         updateQueue = new Array<UpdateQueueEntry>();
 
         updateQueueTimer?: Timer;
 
-        announcementTimer?: Timer;
+        announcements?: OtaAnnouncements;
 
         versionUpdateObservers = new ObserverGroup();
 
