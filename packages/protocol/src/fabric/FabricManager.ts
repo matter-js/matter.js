@@ -64,7 +64,7 @@ export class FabricManager {
 
                 const fabrics = await this.#storage.get<Fabric.Config[]>("fabrics", []);
                 for (const fabricConfig of fabrics) {
-                    this.#addNewFabric(new Fabric(crypto, fabricConfig));
+                    this.#addNewFabric(await Fabric.create(crypto, fabricConfig));
                 }
 
                 this.#nextFabricIndex = await this.#storage.get("nextFabricIndex", this.#nextFabricIndex);

@@ -130,6 +130,15 @@ export namespace Bytes {
         return new TextEncoder().encode(string);
     }
 
+    export function fromBigInt(value: bigint) {
+        // Quick & dirty for now
+        let hex = value.toString(16);
+        if (hex.length % 2) {
+            hex = `0${hex}`;
+        }
+        return Bytes.fromHex(hex);
+    }
+
     export function toString(bytes: string | Bytes): string {
         if (!Bytes.isBytes(bytes)) {
             return bytes;

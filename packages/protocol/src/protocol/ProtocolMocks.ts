@@ -47,7 +47,7 @@ export namespace ProtocolMocks {
      * A fabric that will fill any fields not provided with placeholder values.
      */
     export class Fabric extends RealFabric {
-        constructor(config?: Partial<RealFabric.Config>, crypto?: Crypto) {
+        constructor(config?: Partial<RealFabric.SyncConfig>, crypto?: Crypto) {
             if (!crypto) {
                 crypto = Environment.default.maybeGet(Crypto);
                 if (!(crypto instanceof MockCrypto)) {
@@ -69,7 +69,7 @@ export namespace ProtocolMocks {
     }
 
     export namespace Fabric {
-        export const defaults: RealFabric.Config = {
+        export const defaults: RealFabric.SyncConfig = {
             fabricId: FabricId(0x2906c908d115d362n),
             fabricIndex: FabricIndex(1),
             identityProtectionKey: Bytes.empty,

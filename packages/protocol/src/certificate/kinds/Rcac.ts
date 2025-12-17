@@ -18,6 +18,10 @@ export class Rcac extends OperationalBase<OperationalCertificate.Rcac> {
         return new Rcac(OperationalCertificate.TlvRcac.decode(tlv));
     }
 
+    static publicKeyOfTlv(tlv: Bytes): Bytes {
+        return Rcac.fromTlv(tlv).cert.ellipticCurvePublicKey;
+    }
+
     /** Construct the class from an ASN.1/DER encoded certificate */
     static fromAsn1(asn1: Bytes): Rcac {
         const cert = Certificate.parseAsn1Certificate(asn1);

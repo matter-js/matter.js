@@ -476,7 +476,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
             attChallenge: this.context.session.attestationChallengeKey,
             clientChallenge,
             fabricIndex,
-            fabric: fabric.config,
+            fabric,
         });
 
         return {

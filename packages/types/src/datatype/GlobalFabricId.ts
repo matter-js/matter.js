@@ -4,8 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Branded, Bytes, hex } from "#general";
+import type { Crypto } from "#general";
+import { Branded, Bytes, DataWriter, hex } from "#general";
 import type { FabricId } from "./FabricId.js";
+
+const COMPRESSED_FABRIC_ID_INFO = Bytes.fromString("CompressedFabric");
 
 /**
  * An ID that identifies a fabric globally.
@@ -28,5 +31,18 @@ export function GlobalFabricId(value: Parameters<typeof BigInt>[0] | Bytes): Glo
 export namespace GlobalFabricId {
     export function strOf(id: GlobalFabricId) {
         return hex.fixed(id, 16);
+    }
+
+    export async function compute(crypto: Crypto, id: FabricId, caKey: Bytes) {
+        const saltWriter = new DataWriter();
+        saltWriter.writeUInt64(id);
+        return GlobalFabricId(
+            await crypto.createHkdfKey(
+                Bytes.of(caKey).slice(1),
+                saltWriter.toByteArray(),
+                COMPRESSED_FABRIC_ID_INFO,
+                8,
+            ),
+        );
     }
 }
