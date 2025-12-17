@@ -383,7 +383,7 @@ export class SoftwareUpdateManager extends Behavior {
 
         const that = this;
         function triggerVersionChange(newVersion: number) {
-            that.#onSoftwareVersionChanged(peerAddress!, newVersion);
+            that.#onSoftwareVersionChanged(peerAddress, newVersion);
         }
 
         // Node is applicable for update checks, register listener on softwareVersion to allow resetting update state
@@ -661,7 +661,7 @@ export class SoftwareUpdateManager extends Behavior {
     override async [Symbol.asyncDispose]() {
         this.internal.checkForUpdateTimer?.stop();
         this.internal.updateQueueTimer?.stop();
-        this.internal.announcements?.close();
+        await this.internal.announcements?.close();
         this.internal.services?.close(DclOtaUpdateService);
         this.internal.versionUpdateObservers.close();
         await super[Symbol.asyncDispose]?.();
