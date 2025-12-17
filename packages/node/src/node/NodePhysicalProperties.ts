@@ -10,7 +10,7 @@ import { PowerSourceClient } from "#behaviors/power-source";
 import { ThreadNetworkDiagnosticsClient } from "#behaviors/thread-network-diagnostics";
 import { PowerSource } from "#clusters/power-source";
 import { ThreadNetworkDiagnostics } from "#clusters/thread-network-diagnostics";
-import { Endpoint } from "#endpoint/index.js";
+import { Endpoint } from "#endpoint/Endpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { IcdManagement } from "#model";
 import { Node } from "#node/Node.js";

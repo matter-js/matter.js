@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { LocalActorContext } from "#behavior/context/index.js";
+import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import type { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import { asJson, Bytes } from "#general";
 import { DataModelPath } from "#model";
