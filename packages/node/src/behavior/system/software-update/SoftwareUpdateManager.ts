@@ -32,7 +32,7 @@ import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import { DclOtaUpdateService, FabricAuthority, FileDesignator, OtaUpdateError, PeerAddress } from "#protocol";
-import { DeviceSoftwareVersionModelDclSchema, VendorId } from "#types";
+import { VendorId } from "#types";
 
 const logger = Logger.get("SoftwareUpdateManager");
 
@@ -79,7 +79,25 @@ export enum OtaUpdateStatus {
     Done,
 }
 
-export interface SoftwareUpdateInfo extends Omit<DeviceSoftwareVersionModelDclSchema, "schemaVersion"> {}
+export interface SoftwareUpdateInfo {
+    /** VendorId of the updated device */
+    vendorId: VendorId;
+
+    /** ProductId of the updated device */
+    productId: number;
+
+    /** Software version of the updated device */
+    softwareVersion: number;
+
+    /** Software Version String of the updated device */
+    softwareVersionString: string;
+
+    /** ReleaseNotesUrl for the update */
+    releaseNotesUrl?: string;
+
+    /** SpecificationVersion of the updated device */
+    specificationVersion?: number;
+}
 
 /**
  * The Software Update Manager is the instance to bridge between the central OTA store and DCL service and mange the
@@ -356,7 +374,16 @@ export class SoftwareUpdateManager extends Behavior {
                 });
             } else {
                 // Inform the application that an update is available and we need consent
-                this.requestConsentForUpdate(peerAddress, updateDetails);
+                const { vid, pid, softwareVersion, softwareVersionString, releaseNotesUrl, specificationVersion } =
+                    updateDetails;
+                this.requestConsentForUpdate(peerAddress, {
+                    vendorId: vid,
+                    productId: pid,
+                    softwareVersion,
+                    softwareVersionString,
+                    releaseNotesUrl,
+                    specificationVersion,
+                });
             }
         }
 
@@ -432,7 +459,7 @@ export class SoftwareUpdateManager extends Behavior {
     /**
      * Notify the application that consent is needed for the given update on the given peer
      */
-    protected requestConsentForUpdate(peerAddress: PeerAddress, updateDetails: DeviceSoftwareVersionModelDclSchema) {
+    protected requestConsentForUpdate(peerAddress: PeerAddress, updateDetails: SoftwareUpdateInfo) {
         this.internal.knownUpdates.set(peerAddress.toString(), updateDetails);
         this.events.updateAvailable.emit(peerAddress, updateDetails);
     }
