@@ -9,7 +9,7 @@ import { Bytes } from "#general";
 import { ServerNode } from "#node/index.js";
 import { MockSite } from "../../node/mock-site.js";
 
-describe("GGroupKeyManagement", () => {
+describe("GroupKeyManagementServer", () => {
     before(() => {
         MockTime.init();
 
@@ -17,7 +17,7 @@ describe("GGroupKeyManagement", () => {
         MockTime.macrotasks = true;
     });
 
-    it("tries to add too manc group keys", async () => {
+    it("tries to add too many group keys", async () => {
         await using site = new MockSite();
         // Device is automatically configured with vendorId 0xfff1 and productId 0x8000
         const { controller } = await site.addCommissionedPair({
