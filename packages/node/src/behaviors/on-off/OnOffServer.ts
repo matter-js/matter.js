@@ -219,7 +219,7 @@ export class OnOffBaseServer extends OnOffLogicBase {
             this.state.onOff = onOff;
         } else {
             this.internal.applyScenePendingOnOff = onOff;
-            this.internal.applySceneDelayTimer = Time.getPeriodicTimer(
+            this.internal.applySceneDelayTimer = Time.getTimer(
                 "delayed scene apply",
                 Millis(transitionTime),
                 this.callback(this.#applyDelayedSceneOnOffValue),

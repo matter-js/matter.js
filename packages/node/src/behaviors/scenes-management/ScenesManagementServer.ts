@@ -474,7 +474,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
 
         // Recall the scene by setting all attributes to the stored values and marking it active
         const scene = this.state.sceneTable[existingSceneIndex];
-        await this.#applySceneAttributeValues(scene.sceneValues, transitionTime);
+        await this.#applySceneAttributeValues(scene.sceneValues, transitionTime ?? scene.sceneTransitionTime);
         this.#activateSceneInFabricSceneInfo(fabricIndex, groupId, sceneId);
     }
 
