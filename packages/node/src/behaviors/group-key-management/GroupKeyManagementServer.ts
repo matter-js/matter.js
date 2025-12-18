@@ -66,7 +66,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
     async #online() {
         // Validate the maximum supported group keys and groups per fabric if they are set to minimum values.
         if (this.state.maxGroupKeysPerFabric === 1 && this.state.maxGroupsPerFabric === 0) {
-            // We assume unchanged defaults
+            // We assume these are the specification defaults: maxGroupKeysPerFabric = 1, maxGroupsPerFabric = 0
             let groupsFound = false;
             this.endpoint.visit(endpoint => {
                 if (!groupsFound && "groups" in endpoint.behaviors.supported) {
