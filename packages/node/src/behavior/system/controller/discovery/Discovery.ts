@@ -13,7 +13,7 @@ import { ControllerBehavior } from "../ControllerBehavior.js";
 import { ActiveDiscoveries } from "./ActiveDiscoveries.js";
 import { DiscoveryAggregateError } from "./DiscoveryError.js";
 
-const logger = Logger.get("Logger");
+const logger = Logger.get("Discovery");
 
 /**
  * Discovery of commissionable devices.

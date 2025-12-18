@@ -29,7 +29,7 @@ import { ClusterId, EventId, Priority } from "#types";
 import type { Behavior } from "./Behavior.js";
 import { NodeActivity } from "./context/NodeActivity.js";
 
-const logger = Logger.get("Logger");
+const logger = Logger.get("Events");
 
 /**
  * Events emitted by a {@link Behavior}.
