@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ActionContext } from "#behavior/index.js";
+import type { ActionContext } from "#behavior/context/ActionContext.js";
 import { ImplementationError } from "#general";
 import {
     ClientInvoke,

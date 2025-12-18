@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AsyncObservable, ClassExtends, Diagnostic, Logger, StorageContext } from "#general";
+import { AsyncObservable, ClassExtends, Diagnostic, Logger, Observable } from "#general";
+import { SecureSession } from "#session/SecureSession.js";
 import { BdxMessageType, BdxStatusCode } from "#types";
 import { bdxSessionInitiator } from "./bdx-session-initiator.js";
 import { BdxError } from "./BdxError.js";
@@ -15,7 +16,6 @@ import { DrivingReceivingFlow } from "./flow/DrivingReceivingFlow.js";
 import { Flow } from "./flow/Flow.js";
 import { FollowingReceivingFlow } from "./flow/FollowingReceivingFlow.js";
 import { FollowingSendingFlow } from "./flow/FollowingSendingFlow.js";
-import { PersistedFileDesignator } from "./PersistedFileDesignator.js";
 
 const logger = Logger.get("BdxSession");
 
@@ -36,10 +36,10 @@ export class BdxSession {
     #started = false;
     #closed = AsyncObservable();
     #isClosed = false;
-
     #config: BdxSessionConfiguration;
-
     #transferFlow?: Flow;
+    #progressInfo = Observable<[bytesTransferred: number, totalBytesLength: number | undefined]>();
+    #progressFinished = Observable<[totalBytesTransferred: number]>();
 
     /** Initializes a BdxSession as a sender, means that we upload data to the peer. */
     static asSender(messenger: BdxMessenger, options: BdxSessionConfiguration.SenderInitiatorOptions): BdxSession {
@@ -51,13 +51,13 @@ export class BdxSession {
         return new BdxSession(messenger, { isSender: false, ...options });
     }
 
-    /** Initializes a BdxSession from an incoming *Init message. The message determines the direction of the transfer. */
-    static fromMessage(
-        storage: StorageContext,
-        messenger: BdxMessenger,
-        options: BdxSessionConfiguration.ReceiverOptions,
-    ): BdxSession {
-        const { initMessageType, initMessage } = options;
+    /**
+     * Initializes a BdxSession from an incoming *Init message. The message determines the direction of the transfer.
+     * The provided storages allow to map the file designator to a storage context depending on the path prefix in the
+     * file designator.
+     */
+    static fromMessage(messenger: BdxMessenger, options: BdxSessionConfiguration.ReceiverOptions): BdxSession {
+        const { initMessageType } = options;
         if (initMessageType !== BdxMessageType.SendInit && initMessageType !== BdxMessageType.ReceiveInit) {
             throw new BdxError(
                 `Invalid message type for BDX session initialization: ${BdxMessageType[initMessageType]} (${initMessageType})`,
@@ -65,11 +65,8 @@ export class BdxSession {
             );
         }
 
-        const { fileDesignator } = initMessage;
-
         return new BdxSession(messenger, {
             isSender: initMessageType === BdxMessageType.ReceiveInit,
-            fileDesignator: new PersistedFileDesignator(fileDesignator, storage),
             ...options,
         });
     }
@@ -80,13 +77,24 @@ export class BdxSession {
         this.#config = new BdxSessionConfiguration(options);
 
         const exchange = messenger.exchange;
-        if (!exchange.channel.isReliable) {
-            throw new BdxError("Bdx Protocol requires a reliable channel for message exchange");
+        if (!exchange.session.isSecure) {
+            throw new BdxError("Bdx Protocol requires a secure session.");
         }
         exchange.closed.on(async () => {
+            if (this.#isClosed) {
+                return;
+            }
             logger.debug(`Closing BDX session for exchange ${exchange.id}`);
             await this.close();
         });
+    }
+
+    get progressInfo() {
+        return this.#progressInfo;
+    }
+
+    get progressFinished() {
+        return this.#progressFinished;
     }
 
     /** Method called to start the session. It will end with a successful Transfer or with an error */
@@ -112,6 +120,12 @@ export class BdxSession {
         this.#started = true;
         try {
             this.#transferFlow = this.#initializeFlow(await bdxSessionInitiator(this.#messenger, this.#config));
+            this.#transferFlow.progressInfo.on((bytesTransferred, totalBytesLength) =>
+                this.#progressInfo.emit(bytesTransferred, totalBytesLength),
+            );
+            this.#transferFlow.progressFinished.on(totalBytesTransferred =>
+                this.#progressFinished.emit(totalBytesTransferred),
+            );
 
             await this.#transferFlow.processTransfer();
 
@@ -123,6 +137,9 @@ export class BdxSession {
             logger.warn(`BDX session failed with error:`, error);
 
             await this.close(error);
+
+            error.bytesTransferred = this.#transferFlow?.transferredBytes ?? 0;
+            error.totalBytesLength = this.#transferFlow?.dataLength;
             throw error;
         }
     }
@@ -159,6 +176,11 @@ export class BdxSession {
 
     get closed() {
         return this.#closed;
+    }
+
+    get peerAddress() {
+        SecureSession.assert(this.#messenger.exchange.session);
+        return this.#messenger.exchange.session.peerAddress;
     }
 
     async close(error?: unknown) {

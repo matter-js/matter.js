@@ -22,7 +22,7 @@ import {
     Observable,
 } from "#general";
 import { FieldElement } from "#model";
-import { Node } from "#node/index.js";
+import { Node } from "#node/Node.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { hasLocalActor, Val } from "#protocol";
 import { ClusterType, StatusResponse, TypeFromPartialBitSchema } from "#types";

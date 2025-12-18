@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "#general";
+import { Bytes, Diagnostic, ImplementationError } from "#general";
+import { NodeId } from "#types";
 
 /**
  * Class to represent a File designator from Matter.
@@ -13,6 +14,20 @@ import { Bytes } from "#general";
  */
 export class FileDesignator {
     #fd: Bytes;
+
+    /**
+     * Initialize a FileDesignator from a BDX URI string. Also returns the source node ID of the owner of the file.
+     */
+    static fromBdxUri(uri: string) {
+        const bdxParts = uri.match(/^bdx:\/\/([0-9A-F]{16})\/(\S+)$/);
+        if (!bdxParts) {
+            throw new ImplementationError(`Invalid OTA URI "${uri}"`);
+        }
+        return {
+            fileDesignator: new FileDesignator(bdxParts[2]),
+            sourceNodeId: NodeId(BigInt(`0x${bdxParts[1]}`)),
+        };
+    }
 
     /** Create a FileDesignator from a string or bytes object. */
     constructor(fd: string | Bytes) {
@@ -38,12 +53,26 @@ export class FileDesignator {
                 (byte >= 0x61 && byte <= 0x7a) || // a-z
                 (byte >= 0x30 && byte <= 0x39) || // 0..9
                 byte === 0x2e || // "."
-                byte === 0x2d, // "-"
+                byte === 0x2d || // "-"
+                byte === 0x5f || // "_"
+                byte === 0x2f, // "/"
         );
         if (isValidName) {
             return fileDesignatorData.reduce((name, byte) => name + String.fromCharCode(byte), "");
         } else {
             return `0x${Bytes.toHex(fileDesignatorData)}`;
         }
+    }
+
+    /**
+     * Return the FileDesignator as a BDX URI string. The source node ID of the owner of the file is required to
+     * generate a valid URI.
+     */
+    asBdxUri(sourceNode: NodeId) {
+        return `bdx://${NodeId.strOf(sourceNode).toUpperCase()}/${this.text}`;
+    }
+
+    get [Diagnostic.value](): string {
+        return this.text;
     }
 }

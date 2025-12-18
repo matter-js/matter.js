@@ -12,12 +12,9 @@ import {
     HashAlgorithm,
     HashFipsAlgorithmId,
     InternalError,
-    Logger,
     MatterError,
 } from "#general";
 import { OtaImageHeader, TlvOtaImageHeader } from "./OtaImageHeader.js";
-
-const logger = Logger.get("OtaImageReader");
 
 export class OtaImageError extends MatterError {
     constructor(message: string, options?: ErrorOptions) {
@@ -132,7 +129,7 @@ export class OtaImageReader {
                 allHeaderBytes.push(value);
             }
 
-            // We still need to get the header, so initialize or append to data reader
+            // We still need to get the header, so initialize or append to the data reader
             if (headerReader !== undefined) {
                 headerReader = new DataReader(Bytes.concat(headerReader.remainingBytes, value), Endian.Little);
             } else {
@@ -161,7 +158,6 @@ export class OtaImageReader {
                 headerReader.remainingBytesCount >= this.#headerSize
             ) {
                 const data = headerReader.readByteArray(this.#headerSize);
-                logger.debug(`OTA Header read, size=${this.#headerSize} bytes`, data);
                 this.#headerData = TlvOtaImageHeader.decode(data);
                 const remainingBytes = headerReader.remainingBytes;
 

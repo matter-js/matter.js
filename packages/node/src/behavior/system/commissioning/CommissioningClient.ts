@@ -6,7 +6,9 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { Events as BaseEvents } from "#behavior/Events.js";
+import { SoftwareUpdateManager } from "#behavior/system/software-update/SoftwareUpdateManager.js";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
+import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
 import { OperationalCredentials } from "#clusters/operational-credentials";
 import {
     ClassExtends,
@@ -38,6 +40,7 @@ import {
     vendorId,
 } from "#model";
 import type { ClientNode } from "#node/ClientNode.js";
+import type { ServerNode } from "#node/ServerNode.js";
 import { IdentityService } from "#node/server/IdentityService.js";
 import {
     CommissioningMode,
@@ -110,10 +113,17 @@ export class CommissioningClient extends Behavior {
         }
     }
 
+    #findServerOtaProviderEndpoint() {
+        const node = this.endpoint.owner as ServerNode;
+        for (const endpoint of node.endpoints) {
+            if (endpoint.behaviors.has(OtaSoftwareUpdateProviderServer)) {
+                return endpoint;
+            }
+        }
+    }
+
     commission(passcode: number | string): Promise<ClientNode>;
-
     commission(options: CommissioningClient.CommissioningOptions): Promise<ClientNode>;
-
     async commission(options: number | string | CommissioningClient.CommissioningOptions) {
         // Commissioning can only happen once
         const node = this.endpoint as ClientNode;
@@ -137,10 +147,10 @@ export class CommissioningClient extends Behavior {
             }
         }
 
-        // Ensure controller is initialized
+        // Ensure the controller is initialized
         await node.owner?.act(agent => agent.load(ControllerBehavior));
 
-        // Obtain the fabric we will commission into
+        // Get the fabric we will commission into
         const fabricAuthority = opts.fabricAuthority ?? this.env.get(FabricAuthority);
         let { fabric } = opts;
         if (fabric === undefined) {
@@ -180,7 +190,23 @@ export class CommissioningClient extends Behavior {
             passcode,
             discoveryData: this.descriptor,
             commissioningFlowImpl: options.commissioningFlowImpl,
+            // TODO Allow to configure all relevant commissioning options like
+            //  * wifi/thread credentials
+            //  * regulatory config
+            //  * custom otaUpdateProviderLocation
         };
+
+        // Check if our server has an OTA Provider (later: and no custom one is provided) and register the location
+        const otaProviderEndpoint = this.#findServerOtaProviderEndpoint();
+        if (
+            otaProviderEndpoint !== undefined &&
+            otaProviderEndpoint.stateOf(SoftwareUpdateManager).announceAsDefaultProvider
+        ) {
+            commissioningOptions.otaUpdateProviderLocation = {
+                nodeId: fabric.rootNodeId,
+                endpoint: otaProviderEndpoint.number,
+            };
+        }
 
         if (this.finalizeCommissioning !== CommissioningClient.prototype.finalizeCommissioning) {
             commissioningOptions.finalizeCommissioning = this.finalizeCommissioning.bind(this);

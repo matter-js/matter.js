@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ClientBdxRequest, ClientBdxResponse } from "#action/client/ClientBdx.js";
 import { ClientRead } from "#action/client/ClientRead.js";
 import { Interactable, InteractionSession } from "#action/Interactable.js";
 import { ClientInvoke, Invoke } from "#action/request/Invoke.js";
@@ -14,6 +15,7 @@ import { Write } from "#action/request/Write.js";
 import { DecodedInvokeResult, InvokeResult } from "#action/response/InvokeResult.js";
 import { ReadResult } from "#action/response/ReadResult.js";
 import { WriteResult } from "#action/response/WriteResult.js";
+import { BdxMessenger } from "#bdx/BdxMessenger.js";
 import { Mark } from "#common/Mark.js";
 import {
     Abort,
@@ -34,7 +36,7 @@ import {
 } from "#general";
 import { InteractionClientMessenger, MessageType } from "#interaction/InteractionMessenger.js";
 import { Subscription } from "#interaction/Subscription.js";
-import { PeerAddress } from "#peer/index.js";
+import { PeerAddress } from "#peer/PeerAddress.js";
 import { ExchangeProvider } from "#protocol/ExchangeProvider.js";
 import { SecureSession } from "#session/SecureSession.js";
 import { Status, TlvAttributeReport, TlvNoResponse, TlvSubscribeResponse, TypeFromSchema } from "#types";
@@ -82,7 +84,7 @@ export class ClientInteraction<
     protected readonly environment: Environment;
     readonly #lifetime: Lifetime;
     readonly #exchanges: ExchangeProvider;
-    readonly #interactions = new BasicSet<Read | Write | Invoke | Subscribe>();
+    readonly #interactions = new BasicSet<Read | Write | Invoke | Subscribe | ClientBdxRequest>();
     #subscriptions?: ClientSubscriptions;
     readonly #abort: Abort;
     readonly #sustainRetries: RetrySchedule;
@@ -484,6 +486,34 @@ export class ClientInteraction<
         }
     }
 
+    async initBdx(request: ClientBdxRequest, session?: SessionT): Promise<ClientBdxResponse> {
+        if (this.#abort.aborted) {
+            throw new ImplementationError("Client interaction unavailable after close");
+        }
+        this.#interactions.add(request);
+
+        const checkAbort = Abort.checkerFor(session);
+
+        const messenger = await BdxMessenger.create(this.#exchanges, request.messageTimeout);
+
+        const context: RequestContext<BdxMessenger> = {
+            checkAbort,
+            messenger,
+            [Symbol.asyncDispose]: async () => {
+                await messenger.close();
+                this.#interactions.delete(request);
+            },
+        };
+
+        try {
+            context.checkAbort();
+        } catch (e) {
+            await context[Symbol.asyncDispose]();
+        }
+
+        return { context };
+    }
+
     async #begin(what: string, request: Read | Write | Invoke | Subscribe, session: SessionT | undefined) {
         using lifetime = this.#lifetime.join(what);
 
@@ -554,9 +584,9 @@ export class ClientInteraction<
     }
 }
 
-interface RequestContext {
+export interface RequestContext<M extends InteractionClientMessenger | BdxMessenger = InteractionClientMessenger> {
     checkAbort(): void;
-    messenger: InteractionClientMessenger;
+    messenger: M;
 
     [Symbol.asyncDispose](): Promise<void>;
 }

@@ -9,6 +9,8 @@ import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js
 import type { ClientNode } from "#node/ClientNode.js";
 import { NodePhysicalProperties } from "#node/NodePhysicalProperties.js";
 import {
+    ClientBdxRequest,
+    ClientBdxResponse,
     ClientInteraction,
     ClientInvoke,
     ClientRead,
@@ -132,6 +134,20 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
         yield* client.invoke(request, context);
     }
 
+    /**
+     * Initiate a BDX Message Exchange with the node.
+     * The provided function is called with the established context to perform BDX operations.
+     * Request options can be omitted if defaults are used.
+     */
+    async initBdx(request: ClientBdxRequest = {}, context?: ActionContext): Promise<ClientBdxResponse> {
+        const client = await this.#connect();
+
+        return client.initBdx(request, context);
+    }
+
+    /**
+     * Ensure the node is online and return the ClientInteraction.
+     */
     async #connect(): Promise<ClientInteraction> {
         if (!this.#node.lifecycle.isOnline) {
             await this.#node.start();
