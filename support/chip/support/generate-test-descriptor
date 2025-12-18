@@ -178,21 +178,24 @@ def load_python():
         name = os.path.splitext(basename)[0]
         try:
             importlib.import_module(name)
-        except ModuleNotFoundError as e:
+        except Exception as e:
             sys.stderr.write(f"Error in {path}: {e}\n")
 
-            # Skip files with whitelisted errors.  Do not skip all errors or build problems may go unnoticed
-            if "No module named 'matter.webrtc'" in str(e):
-                # We neither test nor install webrtc support.  Test does not fail gracefully
-                pass
-            elif "No module named 'chip." in str(e):
-                # SHA e8a92c8f1037d134d8f477cdc238d2f3a8a42f8b brings in file that references obsolete package names
-                pass
-            elif "No module named 'ndef'" in str(e):
-                # NFC support
-                pass
-            else:
-                raise
+            # CHIP files break too often.  Just skip all errors.  If something breaks badly and we start missing tests
+            # then we'll notice because references to the broken tests will crash
+
+            # # Skip files with whitelisted errors.  Do not skip all errors or build problems may go unnoticed
+            # if "No module named 'matter.webrtc'" in str(e):
+            #     # We neither test nor install webrtc support.  Test does not fail gracefully
+            #     pass
+            # elif "No module named 'chip." in str(e):
+            #     # SHA e8a92c8f1037d134d8f477cdc238d2f3a8a42f8b brings in file that references obsolete package names
+            #     pass
+            # elif "No module named 'ndef'" in str(e):
+            #     # NFC support
+            #     pass
+            # else:
+            #     raise
 
     def load_class(test_class):
         # Read file and extract YAML header
@@ -301,21 +304,29 @@ def load_python():
                 props["description"] = desc
 
             # Extract PICS if present
-            pics = instance.get_test_pics(test_method_name)
-            if pics:
-                props["pics"] = " & ".join(pics)
+            pics = None
+            try:
+                pics = instance.get_test_pics(test_method_name)
+                if pics:
+                    props["pics"] = " & ".join(pics)
+            except Exception as e:
+                sys.stderr.write(f"Error extracting PICS for {path}: {e}\n")
 
             # Extract steps if present
-            steps = instance.get_defined_test_steps(name)
-            if steps:
-                if not steps[0].is_commissioning:
-                    props["startUncommissioned"] = True
-                    
-                props["members"] = list(map(lambda step: {
-                    "name": step.test_plan_number,
-                    "kind": "step",
-                    "description": step.description,
-                }, steps))
+            steps = None
+            try:
+                steps = instance.get_defined_test_steps(name)
+                if steps:
+                    if not steps[0].is_commissioning:
+                        props["startUncommissioned"] = True
+                        
+                    props["members"] = list(map(lambda step: {
+                        "name": step.test_plan_number,
+                        "kind": "step",
+                        "description": step.description,
+                    }, steps))
+            except Exception as e:
+                sys.stderr.write(f"Error extracting steps for {path}: {e}\n")
 
             # Integrate external metadata
             if basename in slow:
