@@ -31,11 +31,18 @@ import { FabricAccessControl } from "#interaction/FabricAccessControl.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { SecureSession } from "#session/SecureSession.js";
-import { CaseAuthenticatedTag, FabricId, FabricIndex, GroupId, NodeId, StatusResponse, VendorId } from "#types";
+import {
+    CaseAuthenticatedTag,
+    FabricId,
+    FabricIndex,
+    GlobalFabricId,
+    GroupId,
+    NodeId,
+    StatusResponse,
+    VendorId,
+} from "#types";
 
 const logger = Logger.get("Fabric");
-
-const COMPRESSED_FABRIC_ID_INFO = Bytes.fromString("CompressedFabric");
 
 export class PublicKeyError extends MatterError {}
 
@@ -54,8 +61,8 @@ export class Fabric {
     readonly fabricId: FabricId;
     readonly nodeId: NodeId;
     readonly rootNodeId: NodeId;
-    readonly operationalId: Bytes;
-    readonly rootPublicKey: Bytes;
+    readonly globalId: GlobalFabricId;
+    #rootPublicKey?: Bytes;
     #rootVendorId: VendorId;
     readonly rootCert: Bytes;
     readonly identityProtectionKey: Bytes;
@@ -78,14 +85,24 @@ export class Fabric {
     #storage?: StorageContext;
     #isDeleting?: boolean;
 
-    constructor(crypto: Crypto, config: Fabric.Config) {
+    /**
+     * Create a fabric synchronously.
+     *
+     * Certain derived fields that require async crypto operations to compute must be supplied here.  Use {@link create}
+     * to populate these fields automatically.
+     */
+    constructor(crypto: Crypto, config: Fabric.ConstructorConfig) {
         this.#crypto = crypto;
         this.fabricIndex = config.fabricIndex;
         this.fabricId = config.fabricId;
         this.nodeId = config.nodeId;
         this.rootNodeId = config.rootNodeId;
-        this.operationalId = config.operationalId;
-        this.rootPublicKey = config.rootPublicKey;
+        if ("operationalId" in config) {
+            this.globalId = GlobalFabricId(config.operationalId);
+        } else {
+            this.globalId = config.globalId;
+        }
+        this.#rootPublicKey = config.rootPublicKey;
         this.#rootVendorId = config.rootVendorId;
         this.rootCert = config.rootCert;
         this.identityProtectionKey = config.identityProtectionKey;
@@ -100,17 +117,52 @@ export class Fabric {
         this.#groups = new FabricGroups(this);
     }
 
+    /**
+     * Create a fabric.
+     *
+     * This async creation path populates derived fields that require async crypto operations to compute.
+     */
+    static async create(crypto: Crypto, config: Fabric.Config) {
+        let { globalId, operationalIdentityProtectionKey } = config;
+
+        // Compute global ID if not passed as config
+        if (globalId === undefined) {
+            const caKey = config.rootPublicKey ?? Rcac.publicKeyOfTlv(config.rootCert);
+            globalId = await GlobalFabricId.compute(crypto, config.fabricId, caKey);
+        }
+
+        // Compute operational IPK if not passed as config
+        if (operationalIdentityProtectionKey === undefined) {
+            operationalIdentityProtectionKey = await crypto.createHkdfKey(
+                config.identityProtectionKey,
+                Bytes.fromBigInt(globalId),
+                GROUP_SECURITY_INFO,
+            );
+        }
+
+        return new Fabric(crypto, {
+            ...config,
+            globalId,
+            operationalIdentityProtectionKey,
+        });
+    }
+
     get crypto() {
         return this.#crypto;
     }
 
-    get config(): Fabric.Config {
-        return {
+    /**
+     * Obtain configuration required to recreate fabric.
+     *
+     * TODO - we currently use this for persistence; remove when we move to OperationalCredentials as "source of truth"
+     */
+    get config(): Fabric.SyncConfig {
+        const config = {
             fabricIndex: this.fabricIndex,
             fabricId: this.fabricId,
             nodeId: this.nodeId,
             rootNodeId: this.rootNodeId,
-            operationalId: this.operationalId,
+            globalId: this.globalId,
             rootPublicKey: this.rootPublicKey,
             keyPair: this.#keyPair.keyPair,
             rootVendorId: this.rootVendorId,
@@ -122,6 +174,11 @@ export class Fabric {
             vidVerificationStatement: this.vidVerificationStatement,
             label: this.#label,
         };
+
+        // Backwards compatibility
+        (config as unknown as { operationalId: Bytes }).operationalId = Bytes.fromBigInt(this.globalId);
+
+        return config;
     }
 
     get label() {
@@ -183,6 +240,13 @@ export class Fabric {
 
     get vvsc() {
         return this.#vvsc;
+    }
+
+    get rootPublicKey() {
+        if (this.#rootPublicKey === undefined) {
+            this.#rootPublicKey = Rcac.publicKeyOfTlv(this.rootCert);
+        }
+        return this.#rootPublicKey;
     }
 
     get rootVendorId() {
@@ -373,7 +437,6 @@ export class FabricBuilder {
     #fabricId?: FabricId;
     #nodeId?: NodeId;
     #rootNodeId?: NodeId;
-    #rootPublicKey?: Bytes;
     #identityProtectionKey?: Bytes;
     #vidVerificationStatement?: Bytes;
     #vvsc?: Bytes;
@@ -405,7 +468,6 @@ export class FabricBuilder {
         const root = Rcac.fromTlv(rootCert);
         await root.verify(this.#crypto);
         this.#rootCert = rootCert;
-        this.#rootPublicKey = root.cert.ellipticCurvePublicKey;
         return this;
     }
 
@@ -481,17 +543,16 @@ export class FabricBuilder {
         this.#rootNodeId = fabric.rootNodeId;
         this.#identityProtectionKey = fabric.identityProtectionKey;
         this.#rootCert = fabric.rootCert;
-        this.#rootPublicKey = fabric.rootPublicKey;
         this.#vidVerificationStatement = fabric.vidVerificationStatement;
         this.#vvsc = fabric.vvsc;
         this.#label = fabric.label;
     }
 
-    matchesToFabric(fabric: Fabric) {
-        if (this.#fabricId === undefined || this.#rootPublicKey === undefined) {
+    get globalId() {
+        if (this.#fabricId === undefined || this.#rootCert === undefined) {
             throw new MatterFlowError("Node Operational Data needs to be set first.");
         }
-        return fabric.matchesFabricIdAndRootPublicKey(this.#fabricId, this.#rootPublicKey);
+        return GlobalFabricId.compute(this.#crypto, this.#fabricId, Rcac.publicKeyOfTlv(this.#rootCert));
     }
 
     get nodeId() {
@@ -510,38 +571,22 @@ export class FabricBuilder {
         if (this.#fabricIndex !== undefined) throw new InternalError("FabricBuilder can only be built once");
         if (this.#rootNodeId === undefined) throw new InternalError("rootNodeId needs to be set");
         if (this.#rootVendorId === undefined) throw new InternalError("vendorId needs to be set");
-        if (this.#rootCert === undefined || this.#rootPublicKey === undefined)
-            throw new InternalError("rootCert needs to be set");
+        if (this.#rootCert === undefined) throw new InternalError("rootCert needs to be set");
         if (this.#identityProtectionKey === undefined) throw new InternalError("identityProtectionKey needs to be set");
         if (this.#operationalCert === undefined || this.#fabricId === undefined || this.#nodeId === undefined)
             throw new InternalError("operationalCert needs to be set");
 
         this.#fabricIndex = fabricIndex;
-        const saltWriter = new DataWriter();
-        saltWriter.writeUInt64(this.#fabricId);
-        const operationalId = await this.#crypto.createHkdfKey(
-            Bytes.of(this.#rootPublicKey).slice(1),
-            saltWriter.toByteArray(),
-            COMPRESSED_FABRIC_ID_INFO,
-            8,
-        );
 
-        return new Fabric(this.#crypto, {
+        return await Fabric.create(this.#crypto, {
             fabricIndex: this.#fabricIndex,
             fabricId: this.#fabricId,
             nodeId: this.#nodeId,
             rootNodeId: this.#rootNodeId,
-            operationalId: operationalId,
-            rootPublicKey: this.#rootPublicKey,
             keyPair: this.#keyPair,
             rootVendorId: this.#rootVendorId,
             rootCert: this.#rootCert,
             identityProtectionKey: this.#identityProtectionKey, // Epoch Key
-            operationalIdentityProtectionKey: await this.#crypto.createHkdfKey(
-                this.#identityProtectionKey,
-                operationalId,
-                GROUP_SECURITY_INFO,
-            ),
             intermediateCACert: this.#intermediateCACert,
             operationalCert: this.#operationalCert,
             vidVerificationStatement: this.#vidVerificationStatement,
@@ -552,22 +597,56 @@ export class FabricBuilder {
 }
 
 export namespace Fabric {
+    /**
+     * Configuration required to initialize a fabric.
+     */
     export type Config = {
         fabricIndex: FabricIndex;
         fabricId: FabricId;
         nodeId: NodeId;
         rootNodeId: NodeId;
-        operationalId: Bytes;
-        rootPublicKey: Bytes;
         keyPair: BinaryKeyPair;
         rootVendorId: VendorId;
         rootCert: Bytes;
         identityProtectionKey: Bytes;
         vidVerificationStatement?: Bytes;
         vvsc?: Bytes;
-        operationalIdentityProtectionKey: Bytes;
         intermediateCACert: Bytes | undefined;
         operationalCert: Bytes;
         label: string;
+
+        // These are derived; Fabric.create() will generate if necessary
+        rootPublicKey?: Bytes;
+        globalId?: GlobalFabricId;
+        operationalIdentityProtectionKey?: Bytes;
     };
+
+    /**
+     * Configuration required to initialize a fabric without asynchronous crypto operations.
+     */
+    export type SyncConfig = Config & {
+        operationalIdentityProtectionKey: Bytes;
+        globalId: GlobalFabricId;
+    };
+
+    /**
+     * Configuration passed to fabric constructor.
+     *
+     * Provides deprecated fields for backwards compatibility.
+     */
+    export type ConstructorConfig = Omit<SyncConfig, "globalId"> &
+        (
+            | {
+                  globalId: GlobalFabricId;
+              }
+            | {
+                  /** @deprecated */
+                  operationalId: Bytes;
+              }
+        );
+
+    /**
+     * An object that may be used to identify a fabric.
+     */
+    export type Identifier = FabricIndex | GlobalFabricId | { fabricIndex: FabricIndex };
 }

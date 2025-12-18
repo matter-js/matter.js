@@ -11,9 +11,9 @@ import { b$, Bytes, MockCrypto, StorageBackendMemory, StorageManager } from "#ge
 import { ProtocolMocks } from "#protocol/ProtocolMocks.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { SessionManager } from "#session/SessionManager.js";
-import { FabricId, NodeId, VendorId } from "#types";
+import { FabricId, GlobalFabricId, NodeId, VendorId } from "#types";
 
-const OPERATIONAL_ID = b$`6cf78388a7e78e3d`;
+const GLOBAL_ID = GlobalFabricId(0x6cf78388a7e78e3dn);
 
 const TEST_RANDOM = b$`7e171231568dfa17206b3accf8faec2f4d21b580113196f47c7c4deb810a73dc`;
 const EXPECTED_DESTINATION_ID = b$`dc35dd5fc9134cc5544538c9c3fc4297c1ec3370c839136a80e10796451d4c53`;
@@ -32,9 +32,9 @@ const EXPECTED_DESTINATION_ID_3 = b$`b1ce1a45fd930831203024286cd609ec4f9bbe71ed8
 describe("FabricBuilder", () => {
     describe("build", () => {
         it("generates the correct compressed Fabric ID", async () => {
-            const result = (await TestFabric()).operationalId;
+            const result = (await TestFabric()).globalId;
 
-            expect(Bytes.toHex(result)).to.equal(Bytes.toHex(OPERATIONAL_ID));
+            expect(result).to.equal(GLOBAL_ID);
         });
 
         it("generates the expected operationalIdentityProtectionKey", async () => {
@@ -60,7 +60,7 @@ describe("Fabric", () => {
                 fabricId,
                 nodeId,
                 rootNodeId,
-                operationalId: NO_BYTES,
+                globalId: GlobalFabricId(0),
                 keyPair: await crypto.createKeyPair(),
                 rootPublicKey,
                 rootVendorId: VendorId(0),
@@ -92,7 +92,7 @@ describe("Fabric", () => {
                 fabricId: TEST_FABRIC_ID_3,
                 nodeId: TEST_NODE_ID_3,
                 rootNodeId,
-                operationalId: NO_BYTES,
+                globalId: GlobalFabricId(0),
                 keyPair: await crypto.createKeyPair(),
                 rootPublicKey: TEST_ROOT_PUBLIC_KEY_3,
                 rootVendorId: VendorId(0),

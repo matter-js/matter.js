@@ -37,7 +37,7 @@ import {
     MdnsSocket,
     ServiceDescription,
 } from "#index.js";
-import { NodeId, VendorId } from "#types";
+import { GlobalFabricId, NodeId, VendorId } from "#types";
 
 const SERVER_IPv4 = "192.168.200.1";
 const SERVER_IPv6 = "fe80::e777:4f5e:c61e:7314";
@@ -49,10 +49,10 @@ const PORT = 5540;
 const PORT2 = 5541;
 const PORT3 = 5542;
 
-const OPERATIONAL_ID = Bytes.fromHex("0000000000000018");
-const NODE_ID = NodeId(BigInt(1));
+const GLOBAL_ID = GlobalFabricId(0x18);
+const NODE_ID = NodeId(1);
 
-const FABRIC = { operationalId: OPERATIONAL_ID, nodeId: NODE_ID } as unknown as Fabric;
+const FABRIC = { globalId: GLOBAL_ID, nodeId: NODE_ID } as Fabric;
 const OPERATIONAL_SERVICE = ServiceDescription.Operational({
     fabric: FABRIC,
 });
@@ -1001,7 +1001,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
         describe("Operational discovery", () => {
             const criteria: MdnsScannerTargetCriteria = {
                 commissionable: false,
-                operationalTargets: [{ operationalId: OPERATIONAL_ID }],
+                operationalTargets: [{ fabricId: GLOBAL_ID }],
             };
             beforeEach(() => client.targetCriteriaProviders.add(criteria));
             afterEach(() => client.targetCriteriaProviders.delete(criteria));
@@ -1012,11 +1012,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
 
                 const messages = await collection;
 
-                const result = await client.findOperationalDevice(
-                    { operationalId: OPERATIONAL_ID } as unknown as Fabric,
-                    NODE_ID,
-                    Seconds.one,
-                );
+                const result = await client.findOperationalDevice(FABRIC, NODE_ID, Seconds.one);
 
                 // Ensure no queries sent
                 expect(messages.findIndex(m => m?.messageType === DnsMessageType.Query)).equals(-1);
@@ -1024,23 +1020,15 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                 expect(result?.addresses).deep.equal(IPIntegrationResultsPort1);
 
                 // Same result when we just get the records
-                expect(
-                    client.getDiscoveredOperationalDevice(
-                        { operationalId: OPERATIONAL_ID } as unknown as Fabric,
-                        NODE_ID,
-                    )?.addresses,
-                ).deep.equal(IPIntegrationResultsPort1);
+                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)?.addresses).deep.equal(
+                    IPIntegrationResultsPort1,
+                );
 
                 // And expire the announcement
                 await close();
 
                 // And empty result after expiry
-                expect(
-                    client.getDiscoveredOperationalDevice(
-                        { operationalId: OPERATIONAL_ID } as unknown as Fabric,
-                        NODE_ID,
-                    ),
-                ).deep.equal(undefined);
+                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)).deep.equal(undefined);
             });
 
             it("the client queries the server record if it has not been announced before", async () => {
@@ -1051,10 +1039,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
 
                 advertise(OPERATIONAL_SERVICE);
 
-                const findPromise = client.findOperationalDevice(
-                    { operationalId: OPERATIONAL_ID } as unknown as Fabric,
-                    NODE_ID,
-                );
+                const findPromise = client.findOperationalDevice(FABRIC, NODE_ID);
 
                 await MockTime.resolve(findPromise);
 
@@ -1080,23 +1065,15 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                 await listener.close();
 
                 // Same result when we just get the records
-                expect(
-                    client.getDiscoveredOperationalDevice(
-                        { operationalId: OPERATIONAL_ID } as unknown as Fabric,
-                        NODE_ID,
-                    )?.addresses,
-                ).deep.equal(IPIntegrationResultsPort1);
+                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)?.addresses).deep.equal(
+                    IPIntegrationResultsPort1,
+                );
 
                 // And expire the announcement
                 await close();
 
                 // And empty result after expiry
-                expect(
-                    client.getDiscoveredOperationalDevice(
-                        { operationalId: OPERATIONAL_ID } as unknown as Fabric,
-                        NODE_ID,
-                    ),
-                ).deep.equal(undefined);
+                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)).deep.equal(undefined);
             });
 
             it("the client queries the server record and get correct response also with multiple announced instances", async () => {
@@ -1105,10 +1082,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                 await serve(COMMISSIONABLE_SERVICE, PORT);
                 await serve(OPERATIONAL_SERVICE, PORT2);
 
-                const findPromise = client.findOperationalDevice(
-                    { operationalId: OPERATIONAL_ID } as unknown as Fabric,
-                    NODE_ID,
-                );
+                const findPromise = client.findOperationalDevice(FABRIC, NODE_ID);
 
                 const [query, response] = await MockTime.resolve(messages);
 
@@ -1160,12 +1134,9 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                 expect(result?.addresses).deep.equal(IPIntegrationResultsPort2);
 
                 // Same result when we just get the records
-                expect(
-                    client.getDiscoveredOperationalDevice(
-                        { operationalId: OPERATIONAL_ID } as unknown as Fabric,
-                        NODE_ID,
-                    )?.addresses,
-                ).deep.equal(IPIntegrationResultsPort2);
+                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)?.addresses).deep.equal(
+                    IPIntegrationResultsPort2,
+                );
 
                 // No commissionable devices because never queried
                 expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 })).deep.equal([]);
@@ -1174,12 +1145,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                 await closeAll();
 
                 // And empty result after expiry
-                expect(
-                    client.getDiscoveredOperationalDevice(
-                        { operationalId: OPERATIONAL_ID } as unknown as Fabric,
-                        NODE_ID,
-                    ),
-                ).deep.equal(undefined);
+                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)).deep.equal(undefined);
             });
 
             it("the client queries the server record and also accepts unauthoritative responses", async () => {
@@ -1203,10 +1169,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
 
                 advertise(OPERATIONAL_SERVICE);
 
-                const findPromise = client.findOperationalDevice(
-                    { operationalId: OPERATIONAL_ID } as unknown as Fabric,
-                    NODE_ID,
-                );
+                const findPromise = client.findOperationalDevice(FABRIC, NODE_ID);
 
                 await MockTime.resolve(findPromise);
 
@@ -1234,23 +1197,15 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                 await listener.close();
 
                 // Same result when we just get the records
-                expect(
-                    client.getDiscoveredOperationalDevice(
-                        { operationalId: OPERATIONAL_ID } as unknown as Fabric,
-                        NODE_ID,
-                    )?.addresses,
-                ).deep.equal(IPIntegrationResultsPort1);
+                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)?.addresses).deep.equal(
+                    IPIntegrationResultsPort1,
+                );
 
                 // And expire the announcement
                 await close();
 
                 // And empty result after expiry
-                expect(
-                    client.getDiscoveredOperationalDevice(
-                        { operationalId: OPERATIONAL_ID } as unknown as Fabric,
-                        NODE_ID,
-                    ),
-                ).deep.equal(undefined);
+                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)).deep.equal(undefined);
             });
         });
 
@@ -1283,10 +1238,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
 
             advertise(OPERATIONAL_SERVICE);
 
-            const findPromise = client.findOperationalDevice(
-                { operationalId: OPERATIONAL_ID } as unknown as Fabric,
-                NODE_ID,
-            );
+            const findPromise = client.findOperationalDevice(FABRIC, NODE_ID);
 
             await MockTime.resolve(findPromise);
 
@@ -1319,7 +1271,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
         describe("Operational and commissionable discovery", () => {
             const criteria: MdnsScannerTargetCriteria = {
                 commissionable: true,
-                operationalTargets: [{ operationalId: OPERATIONAL_ID }],
+                operationalTargets: [{ fabricId: GLOBAL_ID }],
             };
             beforeEach(() => client.targetCriteriaProviders.add(criteria));
             afterEach(() => client.targetCriteriaProviders.delete(criteria));
@@ -1332,12 +1284,9 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                 await messages;
 
                 // Same result when we just get the records
-                expect(
-                    client.getDiscoveredOperationalDevice(
-                        { operationalId: OPERATIONAL_ID } as unknown as Fabric,
-                        NODE_ID,
-                    )?.addresses,
-                ).deep.equal(IPIntegrationResultsPort2);
+                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)?.addresses).deep.equal(
+                    IPIntegrationResultsPort2,
+                );
 
                 // No commissionable devices because never queried
                 expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 })).deep.equal([
@@ -1368,12 +1317,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                 await closeAll();
 
                 // And removed after expiry
-                expect(
-                    client.getDiscoveredOperationalDevice(
-                        { operationalId: OPERATIONAL_ID } as unknown as Fabric,
-                        NODE_ID,
-                    ),
-                ).deep.equal(undefined);
+                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)).deep.equal(undefined);
 
                 expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 })).deep.equal([]);
             });
@@ -1386,11 +1330,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
 
                 const messages = await collection;
 
-                const result = await client.findOperationalDevice(
-                    { operationalId: OPERATIONAL_ID } as unknown as Fabric,
-                    NODE_ID,
-                    Seconds(10),
-                );
+                const result = await client.findOperationalDevice(FABRIC, NODE_ID, Seconds(10));
 
                 // Ensure no queries sent
                 expect(messages.findIndex(m => m?.messageType === DnsMessageType.Query)).equals(-1);
@@ -1398,12 +1338,9 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                 expect(result?.addresses).deep.equal(IPIntegrationResultsPort2);
 
                 // Same result when we just get the records
-                expect(
-                    client.getDiscoveredOperationalDevice(
-                        { operationalId: OPERATIONAL_ID } as unknown as Fabric,
-                        NODE_ID,
-                    )?.addresses,
-                ).deep.equal(IPIntegrationResultsPort2);
+                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)?.addresses).deep.equal(
+                    IPIntegrationResultsPort2,
+                );
 
                 // Also commissionable devices known now
                 expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 })).deep.equal([
@@ -1434,12 +1371,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                 await closeAll();
 
                 // And removed after expiry
-                expect(
-                    client.getDiscoveredOperationalDevice(
-                        { operationalId: OPERATIONAL_ID } as unknown as Fabric,
-                        NODE_ID,
-                    ),
-                ).deep.equal(undefined);
+                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)).deep.equal(undefined);
 
                 expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 })).deep.equal([]);
             });

@@ -116,7 +116,7 @@ describe("FabricManager", () => {
             for (let i = 1; i < 255; i++) {
                 await TestFabric({ fabrics });
             }
-            await fabrics.forIndex(FabricIndex(100)).delete();
+            await fabrics.for(FabricIndex(100)).delete();
 
             expect(fabrics.allocateFabricIndex()).to.equal(100);
         });
@@ -125,7 +125,7 @@ describe("FabricManager", () => {
             for (let i = 1; i < 255; i++) {
                 await TestFabric({ fabrics });
             }
-            await fabrics.forIndex(FabricIndex(1)).delete();
+            await fabrics.for(FabricIndex(1)).delete();
 
             expect(fabrics.allocateFabricIndex()).to.equal(1);
         });

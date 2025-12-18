@@ -160,7 +160,10 @@ export class MatterController {
                         logger.info("Skipping fabric migration because a rootFabric was provided.");
                         continue;
                     }
-                    fabric = new Fabric(Environment.default.get(Crypto), await oldStorage.get<Fabric.Config>("fabric"));
+                    fabric = await Fabric.create(
+                        Environment.default.get(Crypto),
+                        await oldStorage.get<Fabric.Config>("fabric"),
+                    );
                 } else {
                     // Migrates Certificate Authority data to new location
                     if (!(await newStorage.has(key))) {
@@ -209,7 +212,7 @@ export class MatterController {
         // Stored data are temporary anyway and no node will be connected, so just use an in-memory storage
         environment.set(StorageService, new StorageService(environment, () => new StorageBackendMemory()));
 
-        const fabric = new Fabric(crypto, fabricConfig);
+        const fabric = await Fabric.create(crypto, fabricConfig);
         if (!Bytes.areEqual(fabric.rootCert, ca.rootCert)) {
             throw new MatterError("Fabric CA certificate is not in sync with CA.");
         }

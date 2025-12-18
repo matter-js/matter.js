@@ -9,8 +9,7 @@ import { TlvUInt64 } from "../tlv/TlvNumber.js";
 import { TlvWrapper } from "../tlv/TlvWrapper.js";
 
 /**
- * A Fabric ID is a 64-bit number that uniquely identifies the Fabric within the scope of
- * a particular root CA.
+ * A Fabric ID is a 64-bit number that uniquely identifies the Fabric within the scope of a particular root CA.
  *
  * @see {@link MatterSpecification.v10.Core} § 2.5.1
  */
