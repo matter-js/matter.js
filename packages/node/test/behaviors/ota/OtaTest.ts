@@ -10,13 +10,13 @@ import {
     OtaSoftwareUpdateRequestorClient,
     OtaSoftwareUpdateRequestorServer,
 } from "#behaviors/ota-software-update-requestor";
+import { OtaSoftwareUpdateRequestor } from "#clusters/ota-software-update-requestor";
 import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import { OtaRequestorEndpoint } from "#endpoints/ota-requestor";
-import { Bytes, Crypto, Entropy, Environment, MockCrypto, StreamingStandardCrypto } from "#general";
+import { Bytes, StandardCrypto } from "#general";
 import { ServerNode } from "#node/ServerNode.js";
 import { FabricAuthority, PeerAddress } from "#protocol";
 import { FabricIndex, VendorId } from "#types";
-import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters";
 import { MockSite } from "../../node/mock-site.js";
 import {
     createTestOtaImage,
@@ -36,15 +36,6 @@ describe("Ota", () => {
 
     it("Successfully process a software update", async () => {
         // *** COMMISSIONING ***
-
-        const controllerEnv = new Environment("1");
-        const controllerCrypto = MockCrypto(1, StreamingStandardCrypto);
-        controllerEnv.set(Entropy, controllerCrypto);
-        controllerEnv.set(Crypto, controllerCrypto);
-        const deviceEnv = new Environment("2");
-        const deviceCrypto = MockCrypto(2, StreamingStandardCrypto);
-        deviceEnv.set(Entropy, deviceCrypto);
-        deviceEnv.set(Crypto, deviceCrypto);
 
         // Shared variable to hold expected OTA image for verification
         const data = { expectedOtaImage: Bytes.fromHex("") };
@@ -66,12 +57,10 @@ describe("Ota", () => {
         // Device is automatically configured with vendorId 0xfff1 and productId 0x8000
         const { controller, device } = await site.addCommissionedPair({
             device: {
-                environment: deviceEnv,
                 type: ServerNode.RootEndpoint,
                 parts: [{ id: "ota-requestor", type: OtaRequestorEndpoint.with(TestOtaRequestorServer) }],
             },
             controller: {
-                environment: controllerEnv,
                 type: ServerNode.RootEndpoint,
                 parts: [{ id: "ota-provider", type: OtaProviderEndpoint.with(TestOtaProviderServer) }],
             },
@@ -111,7 +100,7 @@ describe("Ota", () => {
         const payload = generateTestPayload(500 * 1024);
 
         // Create OTA image for next version, applicable to the current version range
-        const otaImage = await createTestOtaImage(new StreamingStandardCrypto(), {
+        const otaImage = await createTestOtaImage(new StandardCrypto(), {
             vendorId,
             productId,
             softwareVersion: targetSoftwareVersion,

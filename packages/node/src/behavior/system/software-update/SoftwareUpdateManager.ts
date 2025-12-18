@@ -27,6 +27,7 @@ import {
     SharedEnvironmentServices,
     Time,
     Timer,
+    Timestamp,
 } from "#general";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
@@ -45,7 +46,7 @@ interface UpdateConsent {
 
 interface UpdateQueueEntry extends UpdateConsent {
     endpoint: Endpoint;
-    lastProgressUpdateTime?: number;
+    lastProgressUpdateTime?: Timestamp;
     lastProgressStatus?: OtaUpdateStatus;
 }
 
@@ -100,7 +101,7 @@ export interface SoftwareUpdateInfo {
 }
 
 /**
- * The Software Update Manager is the instance to bridge between the central OTA store and DCL service and mange the
+ * The Software Update Manager is the instance to bridge between the central OTA store and DCL service and manage the
  * updates for all peers of a node. It gets installed on the endpoint where the OtaSoftwareUpdateProvider behavior is
  * installed. It uses the generic DclOtaUpdateService, which exists globally, to request and get new updates.
  *
@@ -137,6 +138,9 @@ export class SoftwareUpdateManager extends Behavior {
             this.internal.announcements = undefined;
         }
 
+        // For now let's just provide update functionality when we are the fabric owner
+        // In theory we could also claim that for any other fabric but could conflict with the main controller of
+        // the fabric that then also claims being "the one provider".
         const fabricAuthority = this.env.get(FabricAuthority);
         const ownFabric = fabricAuthority.fabrics[0];
         if (!ownFabric) {
@@ -202,15 +206,11 @@ export class SoftwareUpdateManager extends Behavior {
         const candidates = availableUpdates
             .filter(
                 ({
-                    vendorId: candidateVendorId,
-                    productId: candidateProductId,
                     softwareVersion: candidateSoftwareVersion,
                     minApplicableSoftwareVersion = 0,
                     maxApplicableSoftwareVersion = softwareVersion,
                     mode,
                 }) =>
-                    vendorId === candidateVendorId &&
-                    productId === candidateProductId &&
                     softwareVersion < candidateSoftwareVersion &&
                     softwareVersion >= minApplicableSoftwareVersion &&
                     softwareVersion <= maxApplicableSoftwareVersion &&
@@ -223,7 +223,7 @@ export class SoftwareUpdateManager extends Behavior {
         }
 
         const candidatesWithConsent: UpdateConsentEntry[] = candidates.map(candidate => {
-            const consent = this.state.startupConsents
+            const consent = this.internal.consents
                 .filter(consent => consent.vendorId === candidate.vendorId && consent.productId === candidate.productId)
                 .filter(consent => consent.targetSoftwareVersion >= candidate.softwareVersion); // Consent for this or higher version applies
 
@@ -355,7 +355,7 @@ export class SoftwareUpdateManager extends Behavior {
 
         // Request consent or notify peers about the update if we have consent
         for (const { endpoint, peerAddress } of otaEndpoints) {
-            const hasConsent = this.state.startupConsents.some(
+            const hasConsent = this.internal.consents.some(
                 consent =>
                     consent.vendorId === vendorId &&
                     consent.productId === productId &&
@@ -555,11 +555,11 @@ export class SoftwareUpdateManager extends Behavior {
             );
             const queueEntryIndex = this.internal.updateQueue.indexOf(entry);
             if (queueEntryIndex >= 0) {
-                this.internal.updateQueue[queueEntryIndex].lastProgressUpdateTime = Date.now();
+                this.internal.updateQueue[queueEntryIndex].lastProgressUpdateTime = Time.nowMs;
             } else {
                 this.internal.updateQueue.push({
                     ...entry,
-                    lastProgressUpdateTime: Date.now(),
+                    lastProgressUpdateTime: Time.nowMs,
                 });
             }
         } catch (error) {
@@ -616,7 +616,7 @@ export class SoftwareUpdateManager extends Behavior {
         targetSoftwareVersion: number,
     ) {
         // Filter out all existing consents for this peer, they are replaced by the new one
-        const consents = this.state.startupConsents.filter(
+        const consents = this.internal.consents.filter(
             consent =>
                 consent.peerAddress.fabricIndex !== peerAddress.fabricIndex &&
                 consent.peerAddress.nodeId !== peerAddress.nodeId,
@@ -638,7 +638,7 @@ export class SoftwareUpdateManager extends Behavior {
             targetSoftwareVersion,
             peerAddress,
         });
-        this.state.startupConsents = consents;
+        this.internal.consents = consents;
 
         if (otaEndpoint === undefined) {
             logger.info(
@@ -697,9 +697,6 @@ export class SoftwareUpdateManager extends Behavior {
 
 export namespace SoftwareUpdateManager {
     export class State {
-        /** Use this to pre-initialize consent to allow nodes to update automatically. The content will not be persisted! */
-        startupConsents = new Array<UpdateConsent>();
-
         /** Set this to true to also allow updates from the Test DCL */
         allowTestOtaImages = false;
 
@@ -714,6 +711,9 @@ export namespace SoftwareUpdateManager {
     }
 
     export class Internal {
+        /** Use this to pre-initialize consent to allow nodes to update automatically. The content will not be persisted! */
+        consents = new Array<UpdateConsent>();
+
         services?: SharedEnvironmentServices;
 
         otaService!: DclOtaUpdateService;

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ClientBdxOptions, ClientBdxResponse } from "#action/client/ClientBdx.js";
+import { ClientBdxRequest, ClientBdxResponse } from "#action/client/ClientBdx.js";
 import { ClientRead } from "#action/client/ClientRead.js";
 import { Interactable, InteractionSession } from "#action/Interactable.js";
 import { ClientInvoke, Invoke } from "#action/request/Invoke.js";
@@ -84,7 +84,7 @@ export class ClientInteraction<
     protected readonly environment: Environment;
     readonly #lifetime: Lifetime;
     readonly #exchanges: ExchangeProvider;
-    readonly #interactions = new BasicSet<Read | Write | Invoke | Subscribe | ClientBdxOptions>();
+    readonly #interactions = new BasicSet<Read | Write | Invoke | Subscribe | ClientBdxRequest>();
     #subscriptions?: ClientSubscriptions;
     readonly #abort: Abort;
     readonly #sustainRetries: RetrySchedule;
@@ -486,7 +486,7 @@ export class ClientInteraction<
         }
     }
 
-    async initBdx(request: ClientBdxOptions, session?: SessionT): Promise<ClientBdxResponse> {
+    async initBdx(request: ClientBdxRequest, session?: SessionT): Promise<ClientBdxResponse> {
         if (this.#abort.aborted) {
             throw new ImplementationError("Client interaction unavailable after close");
         }

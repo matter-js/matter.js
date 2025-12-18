@@ -338,7 +338,7 @@ export class DclOtaUpdateService {
             prod: isProduction,
         };
 
-        // Generate filename with production/test indicator (version not included as we always use latest)
+        // Generate filename with production/test indicator (a version not included as we always use latest)
         const filename = this.#fileName(vid, pid, isProduction);
         const fileDesignator = new PersistedFileDesignator(filename, storage);
 

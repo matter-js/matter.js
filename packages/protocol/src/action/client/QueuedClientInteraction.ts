@@ -3,7 +3,7 @@
  * Copyright 2022-2025 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { ClientBdxOptions, ClientBdxResponse } from "#action/client/ClientBdx.js";
+import { ClientBdxRequest, ClientBdxResponse } from "#action/client/ClientBdx.js";
 import { InteractionSession } from "#action/Interactable.js";
 import { ClientInvoke } from "#action/request/Invoke.js";
 import { DecodedInvokeResult } from "#action/response/InvokeResult.js";
@@ -87,7 +87,7 @@ export class QueuedClientInteraction<
         yield* super.invoke(request, session);
     }
 
-    override async initBdx(request: ClientBdxOptions, session?: SessionT): Promise<ClientBdxResponse> {
+    override async initBdx(request: ClientBdxRequest, session?: SessionT): Promise<ClientBdxResponse> {
         const slot = await this.queue.obtainSlot();
 
         return { ...(await super.initBdx(request, session)), slot };

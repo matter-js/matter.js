@@ -75,6 +75,7 @@ export class OtaAnnouncements {
         this.#announcementTimer.start();
     }
 
+    // Queue a peer because processing is delayed and better to check /get peer anew when we process it
     #queuePeer(peerAddress: PeerAddress) {
         this.#announcementQueue.push(peerAddress);
         logger.debug("Queued peer", peerAddress, "for OTA announcement;", this.#announcementQueue.length, "queued");

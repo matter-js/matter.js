@@ -12,9 +12,9 @@ import {
     Environment,
     HashFipsAlgorithmId,
     MockFetch,
+    StandardCrypto,
     StorageBackendMemory,
     StorageService,
-    StreamingStandardCrypto,
 } from "#general";
 import { OtaImageWriter } from "#ota/OtaImageWriter.js";
 import { VendorId } from "#types";
@@ -24,7 +24,7 @@ describe("DclOtaUpdateService", () => {
     let fetchMock: MockFetch;
     let environment: Environment;
     let storage: StorageBackendMemory;
-    const crypto = new StreamingStandardCrypto();
+    const crypto = new StandardCrypto();
 
     beforeEach(async () => {
         fetchMock = new MockFetch();

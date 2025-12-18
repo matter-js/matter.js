@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, HASH_ALGORITHM_OUTPUT_LENGTHS, HashFipsAlgorithmId, StreamingStandardCrypto } from "#general";
+import { Bytes, HASH_ALGORITHM_OUTPUT_LENGTHS, HashFipsAlgorithmId, StandardCrypto } from "#general";
 import { OtaImageReader } from "#ota/OtaImageReader.js";
 import { OtaImageWriter } from "#ota/OtaImageWriter.js";
 
 describe("OtaImageReader", () => {
-    const crypto = new StreamingStandardCrypto();
+    const crypto = new StandardCrypto();
 
     describe("header", () => {
         it("reads OTA image header correctly", async () => {

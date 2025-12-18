@@ -8,7 +8,7 @@ import { RequestContext } from "#action/client/ClientInteraction.js";
 import { BdxMessenger } from "#bdx/BdxMessenger.js";
 import { Duration, WorkSlot } from "#general";
 
-export interface ClientBdxOptions {
+export interface ClientBdxRequest {
     messageTimeout?: Duration;
     queued?: boolean;
 }
