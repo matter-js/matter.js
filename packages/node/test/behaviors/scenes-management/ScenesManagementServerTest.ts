@@ -84,7 +84,7 @@ describe("ScenesManagementServer", () => {
         );
 
         for await (const chunks of read) {
-            expect((chunks as Array<any>)[0].value);
+            expect((chunks as Array<any>)[0].value).equals(true);
         }
     });
 });
