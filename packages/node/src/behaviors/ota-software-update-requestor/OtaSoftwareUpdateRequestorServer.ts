@@ -658,9 +658,9 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
             const { sourceNodeId } = FileDesignator.fromBdxUri(imageUri);
             if (sourceNodeId !== providerNodeId) {
                 logger.info(
-                    `Invalid OTA Provider response: BDX URI source node ID ${NodeId.toHexString(
+                    `Invalid OTA Provider response: BDX URI source node ID ${NodeId.strOf(
                         sourceNodeId,
-                    )} does not match provider node ID ${NodeId.toHexString(providerNodeId)}. Ignoring update.`,
+                    )} does not match provider node ID ${NodeId.strOf(providerNodeId)}. Ignoring update.`,
                 );
                 this.#markActiveOtaProviderNoUpdate(providerLocation); // Use others next time
                 this.#resetStateToIdle(OtaSoftwareUpdateRequestor.ChangeReason.Failure);

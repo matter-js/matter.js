@@ -55,6 +55,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Add default implementation for the `Thermostat` cluster according to Matter 1.4.2 specification. All features except MSCH and SB (which is considered provisional) are implemented. See the `ThermostatServer` class for details.
     - Feature: Added feature complete default implementation for the `Scenes Management` cluster according to Matter 1.4.2 specification.
     - Feature: Added the VendorIdVerification algorithm on device side according to Matter 1.4.2 specification. Controller side is only partially implemented yet.
+    - Feature: Added default implementations for OtaSoftwareUpdateRequestor/Provider clusters according to Matter specification.
+    - Feature: Added OTA management support component (SoftwareUpdateManager)
     - Enhancement: Adds "maybeReactTo" which only registers the listener when the event exists.
     - Enhancement: Enhances Endpoint#eventsOf and Endpoint#setStateOf with overrides so you can use the ID to obtain variants with generic typing
     - Enhancement: We now enforce bounds for integer types even if not specified explicitly by constraint
@@ -118,6 +120,7 @@ The main work (all changes without a GitHub username in brackets in the below li
       - The fabric (formerly "credentials.fabric") is now located at "fabrics.*"
       - The certificates (formerly other "credentials.*") are now located in "certificates.*"
       - The list of commissioned nodes (formerly "nodes.commissionedNodes") is now integrated in the node peer data (nodes.peerX)
+    - Feature: Added new option `enableOtaProvider` to `CommissioningControllerOptions` to enable OTA Provider functionality
     - Enhancement: The PairedNode is data wise now backend by a ServerNode instance which acts as controller and provides all datamanagement and peer access. This API can alredy be moved directly by using `PairedNode.node` - some convenience methods are also dorectly mapped on the PairedNode itself (see below). initial connection and reconnection management is still handled by PairedNode and will move later.
     - Enhancement: Added more convenient accessors for endpoint cached read-only state: `Endpoint.state` property for attributes for all clusters in generic way and `Endpoint.stateOf()` for a typed access for a defined Client behavior
     - Enhancement: Added more convenient accessors for endpoint commands: `Endpoint.commands` property for commands for all clusters in generic way and `Endpoint.commandsOf()` for a types access for a defined Client behavior
