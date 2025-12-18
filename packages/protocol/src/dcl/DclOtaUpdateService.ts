@@ -42,7 +42,7 @@ export type OtaUpdateInfo = DeviceSoftwareVersionModelDclSchema;
 
 const OTA_DOWNLOAD_TIMEOUT = Minutes(5);
 
-const OTA_FILENAME_REGEX = /^([0-9a-f]+)[./]([0-9a-f]+)[./](prod|test)$/i;
+const OTA_FILENAME_REGEX = /^[0-9a-f]+[./][0-9a-f]+[./]prod|test$/i;
 
 /**
  * Service to query and manage OTA updates from the Distributed Compliance Ledger (DCL), but also allows to inject own

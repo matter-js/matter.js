@@ -69,7 +69,7 @@ export class FileDesignator {
      * generate a valid URI.
      */
     asBdxUri(sourceNode: NodeId) {
-        return `bdx://${NodeId.toHexString(sourceNode)}/${this.text}`;
+        return `bdx://${NodeId.strOf(sourceNode).toUpperCase()}/${this.text}`;
     }
 
     get [Diagnostic.value](): string {
