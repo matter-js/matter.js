@@ -39,15 +39,35 @@ describe("ScenesManagementServer", () => {
 
         const cmds = onoff.commandsOf(ScenesManagementClient);
 
-        await cmds.addScene({
-            groupId: GroupId(0),
-            sceneId: 1,
-            transitionTime: 1000,
-            sceneName: "Scene1",
-            extensionFieldSetStructs: [
-                { clusterId: ClusterId(6), attributeValueList: [{ attributeId: AttributeId(0), valueUnsigned8: 1 }] },
-            ],
-        });
+        expect(
+            await cmds.addScene({
+                groupId: GroupId(0),
+                sceneId: 1,
+                transitionTime: 1000,
+                sceneName: "Scene1",
+                extensionFieldSetStructs: [
+                    {
+                        clusterId: ClusterId(6),
+                        attributeValueList: [{ attributeId: AttributeId(0), valueUnsigned8: 1 }],
+                    },
+                ],
+            }),
+        ).deep.equals({ status: 0, groupId: GroupId(0), sceneId: 1 });
+
+        expect(
+            await cmds.addScene({
+                groupId: GroupId(0),
+                sceneId: 2,
+                transitionTime: 60000000,
+                sceneName: "Scene2",
+                extensionFieldSetStructs: [
+                    {
+                        clusterId: ClusterId(6),
+                        attributeValueList: [{ attributeId: AttributeId(0), valueUnsigned8: 1 }],
+                    },
+                ],
+            }),
+        ).deep.equals({ status: 0, groupId: GroupId(0), sceneId: 2 });
 
         await cmds.recallScene({ groupId: GroupId(0), sceneId: 1 });
 
