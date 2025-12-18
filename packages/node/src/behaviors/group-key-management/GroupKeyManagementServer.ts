@@ -65,8 +65,8 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
 
     async #online() {
         // Validate the maximum supported group keys and groups per fabric if they are set to minimum values.
-        if (this.state.maxGroupKeysPerFabric === 0 && this.state.maxGroupsPerFabric === 1) {
-            // We assume unchanged defaults
+        if (this.state.maxGroupKeysPerFabric === 1 && this.state.maxGroupsPerFabric === 0) {
+            // We assume these are the specification defaults: maxGroupKeysPerFabric = 1, maxGroupsPerFabric = 0
             let groupsFound = false;
             this.endpoint.visit(endpoint => {
                 if (!groupsFound && "groups" in endpoint.behaviors.supported) {
@@ -357,10 +357,9 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
             // Update existing group key set
             this.state.groupKeySets[existingIndex] = { ...groupKeySet, fabricIndex };
         } else {
-            // Add new group key set
-            const keySetsOfFabric = this.state.groupKeySets.filter(
-                ({ fabricIndex: entryIndex }) => entryIndex === fabricIndex,
-            ).length;
+            // Add a new group key set
+            const keySetsOfFabric =
+                this.state.groupKeySets.filter(({ fabricIndex: entryIndex }) => entryIndex === fabricIndex).length + 1; // Add 1 because Group Key set 0 for IPK always exists implicitly
             if (keySetsOfFabric >= this.state.maxGroupKeysPerFabric) {
                 throw new StatusResponseError(
                     `Too many group key sets for fabric ${fabricIndex}, maximum is ${this.state.maxGroupKeysPerFabric}`,
