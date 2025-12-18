@@ -127,9 +127,9 @@ export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: W
                 // As implemented for Matter 1.4.2 in https://github.com/project-chip/connectedhomeip/pull/38263
                 // Acl writes will no longer be chunked by default, all others still
                 // Will be streamlined later ... see https://github.com/project-chip/connectedhomeip/issues/38270
-                !isAclOrExtensionPath({ clusterId, attributeId }) &&
                 Array.isArray(value) &&
-                schema instanceof ArraySchema
+                schema instanceof ArraySchema &&
+                !isAclOrExtensionPath({ clusterId, attributeId })
             ) {
                 writeRequests.push(
                     ...schema
