@@ -10,6 +10,7 @@ import {
     Bytes,
     Construction,
     Crypto,
+    Diagnostic,
     Environment,
     Environmental,
     ImplementationError,
@@ -278,14 +279,26 @@ export class FabricManager {
             const candidateDestinationIds = await fabric.destinationIdsFor(fabric.nodeId, initiatorRandom);
             if (candidateDestinationIds.some(candidate => Bytes.areEqual(candidate, destinationId))) {
                 if (fabric.isDeleting) {
-                    throw new FabricNotFoundError("Fabric is deleting");
+                    throw new FabricNotFoundError("Fabric is deleting for CASE sigma2");
                 }
 
                 return fabric;
             }
         }
 
-        throw new FabricNotFoundError("Fabric not found");
+        const fabrics = this.#fabrics.map(
+            fabric =>
+                `#${fabric.fabricIndex} (node ID ${fabric.nodeId.toString(16)}) keys ${fabric.groups.keySets
+                    .allKeysForId(0)
+                    .map(({ key }) => Bytes.toHex(key))
+                    .join(" & ")}`,
+        );
+        logger.debug(
+            `No match for destination ID`,
+            Diagnostic.dict({ destId: destinationId, random: initiatorRandom, ...fabrics }),
+        );
+
+        throw new FabricNotFoundError("Fabric not found for CASE sigma2");
     }
 
     findByKeypair(keypair: Key) {
