@@ -5,7 +5,15 @@
  */
 
 // Include this first to auto-register Crypto, Network and Time Node.js implementations
-import { Environment, Logger, SharedEnvironmentServices, StorageContext, StorageService } from "#general";
+import {
+    Environment,
+    Logger,
+    ObserverGroup,
+    SharedEnvironmentServices,
+    StorageContext,
+    StorageService,
+} from "#general";
+import { ServerNode, SoftwareUpdateManager } from "#node";
 import { DclCertificateService, DclOtaUpdateService, DclVendorInfoService } from "#protocol";
 import { NodeId } from "#types";
 import { CommissioningController } from "@project-chip/matter.js";
@@ -24,6 +32,7 @@ export class MatterNode {
     readonly #netInterface?: string;
     #dclFetchTestCertificates = false;
     #services?: SharedEnvironmentServices;
+    #observers?: ObserverGroup;
 
     constructor(nodeNum: number, netInterface?: string) {
         this.#environment = Environment.default;
@@ -47,7 +56,7 @@ export class MatterNode {
         return this.#services;
     }
 
-    get node() {
+    get node(): ServerNode {
         if (this.commissioningController === undefined) {
             throw new Error("CommissioningController not initialized. Start first");
         }
@@ -79,7 +88,7 @@ export class MatterNode {
         /**
          * Initialize the storage system.
          *
-         * The storage manager is then also used by the Matter server, so this code block in general is required,
+         * The Matter server then also uses the storage manager, so this code block in general is required,
          * but you can choose a different storage backend as long as it implements the required API.
          */
 
@@ -87,6 +96,7 @@ export class MatterNode {
             if (this.#netInterface !== undefined) {
                 this.#environment.vars.set("mdns.networkinterface", this.#netInterface);
             }
+
             // Build up the "Not-so-legacy" Controller
             const id = `shell-${this.#nodeNum.toString()}`;
             this.commissioningController = new CommissioningController({
@@ -96,6 +106,7 @@ export class MatterNode {
                 },
                 autoConnect: false,
                 adminFabricLabel: "matter.js Shell",
+                enableOtaProvider: true,
             });
 
             const storageService = this.commissioningController.env.get(StorageService);
@@ -129,6 +140,7 @@ export class MatterNode {
     async close() {
         await this.commissioningController?.close();
         await this.#services?.close();
+        this.#observers?.close();
     }
 
     async start() {
@@ -148,6 +160,16 @@ export class MatterNode {
         } else {
             throw new Error("No controller initialized");
         }
+
+        this.#observers = this.#observers ?? new ObserverGroup(this.#environment.runtime);
+        const updateManagerEvents = this.commissioningController.otaProvider.eventsOf(SoftwareUpdateManager);
+        this.#observers.on(updateManagerEvents.updateAvailable, (peer, details) => {
+            logger.info(`Update available for peer `, peer, `:`, details);
+        });
+        this.#observers.on(updateManagerEvents.updateDone, peer => {
+            logger.info(`Update done for peer `, peer);
+        });
+
         this.#started = true;
     }
 

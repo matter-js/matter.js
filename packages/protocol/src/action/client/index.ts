@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export * from "./ClientBdx.js";
 export * from "./ClientInteraction.js";
 export * from "./ClientRead.js";
 export * from "./ClientRequest.js";

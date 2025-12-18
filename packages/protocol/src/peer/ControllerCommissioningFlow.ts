@@ -8,12 +8,14 @@ import { ClientInteraction } from "#action/client/ClientInteraction.js";
 import { ClientRead } from "#action/client/ClientRead.js";
 import { Invoke } from "#action/request/Invoke.js";
 import { Read } from "#action/request/Read.js";
+import { Write } from "#action/request/Write.js";
 import { Certificate } from "#certificate/kinds/Certificate.js";
 import { BasicInformation } from "#clusters/basic-information";
 import { Descriptor } from "#clusters/descriptor";
 import { GeneralCommissioning } from "#clusters/general-commissioning";
 import { NetworkCommissioning } from "#clusters/network-commissioning";
 import { OperationalCredentials } from "#clusters/operational-credentials";
+import { OtaSoftwareUpdateRequestor } from "#clusters/ota-software-update-requestor";
 import { TimeSynchronizationCluster } from "#clusters/time-synchronization";
 import {
     Bytes,
@@ -37,6 +39,7 @@ import {
     ClusterType,
     EndpointNumber,
     FabricIndex,
+    NodeId,
     Status,
     StatusResponseError,
     TypeFromPartialBitSchema,
@@ -51,6 +54,11 @@ import { CommissioningError } from "./CommissioningError.js";
 import { PeerAddress } from "./PeerAddress.js";
 
 const logger = Logger.get("ControllerCommissioner");
+
+export interface OtaProviderLocation {
+    nodeId: NodeId;
+    endpoint: EndpointNumber;
+}
 
 /**
  * User specific options for the Commissioning process
@@ -86,6 +94,9 @@ export type ControllerCommissioningFlowOptions = {
         networkName: string;
         operationalDataset: string;
     };
+
+    /** The Location of the OTA provider for this fabric set on the commissioned devices if OTA is supported */
+    otaUpdateProviderLocation?: OtaProviderLocation;
 };
 
 /** Types representation of a general commissioning response. */
@@ -137,10 +148,14 @@ type CollectedCommissioningData = {
     basicCommissioningInfo?: TypeFromSchema<typeof GeneralCommissioning.TlvBasicCommissioningInfo>;
     productName?: string;
     networkFeatures?: {
-        endpointId: number;
+        endpointId: EndpointNumber;
         value: TypeFromPartialBitSchema<typeof NetworkCommissioning.Complete.features>;
     }[];
-    networkStatus?: { endpointId: number; value: TypeFromSchema<typeof NetworkCommissioning.TlvNetworkInfo>[] }[];
+    networkStatus?: {
+        endpointId: EndpointNumber;
+        value: TypeFromSchema<typeof NetworkCommissioning.TlvNetworkInfo>[];
+    }[];
+    otaRequestorList?: EndpointNumber[];
     rootPartsList?: EndpointNumber[];
     rootServerList?: ClusterId[];
     vendorId?: VendorId;
@@ -496,11 +511,20 @@ export class ControllerCommissioningFlow {
         });
 
         this.commissioningSteps.push({
-            stepNumber: 99, // Should be allowed in Step 13, but Tasmota is not supporting this
+            stepNumber: 98, // Should be allowed in Step 13, but Tasmota is not supporting this
             subStepNumber: 1,
             name: "OperationalCredentials.UpdateFabricLabel",
             stepLogic: () => this.#updateFabricLabel(),
         });
+
+        if (this.commissioningOptions.otaUpdateProviderLocation !== undefined) {
+            this.commissioningSteps.push({
+                stepNumber: 99,
+                subStepNumber: 1,
+                name: "AdditionalLogic.AddDefaultOtaProvider",
+                stepLogic: () => this.#addDefaultOtaProvider(),
+            });
+        }
     }
 
     #sortSteps() {
@@ -621,16 +645,22 @@ export class ControllerCommissioningFlow {
                     cluster: NetworkCommissioning.Complete,
                     attributes: ["featureMap", "networks"],
                 }),
+                Read.Attribute({
+                    cluster: OtaSoftwareUpdateRequestor.Complete,
+                    attributes: ["defaultOtaProviders"],
+                }),
             ),
         );
+
         const networkFeatures = new Array<{
-            endpointId: number;
+            endpointId: EndpointNumber;
             value: TypeFromPartialBitSchema<typeof NetworkCommissioning.Complete.features>;
         }>();
         const networkStatus = new Array<{
-            endpointId: number;
+            endpointId: EndpointNumber;
             value: TypeFromSchema<typeof NetworkCommissioning.TlvNetworkInfo>[];
         }>();
+        const otaRequestors = new Array<EndpointNumber>();
 
         for await (const data of networkData) {
             for (const entry of data) {
@@ -641,22 +671,29 @@ export class ControllerCommissioningFlow {
                     path: { endpointId, attributeId },
                     value,
                 } = entry;
-                if (attributeId === NetworkCommissioning.Complete.attributes.featureMap.id) {
-                    networkFeatures.push({
-                        endpointId,
-                        value: value as TypeFromPartialBitSchema<typeof NetworkCommissioning.Complete.features>,
-                    });
-                } else if (attributeId === NetworkCommissioning.Complete.attributes.networks.id) {
-                    networkStatus.push({
-                        endpointId,
-                        value: value as TypeFromSchema<typeof NetworkCommissioning.TlvNetworkInfo>[],
-                    });
+                switch (attributeId) {
+                    case NetworkCommissioning.Complete.attributes.featureMap.id:
+                        networkFeatures.push({
+                            endpointId,
+                            value: value as TypeFromPartialBitSchema<typeof NetworkCommissioning.Complete.features>,
+                        });
+                        break;
+                    case NetworkCommissioning.Complete.attributes.networks.id:
+                        networkStatus.push({
+                            endpointId,
+                            value: value as TypeFromSchema<typeof NetworkCommissioning.TlvNetworkInfo>[],
+                        });
+                        break;
+                    case OtaSoftwareUpdateRequestor.Complete.attributes.defaultOtaProviders.id:
+                        otaRequestors.push(endpointId);
+                        break;
                 }
             }
         }
 
         this.collectedCommissioningData.networkFeatures = networkFeatures;
         this.collectedCommissioningData.networkStatus = networkStatus;
+        this.collectedCommissioningData.otaRequestorList = otaRequestors;
 
         return {
             code: CommissioningStepResultCode.Success,
@@ -667,11 +704,11 @@ export class ControllerCommissioningFlow {
     /**
      * Step 7
      * Commissioner SHALL re-arm the Fail-safe timer on the Commissionee to the desired commissioning
-     * timeout within 60 seconds of the completion of PASE session establishment, using the
+     * timeout within 60 seconds of the completion of a PASE session establishment, using the
      * ArmFailSafe command (see Section 11.10.6.2, “ArmFailSafe Command”). A Commissioner MAY
-     * obtain device information including guidance on the fail-safe value from the Commissionee by
+     * collect device information including guidance on the fail-safe value from the Commissionee by
      * reading BasicCommissioningInfo attribute (see Section 11.10.5.2, “BasicCommissioningInfo
-     * Attribute”) prior to invoking the ArmFailSafe command.
+     * Attribute”) before invoking the ArmFailSafe command.
      */
     async #armFailsafe(time?: Duration) {
         if (this.collectedCommissioningData.basicCommissioningInfo === undefined) {
@@ -1597,6 +1634,58 @@ export class ControllerCommissioningFlow {
 
         return {
             code: CommissioningStepResultCode.Success,
+            breadcrumb: this.lastBreadcrumb,
+        };
+    }
+
+    async #addDefaultOtaProvider() {
+        if (this.commissioningOptions.otaUpdateProviderLocation === undefined) {
+            return {
+                code: CommissioningStepResultCode.Skipped,
+                breadcrumb: this.lastBreadcrumb,
+            };
+        }
+
+        if (!this.collectedCommissioningData?.otaRequestorList?.length) {
+            logger.debug("No OTA Requestor found, skipping adding default OTA provider");
+            return {
+                code: CommissioningStepResultCode.Skipped,
+                breadcrumb: this.lastBreadcrumb,
+            };
+        }
+
+        const { nodeId: providerNodeId, endpoint } = this.commissioningOptions.otaUpdateProviderLocation;
+
+        let success = false;
+        for (const requestorEndpoint of this.collectedCommissioningData.otaRequestorList) {
+            try {
+                // Fabric scoped attribute, so we just overwrite our value
+                await this.interaction.write(
+                    Write(
+                        Write.Attribute({
+                            endpoint: requestorEndpoint,
+                            cluster: OtaSoftwareUpdateRequestor.Complete,
+                            attributes: ["defaultOtaProviders"],
+                            value: [
+                                {
+                                    providerNodeId,
+                                    endpoint,
+                                    fabricIndex: this.fabric.fabricIndex,
+                                },
+                            ],
+                        }),
+                    ),
+                );
+                success = true;
+                logger.debug(`Added default OTA provider on endpoint ${endpoint}`);
+            } catch (error) {
+                // Ok to just log, we will check again also in the SoftwareUpdateManager
+                logger.info("Could not set default OTA provider", error);
+            }
+        }
+
+        return {
+            code: success ? CommissioningStepResultCode.Success : CommissioningStepResultCode.Failure,
             breadcrumb: this.lastBreadcrumb,
         };
     }

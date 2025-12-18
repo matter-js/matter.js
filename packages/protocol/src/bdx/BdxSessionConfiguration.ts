@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { FileDesignator } from "#bdx/FileDesignator.js";
 import { ImplementationError } from "#general";
 import { BdxMessageType } from "#types";
 import { Flow } from "./flow/Flow.js";
@@ -15,10 +16,12 @@ export class BdxSessionConfiguration {
     #initMessage?: BdxInit;
     #transferConfig: BdxSessionConfiguration.Config;
     #fileDesignator: PersistedFileDesignator;
+    #transferFileDesignator: FileDesignator;
 
     constructor(options: BdxSessionConfiguration.Options) {
-        const { isSender, fileDesignator, initMessage } = options;
+        const { isSender, fileDesignator, transferFileDesignator, initMessage } = options;
         this.#fileDesignator = fileDesignator;
+        this.#transferFileDesignator = transferFileDesignator ?? fileDesignator;
         this.#isSender = isSender;
         this.#initMessage = initMessage;
         this.#transferConfig = { ...BdxSessionConfiguration.DefaultConfig, ...options };
@@ -65,6 +68,10 @@ export class BdxSessionConfiguration {
         return this.#fileDesignator;
     }
 
+    get transferFileDesignator(): FileDesignator {
+        return this.#transferFileDesignator;
+    }
+
     get transferConfig(): BdxSessionConfiguration.Config {
         return this.#transferConfig;
     }
@@ -106,6 +113,11 @@ export namespace BdxSessionConfiguration {
     export interface InitiatorOptions extends BdxSessionConfiguration.Config {
         /** FileDesignator to use for the session. The value is usually pre-determined with the peer. */
         fileDesignator: PersistedFileDesignator;
+
+        /**
+         * Optional file designator to use for the transfer. This can be used to separate the file designator used
+         * in BDX messages from the persisted file. */
+        transferFileDesignator?: FileDesignator;
     }
 
     export interface SenderInitiatorOptions extends InitiatorOptions {
@@ -119,14 +131,24 @@ export namespace BdxSessionConfiguration {
     export interface ReceiverOptions extends BdxSessionConfiguration.Config {
         initMessageType: BdxMessageType;
         initMessage: BdxInit; // The initial message received to start the session
+        fileDesignator: PersistedFileDesignator;
     }
 
     export interface Options extends BdxSessionConfiguration.Config {
         /** True if the session is initiated as a sender, false for receiver */
         isSender: boolean;
 
-        /** File designator to use for the session */
+        /**
+         * File designator to use for the session and read from or write to. It points to the persisted blob storage.
+         */
         fileDesignator: PersistedFileDesignator;
+
+        /**
+         * Optional Transfer FileDesignator to use for the transfer, if different from the fileDesignator. This is
+         * mainly useful when receiving data where the fileDesignator used in the BDX messages is defined by the file
+         * sender and when the persisted file is stored under a different designator.
+         */
+        transferFileDesignator?: FileDesignator;
 
         /** The initial message received to start the session */
         initMessage?: BdxInit;

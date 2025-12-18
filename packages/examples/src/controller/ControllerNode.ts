@@ -127,7 +127,7 @@ class ControllerNode {
         /** Start the Matter Controller Node */
         await commissioningController.start();
 
-        // When we do not have a commissioned node we need to commission the device provided by CLI parameters
+        // When we do not have a commissioned node, we need to commission the device provided by CLI parameters
         if (!commissioningController.isCommissioned()) {
             const options: NodeCommissioningOptions = {
                 commissioning: commissioningOptions,

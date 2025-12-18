@@ -1,0 +1,19 @@
+/**
+ * @license
+ * Copyright 2022-2025 Matter.js Authors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { RequestContext } from "#action/client/ClientInteraction.js";
+import { BdxMessenger } from "#bdx/BdxMessenger.js";
+import { Duration, WorkSlot } from "#general";
+
+export interface ClientBdxRequest {
+    messageTimeout?: Duration;
+    queued?: boolean;
+}
+
+export interface ClientBdxResponse {
+    context: RequestContext<BdxMessenger>;
+    slot?: WorkSlot;
+}

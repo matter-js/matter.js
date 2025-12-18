@@ -36,7 +36,7 @@ export abstract class ExchangeProvider {
     }
 
     abstract maximumPeerResponseTime(expectedProcessingTime?: Duration): Duration;
-    abstract initiateExchange(): Promise<MessageExchange>;
+    abstract initiateExchange(protocol?: number): Promise<MessageExchange>;
     abstract reconnectChannel(options: { asOf?: Timestamp; resetInitialState?: boolean }): Promise<boolean>;
     abstract session: Session;
 
@@ -103,7 +103,7 @@ export class ReconnectableExchangeProvider extends ExchangeProvider {
         return this.#channelUpdated;
     }
 
-    async initiateExchange(): Promise<MessageExchange> {
+    async initiateExchange(protocol = INTERACTION_PROTOCOL_ID): Promise<MessageExchange> {
         if (!this.sessions.maybeSessionFor(this.#address)) {
             using _connecting = this.sessions.construction.join(
                 "connecting to",
@@ -115,7 +115,7 @@ export class ReconnectableExchangeProvider extends ExchangeProvider {
         if (!this.sessions.maybeSessionFor(this.#address)) {
             throw new SessionClosedError("Channel not connected");
         }
-        return this.exchangeManager.initiateExchange(this.#address, INTERACTION_PROTOCOL_ID);
+        return this.exchangeManager.initiateExchange(this.#address, protocol);
     }
 
     async reconnectChannel(options: { asOf?: Timestamp; resetInitialState?: boolean } = {}) {

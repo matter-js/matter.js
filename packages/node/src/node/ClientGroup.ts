@@ -5,7 +5,7 @@
  */
 import type { ActionContext } from "#behavior/context/ActionContext.js";
 import { Interactable } from "#protocol";
-import { ServerNodeStore } from "#storage/index.js";
+import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { ClientNode } from "./ClientNode.js";
 import { ClientGroupInteraction } from "./client/ClientGroupInteraction.js";
 

@@ -29,6 +29,7 @@ import {
     NetworkCommissioningServer,
     NitrogenDioxideConcentrationMeasurementServer,
     OccupancySensingServer,
+    OtaSoftwareUpdateRequestorServer,
     OvenModeServer,
     OzoneConcentrationMeasurementServer,
     Pm10ConcentrationMeasurementServer,
@@ -428,6 +429,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                 OccupancySensingServer.with(OccupancySensing.Feature.PassiveInfrared),
                 TestOperationalStateServer,
                 TestOvenCavityOperationalStateServer,
+                OtaSoftwareUpdateRequestorServer,
                 OvenModeServer,
                 OzoneConcentrationMeasurementServer.with(
                     ConcentrationMeasurement.Feature.LevelIndication,

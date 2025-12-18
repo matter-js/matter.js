@@ -37,16 +37,19 @@ export class FollowingReceivingFlow extends OutboundFlow {
         if (bytesToSkip > 0) {
             const skipped = await streamReader.skip(bytesToSkip);
             logger.debug(`Skipped ${skipped}bytes of data (requested ${bytesToSkip}bytes)`);
+            this.transferredBytes += bytesToSkip;
         }
         const { data, done } = await this.readDataChunk(iterator);
 
         if (done) {
             await this.messenger.sendBlockEof({ data, blockCounter });
+            this.transferredBytes += data.byteLength;
             this.finalBlockCounter = blockCounter;
             return true;
         }
 
         await this.messenger.sendBlock({ data, blockCounter });
+        this.transferredBytes += data.byteLength;
         // Ack or next BlockQuery is read on the next iteration
         return false;
     }

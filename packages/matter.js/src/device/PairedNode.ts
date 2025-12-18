@@ -6,7 +6,7 @@
 
 import { ClusterClient } from "#cluster/client/ClusterClient.js";
 import { InteractionClient } from "#cluster/client/InteractionClient.js";
-import { AdministratorCommissioning, BasicInformation, Descriptor } from "#clusters";
+import { AdministratorCommissioning, BasicInformation, Descriptor, OtaSoftwareUpdateRequestor } from "#clusters";
 import {
     AsyncObservable,
     AtLeastOne,
@@ -239,6 +239,11 @@ export type CommissioningControllerNodeOptions = {
 
 export class NodeNotConnectedError extends MatterError {}
 
+enum NodeShutDownReason {
+    Unknown,
+    ForUpdate,
+}
+
 interface SubscriptionHandlerCallbacks {
     attributeListener: (data: DecodedAttributeReportValue<any>) => void;
     eventListener: (data: DecodedEventReportValue<any>) => void;
@@ -308,6 +313,7 @@ export class PairedNode {
     #currentSubscriptionIntervalS?: number;
     #crypto: Crypto;
     #deviceInformationUpdateNeeded = false;
+    #nodeShutdownReason?: NodeShutDownReason;
     #nodeShutdownDetected = false;
 
     /**
@@ -495,6 +501,10 @@ export class PairedNode {
 
     get id() {
         return this.#clientNode.id;
+    }
+
+    get node() {
+        return this.#clientNode;
     }
 
     /** If a subscription is established, then this is the interval in seconds, otherwise undefined */
@@ -830,7 +840,7 @@ export class PairedNode {
                 asClusterClientInternal(cluster)._triggerAttributeUpdate(attributeId, value);
                 attributeChangedCallback?.(data);
 
-                this.#checkAttributesForNeededUpdates(endpointId, clusterId, attributeId);
+                this.#checkAttributesForNeededUpdates(endpointId, clusterId, attributeId, value);
             },
             eventListener: data => {
                 if (ignoreInitialTriggers) return;
@@ -895,8 +905,13 @@ export class PairedNode {
                 this.#deviceInformationUpdateNeeded = false;
 
                 if (this.#nodeShutdownDetected) {
+                    const delay =
+                        this.#nodeShutdownReason === NodeShutDownReason.ForUpdate
+                            ? Millis(RECONNECT_DELAY_AFTER_SHUTDOWN * 4)
+                            : RECONNECT_DELAY_AFTER_SHUTDOWN;
                     this.#nodeShutdownDetected = false;
-                    this.#scheduleReconnect(RECONNECT_DELAY_AFTER_SHUTDOWN);
+                    this.#nodeShutdownReason = undefined;
+                    this.#scheduleReconnect(delay);
                 } else {
                     this.events.connectionAlive.emit();
                 }
@@ -1017,7 +1032,12 @@ export class PairedNode {
         for await (const _chunk of this.#clientNode.interaction.read(read));
     }
 
-    #checkAttributesForNeededUpdates(endpointId: EndpointNumber, clusterId: ClusterId, attributeId: AttributeId) {
+    #checkAttributesForNeededUpdates(
+        endpointId: EndpointNumber,
+        clusterId: ClusterId,
+        attributeId: AttributeId,
+        value: any,
+    ) {
         // Any change in the Descriptor Cluster partsList attribute requires a reinitialization of the endpoint structure
         if (clusterId === Descriptor.Complete.id) {
             switch (attributeId) {
@@ -1046,6 +1066,14 @@ export class PairedNode {
                 }
                 break;
         }
+        if (
+            clusterId === OtaSoftwareUpdateRequestor.Cluster.id &&
+            attributeId == OtaSoftwareUpdateRequestor.Cluster.attributes.updateState.id
+        ) {
+            if (value === OtaSoftwareUpdateRequestor.UpdateState.Applying) {
+                this.#nodeShutdownReason = NodeShutDownReason.ForUpdate;
+            }
+        }
     }
 
     #checkEventsForNeededStructureUpdate(_endpointId: EndpointNumber, clusterId: ClusterId, eventId: EventId) {
@@ -1057,7 +1085,12 @@ export class PairedNode {
 
     /** Handles a node shutDown event (if supported by the node and received). */
     #handleNodeShutdown() {
-        logger.info(`Node ${this.nodeId}: Node shutdown detected, trying to reconnect ...`);
+        if (this.#nodeShutdownReason === undefined) {
+            this.#nodeShutdownReason = NodeShutDownReason.Unknown;
+        }
+        logger.info(
+            `Node ${this.nodeId}: Node shutdown${this.#nodeShutdownReason === NodeShutDownReason.ForUpdate ? " for software update" : ""} detected, trying to reconnect ...`,
+        );
         this.#nodeShutdownDetected = true;
     }
 

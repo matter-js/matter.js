@@ -4,14 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { OtaImageReader } from "#dcl/OtaImageReader.js";
-import { OtaImageWriter } from "#dcl/OtaImageWriter.js";
 import { Bytes, HASH_ALGORITHM_OUTPUT_LENGTHS, HashFipsAlgorithmId, StandardCrypto } from "#general";
-import { StreamingCrypto } from "./dcl-ota-test-helpers.js";
+import { OtaImageReader } from "#ota/OtaImageReader.js";
+import { OtaImageWriter } from "#ota/OtaImageWriter.js";
 
 describe("OtaImageWriter", () => {
-    const crypto = new StreamingCrypto();
-    const standardCrypto = new StandardCrypto();
+    const crypto = new StandardCrypto();
 
     describe("create", () => {
         it("creates a valid OTA image with all required fields", async () => {
@@ -91,7 +89,7 @@ describe("OtaImageWriter", () => {
 
         it("computes correct SHA-256 digest of payload", async () => {
             const payload = new Uint8Array([0xde, 0xad, 0xbe, 0xef]);
-            const expectedDigest = Bytes.toHex(await standardCrypto.computeHash(payload));
+            const expectedDigest = Bytes.toHex(await crypto.computeHash(payload));
 
             const result = await OtaImageWriter.create(crypto, {
                 vendorId: 0xfff1,
@@ -494,8 +492,8 @@ describe("OtaImageWriter", () => {
             });
 
             // Manually compute expected digests
-            const expectedDigest256 = Bytes.toHex(await standardCrypto.computeHash(payload));
-            const expectedDigest512 = Bytes.toHex(await standardCrypto.computeHash(payload, "SHA-512"));
+            const expectedDigest256 = Bytes.toHex(await crypto.computeHash(payload));
+            const expectedDigest512 = Bytes.toHex(await crypto.computeHash(payload, "SHA-512"));
 
             // Read headers and verify digests
             const stream256 = new ReadableStream<Bytes>({

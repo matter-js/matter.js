@@ -23,12 +23,15 @@ export class DrivenSendingFlow extends OutboundFlow {
         if (done) {
             // Send the last Block and wait for AckEof and close down
             await this.messenger.sendBlockEof({ data: data ?? new Uint8Array(), blockCounter });
+            this.transferredBytes += data?.byteLength ?? 0;
+
             this.finalBlockCounter = blockCounter;
             return true;
         }
 
         // Send the next Block
         await this.messenger.sendBlock({ data, blockCounter });
+        this.transferredBytes += data.byteLength;
 
         // Sync transfer just continues when the Ack is received
         if (!asynchronousTransfer) {

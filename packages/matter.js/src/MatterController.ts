@@ -17,6 +17,7 @@ import { GeneralCommissioning } from "#clusters";
 import type { NodeCommissioningOptions } from "#CommissioningController.js";
 import { ControllerStore, ControllerStoreInterface } from "#ControllerStore.js";
 import { DeviceInformationData } from "#device/DeviceInformation.js";
+import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import {
     Bytes,
     ChannelType,
@@ -44,6 +45,7 @@ import {
 import {
     ClientNode,
     CommissioningClient,
+    Endpoint,
     NetworkClient,
     NodePhysicalProperties,
     RemoteDescriptor,
@@ -129,6 +131,7 @@ export class MatterController {
         listeningAddressIpv6?: string;
         localPort?: number;
         environment: Environment;
+        enableOtaProvider?: boolean;
     }): Promise<MatterController> {
         const {
             rootFabric,
@@ -265,6 +268,7 @@ export class MatterController {
         listeningAddressIpv6?: string;
         localPort?: number;
         environment: Environment;
+        enableOtaProvider?: boolean;
     }) {
         const crypto = options.environment.get(Crypto);
         const {
@@ -281,6 +285,7 @@ export class MatterController {
             environment,
             id,
             fabric,
+            enableOtaProvider = false,
         } = options;
 
         this.#construction = Construction(this, async () => {
@@ -311,6 +316,10 @@ export class MatterController {
                     persistenceEnabled: false, // Disable because that's a device feature
                 },
             });
+
+            if (enableOtaProvider) {
+                await this.#enableOtaProvider();
+            }
 
             const fabricManager = await this.#node.env.load(FabricManager);
             const fabricAuthority = await this.#node.env.load(FabricAuthority);
@@ -364,6 +373,16 @@ export class MatterController {
 
             this.#peers = this.#node.env.get(PeerSet);
         });
+    }
+
+    #enableOtaProvider() {
+        if (!this.#node) {
+            throw new ImplementationError("Node is not initialized yet");
+        }
+        if (this.#node.endpoints.has("ota-provider")) {
+            return; // Already enabled
+        }
+        return this.#node.add(new Endpoint(OtaProviderEndpoint, { id: "ota-provider" }));
     }
 
     get ble() {

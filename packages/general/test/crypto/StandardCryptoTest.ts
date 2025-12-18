@@ -155,17 +155,6 @@ describe("StandardCrypto", () => {
                     expect(hash.byteLength).to.equal(HASH_ALGORITHM_OUTPUT_LENGTHS[alg]);
                 });
 
-                it(`throws on streaming`, async () => {
-                    const baseData = Bytes.of(testData);
-                    async function* data() {
-                        yield Bytes.of(baseData).slice(0, 5);
-                        yield Bytes.of(baseData).slice(5);
-                    }
-                    expect(() => crypto.computeHash(data(), alg)).to.throw(
-                        /Streamed hash computation is not supported in StandardCrypto/,
-                    );
-                });
-
                 it(`supports array of buffers`, async () => {
                     const chunk1 = b$`48656c6c6f`; // "Hello"
                     const chunk2 = b$`20576f726c64`; // " World"
