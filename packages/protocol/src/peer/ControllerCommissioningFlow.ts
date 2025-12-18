@@ -1319,7 +1319,7 @@ export class ControllerCommissioningFlow {
                 cluster: NetworkCommissioning.Complete,
                 command: "connectNetwork",
                 fields: {
-                    networkId: networkId,
+                    networkId,
                     breadcrumb: this.lastBreadcrumb++,
                 },
             },
@@ -1477,7 +1477,7 @@ export class ControllerCommissioningFlow {
             `Commissionee added Thread network ${this.commissioningOptions.threadNetwork.networkName} with network index ${networkIndex}`,
         );
 
-        const updatedNetworks = await this.#readConcreteAttributeValues(
+        const [updatedNetworks] = await this.#readConcreteAttributeValues(
             Read(
                 Read.Attribute({
                     endpoint: RootEndpointNumber,
@@ -1511,7 +1511,7 @@ export class ControllerCommissioningFlow {
                 cluster: NetworkCommissioning.Complete,
                 command: "connectNetwork",
                 fields: {
-                    networkId: networkId,
+                    networkId,
                     breadcrumb: this.lastBreadcrumb++,
                 },
             },

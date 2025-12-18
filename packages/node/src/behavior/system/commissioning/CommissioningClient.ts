@@ -262,13 +262,13 @@ export class CommissioningClient extends Behavior {
         const opcreds = this.agent.get(OperationalCredentialsClient);
 
         const fabricIndex = opcreds.state.currentFabricIndex;
-        logger.debug(`Removing node ${peerAddress.toString()} by removing fabric ${fabricIndex} on the node`);
+        logger.debug(`Removing node ${formerAddress} by removing fabric ${fabricIndex} on the node`);
 
         const result = await opcreds.removeFabric({ fabricIndex });
 
         if (result.statusCode !== OperationalCredentials.NodeOperationalCertStatus.Ok) {
             throw new MatterError(
-                `Removing node ${peerAddress.toString()} failed with status ${result.statusCode} "${result.debugText}".`,
+                `Removing node ${formerAddress} failed with status ${result.statusCode} "${result.debugText}".`,
             );
         }
 

@@ -203,7 +203,8 @@ export class ServerNetworkRuntime extends NetworkRuntime {
             advertiser.addAdvertiser(this.mdnsAdvertiser);
         }
 
-        if (discoveryCapabilities.ble) {
+        if (!isCommissioned && discoveryCapabilities.ble) {
+            // BLE announcements are only relevant when not commissioned
             advertiser.addAdvertiser(this.bleAdvertiser);
         }
     }
