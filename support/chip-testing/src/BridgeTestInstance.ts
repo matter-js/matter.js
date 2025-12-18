@@ -19,6 +19,11 @@ export class BridgeTestInstance extends NodeTestInstance {
 
     serverNode: ServerNode | undefined;
 
+    override async initialize() {
+        await this.activateCommandPipe("bridge");
+        await super.initialize();
+    }
+
     async setupServer(): Promise<ServerNode> {
         Environment.default.get(StorageService).factory = (_namespace: string) => this.config.storage;
 
