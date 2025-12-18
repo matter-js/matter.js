@@ -209,17 +209,21 @@ export class OnOffBaseServer extends OnOffLogicBase {
     #applySceneValues(values: Val.Struct, transitionTime: number): MaybePromise {
         this.#clearDelayedSceneApplyData();
 
+        console.log("Applying scene values", values);
         const onOff = values.onOff;
         // If no number (including null) or outside our range, ignore
         if (typeof onOff !== "boolean" || this.state.onOff === onOff) {
+            console.log("is already");
             return;
         }
 
         if (transitionTime === 0) {
+            console.log("apply immediately", onOff, this.state.onOff);
             this.state.onOff = onOff;
         } else {
+            console.log("delayed apply", transitionTime, onOff);
             this.internal.applyScenePendingOnOff = onOff;
-            this.internal.applySceneDelayTimer = Time.getPeriodicTimer(
+            this.internal.applySceneDelayTimer = Time.getTimer(
                 "delayed scene apply",
                 Millis(transitionTime),
                 this.callback(this.#applyDelayedSceneOnOffValue),

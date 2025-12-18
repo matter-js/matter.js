@@ -5,7 +5,7 @@
  */
 
 import { MessagesServer } from "#behaviors/messages";
-import { BasicInformationCluster } from "#clusters/basic-information";
+import { BasicInformation, BasicInformationCluster } from "#clusters/basic-information";
 import { Messages } from "#clusters/messages";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/index.js";
@@ -13,8 +13,9 @@ import { Bytes, Seconds } from "#general";
 import { ServerNode } from "#index.js";
 import { AccessLevel, Specification } from "#model";
 import { EventReadResponse, Read, ReadResult } from "#protocol";
-import { ClusterId, EndpointNumber, EventId, FabricIndex, StatusCode } from "#types";
+import { ClusterId, EndpointNumber, EventId, EventNumber, FabricIndex, StatusCode } from "#types";
 import { MockServerNode } from "./mock-server-node.js";
+import { MockSite } from "./mock-site.js";
 
 const ROOT_ENDPOINT_FULL_CLUSTER_LIST = {
     40: 2,
@@ -338,6 +339,53 @@ describe("EventReadResponse", () => {
             status: 0,
             success: ROOT_ENDPOINT_FULL_CLUSTER_LIST_COUNT,
             existent: ROOT_ENDPOINT_FULL_CLUSTER_LIST_COUNT + 3,
+        });
+    });
+
+    describe("On commissioned node", () => {
+        before(() => {
+            MockTime.init();
+
+            // Required for crypto to succeed
+            MockTime.macrotasks = true;
+        });
+
+        it("Reads startup event via remote read", async () => {
+            await using site = new MockSite();
+            // Device is automatically configured with vendorId 0xfff1 and productId 0x8000
+            const { controller } = await site.addCommissionedPair({
+                device: {
+                    type: ServerNode.RootEndpoint,
+                    groupKeyManagement: {
+                        maxGroupKeysPerFabric: 3,
+                    },
+                },
+            });
+
+            // Get the client view of the device (peer)
+            const peer1 = controller.peers.get("peer1")!;
+            expect(peer1).not.undefined;
+
+            const read = peer1.interaction.read(
+                Read(
+                    {
+                        eventFilters: [{ eventMin: EventNumber(12345) }],
+                    },
+                    Read.Event({
+                        endpoint: EndpointNumber(0),
+                        cluster: BasicInformation.Complete,
+                        events: ["startUp"],
+                    }),
+                ),
+            );
+
+            let asExpected = false;
+            for await (const chunks of read) {
+                expect(chunks).deep.equals([]);
+                expect(asExpected).equals(false);
+                asExpected = true;
+            }
+            expect(asExpected).equals(true);
         });
     });
 
