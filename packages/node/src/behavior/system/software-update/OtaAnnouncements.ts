@@ -45,8 +45,8 @@ export class OtaAnnouncements {
             this.#processQueueEntry(),
         );
 
-        const initialDelay = Millis(Seconds(Math.floor(Math.random() * 300)) + Minutes(5));
-        logger.debug(`Initial announcement delay is ${Duration.format(initialDelay)}`);
+        const initialDelay = Millis(Seconds(Math.floor(Math.random() * 300)) + Minutes(10));
+        logger.debug(`Initial OTA announcement delay is ${Duration.format(initialDelay)}`);
         this.#announcementTimer = Time.getTimer("Delay for initial OTA announcement", initialDelay, () =>
             this.#initializeAnnouncements(),
         ).start();
@@ -130,7 +130,7 @@ export class OtaAnnouncements {
         };
         const existingOtaProviderRecord = otaEndpoint
             .stateOf(OtaSoftwareUpdateRequestorClient)
-            ?.defaultOtaProviders.filter(({ fabricIndex }) => fabricIndex === this.#ownFabric.fabricIndex)[0];
+            .defaultOtaProviders.filter(({ fabricIndex }) => fabricIndex === this.#ownFabric.fabricIndex)[0];
 
         // Check and update the default OTA provider entry and add/update it
         if (

@@ -15,6 +15,7 @@ const logger = Logger.get("PersistedFileDesignator");
  * If the file is supposed to be used for Bdx transfers where it could be requested by a client and is not actively
  * sent or the location to store a received file, you need to pass a ScopedStorage to allow automatic target detection
  * for BDX.
+ * The logic supports providing names separated by "." to automatically create sub contexts
  */
 export class PersistedFileDesignator extends FileDesignator {
     #storage: StorageContext;
@@ -31,8 +32,13 @@ export class PersistedFileDesignator extends FileDesignator {
             storage = storage.context;
         }
         super(fd);
+        const subContext = blobName.split(".");
+        this.#blobName = subContext.pop()!;
+        for (const parts of subContext) {
+            storage = storage.createContext(parts);
+        }
+
         this.#storage = storage;
-        this.#blobName = blobName;
     }
 
     exists() {
@@ -57,12 +63,12 @@ export class PersistedFileDesignator extends FileDesignator {
     }
 
     writeFromStream(stream: ReadableStream<Bytes>) {
-        logger.debug(`Writing blob "${this.#blobName}" to storage`);
+        logger.debug(`Writing blob "${this.text}" (${this.#blobName}) to storage`);
         return this.#storage.writeBlobFromStream(this.#blobName, stream);
     }
 
     delete() {
-        logger.debug(`Deleting blob "${this.#blobName}" from storage`);
+        logger.debug(`Deleting blob "${this.text}" (${this.#blobName}) from storage`);
         return this.#storage.delete(this.#blobName);
     }
 }

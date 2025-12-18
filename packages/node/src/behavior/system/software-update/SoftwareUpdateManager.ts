@@ -106,12 +106,12 @@ export interface SoftwareUpdateInfo {
  * installed. It uses the generic DclOtaUpdateService, which exists globally, to request and get new updates.
  *
  * The following state allows configuring the behavior:
- * * `startupConsents`: Use this to pre-initialize consent to allow nodes to update automatically. The value will not
- *     be persisted, and change during runtime is only supported via `addUpdateConsent`.
- * * `allowTestOtaImages`: When set to true, we also query the Test DCL additionally to the production DCL for update
+ * * {@link allowTestOtaImages}: When set to true, we also query the Test DCL additionally to the production DCL for update
  *     and use this when a newer version is found. Default is false
- * * `updateCheckInterval`: By default, we check the DCL for updates every 24h. This state value allows adjusting this.
- * * `announceAsDefaultProvider`: By default, we announce ourselves as a default update provider to all nodes in the fabric.
+ *
+ * * {@link updateCheckInterval}: By default, we check the DCL for updates every 24h. This state value allows adjusting this.
+ *
+ * * {@link announceAsDefaultProvider}: By default, we announce ourselves as a default update provider to all nodes in the fabric.
  *     Set to "false" if this is not wanted and updates are only pushed on availability
  */
 export class SoftwareUpdateManager extends Behavior {
@@ -158,7 +158,7 @@ export class SoftwareUpdateManager extends Behavior {
         }
 
         // Randomly force the first update check 5-10 minutes after startup
-        const delay = Millis(Seconds(Math.floor(Math.random() * 300)) + Minutes(10));
+        const delay = Millis(Seconds(Math.floor(Math.random() * 300)) + Minutes(5));
         logger.info(`Scheduling first OTA update check in ${Duration.format(delay)}`);
         this.internal.checkForUpdateTimer?.stop();
         this.internal.checkForUpdateTimer = Time.getTimer(

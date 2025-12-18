@@ -118,21 +118,27 @@ const schema = OtaSoftwareUpdateRequestorBehavior.schema.extend(
  * is used.
  *
  * The following custom state attributes are available to configure the behavior of the cluster:
- * * `updateQueryInterval`: Interval to check for updates, default: 24h as defined in Matter specification
- * * `transferProtocolsSupported`: List of Transfer protocols that are announced as supported. By default, we only
+ * * {@link updateQueryInterval}: Interval to check for updates, default: 24h as defined in Matter specification
+ *
+ * * {@link transferProtocolsSupported}: List of Transfer protocols that are announced as supported. By default, we only
  *     export BDX; we also support HTTPS (but basically no one else)
- * * `canConsent`: Can the node request consent from the user for the update itself? Default is set to true, and the
- *     controller needs to take care
- * * `downloadLocation`: Option to provide a custom storage location (also backed by an own Storage solution) to store
+ *
+ * * {@link canConsent}: Can the node request consent from the user for the update itself? Default is set to true, and the
+ *     controller needs to take care to get the necessary consent when calling {@link requestUserConsent}.
+ *
+ * * {@link downloadLocation}: Option to provide a custom storage location (also backed by an own Storage solution) to store
  *     the received update file in.  If not provided, a default location is used.
  *
- * For this the following extension points exist that needs to be implemented:
- * * `requestUserConsent`: This method is needed to be implemented when you set `canConsent` to true and needs to
+ *
+ * For this the following extension points exist that need to be implemented:
+ * * {@link requestUserConsent}: This method is needed to be implemented when you set {@link canConsent} to true and needs to
  *     implement user consent gathering.
- * * `applyUpdate`: The method is called with the new SoftwareVersion and the PersistedFileDescriptor where a downloaded
+ *
+ * * {@link applyUpdate}: The method is called with the new SoftwareVersion and the PersistedFileDescriptor where a downloaded
  *     update is placed and needs to trigger the update process including shutdown and restart of the node and also
  *     sending "bootReason" event after the update!
- * * `validateUpdateFile`: This method in default implementation reads the received OTA file and validates header and
+ *
+ * * {@link validateUpdateFile}: This method in default implementation reads the received OTA file and validates header and
  *     checksums and basic details. Override this method and use this.downloadLocation for access if any custom
  *     validations are needed
  */

@@ -336,10 +336,10 @@ describe("DclOtaUpdateService", () => {
 
             // Verify file was created
             expect(fileDesignator.exists()).to.be.true;
-            expect(fileDesignator.blobName).to.equal("fff1-8000-prod");
-            expect(fileDesignator.text).to.equal("ota/fff1-8000-prod");
+            expect(fileDesignator.blobName).to.equal("prod");
+            expect(fileDesignator.text).to.equal("ota/fff1.8000.prod");
 
-            // Verify stored in storage with correct filename
+            // Verify stored in storage with the correct filename
             const stored = await fileDesignator.openBlob();
             expect(stored).to.not.be.null;
         });
@@ -638,8 +638,8 @@ describe("DclOtaUpdateService", () => {
             const fileDesignator = await service.downloadUpdate(update!, true);
 
             expect(fileDesignator.exists()).to.be.true;
-            expect(fileDesignator.blobName).to.equal("fff1-8000-prod");
-            expect(fileDesignator.text).to.equal("ota/fff1-8000-prod");
+            expect(fileDesignator.blobName).to.equal("prod");
+            expect(fileDesignator.text).to.equal("ota/fff1.8000.prod");
         });
     });
 
@@ -779,7 +779,7 @@ describe("DclOtaUpdateService", () => {
             const countBefore = (await service.find({})).length;
             expect(countBefore).to.equal(2);
 
-            expect(await service.delete({ filename: "fff1-8000-prod" })).to.equal(1);
+            expect(await service.delete({ filename: "fff1.8000.prod" })).to.equal(1);
 
             const countAfter = (await service.find({})).length;
             expect(countAfter).to.equal(1);
@@ -811,7 +811,7 @@ describe("DclOtaUpdateService", () => {
         it("does not throw error when file not found with correct pattern", async () => {
             const service = new DclOtaUpdateService(environment);
 
-            expect(await service.delete({ filename: "0-0-test" })).equal(0);
+            expect(await service.delete({ filename: "0.0.test" })).equal(0);
         });
 
         it("throws error when file not found with invalid pattern", async () => {
@@ -890,10 +890,10 @@ describe("DclOtaUpdateService", () => {
             const service = new DclOtaUpdateService(environment);
             await service.downloadUpdate(updateInfo, true);
 
-            const fileDesignator = await service.fileDesignatorForUpdate("fff1-8000-prod");
+            const fileDesignator = await service.fileDesignatorForUpdate("fff1.8000.prod");
             expect(fileDesignator).to.not.be.undefined;
-            expect(fileDesignator.blobName).to.equal("fff1-8000-prod");
-            expect(fileDesignator.text).to.equal("ota/fff1-8000-prod");
+            expect(fileDesignator.blobName).to.equal("prod");
+            expect(fileDesignator.text).to.equal("ota/fff1.8000.prod");
             expect(await fileDesignator.exists()).to.be.true;
         });
 
@@ -908,7 +908,7 @@ describe("DclOtaUpdateService", () => {
         it("throws error for non-existent file with valid pattern", async () => {
             const service = new DclOtaUpdateService(environment);
 
-            await expect(service.fileDesignatorForUpdate("0-0-test")).to.be.rejectedWith(/OTA file not found/);
+            await expect(service.fileDesignatorForUpdate("0.0.test")).to.be.rejectedWith(/OTA file not found/);
         });
     });
 });

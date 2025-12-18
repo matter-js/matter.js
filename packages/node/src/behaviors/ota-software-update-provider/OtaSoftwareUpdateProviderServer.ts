@@ -62,15 +62,17 @@ export enum OtaSoftwareUpdateConsentState {
 /**
  * This is the default server implementation of {@link OtaSoftwareUpdateProviderBehavior}.
  *
- * This cluster is usually used within the Client and allows Servers to handle OTA software updates.
+ * This cluster is usually used by Controller nodes and allows Servers to handle OTA software updates.
  * For the state and detailed usage for Clients, please check the SoftwareUpdateManager behavior which provides
  * configurability for this.
  *
+ *
  * For special use cases the cluster provides the following extension point methods:
- * * `checkUpdateAvailable`: By default, the implementation uses the SoftwareUpdatemanager to check for available
- *     updates from the DCL or being available in the local OTA storage. If this needs to be more vendor-specific it
+ * * {@link checkUpdateAvailable}: By default, the implementation uses the SoftwareUpdatemanager to check for available
+ *     updates from the DCL or being available in the local OTA storage. If this needs to be more vendor-specific, it
  *     can be implemented by overriding this method.
- * * `requestUserConsentForUpdate`: If the client is able to gauther user update consent via other means, then this can be
+ *
+ * * {@link requestUserConsentForUpdate}: If the client is able to gather user update consent via other means, then this can be
  *     implemented by overriding this method. One example could be that users state "automatic update" for certain peers
  *     or device types (e.g., sensors and lights but not sockets). This method then can be used to get such automatic
  *     consents that will be then applied in a queue.

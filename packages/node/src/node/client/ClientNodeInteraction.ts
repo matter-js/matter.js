@@ -9,7 +9,7 @@ import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js
 import type { ClientNode } from "#node/ClientNode.js";
 import { NodePhysicalProperties } from "#node/NodePhysicalProperties.js";
 import {
-    ClientBdxOptions,
+    ClientBdxRequest,
     ClientBdxResponse,
     ClientInteraction,
     ClientInvoke,
@@ -139,7 +139,7 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
      * The provided function is called with the established context to perform BDX operations.
      * Request options can be omitted if defaults are used.
      */
-    async initBdx(request: ClientBdxOptions = {}, context?: ActionContext): Promise<ClientBdxResponse> {
+    async initBdx(request: ClientBdxRequest = {}, context?: ActionContext): Promise<ClientBdxResponse> {
         const client = await this.#connect();
 
         return client.initBdx(request, context);
