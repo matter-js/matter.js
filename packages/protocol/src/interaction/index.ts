@@ -11,4 +11,3 @@ export * from "./EventDataDecoder.js";
 export * from "./FabricAccessControl.js";
 export * from "./InteractionMessenger.js";
 export * from "./Subscription.js";
-export * from "./SubscriptionClient.js";
