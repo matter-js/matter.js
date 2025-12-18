@@ -63,7 +63,7 @@ export class DeviceAdvertiser {
                 fabricIndexAdvertisements.every(
                     ad =>
                         ad.isOperational() &&
-                        ad.description.fabric.operationalId === fabric.operationalId &&
+                        ad.description.fabric.globalId === fabric.globalId &&
                         ad.description.fabric.nodeId === fabric.nodeId,
                 )
             ) {
@@ -86,7 +86,7 @@ export class DeviceAdvertiser {
         // configured
         this.#observers.on(sessions.sessions.added, session => {
             const fabricIndex = session.fabric?.fabricIndex;
-            const fabric = fabricIndex ? fabrics.maybeForIndex(fabricIndex) : undefined;
+            const fabric = fabricIndex ? fabrics.maybeFor(fabricIndex) : undefined;
             if (!fabric) {
                 return;
             }
@@ -102,7 +102,7 @@ export class DeviceAdvertiser {
         // When a session is closed, conditionally resume broadcast
         this.#observers.on(sessions.sessions.deleted, session => {
             const fabricIndex = session.fabric?.fabricIndex;
-            const fabric = fabricIndex ? fabrics.maybeForIndex(fabricIndex) : undefined;
+            const fabric = fabricIndex ? fabrics.maybeFor(fabricIndex) : undefined;
 
             // If this was an operational connection, readvertise if we're no longer connected to the peer
             if (fabric) {

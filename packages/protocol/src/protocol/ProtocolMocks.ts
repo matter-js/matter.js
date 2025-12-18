@@ -28,7 +28,16 @@ import { MessageType } from "#interaction/InteractionMessenger.js";
 import { NodeSession as RealNodeSession } from "#session/NodeSession.js";
 import { Session } from "#session/Session.js";
 import { SessionParameters } from "#session/SessionParameters.js";
-import { FabricId, FabricIndex, NodeId, SECURE_CHANNEL_PROTOCOL_ID, Status, TlvStatusResponse, VendorId } from "#types";
+import {
+    FabricId,
+    FabricIndex,
+    GlobalFabricId,
+    NodeId,
+    SECURE_CHANNEL_PROTOCOL_ID,
+    Status,
+    TlvStatusResponse,
+    VendorId,
+} from "#types";
 import { Specification } from "@matter/model";
 import { MessageChannel as RealMessageChannel } from "./MessageChannel.js";
 import { MessageExchange, MessageExchangeContext } from "./MessageExchange.js";
@@ -38,7 +47,7 @@ export namespace ProtocolMocks {
      * A fabric that will fill any fields not provided with placeholder values.
      */
     export class Fabric extends RealFabric {
-        constructor(config?: Partial<RealFabric.Config>, crypto?: Crypto) {
+        constructor(config?: Partial<RealFabric.SyncConfig>, crypto?: Crypto) {
             if (!crypto) {
                 crypto = Environment.default.maybeGet(Crypto);
                 if (!(crypto instanceof MockCrypto)) {
@@ -60,7 +69,7 @@ export namespace ProtocolMocks {
     }
 
     export namespace Fabric {
-        export const defaults: RealFabric.Config = {
+        export const defaults: RealFabric.SyncConfig = {
             fabricId: FabricId(0x2906c908d115d362n),
             fabricIndex: FabricIndex(1),
             identityProtectionKey: Bytes.empty,
@@ -69,7 +78,7 @@ export namespace ProtocolMocks {
             label: "test-fabric",
             nodeId: NodeId(0xcd5544aa7b13ef14n),
             operationalCert: Bytes.empty,
-            operationalId: Bytes.empty,
+            globalId: GlobalFabricId(0),
             operationalIdentityProtectionKey: b$`9bc61cd9c62a2df6d64dfcaa9dc472d4`,
             rootCert: Bytes.empty,
             rootNodeId: NodeId(1),

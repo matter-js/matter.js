@@ -9,7 +9,7 @@ import { Bytes, DataReadQueue, MAX_UDP_MESSAGE_SIZE, PrivateKey, Seconds, Standa
 import { ExchangeSendOptions, MATTER_MESSAGE_OVERHEAD, MessageExchange } from "#protocol/MessageExchange.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { SecureSession } from "#session/SecureSession.js";
-import { FabricId, FabricIndex, NodeId, VendorId } from "#types";
+import { FabricId, FabricIndex, GlobalFabricId, NodeId, VendorId } from "#types";
 
 const PRIVATE_KEY = new Uint8Array(32);
 PRIVATE_KEY[31] = 1; // EC doesn't like all-zero private key
@@ -21,7 +21,7 @@ export function createTestFabric() {
         fabricId: FabricId(1n),
         nodeId: NodeId(1n),
         rootNodeId: NodeId(2n),
-        operationalId: Bytes.fromHex("00"),
+        globalId: GlobalFabricId(0),
         keyPair: KEY,
         rootPublicKey: Bytes.fromHex("00"),
         rootVendorId: VendorId(1),

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import type { Fabric } from "#fabric/Fabric.js";
-import { BasicMap, Bytes, InternalError, MatterFlowError, StorageContext } from "#general";
+import { BasicMap, Bytes, hex, InternalError, MatterFlowError, StorageContext } from "#general";
 import { GroupKeySet, KeySets, OperationalKeySet } from "#groups/KeySets.js";
 import { MessagingState } from "#groups/MessagingState.js";
 import { GroupId, MATTER_EPOCH_OFFSET_US } from "#types";
@@ -122,19 +122,15 @@ export class FabricGroups {
         await this.#cleanUpCounters(groupKeySetId);
 
         // Lets pre-calculate the operational keys
-        const operationalId = this.#fabric.operationalId;
-        const operationalEpochKey0 = await this.#fabric.crypto.createHkdfKey(
-            epochKey0,
-            operationalId,
-            GROUP_SECURITY_INFO,
-        );
+        const globalId = Bytes.fromHex(hex.fixed(this.#fabric.globalId, 16));
+        const operationalEpochKey0 = await this.#fabric.crypto.createHkdfKey(epochKey0, globalId, GROUP_SECURITY_INFO);
         const operationalEpochKey1 =
             epochKey1 !== null
-                ? await this.#fabric.crypto.createHkdfKey(epochKey1, operationalId, GROUP_SECURITY_INFO)
+                ? await this.#fabric.crypto.createHkdfKey(epochKey1, globalId, GROUP_SECURITY_INFO)
                 : null;
         const operationalEpochKey2 =
             epochKey2 !== null
-                ? await this.#fabric.crypto.createHkdfKey(epochKey2, operationalId, GROUP_SECURITY_INFO)
+                ? await this.#fabric.crypto.createHkdfKey(epochKey2, globalId, GROUP_SECURITY_INFO)
                 : null;
         this.#keySets.add({
             ...groupKeySet,

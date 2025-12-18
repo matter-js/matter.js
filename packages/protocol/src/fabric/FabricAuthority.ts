@@ -147,7 +147,7 @@ export class FabricAuthority {
         let index = config.adminFabricIndex;
         if (index === undefined) {
             index = this.#fabrics.allocateFabricIndex();
-        } else if (this.#fabrics.maybeForIndex(index) !== undefined) {
+        } else if (this.#fabrics.maybeFor(index) !== undefined) {
             throw new ImplementationError(`Cannot allocate controller fabric ${index} because index is in use`);
         }
 

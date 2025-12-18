@@ -28,7 +28,7 @@ import { MessageCounter } from "#protocol/MessageCounter.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { MessageReceptionStateEncryptedWithoutRollover } from "#protocol/MessageReceptionState.js";
 import { SecureChannelMessenger } from "#securechannel/SecureChannelMessenger.js";
-import { CaseAuthenticatedTag, FabricIndex, NodeId } from "#types";
+import { CaseAuthenticatedTag, FabricIndex, GlobalFabricId, NodeId } from "#types";
 import { SecureSession } from "./SecureSession.js";
 import { Session } from "./Session.js";
 import { SessionParameters } from "./SessionParameters.js";
@@ -391,7 +391,7 @@ export namespace NodeSession {
             Diagnostic.strong(PeerAddress({ fabricIndex: fabric.fabricIndex, nodeId: peerNodeId }).toString()),
             Diagnostic.dict({
                 address: messenger.channelName,
-                fabric: `${NodeId.toHexString(fabric.nodeId)} (#${fabric.fabricIndex})`,
+                fabric: `${GlobalFabricId.strOf(fabric.globalId)} (#${fabric.fabricIndex})`,
                 ...session.parameterDiagnostics,
             }),
         );

@@ -735,7 +735,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                 // It seems the stored resumption record is outdated; we need to retry pairing without resumption
                 if (await this.#sessions.deleteResumptionRecord(fabric.addressOf(address.nodeId))) {
                     logger.info(
-                        `Case client: Resumption record seems outdated for Fabric ${NodeId.toHexString(fabric.nodeId)} (index ${fabric.fabricIndex}) and PeerNode ${NodeId.toHexString(address.nodeId)}. Retrying pairing without resumption...`,
+                        `Case client: Resumption record seems outdated for Fabric ${NodeId.strOf(fabric.nodeId)} (index ${fabric.fabricIndex}) and PeerNode ${NodeId.strOf(address.nodeId)}. Retrying pairing without resumption...`,
                     );
                     // An endless loop should not happen here, as the resumption record is deleted in the next step
                     return await this.#doCasePair(paseSession, address, options);

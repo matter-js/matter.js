@@ -244,9 +244,9 @@ export abstract class FailsafeContext {
         }
 
         await builder.setOperationalCert(nocValue, icacValue);
-        const fabricAlreadyExisting = this.#fabrics.find(fabric => builder.matchesToFabric(fabric));
+        const newGlobalId = await builder.globalId;
 
-        if (fabricAlreadyExisting) {
+        if (this.#fabrics.has(newGlobalId)) {
             throw new MatterFabricConflictError(
                 `Fabric with Id ${builder.fabricId} and Node Id ${builder.nodeId} already exists.`,
             );
