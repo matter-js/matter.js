@@ -135,7 +135,7 @@ export class Fabric {
         if (operationalIdentityProtectionKey === undefined) {
             operationalIdentityProtectionKey = await crypto.createHkdfKey(
                 config.identityProtectionKey,
-                Bytes.fromBigInt(globalId),
+                Bytes.fromBigInt(globalId, 8),
                 GROUP_SECURITY_INFO,
             );
         }
@@ -176,7 +176,7 @@ export class Fabric {
         };
 
         // Backwards compatibility
-        (config as unknown as { operationalId: Bytes }).operationalId = Bytes.fromBigInt(this.globalId);
+        (config as unknown as { operationalId: Bytes }).operationalId = Bytes.fromBigInt(this.globalId, 8);
 
         return config;
     }
