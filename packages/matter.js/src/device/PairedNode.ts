@@ -817,18 +817,10 @@ export class PairedNode {
                 } = data;
                 const device = this.#endpoints.get(endpointId);
                 if (device === undefined) {
-                    logger.info(
-                        `Node ${this.nodeId} Ignoring received attribute update for unknown endpoint ${endpointId}!`,
-                    );
                     return;
                 }
                 const cluster = device.getClusterClientById(clusterId);
                 if (cluster === undefined) {
-                    logger.info(
-                        `Node ${this.nodeId} Ignoring received attribute update for unknown cluster ${Diagnostic.hex(
-                            clusterId,
-                        )} on endpoint ${endpointId}!`,
-                    );
                     return;
                 }
                 logger.debug(
@@ -850,16 +842,10 @@ export class PairedNode {
                 } = data;
                 const device = this.#endpoints.get(endpointId);
                 if (device === undefined) {
-                    logger.info(`Node ${this.nodeId} Ignoring received event for unknown endpoint ${endpointId}!`);
                     return;
                 }
                 const cluster = device.getClusterClientById(clusterId);
                 if (cluster === undefined) {
-                    logger.info(
-                        `Node ${this.nodeId} Ignoring received event for unknown cluster ${Diagnostic.hex(
-                            clusterId,
-                        )} on endpoint ${endpointId}!`,
-                    );
                     return;
                 }
                 logger.debug(

@@ -24,7 +24,7 @@ import {
     StorageContext,
     StorageManager,
 } from "#general";
-import { FabricId, FabricIndex, GlobalFabricId } from "#types";
+import { FabricId, FabricIndex, GlobalFabricId, NodeId } from "#types";
 import { Fabric } from "./Fabric.js";
 
 const logger = Logger.get("FabricManager");
@@ -277,6 +277,10 @@ export class FabricManager {
 
         for (const fabric of this.#fabrics) {
             const candidateDestinationIds = await fabric.destinationIdsFor(fabric.nodeId, initiatorRandom);
+            logger.debug(
+                "CASE candidates",
+                candidateDestinationIds.map(c => Bytes.toHex(c)),
+            );
             if (candidateDestinationIds.some(candidate => Bytes.areEqual(candidate, destinationId))) {
                 if (fabric.isDeleting) {
                     throw new FabricNotFoundError("Fabric is deleting for CASE sigma2");
@@ -288,7 +292,7 @@ export class FabricManager {
 
         const fabrics = this.#fabrics.map(
             fabric =>
-                `#${fabric.fabricIndex} (node ID ${fabric.nodeId.toString(16)}) keys ${fabric.groups.keySets
+                `#${fabric.fabricIndex} (node ID ${NodeId.strOf(fabric.nodeId)}) keys ${fabric.groups.keySets
                     .allKeysForId(0)
                     .map(({ key }) => Bytes.toHex(key))
                     .join(" & ")}`,

@@ -459,6 +459,12 @@ export class ControllerCommissioner {
             Commissionee SHALL exit Commissioning Mode after 20 failed attempts.
          */
 
+        // The pase session has actual negotiated parameters from the device. Use them over the discoveryData
+        discoveryData = discoveryData ?? {};
+        discoveryData.SII = paseSession.parameters.idleInterval;
+        discoveryData.SAI = paseSession.parameters.activeInterval;
+        discoveryData.SAT = paseSession.parameters.activeThreshold;
+
         const address = this.#determineAddress(fabric, commissioningOptions.nodeId);
         logger.info(
             `Start commissioning of node ${address.nodeId} into fabric ${fabric.fabricId} (index ${address.fabricIndex})`,
@@ -515,6 +521,7 @@ export class ControllerCommissioner {
             await this.#context.peers.get(address)?.delete();
             throw error;
         } finally {
+            commissioningManager.close();
             /*
                 In concurrent connection commissioning flow the commissioning channel SHALL terminate after
                 successful step 15 (CommissioningComplete command invocation).

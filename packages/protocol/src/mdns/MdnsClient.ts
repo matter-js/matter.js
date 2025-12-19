@@ -1571,9 +1571,9 @@ export class MdnsClient implements Scanner {
     static discoveryDataDiagnostics(data: DiscoveryData, kind?: string) {
         return Diagnostic.dict({
             kind,
-            SII: Duration.format(data.SII),
-            SAI: Duration.format(data.SAI),
-            SAT: Duration.format(data.SAT),
+            SII: data.SII !== undefined ? Duration.format(data.SII) : undefined,
+            SAI: data.SAI !== undefined ? Duration.format(data.SAI) : undefined,
+            SAT: data.SAT !== undefined ? Duration.format(data.SAT) : undefined,
             T: data.T,
             DT: data.DT,
             PH: data.PH,

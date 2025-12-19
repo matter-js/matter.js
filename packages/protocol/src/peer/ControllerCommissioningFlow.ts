@@ -25,11 +25,11 @@ import {
     ImplementationError,
     Instant,
     Logger,
-    Millis,
     Minutes,
     repackErrorAs,
     Seconds,
     Time,
+    Timer,
     Timespan,
     Timestamp,
     UnexpectedDataError,
@@ -197,6 +197,9 @@ class RecoverableCommissioningError extends CommissioningError {}
 
 const DEFAULT_FAILSAFE_TIME = Minutes.one;
 
+/** When we execute longer actions like network connections or reconnection, we need to keep the BTP session alive */
+const BTP_IDLE_ALIVE_INTERVAL = Seconds(25);
+
 const RootEndpointNumber = EndpointNumber(0);
 
 /**
@@ -220,6 +223,7 @@ export class ControllerCommissioningFlow {
     protected lastBreadcrumb = 1;
     protected collectedCommissioningData: CollectedCommissioningData = {};
     #defaultFailSafeTime = DEFAULT_FAILSAFE_TIME;
+    #armFailsafeInterval?: Timer;
 
     constructor(
         /** ClientInteraction for the initiated PASE session */
@@ -262,7 +266,11 @@ export class ControllerCommissioningFlow {
         for (const step of this.commissioningSteps) {
             logger.info(`Executing commissioning step ${step.stepNumber}.${step.subStepNumber}: ${step.name}`);
             try {
-                if (step.reArmFailsafe && !failSafeTimerReArmedAfterPreviousStep) {
+                if (
+                    step.reArmFailsafe &&
+                    !failSafeTimerReArmedAfterPreviousStep &&
+                    !this.#armFailsafeInterval?.isRunning
+                ) {
                     logger.debug(`Re-Arming failsafe timer before executing step`);
                     await this.#armFailsafe();
                 }
@@ -284,7 +292,7 @@ export class ControllerCommissioningFlow {
 
                     /**
                      * Commissioner SHALL re-arm the Fail-safe timer on the Commissionee to the desired commissioning
-                     * timeout within 60 seconds of the completion of PASE session establishment, using the ArmFailSafe
+                     * timeout within 60 seconds of the completion of a PASE session establishment, using the ArmFailSafe
                      * command (see Section 11.9.6.2, “ArmFailSafe Command”)
                      */
                     const timeLeft = Timespan(Time.nowMs, this.#currentFailSafeEndTime).duration;
@@ -292,7 +300,7 @@ export class ControllerCommissioningFlow {
                         logger.info(
                             `After Commissioning step ${step.stepNumber}.${step.subStepNumber}: ${
                                 step.name
-                            } succeeded, ${timeLeft}s left for failsafe timer, re-arming failsafe`,
+                            } succeeded, ${Duration.format(timeLeft)} left for failsafe timer, re-arming failsafe`,
                         );
                         await this.#armFailsafe();
                         failSafeTimerReArmedAfterPreviousStep = true;
@@ -759,12 +767,39 @@ export class ControllerCommissioningFlow {
     async #ensureFailsafeTimerFor(maxProcessingTime: Duration) {
         const minFailsafeTime = this.interaction.maximumPeerResponseTime(maxProcessingTime);
 
+        if (this.interaction.channelType === ChannelType.BLE) {
+            this.#armFailsafeInterval?.stop();
+
+            this.#armFailsafeInterval = Time.getPeriodicTimer(
+                "Re-Arm Failsafe during longer interactions",
+                BTP_IDLE_ALIVE_INTERVAL,
+                () => {
+                    const now = Time.nowMs;
+                    if (this.#commissioningExpiryTime !== undefined && now < this.#commissioningExpiryTime) {
+                        logger.debug(
+                            `Re-Arm Failsafe Timer during longer actions with device. Time left: ${Duration.format(Timespan(now, this.#commissioningExpiryTime).duration)}`,
+                        );
+                        this.#armFailsafe().catch(error => {
+                            logger.info("Error while re-arming failsafe during reconnect", error);
+                            this.#armFailsafeInterval?.stop();
+                        });
+                    } else {
+                        // Stop as soon as we are over the maximum commissioning time
+                        this.#armFailsafeInterval?.stop();
+                    }
+                },
+            ).start();
+        }
+
+        // When not on BLE, we just ensure the Failsafe timer is armed long enough
         const timeLeft = this.#failSafeTimeLeft;
         if (timeLeft < minFailsafeTime) {
-            logger.debug(`Failsafe timer has only ${timeLeft}s left, re-arming for at least ${minFailsafeTime}`);
+            logger.debug(
+                `Failsafe timer has only ${Duration.format(timeLeft)} left, re-arming for at least ${Duration.format(minFailsafeTime)}`,
+            );
             await this.#armFailsafe(Duration.max(minFailsafeTime, this.#defaultFailSafeTime));
         } else {
-            logger.debug(`Failsafe timer is already set for at least ${Seconds.of(timeLeft)}s`);
+            logger.debug(`Failsafe timer is already set for at least ${Duration.format(timeLeft)}`);
         }
     }
 
@@ -1226,7 +1261,6 @@ export class ControllerCommissioningFlow {
 
         // Only Scan when the device supports concurrent connections
         if (this.collectedCommissioningData.supportsConcurrentConnection !== false) {
-            // TODO add message transmission time
             await this.#ensureFailsafeTimerFor(Seconds(scanMaxTimeSeconds));
 
             const { networkingStatus, wiFiScanResults, debugText } = await this.#invokeCommand(
@@ -1310,7 +1344,6 @@ export class ControllerCommissioningFlow {
             };
         }
 
-        // TODO Add retransmission time
         await this.#ensureFailsafeTimerFor(Seconds(connectMaxTimeSeconds));
 
         const connectResult = await this.#invokeCommand(
@@ -1550,31 +1583,12 @@ export class ControllerCommissioningFlow {
 
         logger.debug(`Reconnecting with device with ${isConcurrentFlow ? "concurrent" : "non-concurrent"} flow ...`);
 
-        // Reconnection with discovery could take longer then the default failsafe time, so we need to
+        // Reconnection with discovery could take longer than the default failsafe time, so we need to
         // re-arm the failsafe when we are in a concurrent commissioning flow also in parallel to
         // the operative reconnection
-        // TODO: Check whats needed for non-concurrent commissioning flows (maybe arm initially longer?)
-        const reArmFailsafeInterval = Time.getPeriodicTimer(
-            "Re-Arm Failsafe during reconnect",
-            Millis(this.#defaultFailSafeTime / 2),
-            () => {
-                const now = Time.nowMs;
-                if (this.#commissioningExpiryTime !== undefined && now < this.#commissioningExpiryTime) {
-                    logger.error(
-                        `Re-Arm Failsafe Timer during reconnect with device. Time left: ${Math.round((this.#commissioningExpiryTime - now) / 1000)}s`,
-                    );
-                    this.#armFailsafe().catch(error => {
-                        logger.error("Error while re-arming failsafe during reconnect", error);
-                        reArmFailsafeInterval.stop();
-                    });
-                } else {
-                    // Stop as soon as we are over the maximum commissioning time
-                    reArmFailsafeInterval.stop();
-                }
-            },
-        );
-        if (isConcurrentFlow) {
-            reArmFailsafeInterval.start();
+        await this.#ensureFailsafeTimerFor(Seconds(120));
+        if (!isConcurrentFlow) {
+            this.#armFailsafeInterval?.stop();
         }
 
         let transitionResult: ClientInteraction | undefined;
@@ -1586,9 +1600,9 @@ export class ControllerCommissioningFlow {
             );
         } catch (cause) {
             throw new OperativeConnectionFailedError("Operative reconnection with device failed", { cause });
+        } finally {
+            this.#armFailsafeInterval?.stop();
         }
-
-        reArmFailsafeInterval.stop();
 
         if (transitionResult === undefined) {
             logger.debug("CASE commissioning handled externally, terminating commissioning flow");
@@ -1688,5 +1702,9 @@ export class ControllerCommissioningFlow {
             code: success ? CommissioningStepResultCode.Success : CommissioningStepResultCode.Failure,
             breadcrumb: this.lastBreadcrumb,
         };
+    }
+
+    close() {
+        this.#armFailsafeInterval?.stop();
     }
 }

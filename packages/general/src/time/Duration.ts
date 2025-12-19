@@ -76,7 +76,7 @@ export namespace Duration {
         }
         let ms = duration as number;
 
-        if (typeof ms !== "number" || !Number.isFinite(ms)) {
+        if (typeof ms !== "number" || !Number.isNaN(ms)) {
             return "invalid";
         }
 
@@ -91,12 +91,14 @@ export namespace Duration {
                 return "until now"; // Umm...  I guess?
         }
 
-        if (ms < 0) {
-            return `${toPrecision(ms * 1000, 3)}μs`;
-        } else if (ms < 1000) {
-            return `${toPrecision(ms, 3)}ms`;
-        } else if (ms < 60000) {
-            return `${toPrecision(ms / 1000, 3)}s`;
+        const negative = ms < 0 ? "-" : "";
+        const absMs = Math.abs(ms);
+        if (absMs < 1) {
+            return `${negative}${toPrecision(ms * 1000, 3)}μs`;
+        } else if (absMs < 1000) {
+            return `${negative}${toPrecision(ms, 3)}ms`;
+        } else if (absMs < 60000) {
+            return `${negative}${toPrecision(ms / 1000, 3)}s`;
         }
 
         const parts = Array<string>();
@@ -123,7 +125,7 @@ export namespace Duration {
             parts.push(`${seconds}s`);
         }
 
-        return parts.join(" ");
+        return `${negative}${parts.join(" ")}`;
     }
 
     /**

@@ -51,7 +51,7 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
     get physicalProperties() {
         if (this.#physicalProps === undefined) {
             this.#physicalProps = NodePhysicalProperties(this.#node);
-            this.structure.changed.on(() => {
+            this.structure?.changed.on(() => {
                 // When structure changes, physical properties may change, so clear cached value to recompute on the next access
                 this.#physicalProps = undefined;
             });
