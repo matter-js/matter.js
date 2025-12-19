@@ -275,6 +275,17 @@ export class FabricManager {
     async findFabricFromDestinationId(destinationId: Bytes, initiatorRandom: Bytes) {
         this.#construction.assert();
 
+        for (const fabric of this.#fabrics) {
+            const candidateDestinationIds = await fabric.destinationIdsFor(fabric.nodeId, initiatorRandom);
+            if (candidateDestinationIds.some(candidate => Bytes.areEqual(candidate, destinationId))) {
+                if (fabric.isDeleting) {
+                    throw new FabricNotFoundError("Fabric is deleting for CASE sigma2");
+                }
+
+                return fabric;
+            }
+        }
+
         const fabrics = this.#fabrics.map(
             fabric =>
                 `#${fabric.fabricIndex} (node ID ${NodeId.strOf(fabric.nodeId)}) keys ${fabric.groups.keySets
@@ -287,21 +298,6 @@ export class FabricManager {
             `No match for destination ID`,
             Diagnostic.dict({ destId: destinationId, random: initiatorRandom, ...fabrics }),
         );
-
-        for (const fabric of this.#fabrics) {
-            const candidateDestinationIds = await fabric.destinationIdsFor(fabric.nodeId, initiatorRandom);
-            logger.debug(
-                "CASE candidates",
-                candidateDestinationIds.map(c => Bytes.toHex(c)),
-            );
-            if (candidateDestinationIds.some(candidate => Bytes.areEqual(candidate, destinationId))) {
-                if (fabric.isDeleting) {
-                    throw new FabricNotFoundError("Fabric is deleting for CASE sigma2");
-                }
-
-                return fabric;
-            }
-        }
 
         throw new FabricNotFoundError("Fabric not found for CASE sigma2");
     }
