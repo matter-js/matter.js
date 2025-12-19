@@ -197,7 +197,7 @@ nodes ota download 5000 --local
 Options:
 - `--mode <prod|test>`: Specify DCL mode - production (default) or test
 - `--force`: Force re-download even if the update is already cached locally
-- `--local`: Include locally stored update files when checking for updates
+- `--local`: Consider locally cached updates when checking for available updates (before downloading)
 
 #### Apply OTA update to a commissioned node
 
