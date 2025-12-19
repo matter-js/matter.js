@@ -60,7 +60,7 @@ export class Icac extends OperationalBase<OperationalCertificate.Icac> {
             issuer: { rcacId },
             extensions,
         } = this.cert;
-        const { fabricId, icacId } = subject;
+        const { fabricId } = subject;
         const { basicConstraints, extendedKeyUsage, subjectKeyIdentifier, authorityKeyIdentifier } = extensions;
 
         const { fabricId: rootFabricId } = root.cert.subject;
@@ -80,6 +80,8 @@ export class Icac extends OperationalBase<OperationalCertificate.Icac> {
             }
         }
 
+        // Ikea Dirigera hub provided an invalid ICAC, so disable these checks for now because also SDK seems to not check it
+        /*
         // The subject DN SHALL encode exactly one matter-icac-id attribute.
         if (icacId === undefined || Array.isArray(icacId)) {
             throw new CertificateError(`Invalid icacId in Ica certificate: ${Diagnostic.json(icacId)}`);
@@ -89,6 +91,7 @@ export class Icac extends OperationalBase<OperationalCertificate.Icac> {
         if ("rcacId" in subject) {
             throw new CertificateError(`Ica certificate must not contain an rcacId.`);
         }
+        */
 
         // The subject DN SHALL NOT encode any matter-noc-cat attribute.
         if ("caseAuthenticatedTags" in subject) {
