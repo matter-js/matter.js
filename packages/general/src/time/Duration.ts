@@ -66,7 +66,7 @@ export namespace Duration {
     }
 
     /**
-     * Convert an interval to a compact human readable string.
+     * Convert an interval to a compact human-readable string.
      */
     export function format<T extends Duration | undefined>(
         duration: T,
@@ -74,7 +74,7 @@ export namespace Duration {
         if (duration === undefined) {
             return undefined as T extends undefined ? string | undefined : string;
         }
-        let ms = duration as number;
+        const ms = duration as number;
 
         if (typeof ms !== "number" || Number.isNaN(ms)) {
             return "invalid";
@@ -92,7 +92,7 @@ export namespace Duration {
         }
 
         const negative = ms < 0 ? "-" : "";
-        const absMs = Math.abs(ms);
+        let absMs = Math.abs(ms);
         if (absMs < 1) {
             return `${negative}${toPrecision(ms * 1000, 3)}μs`;
         } else if (absMs < 1000) {
@@ -103,24 +103,24 @@ export namespace Duration {
 
         const parts = Array<string>();
 
-        if (ms > 86_400_000) {
-            parts.push(`${Math.floor(ms / 86_400_000)}d`);
-            ms %= 86_400_000;
+        if (absMs > 86_400_000) {
+            parts.push(`${Math.floor(absMs / 86_400_000)}d`);
+            absMs %= 86_400_000;
         }
 
-        const hours = Math.floor(ms / 3_600_000);
+        const hours = Math.floor(absMs / 3_600_000);
         if (hours) {
             parts.push(`${hours}h`);
         }
-        ms %= 3_600_000;
+        absMs %= 3_600_000;
 
-        const minutes = Math.floor(ms / 60_000);
+        const minutes = Math.floor(absMs / 60_000);
         if (minutes) {
             parts.push(`${minutes}m`);
         }
-        ms %= 60_000;
+        absMs %= 60_000;
 
-        const seconds = Math.floor(ms / 1_000);
+        const seconds = Math.floor(absMs / 1_000);
         if (seconds) {
             parts.push(`${seconds}s`);
         }
