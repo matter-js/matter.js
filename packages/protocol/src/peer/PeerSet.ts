@@ -42,6 +42,7 @@ import { CaseClient } from "#session/case/CaseClient.js";
 import { SecureSession } from "#session/SecureSession.js";
 import { Session } from "#session/Session.js";
 import { SessionManager } from "#session/SessionManager.js";
+import { SessionParameters } from "#session/SessionParameters.js";
 import { CaseAuthenticatedTag, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "#types";
 import { ControllerDiscovery, DiscoveryError, PairRetransmissionLimitReachedError } from "./ControllerDiscovery.js";
 import { Peer } from "./Peer.js";
@@ -266,12 +267,12 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
 
         const peer = this.for(address);
 
-        // We have a session, so we assume we have connection
+        // We have a session, so we assume we have a connection
         if (this.#sessions.maybeSessionFor(address)) {
             return;
         }
 
-        // There is an active discovery running for Full discovery, we can not do more than that, do not block the call
+        // There is an active discovery running for Full discovery, we cannot do more than that, do not block the call
         // because it will error in the next step
         if (peer.activeDiscovery?.type === NodeDiscoveryType.FullDiscovery) {
             return;
@@ -600,11 +601,14 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                     return device !== undefined ? [device] : [];
                 },
                 async (operationalAddress, peer) => {
-                    const result = await this.#pair(address, operationalAddress, peer, { caseAuthenticatedTags });
-                    await this.#addOrUpdatePeer(address, operationalAddress, {
+                    const peerData = {
                         ...discoveryData,
                         ...peer,
+                    };
+                    const result = await this.#pair(address, operationalAddress, peerData, {
+                        caseAuthenticatedTags,
                     });
+                    await this.#addOrUpdatePeer(address, operationalAddress, peerData);
                     return result;
                 },
             );
@@ -684,15 +688,24 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
 
         const operationalChannel = await operationalInterface.openChannel(operationalServerAddress);
         const { sessionParameters } = this.#sessions.findResumptionRecordByAddress(address) ?? {};
+
+        // Build session parameters, only including values that are actually defined
+        // to allow SessionParameters fallbacks to apply correctly
+        const idleInterval = discoveryData?.SII ?? sessionParameters?.idleInterval;
+        const activeInterval = discoveryData?.SAI ?? sessionParameters?.activeInterval;
+        const activeThreshold = discoveryData?.SAT ?? sessionParameters?.activeThreshold;
+
+        const mergedSessionParameters: SessionParameters.Config = {
+            ...sessionParameters,
+            ...(idleInterval !== undefined ? { idleInterval } : {}),
+            ...(activeInterval !== undefined ? { activeInterval } : {}),
+            ...(activeThreshold !== undefined ? { activeThreshold } : {}),
+        };
+
         const unsecuredSession = this.#sessions.createUnsecuredSession({
             channel: operationalChannel,
-            // Use the session parameters from MDNS announcements when available and rest is assumed to be fallbacks
-            sessionParameters: {
-                ...sessionParameters,
-                idleInterval: discoveryData?.SII ?? sessionParameters?.idleInterval,
-                activeInterval: discoveryData?.SAI ?? sessionParameters?.activeInterval,
-                activeThreshold: discoveryData?.SAT ?? sessionParameters?.activeThreshold,
-            },
+            // Use the session parameters from MDNS announcements when available and rest is assumed to be fall back
+            sessionParameters: mergedSessionParameters,
             isInitiator: true,
         });
 

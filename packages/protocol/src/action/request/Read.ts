@@ -54,10 +54,16 @@ export function Read(optionsOrSelector: Read.Options | Read.Selector, ...selecto
         [Diagnostic.value]: () =>
             Diagnostic.dict({
                 attributes: attributeRequests?.length
-                    ? attributeRequests?.map(path => resolvePathForSpecifier(path)).join(", ")
+                    ? selectors
+                          .filter(({ kind }) => kind === "attribute")
+                          .map(path => resolvePathForSpecifier(path))
+                          .join(", ")
                     : undefined,
                 events: eventRequests?.length
-                    ? eventRequests?.map(path => resolvePathForSpecifier(path)).join(", ")
+                    ? selectors
+                          .filter(({ kind }) => kind === "event")
+                          .map(path => resolvePathForSpecifier(path))
+                          .join(", ")
                     : undefined,
                 dataVersionFilters: versionFilters?.length
                     ? versionFilters

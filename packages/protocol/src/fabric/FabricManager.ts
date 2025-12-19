@@ -24,7 +24,7 @@ import {
     StorageContext,
     StorageManager,
 } from "#general";
-import { FabricId, FabricIndex, GlobalFabricId } from "#types";
+import { FabricId, FabricIndex, GlobalFabricId, NodeId } from "#types";
 import { Fabric } from "./Fabric.js";
 
 const logger = Logger.get("FabricManager");
@@ -288,11 +288,12 @@ export class FabricManager {
 
         const fabrics = this.#fabrics.map(
             fabric =>
-                `#${fabric.fabricIndex} (node ID ${fabric.nodeId.toString(16)}) keys ${fabric.groups.keySets
+                `#${fabric.fabricIndex} (node ID ${NodeId.strOf(fabric.nodeId)}) keys ${fabric.groups.keySets
                     .allKeysForId(0)
                     .map(({ key }) => Bytes.toHex(key))
                     .join(" & ")}`,
         );
+
         logger.debug(
             `No match for destination ID`,
             Diagnostic.dict({ destId: destinationId, random: initiatorRandom, ...fabrics }),

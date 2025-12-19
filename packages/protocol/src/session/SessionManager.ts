@@ -706,12 +706,12 @@ export class SessionManager {
         });
 
         for (const session of this.#unsecuredSessions.values()) {
-            closePromises.push(session.initiateClose());
+            closePromises.push(session.initiateForceClose());
         }
 
         for (const sessions of this.#groupSessions.values()) {
             for (const session of sessions) {
-                closePromises.push(session.initiateClose());
+                closePromises.push(session.initiateForceClose());
             }
         }
         await MatterAggregateError.allSettled(closePromises, "Error closing sessions").catch(error =>

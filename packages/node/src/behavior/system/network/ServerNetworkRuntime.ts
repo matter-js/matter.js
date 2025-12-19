@@ -203,7 +203,8 @@ export class ServerNetworkRuntime extends NetworkRuntime {
             advertiser.addAdvertiser(this.mdnsAdvertiser);
         }
 
-        if (discoveryCapabilities.ble) {
+        if (!isCommissioned && discoveryCapabilities.ble) {
+            // BLE announcements are only relevant when not commissioned
             advertiser.addAdvertiser(this.bleAdvertiser);
         }
     }
@@ -221,9 +222,9 @@ export class ServerNetworkRuntime extends NetworkRuntime {
     }
 
     /**
-     * On commission we turn off bluetooth and join the IP network if we haven't already.
+     * On commission, we turn off bluetooth and join the IP network if we haven't already.
      *
-     * On decommission we're destroyed so don't need to handle that case.
+     * On decommission, we're destroyed so don't need to handle that case.
      */
     endUncommissionedMode() {
         // Ensure MDNS broadcasting are active when the first fabric is added.  It might not be active initially if the

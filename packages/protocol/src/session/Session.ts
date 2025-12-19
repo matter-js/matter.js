@@ -268,6 +268,7 @@ export abstract class Session {
             }
             for (const exchange of this.#exchanges) {
                 if (exchange === except) {
+                    this.deferredClose = true;
                     continue;
                 }
                 await exchange.close(true);

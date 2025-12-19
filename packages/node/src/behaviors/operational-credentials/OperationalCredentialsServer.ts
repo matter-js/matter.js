@@ -32,6 +32,7 @@ import {
 import {
     Command,
     FabricIndex,
+    NodeId,
     StatusCode,
     StatusResponse,
     StatusResponseError,
@@ -302,7 +303,9 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
         //  session context with the FabricIndex generated above, such that subsequent interactions have the proper
         //  accessing fabric.
 
-        logger.info(`addNoc success, adminVendorId ${adminVendorId}, caseAdminSubject ${caseAdminSubject}`);
+        logger.info(
+            `addNoc success, adminVendorId ${adminVendorId}, caseAdminSubject ${NodeId.strOf(caseAdminSubject)}`,
+        );
 
         return {
             statusCode: OperationalCredentials.NodeOperationalCertStatus.Ok,

@@ -187,9 +187,9 @@ export class MessageExchange {
             Diagnostic.dict({
                 protocol: this.#protocolId,
                 peerSess: Session.idStrOf(this.#peerSessionId),
-                SAT: Duration.format(activeThreshold),
-                SAI: Duration.format(activeInterval),
-                SII: Duration.format(idleInterval),
+                SAT: activeThreshold !== undefined ? Duration.format(activeThreshold) : undefined,
+                SAI: activeInterval !== undefined ? Duration.format(activeInterval) : undefined,
+                SII: idleInterval !== undefined ? Duration.format(idleInterval) : undefined,
                 maxTrans: MRP.MAX_TRANSMISSIONS,
                 exchangeFlags: Diagnostic.asFlags({
                     MRP: this.session.usesMrp,

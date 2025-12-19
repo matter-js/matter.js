@@ -485,7 +485,7 @@ export class FabricBuilder {
         } = Noc.fromTlv(operationalCert).cert;
         logger.debug(
             "Installing operational certificate",
-            Diagnostic.dict({ nodeId, fabricId, caseAuthenticatedTags }),
+            Diagnostic.dict({ nodeId: NodeId.strOf(nodeId), fabricId, caseAuthenticatedTags }),
         );
         if (caseAuthenticatedTags !== undefined) {
             CaseAuthenticatedTag.validateNocTagList(caseAuthenticatedTags);

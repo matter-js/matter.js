@@ -45,9 +45,11 @@ import {
 import {
     ClientNode,
     CommissioningClient,
+    ControllerBehavior,
     Endpoint,
     NetworkClient,
     NodePhysicalProperties,
+    Peers,
     RemoteDescriptor,
     ServerNode,
     ServerNodeStore,
@@ -86,6 +88,7 @@ import {
     TypeFromPartialBitSchema,
     VendorId,
 } from "#types";
+import type { ClientNodeInteraction } from "@matter/node";
 
 export type CommissionedNodeDetails = {
     operationalServerAddress?: ServerAddressUdp;
@@ -294,7 +297,7 @@ export class MatterController {
                 environment,
                 id,
                 network: {
-                    ble,
+                    ble: false,
                     ipv4,
                     listeningAddressIpv4,
                     listeningAddressIpv6,
@@ -308,6 +311,7 @@ export class MatterController {
                     adminFabricId,
                     adminNodeId: rootNodeId,
                     caseAuthenticatedTags,
+                    ble,
                 },
                 commissioning: {
                     enabled: false, // The node is never commissionable directly
@@ -386,7 +390,7 @@ export class MatterController {
     }
 
     get ble() {
-        return this.node.state.network.ble ?? false;
+        return this.node.state.controller.ble ?? false;
     }
 
     get fabric() {
@@ -606,6 +610,7 @@ export class MatterController {
     async start() {
         await this.node.start();
         this.#clients = new InteractionClientProvider(this.node);
+        await this.node.act(agent => agent.load(ControllerBehavior));
     }
 
     async close() {
@@ -630,15 +635,22 @@ export class MatterController {
         const baseStorage = await server.env.get(StorageService).open(server.id);
         const baseNodeStorage = baseStorage.createContext("nodes");
 
-        // Initialize custom PeerAddressStore to manage commissioned nodes storage in legacy storage format
+        // Initialize a custom PeerAddressStore to manage commissioned nodes storage in legacy storage format
         // Data migration needed
         const controllerStore = await ControllerStore.create(server.id, server.env);
-        const peerStore = new CommissionedNodeStore(controllerStore, fabric);
-        const peers = await peerStore.loadPeers();
-        if (peers.length === 0) {
-            logger.info("No former commissioned nodes to migrate.");
+        if (!(await controllerStore.nodesStorage.has("commissionedNodes"))) {
+            // No commissionedNodes key, so simply migrate nothing
             return;
         }
+
+        const peerStore = new CommissionedNodeStore(controllerStore, fabric, server.peers);
+        const peers = await peerStore.loadPeers();
+        if (peers.length === 0) {
+            logger.debug("No former commissioned nodes to migrate.");
+            return;
+        }
+        const migratedPeers = new Set<string>();
+
         const newClientStores = server.env.get(ServerNodeStore).clientStores;
         for (const { address: peerAddress, discoveryData, deviceData, operationalAddress } of peers) {
             logger.debug(`Migrating data for commissioned node ${peerAddress.toString()}`);
@@ -654,6 +666,7 @@ export class MatterController {
 
             const id = newClientStores.allocateId(); // Manually allocate next id to allow data migration before we add the node
             logger.debug(`Allocated client node store id ${id} for node ${peerAddress.toString()}`);
+            migratedPeers.add(id);
 
             logger.debug(
                 ` Migrating stored data for node ${peerAddress.toString()}: node-${peerAddress.nodeId.toString()}`,
@@ -714,6 +727,19 @@ export class MatterController {
 
         //await controllerStore.nodesStorage.delete("commissionedNodes"); // TODO
 
+        server.peers.clusterInstalled(BasicInformationClient).on(peer => {
+            if (!migratedPeers.has(peer.id)) {
+                logger.info(`Migrating commissioned node ${peer.id} to old format`);
+                migratedPeers.add(peer.id);
+                peerStore.save().catch(error => logger.warn("Failed to persist legacy commissioned nodes", error));
+            }
+        });
+        server.peers.deleted.on(peer => {
+            migratedPeers.delete(peer.id);
+            logger.info(`Deleted commissioned node ${peer.id} from old format`);
+            peerStore.save().catch(error => logger.warn("Failed to persist legacy commissioned nodes", error));
+        });
+
         logger.info("Commissioned nodes migration completed.");
     }
 }
@@ -728,14 +754,15 @@ export namespace MatterController {
  * Only used for Node data migration
  */
 class CommissionedNodeStore extends PeerAddressStore {
-    declare peers: PeerSet;
+    #peers: Peers;
     #controllerStore: ControllerStoreInterface;
     #fabric: Fabric;
 
-    constructor(controllerStore: ControllerStoreInterface, fabric: Fabric) {
+    constructor(controllerStore: ControllerStoreInterface, fabric: Fabric, peers: Peers) {
         super();
         this.#controllerStore = controllerStore;
         this.#fabric = fabric;
+        this.#peers = peers;
     }
 
     createNodeStore(_address: PeerAddress): MaybePromise<PeerDataStore | undefined> {
@@ -776,18 +803,36 @@ class CommissionedNodeStore extends PeerAddressStore {
     async save() {
         await this.#controllerStore.nodesStorage.set(
             "commissionedNodes",
-            this.peers.map(peer => {
-                const {
-                    address,
-                    operationalAddress: operationalServerAddress,
-                    discoveryData,
-                    deviceData,
-                } = peer.descriptor as CommissionedPeer;
-                return [
-                    address.nodeId,
-                    { operationalServerAddress, discoveryData, deviceData },
-                ] satisfies StoredOperationalPeer;
-            }),
+            this.#peers
+                .map(peer => {
+                    const commissioningState = peer.maybeStateOf(CommissioningClient);
+                    const address = commissioningState?.peerAddress;
+                    const operationalServerAddress = commissioningState?.addresses?.[0];
+                    const discoveryData =
+                        commissioningState !== undefined
+                            ? RemoteDescriptor.fromLongForm(commissioningState)
+                            : undefined;
+                    const deviceData = {
+                        meta: (peer.interaction as ClientNodeInteraction).physicalProperties,
+                        basicInformation: peer.maybeStateOf(BasicInformationClient),
+                    };
+
+                    if (address === undefined) {
+                        return;
+                    }
+                    return [
+                        address.nodeId,
+                        {
+                            operationalServerAddress:
+                                operationalServerAddress !== undefined && operationalServerAddress.type === "udp"
+                                    ? (ServerAddress(operationalServerAddress) as ServerAddressUdp)
+                                    : undefined,
+                            discoveryData,
+                            deviceData,
+                        },
+                    ] satisfies StoredOperationalPeer;
+                })
+                .filter(details => details !== undefined),
         );
     }
 }

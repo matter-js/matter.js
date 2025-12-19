@@ -110,7 +110,8 @@ export class PaseServer implements ProtocolHandler {
                 }
             } finally {
                 this.#pairingMessenger = undefined;
-                // Destroy the unsecure session used to establish the Pase session
+                // Detach and Destroy the unsecure session used to establish the Pase session
+                exchange.session.detachChannel();
                 await exchange.session.initiateClose();
             }
         }

@@ -6,7 +6,7 @@
 
 import { Logger } from "#general";
 import { ServerSubscriptionConfig } from "#node/server/ServerSubscription.js";
-import { Ble } from "#protocol";
+import { Ble, FabricManager } from "#protocol";
 import { DiscoveryCapabilitiesBitmap, TypeFromPartialBitSchema } from "#types";
 import { CommissioningServer } from "../commissioning/CommissioningServer.js";
 import { NetworkBehavior } from "./NetworkBehavior.js";
@@ -51,12 +51,23 @@ export class NetworkServer extends NetworkBehavior {
 
         this.reactTo(this.endpoint.eventsOf(CommissioningServer).commissioned, this.#endUncommissionedMode);
 
+        if (discoveryCaps.ble) {
+            // When fabric is added, we need to allow operational discovery
+            this.reactTo(this.env.get(FabricManager).events.added, this.#ensureMdnsAdvertiser);
+        }
+
         return super.initialize();
     }
 
     #endUncommissionedMode() {
         if (this.internal.runtime) {
             this.internal.runtime.endUncommissionedMode();
+        }
+    }
+
+    #ensureMdnsAdvertiser() {
+        if (this.internal.runtime) {
+            this.internal.runtime.ensureMdnsAdvertiser();
         }
     }
 }
