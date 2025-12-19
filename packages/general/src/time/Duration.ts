@@ -76,7 +76,7 @@ export namespace Duration {
         }
         let ms = duration as number;
 
-        if (typeof ms !== "number" || !Number.isNaN(ms)) {
+        if (typeof ms !== "number" || Number.isNaN(ms)) {
             return "invalid";
         }
 

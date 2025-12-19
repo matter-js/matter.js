@@ -47,7 +47,7 @@ export class DeviceAdvertiser {
             this.#advertiseFabric(fabric, "startup");
         });
 
-        // When a fabric is updated we might need to adjust announcements
+        // When fabric is updated, we might need to adjust announcements
         this.#observers.on(fabrics.events.replaced, async fabric => {
             if (!this.#isOperational) {
                 return;
@@ -77,7 +77,7 @@ export class DeviceAdvertiser {
             this.#advertiseFabric(fabric, "startup");
         });
 
-        // When a fabric is deleted, cancel any active advertisement
+        // When fabric is deleted, cancel any active advertisement
         this.#observers.on(fabrics.events.deleting, fabric => {
             Advertisement.cancelAll(this.#advertisements(ad => ad.isOperational() && ad.description.fabric === fabric));
         });
