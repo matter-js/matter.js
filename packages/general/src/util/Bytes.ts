@@ -130,10 +130,12 @@ export namespace Bytes {
         return new TextEncoder().encode(string);
     }
 
-    export function fromBigInt(value: bigint) {
+    export function fromBigInt(value: bigint, minBytes?: number) {
         // Quick & dirty for now
         let hex = value.toString(16);
-        if (hex.length % 2) {
+        if (minBytes) {
+            hex = hex.padStart(minBytes * 2, "0");
+        } else if (hex.length % 2) {
             hex = `0${hex}`;
         }
         return Bytes.fromHex(hex);
