@@ -340,6 +340,10 @@ export class Fabric {
      */
     async destinationIdsFor(nodeId: NodeId, random: Bytes) {
         const salt = this.#generateSalt(nodeId, random);
+        logger.debug(
+            "keys for destinies",
+            this.groups.keySets.allKeysForId(0).map(({ key }) => Bytes.toHex(key)),
+        );
         // Check all keys of keyset 0 - typically it is only the IPK
         const destinationIds = this.groups.keySets.allKeysForId(0).map(({ key }) => this.#crypto.signHmac(key, salt));
         return await Promise.all(destinationIds);

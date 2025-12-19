@@ -275,6 +275,19 @@ export class FabricManager {
     async findFabricFromDestinationId(destinationId: Bytes, initiatorRandom: Bytes) {
         this.#construction.assert();
 
+        const fabrics = this.#fabrics.map(
+            fabric =>
+                `#${fabric.fabricIndex} (node ID ${NodeId.strOf(fabric.nodeId)}) keys ${fabric.groups.keySets
+                    .allKeysForId(0)
+                    .map(({ key }) => Bytes.toHex(key))
+                    .join(" & ")}`,
+        );
+
+        logger.debug(
+            `No match for destination ID`,
+            Diagnostic.dict({ destId: destinationId, random: initiatorRandom, ...fabrics }),
+        );
+
         for (const fabric of this.#fabrics) {
             const candidateDestinationIds = await fabric.destinationIdsFor(fabric.nodeId, initiatorRandom);
             logger.debug(
@@ -289,18 +302,6 @@ export class FabricManager {
                 return fabric;
             }
         }
-
-        const fabrics = this.#fabrics.map(
-            fabric =>
-                `#${fabric.fabricIndex} (node ID ${NodeId.strOf(fabric.nodeId)}) keys ${fabric.groups.keySets
-                    .allKeysForId(0)
-                    .map(({ key }) => Bytes.toHex(key))
-                    .join(" & ")}`,
-        );
-        logger.debug(
-            `No match for destination ID`,
-            Diagnostic.dict({ destId: destinationId, random: initiatorRandom, ...fabrics }),
-        );
 
         throw new FabricNotFoundError("Fabric not found for CASE sigma2");
     }
