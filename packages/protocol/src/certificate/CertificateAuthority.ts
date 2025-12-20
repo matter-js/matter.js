@@ -112,7 +112,7 @@ export class CertificateAuthority {
 
             const certValues = options instanceof StorageContext ? await options.values() : (options ?? {});
 
-            // When generateIntermediateCert is set, we ensure it, or if a valid ICAC in stored then we require it
+            // When generateIntermediateCert is set, we ensure it, or if a valid ICAC is stored then we require it
             // else we check whats in the storage and default to false
             const requireIcac = generateIntermediateCert ?? this.#isValidStoredIcacCertificate(certValues);
 
