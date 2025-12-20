@@ -362,7 +362,11 @@ export class MatterController {
                     adminFabricId,
                     caseAuthenticatedTags,
                 },
-                fabric === undefined, // When no fabric was provided we rotate the NOC operational keypair on start
+                fabric === undefined, // When no fabric is provided we rotate the NOC operational keypair on start.
+                // This avoids long-lived operational keys for controllers that bootstrap their own fabric state,
+                // which is a security best practice: each restart derives a fresh keypair for the same logical fabric.
+                // Already-commissioned devices remain accessible because the NOC is reissued under the same CA and
+                // fabric identifiers, so peers still recognize and trust the controller despite the new keypair.
             );
             if (fabric !== undefined) {
                 if (
