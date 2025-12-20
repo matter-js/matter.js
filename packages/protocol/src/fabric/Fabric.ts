@@ -499,7 +499,7 @@ export class FabricBuilder {
             throw new MatterFlowError("Root certificate needs to be set first");
         }
 
-        // Work around for an issue with the Ikea hub where the root certificate was also provided as ICAC
+        // Workaround for an issue with the Ikea hub where the root certificate was also provided as ICAC
         if (intermediateCACert !== undefined && Bytes.areEqual(this.#rootCert, intermediateCACert)) {
             logger.info("Intermediate CA certificate is identical to root certificate; omitting ICAC");
             intermediateCACert = undefined;
