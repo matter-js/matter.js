@@ -335,7 +335,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
 
         if (timedOp.rootCertSet) {
             // CERTIFICATION BUG WORKAROUND
-            // This should be a ConstraintError but tests require this error
+            // This should be a ConstraintError, but tests require this error
             // See https://github.com/CHIP-Specifications/chip-test-plans/issues/4807
             return {
                 statusCode: OperationalCredentials.NodeOperationalCertStatus.MissingCsr,
@@ -344,7 +344,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
 
         if (timedOp.forUpdateNoc === undefined) {
             // CERTIFICATION BUG WORKAROUND
-            // This should be a ConstraintError but tests require this error
+            // This should be a ConstraintError, but tests require this error
             // See https://github.com/CHIP-Specifications/chip-test-plans/issues/4807
             return {
                 statusCode: OperationalCredentials.NodeOperationalCertStatus.MissingCsr,
@@ -362,7 +362,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
         try {
             const updatedFabric = await timedOp.buildUpdatedFabric(nocValue, icacValue);
 
-            // update FabricManager and Resumption records but leave current session intact
+            // update FabricManager and Resumption records but leave the current session intact
             await timedOp.replaceFabric(updatedFabric);
 
             return {
