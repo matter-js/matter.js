@@ -98,7 +98,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Increases the limitation of parallel exchanges when sending messages to 30 (was 5 before)
     - Enhancement: Migrate Commissioning Flow to ClientInteraction as bases
     - Adjustment: Subscription data are no longer being flushed when a subscription is replaced by a new one with keepSubscriptions=false
-    - Adjustment: When setting certificates and a ICAC is provided but equals to the root CA, the ICAC is ignored (workaround of issues with one ecosystem)
+    - Adjustment: When setting certificates and a ICAC is provided but equals the root CA, the ICAC is ignored (workaround of issues with one ecosystem)
     - Fix: Controller networking was previously throwing the incorrect error after a communication timeout
     - Fix: Ensures to only include the MaxTcpMessageSize in Session parameters when TCP is enabled
     - Fix: Fixes the used ACL level for wildcard writes
