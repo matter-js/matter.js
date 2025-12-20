@@ -8,7 +8,7 @@ import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
 import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Rcac } from "#certificate/kinds/Rcac.js";
-import { Bytes, StandardCrypto, StorageBackendMemory, StorageManager } from "#general";
+import { Bytes, StandardCrypto, StorageBackendMemory, StorageContext, StorageManager } from "#general";
 import { CaseAuthenticatedTag, FabricId, NodeId } from "#types";
 
 const crypto = new StandardCrypto();
@@ -60,7 +60,7 @@ describe("CertificateAuthority", () => {
 
     describe("3-tier PKI with ICAC", () => {
         it("creates a CA with ICAC when intermediateCert=true", async () => {
-            const ca = await CertificateAuthority.create(crypto, { intermediateCert: true });
+            const ca = await CertificateAuthority.create(crypto, true);
             const rootCert = ca.rootCert;
             const icacCert = ca.icacCert;
 
@@ -76,9 +76,7 @@ describe("CertificateAuthority", () => {
         });
 
         it("generates NOC signed by ICAC when ICAC exists", async () => {
-            const ca = await CertificateAuthority.create(crypto, {
-                intermediateCert: true,
-            });
+            const ca = await CertificateAuthority.create(crypto, true);
             const keyPair = await crypto.createKeyPair();
             const noc = await ca.generateNoc(keyPair.publicKey, FabricId(1n), NodeId(100n));
 
@@ -92,7 +90,7 @@ describe("CertificateAuthority", () => {
             await storage.initialize();
             const context = storage.createContext("test");
 
-            const ca1 = await CertificateAuthority.create(crypto, { intermediateCert: true });
+            const ca1 = await CertificateAuthority.create(crypto, true);
             const icacCert1 = ca1.icacCert;
             const config1 = ca1.config;
             await context.set(config1);
@@ -113,7 +111,7 @@ describe("CertificateAuthority", () => {
             await storage.initialize();
             const context = storage.createContext("test");
 
-            const ca1 = await CertificateAuthority.create(crypto, { intermediateCert: true });
+            const ca1 = await CertificateAuthority.create(crypto, true);
             await ca1.construction;
             expect(ca1.icacCert).ok;
 
@@ -123,7 +121,6 @@ describe("CertificateAuthority", () => {
             await ca2.construction;
 
             expect(ca2.icacCert).ok;
-            expect(ca2.config.intermediateCert).equal(true);
 
             await storage.close();
         });
@@ -133,7 +130,7 @@ describe("CertificateAuthority", () => {
             await storage.initialize();
             const context = storage.createContext("test");
 
-            const ca1 = await CertificateAuthority.create(crypto, { intermediateCert: true });
+            const ca1 = await CertificateAuthority.create(crypto, true);
             await ca1.construction;
             expect(ca1.icacCert).ok;
 
@@ -143,47 +140,47 @@ describe("CertificateAuthority", () => {
             await ca2.construction;
 
             expect(ca2.icacCert).ok;
-            expect(ca2.config.intermediateCert).equal(true);
 
             await storage.close();
         });
     });
 
     describe("Configuration behavior", () => {
-        it("throws ImplementationError when intermediateCert=true but no ICAC data in storage", async () => {
-            const storage = new StorageManager(new StorageBackendMemory());
-            await storage.initialize();
-            const context = storage.createContext("test");
+        let storage: StorageManager;
+        let context: StorageContext;
 
-            const ca1 = await CertificateAuthority.create(crypto, context);
-            await ca1.construction;
+        beforeEach(async () => {
+            storage = new StorageManager(new StorageBackendMemory());
+            storage.initialize();
+            context = storage.createContext("test");
+        });
 
-            const config = ca1.config;
-            config.intermediateCert = true;
-
-            await expect(CertificateAuthority.create(crypto, config)).rejectedWith(
-                "CA intermediateCert property is true but icac properties do not exist in storage",
-            );
-
+        afterEach(async () => {
             await storage.close();
         });
 
-        it("throws ImplementationError when ICAC data exists but intermediateCert=false", async () => {
-            const ca1 = await CertificateAuthority.create(crypto, { intermediateCert: true });
+        it("throws ImplementationError when intermediateCert=true but no ICAC data in storage", async () => {
+            const ca1 = await CertificateAuthority.create(crypto, context, false);
             await ca1.construction;
 
-            const config = ca1.config;
-            config.intermediateCert = false;
+            await expect(CertificateAuthority.create(crypto, context, true)).rejectedWith(
+                "Stored credentials contain ICAC certificate: false, but configuration expected it to be true",
+            );
+        });
 
-            await expect(CertificateAuthority.create(crypto, config)).rejectedWith(
-                "CA intermediateCert property is false but icac properties exist in storage",
+        it("throws ImplementationError when ICAC data exists but intermediateCert=false", async () => {
+            const ca1 = await CertificateAuthority.create(crypto, context, true);
+            await ca1.construction;
+
+            await expect(CertificateAuthority.create(crypto, context, false)).rejectedWith(
+                "Stored credentials contain ICAC certificate: true, but configuration expected it to be false",
             );
         });
     });
 
     describe("Certificate ID management", () => {
         it("increments certificate IDs correctly", async () => {
-            const ca = await CertificateAuthority.create(crypto, { intermediateCert: true });
+            const ca = await CertificateAuthority.create(crypto, true);
             const keyPair1 = await crypto.createKeyPair();
             const keyPair2 = await crypto.createKeyPair();
 
@@ -200,7 +197,7 @@ describe("CertificateAuthority", () => {
         });
 
         it("allocates ICAC cert ID before NOC IDs", async () => {
-            const ca = await CertificateAuthority.create(crypto, { intermediateCert: true });
+            const ca = await CertificateAuthority.create(crypto, true);
             const icacCert = Icac.fromTlv(ca.icacCert!);
             const icacId = BigInt("0x" + Bytes.toHex(icacCert.cert.serialNumber));
 
@@ -216,13 +213,10 @@ describe("CertificateAuthority", () => {
 
     describe("Configuration export", () => {
         it("exports complete configuration with ICAC", async () => {
-            const ca = await CertificateAuthority.create(crypto, {
-                intermediateCert: true,
-            });
+            const ca = await CertificateAuthority.create(crypto, true);
             const config = ca.config;
 
             expect(BigInt(config.rootCertId)).equal(BigInt(0));
-            expect(config.intermediateCert).equal(true);
             expect(BigInt(config.icacCertId!)).equal(BigInt(1));
             expect(config.icacKeyPair).ok;
             expect(config.icacKeyIdentifier).ok;
@@ -230,9 +224,7 @@ describe("CertificateAuthority", () => {
         });
 
         it("can reconstruct CA from exported config", async () => {
-            const ca1 = await CertificateAuthority.create(crypto, {
-                intermediateCert: true,
-            });
+            const ca1 = await CertificateAuthority.create(crypto, true);
             const config = ca1.config;
 
             const ca2 = await CertificateAuthority.create(crypto, config);
@@ -248,9 +240,7 @@ describe("CertificateAuthority", () => {
 
     describe("NOC generation with CATs", () => {
         it("generates NOC with CASE Authenticated Tags", async () => {
-            const ca = await CertificateAuthority.create(crypto, {
-                intermediateCert: true,
-            });
+            const ca = await CertificateAuthority.create(crypto, true);
             const keyPair = await crypto.createKeyPair();
             const cats = [CaseAuthenticatedTag(0x00010001), CaseAuthenticatedTag(0x00020001)];
             const noc = await ca.generateNoc(keyPair.publicKey, FabricId(1n), NodeId(100n), cats);
