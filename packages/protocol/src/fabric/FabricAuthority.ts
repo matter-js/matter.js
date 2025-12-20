@@ -80,7 +80,7 @@ export class FabricAuthority {
 
     /**
      * Get the default fabric for this authority.
-     * By default, the NOC key pair is rotated once per runtime when the fabric exists
+     * When rotateNoc is true (the default), the NOC key pair is rotated once per runtime when the fabric already exists.
      */
     async defaultFabric(config: FabricAuthorityConfiguration, rotateNoc = true) {
         // First search for a fabric associated with the CA's root certificate
