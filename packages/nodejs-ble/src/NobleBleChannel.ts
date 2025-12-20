@@ -328,7 +328,9 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                             this.#connectionsInProgress.delete(address);
                             this.#openChannels.delete(address);
                             if (peripheral.state === "connected") {
-                                logger.debug(`Disconnect because of initialization error of peripheral ${address}`);
+                                logger.debug(
+                                    `Disconnect because of initialization error of peripheral ${ServerAddress.urlFor(address)}`,
+                                );
                                 await peripheral
                                     .disconnectAsync()
                                     .catch(error =>

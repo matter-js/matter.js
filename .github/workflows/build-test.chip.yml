@@ -110,7 +110,7 @@ jobs:
 
       - name: Upload chip artifact
         if: needs.workflow-conditions.outputs.build-needed == 'true'
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: chip-image
           path: /tmp/chip.tar
@@ -225,7 +225,7 @@ jobs:
       # the SHA somehow doesn't get committed.  To fix we will need to figure out how to load the tar artifact from this
       # workflow in the PR workflow
       - name: PR new CHIP SHA
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.PR_TOKEN }}
           commit-message: "[CHIP BUILD] ${{ needs.chip-image.outputs.chip-sha }}"

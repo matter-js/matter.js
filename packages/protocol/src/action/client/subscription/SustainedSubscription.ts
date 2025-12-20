@@ -56,7 +56,7 @@ export class SustainedSubscription extends ClientSubscription {
     }
 
     /**
-     * Emits when active state changes.
+     * Emits when the active state changes.
      */
     get active() {
         return this.#active;
@@ -73,7 +73,7 @@ export class SustainedSubscription extends ClientSubscription {
         const updated = this.#request.updated?.bind(this.#request);
 
         while (true) {
-            // Create request and promise that will inform us when the underlying subscription closes
+            // Create a request and promise that will inform us when the underlying subscription closes
             const request = { ...this.#request, updated };
             if (this.#request.updated) {
                 request.updated = this.#request.updated.bind(request);
@@ -111,7 +111,7 @@ export class SustainedSubscription extends ClientSubscription {
                 }
             }
 
-            // Notify listeners of active subscription
+            // Notify listeners of an active subscription
             await this.#inactive.emit(false);
             await this.#active.emit(true);
             if (this.abort.aborted) {
@@ -121,19 +121,16 @@ export class SustainedSubscription extends ClientSubscription {
             // Wait for the subscription to close
             await closed;
 
-            // Notify listeners of inactive subscription
+            // Notify listeners of an inactive subscription
             await this.#active.emit(false);
             await this.#inactive.emit(true);
+
+            // If aborted, then we're done
             if (this.abort.aborted) {
                 break;
             }
 
-            // If aborted then we're done
-            if (this.abort.aborted) {
-                break;
-            }
-
-            // If we aren't aborted then we are here due to timeout
+            // If we aren't aborted, then we are here due to timeout
             logger.error(`Replacing subscription to ${this.peer} due to timeout`);
         }
 

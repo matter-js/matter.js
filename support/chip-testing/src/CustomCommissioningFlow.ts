@@ -5,10 +5,10 @@
  */
 import {
     CertificateAuthority,
+    ClientInteraction,
     ControllerCommissioningFlow,
     ControllerCommissioningFlowOptions,
     Fabric,
-    InteractionClient,
     PeerAddress,
 } from "@matter/main/protocol";
 
@@ -18,16 +18,16 @@ import {
  */
 export class CustomCommissioningFlow extends ControllerCommissioningFlow {
     constructor(
-        interactionClient: InteractionClient,
+        interaction: ClientInteraction,
         ca: CertificateAuthority,
         fabric: Fabric,
         commissioningOptions: ControllerCommissioningFlowOptions,
         transitionToCase: (
             peerAddress: PeerAddress,
             supportsConcurrentConnections: boolean,
-        ) => Promise<InteractionClient | undefined>,
+        ) => Promise<ClientInteraction | undefined>,
     ) {
-        super(interactionClient, ca, fabric, commissioningOptions, transitionToCase);
+        super(interaction, ca, fabric, commissioningOptions, transitionToCase);
 
         // Find and Remove the UpdateFabricLabel step because chip does not do it, so we should also not do it
         const updateLabelStepIndex = this.commissioningSteps.findIndex(

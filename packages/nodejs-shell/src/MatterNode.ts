@@ -5,10 +5,18 @@
  */
 
 // Include this first to auto-register Crypto, Network and Time Node.js implementations
-import { Environment, Logger, SharedEnvironmentServices, StorageContext, StorageService } from "#general";
+import {
+    Environment,
+    Logger,
+    ObserverGroup,
+    SharedEnvironmentServices,
+    StorageContext,
+    StorageService,
+} from "#general";
+import { ServerNode, SoftwareUpdateManager } from "#node";
 import { DclCertificateService, DclOtaUpdateService, DclVendorInfoService } from "#protocol";
 import { NodeId } from "#types";
-import { CommissioningController, ControllerStore } from "@project-chip/matter.js";
+import { CommissioningController } from "@project-chip/matter.js";
 import { CommissioningControllerNodeOptions, Endpoint, PairedNode } from "@project-chip/matter.js/device";
 import { join } from "node:path";
 
@@ -24,6 +32,7 @@ export class MatterNode {
     readonly #netInterface?: string;
     #dclFetchTestCertificates = false;
     #services?: SharedEnvironmentServices;
+    #observers?: ObserverGroup;
 
     constructor(nodeNum: number, netInterface?: string) {
         this.#environment = Environment.default;
@@ -45,6 +54,13 @@ export class MatterNode {
             this.#services = this.#environment.asDependent();
         }
         return this.#services;
+    }
+
+    get node(): ServerNode {
+        if (this.commissioningController === undefined) {
+            throw new Error("CommissioningController not initialized. Start first");
+        }
+        return this.commissioningController.node;
     }
 
     get otaService() {
@@ -72,7 +88,7 @@ export class MatterNode {
         /**
          * Initialize the storage system.
          *
-         * The storage manager is then also used by the Matter server, so this code block in general is required,
+         * The Matter server then also uses the storage manager, so this code block in general is required,
          * but you can choose a different storage backend as long as it implements the required API.
          */
 
@@ -80,6 +96,7 @@ export class MatterNode {
             if (this.#netInterface !== undefined) {
                 this.#environment.vars.set("mdns.networkinterface", this.#netInterface);
             }
+
             // Build up the "Not-so-legacy" Controller
             const id = `shell-${this.#nodeNum.toString()}`;
             this.commissioningController = new CommissioningController({
@@ -89,23 +106,22 @@ export class MatterNode {
                 },
                 autoConnect: false,
                 adminFabricLabel: "matter.js Shell",
+                enableOtaProvider: true,
             });
-            await this.commissioningController.initializeControllerStore();
-
-            const controllerStore = this.commissioningController.env.get(ControllerStore);
-            if (resetStorage) {
-                await controllerStore.erase();
-            }
-            this.#storageContext = controllerStore.storage.createContext("Node");
-
-            // Read DCL test certificates setting
-            this.#dclFetchTestCertificates = await this.#storageContext.get<boolean>("DclFetchTestCertificates", false);
 
             const storageService = this.commissioningController.env.get(StorageService);
             const baseLocation = storageService.location;
             if (baseLocation !== undefined) {
                 this.#storageLocation = join(baseLocation, id);
             }
+
+            if (resetStorage) {
+                await this.commissioningController.node.erase();
+            }
+            this.#storageContext = (await storageService.open(id)).createContext("Node");
+
+            // Read DCL test certificates setting
+            this.#dclFetchTestCertificates = await this.#storageContext.get<boolean>("DclFetchTestCertificates", false);
         } else {
             console.log(
                 "Legacy support was removed in Matter.js 0.13. Please downgrade or migrate the storage manually",
@@ -124,6 +140,7 @@ export class MatterNode {
     async close() {
         await this.commissioningController?.close();
         await this.#services?.close();
+        this.#observers?.close();
     }
 
     async start() {
@@ -143,6 +160,16 @@ export class MatterNode {
         } else {
             throw new Error("No controller initialized");
         }
+
+        this.#observers = this.#observers ?? new ObserverGroup(this.#environment.runtime);
+        const updateManagerEvents = this.commissioningController.otaProvider.eventsOf(SoftwareUpdateManager);
+        this.#observers.on(updateManagerEvents.updateAvailable, (peer, details) => {
+            logger.info(`Update available for peer `, peer, `:`, details);
+        });
+        this.#observers.on(updateManagerEvents.updateDone, peer => {
+            logger.info(`Update done for peer `, peer);
+        });
+
         this.#started = true;
     }
 
@@ -158,7 +185,9 @@ export class MatterNode {
             return await this.commissioningController.connect(connectOptions);
         }
 
-        const node = await this.commissioningController.connectNode(nodeId, connectOptions);
+        const node = await this.commissioningController.connectNode(nodeId, {
+            ...connectOptions /*autoConnect: false*/,
+        });
         if (!node.initialized) {
             await node.events.initialized;
         }

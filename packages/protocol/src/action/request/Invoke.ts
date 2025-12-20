@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ClientRequest } from "#action/client/ClientRequest.js";
 import { Diagnostic, Duration, isObject } from "#general";
 import { SessionParameters } from "#session/SessionParameters.js";
 import { ClusterType, CommandData, FabricIndex, InvokeRequest, ObjectSchema, TlvSchema, TypeFromSchema } from "#types";
@@ -17,11 +18,20 @@ export interface InvokeCommandData extends CommandData {
 export interface Invoke extends InvokeRequest {
     /** Timeout only relevant for Client Interactions */
     timeout?: Duration;
+
+    /** Expected processing time of the command on the server side to calculated response timeout */
     expectedProcessingTime?: Duration;
+
+    /** Whether to use extended timeout for fail-safe messages.  Overwrites the expectedProcessingTime if both are set */
     useExtendedFailSafeMessageResponseTimeout?: boolean;
 }
 
-export interface ClientInvoke extends Invoke {
+export interface CommandDecodeDetails {
+    responseSchema: TlvSchema<any>;
+    [Diagnostic.value]: () => unknown;
+}
+
+export interface ClientInvoke extends Invoke, ClientRequest {
     commands: Map<number | undefined, Invoke.CommandRequest<any>>;
 }
 
@@ -234,9 +244,6 @@ export namespace Invoke {
     export function commandOf<const R extends CommandRequest>(request: R): ClusterType.Command {
         if (typeof request.command === "string") {
             const cluster = Specifier.clusterFor(request.cluster);
-            if (cluster === undefined) {
-                throw new MalformedRequestError(`Cannot designate command "${request.command}" without cluster`);
-            }
             const command = cluster.commands[request.command];
             if (command === undefined) {
                 throw new MalformedRequestError(`Cluster ${cluster.name} does not define command ${request.command}`);

@@ -154,7 +154,7 @@ export class ControllerBehavior extends Behavior {
     }
 
     #enableScanningForFabric(fabric: Fabric) {
-        this.internal.mdnsTargetCriteria.operationalTargets.push({ operationalId: fabric.operationalId });
+        this.internal.mdnsTargetCriteria.operationalTargets.push({ fabricId: fabric.globalId });
     }
 
     #enableScanningForScanner(scanner: Scanner) {

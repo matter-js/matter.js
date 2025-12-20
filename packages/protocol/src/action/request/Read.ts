@@ -45,18 +45,25 @@ export function Read(optionsOrSelector: Read.Options | Read.Selector, ...selecto
     } else {
         options = optionsOrSelector;
     }
+    const { fabricFilter = true, interactionModelRevision = Specification.INTERACTION_MODEL_REVISION } = options;
     let { attributes: attributeRequests, versionFilters, events: eventRequests, eventFilters } = options;
 
     const result = {
-        isFabricFiltered: options.fabricFilter ?? true,
-        interactionModelRevision: options.interactionModelRevision ?? Specification.INTERACTION_MODEL_REVISION,
+        isFabricFiltered: fabricFilter,
+        interactionModelRevision,
         [Diagnostic.value]: () =>
             Diagnostic.dict({
                 attributes: attributeRequests?.length
-                    ? attributeRequests?.map(path => resolvePathForSpecifier(path)).join(", ")
+                    ? selectors
+                          .filter(({ kind }) => kind === "attribute")
+                          .map(path => resolvePathForSpecifier(path))
+                          .join(", ")
                     : undefined,
                 events: eventRequests?.length
-                    ? eventRequests?.map(path => resolvePathForSpecifier(path)).join(", ")
+                    ? selectors
+                          .filter(({ kind }) => kind === "event")
+                          .map(path => resolvePathForSpecifier(path))
+                          .join(", ")
                     : undefined,
                 dataVersionFilters: versionFilters?.length
                     ? versionFilters

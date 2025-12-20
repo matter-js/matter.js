@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "#general";
+import { InternalError, Observable } from "#general";
 import { BdxStatusCode } from "#types";
 import { BdxError } from "../BdxError.js";
 import { BdxMessenger } from "../BdxMessenger.js";
@@ -15,14 +15,35 @@ export abstract class Flow {
     readonly #transferParameters: Flow.TransferOptions;
     readonly #messenger: BdxMessenger;
     #isClosed = false;
-    #blockCounter = 0;
+    #blockCounter = -1;
     #bytesLeft?: number;
     #finalBlockCounter?: number;
+    readonly progressInfo = Observable<[bytesTransferred: number, totalBytesLength: number | undefined]>();
+    readonly progressFinished = Observable<[totalBytesTransferred: number]>();
+    #dataLength: number | undefined;
+    #transferredBytes = 0;
 
     constructor(messenger: BdxMessenger, transferParameters: Flow.TransferOptions) {
         this.#messenger = messenger;
         this.#transferParameters = transferParameters;
         this.#bytesLeft = transferParameters.dataLength;
+        this.#dataLength = transferParameters.dataLength; // Could be undefined when unknown, will be updated with blob size when outbound flow
+    }
+
+    protected set dataLength(value: number) {
+        this.#dataLength = value;
+    }
+
+    get dataLength(): number | undefined {
+        return this.#dataLength;
+    }
+
+    protected set transferredBytes(value: number) {
+        this.#transferredBytes = value;
+    }
+
+    get transferredBytes() {
+        return this.#transferredBytes;
     }
 
     protected get transferParameters(): Flow.TransferOptions {
@@ -87,16 +108,22 @@ export abstract class Flow {
     async processTransfer() {
         await this.initTransfer();
 
+        // Emit initial progress info
+        this.progressInfo.emit(0, this.dataLength);
+
         // Continue to transfer chunks until done or closed
         while (!this.isClosed) {
             if (await this.transferNextChunk()) {
                 break;
             }
+            this.progressInfo.emit(this.transferredBytes, this.dataLength);
         }
+        this.progressInfo.emit(this.transferredBytes, this.dataLength);
 
         if (!this.isClosed) {
             await this.finalizeTransfer();
         }
+        this.progressFinished.emit(this.transferredBytes);
     }
 
     protected abstract initTransfer(): Promise<void>;

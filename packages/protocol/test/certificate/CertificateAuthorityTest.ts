@@ -71,7 +71,7 @@ describe("CertificateAuthority", () => {
             const icac = Icac.fromTlv(icacCert!);
 
             expect(BigInt(rcac.cert.subject.rcacId)).equal(BigInt(0));
-            expect(BigInt(icac.cert.subject.icacId)).equal(BigInt(1));
+            expect(BigInt(icac.cert.subject.icacId!)).equal(BigInt(1));
             expect(BigInt(icac.cert.issuer.rcacId!)).equal(BigInt(0));
         });
 

@@ -245,9 +245,9 @@ export class ExchangeManager {
             message.payloadHeader.messageType,
         );
         const messageDiagnostics = Diagnostic.dict({
-            message: messageId,
+            message: hex.fixed(messageId, 8),
             protocol: message.payloadHeader.protocolId,
-            exId: message.payloadHeader.exchangeId,
+            exId: hex.word(message.payloadHeader.exchangeId),
             via: channel.name,
         });
 

@@ -154,6 +154,20 @@ To see the full node structure of a node you can use the `nodes log` command and
 
 The shell provides comprehensive OTA (Over-The-Air) update management through DCL (Distributed Compliance Ledger) integration and local file operations.
 
+#### List known OTA updates
+
+Use `nodes ota known [node-id]` to list OTA updates that are known to be available for commissioned nodes. This shows updates that have been discovered through a previous query by the OTA provider.
+
+```
+nodes ota known
+nodes ota known 5000
+nodes ota known --local
+```
+
+Options:
+- `[node-id]`: Optional node ID to check for updates for a specific node
+- `--local`: Include locally stored update files in the results
+
 #### Check for OTA updates for a commissioned node
 
 Use `nodes ota check <node-id>` to query the DCL for available OTA updates for a specific commissioned node. The command uses the node's basic information (vendor ID, product ID, current software version) to check for newer firmware versions.
@@ -161,10 +175,12 @@ Use `nodes ota check <node-id>` to query the DCL for available OTA updates for a
 ```
 nodes ota check 5000
 nodes ota check 5000 --mode test
+nodes ota check 5000 --local
 ```
 
 Options:
 - `--mode <prod|test>`: Specify DCL mode - production (default) or test
+- `--local`: Include locally stored update files when checking for updates
 
 The command will display information about available updates including version, file size, and download URL.
 
@@ -175,11 +191,31 @@ Use `nodes ota download <node-id>` to check for and download OTA updates from DC
 ```
 nodes ota download 5000
 nodes ota download 5000 --mode test --force
+nodes ota download 5000 --local
 ```
 
 Options:
 - `--mode <prod|test>`: Specify DCL mode - production (default) or test
 - `--force`: Force re-download even if the update is already cached locally
+- `--local`: Consider locally cached updates when checking for available updates (before downloading)
+
+#### Apply OTA update to a commissioned node
+
+Use `nodes ota apply <node-id>` to check for, download (if needed), and apply an OTA update to a commissioned node. This command combines the check, download, and update trigger into a single operation.
+
+```
+nodes ota apply 5000
+nodes ota apply 5000 --mode test
+nodes ota apply 5000 --local
+nodes ota apply 5000 --force
+```
+
+Options:
+- `--mode <prod|test>`: Specify DCL mode - production (default) or test
+- `--force`: Force download even if update is already stored locally
+- `--local`: Apply update from locally stored files instead of downloading from DCL
+
+The command will check for available updates, download if necessary, and trigger the OTA update process on the connected node. The node must be connected for this command to work.
 
 #### Display OTA image information
 

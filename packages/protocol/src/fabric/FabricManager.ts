@@ -6,9 +6,11 @@
 
 import {
     AsyncObservable,
+    BasicSet,
     Bytes,
     Construction,
     Crypto,
+    Diagnostic,
     Environment,
     Environmental,
     ImplementationError,
@@ -22,8 +24,7 @@ import {
     StorageContext,
     StorageManager,
 } from "#general";
-import { PeerAddress } from "#peer/PeerAddress.js";
-import { FabricId, FabricIndex } from "#types";
+import { FabricId, FabricIndex, GlobalFabricId, NodeId } from "#types";
 import { Fabric } from "./Fabric.js";
 
 const logger = Logger.get("FabricManager");
@@ -35,7 +36,7 @@ export class FabricTableFullError extends MatterError {}
 export class FabricManager {
     #crypto: Crypto;
     #nextFabricIndex = 1;
-    readonly #fabrics = new Map<FabricIndex, Fabric>();
+    readonly #fabrics = new BasicSet<Fabric>();
     #initializationDone = false;
     #storage?: StorageContext;
     #events = {
@@ -64,7 +65,7 @@ export class FabricManager {
 
                 const fabrics = await this.#storage.get<Fabric.Config[]>("fabrics", []);
                 for (const fabricConfig of fabrics) {
-                    this.#addNewFabric(new Fabric(crypto, fabricConfig));
+                    this.#addNewFabric(await Fabric.create(crypto, fabricConfig));
                 }
 
                 this.#nextFabricIndex = await this.#storage.get("nextFabricIndex", this.#nextFabricIndex);
@@ -105,23 +106,54 @@ export class FabricManager {
         await this.#storage?.clear();
     }
 
-    has(address: FabricIndex | PeerAddress) {
-        if (typeof address === "object") {
-            address = address.fabricIndex;
+    /**
+     * Test whether the fabric identified by {@link identifier} is present.
+     */
+    has(address: Fabric.Identifier) {
+        let fabric;
+        if (typeof address === "bigint") {
+            fabric = this.#fabrics.get("globalId", address);
+        } else {
+            if (typeof address === "object") {
+                address = address.fabricIndex;
+            }
+            fabric = this.#fabrics.get("fabricIndex", address);
         }
-        const fabric = this.maybeForIndex(address);
-        return fabric && !fabric.isDeleting;
+        return fabric !== undefined && !fabric.isDeleting;
     }
 
-    for(address: FabricIndex | PeerAddress) {
-        if (typeof address === "object") {
-            address = address.fabricIndex;
+    /**
+     * Obtain the fabric identified by {@link identifier}.
+     *
+     * Throws if the fabric is not found.
+     */
+    for(identifier: Fabric.Identifier) {
+        let fabric;
+        if (typeof identifier === "bigint") {
+            fabric = this.#fabrics.get("globalId", identifier);
+        } else {
+            if (typeof identifier === "object") {
+                identifier = identifier.fabricIndex;
+            }
+            fabric = this.#fabrics.get("fabricIndex", identifier);
         }
-        const fabric = this.#fabrics.get(address);
-        if (fabric === undefined) {
-            throw new FabricNotFoundError(`Cannot access fabric for unknown index ${address}`);
+
+        if (fabric === undefined || fabric.isDeleting) {
+            const str = typeof identifier === "bigint" ? GlobalFabricId.strOf(identifier) : `#${identifier}`;
+            throw new FabricNotFoundError(
+                `Fabric index ${str} ${fabric === undefined ? "does not exist" : "is deleted"}`,
+            );
         }
         return fabric;
+    }
+
+    /**
+     * Get the fabric identified by {@link identifier} if present.
+     */
+    maybeFor(identifier: Fabric.Identifier) {
+        if (this.has(identifier)) {
+            return this.for(identifier);
+        }
     }
 
     allocateFabricIndex() {
@@ -130,7 +162,7 @@ export class FabricManager {
         for (let i = 0; i < 254; i++) {
             const fabricIndex = this.#nextFabricIndex++;
             if (this.#nextFabricIndex > 254) this.#nextFabricIndex = 1;
-            if (!this.#fabrics.has(FabricIndex(fabricIndex))) {
+            if (!this.#fabrics.get("fabricIndex", FabricIndex(fabricIndex))) {
                 return FabricIndex(fabricIndex);
             }
         }
@@ -163,7 +195,7 @@ export class FabricManager {
 
     #addNewFabric(fabric: Fabric) {
         const { fabricIndex } = fabric;
-        if (this.#fabrics.has(fabricIndex)) {
+        if (this.#fabrics.get("fabricIndex", fabricIndex)) {
             throw new MatterFlowError(`Fabric with index ${fabricIndex} already exists.`);
         }
 
@@ -176,8 +208,12 @@ export class FabricManager {
 
     /** Insert Fabric into the manager without emitting events */
     #addOrUpdateFabricEntry(fabric: Fabric) {
-        const { fabricIndex } = fabric;
-        this.#fabrics.set(fabricIndex, fabric);
+        const existing = this.#fabrics.get("fabricIndex", fabric.fabricIndex);
+        if (existing) {
+            this.#fabrics.delete(existing);
+        }
+
+        this.#fabrics.add(fabric);
 
         fabric.leaving.on(() => this.events.leaving.emit(fabric));
         fabric.deleting.on(() => this.events.deleting.emit(fabric));
@@ -186,7 +222,7 @@ export class FabricManager {
         fabric.persistCallback = (isUpdate = true) => {
             if (!this.#storage) {
                 if (isUpdate) {
-                    logger.warn(`Fabric ${fabricIndex} cannot persist because FabricManager has no storage`);
+                    logger.warn(`Fabric ${fabric.fabricIndex} cannot persist because FabricManager has no storage`);
                 }
                 return;
             }
@@ -198,14 +234,14 @@ export class FabricManager {
             });
         };
         if (this.#storage !== undefined && fabric.storage === undefined) {
-            fabric.storage = this.#storage.createContext(`fabric-${fabricIndex}`);
+            fabric.storage = this.#storage.createContext(`fabric-${fabric.fabricIndex}`);
         }
     }
 
     async #handleFabricDeleted(fabric: Fabric) {
         await this.#construction;
 
-        this.#fabrics.delete(fabric.fabricIndex);
+        this.#fabrics.delete(fabric);
         if (this.#storage) {
             await this.persistFabrics();
         }
@@ -221,7 +257,7 @@ export class FabricManager {
     get fabrics() {
         this.#construction.assert();
 
-        return Array.from(this.#fabrics.values()).filter(fabric => !fabric.isDeleting);
+        return this.#fabrics.filter(fabric => !fabric.isDeleting);
     }
 
     get length() {
@@ -239,18 +275,31 @@ export class FabricManager {
     async findFabricFromDestinationId(destinationId: Bytes, initiatorRandom: Bytes) {
         this.#construction.assert();
 
-        for (const fabric of this.#fabrics.values()) {
+        for (const fabric of this.#fabrics) {
             const candidateDestinationIds = await fabric.destinationIdsFor(fabric.nodeId, initiatorRandom);
             if (candidateDestinationIds.some(candidate => Bytes.areEqual(candidate, destinationId))) {
                 if (fabric.isDeleting) {
-                    throw new FabricNotFoundError("Fabric is deleting");
+                    throw new FabricNotFoundError("Fabric is deleting for CASE sigma2");
                 }
 
                 return fabric;
             }
         }
 
-        throw new FabricNotFoundError("Fabric not found");
+        const fabrics = this.#fabrics.map(
+            fabric =>
+                `#${fabric.fabricIndex} (node ID ${NodeId.strOf(fabric.nodeId)}) keys ${fabric.groups.keySets
+                    .allKeysForId(0)
+                    .map(({ key }) => Bytes.toHex(key))
+                    .join(" & ")}`,
+        );
+
+        logger.debug(
+            `No match for destination ID`,
+            Diagnostic.dict({ destId: destinationId, random: initiatorRandom, ...fabrics }),
+        );
+
+        throw new FabricNotFoundError("Fabric not found for CASE sigma2");
     }
 
     findByKeypair(keypair: Key) {
@@ -262,28 +311,6 @@ export class FabricManager {
             }
         }
         return undefined;
-    }
-
-    maybeForIndex(index: FabricIndex) {
-        this.#construction.assert();
-
-        const fabric = this.#fabrics.get(index);
-        if (fabric && !fabric.isDeleting) {
-            return fabric;
-        }
-    }
-
-    forIndex(index: FabricIndex) {
-        this.#construction.assert();
-
-        const fabric = this.#fabrics.get(index);
-        if (fabric === undefined) {
-            throw new FabricNotFoundError(`Fabric index ${index} does not exist`);
-        }
-        if (fabric.isDeleting) {
-            throw new FabricNotFoundError(`Fabric index ${index} is deleting`);
-        }
-        return fabric;
     }
 
     forDescriptor(descriptor: { rootPublicKey: Bytes; fabricId: FabricId }) {
@@ -300,7 +327,7 @@ export class FabricManager {
         await this.#construction;
 
         const { fabricIndex } = fabric;
-        const existingFabric = this.#fabrics.get(fabricIndex);
+        const existingFabric = this.for(fabricIndex);
         if (existingFabric === undefined) {
             throw new FabricNotFoundError(
                 `Fabric with index ${fabricIndex} cannot be replaced because it does not exist.`,

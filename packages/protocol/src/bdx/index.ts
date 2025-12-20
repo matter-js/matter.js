@@ -14,3 +14,4 @@ export * from "./FileDesignator.js";
 export * from "./flow/Flow.js";
 export * from "./PersistedFileDesignator.js";
 export * from "./schema/index.js";
+export * from "./ScopedStorage.js";

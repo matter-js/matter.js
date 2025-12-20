@@ -41,10 +41,10 @@
         "@matter/protocol": "*",
         "@react-native-async-storage/async-storage": "^2.2.0",
         "@react-native-community/netinfo": "^11.4.1",
-        "@types/node": "^24.10.2",
+        "@types/node": "^25.0.3",
         "react-native-ble-plx": "^3.5.0",
         "react-native-polyfill-globals": "^3.1.0",
-        "react-native-quick-crypto": "^0.7.17",
+        "react-native-quick-crypto": "^1.0.6",
         "react-native-udp": "^4.1.7"
     },
     "devDependencies": {

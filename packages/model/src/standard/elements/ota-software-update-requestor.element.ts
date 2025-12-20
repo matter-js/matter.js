@@ -32,7 +32,7 @@ export const OtaSoftwareUpdateRequestor = Cluster(
     Attribute({ name: "UpdateState", id: 0x2, type: "UpdateStateEnum", access: "R V", conformance: "M", default: 0 }),
     Attribute({
         name: "UpdateStateProgress", id: 0x3, type: "uint8", access: "R V", conformance: "M",
-        constraint: "0 to 100", default: null, quality: "X"
+        constraint: "0 to 100", default: null, quality: "X Q"
     }),
 
     Event(

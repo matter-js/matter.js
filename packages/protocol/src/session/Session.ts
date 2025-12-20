@@ -254,16 +254,21 @@ export abstract class Session {
     /**
      * Force-close the session.
      *
-     * This terminates subscriptions and exchanges without notifying peers.  It places the session in a closing state
-     * so no further exchanges are accepted.
+     * This terminates (potentially) subscriptions and exchanges without notifying peers.  It places the session in a
+     * closing state so no further exchanges are accepted.
      *
      * @param except an exchange that should not be forced close; this allows the current exchange to remain open
+     * @param keepSubscriptions whether to keep the subscriptions open after force-closing the session.
+     *  TODO refactor when moving subscriptions away from sessions
      */
-    async initiateForceClose(except?: MessageExchange) {
+    async initiateForceClose(except?: MessageExchange, keepSubscriptions = false) {
         await this.initiateClose(async () => {
-            await this.closeSubscriptions();
+            if (!keepSubscriptions) {
+                await this.closeSubscriptions();
+            }
             for (const exchange of this.#exchanges) {
                 if (exchange === except) {
+                    this.deferredClose = true;
                     continue;
                 }
                 await exchange.close(true);

@@ -6,7 +6,9 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { Events as BaseEvents } from "#behavior/Events.js";
+import { SoftwareUpdateManager } from "#behavior/system/software-update/SoftwareUpdateManager.js";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
+import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
 import { OperationalCredentials } from "#clusters/operational-credentials";
 import {
     ClassExtends,
@@ -38,7 +40,7 @@ import {
     vendorId,
 } from "#model";
 import type { ClientNode } from "#node/ClientNode.js";
-import type { Node } from "#node/Node.js";
+import type { ServerNode } from "#node/ServerNode.js";
 import { IdentityService } from "#node/server/IdentityService.js";
 import {
     CommissioningMode,
@@ -49,6 +51,7 @@ import {
     FabricAuthority,
     FabricManager,
     LocatedNodeCommissioningOptions,
+    PeerAddress,
     PeerSet,
     PeerAddress as ProtocolPeerAddress,
     SessionIntervals as ProtocolSessionIntervals,
@@ -93,14 +96,34 @@ export class CommissioningClient extends Behavior {
             this.state.discoveredAt = Time.nowMs;
         }
 
-        this.reactTo((this.endpoint as Node).lifecycle.partsReady, this.#initializeNode);
+        if (this.state.peerAddress !== undefined) {
+            // If restored from the storage, ensure we have the proper logging sugar, else it is "just" an object
+            this.state.peerAddress = PeerAddress(this.state.peerAddress);
+        }
+
+        const node = this.endpoint as ClientNode;
+        this.reactTo(node.lifecycle.partsReady, this.#initializeNode);
+        this.reactTo(node.lifecycle.online, this.#nodeOnline);
         this.reactTo(this.events.peerAddress$Changed, this.#peerAddressChanged);
     }
 
-    commission(passcode: number): Promise<ClientNode>;
+    #nodeOnline() {
+        if (this.state.peerAddress !== undefined) {
+            this.#updateAddresses(this.state.peerAddress);
+        }
+    }
 
+    #findServerOtaProviderEndpoint() {
+        const node = this.endpoint.owner as ServerNode;
+        for (const endpoint of node.endpoints) {
+            if (endpoint.behaviors.has(OtaSoftwareUpdateProviderServer)) {
+                return endpoint;
+            }
+        }
+    }
+
+    commission(passcode: number | string): Promise<ClientNode>;
     commission(options: CommissioningClient.CommissioningOptions): Promise<ClientNode>;
-
     async commission(options: number | string | CommissioningClient.CommissioningOptions) {
         // Commissioning can only happen once
         const node = this.endpoint as ClientNode;
@@ -124,10 +147,10 @@ export class CommissioningClient extends Behavior {
             }
         }
 
-        // Ensure controller is initialized
+        // Ensure the controller is initialized
         await node.owner?.act(agent => agent.load(ControllerBehavior));
 
-        // Obtain the fabric we will commission into
+        // Get the fabric we will commission into
         const fabricAuthority = opts.fabricAuthority ?? this.env.get(FabricAuthority);
         let { fabric } = opts;
         if (fabric === undefined) {
@@ -167,7 +190,23 @@ export class CommissioningClient extends Behavior {
             passcode,
             discoveryData: this.descriptor,
             commissioningFlowImpl: options.commissioningFlowImpl,
+            // TODO Allow to configure all relevant commissioning options like
+            //  * wifi/thread credentials
+            //  * regulatory config
+            //  * custom otaUpdateProviderLocation
         };
+
+        // Check if our server has an OTA Provider (later: and no custom one is provided) and register the location
+        const otaProviderEndpoint = this.#findServerOtaProviderEndpoint();
+        if (
+            otaProviderEndpoint !== undefined &&
+            otaProviderEndpoint.stateOf(SoftwareUpdateManager).announceAsDefaultProvider
+        ) {
+            commissioningOptions.otaUpdateProviderLocation = {
+                nodeId: fabric.rootNodeId,
+                endpoint: otaProviderEndpoint.number,
+            };
+        }
 
         if (this.finalizeCommissioning !== CommissioningClient.prototype.finalizeCommissioning) {
             commissioningOptions.finalizeCommissioning = this.finalizeCommissioning.bind(this);
@@ -223,13 +262,13 @@ export class CommissioningClient extends Behavior {
         const opcreds = this.agent.get(OperationalCredentialsClient);
 
         const fabricIndex = opcreds.state.currentFabricIndex;
-        logger.debug(`Removing node ${peerAddress.toString()} by removing fabric ${fabricIndex} on the node`);
+        logger.debug(`Removing node ${formerAddress} by removing fabric ${fabricIndex} on the node`);
 
         const result = await opcreds.removeFabric({ fabricIndex });
 
         if (result.statusCode !== OperationalCredentials.NodeOperationalCertStatus.Ok) {
             throw new MatterError(
-                `Removing node ${peerAddress.toString()} failed with status ${result.statusCode} "${result.debugText}".`,
+                `Removing node ${formerAddress} failed with status ${result.statusCode} "${result.debugText}".`,
             );
         }
 
@@ -268,17 +307,26 @@ export class CommissioningClient extends Behavior {
         endpoint.lifecycle.initialized.emit(this.state.peerAddress !== undefined);
     }
 
+    #updateAddresses(addr: ProtocolPeerAddress) {
+        const node = this.endpoint as ClientNode;
+        if (!node.env.has(PeerSet)) {
+            return;
+        }
+
+        const peer = node.env.get(PeerSet).for(addr);
+        if (peer) {
+            if (peer.descriptor.operationalAddress) {
+                this.state.addresses = [peer.descriptor.operationalAddress];
+            }
+            this.descriptor = peer.descriptor.discoveryData;
+        }
+    }
+
     #peerAddressChanged(addr?: ProtocolPeerAddress) {
         const node = this.endpoint as ClientNode;
 
         if (addr) {
-            const peer = node.env.get(PeerSet).for(addr);
-            if (peer) {
-                if (peer.descriptor.operationalAddress) {
-                    this.state.addresses = [peer.descriptor.operationalAddress];
-                }
-                this.descriptor = peer.descriptor.discoveryData;
-            }
+            this.#updateAddresses(addr);
 
             node.lifecycle.commissioned.emit(this.context);
         } else {

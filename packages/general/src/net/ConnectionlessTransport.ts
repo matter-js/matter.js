@@ -28,7 +28,7 @@ export namespace ConnectionlessTransport {
 }
 
 /**
- * A collection of {@link TransportInterfaces} managed as a unit.
+ * A collection of {@link ConnectionlessTransport}s managed as a unit.
  */
 export class ConnectionlessTransportSet<
     T extends ConnectionlessTransport = ConnectionlessTransport,

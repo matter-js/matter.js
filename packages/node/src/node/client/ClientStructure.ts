@@ -198,7 +198,7 @@ export class ClientStructure {
                         logger.debug(
                             "Received status for",
                             change.kind === "attr-status" ? "attribute" : "event",
-                            Diagnostic.strong(change.path.toString()),
+                            Diagnostic.strong(Diagnostic.dict(change.path)),
                             `: ${Status[change.status]}#${change.status}${change.clusterStatus !== undefined ? `/${Status[change.clusterStatus]}#${change.clusterStatus}` : ""}`,
                         );
                         break;
@@ -237,10 +237,18 @@ export class ClientStructure {
         await this.#emitPendingEvents();
     }
 
-    /** Reference to the default subscription used when the node was started. */
-    protected get subscribedFabricFiltered() {
+    /** Determines if the subscription is fabric filtered */
+    protected get subscribedFabricFiltered(): boolean {
         if (this.#subscribedFabricFiltered === undefined) {
-            this.#subscribedFabricFiltered = this.#node.state.network.defaultSubscription?.isFabricFiltered ?? true;
+            const defaultSubscription =
+                this.#node.state.network.defaultSubscription ??
+                ({} as { isFabricFiltered?: boolean; fabricFiltered?: boolean }); // Either Subscribe or Options
+            this.#subscribedFabricFiltered =
+                ("isFabricFiltered" in defaultSubscription
+                    ? defaultSubscription.isFabricFiltered
+                    : "fabricFiltered" in defaultSubscription
+                      ? defaultSubscription.fabricFiltered
+                      : true) ?? true;
             this.#node.events.network.defaultSubscription$Changed.on(newSubscription => {
                 this.#subscribedFabricFiltered = newSubscription?.isFabricFiltered ?? true;
             });
@@ -293,7 +301,7 @@ export class ClientStructure {
         const { endpointId, clusterId } = occurrence.path;
 
         const endpoint = this.#endpoints.get(endpointId);
-        // If we are building updates on current cluster or endpoint has pending changes, delay event emission
+        // If we are building updates on the current cluster or endpoint has pending changes, delay event emission
         if (
             (currentUpdates && (currentUpdates.endpointId === endpointId || currentUpdates.clusterId === clusterId)) ||
             (endpoint !== undefined && this.#pendingChanges?.has(endpoint))

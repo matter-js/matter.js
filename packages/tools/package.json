@@ -59,9 +59,11 @@
     "homepage": "https://github.com/matter-js/matter.js#readme",
     "dependencies": {
         "@microsoft/tsdoc": "^0.16.0",
+        "@typescript/native-preview": "^7.0.0-dev.20251218.1",
         "ansi-colors": "^4.1.3",
         "commander": "^14.0.2",
-        "esbuild": "^0.27.1",
+        "detective-typescript": "^14.0.0",
+        "esbuild": "^0.27.2",
         "minimatch": "^10.1.1",
         "type-fest": "^5.3.1",
         "typedoc": "^0.28.15",
@@ -69,13 +71,11 @@
         "typescript": "~5.9.3"
     },
     "optionalDependencies": {
-        "@esbuild/linux-x64": "^0.27.1"
+        "@esbuild/linux-x64": "^0.27.2"
     },
     "devDependencies": {
         "@types/madge": "^5.0.3",
-        "@types/node": "^24.10.2",
-        "@typescript/native-preview": "^7.0.0-dev.20251209.1",
-        "detective-typescript": "^14.0.0"
+        "@types/node": "^25.0.3"
     },
     "publishConfig": {
         "access": "public"

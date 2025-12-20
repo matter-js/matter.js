@@ -32,6 +32,7 @@ import {
 import {
     Command,
     FabricIndex,
+    NodeId,
     StatusCode,
     StatusResponse,
     StatusResponseError,
@@ -302,7 +303,9 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
         //  session context with the FabricIndex generated above, such that subsequent interactions have the proper
         //  accessing fabric.
 
-        logger.info(`addNoc success, adminVendorId ${adminVendorId}, caseAdminSubject ${caseAdminSubject}`);
+        logger.info(
+            `addNoc success, adminVendorId ${adminVendorId}, caseAdminSubject ${NodeId.strOf(caseAdminSubject)}`,
+        );
 
         return {
             statusCode: OperationalCredentials.NodeOperationalCertStatus.Ok,
@@ -394,7 +397,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
     override async removeFabric({ fabricIndex }: OperationalCredentials.RemoveFabricRequest) {
         assertRemoteActor(this.context);
 
-        const fabric = this.env.get(FabricManager).maybeForIndex(fabricIndex);
+        const fabric = this.env.get(FabricManager).maybeFor(fabricIndex);
 
         if (fabric === undefined) {
             return {
@@ -476,7 +479,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
             attChallenge: this.context.session.attestationChallengeKey,
             clientChallenge,
             fabricIndex,
-            fabric: fabric.config,
+            fabric,
         });
 
         return {

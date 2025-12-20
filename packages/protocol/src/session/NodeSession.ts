@@ -28,7 +28,7 @@ import { MessageCounter } from "#protocol/MessageCounter.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { MessageReceptionStateEncryptedWithoutRollover } from "#protocol/MessageReceptionState.js";
 import { SecureChannelMessenger } from "#securechannel/SecureChannelMessenger.js";
-import { CaseAuthenticatedTag, FabricIndex, NodeId } from "#types";
+import { CaseAuthenticatedTag, FabricIndex, GlobalFabricId, NodeId } from "#types";
 import { SecureSession } from "./SecureSession.js";
 import { Session } from "./Session.js";
 import { SessionParameters } from "./SessionParameters.js";
@@ -277,9 +277,10 @@ export class NodeSession extends SecureSession {
         await this.handlePeerLoss();
     }
 
-    async handlePeerLoss(currentExchange?: MessageExchange) {
+    async handlePeerLoss(data: { currentExchange?: MessageExchange; keepSubscriptions?: boolean } = {}) {
         this.#isPeerLost = true;
-        await this.initiateForceClose(currentExchange);
+        const { currentExchange, keepSubscriptions } = data;
+        await this.initiateForceClose(currentExchange, keepSubscriptions);
     }
 
     get isPeerLost() {
@@ -311,16 +312,16 @@ export class NodeSession extends SecureSession {
         });
     }
 
-    override async initiateForceClose(currentExchange?: MessageExchange) {
+    override async initiateForceClose(currentExchange?: MessageExchange, keepSubscriptions = false) {
         this.#isPeerLost = true;
-        await super.initiateForceClose(currentExchange);
+        await super.initiateForceClose(currentExchange, keepSubscriptions);
     }
 
     override addExchange(exchange: MessageExchange) {
         super.addExchange(exchange);
         exchange.closed.on(async () => {
             this.exchanges.delete(exchange);
-            if (this.deferredClose && !this.exchanges.size) {
+            if (this.deferredClose && !this.hasActiveExchanges) {
                 this.deferredClose = false;
                 await this.close();
             }
@@ -390,7 +391,7 @@ export namespace NodeSession {
             Diagnostic.strong(PeerAddress({ fabricIndex: fabric.fabricIndex, nodeId: peerNodeId }).toString()),
             Diagnostic.dict({
                 address: messenger.channelName,
-                fabric: `${NodeId.toHexString(fabric.nodeId)} (#${fabric.fabricIndex})`,
+                fabric: `${GlobalFabricId.strOf(fabric.globalId)} (#${fabric.fabricIndex})`,
                 ...session.parameterDiagnostics,
             }),
         );

@@ -5,11 +5,11 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
-import { EndpointInitializer } from "#endpoint/index.js";
+import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { AppAddress, ImplementationError, InternalError } from "#general";
 import { DatatypeModel, FieldElement } from "#model";
 import type { ServerNode } from "#node/ServerNode.js";
-import { ServerEndpointInitializer } from "#node/index.js";
+import { ServerEndpointInitializer } from "#node/server/ServerEndpointInitializer.js";
 import { RemoteInterface } from "./RemoteInterface.js";
 
 /**

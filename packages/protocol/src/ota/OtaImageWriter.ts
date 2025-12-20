@@ -26,7 +26,7 @@ export interface OtaImageWriterResult {
  * including file identifier, header encoding, and payload digest computation.
  *
  * The class can be used to convert raw firmware payloads into OTA image files suitable for distribution.
- * It does not use streaming approach, so it requires the entire payload to be available in memory what is ok for now.
+ * It does not use a streaming approach, so it requires the entire payload to be available in memory what is ok for now.
  */
 export class OtaImageWriter {
     /**

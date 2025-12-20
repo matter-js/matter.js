@@ -10,11 +10,14 @@
  * @deprecated
  */
 
+import { BasicInformationClient } from "#behaviors/basic-information";
+import { ClusterClient } from "#cluster/client/ClusterClient.js";
+import { InteractionClientProvider } from "#cluster/client/InteractionClient.js";
 import { GeneralCommissioning } from "#clusters";
 import type { NodeCommissioningOptions } from "#CommissioningController.js";
-import { ControllerStoreInterface } from "#ControllerStore.js";
-import { CachedClientNodeStore } from "#device/CachedClientNodeStore.js";
+import { ControllerStore, ControllerStoreInterface } from "#ControllerStore.js";
 import { DeviceInformationData } from "#device/DeviceInformation.js";
+import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import {
     Bytes,
     ChannelType,
@@ -22,37 +25,53 @@ import {
     ConnectionlessTransportSet,
     Construction,
     Crypto,
+    Diagnostic,
     Environment,
     ImplementationError,
+    InternalError,
+    isDeepEqual,
+    isObject,
     Logger,
     MatterError,
+    MaybePromise,
     Minutes,
     ServerAddress,
     ServerAddressUdp,
     StorageBackendMemory,
     StorageManager,
+    StorageService,
+    SupportedStorageTypes,
 } from "#general";
-import { LegacyControllerStore } from "#LegacyControllerStore.js";
-import { InteractionServer, ServerNode } from "#node";
+import {
+    ClientNode,
+    CommissioningClient,
+    ControllerBehavior,
+    Endpoint,
+    NetworkClient,
+    NodePhysicalProperties,
+    Peers,
+    RemoteDescriptor,
+    ServerNode,
+    ServerNodeStore,
+} from "#node";
 import {
     CertificateAuthority,
-    ClusterClient,
     CommissioningError,
     ControllerCommissioner,
     ControllerCommissioningFlow,
-    DecodedAttributeReportValue,
     DiscoveryAndCommissioningOptions,
     DiscoveryData,
     Fabric,
     FabricAuthority,
     FabricManager,
-    InteractionClientProvider,
     NodeDiscoveryType,
     PeerAddress,
     PeerAddressStore,
     PeerConnectionOptions,
+    PeerDataStore,
     PeerDescriptor,
     PeerSet,
+    PhysicalDeviceProperties,
     RetransmissionLimitReachedError,
     ScannerSet,
     SecureSession,
@@ -60,15 +79,16 @@ import {
 } from "#protocol";
 import {
     CaseAuthenticatedTag,
-    ClusterId,
     DiscoveryCapabilitiesBitmap,
     EndpointNumber,
+    EventNumber,
     FabricId,
     FabricIndex,
     NodeId,
     TypeFromPartialBitSchema,
     VendorId,
 } from "#types";
+import type { ClientNodeInteraction } from "@matter/node";
 
 export type CommissionedNodeDetails = {
     operationalServerAddress?: ServerAddressUdp;
@@ -86,11 +106,20 @@ type CommissionedPeer = PeerDescriptor & { deviceData?: DeviceInformationData };
 // Backward-compatible persistence record for nodes
 type StoredOperationalPeer = [NodeId, CommissionedNodeDetails];
 
+export type PairedNodeDetails = {
+    nodeId: NodeId;
+    operationalAddress?: string;
+    advertisedName?: string;
+    discoveryData?: RemoteDescriptor;
+    deviceData: {
+        basicInformation?: Record<string, SupportedStorageTypes>;
+        deviceMeta?: PhysicalDeviceProperties;
+    };
+};
+
 export class MatterController {
     public static async create(options: {
         id: string;
-        controllerStore: ControllerStoreInterface;
-        sessionClosedCallback?: (peerNodeId: NodeId) => void;
         rootCertificateAuthority?: CertificateAuthority;
         rootFabric?: Fabric;
         adminVendorId?: VendorId;
@@ -105,10 +134,9 @@ export class MatterController {
         listeningAddressIpv6?: string;
         localPort?: number;
         environment: Environment;
+        enableOtaProvider?: boolean;
     }): Promise<MatterController> {
-        const crypto = options.environment.get(Crypto);
         const {
-            controllerStore,
             rootFabric,
             rootCertificateAuthority,
             adminFabricIndex = FabricIndex(DEFAULT_FABRIC_INDEX),
@@ -121,38 +149,42 @@ export class MatterController {
             );
         }
 
-        // Use provided CA or create a new CA pointing to the legacy storage location
-        // Needs migration of data
-        const ca = rootCertificateAuthority ?? (await CertificateAuthority.create(crypto, controllerStore.caStorage));
-        environment.set(CertificateAuthority, ca);
-
         let controller: MatterController | undefined = undefined;
-        let fabric: Fabric | undefined = undefined;
+        let fabric: Fabric | undefined = rootFabric;
 
-        // Initializes Fabric from legacy storage location, or validate the provided fabric with the CA
-        // Requires data migration later maybe
-        const fabricStorage = controllerStore.fabricStorage;
-        if (rootFabric !== undefined || (await fabricStorage.has("fabric"))) {
-            fabric = rootFabric ?? new Fabric(crypto, await fabricStorage.get<Fabric.Config>("fabric"));
-            if (Bytes.areEqual(fabric.rootCert, ca.rootCert)) {
-                logger.info("Using existing fabric");
-            } else {
-                if (rootFabric !== undefined) {
-                    throw new MatterError("Fabric CA certificate is not in sync with CA.");
-                }
-                logger.info("Fabric CA certificate changed ...");
-                if (await controllerStore.nodesStorage.has("commissionedNodes")) {
-                    throw new MatterError(
-                        "Fabric certificate changed, but commissioned nodes are still present. Please clear the storage.",
+        const baseStorage: StorageManager = await options.environment.get(StorageService).open(options.id);
+
+        const oldStorage = baseStorage.createContext("credentials");
+        const newStorage = baseStorage.createContext("certificates");
+
+        const keys = await oldStorage.keys();
+
+        if (keys.length !== 0) {
+            for (const key of await oldStorage.keys()) {
+                if (key === "fabric") {
+                    if (rootFabric !== undefined) {
+                        logger.info("Skipping fabric migration because a rootFabric was provided.");
+                        continue;
+                    }
+                    fabric = await Fabric.create(
+                        Environment.default.get(Crypto),
+                        await oldStorage.get<Fabric.Config>("fabric"),
                     );
+                } else {
+                    // Migrates Certificate Authority data to new location
+                    if (!(await newStorage.has(key))) {
+                        newStorage.set(key, await oldStorage.get(key));
+                    }
                 }
-                fabric = undefined; // Force re-creation of fabric
             }
+        }
+
+        if (rootCertificateAuthority !== undefined) {
+            environment.set(CertificateAuthority, rootCertificateAuthority);
         }
 
         controller = new MatterController({
             ...options,
-            controllerStore,
             fabric,
         });
 
@@ -162,7 +194,6 @@ export class MatterController {
 
     public static async createAsPaseCommissioner(options: {
         id: string;
-        sessionClosedCallback?: (peerNodeId: NodeId) => void;
         certificateAuthorityConfig?: CertificateAuthority.Configuration;
         rootCertificateAuthority?: CertificateAuthority;
         fabricConfig: Fabric.Config;
@@ -185,10 +216,9 @@ export class MatterController {
         environment.set(CertificateAuthority, ca);
 
         // Stored data are temporary anyway and no node will be connected, so just use an in-memory storage
-        const storageManager = new StorageManager(new StorageBackendMemory());
-        await storageManager.initialize();
+        environment.set(StorageService, new StorageService(environment, () => new StorageBackendMemory()));
 
-        const fabric = new Fabric(crypto, fabricConfig);
+        const fabric = await Fabric.create(crypto, fabricConfig);
         if (!Bytes.areEqual(fabric.rootCert, ca.rootCert)) {
             throw new MatterError("Fabric CA certificate is not in sync with CA.");
         }
@@ -196,7 +226,6 @@ export class MatterController {
         // Check if we have a fabric stored in the storage, if yes initialize this one, else build a new one
         const controller = new MatterController({
             ...options,
-            controllerStore: new LegacyControllerStore(storageManager.createContext("Commissioner")),
             fabric,
         });
         await controller.construction;
@@ -222,6 +251,7 @@ export class MatterController {
     #node?: ServerNode;
     #peers?: PeerSet;
     #fabric?: Fabric;
+    #clients?: InteractionClientProvider;
 
     get construction() {
         return this.#construction;
@@ -229,9 +259,7 @@ export class MatterController {
 
     constructor(options: {
         id: string;
-        controllerStore: ControllerStoreInterface;
         fabric?: Fabric;
-        sessionClosedCallback?: (peerNodeId: NodeId) => void;
         ble?: boolean;
         adminFabricId?: FabricId;
         adminFabricLabel: string;
@@ -243,11 +271,10 @@ export class MatterController {
         listeningAddressIpv6?: string;
         localPort?: number;
         environment: Environment;
+        enableOtaProvider?: boolean;
     }) {
         const crypto = options.environment.get(Crypto);
         const {
-            controllerStore,
-            sessionClosedCallback,
             ble = false,
             adminFabricLabel,
             adminFabricId = FabricId(crypto.randomBigInt(8)),
@@ -261,48 +288,16 @@ export class MatterController {
             environment,
             id,
             fabric,
+            enableOtaProvider = false,
         } = options;
 
-        // Initialize a Fabric Manager without a connected storage because we only have one fabric, and we manage the
-        // storage ourselves.
-        // Data migration needed
-        const fabricManager = new FabricManager(crypto);
-        environment.set(FabricManager, fabricManager);
-        if (fabric !== undefined) {
-            fabricManager.addFabric(fabric);
-        }
-
         this.#construction = Construction(this, async () => {
-            const persistFabric = async (fabric: Fabric) => controllerStore.fabricStorage.set("fabric", fabric.config);
-
-            // Initialize Fabric Authority to retrieve the self-added fabric or create a new one
-            // Also tweak the storage as needed because we manage storage ourselves
-            // Data migration needed
-            // Can be removed when we use "commission" via Commissioning behavior
-            const fabricAuth = environment.get(FabricAuthority);
-            fabricAuth.fabricAdded.on(persistFabric);
-            const fabric = await fabricAuth.defaultFabric({
-                adminFabricLabel,
-                adminVendorId,
-                adminFabricId,
-                caseAuthenticatedTags,
-                adminNodeId: rootNodeId,
-            });
-            fabric.storage = controllerStore.fabricStorage;
-            fabric.persistCallback = () => persistFabric(fabric);
-            this.#fabric = fabric;
-
-            // Initialize custom PeerAddressStore to manage commissioned nodes storage in legacy storage format
-            // Data migration needed
-            const nodesStore = new CommissionedNodeStore(controllerStore, fabric);
-            environment.set(PeerAddressStore, nodesStore);
-
             // Now after all Legacy stuff is prepared, initialize the ServerNode
             this.#node = await ServerNode.create({
                 environment,
                 id,
                 network: {
-                    ble,
+                    ble: false,
                     ipv4,
                     listeningAddressIpv4,
                     listeningAddressIpv6,
@@ -316,56 +311,114 @@ export class MatterController {
                     adminFabricId,
                     adminNodeId: rootNodeId,
                     caseAuthenticatedTags,
+                    ble,
                 },
                 commissioning: {
                     enabled: false, // The node is never commissionable directly
                 },
                 subscriptions: {
-                    persistenceEnabled: false, // We do not want to reestablish subscriptions on restart
+                    persistenceEnabled: false, // Disable because that's a device feature
                 },
             });
 
-            this.#node.env
-                .get(SessionManager)
-                .sessions.deleted.on(session => sessionClosedCallback?.(session.peerNodeId));
+            if (enableOtaProvider) {
+                await this.#enableOtaProvider();
+            }
+
+            const fabricManager = await this.#node.env.load(FabricManager);
+            const fabricAuthority = await this.#node.env.load(FabricAuthority);
+            if (fabric !== undefined) {
+                if (!fabricManager.has(fabric.fabricIndex)) {
+                    if (fabricAuthority.hasControlOf(fabric)) {
+                        logger.info(
+                            `Adding provided fabric with index ${fabric.fabricIndex} under the control of the Fabric Authority`,
+                        );
+                        fabricManager.addFabric(fabric);
+                        await fabricManager.persistFabrics();
+                    } else {
+                        throw new ImplementationError(
+                            `Provided fabric with index ${fabric.fabricIndex} is not under the control of the Fabric Authority`,
+                        );
+                    }
+                }
+            }
+            this.#fabric = await fabricAuthority.defaultFabric({
+                adminFabricLabel,
+                adminVendorId,
+                adminNodeId: rootNodeId,
+                adminFabricId,
+                caseAuthenticatedTags,
+            });
+            if (fabric !== undefined) {
+                if (
+                    !fabricAuthority.fabrics.some(
+                        controlledFabric =>
+                            controlledFabric.fabricIndex === fabric.fabricIndex && fabricAuthority.hasControlOf(fabric),
+                    )
+                ) {
+                    throw new ImplementationError(
+                        `Fabric with index ${fabric.fabricIndex} is already present but not under the control of the Fabric Authority`,
+                    );
+                } else {
+                    logger.info(
+                        `Fabric with index ${fabric.fabricIndex} and matching keys is already present, initialized correctly.`,
+                    );
+                }
+            }
+
+            if (this.#fabric !== undefined) {
+                await this.#migrateNodeData(this.#node, this.#fabric);
+            }
+
+            // TODO
+            //await (await options.environment.get(StorageService).open(options.id))
+            //    .createContext("credentials")
+            //    .clearAll(); // Clear old credentials storage
 
             this.#peers = this.#node.env.get(PeerSet);
-            nodesStore.peers = this.#peers;
-
-            if (this.#fabric.label !== adminFabricLabel) {
-                await fabric.setLabel(adminFabricLabel);
-            }
         });
     }
 
+    #enableOtaProvider() {
+        if (!this.#node) {
+            throw new ImplementationError("Node is not initialized yet");
+        }
+        if (this.#node.endpoints.has("ota-provider")) {
+            return; // Already enabled
+        }
+        return this.#node.add(new Endpoint(OtaProviderEndpoint, { id: "ota-provider" }));
+    }
+
     get ble() {
+        return this.node.state.controller.ble ?? false;
+    }
+
+    get fabric() {
         this.#construction.assert();
-        return this.#node!.state.network.ble ?? false;
+        if (this.#fabric === undefined) {
+            throw new InternalError("Fabric is not initialized.");
+        }
+        return this.#fabric;
     }
 
     get nodeId() {
-        this.#construction.assert();
-        return this.#fabric!.rootNodeId;
+        return this.fabric.rootNodeId;
     }
 
     get caConfig() {
-        this.#construction.assert();
-        return this.#node!.env.get(CertificateAuthority).config;
+        return this.node.env.get(CertificateAuthority).config;
     }
 
     get fabricConfig() {
-        this.#construction.assert();
-        return this.#fabric!.config;
+        return this.fabric.config;
     }
 
     get sessions() {
-        this.#construction.assert();
-        return this.#node!.env.get(SessionManager);
+        return this.node.env.get(SessionManager);
     }
 
     getFabrics() {
-        this.#construction.assert();
-        return [this.#fabric!];
+        return [this.fabric];
     }
 
     collectScanners(
@@ -373,10 +426,12 @@ export class MatterController {
     ) {
         this.#construction.assert();
         // Note we always scan via MDNS if available
-        return this.#node!.env.get(ScannerSet).filter(
-            scanner =>
-                scanner.type === ChannelType.UDP || (discoveryCapabilities.ble && scanner.type === ChannelType.BLE),
-        );
+        return this.node.env
+            .get(ScannerSet)
+            .filter(
+                scanner =>
+                    scanner.type === ChannelType.UDP || (discoveryCapabilities.ble && scanner.type === ChannelType.BLE),
+            );
     }
 
     /**
@@ -397,10 +452,9 @@ export class MatterController {
             commissioningFlowImpl?: ClassExtends<ControllerCommissioningFlow>;
         },
     ): Promise<NodeId> {
-        this.#construction.assert();
         const commissioningOptions: DiscoveryAndCommissioningOptions = {
             ...options.commissioning,
-            fabric: this.#fabric!,
+            fabric: this.fabric,
             discovery: options.discovery,
             passcode: options.passcode,
         };
@@ -417,23 +471,22 @@ export class MatterController {
         }
         commissioningOptions.commissioningFlowImpl = commissioningFlowImpl;
 
-        const address = await this.#node!.env.get(ControllerCommissioner).commissionWithDiscovery(commissioningOptions);
+        const address = await this.node.env.get(ControllerCommissioner).commissionWithDiscovery(commissioningOptions);
 
-        await this.#fabric!.persist();
+        await this.fabric.persist();
 
         return address.nodeId;
     }
 
     async disconnect(nodeId: NodeId) {
-        this.#construction.assert();
-        return this.#peers?.get(this.#fabric!.addressOf(nodeId))?.close();
+        const node = await this.node.peers.forAddress(this.fabric.addressOf(nodeId));
+        return await node.disable();
     }
 
     async connectPaseChannel(options: NodeCommissioningOptions) {
-        this.#construction.assert();
-        const { paseSession } = await this.#node!.env.get(ControllerCommissioner).discoverAndEstablishPase({
+        const { paseSession } = await this.node.env.get(ControllerCommissioner).discoverAndEstablishPase({
             ...options.commissioning,
-            fabric: this.#fabric!,
+            fabric: this.fabric,
             discovery: options.discovery,
             passcode: options.passcode,
         });
@@ -442,12 +495,16 @@ export class MatterController {
     }
 
     async removeNode(nodeId: NodeId) {
-        this.#construction.assert();
-        return this.#peers?.get(this.#fabric!.addressOf(nodeId))?.delete();
+        const peerAddress = this.fabric.addressOf(nodeId);
+        const node = await this.node.peers.forAddress(peerAddress);
+        const peer = this.node.env.get(PeerSet).for(peerAddress);
+        await node.delete();
+        await peer.delete();
     }
 
     /**
      * Method to complete the commissioning process to a node which was initialized with a PASE secure channel.
+     * TODO validate
      */
     async completeCommissioning(peerNodeId: NodeId, discoveryData?: DiscoveryData) {
         this.#construction.assert();
@@ -470,60 +527,53 @@ export class MatterController {
         });
         if (errorCode !== GeneralCommissioning.CommissioningError.Ok) {
             // We might have added data for an operational address that we need to cleanup
-            await this.#peers?.get(this.#fabric!.addressOf(peerNodeId))?.delete();
+            await this.#peers?.get(this.fabric.addressOf(peerNodeId))?.delete();
             throw new CommissioningError(`Commission error on commissioningComplete: ${errorCode}, ${debugText}`);
         }
-        await this.#fabric!.persist();
+        await this.fabric.persist();
     }
 
     isCommissioned() {
-        this.#construction.assert();
-        return !!this.#peers!.size;
+        return !!this.getCommissionedNodes().length;
     }
 
     getCommissionedNodes() {
-        this.#construction.assert();
-        return this.#peers!.map(peer => peer.address.nodeId);
+        return this.node.peers
+            .map(
+                peer =>
+                    (peer.lifecycle.isReady && peer.maybeStateOf(CommissioningClient)?.peerAddress?.nodeId) ||
+                    undefined,
+            )
+            .filter(nodeId => nodeId !== undefined);
     }
 
-    getCommissionedNodesDetails() {
-        this.#construction.assert();
-        return this.#peers!.map(peer => {
-            const { address, operationalAddress, discoveryData, deviceData } = peer.descriptor as CommissionedPeer;
-            return {
-                nodeId: address.nodeId,
-                operationalAddress: operationalAddress ? ServerAddress.urlFor(operationalAddress) : undefined,
-                advertisedName: discoveryData?.DN,
-                discoveryData,
-                deviceData,
-            };
-        });
-    }
-
-    getCommissionedNodeDetails(nodeId: NodeId) {
-        this.#construction.assert();
-        const nodeDetails = this.#peers!.get(this.#fabric!.addressOf(nodeId))?.descriptor as CommissionedPeer;
-        if (nodeDetails === undefined) {
-            throw new Error(`Node ${nodeId} is not commissioned.`);
-        }
-        const { address, operationalAddress, discoveryData, deviceData } = nodeDetails;
+    #commissionedNodeDetailsForNode(peer: ClientNode): PairedNodeDetails {
+        const { peerAddress, addresses, deviceName } = peer.state.commissioning;
         return {
-            nodeId: address.nodeId,
-            operationalAddress: operationalAddress ? ServerAddress.urlFor(operationalAddress) : undefined,
-            advertisedName: discoveryData?.DN,
-            discoveryData,
-            deviceData,
+            nodeId: peerAddress!.nodeId,
+            operationalAddress: Array.isArray(addresses) ? ServerAddress.urlFor(addresses[0]) : undefined,
+            advertisedName: deviceName,
+            discoveryData: RemoteDescriptor.fromLongForm(peer.state.commissioning),
+            deviceData: {
+                basicInformation: peer.maybeStateOf(BasicInformationClient),
+                deviceMeta: NodePhysicalProperties(peer),
+            },
         };
     }
 
-    async enhanceCommissionedNodeDetails(nodeId: NodeId, deviceData: DeviceInformationData) {
-        this.#construction.assert();
-        const nodeDetails = this.#peers!.get(this.#fabric!.addressOf(nodeId))?.descriptor as CommissionedPeer;
-        if (nodeDetails === undefined) {
+    getCommissionedNodesDetails(): PairedNodeDetails[] {
+        return this.node.peers
+            .filter(peer => peer.lifecycle.isReady && peer.maybeStateOf(CommissioningClient)?.peerAddress !== undefined)
+            .map(peer => this.#commissionedNodeDetailsForNode(peer));
+    }
+
+    getCommissionedNodeDetails(nodeId: NodeId) {
+        const address = this.fabric.addressOf(nodeId);
+        const peer = this.node.peers.get(address);
+        if (peer === undefined || !peer.lifecycle.isReady) {
             throw new Error(`Node ${nodeId} is not commissioned.`);
         }
-        nodeDetails.deviceData = deviceData;
-        await (this.#node!.env.get(PeerAddressStore) as CommissionedNodeStore).save();
+        return this.#commissionedNodeDetailsForNode(peer);
     }
 
     /**
@@ -531,90 +581,192 @@ export class MatterController {
      * Returns a InteractionClient on success.
      */
     async connect(peerNodeId: NodeId, options: MatterController.ConnectOptions) {
-        this.#construction.assert();
-        return this.#node!.env.get(InteractionClientProvider).connect(this.#fabric!.addressOf(peerNodeId), options);
+        const address = this.fabric.addressOf(peerNodeId);
+        let node = this.node.peers.get(address);
+        if (node === undefined) {
+            if (!options.allowUnknownPeer) {
+                throw new MatterError(`Node ${peerNodeId} is not commissioned on this controller.`);
+            }
+            node = await this.node.peers.forAddress(address);
+        }
+        if (
+            options.caseAuthenticatedTags !== undefined &&
+            !isDeepEqual(options.caseAuthenticatedTags, node.state.network.caseAuthenticatedTags)
+        ) {
+            await node.setStateOf(NetworkClient, { caseAuthenticatedTags: options.caseAuthenticatedTags });
+        }
+        await node.enable();
+        return this.#clients!.connect(this.fabric.addressOf(peerNodeId), options);
     }
 
     createInteractionClient(peerNodeIdOrSession: NodeId | SecureSession, options: PeerConnectionOptions = {}) {
         if (peerNodeIdOrSession instanceof SecureSession) {
-            return this.#node!.env.get(InteractionClientProvider).interactionClientFor(peerNodeIdOrSession);
+            return this.#clients!.interactionClientFor(peerNodeIdOrSession);
         }
-        return this.#node!.env.get(InteractionClientProvider).getInteractionClient(
-            this.#fabric!.addressOf(peerNodeIdOrSession),
-            options,
-        );
+        const address = this.fabric.addressOf(peerNodeIdOrSession);
+        return this.#clients!.getNodeInteractionClient(address, options);
     }
 
     async start() {
-        this.#construction.assert();
-        await this.#node!.start();
-        this.#node!.env.get(InteractionServer).clientHandler =
-            this.#node!.env.get(InteractionClientProvider).subscriptionClient;
+        await this.node.start();
+        this.#clients = new InteractionClientProvider(this.node);
+        await this.node.act(agent => agent.load(ControllerBehavior));
     }
 
     async close() {
         await this.#node?.close();
+        this.#clients = undefined;
     }
 
     getActiveSessionInformation() {
-        this.#construction.assert();
-        return this.#node!.env.get(SessionManager).getActiveSessionInformation();
+        return this.node.env.get(SessionManager).getActiveSessionInformation();
     }
 
-    async getStoredClusterDataVersions(
-        nodeId: NodeId,
-        filterEndpointId?: EndpointNumber,
-        filterClusterId?: ClusterId,
-    ): Promise<{ endpointId: EndpointNumber; clusterId: ClusterId; dataVersion: number }[]> {
+    get node() {
         this.#construction.assert();
-        const peer = this.#peers!.get(this.#fabric!.addressOf(nodeId));
-        if (peer === undefined || peer.descriptor.dataStore === undefined) {
-            return []; // We have no store, also no data
-        }
-        await peer.descriptor.dataStore.construction;
-        return peer.descriptor.dataStore.getClusterDataVersions(filterEndpointId, filterClusterId);
-    }
-
-    async retrieveStoredAttributes(
-        nodeId: NodeId,
-        endpointId: EndpointNumber,
-        clusterId: ClusterId,
-    ): Promise<DecodedAttributeReportValue<any>[]> {
-        this.#construction.assert();
-        const peer = this.#peers!.get(this.#fabric!.addressOf(nodeId));
-        if (peer === undefined || peer.descriptor.dataStore === undefined) {
-            return []; // We have no store, also no data
-        }
-        await peer.descriptor.dataStore.construction;
-        return peer.descriptor.dataStore.retrieveAttributes(endpointId, clusterId);
+        return this.#node!;
     }
 
     async updateFabricLabel(label: string) {
-        this.#construction.assert();
-        await this.#fabric!.setLabel(label);
+        await this.fabric.setLabel(label);
+    }
+
+    async #migrateNodeData(server: ServerNode, fabric: Fabric) {
+        const baseStorage = await server.env.get(StorageService).open(server.id);
+        const baseNodeStorage = baseStorage.createContext("nodes");
+
+        // Initialize a custom PeerAddressStore to manage commissioned nodes storage in legacy storage format
+        // Data migration needed
+        const controllerStore = await ControllerStore.create(server.id, server.env);
+        if (!(await controllerStore.nodesStorage.has("commissionedNodes"))) {
+            // No commissionedNodes key, so simply migrate nothing
+            return;
+        }
+
+        const peerStore = new CommissionedNodeStore(controllerStore, fabric, server.peers);
+        const peers = await peerStore.loadPeers();
+        if (peers.length === 0) {
+            logger.debug("No former commissioned nodes to migrate.");
+            return;
+        }
+        const migratedPeers = new Set<string>();
+
+        const newClientStores = server.env.get(ServerNodeStore).clientStores;
+        for (const { address: peerAddress, discoveryData, deviceData, operationalAddress } of peers) {
+            logger.debug(`Migrating data for commissioned node ${peerAddress.toString()}`);
+            const clientNode = server.peers.get(peerAddress);
+            if (clientNode !== undefined) {
+                logger.debug(`Node ${peerAddress.nodeId} seems already migrated, skipping.`);
+                if (clientNode.stateOf(NetworkClient).autoSubscribe) {
+                    logger.debug(` Disabling auto subscribe on node ${peerAddress.nodeId}`);
+                    await clientNode.setStateOf(NetworkClient, { autoSubscribe: false });
+                }
+                continue;
+            }
+
+            const id = newClientStores.allocateId(); // Manually allocate next id to allow data migration before we add the node
+            logger.debug(`Allocated client node store id ${id} for node ${peerAddress.toString()}`);
+            migratedPeers.add(id);
+
+            logger.debug(
+                ` Migrating stored data for node ${peerAddress.toString()}: node-${peerAddress.nodeId.toString()}`,
+            );
+            const oldDataStore = await controllerStore.clientNodeStore(peerAddress.nodeId.toString());
+            const maxEventNumber = await oldDataStore.get<EventNumber>("__maxEventNumber__", EventNumber(0));
+
+            const peerStorage = baseNodeStorage.createContext(id);
+            const endpointStorage = peerStorage.createContext("endpoints");
+            const oldEndpoints = await oldDataStore.contexts();
+            if (oldEndpoints.length === 0) {
+                logger.info(`No endpoint data to migrate for node ${peerAddress.toString()}`);
+            }
+            for (const ep of oldEndpoints) {
+                logger.debug(`  Migrating data for endpoint ${ep} of node ${peerAddress.toString()}`);
+                const oldEndpointStorage = oldDataStore.createContext(ep);
+                const newEndpointStorage = endpointStorage.createContext(ep);
+                for (const cluster of await oldEndpointStorage.contexts()) {
+                    logger.debug(
+                        `    Migrating data for cluster ${cluster} of endpoint ${ep} of node ${peerAddress.toString()}`,
+                    );
+                    const oldClusterStorage = oldEndpointStorage.createContext(cluster);
+                    const newClusterStorage = newEndpointStorage.createContext(cluster);
+                    for (const key of await oldClusterStorage.keys()) {
+                        const value = await oldClusterStorage.get(key);
+                        if (key === "__version__") {
+                            await newClusterStorage.set(key, value);
+                        } else if (isObject(value) && "value" in value) {
+                            // Old storage contained "value" and "attributeName", just store value now
+                            await newClusterStorage.set(key, value.value);
+                        }
+                    }
+                }
+            }
+
+            const commissioning = RemoteDescriptor.toLongForm({
+                ...(discoveryData ? deviceData : {}),
+                addresses: operationalAddress ? [operationalAddress] : [],
+            });
+            logger.debug(
+                `Initialize node store for migrated node ${peerAddress.toString()}`,
+                Diagnostic.dict({ maxEventNumber, ...commissioning }),
+            );
+            const node = await server.peers.forAddress(peerAddress, { id });
+            await node.set({
+                commissioning,
+                network: {
+                    maxEventNumber,
+                    autoSubscribe: false,
+                },
+            });
+
+            if ((await oldDataStore.contexts()).length) {
+                logger.info(`Deleting old storage for node ${peerAddress.nodeId}`);
+                //await oldDataStore.clearAll(); // TODO
+            }
+        }
+
+        //await controllerStore.nodesStorage.delete("commissionedNodes"); // TODO
+
+        server.peers.clusterInstalled(BasicInformationClient).on(peer => {
+            if (!migratedPeers.has(peer.id)) {
+                logger.info(`Migrating commissioned node ${peer.id} to old format`);
+                migratedPeers.add(peer.id);
+                peerStore.save().catch(error => logger.warn("Failed to persist legacy commissioned nodes", error));
+            }
+        });
+        server.peers.deleted.on(peer => {
+            migratedPeers.delete(peer.id);
+            logger.info(`Deleted commissioned node ${peer.id} from old format`);
+            peerStore.save().catch(error => logger.warn("Failed to persist legacy commissioned nodes", error));
+        });
+
+        logger.info("Commissioned nodes migration completed.");
     }
 }
 
 export namespace MatterController {
     export interface ConnectOptions extends PeerConnectionOptions {
         allowUnknownPeer?: boolean;
-        caseAuthenticatedTags?: CaseAuthenticatedTag[];
     }
 }
 
+/**
+ * Only used for Node data migration
+ */
 class CommissionedNodeStore extends PeerAddressStore {
-    declare peers: PeerSet;
+    #peers: Peers;
     #controllerStore: ControllerStoreInterface;
     #fabric: Fabric;
 
-    constructor(controllerStore: ControllerStoreInterface, fabric: Fabric) {
+    constructor(controllerStore: ControllerStoreInterface, fabric: Fabric, peers: Peers) {
         super();
         this.#controllerStore = controllerStore;
         this.#fabric = fabric;
+        this.#peers = peers;
     }
 
-    async createNodeStore(address: PeerAddress, load = true) {
-        return new CachedClientNodeStore(await this.#controllerStore.clientNodeStore(address.nodeId.toString()), load);
+    createNodeStore(_address: PeerAddress): MaybePromise<PeerDataStore | undefined> {
+        throw new ImplementationError("Not implemented");
     }
 
     async loadPeers() {
@@ -634,7 +786,6 @@ class CommissionedNodeStore extends PeerAddressStore {
                 operationalAddress: operationalServerAddress,
                 discoveryData,
                 deviceData,
-                dataStore: await this.createNodeStore(address),
             } satisfies CommissionedPeer);
         }
         return nodes;
@@ -652,18 +803,36 @@ class CommissionedNodeStore extends PeerAddressStore {
     async save() {
         await this.#controllerStore.nodesStorage.set(
             "commissionedNodes",
-            this.peers.map(peer => {
-                const {
-                    address,
-                    operationalAddress: operationalServerAddress,
-                    discoveryData,
-                    deviceData,
-                } = peer.descriptor as CommissionedPeer;
-                return [
-                    address.nodeId,
-                    { operationalServerAddress, discoveryData, deviceData },
-                ] satisfies StoredOperationalPeer;
-            }),
+            this.#peers
+                .map(peer => {
+                    const commissioningState = peer.maybeStateOf(CommissioningClient);
+                    const address = commissioningState?.peerAddress;
+                    const operationalServerAddress = commissioningState?.addresses?.[0];
+                    const discoveryData =
+                        commissioningState !== undefined
+                            ? RemoteDescriptor.fromLongForm(commissioningState)
+                            : undefined;
+                    const deviceData = {
+                        meta: (peer.interaction as ClientNodeInteraction).physicalProperties,
+                        basicInformation: peer.maybeStateOf(BasicInformationClient),
+                    };
+
+                    if (address === undefined) {
+                        return;
+                    }
+                    return [
+                        address.nodeId,
+                        {
+                            operationalServerAddress:
+                                operationalServerAddress !== undefined && operationalServerAddress.type === "udp"
+                                    ? (ServerAddress(operationalServerAddress) as ServerAddressUdp)
+                                    : undefined,
+                            discoveryData,
+                            deviceData,
+                        },
+                    ] satisfies StoredOperationalPeer;
+                })
+                .filter(details => details !== undefined),
         );
     }
 }

@@ -52,14 +52,22 @@ export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: W
     } else {
         options = optionsOrData;
     }
-    const { writes: writeRequests = [], timed, timeout, chunkLists } = options;
+    const {
+        writes: writeRequests = [],
+        timed,
+        timeout,
+        chunkLists = true, // Should be true currently to stay in sync with chip sdk, see below
+        suppressResponse,
+        interactionModelRevision = Specification.INTERACTION_MODEL_REVISION,
+    } = options;
 
     const result = {
         timedRequest: !!timed || !!timeout,
         timeout,
         writeRequests,
         moreChunkedMessages: false,
-        interactionModelRevision: options.interactionModelRevision ?? Specification.INTERACTION_MODEL_REVISION,
+        suppressResponse,
+        interactionModelRevision,
 
         [Diagnostic.value]: () =>
             Diagnostic.list(
@@ -116,11 +124,11 @@ export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: W
 
             if (
                 chunkLists &&
-                Array.isArray(value) &&
-                schema instanceof ArraySchema &&
                 // As implemented for Matter 1.4.2 in https://github.com/project-chip/connectedhomeip/pull/38263
                 // Acl writes will no longer be chunked by default, all others still
                 // Will be streamlined later ... see https://github.com/project-chip/connectedhomeip/issues/38270
+                Array.isArray(value) &&
+                schema instanceof ArraySchema &&
                 !isAclOrExtensionPath({ clusterId, attributeId })
             ) {
                 writeRequests.push(
@@ -158,6 +166,7 @@ export namespace Write {
         timeout?: Duration;
         interactionModelRevision?: number;
         chunkLists?: boolean;
+        suppressResponse?: boolean;
     }
 
     /**

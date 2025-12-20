@@ -149,7 +149,7 @@ class NodeState {
                 if (!fabrics) {
                     fabrics = node.env.get(FabricManager);
                 }
-                return fabrics.maybeForIndex(index)?.nodeId;
+                return fabrics.maybeFor(index)?.nodeId;
             },
 
             get eventHandler() {

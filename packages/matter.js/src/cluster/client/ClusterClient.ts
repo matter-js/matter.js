@@ -6,6 +6,16 @@
 
 import { capitalize, Diagnostic, Duration, ImplementationError, Logger, Merge } from "#general";
 import {
+    AttributeClients,
+    AttributeClientValues,
+    ClusterClientObj,
+    DecodedEventData,
+    EventClients,
+    GroupClusterClientObj,
+    SignatureFromCommandSpec,
+    SignatureFromCommandSpecWithoutResponse,
+} from "#protocol";
+import {
     Attribute,
     AttributeId,
     ClusterId,
@@ -23,19 +33,9 @@ import {
     TypeFromSchema,
     UnknownAttribute,
 } from "#types";
-import { DecodedEventData } from "../../interaction/EventDataDecoder.js";
-import { InteractionClient } from "../../interaction/InteractionClient.js";
 import { createAttributeClient } from "./AttributeClient.js";
-import {
-    AttributeClients,
-    AttributeClientValues,
-    ClusterClientObj,
-    EventClients,
-    GroupClusterClientObj,
-    SignatureFromCommandSpec,
-    SignatureFromCommandSpecWithoutResponse,
-} from "./ClusterClientTypes.js";
 import { createEventClient } from "./EventClient.js";
+import { InteractionClient } from "./InteractionClient.js";
 
 const logger = Logger.get("ClusterClient");
 

@@ -15,8 +15,9 @@ import {
     Minutes,
     UnexpectedDataError,
 } from "#general";
+import { ExchangeProvider } from "#protocol/index.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
-import { BdxMessageType, BdxStatusCode, GeneralStatusCode, SecureMessageType } from "#types";
+import { BDX_PROTOCOL_ID, BdxMessageType, BdxStatusCode, GeneralStatusCode, SecureMessageType } from "#types";
 import { BdxError, BdxStatusResponseError } from "./BdxError.js";
 import { BdxReceiveAccept, BdxSendAccept } from "./schema/BdxAcceptMessagesSchema.js";
 import {
@@ -40,14 +41,20 @@ export class BdxMessenger {
     #exchange: MessageExchange;
     #messageTimeout: Duration;
 
+    /** Creates a new BdxMessenger instance by initiating a new MessageExchange from the given ExchangeProvider. */
+    static async create(exchangeProvider: ExchangeProvider, messageTimeout = BDX_TRANSFER_IDLE_TIMEOUT) {
+        const exchange = await exchangeProvider.initiateExchange(BDX_PROTOCOL_ID);
+        return new this(exchange, messageTimeout);
+    }
+
     /**
      * Creates a new BdxMessenger instance.
      * @param exchange Exchange to use for the messaging
      * @param messageTimeout Communication Timeout for the Bdx Messages, defaults to 5 minutes as defined for Matter OTA transfers
      */
     constructor(exchange: MessageExchange, messageTimeout = BDX_TRANSFER_IDLE_TIMEOUT) {
-        if (!exchange.channel.isReliable) {
-            throw new ImplementationError("Bdx Protocol requires a reliable channel for message exchange");
+        if (!exchange.session.isSecure) {
+            throw new ImplementationError("Bdx Protocol requires a secure session");
         }
         this.#messageTimeout = messageTimeout;
         this.#exchange = exchange;
@@ -76,13 +83,13 @@ export class BdxMessenger {
         expectedMessageInfo?: string,
     ): Promise<BdxMessage<any>> {
         logger.debug(
-            `Waiting for Bdx ${expectedMessageTypes.map(t => BdxMessageType[t]).join("/")} message with timeout ${timeout}ms`,
+            `Waiting for Bdx ${expectedMessageTypes.map(t => BdxMessageType[t]).join("/")} message with timeout ${Duration.format(timeout)}`,
         );
 
         const message = await this.exchange.nextMessage({ timeout });
         const messageType = message.payloadHeader.messageType as BdxMessageType;
         if (expectedMessageInfo === undefined) {
-            expectedMessageInfo = expectedMessageTypes.map(t => `${t} (${BdxMessageType[t]})`).join(",");
+            expectedMessageInfo = expectedMessageTypes.map(t => `${BdxMessageType[t]}#${t}`).join(",");
         }
         this.throwIfErrorStatusReport(message, expectedMessageInfo);
         if (!expectedMessageTypes.includes(messageType))
@@ -268,6 +275,10 @@ export class BdxMessenger {
 
     close() {
         return this.#exchange.close();
+    }
+
+    [Symbol.asyncDispose]() {
+        return this.close();
     }
 
     /**

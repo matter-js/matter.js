@@ -32,7 +32,7 @@ export interface SessionParameters extends SessionIntervals {
 }
 
 export function SessionParameters(config?: SessionParameters.Config): SessionParameters {
-    // Decode supported transports if supplied as number
+    // Decode supported transports if supplied as a number
     let supportedTransports = config?.supportedTransports;
     if (typeof supportedTransports === "number") {
         supportedTransports = SupportedTransportsSchema.decode(supportedTransports);
@@ -47,7 +47,15 @@ export function SessionParameters(config?: SessionParameters.Config): SessionPar
         maxTcpMessageSize ??= SessionParameters.fallbacks.maxTcpMessageSize;
     }
 
-    return { ...SessionParameters.fallbacks, ...config, supportedTransports, maxTcpMessageSize };
+    // Ensure that undefined values in config are not overriding the fallbacks
+    const sanitizedConfig: Record<string, unknown> = { ...config };
+    for (const key of Object.keys(sanitizedConfig)) {
+        if ((sanitizedConfig as any)[key] === undefined) {
+            delete sanitizedConfig[key];
+        }
+    }
+
+    return { ...SessionParameters.fallbacks, ...sanitizedConfig, supportedTransports, maxTcpMessageSize };
 }
 
 export namespace SessionParameters {

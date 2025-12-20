@@ -172,7 +172,7 @@ export class Logger {
      */
     static reportUnhandledError(error: Error) {
         try {
-            Logger.get("Logger").fatal("Unhandled error detected:", error);
+            Logger.get("Unhandled").fatal("Unhandled error detected:", error);
         } catch (e) {
             // We do not want to cause yet another error so if logging fails for any reason it goes unreported
         }

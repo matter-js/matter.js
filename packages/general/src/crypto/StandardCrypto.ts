@@ -6,17 +6,20 @@
  */
 
 import { Environment } from "#environment/Environment.js";
-import { ImplementationError, NotImplementedError } from "#MatterError.js";
+import { ImplementationError } from "#MatterError.js";
 import { Bytes } from "#util/Bytes.js";
 import { Entropy } from "#util/Entropy.js";
 import { MaybePromise } from "#util/Promises.js";
 import { describeList } from "#util/String.js";
+import { Logger } from "../log/Logger.js";
 import { Ccm } from "./aes/Ccm.js";
 import { Crypto, CRYPTO_SYMMETRIC_KEY_LENGTH, HashAlgorithm } from "./Crypto.js";
 import { CryptoVerifyError, KeyInputError } from "./CryptoError.js";
 import { EcdsaSignature } from "./EcdsaSignature.js";
 import { CurveType, Key, KeyType, PrivateKey, PublicKey } from "./Key.js";
 import { WebCrypto } from "./WebCrypto.js";
+
+const logger = Logger.get("StandardCrypto");
 
 // Ensure we don't reference global crypto accidentally
 declare const crypto: never;
@@ -106,9 +109,29 @@ export class StandardCrypto extends Crypto {
             buffer = Bytes.concat(...buffer);
         }
         if (!Bytes.isBytes(buffer)) {
-            throw new NotImplementedError(
-                `Streamed hash computation is not supported in StandardCrypto for ${algorithm}`,
-            );
+            const chunks: Bytes[] = [];
+            const iterator: AsyncIterator<any> =
+                Symbol.asyncIterator in buffer
+                    ? (buffer as any)[Symbol.asyncIterator]()
+                    : (buffer as AsyncIterator<any>);
+
+            const collectAndHash = async () => {
+                while (true) {
+                    const result = await iterator.next();
+                    if (result.done) break;
+                    const chunk = result.value instanceof Uint8Array ? result.value : new Uint8Array(result.value);
+                    chunks.push(chunk);
+                }
+
+                const combined = Bytes.concat(...chunks);
+                if (combined.byteLength > 100_000) {
+                    logger.info(
+                        `Streamed hash computation used with StandardCrypto for ${algorithm} and ${Math.floor(combined.byteLength / 1024)}kB. Consider alternatives that do not load all data into memory.`,
+                    );
+                }
+                return await this.#subtle.digest(algorithm, Bytes.exclusive(combined));
+            };
+            return collectAndHash();
         }
 
         return this.#subtle.digest(algorithm, Bytes.exclusive(buffer));

@@ -4,7 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ActionContext, Behavior, ClusterBehavior, type ClusterState, ValueSupervisor } from "#behavior/index.js";
+import { Behavior } from "#behavior/Behavior.js";
+import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
+import type { ClusterState } from "#behavior/cluster/ClusterState.js";
+import { ActionContext } from "#behavior/context/ActionContext.js";
+import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import { Thermostat } from "#clusters/thermostat";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { BasicSet, Environment, Environmental, InternalError, Logger, ObserverGroup, serialize } from "#general";

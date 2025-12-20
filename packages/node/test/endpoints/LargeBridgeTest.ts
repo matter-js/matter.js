@@ -49,7 +49,7 @@ describe("a large bridge", () => {
         const node = (await createLargeBridge()).owner as MockServerNode;
         await commissioning.commission(node);
 
-        await interaction.read(node, node.env.get(FabricManager).maybeForIndex(FabricIndex(1))!, false, {});
+        await interaction.read(node, node.env.get(FabricManager).maybeFor(FabricIndex(1))!, false, {});
 
         await node.close();
     });

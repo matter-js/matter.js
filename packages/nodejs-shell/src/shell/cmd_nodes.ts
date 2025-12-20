@@ -5,7 +5,9 @@
  */
 
 import { capitalize, decamelize, Diagnostic } from "#general";
-import { NodeId, VendorId } from "#types";
+import { ClientNode, SoftwareUpdateManager } from "#node";
+import { PeerAddress } from "#protocol";
+import { FabricIndex, NodeId, VendorId } from "#types";
 import { CommissioningControllerNodeOptions, NodeStateInformation } from "@project-chip/matter.js/device";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
@@ -228,10 +230,15 @@ export default function commands(theNode: MatterNode) {
                             }
                         }
 
+                        const nodeDetails = theNode.commissioningController.getCommissionedNodesDetails();
+
                         for (const nodeIdToProcess of nodeIds) {
                             const node = theNode.commissioningController.getPairedNode(nodeIdToProcess);
                             if (node === undefined) {
-                                console.log(`Node ${nodeIdToProcess}: Not initialized`);
+                                const details = nodeDetails.find(nd => nd.nodeId === nodeIdToProcess);
+                                console.log(
+                                    `Node ${nodeIdToProcess}: Not initialized${details?.deviceData?.basicInformation !== undefined ? ` (${details.deviceData.basicInformation.vendorName} ${details.deviceData.basicInformation.productName})` : ""}`,
+                                );
                             } else {
                                 const basicInfo = node.basicInformation;
                                 console.log(
@@ -242,10 +249,111 @@ export default function commands(theNode: MatterNode) {
                     },
                 )
                 .command(
+                    "add [node-id]",
+                    "Adds a node without commissioning and connects to it (means need to exist in the fabric and commissioned otherwise)",
+                    yargs => {
+                        return yargs
+                            .positional("node-id", {
+                                describe: "node id to connect.",
+                                default: "all",
+                                type: "string",
+                                demandOption: true,
+                            })
+                            .positional("min-subscription-interval", {
+                                describe:
+                                    "Minimum subscription interval in seconds. If set then the node is subscribed to all attributes and events.",
+                                type: "number",
+                            })
+                            .positional("max-subscription-interval", {
+                                describe:
+                                    "Maximum subscription interval in seconds. If minimum interval is set and this not it will be determined automatically.",
+                                type: "number",
+                            });
+                    },
+                    async argv => {
+                        const { nodeId: nodeIdStr, maxSubscriptionInterval, minSubscriptionInterval } = argv;
+                        await theNode.start();
+                        if (theNode.commissioningController === undefined) {
+                            throw new Error("CommissioningController not initialized");
+                        }
+                        let nodeIds = theNode.commissioningController.getCommissionedNodes();
+
+                        const cmdNodeId = NodeId(BigInt(nodeIdStr));
+                        nodeIds = nodeIds.filter(nodeId => nodeId === cmdNodeId);
+                        if (nodeIds.length) {
+                            throw new Error(`Node ${nodeIdStr} already known`);
+                        }
+
+                        await theNode.commissioningController.node.peers.forAddress(
+                            theNode.commissioningController.fabric.addressOf(cmdNodeId),
+                        );
+
+                        const autoSubscribe = minSubscriptionInterval !== undefined;
+
+                        const node = await theNode.commissioningController.getNode(cmdNodeId);
+                        node.connect({
+                            autoSubscribe,
+                            subscribeMinIntervalFloorSeconds: autoSubscribe ? minSubscriptionInterval : undefined,
+                            subscribeMaxIntervalCeilingSeconds: autoSubscribe ? maxSubscriptionInterval : undefined,
+                            ...createDiagnosticCallbacks(),
+                        });
+                    },
+                )
+                .command(
                     "ota",
                     "OTA update operations for nodes",
                     yargs =>
                         yargs
+                            .command(
+                                "known [node-id]",
+                                "List which OTA updates are known to be available for commissioned nodes. A first query by the provider must have happened for this to be filled.",
+                                yargs => {
+                                    return yargs
+                                        .positional("node-id", {
+                                            describe: "Node ID to check for updates",
+                                            type: "string",
+                                            default: undefined,
+                                        })
+                                        .option("local", {
+                                            describe: "include local update files",
+                                            type: "boolean",
+                                            default: false,
+                                        });
+                                },
+                                async argv => {
+                                    const { nodeId: nodeIdStr, local } = argv;
+
+                                    await theNode.start();
+                                    if (theNode.commissioningController === undefined) {
+                                        throw new Error("CommissioningController not initialized");
+                                    }
+
+                                    let peerToCheck: ClientNode | undefined = undefined;
+                                    if (nodeIdStr !== undefined) {
+                                        const nodeId = NodeId(BigInt(nodeIdStr));
+                                        peerToCheck = (await theNode.commissioningController.getNode(nodeId))?.node;
+                                    }
+
+                                    const updatesAvailable = await theNode.commissioningController.otaProvider.act(
+                                        agent =>
+                                            agent
+                                                .get(SoftwareUpdateManager)
+                                                .queryUpdates({ peerToCheck, includeStoredUpdates: local }),
+                                    );
+
+                                    if (updatesAvailable.length) {
+                                        console.log(`OTA updates available for ${updatesAvailable.length} nodes:`);
+                                        for (const { peerAddress, info } of updatesAvailable) {
+                                            console.log(
+                                                peerAddress,
+                                                `: new Version: ${info.softwareVersion} (${info.softwareVersionString})`,
+                                            );
+                                        }
+                                    } else {
+                                        console.log("No OTA updates available.");
+                                    }
+                                },
+                            )
                             .command(
                                 "check <node-id>",
                                 "Check for OTA updates for a commissioned node",
@@ -261,10 +369,15 @@ export default function commands(theNode: MatterNode) {
                                             type: "string",
                                             choices: ["prod", "test"],
                                             default: "prod",
+                                        })
+                                        .option("local", {
+                                            describe: "include local update files",
+                                            type: "boolean",
+                                            default: false,
                                         });
                                 },
                                 async argv => {
-                                    const { nodeId: nodeIdStr, mode } = argv;
+                                    const { nodeId: nodeIdStr, mode, local } = argv;
                                     const isProduction = mode === "prod";
 
                                     await theNode.start();
@@ -302,12 +415,13 @@ export default function commands(theNode: MatterNode) {
                                     );
                                     console.log(`  DCL Mode: ${isProduction ? "production" : "test"}\n`);
 
-                                    const updateInfo = await theNode.otaService.checkForUpdate(
-                                        basicInfo.vendorId as VendorId,
-                                        basicInfo.productId as number,
-                                        basicInfo.softwareVersion as number,
+                                    const updateInfo = await theNode.otaService.checkForUpdate({
+                                        vendorId: basicInfo.vendorId as VendorId,
+                                        productId: basicInfo.productId as number,
+                                        currentSoftwareVersion: basicInfo.softwareVersion as number,
+                                        includeStoredUpdates: local,
                                         isProduction,
-                                    );
+                                    });
 
                                     if (updateInfo) {
                                         console.log("✓ Update available!");
@@ -350,10 +464,15 @@ export default function commands(theNode: MatterNode) {
                                             describe: "Force download even if update is already stored locally",
                                             type: "boolean",
                                             default: false,
+                                        })
+                                        .option("local", {
+                                            describe: "include local update files",
+                                            type: "boolean",
+                                            default: false,
                                         });
                                 },
                                 async argv => {
-                                    const { nodeId: nodeIdStr, mode, force } = argv;
+                                    const { nodeId: nodeIdStr, mode, force, local } = argv;
                                     const isProduction = mode === "prod";
                                     const forceDownload = force === true;
 
@@ -392,12 +511,13 @@ export default function commands(theNode: MatterNode) {
                                     );
                                     console.log(`  DCL Mode: ${isProduction ? "production" : "test"}\n`);
 
-                                    const updateInfo = await theNode.otaService.checkForUpdate(
-                                        basicInfo.vendorId as VendorId,
-                                        basicInfo.productId as number,
-                                        basicInfo.softwareVersion as number,
+                                    const updateInfo = await theNode.otaService.checkForUpdate({
+                                        vendorId: basicInfo.vendorId as VendorId,
+                                        productId: basicInfo.productId as number,
+                                        currentSoftwareVersion: basicInfo.softwareVersion as number,
+                                        includeStoredUpdates: local,
                                         isProduction,
-                                    );
+                                    });
 
                                     if (!updateInfo) {
                                         console.log("No updates available. Device is up to date.");
@@ -425,6 +545,144 @@ export default function commands(theNode: MatterNode) {
                                     console.log(
                                         `\nYou can now apply this update to the device using your device's OTA mechanism.`,
                                     );
+                                },
+                            )
+                            .command(
+                                "apply <node-id>",
+                                "Apply OTA update for a commissioned node",
+                                yargs => {
+                                    return yargs
+                                        .positional("node-id", {
+                                            describe: "Node ID to download update for",
+                                            type: "string",
+                                            demandOption: true,
+                                        })
+                                        .option("mode", {
+                                            describe: "DCL mode (prod or test)",
+                                            type: "string",
+                                            choices: ["prod", "test"],
+                                            default: "prod",
+                                        })
+                                        .option("force", {
+                                            describe: "Force download even if update is already stored locally",
+                                            type: "boolean",
+                                            default: false,
+                                        })
+                                        .option("local", {
+                                            describe: "Apply update from local file",
+                                            type: "boolean",
+                                            default: false,
+                                        });
+                                },
+                                async argv => {
+                                    const { nodeId: nodeIdStr, mode, force, local } = argv;
+                                    const isProduction = mode === "prod";
+                                    const forceDownload = force === true;
+
+                                    await theNode.start();
+
+                                    if (theNode.commissioningController === undefined) {
+                                        throw new Error("CommissioningController not initialized");
+                                    }
+
+                                    const nodeId = NodeId(BigInt(nodeIdStr));
+                                    const nodeDetails = theNode.commissioningController
+                                        .getCommissionedNodesDetails()
+                                        .find(nd => nd.nodeId === nodeId);
+                                    const basicInfo = nodeDetails?.deviceData?.basicInformation;
+                                    if (!basicInfo) {
+                                        throw new Error(`Node ${nodeIdStr} has no basic information available`);
+                                    }
+                                    if (
+                                        basicInfo.vendorId === undefined ||
+                                        basicInfo.productId === undefined ||
+                                        basicInfo.softwareVersion === undefined
+                                    ) {
+                                        throw new Error(
+                                            `Node ${nodeIdStr} is missing required basic information for OTA check`,
+                                        );
+                                    }
+
+                                    console.log(`Checking for OTA updates for node ${nodeIdStr}...`);
+                                    console.log(
+                                        `  Vendor ID: ${Diagnostic.hex(basicInfo.vendorId as VendorId, 4).toUpperCase()}`,
+                                    );
+                                    console.log(
+                                        `  Product ID: ${Diagnostic.hex(basicInfo.productId as number, 4).toUpperCase()}`,
+                                    );
+                                    console.log(
+                                        `  Current Software Version: ${basicInfo.softwareVersion} (${basicInfo.softwareVersionString})`,
+                                    );
+                                    console.log(`  DCL Mode: ${isProduction ? "production" : "test"}\n`);
+
+                                    const localUpdates = await theNode.otaService.find({
+                                        vendorId: basicInfo.vendorId as VendorId,
+                                        productId: basicInfo.productId as number,
+                                        currentVersion: basicInfo.softwareVersion as number,
+                                    });
+
+                                    if (local && !localUpdates.length) {
+                                        console.log("No applicable updates available in local storage.");
+                                        return;
+                                    }
+
+                                    const updateInfo = await theNode.otaService.checkForUpdate({
+                                        vendorId: basicInfo.vendorId as VendorId,
+                                        productId: basicInfo.productId as number,
+                                        currentSoftwareVersion: basicInfo.softwareVersion as number,
+                                        includeStoredUpdates: local,
+                                        isProduction,
+                                    });
+
+                                    let updateVersion: number;
+                                    if (!updateInfo && !local) {
+                                        console.log("No updates available in DCL. Device is up to date.");
+                                        return;
+                                    } else if (updateInfo) {
+                                        console.log("Update found:");
+                                        console.log(
+                                            `  New Version: ${updateInfo.softwareVersion} (${updateInfo.softwareVersionString})`,
+                                        );
+                                        console.log(`  OTA URL: ${updateInfo.otaUrl}`);
+                                        if (updateInfo.otaFileSize) {
+                                            const sizeKB = Number(updateInfo.otaFileSize) / 1024;
+                                            console.log(`  File Size: ${sizeKB.toFixed(2)} KB`);
+                                        }
+
+                                        console.log("\nDownloading update...");
+                                        const fd = await theNode.otaService.downloadUpdate(
+                                            updateInfo,
+                                            isProduction,
+                                            forceDownload,
+                                        );
+
+                                        updateVersion = updateInfo.softwareVersion;
+
+                                        console.log(
+                                            `✓ Update to version ${updateVersion} (${updateInfo.softwareVersionString}) downloaded and stored successfully: ${fd.text}`,
+                                        );
+                                    } else {
+                                        updateVersion = localUpdates[0].softwareVersion;
+                                        console.log(
+                                            `Update to version ${updateVersion} (${localUpdates[0].softwareVersionString}) found in local storage: ${localUpdates[0].filename}`,
+                                        );
+                                    }
+
+                                    const node = theNode.commissioningController.getPairedNode(nodeId);
+                                    if (node === undefined) {
+                                        throw new Error(`Node ${nodeIdStr} not connected`);
+                                    }
+
+                                    await theNode.commissioningController.otaProvider.act(agent => {
+                                        return agent
+                                            .get(SoftwareUpdateManager)
+                                            .forceUpdate(
+                                                PeerAddress({ nodeId, fabricIndex: FabricIndex(1) }),
+                                                basicInfo.vendorId as VendorId,
+                                                basicInfo.productId as number,
+                                                updateVersion,
+                                            );
+                                    });
                                 },
                             )
                             .demandCommand(1, "Please specify an OTA subcommand"),

@@ -48,14 +48,14 @@ export class BleAdvertisement extends Advertisement<ServiceDescription.Commissio
 
         try {
             for (const { sleepTime, broadcastInterval } of intervals) {
-                // Recreate advertisement data for extended announcement
+                // Recreate advertisement data for an extended announcement
                 if (!isExtended && this.isPrivacyMasked) {
                     isExtended = true;
                     advertisementData = this.#encodedAdvertisement;
                     aad = undefined;
                 }
 
-                // Configure BLE peripheral broadcasts at specified interval
+                // Configure BLE peripheral broadcasts at a specified interval
                 await peripheral.advertise(advertisementData, aad, broadcastInterval);
 
                 // Wait for timeout at this broadcast interval
@@ -84,8 +84,8 @@ export class BleAdvertisement extends Advertisement<ServiceDescription.Commissio
         );
     }
 
-    isDuplicate() {
+    isDuplicate(other: Advertisement): boolean {
         // We only allow a single advertisement per BLE interface
-        return true;
+        return other !== this && other.service === this.service;
     }
 }

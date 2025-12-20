@@ -5,8 +5,8 @@
  */
 
 import { PersistedFileDesignator } from "#bdx/PersistedFileDesignator.js";
+import { ScopedStorage } from "#bdx/ScopedStorage.js";
 import {
-    Bytes,
     Construction,
     Crypto,
     Diagnostic,
@@ -22,8 +22,8 @@ import {
     StorageService,
 } from "#general";
 import { DeviceSoftwareVersionModelDclSchema, VendorId } from "#types";
+import { OtaImageReader } from "../ota/OtaImageReader.js";
 import { DclClient, MatterDclError } from "./DclClient.js";
-import { OtaImageReader } from "./OtaImageReader.js";
 
 const logger = Logger.get("DclOtaUpdateService");
 
@@ -42,7 +42,7 @@ export type OtaUpdateInfo = DeviceSoftwareVersionModelDclSchema;
 
 const OTA_DOWNLOAD_TIMEOUT = Minutes(5);
 
-const OTA_FILENAME_REGEX = /^([0-9a-f]+)-([0-9a-f]+)-(prod|test)$/i;
+const OTA_FILENAME_REGEX = /^[0-9a-f]+[./][0-9a-f]+[./](?:prod|test)$/i;
 
 /**
  * Service to query and manage OTA updates from the Distributed Compliance Ledger (DCL), but also allows to inject own
@@ -55,7 +55,7 @@ const OTA_FILENAME_REGEX = /^([0-9a-f]+)-([0-9a-f]+)-(prod|test)$/i;
 export class DclOtaUpdateService {
     readonly #construction: Construction<DclOtaUpdateService>;
     readonly #crypto: Crypto;
-    #storage?: StorageContext;
+    #storage?: ScopedStorage;
 
     get construction() {
         return this.#construction;
@@ -67,7 +67,10 @@ export class DclOtaUpdateService {
 
         // THe construction is async and will be enforced when needed
         this.#construction = Construction(this, async () => {
-            this.#storage = (await environment.get(StorageService).open("ota")).createContext("bin");
+            this.#storage = new ScopedStorage(
+                (await environment.get(StorageService).open("ota")).createContext("bin"),
+                "ota",
+            );
         });
     }
 
@@ -75,25 +78,57 @@ export class DclOtaUpdateService {
         return new DclOtaUpdateService(env);
     }
 
+    get storage() {
+        this.construction.assert();
+        return this.#storage!;
+    }
+
     /**
      * Check DCL for available software updates for a device, defined by it's vendor ID, product ID and current
      * software version. If a target software version is provided, only that version is checked for applicability and
      * ignoring other newer versions.
-     *
-     * @param vendorId - Vendor ID of the device
-     * @param productId - Product ID of the device
-     * @param currentSoftwareVersion - Current software version of the device
-     * @param isProduction - Whether to check production DCL (true) or test DCL (false)
-     * @param targetSoftwareVersion - Optional specific version to check. If not provided, checks for any newer version.
-     * @returns Update information if an update is available, undefined otherwise
      */
-    async checkForUpdate(
-        vendorId: number,
-        productId: number,
-        currentSoftwareVersion: number,
-        isProduction = true,
-        targetSoftwareVersion?: number,
-    ) {
+    async checkForUpdate(options: {
+        vendorId: number;
+        productId: number;
+        currentSoftwareVersion: number;
+        includeStoredUpdates?: boolean;
+        isProduction?: boolean;
+        targetSoftwareVersion?: number;
+    }) {
+        const {
+            vendorId,
+            productId,
+            currentSoftwareVersion,
+            includeStoredUpdates = false,
+            isProduction = true,
+            targetSoftwareVersion,
+        } = options;
+
+        let localUpdateFound: DeviceSoftwareVersionModelDclSchema | undefined = undefined;
+        if (includeStoredUpdates) {
+            const localUpdates = await this.find({
+                vendorId,
+                productId,
+                isProduction,
+                currentVersion: currentSoftwareVersion,
+            });
+            if (localUpdates.length) {
+                localUpdateFound = {
+                    ...localUpdates[0],
+                    vid: VendorId(vendorId),
+                    pid: productId,
+                    cdVersionNumber: 0,
+                    softwareVersionValid: true,
+                    schemaVersion: 1,
+                    minApplicableSoftwareVersion: localUpdates[0].minApplicableSoftwareVersion ?? 0,
+                    maxApplicableSoftwareVersion:
+                        localUpdates[0].maxApplicableSoftwareVersion ?? localUpdates[0].softwareVersion - 1,
+                };
+                logger.debug(`Found local update`, Diagnostic.dict(localUpdateFound));
+            }
+        }
+
         const dclClient = new DclClient(isProduction);
 
         const diagnosticInfo = {
@@ -106,6 +141,16 @@ export class DclOtaUpdateService {
         try {
             // If a specific target version is requested, check only that version
             if (targetSoftwareVersion !== undefined) {
+                if (localUpdateFound !== undefined && localUpdateFound.softwareVersion === targetSoftwareVersion) {
+                    logger.debug(
+                        `Update already available locally for specific version`,
+                        Diagnostic.dict({
+                            ...diagnosticInfo,
+                            target: targetSoftwareVersion,
+                        }),
+                    );
+                    return localUpdateFound;
+                }
                 logger.debug(
                     `Checking update in DCL for specific version`,
                     Diagnostic.dict({
@@ -125,30 +170,49 @@ export class DclOtaUpdateService {
             // Otherwise, get all available versions and find the best applicable one
             const softwareVersions = await dclClient.fetchModelVersionsByVidPid(vendorId, productId);
 
-            // Filter for versions higher than current, sort to check highest version number first
+            // Filter for versions higher than the current, sort to check the highest version number first
             const newerVersions = softwareVersions
                 .filter(version => version > currentSoftwareVersion)
                 .sort((a, b) => b - a);
 
             if (newerVersions.length === 0) {
                 logger.debug(`No newer versions available in DCL`, Diagnostic.dict(diagnosticInfo));
+
+                if (localUpdateFound !== undefined) {
+                    logger.info(`Other update already available locally`, Diagnostic.dict(diagnosticInfo));
+                    return localUpdateFound;
+                }
                 return;
             }
 
             logger.debug(`Found ${newerVersions.length} newer version(s) in DCL`, Diagnostic.dict(diagnosticInfo));
 
-            // Check each version starting from highest, find first applicable one
+            // Check each version starting from highest, find the first applicable one
             for (const version of newerVersions) {
-                const updateInfo = await this.#checkSpecificVersion(
-                    dclClient,
-                    vendorId,
-                    productId,
-                    version,
-                    currentSoftwareVersion,
-                );
-                if (updateInfo !== undefined) {
-                    logger.info(`Update available in DCL`, Diagnostic.dict({ new: version, ...diagnosticInfo }));
-                    return updateInfo;
+                try {
+                    const updateInfo = await this.#checkSpecificVersion(
+                        dclClient,
+                        vendorId,
+                        productId,
+                        version,
+                        currentSoftwareVersion,
+                    );
+                    if (updateInfo !== undefined) {
+                        logger.info(`Update available in DCL`, Diagnostic.dict({ new: version, ...diagnosticInfo }));
+
+                        if (
+                            localUpdateFound !== undefined &&
+                            localUpdateFound.softwareVersion > updateInfo.softwareVersion
+                        ) {
+                            logger.info(`Newer update already available locally`, Diagnostic.dict(diagnosticInfo));
+                            return localUpdateFound;
+                        }
+
+                        return updateInfo;
+                    }
+                } catch (error) {
+                    MatterDclError.accept(error);
+                    logger.info(`Failed to check for update for VID: ${vendorId}, PID: ${productId}: ${error.message}`);
                 }
             }
 
@@ -156,6 +220,11 @@ export class DclOtaUpdateService {
         } catch (error) {
             MatterDclError.accept(error);
             logger.info(`Failed to check for updates for VID: ${vendorId}, PID: ${productId}: ${error.message}`);
+        }
+
+        if (localUpdateFound !== undefined) {
+            logger.info(`Other update already available locally`, Diagnostic.dict(diagnosticInfo));
+            return localUpdateFound;
         }
     }
 
@@ -193,7 +262,7 @@ export class DclOtaUpdateService {
     }
 
     #fileName(vid: number, pid: number, isProduction: boolean) {
-        return `${vid.toString(16)}-${pid.toString(16)}-${isProduction ? "prod" : "test"}`;
+        return `${vid.toString(16)}.${pid.toString(16)}.${isProduction ? "prod" : "test"}`;
     }
 
     /**
@@ -270,17 +339,13 @@ export class DclOtaUpdateService {
             prod: isProduction,
         };
 
-        if (!otaUrl?.trim()) {
-            throw new OtaUpdateError("No OTA URL provided in update info");
-        }
-
-        // Generate filename with production/test indicator (version not included as we always use latest)
+        // Generate filename with production/test indicator (a version not included as we always use latest)
         const filename = this.#fileName(vid, pid, isProduction);
         const fileDesignator = new PersistedFileDesignator(filename, storage);
 
         if (await fileDesignator.exists()) {
             if (!force) {
-                // File exists, and we do not force overwrite it, validate it
+                // File exists, and we do not force to overwrite it, validate it
                 try {
                     await this.#verifyUpdate(updateInfo, fileDesignator);
                     logger.info(`Existing OTA image validated successfully`, Diagnostic.dict(diagnosticInfo));
@@ -291,6 +356,10 @@ export class DclOtaUpdateService {
             }
 
             await fileDesignator.delete();
+        }
+
+        if (!otaUrl?.trim()) {
+            throw new OtaUpdateError("No OTA URL provided in update info");
         }
 
         // Validate protocol
@@ -468,9 +537,6 @@ export class DclOtaUpdateService {
             cdVersionNumber: options?.cdVersionNumber ?? 1,
             softwareVersionValid: options?.softwareVersionValid ?? true,
             otaUrl,
-            otaFileSize: header.payloadSize,
-            otaChecksum: Bytes.toBase64(header.imageDigest),
-            otaChecksumType: header.imageDigestType,
             // Use header values if present, otherwise use provided options or defaults
             minApplicableSoftwareVersion:
                 header.minApplicableSoftwareVersion ?? options?.minApplicableSoftwareVersion ?? 0,
@@ -511,16 +577,6 @@ export class DclOtaUpdateService {
      * @param fileUrl - HTTPS URL to the OTA image file
      * @param options - Optional parameters for DCL-specific fields not in OTA header
      * @returns OtaUpdateInfo with file URL and header data
-     *
-     * @example
-     * ```typescript
-     * const service = new DclOtaUpdateService(environment);
-     * const updateInfo = await service.createUpdateInfoFromFile(
-     *     "https://example.com/ota-image.bin",
-     *     { cdVersionNumber: 1 }
-     * );
-     * const fileDesignator = await service.downloadUpdate(updateInfo, true);
-     * ```
      */
     async createUpdateInfoFromFile(
         fileUrl: string,
@@ -579,71 +635,12 @@ export class DclOtaUpdateService {
      * @param options.isProduction - Filter by production (true) or test (false) mode
      * @returns Array of downloaded update information
      */
-    async find(options?: { vendorId?: number; productId?: number; isProduction?: boolean }) {
+    async find(options: DclOtaUpdateService.FindOptions = {}) {
         if (this.#storage === undefined) {
             await this.construction;
         }
-        const storage = this.#storage!;
 
-        // Get all keys from storage
-        const keys = await storage.keys();
-        logger.debug(`Scanning stored OTA files, found ${keys.length} total files`);
-
-        // Parse and filter files matching pattern: {vid-hex}-{pid-hex}-{prod|test}
-        const results = new Array<{
-            filename: string;
-            vendorId: number;
-            productId: number;
-            softwareVersion: number;
-            softwareVersionString: string;
-            mode: "prod" | "test";
-            size: number;
-        }>();
-
-        for (const key of keys) {
-            const match = key.match(OTA_FILENAME_REGEX);
-            logger.debug(`Checking stored OTA file: ${key}: match=${match !== null}`);
-            if (!match) {
-                continue;
-            }
-
-            const [, vidHex, pidHex, mode] = match;
-            const vendorId = parseInt(vidHex, 16);
-            const productId = parseInt(pidHex, 16);
-            const isProduction = mode === "prod";
-
-            // Apply filters
-            if (options?.vendorId !== undefined && vendorId !== options.vendorId) {
-                continue;
-            }
-            if (options?.productId !== undefined && productId !== options.productId) {
-                continue;
-            }
-            if (options?.isProduction !== undefined && isProduction !== options.isProduction) {
-                continue;
-            }
-
-            try {
-                // Read header to get software version and size
-                const fileDesignator = new PersistedFileDesignator(key, storage);
-                const blob = await fileDesignator.openBlob();
-                const reader = blob.stream().getReader();
-
-                const header = await OtaImageReader.header(reader);
-
-                results.push({
-                    filename: key,
-                    vendorId,
-                    productId,
-                    softwareVersion: header.softwareVersion,
-                    softwareVersionString: header.softwareVersionString,
-                    mode: mode as "prod" | "test",
-                    size: blob.size,
-                });
-            } catch (error) {
-                logger.warn(`Failed to read OTA file ${key}:`, error);
-            }
-        }
+        const results = await this.#findEntries(this.#storage!.context, options);
 
         // Sort by vendor ID, product ID, mode, and version
         results.sort((a, b) => {
@@ -656,6 +653,127 @@ export class DclOtaUpdateService {
         return results;
     }
 
+    async #findEntries(
+        context: StorageContext,
+        options: DclOtaUpdateService.FindOptions,
+    ): Promise<DclOtaUpdateService.OtaUpdateListEntry[]> {
+        const { vendorId } = options;
+        if (vendorId !== undefined) {
+            const vendorEntries = await this.#findVendorEntries(context.createContext(vendorId.toString(16)), options);
+            return vendorEntries.map(entry => ({
+                ...entry,
+                vendorId,
+                filename: this.#fileName(vendorId, entry.productId, entry.mode === "prod"),
+            }));
+        }
+
+        const result = new Array<DclOtaUpdateService.OtaUpdateListEntry>();
+
+        for (const vendorIdHex of await context.contexts()) {
+            const vendorId = parseInt(vendorIdHex, 16);
+            const vendorEntries = await this.#findVendorEntries(context.createContext(vendorIdHex), options);
+            result.push(
+                ...vendorEntries.map(entry => ({
+                    ...entry,
+                    vendorId,
+                    filename: this.#fileName(vendorId, entry.productId, entry.mode === "prod"),
+                })),
+            );
+        }
+
+        return result;
+    }
+
+    async #findVendorEntries(vendorContext: StorageContext, options: DclOtaUpdateService.FindOptions) {
+        const { productId } = options;
+
+        if (productId !== undefined) {
+            const productEntries = await this.#findVendorProductEntries(
+                vendorContext.createContext(productId.toString(16)),
+                options,
+            );
+            return productEntries.map(entry => ({ ...entry, productId }));
+        }
+
+        const result = new Array<Omit<DclOtaUpdateService.OtaUpdateListEntry, "vendorId" | "filename">>();
+
+        for (const productIdHex of await vendorContext.contexts()) {
+            const productId = parseInt(productIdHex, 16);
+            const productEntries = await this.#findVendorProductEntries(
+                vendorContext.createContext(productIdHex),
+                options,
+            );
+            result.push(...productEntries.map(entry => ({ ...entry, productId })));
+        }
+
+        return result;
+    }
+
+    async #findVendorProductEntries(productContext: StorageContext, options: DclOtaUpdateService.FindOptions) {
+        const { isProduction } = options;
+
+        const result = new Array<Omit<DclOtaUpdateService.OtaUpdateListEntry, "vendorId" | "productId" | "filename">>();
+
+        if (isProduction !== false && (await productContext.has("prod"))) {
+            const prodResult = await this.#checkEntry(new PersistedFileDesignator("prod", productContext), options);
+            if (prodResult !== undefined) {
+                result.push({
+                    ...prodResult,
+                    mode: "prod",
+                });
+            }
+        }
+        if (isProduction !== true && (await productContext.has("test"))) {
+            const testResult = await this.#checkEntry(new PersistedFileDesignator("test", productContext), options);
+            if (testResult !== undefined) {
+                result.push({
+                    ...testResult,
+                    mode: "test",
+                });
+            }
+        }
+
+        return result;
+    }
+
+    async #checkEntry(fileDesignator: PersistedFileDesignator, options: DclOtaUpdateService.FindOptions) {
+        try {
+            // Read header to get software version and size
+            const blob = await fileDesignator.openBlob();
+            const reader = blob.stream().getReader();
+
+            const header = await OtaImageReader.header(reader);
+
+            const { currentVersion } = options;
+            if (currentVersion !== undefined) {
+                // The current version must be within the applicable range if specified
+                if (
+                    header.minApplicableSoftwareVersion !== undefined &&
+                    currentVersion < header.minApplicableSoftwareVersion
+                ) {
+                    return;
+                }
+
+                if (
+                    header.maxApplicableSoftwareVersion !== undefined &&
+                    currentVersion > header.maxApplicableSoftwareVersion
+                ) {
+                    return;
+                }
+            }
+
+            return {
+                softwareVersion: header.softwareVersion,
+                softwareVersionString: header.softwareVersionString,
+                minApplicableSoftwareVersion: header.minApplicableSoftwareVersion,
+                maxApplicableSoftwareVersion: header.maxApplicableSoftwareVersion,
+                size: blob.size,
+            };
+        } catch (error) {
+            logger.warn(`Failed to read OTA file ${fileDesignator.text}:`, error);
+        }
+    }
+
     /** Get a PersistedFileDesignator for a stored OTA update file by filename. */
     async fileDesignatorForUpdate(filename: string) {
         if (!OTA_FILENAME_REGEX.test(filename)) {
@@ -665,9 +783,8 @@ export class DclOtaUpdateService {
         if (this.#storage === undefined) {
             await this.construction;
         }
-        const storage = this.#storage!;
 
-        const fileDesignator = new PersistedFileDesignator(filename, storage);
+        const fileDesignator = new PersistedFileDesignator(filename, this.#storage!);
         if (!(await fileDesignator.exists())) {
             throw new OtaUpdateError(`OTA file not found: ${filename}`);
         }
@@ -694,15 +811,15 @@ export class DclOtaUpdateService {
         }
         const storage = this.#storage!;
 
-        const { vendorId, productId, isProduction = true } = options;
+        const { vendorId, productId, isProduction } = options;
         let { filename } = options;
 
-        if (!filename && vendorId !== undefined && productId !== undefined) {
+        if (filename == undefined && vendorId !== undefined && productId !== undefined && isProduction !== undefined) {
             filename = this.#fileName(vendorId, productId, isProduction);
         }
 
-        if (filename) {
-            // Delete specific file by name
+        if (filename !== undefined) {
+            // Delete a specific file by name
             try {
                 const fileDesignator = await this.fileDesignatorForUpdate(filename);
                 await fileDesignator.delete();
@@ -721,21 +838,45 @@ export class DclOtaUpdateService {
 
         // Delete all files for the vendor with the specified mode
         const vendorHex = vendorId.toString(16);
-        const mode = isProduction ? "prod" : "test";
-        const pattern = new RegExp(`^${vendorHex}-[0-9a-f]+-${mode}$`, "i");
 
-        const keys = await storage.keys();
+        const vendorStorage = storage.context.createContext(vendorHex);
         let deletedCount = 0;
 
-        for (const key of keys) {
-            if (pattern.test(key)) {
-                const fileDesignator = new PersistedFileDesignator(key, storage);
+        for (const key of await vendorStorage.contexts()) {
+            const prodStorage = vendorStorage.createContext(key);
+            if (isProduction !== false && (await prodStorage.has("prod"))) {
+                const fileDesignator = new PersistedFileDesignator("prod", prodStorage);
                 await fileDesignator.delete();
-                logger.info(`Deleted OTA file: ${key}`);
+                deletedCount++;
+            }
+            if (isProduction !== true && (await prodStorage.has("test"))) {
+                const fileDesignator = new PersistedFileDesignator("test", prodStorage);
+                await fileDesignator.delete();
                 deletedCount++;
             }
         }
 
         return deletedCount;
+    }
+}
+
+export namespace DclOtaUpdateService {
+    export type OtaUpdateListEntry = {
+        filename: string;
+        vendorId: number;
+        productId: number;
+        softwareVersion: number;
+        softwareVersionString: string;
+        minApplicableSoftwareVersion?: number;
+        maxApplicableSoftwareVersion?: number;
+        mode: "prod" | "test";
+        size: number;
+    };
+
+    export interface FindOptions {
+        vendorId?: number;
+        productId?: number;
+        isProduction?: boolean;
+        currentVersion?: number;
     }
 }

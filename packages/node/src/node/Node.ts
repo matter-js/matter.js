@@ -23,6 +23,7 @@ import {
     Identity,
     ImplementationError,
     Logger,
+    MatterError,
 } from "#general";
 import { Interactable } from "#protocol";
 import type { EndpointNumber } from "#types";
@@ -107,6 +108,9 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
             this.lifecycle.targetState = "online";
 
             await this.lifecycle.mutex.produce(this.startWithMutex.bind(this));
+        } catch (error) {
+            this.lifecycle.targetState = "offline";
+            throw error;
         } finally {
             this.#startInProgress = false;
         }
@@ -130,6 +134,19 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
             await this.#runtime.construction.ready;
             await this.act("network startup", agent => agent.get(NetworkBehavior).startup());
         } catch (e) {
+            // If a runtime instance got created, tear it down
+            if (this.#runtime) {
+                this.#environment.delete(NetworkRuntime, this.#runtime);
+                try {
+                    await this.#runtime.close();
+                } catch (error) {
+                    MatterError.accept(error);
+                    // Ignore all errors that might, likely we cannot tear down because construction never completed
+                    logger.info("Failed to tear down runtime", error.message);
+                }
+                this.#runtime = undefined;
+                this.behaviors.internalsOf(NetworkBehavior).runtime = undefined;
+            }
             this.env.runtime.delete(this);
             throw e;
         }

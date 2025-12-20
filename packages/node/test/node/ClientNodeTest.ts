@@ -5,18 +5,23 @@
  */
 
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
+import { GlobalAttributeState } from "#behavior/cluster/ClusterState.js";
 import { DiscoveryError } from "#behavior/system/controller/discovery/DiscoveryError.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { BasicInformationBehavior } from "#behaviors/basic-information";
 import { IdentifyClient } from "#behaviors/identify";
 import { OnOffClient } from "#behaviors/on-off";
+import { WindowCoveringClient, WindowCoveringServer } from "#behaviors/window-covering";
 import { OnOffLightDevice } from "#devices/on-off-light";
+import { WindowCoveringDevice } from "#devices/window-covering";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
-import { b$, Crypto, deepCopy, MockCrypto, Seconds, Time, TimeoutError } from "#general";
+import { b$, Crypto, deepCopy, Entropy, MockCrypto, Observable, Seconds, Time, TimeoutError } from "#general";
 import { Specification } from "#model";
+import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { ClientSubscription, FabricManager, SustainedSubscription, Val } from "#protocol";
+import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
 import { MockSite } from "./mock-site.js";
 
@@ -215,16 +220,17 @@ describe("ClientNode", () => {
 
         // *** INVOKE ***
 
-        const toggle = MockTime.resolve(ep1.commandsOf(OnOffClient).toggle());
+        // We detected tge device as offline, and so we get a failure on execution
+        await expect(MockTime.resolve(ep1.commandsOf(OnOffClient).toggle())).rejectedWith(TimeoutError);
 
         // Delay
         await MockTime.resolve(Time.sleep("waiting to start device", Seconds(5)));
 
-        // Bring device online
+        // Bring the device online again
         await MockTime.resolve(device.start());
 
         // Toggle should now complete
-        await MockTime.resolve(toggle);
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle());
     });
 
     it("resubscribes on timeout", async () => {
@@ -265,7 +271,7 @@ describe("ClientNode", () => {
         // Bring peer back online
         await MockTime.resolve(device.start());
 
-        // Wait for subscription to stablish
+        // Wait for subscription to establish
         await MockTime.resolve(subscription.active);
         crypto.entropic = false;
 
@@ -399,9 +405,9 @@ describe("ClientNode", () => {
 
         // *** INVOCATION ***
 
-        await ep1.commandsOf(OnOffClient).toggle();
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle());
 
-        await ep1.commandsOf(OnOffClient).offWithEffect({ effectIdentifier: 0, effectVariant: 0 });
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).offWithEffect({ effectIdentifier: 0, effectVariant: 0 }));
     });
 
     it("properly supports unknown clusters", async () => {
@@ -442,13 +448,92 @@ describe("ClientNode", () => {
         }
     });
 
-    it("handles structure change and cluster recreation while device online", () => {
-        // TODO
-    });
+    it("correctly replaces behavior", async () => {
+        // *** SETUP ***
 
-    it("handles structure change and cluster recreation while device offline", () => {
-        // TODO
-    });
+        const LiftWc = WindowCoveringServer.with("AbsolutePosition", "Lift", "PositionAwareLift").set({
+            currentPositionLift: 0,
+        });
+
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair({
+            device: {
+                type: ServerNode.RootEndpoint,
+                device: WindowCoveringDevice.with(LiftWc),
+            },
+        });
+
+        const peer1 = controller.peers.get("peer1")!;
+        expect(peer1).not.undefined;
+
+        const clientEp1 = peer1.parts.get("ep1")!;
+        expect(clientEp1).not.undefined;
+
+        const liftChanged = new Observable<[value: number | null]>();
+        const lift$Changed = clientEp1.eventsOf(WindowCoveringClient).currentPositionLift$Changed!;
+        expect(lift$Changed).not.undefined;
+        lift$Changed.on(value => liftChanged.emit(value));
+
+        // *** VALIDATE SETUP ***
+
+        const serverEp1 = device.parts.get("part0")!;
+        expect(serverEp1).not.undefined;
+
+        let sawChange = new Promise<number | null>(resolve => liftChanged.once(resolve));
+        await serverEp1.setStateOf(WindowCoveringClient, { currentPositionLift: 6 });
+
+        let newValue = await MockTime.resolve(sawChange);
+        expect(newValue).equals(6);
+
+        // *** REPLACE CLUSTER ***
+
+        await MockTime.resolve(device.cancel());
+
+        await serverEp1.erase();
+
+        const LiftTiltWc = WindowCoveringServer.with(
+            "AbsolutePosition",
+            "Lift",
+            "PositionAwareLift",
+            "Tilt",
+            "PositionAwareTilt",
+        ).set({
+            type: WindowCovering.WindowCoveringType.Unknown,
+            currentPositionLift: 0,
+            currentPositionTilt: 0,
+        });
+
+        // Nudge so version number changes, otherwise new endpoint won't sync
+        device.env.set(Entropy, MockCrypto(0x20));
+
+        const serverEp1b = await device.add({
+            type: WindowCoveringDevice.with(LiftTiltWc),
+            number: 1,
+            id: "part0b",
+        });
+
+        const replaced = new Promise(resolve => peer1.env.get(ClientStructureEvents).clusterReplaced.on(resolve));
+
+        await MockTime.resolve(device.start());
+
+        // *** VALIDATE ***
+
+        await MockTime.resolve(replaced);
+
+        expect((clientEp1.stateOf(WindowCoveringClient) as unknown as GlobalAttributeState).featureMap).deep.equals({
+            absolutePosition: true,
+            lift: true,
+            positionAwareLift: true,
+            tilt: true,
+            positionAwareTilt: true,
+        });
+
+        sawChange = new Promise<number | null>(resolve => liftChanged.once(resolve));
+        await serverEp1b.setStateOf(WindowCoveringClient, { currentPositionLift: 12 });
+
+        newValue = await MockTime.resolve(sawChange);
+        expect(newValue).equals(12);
+    }).timeout(1e9);
 
     it("handles shutdown event and reestablishes connection", () => {
         // TODO
