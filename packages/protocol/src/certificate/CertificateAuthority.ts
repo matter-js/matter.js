@@ -55,7 +55,6 @@ export class CertificateAuthority {
     #rootCertBytes?: Bytes;
     #nextCertificateId = BigInt(1);
     #construction: Construction<CertificateAuthority>;
-    #intermediateCert?: boolean;
     #icacProps?: IcacProps;
 
     get crypto() {
@@ -66,45 +65,64 @@ export class CertificateAuthority {
         return this.#construction;
     }
 
+    /**
+     * Creates a new CertificateAuthority instance and use the provided storage to store and retrieve the values.
+     * A new certificate is only created when the storage does not contain any credentials.
+     * Use the generateIntermediateCert parameter to specify if an ICAC should be created too. The parameter, when set,
+     * must match to the storage content if a certificate is stored!
+     */
+    static create(
+        crypto: Crypto,
+        storage: StorageContext,
+        generateIntermediateCert?: boolean,
+    ): Promise<CertificateAuthority>;
+
+    /**
+     * Creates a new CertificateAuthority instance with the provided configuration. The used certificate is loaded from
+     * the configuration object.
+     */
+    static create(crypto: Crypto, options: CertificateAuthority.Configuration): Promise<CertificateAuthority>;
+
+    /**
+     * Creates a new CertificateAuthority instance with the provided configuration. The configuration is not stored.
+     * Use the generateIntermediateCert parameter to specify if an ICAC should be created too.
+     */
+    static create(crypto: Crypto, generateIntermediateCert?: boolean): Promise<CertificateAuthority>;
+
     static async create(
         crypto: Crypto,
-        options?: StorageContext | CertificateAuthority.Configuration | CertificateAuthority.CreationConfiguration,
+        options?: StorageContext | CertificateAuthority.Configuration | boolean,
+        generateIntermediateCert?: boolean,
     ) {
-        return asyncNew(CertificateAuthority, crypto, options);
+        return asyncNew(CertificateAuthority, crypto, options, generateIntermediateCert);
     }
 
     constructor(
         crypto: Crypto,
-        options?: StorageContext | CertificateAuthority.Configuration | CertificateAuthority.CreationConfiguration,
+        options?: StorageContext | CertificateAuthority.Configuration | boolean,
+        generateIntermediateCert?: boolean,
     ) {
         this.#crypto = crypto;
 
         this.#construction = Construction(this, async () => {
-            const certValues = options instanceof StorageContext ? await options.values() : (options ?? {});
-
-            if (this.#isValidStoredRootCertificate(certValues)) {
-                this.#intermediateCert =
-                    typeof certValues.intermediateCert === "boolean" ? certValues.intermediateCert : false;
-
-                const icac = this.#isValidStoredIcacCertificate(certValues);
-                if (icac && this.#intermediateCert === false) {
-                    throw new ImplementationError(
-                        "CA intermediateCert property is false but icac properties exist in storage",
-                    );
-                }
-                if (!icac && this.#intermediateCert === true) {
-                    throw new ImplementationError(
-                        "CA intermediateCert property is true but icac properties do not exist in storage",
-                    );
-                }
-
-                this.#loadFromStorage(certValues);
-                logger.info(`Loaded stored credentials with ID ${this.#rootCertId}`);
-                return;
+            if (typeof options === "boolean") {
+                generateIntermediateCert = options;
+                options = undefined;
             }
 
-            const config = options instanceof StorageContext ? undefined : options;
-            this.#intermediateCert = config?.intermediateCert ?? false;
+            const certValues = options instanceof StorageContext ? await options.values() : (options ?? {});
+
+            // When generateIntermediateCert is set, we ensure it, or if a valid ICAC in stored then we require it
+            // else we check whats in the storage and default to false
+            const requireIcac = generateIntermediateCert ?? this.#isValidStoredIcacCertificate(certValues);
+
+            if (this.#isValidStoredRootCertificate(certValues)) {
+                this.#loadFromStorage(certValues, requireIcac);
+                logger.info(
+                    `Loaded stored credentials with ID ${this.#rootCertId}${this.#icacProps !== undefined ? ` and ICAC with ID ${this.#icacProps.certId}` : ""}`,
+                );
+                return;
+            }
 
             this.#rootKeyPair = await this.#crypto.createKeyPair();
             this.#rootKeyIdentifier = Bytes.of(await this.#crypto.computeHash(this.#rootKeyPair.publicKey)).slice(
@@ -113,11 +131,13 @@ export class CertificateAuthority {
             );
             this.#rootCertBytes = await this.#generateRootCert();
 
-            logger.info(`Created new credentials with ID ${this.#rootCertId}`);
-
-            if (this.#intermediateCert) {
+            if (requireIcac) {
                 this.#icacProps = await this.#generateIcacProps();
             }
+
+            logger.info(
+                `Created new credentials with ID ${this.#rootCertId}${this.#icacProps !== undefined ? ` and ICAC with ID ${this.#icacProps.certId}` : ""}`,
+            );
 
             if (options instanceof StorageContext) {
                 await options.set(this.#buildStorageData());
@@ -144,23 +164,21 @@ export class CertificateAuthority {
     }
 
     get config(): CertificateAuthority.Configuration {
-        const config: CertificateAuthority.Configuration = {
+        return {
             rootCertId: this.#rootCertId,
             rootKeyPair: this.construction.assert("root key pair", this.#rootKeyPair).keyPair,
             rootKeyIdentifier: this.construction.assert("root key identifier", this.#rootKeyIdentifier),
             rootCertBytes: this.construction.assert("root cert bytes", this.#rootCertBytes),
             nextCertificateId: this.#nextCertificateId,
-            intermediateCert: this.#intermediateCert,
+            ...(this.#icacProps !== undefined
+                ? {
+                      icacCertId: this.#icacProps.certId,
+                      icacKeyPair: this.construction.assert("icac key pair", this.#icacProps.keyPair).keyPair,
+                      icacKeyIdentifier: this.construction.assert("icac key identifier", this.#icacProps.keyIdentifier),
+                      icacCertBytes: this.construction.assert("icac cert bytes", this.#icacProps.certBytes),
+                  }
+                : {}),
         };
-
-        if (this.#icacProps) {
-            config.icacCertId = this.#icacProps.certId;
-            config.icacKeyPair = this.construction.assert("icac key pair", this.#icacProps.keyPair).keyPair;
-            config.icacKeyIdentifier = this.construction.assert("icac key identifier", this.#icacProps.keyIdentifier);
-            config.icacCertBytes = this.construction.assert("icac cert bytes", this.#icacProps.certBytes);
-        }
-
-        return config;
     }
 
     async #generateRootCert() {
@@ -293,14 +311,21 @@ export class CertificateAuthority {
         );
     }
 
-    #loadFromStorage(certValues: Record<string, unknown>): void {
+    #loadFromStorage(certValues: Record<string, unknown>, requireIcac?: boolean): void {
         this.#rootCertId = BigInt(certValues.rootCertId as bigint | number);
         this.#rootKeyPair = PrivateKey(certValues.rootKeyPair as BinaryKeyPair);
         this.#rootKeyIdentifier = certValues.rootKeyIdentifier as Bytes;
         this.#rootCertBytes = certValues.rootCertBytes as Bytes;
         this.#nextCertificateId = BigInt(certValues.nextCertificateId as bigint | number);
 
-        if (this.#isValidStoredIcacCertificate(certValues)) {
+        const hasIcac = this.#isValidStoredIcacCertificate(certValues);
+        if (requireIcac !== undefined && requireIcac !== hasIcac) {
+            throw new ImplementationError(
+                `Stored credentials contain ICAC certificate: ${hasIcac}, but configuration expected it to be ${requireIcac}`,
+            );
+        }
+
+        if (hasIcac) {
             this.#icacProps = {
                 certId: BigInt(certValues.icacCertId as bigint | number),
                 keyPair: PrivateKey(certValues.icacKeyPair as BinaryKeyPair),
@@ -317,7 +342,6 @@ export class CertificateAuthority {
             rootKeyIdentifier: this.#initializedRootKeyIdentifier,
             rootCertBytes: this.#initializedRootCertBytes,
             nextCertificateId: this.#nextCertificateId,
-            intermediateCert: this.#intermediateCert,
         };
 
         if (this.#icacProps) {
@@ -366,17 +390,12 @@ interface IcacProps {
 }
 
 export namespace CertificateAuthority {
-    export type CreationConfiguration = {
-        intermediateCert?: boolean;
-    };
-
     export type Configuration = {
         rootCertId: bigint;
         rootKeyPair: BinaryKeyPair;
         rootKeyIdentifier: Bytes;
         rootCertBytes: Bytes;
         nextCertificateId: bigint;
-        intermediateCert?: boolean;
         icacCertId?: bigint;
         icacKeyPair?: BinaryKeyPair;
         icacKeyIdentifier?: Bytes;
@@ -389,7 +408,6 @@ export namespace CertificateAuthority {
         rootKeyIdentifier: Bytes;
         rootCertBytes: Bytes;
         nextCertificateId: bigint;
-        intermediateCert?: boolean;
         icacCertId?: bigint;
         icacKeyPair?: BinaryKeyPair;
         icacKeyIdentifier?: Bytes;
