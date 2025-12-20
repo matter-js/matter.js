@@ -151,7 +151,7 @@ describe("CertificateAuthority", () => {
 
         beforeEach(async () => {
             storage = new StorageManager(new StorageBackendMemory());
-            storage.initialize();
+            await storage.initialize();
             context = storage.createContext("test");
         });
 
