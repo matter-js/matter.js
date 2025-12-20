@@ -14,7 +14,6 @@ import {
     Environment,
     Environmental,
     ImplementationError,
-    InternalError,
     Logger,
 } from "#general";
 import { CaseAuthenticatedTag, FabricId, FabricIndex, NodeId, VendorId } from "#types";
