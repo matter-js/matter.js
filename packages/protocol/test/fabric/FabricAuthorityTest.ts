@@ -9,7 +9,7 @@ import { Noc } from "#certificate/kinds/Noc.js";
 import { FabricAuthority } from "#fabric/FabricAuthority.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import { Bytes, StandardCrypto, StorageBackendMemory, StorageManager } from "#general";
-import { CaseAuthenticatedTag, FabricId, FabricIndex, NodeId, VendorId } from "#types";
+import { CaseAuthenticatedTag, FabricId, NodeId, VendorId } from "#types";
 
 const crypto = new StandardCrypto();
 
@@ -249,10 +249,10 @@ describe("FabricAuthority", () => {
                 adminVendorId: VendorId(0xfff1),
                 adminNodeId: NodeId(100n),
                 adminFabricId: FabricId(1n),
-                adminFabricIndex: FabricIndex(1),
             };
             const fabric1 = await authority.createFabric(config1);
             const initialKey1 = fabric1.publicKey;
+            const fabricIndex1 = fabric1.fabricIndex;
 
             // Create second fabric with different CA
             const ca2 = await CertificateAuthority.create(crypto, storageManager.createContext("ca2"));
@@ -263,10 +263,10 @@ describe("FabricAuthority", () => {
                 adminVendorId: VendorId(0xfff1),
                 adminNodeId: NodeId(200n),
                 adminFabricId: FabricId(2n),
-                adminFabricIndex: FabricIndex(2),
             };
             const fabric2 = await authority2.createFabric(config2);
             const initialKey2 = fabric2.publicKey;
+            const fabricIndex2 = fabric2.fabricIndex;
 
             // Rotate first fabric
             const rotated1 = await authority.defaultFabric(config1, true);
@@ -276,9 +276,10 @@ describe("FabricAuthority", () => {
             const rotated2 = await authority2.defaultFabric(config2, true);
             expect(Bytes.areEqual(rotated2.publicKey, initialKey2)).to.be.false;
 
-            // Verify both rotations are independent
-            expect(rotated1.fabricIndex).to.equal(FabricIndex(1));
-            expect(rotated2.fabricIndex).to.equal(FabricIndex(2));
+            // Verify both rotations are independent and preserve their fabric indices
+            expect(rotated1.fabricIndex).to.equal(fabricIndex1);
+            expect(rotated2.fabricIndex).to.equal(fabricIndex2);
+            expect(fabricIndex1).to.not.equal(fabricIndex2);
         });
     });
 
