@@ -44,6 +44,7 @@ const LevelControlBase = LevelControlBehavior.with(LevelControl.Feature.OnOff, L
  * Implementing a cluster in this way will disable much of the logic matter.js implements for you in the default
  * implementations.
  *
+ * * {@link transition} is the generic method call for all below kind of transitions and contains the general transition logic
  * * {@link LevelControlBaseServer.moveToLevelLogic} moves the value to a defined level with a transition time
  * * {@link LevelControlBaseServer.moveLogic} moves the value up or down with a defined rate
  * * {@link LevelControlBaseServer.stepLogic} steps the value up or down with a defined step size and transition
@@ -84,7 +85,7 @@ export class LevelControlBaseServer extends LevelControlBase {
     }
 
     override initialize(): MaybePromise {
-        // As a virtual attribute remaining time change only emits when we do so manually.  This works out well because
+        // As a virtual attribute, remaining time change only emits when we do so manually.  This works out well because
         // as a continuous value it should only emit under limited circumstances defined by spec
         //
         // We disable normal "quieter" suppression so it always emits when we emit manually
@@ -111,7 +112,7 @@ export class LevelControlBaseServer extends LevelControlBase {
     }
 
     /**
-     * Create transition management instance.
+     * Create a transition management instance.
      *
      * We manage transitions using {@link Transitions} if
      * {@link LevelControlBaseServer.State#managedTransitionTimeHandling} is true.
@@ -127,8 +128,8 @@ export class LevelControlBaseServer extends LevelControlBase {
     #initializeTransitions() {
         const { endpoint } = this;
 
-        // Transitions read continuously from their configuration object so the values need to be dynamic.  To make
-        // this efficient we use the read-only view of our state provided by the endpoint as it is always available
+        // Transitions read continuously from their configuration object, so the values need to be dynamic.  To make
+        // this efficient, we use the read-only view of our state provided by the endpoint as it is always available
         const readOnlyState = (endpoint.state as Record<string, unknown>).levelControl as LevelControlBaseServer.State;
 
         return this.createTransitions({
@@ -689,6 +690,12 @@ export namespace LevelControlBaseServer {
     }
 
     export declare const ExtensionInterface: {
+        transition(
+            targetLevel?: number,
+            changePerS?: number | null | ((currentLevel: number) => number),
+            withOnOff?: boolean,
+            options?: TypeFromPartialBitSchema<typeof LevelControl.Options>,
+        ): MaybePromise;
         moveToLevelLogic(
             level: number,
             transitionTime: number | null,

@@ -154,24 +154,36 @@ export class MatterController {
 
         const baseStorage: StorageManager = await options.environment.get(StorageService).open(options.id);
 
+        // Storage data migration from legacy Controller to ServerNode based controller
         const oldStorage = baseStorage.createContext("credentials");
         const newStorage = baseStorage.createContext("certificates");
+        const newFabricStorage = baseStorage.createContext("fabrics");
 
         const keys = await oldStorage.keys();
 
+        const newFabrics = await newFabricStorage.get<Fabric.Config[]>("fabrics", []);
         if (keys.length !== 0) {
             for (const key of await oldStorage.keys()) {
                 if (key === "fabric") {
                     if (rootFabric !== undefined) {
-                        logger.info("Skipping fabric migration because a rootFabric was provided.");
+                        logger.debug("Skipping fabric migration because a rootFabric was provided.");
                         continue;
                     }
-                    fabric = await Fabric.create(
-                        Environment.default.get(Crypto),
-                        await oldStorage.get<Fabric.Config>("fabric"),
-                    );
+                    const oldFabric = await oldStorage.get<Fabric.Config>("fabric");
+                    if (
+                        newFabrics.length &&
+                        newFabrics.some(
+                            fab =>
+                                fab.fabricIndex === oldFabric.fabricIndex &&
+                                Bytes.areEqual(fab.rootCert, oldFabric.rootCert),
+                        )
+                    ) {
+                        logger.debug("Skipping fabric migration because a new storage already has matching fabric");
+                        continue;
+                    }
+                    fabric = await Fabric.create(Environment.default.get(Crypto), oldFabric);
                 } else {
-                    // Migrates Certificate Authority data to new location
+                    // Migrates Certificate Authority data to a new location
                     if (!(await newStorage.has(key))) {
                         newStorage.set(key, await oldStorage.get(key));
                     }
@@ -212,7 +224,7 @@ export class MatterController {
         if (rootCertificateAuthority === undefined && certificateAuthorityConfig === undefined) {
             throw new ImplementationError("Either rootCertificateAuthority or certificateAuthorityConfig must be set.");
         }
-        const ca = rootCertificateAuthority ?? (await CertificateAuthority.create(crypto, certificateAuthorityConfig));
+        const ca = rootCertificateAuthority ?? (await CertificateAuthority.create(crypto, certificateAuthorityConfig!));
         environment.set(CertificateAuthority, ca);
 
         // Stored data are temporary anyway and no node will be connected, so just use an in-memory storage
@@ -342,13 +354,20 @@ export class MatterController {
                     }
                 }
             }
-            this.#fabric = await fabricAuthority.defaultFabric({
-                adminFabricLabel,
-                adminVendorId,
-                adminNodeId: rootNodeId,
-                adminFabricId,
-                caseAuthenticatedTags,
-            });
+            this.#fabric = await fabricAuthority.defaultFabric(
+                {
+                    adminFabricLabel,
+                    adminVendorId,
+                    adminNodeId: rootNodeId,
+                    adminFabricId,
+                    caseAuthenticatedTags,
+                },
+                fabric === undefined, // When no fabric is provided we rotate the NOC operational keypair on start.
+                // This avoids long-lived operational keys for controllers that bootstrap their own fabric state,
+                // which is a security best practice: each restart derives a fresh keypair for the same logical fabric.
+                // Already-commissioned devices remain accessible because the NOC is reissued under the same CA and
+                // fabric identifiers, so peers still recognize and trust the controller despite the new keypair.
+            );
             if (fabric !== undefined) {
                 if (
                     !fabricAuthority.fabrics.some(

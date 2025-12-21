@@ -89,7 +89,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Added DclOtaUpdateService for checking and downloading Over-The-Air (OTA) software updates from DCL with full validation and checksum verification
     - Feature: Added DclVendorInfoService for retrieving vendor information from DCL
     - Feature: Added OTA image processing utilities (OtaImageReader, OtaImageWriter) for reading, validating, extracting, and creating Matter OTA update files
-    - Feature: (@ArtemisMucaj) Add support to pass / generate an intermediate CA in the CertificateAuthority class, when used the NOCs are signed with the ICAC cert.
+    - Feature: (@ArtemisMucaj) Add support to pass / generate an intermediate CA in the CertificateAuthority class, when used the NOCs are signed with the ICAC cert
     - Enhancement: MDNS broadcasts more aggressively until a connection is established
     - Enhancement: MDNS and BLE advertising schedules are now configurable and conform to Matter and DNS-SD specifications
     - Enhancement: MDNS client and server efficiency is improved with a shared socket and message parser
@@ -97,6 +97,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: matter.js no longer uses SO_REUSEADDR on the Matter port so you can no longer accidentally start two nodes at the same address simultaneously
     - Enhancement: Increases the limitation of parallel exchanges when sending messages to 30 (was 5 before)
     - Enhancement: Migrate Commissioning Flow to ClientInteraction as bases
+    - Enhancement: FabricAuthority automatically rotates the operational Fabric NOC key pair on start once (for Controller cases)
     - Adjustment: Subscription data are no longer being flushed when a subscription is replaced by a new one with keepSubscriptions=false
     - Adjustment: When setting certificates and a ICAC is provided but equals the root CA, the ICAC is ignored (workaround of issues with one ecosystem)
     - Fix: Controller networking was previously throwing the incorrect error after a communication timeout
