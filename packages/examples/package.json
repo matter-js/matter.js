@@ -40,6 +40,7 @@
         "matter-air-quality-sensor": "matter-run src/device-air-quality-sensor/AirQualitySensorDeviceNode.ts",
         "matter-smoke-co-alarm": "matter-run src/device-smoke-co-alarm/SmokeCoAlarmDeviceNode.ts",
         "matter-controller": "matter-run src/controller/ControllerNode.ts",
+        "matter-cmd": "matter-run src/multi-controller/ControllerCommand.ts",
         "bundle-device": "esbuild src/device-onoff/DeviceNode.ts --bundle --platform=node --conditions=esbuild --external:@stoprocent/bleno --external:@stoprocent/bluetooth-hci-socket --sourcemap --minify --keep-names --outfile=build/bundle/DeviceNode.cjs",
         "matter-device-bundled": "node --enable-source-maps build/bundle/DeviceNode.cjs"
     },
