@@ -78,7 +78,7 @@ export class CaseServer implements ProtocolHandler {
     async #handleSigma1(messenger: CaseServerMessenger) {
         logger.info("Received pairing request", Mark.INBOUND, Diagnostic.via(messenger.channelName));
 
-        // Initialize context with information from peer
+        // Initialize context with information from a peer
         const { sigma1Bytes, sigma1 } = await messenger.readSigma1();
         const resumptionRecord =
             sigma1.resumptionId !== undefined && sigma1.initiatorResumeMic !== undefined
@@ -268,7 +268,7 @@ export class CaseServer implements ProtocolHandler {
 
         await crypto.verifyEcdsa(PublicKey(peerPublicKey), peerSignatureData, new EcdsaSignature(peerSignature));
 
-        // All good! Create secure session
+        // All good! Create a secure session
         const secureSessionSalt = Bytes.concat(
             operationalIdentityProtectionKey,
             await crypto.computeHash([cx.bytes, sigma2Bytes, sigma3Bytes]),
