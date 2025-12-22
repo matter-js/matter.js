@@ -225,7 +225,7 @@ export type CommissioningControllerNodeOptions = {
     /**
      * Optional callback method which is called when the state of the node changes. This can be used to detect when
      * the node goes offline or comes back online.
-     * @deprecated Please use the events.nodeStateChanged observable and the extra events for structureCHanged and
+     * @deprecated Please use the events.stateChanged observable and the extra events for structureChanged and
      *  decommissioned instead.
      */
     readonly stateInformationCallback?: (nodeId: NodeId, state: NodeStateInformation) => void;
