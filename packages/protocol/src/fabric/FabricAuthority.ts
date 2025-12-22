@@ -179,7 +179,7 @@ export class FabricAuthority {
         const {
             subject: { nodeId, fabricId, caseAuthenticatedTags },
         } = Noc.fromTlv(fabric.operationalCert).cert;
-        if (nodeId !== fabric.rootNodeId) {
+        if (nodeId !== fabric.nodeId) {
             throw new ImplementationError(
                 `Cannot rotate NOC for fabric ${fabric.fabricIndex} because root node ID changed`,
             );
