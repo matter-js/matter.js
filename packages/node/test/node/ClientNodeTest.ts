@@ -8,7 +8,7 @@ import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { GlobalAttributeState } from "#behavior/cluster/ClusterState.js";
 import { DiscoveryError } from "#behavior/system/controller/discovery/DiscoveryError.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
-import { BasicInformationBehavior } from "#behaviors/basic-information";
+import { BasicInformationBehavior, BasicInformationServer } from "#behaviors/basic-information";
 import { IdentifyClient } from "#behaviors/identify";
 import { OnOffClient } from "#behaviors/on-off";
 import { WindowCoveringClient, WindowCoveringServer } from "#behaviors/window-covering";
@@ -21,6 +21,7 @@ import { Specification } from "#model";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { ClientSubscription, FabricManager, SustainedSubscription, Val } from "#protocol";
+import { FabricIndex } from "#types";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
 import { MockSite } from "./mock-site.js";
@@ -124,6 +125,42 @@ describe("ClientNode", () => {
         expect(ep1b).not.undefined;
         expect(ep1b.construction.status).equals("active");
         expect(ep1b.state).deep.equals(expectedEp1State);
+    });
+
+    it("commissions and initializes endpoints even with a leave event in initial subscription data", async () => {
+        // *** COMMISSIONING ***
+
+        await using site = new MockSite();
+        const { controller, device } = await site.addUncommissionedPair();
+
+        const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+        const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+
+        // We end up with session collisions without entropy so enable during pairing
+        controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+        await device.act(agent =>
+            agent.endpoint.eventsOf(BasicInformationServer).leave.emit({ fabricIndex: FabricIndex(1) }, agent.context),
+        );
+
+        const { passcode, discriminator } = device.state.commissioning;
+        await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
+            macrotasks: true,
+        });
+
+        controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+        expect(device.state.commissioning.commissioned).equals(true);
+        expect(controller.peers.size).equals(1);
+
+        // *** INITIAL STATE ***
+
+        // Obtain client view of the device
+        const peer1 = controller.peers.get("peer1")!;
+        expect(peer1).not.undefined;
+
+        // Validate the root endpoint
+        expect(Object.keys(peer1.state).sort()).deep.equals(Object.keys(PEER1_STATE).sort());
     });
 
     it("commissions and reconnects endpoints after commissioning and restart", () => {

@@ -12,6 +12,7 @@ import { CommissioningDiscovery } from "#behavior/system/controller/discovery/Co
 import { ContinuousDiscovery } from "#behavior/system/controller/discovery/ContinuousDiscovery.js";
 import { Discovery } from "#behavior/system/controller/discovery/Discovery.js";
 import { InstanceDiscovery } from "#behavior/system/controller/discovery/InstanceDiscovery.js";
+import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { Endpoint } from "#endpoint/Endpoint.js";
@@ -419,6 +420,16 @@ export class Peers extends EndpointContainer<ClientNode> {
             const localFabrics = this.owner.env.get(FabricManager);
             const localFabric = localFabrics.forDescriptor(peerFabric);
             if (!localFabric || localFabric.fabricIndex !== peerAddress.fabricIndex) {
+                return;
+            }
+
+            // When a leave event is inside the subscription establishment data, then it seems unrelated, so ignore it
+            if (!node.act(agent => agent.get(NetworkClient).subscriptionActive)) {
+                logger.info(
+                    "Leave event for peer",
+                    Diagnostic.strong(node.id),
+                    " received without active subscription. Ignoring.",
+                );
                 return;
             }
 

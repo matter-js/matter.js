@@ -113,11 +113,24 @@ export class NetworkClient extends NetworkBehavior {
             if (this.internal.activeSubscription instanceof SustainedSubscription) {
                 this.internal.activeSubscription.active.on(() => this.events.subscriptionStatusChanged.emit(true));
                 this.internal.activeSubscription.inactive.on(() => this.events.subscriptionStatusChanged.emit(false));
+            } else {
+                this.events.subscriptionStatusChanged.emit(true);
             }
         } else {
             this.internal.activeSubscription?.close();
             this.internal.activeSubscription = undefined;
         }
+    }
+
+    /**
+     * Returns if we actually have an active and established subscription
+     * When a Sustained subscription is used we return the active value, otherwise we know when the subscription instance
+     * is set.
+     */
+    get subscriptionActive() {
+        return this.internal.activeSubscription instanceof SustainedSubscription
+            ? this.internal.activeSubscription.active.value
+            : true;
     }
 
     override async [Symbol.asyncDispose]() {
