@@ -335,8 +335,8 @@ export class CertificateAuthority {
         }
     }
 
-    #buildStorageData(): CertificateAuthority.StorageData {
-        const data: CertificateAuthority.StorageData = {
+    #buildStorageData(): CertificateAuthority.Configuration {
+        const data: CertificateAuthority.Configuration = {
             rootCertId: this.#rootCertId,
             rootKeyPair: this.#initializedRootKeyPair.keyPair,
             rootKeyIdentifier: this.#initializedRootKeyIdentifier,
@@ -391,18 +391,6 @@ interface IcacProps {
 
 export namespace CertificateAuthority {
     export type Configuration = {
-        rootCertId: bigint;
-        rootKeyPair: BinaryKeyPair;
-        rootKeyIdentifier: Bytes;
-        rootCertBytes: Bytes;
-        nextCertificateId: bigint;
-        icacCertId?: bigint;
-        icacKeyPair?: BinaryKeyPair;
-        icacKeyIdentifier?: Bytes;
-        icacCertBytes?: Bytes;
-    };
-
-    export type StorageData = {
         rootCertId: bigint;
         rootKeyPair: BinaryKeyPair;
         rootKeyIdentifier: Bytes;
