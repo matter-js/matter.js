@@ -8,7 +8,7 @@ import { GeneralDiagnosticsBehavior } from "#behaviors/general-diagnostics";
 import { ScenesManagementServer } from "#behaviors/scenes-management";
 import { GeneralDiagnostics } from "#clusters/general-diagnostics";
 import { OnOff } from "#clusters/on-off";
-import { MaybePromise, Millis, Time, Timer } from "#general";
+import { BasicMultiplex, MaybePromise, Millis, Time, Timer } from "#general";
 import { ServerNode } from "#node/ServerNode.js";
 import { hasRemoteActor, Val } from "#protocol";
 import { OnOffBehavior } from "./OnOffBehavior.js";
@@ -50,9 +50,14 @@ export class OnOffBaseServer extends OnOffLogicBase {
         }
     }
 
+    get delayedPromises() {
+        return (this.internal.delayedPromises ??= new BasicMultiplex());
+    }
+
     override async [Symbol.asyncDispose]() {
         this.internal.timedOnTimer?.stop();
         this.internal.delayedOffTimer?.stop();
+        await this.internal.delayedPromises?.close();
         await super[Symbol.asyncDispose]?.();
     }
 
@@ -216,15 +221,17 @@ export class OnOffBaseServer extends OnOffLogicBase {
         }
 
         if (transitionTime === 0) {
-            this.state.onOff = onOff;
-        } else {
-            this.internal.applyScenePendingOnOff = onOff;
-            this.internal.applySceneDelayTimer = Time.getTimer(
-                "delayed scene apply",
-                Millis(transitionTime),
-                this.callback(this.#applyDelayedSceneOnOffValue),
-            ).start();
+            if (onOff) {
+                return this.on();
+            }
+            return this.off();
         }
+        this.internal.applyScenePendingOnOff = onOff;
+        this.internal.applySceneDelayTimer = Time.getTimer(
+            "delayed scene apply",
+            Millis(transitionTime),
+            this.callback(this.#applyDelayedSceneOnOffValue),
+        ).start();
     }
 
     #clearDelayedSceneApplyData() {
@@ -241,7 +248,11 @@ export class OnOffBaseServer extends OnOffLogicBase {
         if (onOff === undefined) {
             return;
         }
-        this.state.onOff = onOff;
+        if (onOff) {
+            this.delayedPromises.add(this.on());
+        } else {
+            this.delayedPromises.add(this.off());
+        }
     }
 
     #delayedOffTick() {
@@ -267,6 +278,7 @@ export namespace OnOffBaseServer {
         delayedOffTimer?: Timer;
         applySceneDelayTimer?: Timer;
         applyScenePendingOnOff?: boolean;
+        delayedPromises?: BasicMultiplex;
     }
 }
 
