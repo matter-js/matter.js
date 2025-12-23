@@ -223,10 +223,12 @@ describe("CertificateAuthority", () => {
 
             expect(BigInt(config.rootCertId)).equal(BigInt(0));
             expect(config.intermediateCert).equal(true);
-            expect(BigInt(config.icacCertId!)).equal(BigInt(1));
-            expect(config.icacKeyPair).ok;
-            expect(config.icacKeyIdentifier).ok;
-            expect(config.icacCertBytes).ok;
+            if (config.intermediateCert === true) {
+                expect(BigInt(config.icacCertId)).equal(BigInt(1));
+                expect(config.icacKeyPair).ok;
+                expect(config.icacKeyIdentifier).ok;
+                expect(config.icacCertBytes).ok;
+            }
         });
 
         it("can reconstruct CA from exported config", async () => {

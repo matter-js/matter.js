@@ -6,14 +6,15 @@
  */
 
 /**
- * Simple command-based Matter controller for multi-controller scenario.
- * Sends commands directly without interactive mode.
+ * Shared Fabric Controller - Matter controller using external ICAC certificates.
+ * Demonstrates multi-controller scenarios where controllers share the same fabric
+ * without re-commissioning, using a 3-tier PKI hierarchy (RCAC -> ICAC -> NOC).
  *
  * Usage:
- *   npm run matter-cmd toggle    - Toggle the device
- *   npm run matter-cmd on        - Turn device ON
- *   npm run matter-cmd off       - Turn device OFF
- *   npm run matter-cmd read      - Read OnOff state
+ *   npm run matter-shared-fabric toggle    - Toggle the device
+ *   npm run matter-shared-fabric on        - Turn device ON
+ *   npm run matter-shared-fabric off       - Turn device OFF
+ *   npm run matter-shared-fabric read      - Read OnOff state
  */
 
 import { Bytes, Crypto, Environment, Logger, LogLevel, StorageService, Time } from "@matter/main";
@@ -24,7 +25,7 @@ import { CertificateAuthority, FabricBuilder, Rcac } from "@matter/protocol";
 import * as fs from "fs";
 import * as path from "path";
 
-const logger = Logger.get("MatterCmd");
+const logger = Logger.get("SharedFabricController");
 
 // Suppress unhandled rejections during shutdown (expected when closing connections)
 let shuttingDown = false;
@@ -41,17 +42,17 @@ const command = process.argv[2]?.toLowerCase();
 
 if (!command || !["toggle", "on", "off", "read"].includes(command)) {
     console.log(`
-Matter Controller - Multi-Controller Command Line Interface
+Shared Fabric Controller - External ICAC Certificate Example
 
 This controller uses external certificates (RCAC + ICAC) to join an existing
-fabric without re-commissioning. Useful for multi-controller scenarios where
-multiple controllers share the same fabric.
+fabric without re-commissioning. Demonstrates multi-controller scenarios where
+multiple controllers share the same fabric using a 3-tier PKI hierarchy.
 
 Usage:
-  npm run matter-cmd toggle    - Toggle the device ON/OFF
-  npm run matter-cmd on        - Turn device ON
-  npm run matter-cmd off       - Turn device OFF
-  npm run matter-cmd read      - Read current OnOff state
+  npm run matter-shared-fabric toggle    - Toggle the device ON/OFF
+  npm run matter-shared-fabric on        - Turn device ON
+  npm run matter-shared-fabric off       - Turn device OFF
+  npm run matter-shared-fabric read      - Read current OnOff state
 
 Environment Variables:
   MATTER_CERTDIR        - Certificate directory (required, default: ./certificates)
@@ -102,7 +103,7 @@ function getDefaultChipToolIpk(): Bytes {
 }
 
 async function main() {
-    const certDir = process.env.MATTER_CERTDIR ?? "./certificates";
+    const certDir = process.env.MATTER_CERTDIR ?? "/home/mantra/pooja/connectedhomeip/certificates";
     const fabricId = BigInt(process.env.MATTER_FABRICID ?? "1");
     const nodeId = Number(process.env.MATTER_NODEID ?? "200");
     const targetDeviceNodeId = Number(process.env.MATTER_TARGETNODEID ?? "1");
@@ -111,8 +112,8 @@ async function main() {
     // Certificate paths - Note: RCAC private key is NOT required when using ICAC
     // Only need: RCAC cert (public), ICAC cert, ICAC private key
     const rcacCertPath = path.join(certDir, "rcac.chip");
-    const icacCertPath = path.join(certDir, "icac.chip");
-    const icacKeyPath = path.join(certDir, "icac_key.bin");
+    const icacCertPath = path.join(certDir, "icac2.chip");
+    const icacKeyPath = path.join(certDir, "icac2_key.bin");
 
     // Verify files exist
     for (const [name, filePath] of [
@@ -175,10 +176,10 @@ async function main() {
     const fabric = await fabricBuilder.build(FabricIndex(1));
 
     // Get controller storage
-    const controllerStorage = (await storageService.open("matter-cmd")).createContext("data");
+    const controllerStorage = (await storageService.open("shared-fabric-controller")).createContext("data");
     const uniqueId = (await controllerStorage.has("uniqueid"))
         ? await controllerStorage.get<string>("uniqueid")
-        : `matter-cmd-${Time.nowMs.toString()}`;
+        : `shared-fabric-controller-${Time.nowMs.toString()}`;
     await controllerStorage.set("uniqueid", uniqueId);
 
     // Create CommissioningController with our pre-built fabric
