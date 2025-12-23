@@ -16,16 +16,29 @@ import {
     toJson,
 } from "#general";
 import { openAsBlob } from "node:fs";
-import { mkdir, open, readdir, readFile, rename, rm, stat } from "node:fs/promises";
+import { mkdir, open, readdir, readFile, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 
 const logger = new Logger("StorageBackendDisk");
+
+/**
+ * For legacy reasons we store in an inefficient "one-value-per-file-all-in-one-directory" format.  To make this at
+ * least marginally performant we assume we are the only writer to this directory and maintain an internal index of
+ * nodes in the storage tree using this structure.
+ *
+ * TODO - replace all this
+ */
+interface ContextIndex {
+    contexts?: Map<string, ContextIndex>;
+    keys?: Set<string>;
+}
 
 export class StorageBackendDisk extends Storage {
     readonly #path: string;
     readonly #clear: boolean;
     protected isInitialized = false;
     #writeFileBlocker = new Map<string, Promise<void>>();
+    #index: ContextIndex = {};
 
     constructor(path: string, clear = false) {
         super();
@@ -42,7 +55,38 @@ export class StorageBackendDisk extends Storage {
             await this.clear();
         }
         await mkdir(this.#path, { recursive: true });
+
+        const files = await readdir(this.#path);
+        for (const file of files) {
+            const parts = decodeURIComponent(file).split(".");
+            this.#markValue(parts.slice(0, -1), parts[parts.length - 1]);
+        }
+
         this.isInitialized = true;
+    }
+
+    #indexFor(contexts: string[]) {
+        let node = this.#index;
+        for (const name of contexts) {
+            let child = node.contexts?.get(name);
+            if (child === undefined) {
+                child = {};
+                if (!node.contexts) {
+                    node.contexts = new Map();
+                }
+                node.contexts.set(name, child);
+            }
+            node = child;
+        }
+        return node;
+    }
+
+    #markValue(contexts: string[], key: string) {
+        const index = this.#indexFor(contexts);
+        if (!index.keys) {
+            index.keys = new Set();
+        }
+        index.keys.add(key);
     }
 
     async #finishAllWrites(filename?: string) {
@@ -75,6 +119,7 @@ export class StorageBackendDisk extends Storage {
 
     async clear() {
         await this.#finishAllWrites();
+        this.#index = {};
         await rm(this.#path, { recursive: true, force: true });
         await mkdir(this.#path, { recursive: true });
     }
@@ -103,18 +148,8 @@ export class StorageBackendDisk extends Storage {
     }
 
     override async has(contexts: string[], key: string): Promise<boolean> {
-        const fileName = this.filePath(this.buildStorageKey(contexts, key));
-        if (this.#writeFileBlocker.has(fileName)) {
-            // We are writing that key right now, so yes it exists
-            return true;
-        }
-        try {
-            const stats = await stat(fileName);
-            return stats.isFile();
-        } catch (error: any) {
-            if (error.code === "ENOENT") return false;
-            throw error;
-        }
+        const index = this.#indexFor(contexts);
+        return !!index.keys?.has(key);
     }
 
     async get<T extends SupportedStorageTypes>(contexts: string[], key: string): Promise<T | undefined> {
@@ -146,7 +181,7 @@ export class StorageBackendDisk extends Storage {
     }
 
     writeBlobFromStream(contexts: string[], key: string, stream: ReadableStream<Bytes>) {
-        return this.#writeFile(this.buildStorageKey(contexts, key), stream);
+        return this.#writeFile(contexts, key, stream);
     }
 
     set(contexts: string[], key: string, value: SupportedStorageTypes): Promise<void>;
@@ -157,26 +192,28 @@ export class StorageBackendDisk extends Storage {
         value?: SupportedStorageTypes,
     ) {
         if (typeof keyOrValues === "string") {
-            return this.#writeFile(this.buildStorageKey(contexts, keyOrValues), toJson(value));
+            return this.#writeFile(contexts, keyOrValues, toJson(value));
         }
 
         const promises = new Array<Promise<void>>();
         for (const [key, value] of Object.entries(keyOrValues)) {
-            promises.push(this.#writeFile(this.buildStorageKey(contexts, key), toJson(value)));
+            promises.push(this.#writeFile(contexts, key, toJson(value)));
         }
         await MatterAggregateError.allSettled(promises, "Error when writing values into filesystem storage");
     }
 
     /** According to Node.js documentation, writeFile is not atomic. This method ensures atomicity. */
-    async #writeFile(fileName: string, valueOrStream: string | ReadableStream<Bytes>): Promise<void> {
+    async #writeFile(contexts: string[], key: string, valueOrStream: string | ReadableStream<Bytes>): Promise<void> {
+        const fileName = this.buildStorageKey(contexts, key);
         const blocker = this.#writeFileBlocker.get(fileName);
         if (blocker !== undefined) {
             await blocker;
-            return this.#writeFile(fileName, valueOrStream);
+            return this.#writeFile(contexts, key, valueOrStream);
         }
 
         const promise = this.#writeAndMoveFile(this.filePath(fileName), valueOrStream).finally(() => {
             this.#writeFileBlocker.delete(fileName);
+            this.#markValue(contexts, key);
         });
         this.#writeFileBlocker.set(fileName, promise);
 
@@ -249,27 +286,20 @@ export class StorageBackendDisk extends Storage {
     }
 
     async delete(contexts: string[], key: string) {
-        const filename = this.buildStorageKey(contexts, key);
+        await this.#rm(this.buildStorageKey(contexts, key), this.#indexFor(contexts), key);
+    }
+
+    async #rm(filename: string, index: ContextIndex, key: string) {
         await this.#finishAllWrites(filename);
-        return rm(this.filePath(filename), { force: true });
+        return rm(this.filePath(filename), { force: true }).finally(() => {
+            index.keys?.delete(key);
+        });
     }
 
     /** Returns all keys of a storage context without keys of sub-contexts */
     async keys(contexts: string[]) {
-        const contextKey = this.getContextBaseKey(contexts);
-        const keys = [];
-        const contextKeyStart = `${contextKey}.`;
-        const len = contextKeyStart.length;
-
-        const files = await readdir(this.#path);
-
-        for (const key of files) {
-            const decodedKey = decodeURIComponent(key);
-            if (decodedKey.startsWith(contextKeyStart) && !decodedKey.includes(".", len)) {
-                keys.push(decodedKey.substring(len));
-            }
-        }
-        return keys;
+        const index = this.#indexFor(contexts);
+        return index.keys ? [...index.keys] : [];
     }
 
     async values(contexts: string[]) {
@@ -291,47 +321,34 @@ export class StorageBackendDisk extends Storage {
         return values;
     }
 
-    async contexts(contexts: string[]) {
-        const contextKey = this.getContextBaseKey(contexts, true);
-        const startContextKey = contextKey.length ? `${contextKey}.` : "";
-        const len = startContextKey.length;
-        const foundContexts = new Array<string>();
-
-        const files = await readdir(this.#path);
-
-        for (const key of files) {
-            const decodedKey = decodeURIComponent(key);
-            if (decodedKey.startsWith(startContextKey)) {
-                const subKeys = decodedKey.substring(len).split(".");
-                if (subKeys.length === 1) continue; // found leaf key
-                const context = subKeys[0];
-                if (!foundContexts.includes(context)) {
-                    foundContexts.push(context);
-                }
-            }
-        }
-        return foundContexts;
+    contexts(contexts: string[]): string[] {
+        const index = this.#indexFor(contexts);
+        return index.contexts ? [...index.contexts.keys()] : [];
     }
 
     async clearAll(contexts: string[]) {
         await this.#finishAllWrites();
-        const contextKey = this.getContextBaseKey(contexts, true);
-        const startContextKey = contextKey.length ? `${contextKey}.` : "";
+        const parent = this.#indexFor(contexts.slice(0, -1));
+        const name = contexts[contexts.length - 1];
+        await this.#clearChildContext(contexts, parent, name);
+    }
 
-        const files = await readdir(this.#path);
+    async #clearChildContext(contexts: string[], parent: ContextIndex, name: string) {
+        const index = parent.contexts?.get(name);
+        if (index === undefined) {
+            return;
+        }
 
-        const promises = new Array<Promise<void>>();
-        for (const key of files) {
-            const decodedKey = decodeURIComponent(key);
-            if (decodedKey.startsWith(startContextKey)) {
-                promises.push(rm(this.filePath(key), { force: true }));
+        if (index.contexts) {
+            for (const name of index.contexts.keys()) {
+                await this.#clearChildContext([...contexts, name], index, name);
             }
         }
-        await MatterAggregateError.allSettled(promises, "Error when clearing all values from filesystem storage");
+
+        if (index.keys) {
+            for (const key of index.keys) {
+                await this.#rm(this.buildStorageKey(contexts, key), index, key);
+            }
+        }
     }
 }
-
-/**
- * @deprecated
- */
-//export class StorageBackendDiskAsync extends StorageBackendDisk {}
