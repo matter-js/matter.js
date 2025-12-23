@@ -111,14 +111,14 @@ export class NetworkReactNative extends Network {
         return this.netInterfaces.get(ip);
     }
 
-    private static readonly netInterfaces = new AsyncCache<string | undefined>(
+    private static readonly netInterfaces = new AsyncCache<string | undefined, void>(
         "Network interface",
         (ip: string) => this.getNetInterfaceForRemoveAddress(ip),
         Minutes(5),
     );
 
     override async close() {
-        await NetworkReactNative.netInterfaces.close();
+        NetworkReactNative.netInterfaces.close();
     }
 
     private static async getNetInterfaceForRemoveAddress(ip: string) {

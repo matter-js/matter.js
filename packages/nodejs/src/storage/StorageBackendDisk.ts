@@ -5,11 +5,13 @@
  */
 
 import {
+    AsyncCache,
     Bytes,
     createPromise,
     fromJson,
     Logger,
     MatterAggregateError,
+    Seconds,
     Storage,
     StorageError,
     SupportedStorageTypes,
@@ -26,6 +28,8 @@ export class StorageBackendDisk extends Storage {
     readonly #clear: boolean;
     protected isInitialized = false;
     #writeFileBlocker = new Map<string, Promise<void>>();
+    // Cache the result of readdir fpr 10s, this optimized the Behavior initialization a lot
+    readonly #files = new AsyncCache<string[], void>("readdir", (path: string) => readdir(path), Seconds(10));
 
     constructor(path: string, clear = false) {
         super();
@@ -46,7 +50,7 @@ export class StorageBackendDisk extends Storage {
     }
 
     async #finishAllWrites(filename?: string) {
-        // Let's try max up to 10 times to finish all writes out there, otherwise something is strange
+        // Let's try maximum up to 10 times to finish all writes out there, otherwise something is strange
         if (
             (filename !== undefined && this.#writeFileBlocker.has(filename)) ||
             (filename === undefined && this.#writeFileBlocker.size > 0)
@@ -67,6 +71,7 @@ export class StorageBackendDisk extends Storage {
     async close() {
         this.isInitialized = false;
         await this.#finishAllWrites();
+        this.#files.close();
     }
 
     filePath(fileName: string) {
@@ -75,6 +80,7 @@ export class StorageBackendDisk extends Storage {
 
     async clear() {
         await this.#finishAllWrites();
+        this.#files.delete(this.#path);
         await rm(this.#path, { recursive: true, force: true });
         await mkdir(this.#path, { recursive: true });
     }
@@ -225,6 +231,7 @@ export class StorageBackendDisk extends Storage {
             await handle.close();
         }
 
+        this.#files.delete(this.#path);
         await rename(tmpName, filepath);
     }
 
@@ -251,7 +258,9 @@ export class StorageBackendDisk extends Storage {
     async delete(contexts: string[], key: string) {
         const filename = this.buildStorageKey(contexts, key);
         await this.#finishAllWrites(filename);
-        return rm(this.filePath(filename), { force: true });
+
+        await rm(this.filePath(filename), { force: true });
+        this.#files.delete(this.#path);
     }
 
     /** Returns all keys of a storage context without keys of sub-contexts */
@@ -261,7 +270,7 @@ export class StorageBackendDisk extends Storage {
         const contextKeyStart = `${contextKey}.`;
         const len = contextKeyStart.length;
 
-        const files = await readdir(this.#path);
+        const files = await this.#files.get(this.#path);
 
         for (const key of files) {
             const decodedKey = decodeURIComponent(key);
@@ -297,7 +306,7 @@ export class StorageBackendDisk extends Storage {
         const len = startContextKey.length;
         const foundContexts = new Array<string>();
 
-        const files = await readdir(this.#path);
+        const files = await this.#files.get(this.#path);
 
         for (const key of files) {
             const decodedKey = decodeURIComponent(key);
@@ -327,11 +336,10 @@ export class StorageBackendDisk extends Storage {
                 promises.push(rm(this.filePath(key), { force: true }));
             }
         }
+
+        // Clear cache before and after to make sure we do not have any in-between state cached because we delete multiple files
+        this.#files.delete(this.#path);
         await MatterAggregateError.allSettled(promises, "Error when clearing all values from filesystem storage");
+        this.#files.delete(this.#path);
     }
 }
-
-/**
- * @deprecated
- */
-//export class StorageBackendDiskAsync extends StorageBackendDisk {}

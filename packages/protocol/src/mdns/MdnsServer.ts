@@ -32,7 +32,7 @@ export class MdnsServer {
     #lifetime: Lifetime;
     #observers = new ObserverGroup();
     #recordsGenerator = new Map<string, MdnsServer.RecordGenerator>();
-    readonly #records = new AsyncCache<Map<string, DnsRecord<any>[]>>(
+    readonly #records = new AsyncCache<Map<string, DnsRecord<any>[]>, void>(
         "MDNS discovery",
         async (multicastInterface: string) => {
             const serviceRecords = new Map<string, DnsRecord<any>[]>();
@@ -218,20 +218,20 @@ export class MdnsServer {
     }
 
     async setRecordsGenerator(service: string, generator: MdnsServer.RecordGenerator) {
-        await this.#records.clear();
+        this.#records.clear();
         this.#recordLastSentAsMulticastAnswer.clear();
         this.#recordsGenerator.set(service, generator);
     }
 
     async #resetServices() {
-        await this.#records.clear();
+        this.#records.clear();
         this.#recordLastSentAsMulticastAnswer.clear();
     }
 
     async close() {
         using _closing = this.#lifetime.closing();
         this.#observers.close();
-        await this.#records.close();
+        this.#records.close();
         for (const { timer } of this.#truncatedQueryCache.values()) {
             timer.stop();
         }

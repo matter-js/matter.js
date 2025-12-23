@@ -80,14 +80,14 @@ export class NodeJsNetwork extends Network {
         return this.netInterfaces.get(ip);
     }
 
-    private static readonly netInterfaces = new Cache<string | undefined>(
+    private static readonly netInterfaces = new Cache<string | undefined, void>(
         "Network interface",
         (ip: string) => this.getNetInterfaceForRemoteAddress(ip),
         Minutes(5),
     );
 
     override async close() {
-        await NodeJsNetwork.netInterfaces.close();
+        NodeJsNetwork.netInterfaces.close();
     }
 
     private static getNetInterfaceForRemoteAddress(ip: string) {

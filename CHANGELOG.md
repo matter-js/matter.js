@@ -132,6 +132,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/mqtt
     - Feature: New package implementing `@matter/main` MQTT abstraction using MQTT.js
 
+- @matter/nodejs
+  - Enhancement: Optimize initialization performance by caching filesystem readdir results when reading the whole storage directory
+
 - @matter/nodejs-shell
   - Fix: Changed the shell CLI option to enable ble to "--ble-enable" to not conflict with internal variables
   - Adjustment: Adjusted to build ESM package by default

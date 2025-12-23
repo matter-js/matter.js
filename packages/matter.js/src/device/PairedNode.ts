@@ -705,7 +705,7 @@ export class PairedNode {
             }
         }
 
-        // We do not have enought data of the device, postpone inititialization
+        // We do not have enought data of the device, postpone initialization
         if (!rootEndpointIncluded || !otherEndpointIncluded) {
             return;
         }

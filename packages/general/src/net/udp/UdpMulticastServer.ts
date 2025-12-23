@@ -98,7 +98,7 @@ export class UdpMulticastServer {
         }
     }
 
-    private readonly broadcastChannels = new Cache<Promise<UdpChannel>>(
+    private readonly broadcastChannels = new Cache<Promise<UdpChannel>, Promise<void>>(
         "UDP broadcast channel",
         (netInterface, iPv4) => this.createBroadcastChannel(netInterface, iPv4),
         Minutes(5),
