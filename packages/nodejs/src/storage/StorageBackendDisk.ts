@@ -28,7 +28,7 @@ export class StorageBackendDisk extends Storage {
     readonly #clear: boolean;
     protected isInitialized = false;
     #writeFileBlocker = new Map<string, Promise<void>>();
-    // Cache the result of readdir fpr 10s, this optimized the Behavior initialization a lot
+    // Cache the result of readdir for 10s, this optimized the Behavior initialization a lot
     readonly #files = new AsyncCache<string[], void>("readdir", (path: string) => readdir(path), Seconds(10));
 
     constructor(path: string, clear = false) {
