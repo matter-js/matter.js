@@ -12,6 +12,7 @@ import { CommissioningDiscovery } from "#behavior/system/controller/discovery/Co
 import { ContinuousDiscovery } from "#behavior/system/controller/discovery/ContinuousDiscovery.js";
 import { Discovery } from "#behavior/system/controller/discovery/Discovery.js";
 import { InstanceDiscovery } from "#behavior/system/controller/discovery/InstanceDiscovery.js";
+import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { Endpoint } from "#endpoint/Endpoint.js";
@@ -419,6 +420,20 @@ export class Peers extends EndpointContainer<ClientNode> {
             const localFabrics = this.owner.env.get(FabricManager);
             const localFabric = localFabrics.forDescriptor(peerFabric);
             if (!localFabric || localFabric.fabricIndex !== peerAddress.fabricIndex) {
+                return;
+            }
+
+            // Ignore leave events received during an initial subscription establishment as they may be stale events
+            // from before the device was re-commissioned with the same identifier.
+            // The reason is that we saw such cases and should prevent discarding a node directly after commissioning.
+            // This solution still has some holes that could prevent removing nodes automatically, but best-effort
+            // variant for now until we know how often that happens in practice.
+            if (!node.act(agent => agent.get(NetworkClient).subscriptionActive)) {
+                logger.info(
+                    "Leave event for peer",
+                    Diagnostic.strong(node.id),
+                    " received without active subscription. Ignoring.",
+                );
                 return;
             }
 
