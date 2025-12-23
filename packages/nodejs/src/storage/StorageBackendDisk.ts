@@ -346,9 +346,10 @@ export class StorageBackendDisk extends Storage {
         }
 
         if (index.keys) {
-            for (const key of index.keys) {
-                await this.#rm(this.buildStorageKey(contexts, key), index, key);
-            }
+            await MatterAggregateError.allSettled(
+                [...index.keys].map(key => this.#rm(this.buildStorageKey(contexts, key), index, key)),
+                `Error deleting keys of storage context ${contexts.join(".")}`,
+            );
         }
     }
 }
