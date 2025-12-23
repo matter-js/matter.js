@@ -217,18 +217,16 @@ export class OnOffBaseServer extends OnOffLogicBase {
 
         if (transitionTime === 0) {
             if (onOff) {
-                this.on();
-            } else {
-                this.off();
+                return this.on();
             }
-        } else {
-            this.internal.applyScenePendingOnOff = onOff;
-            this.internal.applySceneDelayTimer = Time.getTimer(
-                "delayed scene apply",
-                Millis(transitionTime),
-                this.callback(this.#applyDelayedSceneOnOffValue),
-            ).start();
+            return this.off();
         }
+        this.internal.applyScenePendingOnOff = onOff;
+        this.internal.applySceneDelayTimer = Time.getTimer(
+            "delayed scene apply",
+            Millis(transitionTime),
+            this.callback(this.#applyDelayedSceneOnOffValue),
+        ).start();
     }
 
     #clearDelayedSceneApplyData() {
@@ -239,17 +237,16 @@ export class OnOffBaseServer extends OnOffLogicBase {
         this.internal.applyScenePendingOnOff = undefined;
     }
 
-    #applyDelayedSceneOnOffValue() {
+    async #applyDelayedSceneOnOffValue() {
         const onOff = this.internal.applyScenePendingOnOff;
         this.#clearDelayedSceneApplyData();
         if (onOff === undefined) {
             return;
         }
         if (onOff) {
-            this.on();
-        } else {
-            this.off();
+            return this.on();
         }
+        return this.off();
     }
 
     #delayedOffTick() {
