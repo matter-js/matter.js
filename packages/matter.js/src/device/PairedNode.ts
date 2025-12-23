@@ -705,6 +705,10 @@ export class PairedNode {
             }
         }
 
+        if (!rootEndpointIncluded || !otherEndpointIncluded) {
+            return;
+        }
+
         await this.#initializeEndpointStructure(false);
 
         // Inform interested parties that the node is initialized
