@@ -250,8 +250,9 @@ export class OnOffBaseServer extends OnOffLogicBase {
         }
         if (onOff) {
             this.delayedPromises.add(this.on());
+        } else {
+            this.delayedPromises.add(this.off());
         }
-        this.delayedPromises.add(this.off());
     }
 
     #delayedOffTick() {

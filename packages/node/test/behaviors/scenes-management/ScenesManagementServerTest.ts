@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { OnOffClient } from "#behaviors/on-off";
+import { OnOffClient, OnOffServer } from "#behaviors/on-off";
 import { ScenesManagementClient } from "#behaviors/scenes-management";
 import { OnOff } from "#clusters/on-off";
 import { ServerNode } from "#node/index.js";
@@ -23,7 +23,7 @@ describe("ScenesManagementServer", () => {
     it("add and recall onoff boolean scene value", async () => {
         await using site = new MockSite();
         // Device is automatically configured with vendorId 0xfff1 and productId 0x8000
-        const { controller } = await site.addCommissionedPair({
+        const { controller, device } = await site.addCommissionedPair({
             device: {
                 type: ServerNode.RootEndpoint,
             },
@@ -69,9 +69,13 @@ describe("ScenesManagementServer", () => {
             }),
         ).deep.equals({ status: 0, groupId: GroupId(0), sceneId: 2 });
 
+        const waiter = MockTime.resolve(device.endpoints.for(1).eventsOf(OnOffServer).onOff$Changed);
+
         await cmds.recallScene({ groupId: GroupId(0), sceneId: 1 });
 
-        await MockTime.advance(2000);
+        await MockTime.advance(1500);
+
+        await waiter;
 
         const read = peer1.interaction.read(
             Read(
