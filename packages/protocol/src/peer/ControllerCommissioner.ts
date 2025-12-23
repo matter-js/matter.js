@@ -499,10 +499,10 @@ export class ControllerCommissioner {
                 await this.#context.peers.connect(address, {
                     discoveryOptions: {
                         discoveryType: NodeDiscoveryType.TimedDiscovery,
-                        timeout: Minutes(2),
+                        timeout: Minutes(4),
                         discoveryData,
                     },
-                }); // Wait maximum 120s to find the operational device for the commissioning process
+                }); // Wait to find the operational device for the commissioning process
 
                 // And we use a ClientInteraction backed Interaction client to finish the commissioning because
                 const exchangeProvider = await this.#context.peers.exchangeProviderFor(address);

@@ -705,6 +705,11 @@ export class PairedNode {
             }
         }
 
+        // We do not have enought data of the device, postpone inititialization
+        if (!rootEndpointIncluded || !otherEndpointIncluded) {
+            return;
+        }
+
         await this.#initializeEndpointStructure(false);
 
         // Inform interested parties that the node is initialized

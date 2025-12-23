@@ -59,7 +59,7 @@
     "homepage": "https://github.com/matter-js/matter.js#readme",
     "dependencies": {
         "@microsoft/tsdoc": "^0.16.0",
-        "@typescript/native-preview": "^7.0.0-dev.20251218.1",
+        "@typescript/native-preview": "^7.0.0-dev.20251223.1",
         "ansi-colors": "^4.1.3",
         "commander": "^14.0.2",
         "detective-typescript": "^14.0.0",

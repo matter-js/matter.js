@@ -739,7 +739,7 @@ export class MatterController {
             });
 
             if ((await oldDataStore.contexts()).length) {
-                logger.info(`Deleting old storage for node ${peerAddress.nodeId}`);
+                //logger.info(`Deleting old storage for node ${peerAddress.nodeId}`);
                 //await oldDataStore.clearAll(); // TODO
             }
         }

@@ -1586,7 +1586,7 @@ export class ControllerCommissioningFlow {
         // Reconnection with discovery could take longer than the default failsafe time, so we need to
         // re-arm the failsafe when we are in a concurrent commissioning flow also in parallel to
         // the operative reconnection
-        await this.#ensureFailsafeTimerFor(Seconds(120));
+        await this.#ensureFailsafeTimerFor(Minutes(5));
         if (!isConcurrentFlow) {
             this.#armFailsafeInterval?.stop();
         }
