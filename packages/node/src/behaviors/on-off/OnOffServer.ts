@@ -216,7 +216,11 @@ export class OnOffBaseServer extends OnOffLogicBase {
         }
 
         if (transitionTime === 0) {
-            this.state.onOff = onOff;
+            if (onOff) {
+                this.on();
+            } else {
+                this.off();
+            }
         } else {
             this.internal.applyScenePendingOnOff = onOff;
             this.internal.applySceneDelayTimer = Time.getTimer(
@@ -241,7 +245,11 @@ export class OnOffBaseServer extends OnOffLogicBase {
         if (onOff === undefined) {
             return;
         }
-        this.state.onOff = onOff;
+        if (onOff) {
+            this.on();
+        } else {
+            this.off();
+        }
     }
 
     #delayedOffTick() {
