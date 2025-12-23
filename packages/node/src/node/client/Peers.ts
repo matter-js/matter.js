@@ -423,8 +423,11 @@ export class Peers extends EndpointContainer<ClientNode> {
                 return;
             }
 
-            // Ignore leave events received during initial subscription establishment as they may be stale events
+            // Ignore leave events received during an initial subscription establishment as they may be stale events
             // from before the device was re-commissioned with the same identifier.
+            // The reason is that we saw such cases and should prevent discarding a node directly after commissioning.
+            // This solution still has some holes that could prevent removing nodes automatically, but best-effort
+            // variant for now until we know how often that happens in practice.
             if (!node.act(agent => agent.get(NetworkClient).subscriptionActive)) {
                 logger.info(
                     "Leave event for peer",

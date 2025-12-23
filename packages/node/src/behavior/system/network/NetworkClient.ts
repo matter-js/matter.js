@@ -128,9 +128,11 @@ export class NetworkClient extends NetworkBehavior {
      * is set.
      */
     get subscriptionActive() {
-        return this.internal.activeSubscription instanceof SustainedSubscription
-            ? this.internal.activeSubscription.active.value
-            : true;
+        const activeSubscription = this.internal.activeSubscription;
+        if (activeSubscription === undefined) {
+            return false;
+        }
+        return activeSubscription instanceof SustainedSubscription ? activeSubscription.active.value : true;
     }
 
     override async [Symbol.asyncDispose]() {
