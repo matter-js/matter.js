@@ -8,7 +8,7 @@ import { GeneralDiagnosticsBehavior } from "#behaviors/general-diagnostics";
 import { ScenesManagementServer } from "#behaviors/scenes-management";
 import { GeneralDiagnostics } from "#clusters/general-diagnostics";
 import { OnOff } from "#clusters/on-off";
-import { MaybePromise, Millis, Time, Timer } from "#general";
+import { BasicMultiplex, MaybePromise, Millis, Time, Timer } from "#general";
 import { ServerNode } from "#node/ServerNode.js";
 import { hasRemoteActor, Val } from "#protocol";
 import { OnOffBehavior } from "./OnOffBehavior.js";
@@ -53,6 +53,7 @@ export class OnOffBaseServer extends OnOffLogicBase {
     override async [Symbol.asyncDispose]() {
         this.internal.timedOnTimer?.stop();
         this.internal.delayedOffTimer?.stop();
+        await this.internal.delayedPromises.close();
         await super[Symbol.asyncDispose]?.();
     }
 
@@ -237,16 +238,16 @@ export class OnOffBaseServer extends OnOffLogicBase {
         this.internal.applyScenePendingOnOff = undefined;
     }
 
-    async #applyDelayedSceneOnOffValue() {
+    #applyDelayedSceneOnOffValue() {
         const onOff = this.internal.applyScenePendingOnOff;
         this.#clearDelayedSceneApplyData();
         if (onOff === undefined) {
             return;
         }
         if (onOff) {
-            return this.on();
+            this.internal.delayedPromises.add(this.on());
         }
-        return this.off();
+        this.internal.delayedPromises.add(this.off());
     }
 
     #delayedOffTick() {
@@ -272,6 +273,7 @@ export namespace OnOffBaseServer {
         delayedOffTimer?: Timer;
         applySceneDelayTimer?: Timer;
         applyScenePendingOnOff?: boolean;
+        delayedPromises = new BasicMultiplex();
     }
 }
 
