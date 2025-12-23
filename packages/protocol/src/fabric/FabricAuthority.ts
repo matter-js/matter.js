@@ -180,9 +180,7 @@ export class FabricAuthority {
             subject: { nodeId, fabricId, caseAuthenticatedTags },
         } = Noc.fromTlv(fabric.operationalCert).cert;
         if (nodeId !== fabric.nodeId) {
-            throw new ImplementationError(
-                `Cannot rotate NOC for fabric ${fabric.fabricIndex} because root node ID changed`,
-            );
+            throw new ImplementationError(`Cannot rotate NOC for fabric ${fabric.fabricIndex} because node ID changed`);
         }
         await builder.setOperationalCert(
             await this.#ca.generateNoc(builder.publicKey, fabricId, nodeId, caseAuthenticatedTags),
