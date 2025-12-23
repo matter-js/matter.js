@@ -50,10 +50,14 @@ export class OnOffBaseServer extends OnOffLogicBase {
         }
     }
 
+    get delayedPromises() {
+        return (this.internal.delayedPromises ??= new BasicMultiplex());
+    }
+
     override async [Symbol.asyncDispose]() {
         this.internal.timedOnTimer?.stop();
         this.internal.delayedOffTimer?.stop();
-        await this.internal.delayedPromises.close();
+        await this.internal.delayedPromises?.close();
         await super[Symbol.asyncDispose]?.();
     }
 
@@ -245,9 +249,9 @@ export class OnOffBaseServer extends OnOffLogicBase {
             return;
         }
         if (onOff) {
-            this.internal.delayedPromises.add(this.on());
+            this.delayedPromises.add(this.on());
         }
-        this.internal.delayedPromises.add(this.off());
+        this.delayedPromises.add(this.off());
     }
 
     #delayedOffTick() {
@@ -273,7 +277,7 @@ export namespace OnOffBaseServer {
         delayedOffTimer?: Timer;
         applySceneDelayTimer?: Timer;
         applyScenePendingOnOff?: boolean;
-        delayedPromises = new BasicMultiplex();
+        delayedPromises?: BasicMultiplex;
     }
 }
 
