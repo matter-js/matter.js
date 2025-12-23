@@ -423,7 +423,8 @@ export class Peers extends EndpointContainer<ClientNode> {
                 return;
             }
 
-            // When a leave event is inside the subscription establishment data, then it seems unrelated, so ignore it
+            // Ignore leave events received during initial subscription establishment as they may be stale events
+            // from before the device was re-commissioned with the same identifier.
             if (!node.act(agent => agent.get(NetworkClient).subscriptionActive)) {
                 logger.info(
                     "Leave event for peer",
