@@ -26,6 +26,8 @@ const logger = Logger.get("ServerNodeStore");
  * {@link ServerNode} persistence.
  *
  * Each {@link ServerNode} has an instance of this store.
+ *
+ * TODO - create global locking mechanism to ensure single reader/writer across host
  */
 export class ServerNodeStore extends NodeStore implements Destructable {
     #env: Environment;
@@ -80,6 +82,13 @@ export class ServerNodeStore extends NodeStore implements Destructable {
      */
     get clientStores() {
         return this.construction.assert("client stores", this.#clientStores);
+    }
+
+    /**
+     * The underlying {@link StorageManager} that provides node data.
+     */
+    get storage() {
+        return this.construction.assert("storage manager", this.#storageManager);
     }
 
     #logChange(what: "Opened" | "Closed") {
