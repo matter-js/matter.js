@@ -195,6 +195,8 @@ export class MatterController {
             environment.set(CertificateAuthority, rootCertificateAuthority);
         }
 
+        await baseStorage.close();
+
         controller = new MatterController({
             ...options,
             fabric,
@@ -651,7 +653,11 @@ export class MatterController {
     }
 
     async #migrateNodeData(server: ServerNode, fabric: Fabric) {
-        const baseStorage = await server.env.get(StorageService).open(server.id);
+        const serverStore = server.env.get(ServerNodeStore);
+
+        const baseStorage = serverStore.storage;
+
+        // Note that we're assuming this is invoked prior to the node initializing peers
         const baseNodeStorage = baseStorage.createContext("nodes");
 
         // Initialize a custom PeerAddressStore to manage commissioned nodes storage in legacy storage format
@@ -670,7 +676,7 @@ export class MatterController {
         }
         const migratedPeers = new Set<string>();
 
-        const newClientStores = server.env.get(ServerNodeStore).clientStores;
+        const newClientStores = serverStore.clientStores;
         for (const { address: peerAddress, discoveryData, deviceData, operationalAddress } of peers) {
             logger.debug(`Migrating data for commissioned node ${peerAddress.toString()}`);
             const clientNode = server.peers.get(peerAddress);
