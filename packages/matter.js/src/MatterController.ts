@@ -185,7 +185,7 @@ export class MatterController {
                 } else {
                     // Migrates Certificate Authority data to a new location
                     if (!(await newStorage.has(key))) {
-                        newStorage.set(key, await oldStorage.get(key));
+                        await newStorage.set(key, await oldStorage.get(key));
                     }
                 }
             }
@@ -195,7 +195,8 @@ export class MatterController {
             environment.set(CertificateAuthority, rootCertificateAuthority);
         }
 
-        await baseStorage.close();
+        // TODO - uncomment after fixing matter.js controller CI tests
+        //await baseStorage.close();
 
         controller = new MatterController({
             ...options,
