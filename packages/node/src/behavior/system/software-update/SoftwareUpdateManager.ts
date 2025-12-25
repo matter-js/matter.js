@@ -689,7 +689,7 @@ export class SoftwareUpdateManager extends Behavior {
         this.internal.checkForUpdateTimer?.stop();
         this.internal.updateQueueTimer?.stop();
         await this.internal.announcements?.close();
-        this.internal.services?.close(DclOtaUpdateService);
+        await this.internal.services?.close();
         this.internal.versionUpdateObservers.close();
         await super[Symbol.asyncDispose]?.();
     }

@@ -139,7 +139,9 @@ async function getConfiguration() {
     console.log(
         'Use the parameter "--storage-path=NAME-OR-PATH" to specify a different storage location in this directory, use --storage-clear to start with an empty storage.',
     );
-    const deviceStorage = (await storageService.open("device")).createContext("data");
+
+    const storageManager = await storageService.open("device");
+    const deviceStorage = storageManager.createContext("data");
 
     let defaultPasscode = 20202021;
     let defaultDiscriminator = 3840;
@@ -191,6 +193,8 @@ async function getConfiguration() {
             uniqueId,
         });
     }
+
+    await storageManager.close();
 
     return devices;
 }

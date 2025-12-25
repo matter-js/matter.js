@@ -48,7 +48,8 @@ class ControllerNode {
          * (so maybe better not ;-)).
          */
 
-        const controllerStorage = (await storageService.open("controller")).createContext("data");
+        const storageManager = await storageService.open("controller");
+        const controllerStorage = storageManager.createContext("data");
         const ip = (await controllerStorage.has("ip"))
             ? await controllerStorage.get<string>("ip")
             : environment.vars.string("ip");
@@ -79,6 +80,9 @@ class ControllerNode {
             if (longDiscriminator > 4095) throw new Error("Discriminator value must be less than 4096");
             setupPin = environment.vars.number("passcode") ?? (await controllerStorage.get("passcode", 20202021));
         }
+
+        await storageManager.close(); // Close storage
+
         if ((shortDiscriminator === undefined && longDiscriminator === undefined) || setupPin === undefined) {
             throw new Error(
                 "Please specify the longDiscriminator of the device to commission with -longDiscriminator or provide a valid passcode with --passcode=xxxxxx",

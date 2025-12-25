@@ -144,7 +144,9 @@ async function getConfiguration() {
     console.log(
         'Use the parameter "--storage-path=NAME-OR-PATH" to specify a different storage location in this directory, use --storage-clear to start with an empty storage.',
     );
-    const deviceStorage = (await storageService.open("device")).createContext("data");
+
+    const storageManager = await storageService.open("device");
+    const deviceStorage = storageManager.createContext("data");
 
     const isSocket = await deviceStorage.get("isSocket", environment.vars.get("type") === "socket");
     if (await deviceStorage.has("isSocket")) {
@@ -173,6 +175,8 @@ async function getConfiguration() {
         isSocket,
         uniqueid: uniqueId,
     });
+
+    await storageManager.close();
 
     return {
         isSocket,

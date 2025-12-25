@@ -14,6 +14,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - Breaking: matter.js now requires node.js 20.19+ or 22.13+ or 24.0+ (LTS versions). Node.js 18.x is no longer supported.
 - Breaking: Because of the upgrade to TypeScript 5.9 all usages of Uint8Array were changed to use a more convenient own type alias Bytes
 - Breaking: Matter 1.4.2 no longer specifies reasonable defaults for many fields, so you may find new places where you need to manually supply an attribute value
+- Breaking: The default Node.js storage manager (`StorageBackendDisk`) was optimized for performance which requires not opening multiple storages for the same ID at the same time. So check your usage of `StorageService`, if you use it directly too.
 
 - @matter/\*:
     - Upgraded to Matter specification version 1.4.2
@@ -65,6 +66,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensures correct behavior for announcements and fabric table updates in case of updating fabrics
 
 - @matter/nodejs
+    - Breaking: The default storage manager (`StorageBackendDisk`) was optimized for performance which requires not opening multiple storages for the same ID at the same time. So check your usage of `StorageService`, if you use it directly too.
     - Enhancement: Uses "stat" to determine storage file existence instead of reading all content
     - Enhancement: Exposes Node's native HTTP server via new abstractions in `@matter/general`
     - Fix: Corrects network interface selection logic for windows

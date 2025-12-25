@@ -11,6 +11,7 @@ import {
     ObserverGroup,
     SharedEnvironmentServices,
     StorageContext,
+    StorageManager,
     StorageService,
 } from "#general";
 import { ServerNode, SoftwareUpdateManager } from "#node";
@@ -24,6 +25,7 @@ const logger = Logger.get("Node");
 
 export class MatterNode {
     #storageLocation?: string;
+    #storageManager?: StorageManager;
     #storageContext?: StorageContext;
     readonly #environment: Environment;
     commissioningController?: CommissioningController;
@@ -118,7 +120,11 @@ export class MatterNode {
             if (resetStorage) {
                 await this.commissioningController.node.erase();
             }
-            this.#storageContext = (await storageService.open(id)).createContext("Node");
+
+            // We side open a storage with the same ID as the ServerNode but only care about the "Node" sub context which
+            // is consistent.
+            this.#storageManager = await storageService.open(id);
+            this.#storageContext = this.#storageManager.createContext("Node");
 
             // Read DCL test certificates setting
             this.#dclFetchTestCertificates = await this.#storageContext.get<boolean>("DclFetchTestCertificates", false);
@@ -141,6 +147,7 @@ export class MatterNode {
         await this.commissioningController?.close();
         await this.#services?.close();
         this.#observers?.close();
+        await this.#storageManager?.close();
     }
 
     async start() {

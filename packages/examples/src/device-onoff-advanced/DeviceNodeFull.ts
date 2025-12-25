@@ -103,7 +103,8 @@ console.log(
     'Use the parameter "--storage-path=NAME-OR-PATH" to specify a different storage location in this directory, use --storage-clear to start with an empty storage.',
 );
 
-const deviceStorage = (await storageService.open("device")).createContext("data");
+const storageManager = await storageService.open("device");
+const deviceStorage = storageManager.createContext("data");
 
 if (await deviceStorage.has("isSocket")) {
     console.log("Device type found in storage. --type parameter is ignored.");
@@ -130,6 +131,8 @@ await deviceStorage.set({
     isSocket,
     uniqueid: uniqueId,
 });
+
+await storageManager.close();
 
 // Matter exposes functionality in groups called "clusters".  For this example device we override the matter.js "On/Off"
 // cluster implementation to print status to the console.

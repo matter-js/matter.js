@@ -284,7 +284,7 @@ async function doLogLevel(
                 return;
             }
             await theNode.Store.set(storageKey, value);
-            console.log(`New Loglevel for ${logtype}:" ${value}"`);
+            console.log(`New Loglevel for ${logtype}: "${value}"`);
             setLogLevel(args.type === "console" ? "default" : "file", value);
             break;
         case "delete":
@@ -484,7 +484,7 @@ async function doDclTestCertificates(
             const newValue = value === "true";
             await theNode.Store.set("DclFetchTestCertificates", newValue);
 
-            // Close existing certificate service so it gets re-initialized with new setting
+            // Close the existing certificate service so it gets re-initialized with new setting
             await theNode.environment.close(DclCertificateService);
 
             console.log(
@@ -494,7 +494,7 @@ async function doDclTestCertificates(
         case "delete":
             await theNode.Store.delete("DclFetchTestCertificates");
 
-            // Close existing certificate service so it gets re-initialized with new setting
+            // Close the existing certificate service so it gets re-initialized with new setting
             await theNode.environment.close(DclCertificateService);
 
             console.log(

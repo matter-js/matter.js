@@ -104,7 +104,7 @@ MatterModel.standard.clusters.forEach(cluster => {
 
 /** Mapping of Loglevels between Matter,js and the testrunner understanding */
 const LogLevelMap: { [key: number]: string } = {
-    [LogLevel.FATAL]: "Fatal",
+    [LogLevel.FATAL]: "Error",
     [LogLevel.ERROR]: "Error",
     [LogLevel.WARN]: "Error",
     [LogLevel.INFO]: "Info",
