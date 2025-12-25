@@ -70,7 +70,6 @@ export class ControllerTestInstance extends TestInstance {
         }
     >();
     #commandHandler: ChipToolWebSocketHandler;
-    #storages: Map<string, Map<string, StorageBackendAsyncJsonFile>> = new Map();
 
     constructor(config: ControllerTestInstanceConfig) {
         super(config);
@@ -189,16 +188,9 @@ export class ControllerTestInstance extends TestInstance {
     override async stop() {
         this.#commandHandler.close();
         if (this.#controllerInstances.size > 0) {
-            for (const [identity, { handler, env }] of this.#controllerInstances.entries()) {
+            for (const { handler, env } of this.#controllerInstances.values()) {
                 await handler.close();
                 await env.close(ControllerStore); // Manually close ControllerStore to ensure data persistence
-                const identityStores = this.#storages.get(identity);
-                if (identityStores) {
-                    for (const storage of identityStores.values()) {
-                        console.info(`Closing storage for identity ${identity}`);
-                        await storage.close();
-                    }
-                }
             }
             this.#controllerInstances.clear();
         }
