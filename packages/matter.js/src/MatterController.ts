@@ -664,7 +664,7 @@ export class MatterController {
         // Data migration needed
         const controllerStore = new ControllerStore(server.id, baseStorage);
         if (!(await controllerStore.nodesStorage.has("commissionedNodes"))) {
-            console.log("No former commissioned nodes to migrate.");
+            logger.debug("No former commissioned nodes to migrate.");
             // No commissionedNodes key, so simply migrate nothing
             return;
         }
