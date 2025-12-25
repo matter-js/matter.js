@@ -195,8 +195,7 @@ export class MatterController {
             environment.set(CertificateAuthority, rootCertificateAuthority);
         }
 
-        // TODO - uncomment after fixing matter.js controller CI tests
-        //await baseStorage.close();
+        await baseStorage.close();
 
         controller = new MatterController({
             ...options,
@@ -393,7 +392,7 @@ export class MatterController {
             }
 
             // TODO
-            //await (await options.environment.get(StorageService).open(options.id))
+            //await (await server.env.get(ServerNodeStore).storage
             //    .createContext("credentials")
             //    .clearAll(); // Clear old credentials storage
 
@@ -663,8 +662,9 @@ export class MatterController {
 
         // Initialize a custom PeerAddressStore to manage commissioned nodes storage in legacy storage format
         // Data migration needed
-        const controllerStore = await ControllerStore.create(server.id, server.env);
+        const controllerStore = new ControllerStore(server.id, baseStorage);
         if (!(await controllerStore.nodesStorage.has("commissionedNodes"))) {
+            logger.debug("No former commissioned nodes to migrate.");
             // No commissionedNodes key, so simply migrate nothing
             return;
         }
@@ -767,6 +767,7 @@ export class MatterController {
         });
 
         logger.info("Commissioned nodes migration completed.");
+        await controllerStore.close();
     }
 }
 

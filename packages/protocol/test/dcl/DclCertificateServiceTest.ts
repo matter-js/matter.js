@@ -729,7 +729,7 @@ describe("DclCertificateService", () => {
             const service = new DclCertificateService(environment, { updateInterval: Days(365) }); // Disable auto-updates
             await service.construction;
 
-            // Clear the index to simulate certificate not being present
+            // Clear the index to simulate the certificate not being present
             const storage = await environment.get(StorageService).open("certificates");
             const approvedStorage = storage.createContext("approved");
             await approvedStorage.clear();
@@ -743,7 +743,7 @@ describe("DclCertificateService", () => {
             );
             fetchMock.install();
 
-            // Fetch certificate that's not in the index
+            // Fetch a certificate not in the index
             const cert = await service.getOrFetchCertificate("785CE705B86B8F4E6FC793AA60CB43EA696882D5");
 
             expect(cert).to.not.be.undefined;
@@ -754,6 +754,7 @@ describe("DclCertificateService", () => {
             expect(certFromIndex).to.not.be.undefined;
 
             await service.close();
+            await storage.close();
         });
 
         it("returns undefined for non-existent certificate", async () => {

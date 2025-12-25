@@ -182,7 +182,9 @@ async function getConfiguration() {
     console.log(
         'Use the parameter "--storage-path=NAME-OR-PATH" to specify a different storage location in this directory, use --storage-clear to start with an empty storage.',
     );
-    const deviceStorage = (await storageService.open("device")).createContext("data");
+
+    const storageManager = await storageService.open("device");
+    const deviceStorage = storageManager.createContext("data");
 
     const isTemperature = await deviceStorage.get("isTemperature", environment.vars.get("type") !== "humidity");
     if (await deviceStorage.has("isTemperature")) {
@@ -220,6 +222,8 @@ async function getConfiguration() {
         isTemperature,
         uniqueid: uniqueId,
     });
+
+    await storageManager.close();
 
     return {
         isTemperature,

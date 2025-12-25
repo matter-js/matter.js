@@ -4,63 +4,28 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-    Construction,
-    Destructable,
-    Diagnostic,
-    Environment,
-    ImplementationError,
-    Logger,
-    MaybePromise,
-    StorageContext,
-    StorageManager,
-    StorageService,
-    asyncNew,
-} from "#general";
-
-const logger = Logger.get("ControllerStore");
+import { ImplementationError, MaybePromise, StorageContext, StorageManager } from "#general";
 
 /**
  * Non-volatile state management for a {@link ControllerNode}.
  */
-export class ControllerStore implements Destructable, ControllerStoreInterface {
-    #location: string;
-    #nodeId: string;
+export class ControllerStore implements ControllerStoreInterface {
     #storageManager?: StorageManager;
     #sessionStorage?: StorageContext;
     #caStorage?: StorageContext; // Root certificate and Fabric
-    #nodesStorage?: StorageContext; // Holds list of nodes in root level and then sub levels with data per client node?
-    #construction: Construction<ControllerStore>;
-
-    get construction() {
-        return this.#construction;
-    }
+    #nodesStorage?: StorageContext; // Holds a list of nodes in the root level and then sublevels with data per client node?
 
     /**
      * Create a new store.
      *
      * TODO - implement conversion from 0.7 format so people can change API seamlessly
      */
-    constructor(nodeId: string, environment: Environment) {
+    constructor(nodeId: string, storageManager: StorageManager) {
         if (nodeId === undefined) {
             throw new ImplementationError("ServerStore must be created with a nodeId");
         }
 
-        const storage = environment.get(StorageService);
-        this.#location = storage.location ?? "(unknown location)";
-        this.#nodeId = nodeId;
-
-        const initializeStorage = async () => {
-            this.#storageManager = await storage.open(nodeId);
-
-            this.#logChange("Opened");
-        };
-
-        this.#construction = Construction(this, initializeStorage);
-    }
-
-    static async create(nodeId: string, environment = Environment.default) {
-        return await asyncNew(this, nodeId, environment);
+        this.#storageManager = storageManager;
     }
 
     async erase() {
@@ -70,10 +35,7 @@ export class ControllerStore implements Destructable, ControllerStoreInterface {
     }
 
     async close() {
-        await this.#construction.close(async () => {
-            await this.#storageManager?.close();
-            this.#logChange("Closed");
-        });
+        // nothing to do, we do not own anything
     }
 
     get sessionStorage() {
@@ -110,10 +72,6 @@ export class ControllerStore implements Destructable, ControllerStoreInterface {
 
     async clientNodeStore(nodeId: string) {
         return this.storage.createContext(`node-${nodeId}`);
-    }
-
-    #logChange(what: "Opened" | "Closed") {
-        logger.info(what, Diagnostic.strong(this.#nodeId ?? "node"), "storage at", `${this.#location}/${this.#nodeId}`);
     }
 }
 

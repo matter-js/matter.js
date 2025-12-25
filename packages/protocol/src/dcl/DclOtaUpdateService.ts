@@ -19,6 +19,7 @@ import {
     MatterError,
     Minutes,
     StorageContext,
+    StorageManager,
     StorageService,
 } from "#general";
 import { DeviceSoftwareVersionModelDclSchema, VendorId } from "#types";
@@ -55,6 +56,7 @@ const OTA_FILENAME_REGEX = /^[0-9a-f]+[./][0-9a-f]+[./](?:prod|test)$/i;
 export class DclOtaUpdateService {
     readonly #construction: Construction<DclOtaUpdateService>;
     readonly #crypto: Crypto;
+    #storageManager?: StorageManager;
     #storage?: ScopedStorage;
 
     get construction() {
@@ -67,10 +69,8 @@ export class DclOtaUpdateService {
 
         // THe construction is async and will be enforced when needed
         this.#construction = Construction(this, async () => {
-            this.#storage = new ScopedStorage(
-                (await environment.get(StorageService).open("ota")).createContext("bin"),
-                "ota",
-            );
+            this.#storageManager = await environment.get(StorageService).open("ota");
+            this.#storage = new ScopedStorage(this.#storageManager.createContext("bin"), "ota");
         });
     }
 
@@ -81,6 +81,10 @@ export class DclOtaUpdateService {
     get storage() {
         this.construction.assert();
         return this.#storage!;
+    }
+
+    async close() {
+        await this.#storageManager?.close();
     }
 
     /**
