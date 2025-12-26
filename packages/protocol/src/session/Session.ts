@@ -201,16 +201,11 @@ export abstract class Session {
     /**
      * Allows updating the Session timing parameters based on received information from the peer during PASE/CASE initialization
      */
-    set timingParameters(params: Partial<SessionIntervals>) {
-        if (params.idleInterval !== undefined) {
-            this.idleInterval = params.idleInterval;
-        }
-        if (params.activeInterval !== undefined) {
-            this.activeInterval = params.activeInterval;
-        }
-        if (params.activeThreshold !== undefined) {
-            this.activeThreshold = params.activeThreshold;
-        }
+    set timingParameters(intervals: Partial<SessionIntervals>) {
+        const { idleInterval, activeInterval, activeThreshold } = SessionIntervals(intervals);
+        this.idleInterval = idleInterval;
+        this.activeInterval = activeInterval;
+        this.activeThreshold = activeThreshold;
     }
 
     abstract isSecure: boolean;
