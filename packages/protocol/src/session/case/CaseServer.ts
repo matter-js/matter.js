@@ -87,6 +87,11 @@ export class CaseServer implements ProtocolHandler {
 
         const context = new Sigma1Context(this.#fabrics.crypto, messenger, sigma1Bytes, sigma1, resumptionRecord);
 
+        // Update the session timing parameters with the just received ones to optimize the session establishment
+        if (sigma1.initiatorSessionParams !== undefined) {
+            messenger.channel.session.timingParameters = sigma1.initiatorSessionParams;
+        }
+
         // Attempt resumption
         if (await this.#resume(context, messenger.channel.channel)) {
             return;
@@ -133,7 +138,7 @@ export class CaseServer implements ProtocolHandler {
             return false;
         }
 
-        // All good! Create secure session
+        // Create a secure session
         const responderSessionId = await this.#sessions.getNextAvailableSessionId();
         const secureSessionSalt = Bytes.concat(cx.peerRandom, cx.peerResumptionId);
         const secureSession = await this.#sessions.createSecureSession({

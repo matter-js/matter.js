@@ -71,6 +71,11 @@ export class PaseClient {
             throw new UnexpectedDataError("Missing requested PbkdfParameters in the response. Commissioning failed.");
         }
 
+        // Update the session timing parameters with the just received ones to optimize the session establishment
+        if (responderSessionParams !== undefined) {
+            exchange.session.timingParameters = responderSessionParams;
+        }
+
         // This includes the Fallbacks for the session parameters overridden by what was sent by the device in PbkdfResponse
         const peerSessionParameters = {
             ...exchange.session.parameters,

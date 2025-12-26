@@ -25,6 +25,7 @@ import {
 import { SessionClosedError } from "#protocol/errors.js";
 import { MessageChannel } from "#protocol/MessageChannel.js";
 import type { MessageExchange } from "#protocol/MessageExchange.js";
+import { SessionIntervals } from "#session/SessionIntervals.js";
 import type { NodeId, TypeFromPartialBitSchema } from "#types";
 import type {
     DecodedMessage,
@@ -58,9 +59,9 @@ export abstract class Session {
     readonly #exchanges = new Set<MessageExchange>();
     protected deferredClose = false;
 
-    protected readonly idleInterval: Duration;
-    protected readonly activeInterval: Duration;
-    protected readonly activeThreshold: Duration;
+    protected idleInterval: Duration;
+    protected activeInterval: Duration;
+    protected activeThreshold: Duration;
     protected readonly dataModelRevision: number;
     protected readonly interactionModelRevision: number;
     protected readonly specificationVersion: number;
@@ -195,6 +196,16 @@ export abstract class Session {
             supportedTransports,
             maxTcpMessageSize,
         };
+    }
+
+    /**
+     * Allows updating the Session timing parameters based on received information from the peer during PASE/CASE initialization
+     */
+    set timingParameters(intervals: Partial<SessionIntervals>) {
+        const { idleInterval, activeInterval, activeThreshold } = SessionIntervals(intervals);
+        this.idleInterval = idleInterval;
+        this.activeInterval = activeInterval;
+        this.activeThreshold = activeThreshold;
     }
 
     abstract isSecure: boolean;

@@ -146,6 +146,11 @@ export class PaseServer implements ProtocolHandler {
 
         const responderSessionParams = this.sessions.sessionParameters;
 
+        // Update the session timing parameters with the just received ones to optimize the session establishment
+        if (initiatorSessionParams !== undefined) {
+            messenger.channel.session.timingParameters = initiatorSessionParams;
+        }
+
         const responsePayload = await messenger.sendPbkdfParamResponse({
             initiatorRandom,
             responderRandom,
