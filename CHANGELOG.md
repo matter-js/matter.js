@@ -12,7 +12,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 ### **WORK IN PROGRESS**
 
 - Breaking: matter.js now requires node.js 20.19+ or 22.13+ or 24.0+ (LTS versions). Node.js 18.x is no longer supported.
-- Breaking: Because of the upgrade to TypeScript 5.9 all usages of Uint8Array were changed to use a more convenient own type alias Bytes
+- Breaking: Because of the upgrade to TypeScript 5.9, all usages of Uint8Array were changed to use a more convenient own type alias Bytes
 - Breaking: Matter 1.4.2 no longer specifies reasonable defaults for many fields, so you may find new places where you need to manually supply an attribute value
 - Breaking: The default Node.js storage manager (`StorageBackendDisk`) was optimized for performance which requires not opening multiple storages for the same ID at the same time. So check your usage of `StorageService`, if you use it directly too.
 
@@ -25,17 +25,18 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: SyncStorage interface got removed
     - Breaking: MaybeAsyncStorage got renamed to Storage because it is the only interface from now on
     - Breaking: Some central services, especially MdnsService, are now tracked automatically by usages and will close correctly when no longer needed. Closing MdnsService manually is not needed anymore.
-    - Breaking: The types for observables with synchronous emitters no longer accept async observers.  Most observables are async but if you encounter a type error you need to track your promise outside of the observable
+    - Breaking: The types for observables with synchronous emitters no longer accept async observers.  Most observables are async but if you encounter a type error you need to track your promise outside the observable
     - Feature: Adds Blob support to the Storage interface
     - Feature: Add BDX (Bulk Data eXchange) protocol support according to Matter specification
     - Feature: Added support for multiple hash algorithms (SHA-256, SHA-384, SHA-512, SHA-512/224, SHA-512/256, SHA3-256) via HashAlgorithm enum with IANA identifiers
     - Enhancement: Enhanced Crypto.computeHash() to support streaming data via ReadableStreamDefaultReader and AsyncIterator in addition to Bytes and Bytes[] for memory-efficient hash computation
-    - Enhancement: Added platform abstractions for of HTTP, WebSockets and MQTT
+    - Enhancement: Added platform abstractions for of HTTP, WebSockets, and MQTT
     - Enhancement: Added polyfills and additional types for decorators
-    - Enhancement: Split out access to random values from Crypto interface to an Entropy interface
+    - Enhancement: Split out access to random values from the Crypto interface to an Entropy interface
     - Enhancement: Added support for shared Environment services by tracking usages and closing when the last user is gone
     - Enhancement: Specializes `camelize()` to stop processing when $ is reached to better handle special names for custom clusters
-    - Enhancement: Convert PromiseQueue to Semaphore with obtain/release approach
+    - Enhancement: Convert PromiseQueue to Semaphore with the obtain / release approach
+    - Enhancement: Update Session timing parameters during CASE/PASE as delivered by the peer already during session establishments
     - Fix: Ensures that StandaloneAck messages are always considering the corresponding Secure channel protocol ID
 
 - @matter/model
@@ -46,11 +47,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Breaking: `Endpoint` and `Node` initialization values now require the correct type for some time values and IDs. So for example, `VendorId(1234)` instead of just `1234`
-    - Breaking: `SubscriptionBehavior` is renamed to `SubscriptionsServer` with corresponding ID change to "subscriptions". This means in part that matter.js will ignore saved subscriptions but devices will recreate them automatically
+    - Breaking: `SubscriptionBehavior` is renamed to `SubscriptionsServer` with corresponding ID change to "subscriptions". This means in part that matter.js will ignore saved subscriptions, but devices will recreate them automatically
     - Breaking: The `agentFor` method of `ActionContext` has moved to `Endpoint`. You likely do not use this directly but if you do you must change `context.agentFor(endpoint)` to `endpoint.agentFor(context)`
     - Breaking: We have refactored the `ActionContext` class to better delineate fields that apply to operations triggered locally vs those triggered by authenticated peers. `ActionContext` may be a `RemoteActorContext` or `LocalActorContext`. You can determine the actor type and access relevant fields using new type guards `hasRemoteActor` or `hasLocalActor` and new type assertion `assertRemoteActor`. These replace the former `offline` field of `ActionContext`
     - Breaking: The `FabricAction` enum emitted by CommissioningServer is replaced with a simple string type
-    - Feature: matter.js now natively supports remote access to Matter nodes via non-Matter protocols. You can add `HttpServer`, `WebSocketServer` and/or `MqttServer` to your `ServerNode` to enable HTTP, WebSocket and MQTT access respectively
+    - Feature: matter.js now natively supports remote access to Matter nodes via non-Matter protocols. You can add `HttpServer`, `WebSocketServer` and/or `MqttServer` to your `ServerNode` to enable HTTP, WebSocket, and MQTT access respectively
     - Feature: You can now use Ecma TC39 stage 3 decorators to customize the schema associated with a `Behavior` implementation
     - Feature: New `StateStream` component offers a high-level API for monitoring changes across multiple nodes
     - Feature: Add default implementation for the `Thermostat` cluster according to Matter 1.4.2 specification. All features except MSCH and SB (which is considered provisional) are implemented. See the `ThermostatServer` class for details.
@@ -96,7 +97,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: MDNS and BLE advertising schedules are now configurable and conform to Matter and DNS-SD specifications
     - Enhancement: MDNS client and server efficiency is improved with a shared socket and message parser
     - Enhancement: MDNS Truncated Queries are now handled correctly
-    - Enhancement: matter.js no longer uses SO_REUSEADDR on the Matter port so you can no longer accidentally start two nodes at the same address simultaneously
+    - Enhancement: matter.js no longer uses SO_REUSEADDR on the Matter port, so you can no longer accidentally start two nodes at the same address simultaneously
     - Enhancement: Increases the limitation of parallel exchanges when sending messages to 30 (was 5 before)
     - Enhancement: Migrate Commissioning Flow to ClientInteraction as bases
     - Enhancement: FabricAuthority automatically rotates the operational Fabric NOC key pair on start once (for Controller cases)
@@ -105,7 +106,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Controller networking was previously throwing the incorrect error after a communication timeout
     - Fix: Ensures to only include the MaxTcpMessageSize in Session parameters when TCP is enabled
     - Fix: Fixes the used ACL level for wildcard writes
-    - Fix: (@ArtemisMucaj) Fixes noc trust chain verification; verify against both rcac and icac
+    - Fix: (@ArtemisMucaj) Fixes noc trust chain verification; verify against both RCAC and ICAC if present
 
 - @matter/react-native
     - Fix: (Luxni) Update UDP, BLE and Crypto usage to work with React Native
@@ -120,13 +121,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: PairedNode attribute change callbacks and events does _not_ contain the `changed` and `oldValue` properties anymore
     - Breaking: Some PairedNode API methods got slightly reduced in functionality, but that should not affect most users
     - Breaking: The Storage location of the controller base data has moved. The data will be migrated automatically on the first start of the new version (be aware, this can take some seconds!)
-      - Cached node attribute data (formerly "node-<ID>.*" in main storage) are now located in nodes.peerX.endpoints.* because they are now managed
+      - Cached node attribute data (formerly `node-<ID>.*` in the main storage) are now located in `nodes.peerX.endpoints.*` because they are now managed
       - The fabric (formerly "credentials.fabric") is now located at "fabrics.*"
-      - The certificates (formerly other "credentials.*") are now located in "certificates.*"
+      - The certificates (formerly other `credentials.*`) are now located in `certificates.*`
       - The list of commissioned nodes (formerly "nodes.commissionedNodes") is now integrated in the node peer data (nodes.peerX)
     - Feature: Added new option `enableOtaProvider` to `CommissioningControllerOptions` to enable OTA Provider functionality
-    - Enhancement: The PairedNode is data wise now backend by a ServerNode instance which acts as controller and provides all datamanagement and peer access. This API can alredy be moved directly by using `PairedNode.node` - some convenience methods are also dorectly mapped on the PairedNode itself (see below). initial connection and reconnection management is still handled by PairedNode and will move later.
-    - Enhancement: Added more convenient accessors for endpoint cached read-only state: `Endpoint.state` property for attributes for all clusters in generic way and `Endpoint.stateOf()` for a typed access for a defined Client behavior
+    - Enhancement: The PairedNode is data wise now backend by a ServerNode instance which acts as controller and provides all data management and peer access. This API can alredy be moved directly by using `PairedNode.node` - some convenience methods are also dorectly mapped on the PairedNode itself (see below). initial connection and reconnection management is still handled by PairedNode and will move later.
+    - Enhancement: Added more convenient accessors for endpoint cached read-only state: `Endpoint.state` property for attributes for all clusters in generic way and `Endpoint.stateOf()` for typed access for a defined Client behavior
     - Enhancement: Added more convenient accessors for endpoint commands: `Endpoint.commands` property for commands for all clusters in generic way and `Endpoint.commandsOf()` for a types access for a defined Client behavior
     - Enhancement: Added `PairedNode.parts` and `Endpoint.parts` as Map property to access all endpoints of a node
     - Enhancement: Added `PairedNode.state`, `PairedNode.stateOf()`, `PairedNode.commands` and `PairedNode.commandsOf()` to access all endpoints of te root endpoint in a more convenient way
@@ -158,7 +159,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Fixes Fabric scoped event reads to ensure the filtering is applied correctly
 
 - @project-chip/matter.js
-    - Fix: Initializes controller into an own environment instead using the provided environment
+    - Fix: Initializes controller into an own environment instead of using the provided environment
     - Fix: Ensure that the PairedNode meta-data are updated and stored when changed
 
 ## 0.15.5 (2025-10-07)
@@ -166,13 +167,13 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/general
     - Enhancement: Accept all variants of MDNS responses, also non-authoritative ones
     - Fix: Adds safeguard check to prevent a crash seen when handling DNS messages
-    - Fix: (TheNetStriker) Ensure all log destination get all logs
+    - Fix: (TheNetStriker) Ensure all log destinations get all logs
 
 - @matter/nodejs
     - Fix: Corrects network interface selection logic for windows
 
 - @matter/protocol
-    - Fix: Ignoring existing Pase sessions in closing state when establishing a new PASE session
+    - Fix: Ignoring existing Pase sessions in the closing state when establishing a new PASE session
     - Fix: Includes FabricIndex when storing resumption records to prevent issues with NodeId collisions
 
 - @project-chip/matter.js
@@ -185,8 +186,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## 0.15.4 (2025-09-20)
 
 - @matter/protocol
-    - Fix: Fixes an issue that prevented cached attribute data to be updated correctly
-    - Fix: Allow to also trigger attribute updates when initial read before subscription had updated attributes
+    - Fix: Fixes an issue that prevented cached attribute data from being updated correctly
+    - Fix: Allow also triggering attribute updates when initially read before the subscription had updated attributes
 
 - @matter/node
     - Fix: (rsulzenbacher) Adjusted OnOffServer default implementation for offWaitTime to be fully compliant to 1.4.1 spec
@@ -194,16 +195,16 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## 0.15.3 (2025-08-01)
 
 - @matter/protocol
-    - Fix: Update Dataversions in attribute data cache also when data are all the same to make sure Dataversion filters work correctly
+    - Fix: Update data versions in the attribute data cache also when data are all the same to make sure data version filters work correctly
 
 - @project-chip/matter.js
     - Fix: Makes sure to set the initialized states before emitting the Connected event to prevent edge cases
-    - Fix: Fixes an issue that prevented cached attribute data to be used for node connections
+    - Fix: Fixes an issue that prevented cached attribute data from being used for node connections
 
 ## 0.15.2 (2025-07-27)
 
 - @matter/examples
-    - Fix: Initializes default attributes for ElectricalEnergyMeasurement cluster to enable them in MeasuredSocketDevice example
+    - Fix: Initializes default attributes for ElectricalEnergyMeasurement cluster to enable them in the MeasuredSocketDevice example
 
 - @matter/general
     - Fix: Fixes regression for transactions with async post-commit
@@ -218,7 +219,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/nodejs-shell
     - Enhancement: Always query the node when reading attributes from remote, ignores internal checks for attribute existence
-    - Enhancement: Allows ignoring internal checks for attribute existence on write interactions using new --force parameter
+    - Enhancement: Allows ignoring internal checks for attribute existence on write interactions using the new -- force parameter
 
 - @matter/types
     - Fix: (ArtemisMucaj) Fixes StringSchema validation to allow longer content than 1024 octets
@@ -234,7 +235,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## 0.15.0 (2025-06-27)
 
 - @matter/\*
-    - Feature: Implement Matter Groups support in protocol, node and (partly) controller packages
+    - Feature: Implement Matter Groups support in protocol, node, and (partly) controller packages
 
 - @matter/general
     - Breaking: The `Network.get()` singleton is removed
@@ -244,7 +245,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Fixes encoding of special IPv6 addresses in DNS-SD records
 
 - @matter/model
-    - (@FlyingNebulae) Fix: Allow aspectCache to also work when source got transpiled without keeping variable names
+    - (@FlyingNebulae) Fix: Allow aspectCache to also work when a source got transpiled without keeping variable names
 
 - @matter/node
     - Enhancement: Ensures behavior event `interactionBegin` to fire at the begin of an interaction as soon as the datasource is about to be changed on a behavior
@@ -267,14 +268,14 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## 0.14.0 (2025-06-04)
 
-- NOTE: This version is compatible with Node.js 20.x, 22.x and 24.x. Node.js 18.x is also supported with the following exceptions:
-    - The matter.js tools for building and running test and applications (matter-\*) which are mainly used by the npm scripts which use the "commander" dependency.
+- NOTE: This version is compatible with Node.js 20.x, 22.x, and 24.x. Node.js 18.x is also supported with the following exceptions:
+    - The matter.js tools for building and running tests and applications (matter-\*) which are mainly used by the npm scripts which use the "commander" dependency.
 
 - @matter/\*
     - Upgraded to Matter specification version 1.4.1
 
 - @matter/general
-    - Feature: Logger allows to use a function as log value which is only executed when the log level matches
+    - Feature: Logger allows using a function as a log value which is only executed when the log level matches
     - Enhancement: Enhanced error classes and handling
 
 - @matter/node
@@ -321,9 +322,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/model
     - Feature: We no longer load data model fields that are not required for operational purposes by default. You can load `@matter/model/resources` to populate the model with these fields. This saves a significant amount of memory for nodes
-    - Enhancement: Model elements now instantiates with a reduced number of fields and object shapes to reduce memory usage and decrease the likelihood of megamorphic function deoptimization in runtimes with a JIT
-    - Enhancement: We have optimized resolution of global datatypes in the Matter model. This reduces startup for large nodes such as bridges with many devices
-    - Enhancement: The serialized model now stores cross references as strings and parses as necessary
+    - Enhancement: Model elements now instantiate with a reduced number of fields and object shapes to reduce memory usage and decrease the likelihood of megamorphic function deoptimization in runtimes with a JIT
+    - Enhancement: We have optimized the resolution of global datatypes in the Matter model. This reduces startup for large nodes such as bridges with many devices
+    - Enhancement: The serialized model now stores cross-references as strings and parses as necessary
     - Enhancement: FieldModel now contains a dedicated `title` field to capture the full name of features
 
 - @project-chip/matter.js
@@ -331,7 +332,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## 0.13.0 (2025-04-28)
 
-- NOTE: This version is compatible with Node.js 20.x, 22.x and 24.x. Node.js 18.x might be unsupported for BLE if installed before 20.05.2025 because the BLE libraries we use (noble/bleno) were temporarily only compatible with Node.js 20+. This is fixed for bleno >= 0.11.4 and noble >= 2.3.1.
+- NOTE: This version is compatible with Node.js 20.x, 22.x, and 24.x. Node.js 18.x might be unsupported for BLE if installed before 20.05.2025 because the BLE libraries we use (noble/bleno) were temporarily only compatible with Node.js 20+. This is fixed for bleno >= 0.11.4 and noble >= 2.3.1.
 
 - IMPORTANT: This release upgrades Matter support from Matter 1.3 to the latest release, Matter 1.4.0. This includes BREAKING CHANGES in a number of areas due to specification changes. For the most part these changes are transparent because they involve low-level APIs, implicit type names, or Matter features that were never adopted elsewhere. However, some small code changes may be necessary depending on how you use Matter.js or when Datatypes or elements got renamed.
     - Especially please note that `colorTempPhysicalMinMireds` and `colorTempPhysicalMaxMireds` now need to be set when using ColorControl because the former unrealistic default values were removed from the specification. Please set proper values for your device Hint: realistic color temperature Mireds values are usually roughly between 150 (6500K) and 500 (2000K).
@@ -347,12 +348,12 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/general
     - Breaking: `Logger.logger` is replaced with `Logger.destinations`. Properties of individual destinations are slightly different. A deprecated compatibility API should make this largely transparent
-    - Feature: Logging destinations may process `Diagnostic.Message` directly and bypass matter.js's formatting
+    - Feature: Logging destinations may process `Diagnostic.Message` directly and bypass matter.js formatting
     - Feature: Log formatting is now extensible with custom formats
     - Feature: `QuietObservable` is an extended event source that emits events at reduced frequency based on configuration
     - Enhancement: Formalized concept of a logging "destination" and converted API for managing destinations to a simple object interface
     - Enhancement: Modifying log levels and format using the `Logger` static interface now updates defaults and applies changes to all destinations
-    - Enhancement: Transaction participants no longer need implement commit-related methods if they do not participate in persistence
+    - Enhancement: Transaction participants no longer need to implement commit-related methods if they do not participate in persistence
     - Enhancement: Missing IPv4 addresses on network interfaces are now ignored even if IPv4 is not disabled via configuration
     - Fix: Correctly handle MDNS records without QNames
 
@@ -364,25 +365,25 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: The Default `LevelControlServer` implementation no longer has the "OnOff" feature enabled by default! Please enable manually when the relevant device type where the cluster is used in requires it or use the Requirement-classes like `DimmedLightRequirements.LevelControlServer` to get the correct features enabled automatically.
     - Breaking: `LevelControlServer` API has a few small changes that may affect device implementors. Most notably the `setLevel` method is replaced with `transition` which handles both immediate and gradual level shifts
     - Breaking: Removed Implementation Logic for the "AbsolutePosition" Feature in WindowCovering default implementation because this is a forbidden (Zigbee) Feature anyway that no-one should use!
-    - Breaking: The DoorLock cluster attribute `supportedOperatingModes` bitmap requires to clear bits for supported modes. To allow to set this bitmap correctly we added a helper bit-range `alwaysSet` (with value 2047) to set the unused bits. Please make sure to set the correct bits for your device according to the specification meaning.
-    - Breaking: All default implementations now are async (as before if needed) or expose as MaybePromise to allow async or sync overriding. Ideally this does not change anything for custom implementations but check for returned promises when calling "super" methods.
+    - Breaking: The DoorLock cluster attribute `supportedOperatingModes` bitmap requires clearing bits for supported modes. To allow to set this bitmap correctly we added a helper bit-range `alwaysSet` (with value 2047) to set the unused bits. Please make sure to set the correct bits for your device according to the specification meaning.
+    - Breaking: All default implementations now are async (as before if needed) or expose as MaybePromise to allow async or sync overriding. Ideally this does not change anything for custom implementations but checks for returned promises when calling "super" methods.
     - Feature: `Transitions` utility class offers a flexible API for implementing Matter attributes that change gradually at a constant rate
     - Feature: Attributes marked as `Q` (quieter) quality now support an extended `quiet` property that controls how often and when they emit. By default `Q` attributes emit once per second
     - Feature: `LevelControlServer` and `ColorControlServer` performs smoother transitions with configurable transition step sizes and Matter 1.4-compliant event emitting. It offers several new extension points for integrating with hardware and bridged devices
     - Feature: Added support for the ActionSwitch feature for the `SwitchServer` default implementation
     - Feature: Added basic validation for all ModeBase derived \*Mode clusters
     - Feature: Added basic validation for OperationalState and derived \*OperationalState clusters
-    - Feature: Added basic validation and logic for ServiceArea cluster
+    - Feature: Added basic validation and logic for the ServiceArea cluster
     - Enhancement: `OccupancySensingServer` is automatically filling some legacy attributes when features are correctly set as required by new revision 5 of the cluster
     - Enhancement: Event handling has received additional formality. The node now ensures that async handlers register as tasks with the node. Error logging contains more detail on the source of errors
     - Enhancement: `$Changed` events now run in a separate context from the emitter and errors will not interfere with the emitter
     - Fix: Switched "boot time" to be the time the node comes online instead of the time the OS started
-    - Fix: Fixed patching of arrays to correctly allow to set arrays with fewer elements than the original array using `set()`
+    - Fix: Fixed patching of arrays to correctly allow setting arrays with fewer elements than the original array using `set()`
 
 - @matter/nodejs
-    - Breaking: The StorageBackendDisk class got removed including the "node-localstorage" dependency, but the name got reused and so the "StorageBackendDiskAsync" is now "StorageBackendDisk".
+    - Breaking: The StorageBackendDisk class got removed, including the "node-localstorage" dependency, but the name got reused and so the "StorageBackendDiskAsync" is now "StorageBackendDisk".
     - Enhancement: Added a UDP send guard to reject hanging send calls after maximum 1-2s
-    - Fix: Improves async storage reliability and error handling to prevent empty storage files in crashing edge cases. With this change write actions need a bit longer but are more reliable, which mainly effects controller use cases when persisting the device attribute data on first subscribe
+    - Fix: Improves async storage reliability and error handling to prevent empty storage files in crashing edge cases. With this change write actions need longer a bit but are more reliable, which mainly affects controller use cases when persisting the device attribute data on the first subscription
     - Fix: Also accept incoming UDP traffic from unknown network interfaces for Matter messages
 
 - @matter/nodejs-ble
@@ -393,10 +394,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Prevents crash on startup when having set a Fabric label in config
 
 - @matter/protocol
-    - Breaking: `updateReceived()` callback on subscriptions is triggered after all updated data event are sent out.
+    - Breaking: `updateReceived()` callback on subscriptions is triggered after all updated data events are sent out.
     - Feature: Enhanced `getMultipleAttributesAndEvents()` to also return attributeStatus and eventStatus properties with errors returned from the read interaction
-    - Feature: Added `getMultipleAttributesAndStatus()` and `getMultipleEventsAndStatus()` to InteractionClient to allow to also returned attribute and event errors from the read interaction
-    - Enhancement: Allows to access attributes, events and commands in CLusterClient instances also by their ID.
+    - Feature: Added `getMultipleAttributesAndStatus()` and `getMultipleEventsAndStatus()` to InteractionClient to allow also returning attribute and event errors from the read interaction
+    - Enhancement: Allows accessing attributes, events, and commands in CLusterClient instances also by their ID.
     - Enhancement: Makes sure that the Node ID for commissioning of a new node is not already commissioned.
     - Enhancement: Returns the maximum interval in seconds when InteractionClient is used to establish a subscription
     - Fix: Makes sure to not Forward StatusResponseError cases that we generate locally to the device when not wanted
@@ -405,15 +406,15 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Informs the device when Controller cancels pairing because of a wrong passcode to allow direct retries
 
 - @project-chip/matter.js
-    - Breaking: Reduced exports to the relevant one for Controller usage. Please move for @matter/main for the rest.
-    - Breaking: Remove the Legacy Device building API. Please use the new SeverNode based API which is more flexible and powerful.
+    - Breaking: Reduced exports to the relevant one for Controller usage. Please use @matter/main for the rest.
+    - Breaking: Remove the Legacy Device building API. Please use the new SeverNode-based API, which is more flexible and powerful.
     - Breaking: Changed signatures of `commissionNode()` and `createInteractionClient()` to provide options as object and not plain parameters
-    - Breaking: The handling of the `requestFromRemote` parameter (first parameter) in get\*Attribute methods in ClusterClients changed behavior! providing "false" will now never try to read from remote, "true" will always try to read from remote and "undefined" will use the default behavior (read from remote if not available locally or fabric scoped read). Only relevant if you used this parameter with value "false". Other use cases stay unchanged.
-    - Feature: Allows to use a custom Root-NodeId, CertificateAuthority or CommissioningFlow implementation in the Controller
-    - Feature: Allows to establish a secure PASE session to a device and use this to interact with the device in special pre-commissioning cases.
+    - Breaking: The handling of the `requestFromRemote` parameter (first parameter) in get\*Attribute methods in ClusterClients changed behavior! providing "false" will now never try to read from remote, "true" will always try to read from remote and "undefined" will use the default behavior (read from remote if not available locally or fabric scoped read). Only relevant if you used this parameter with the value "false". Other use cases stay unchanged.
+    - Feature: Allows using a custom Root-NodeId, CertificateAuthority, or CommissioningFlow implementation in the Controller
+    - Feature: Allows establishing a secure PASE session to a device and use this to interact with the device in special pre-commissioning cases.
     - Enhancement: Exposing the current Subscription Interval on `PairedNode::currentSubscriptionIntervalSeconds()
     - Enhancement: Adjusted the initial Device connection to Read-All before subscribing to also have initial values for not-changed attributes
-    - Enhancement: Added new PairedNode event `connectionAlive` to expose the subscription alive triggers (on changes or after max interval)
+    - Enhancement: Added new PairedNode event `connectionAlive` to expose the subscription-alive triggers (on changes or after max interval)
     - Fix: Fixes an edge case in reconnection handling
 
 - @project-chip/\* packages (beside above)
@@ -442,13 +443,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Added preparations for optimized node read handling
 
 - @matter/protocol
-    - Feature: Allows to re-establish subscriptions after a restart
+    - Feature: Allows re-establishing subscriptions after a restart
     - Enhancement: Optimized Report Data message chunking
     - Fix: Handles errors when setting fabric label during commissioning as non-critical for the commissioning flow
     - Fix: Ensure to use persisted CaseAdminTags when re-establishing a CASE session from the device side
     - Fix: Fixed another place with a Noc/ICA Fabric-ID validation issue
     - Fix: Fixes Session and Channel deletion in some cases
-    - Fix: Properly handle read requests with no attributes and events and just return an empty result
+    - Fix: Properly handle read requests with no attributes and events and return an empty result
 
 - @project-chip/matter.js
     - Cleanup: Deprecated some methods fof the CommissioningController and pairedNode to better define the best practice interfaces to use
@@ -458,14 +459,14 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/protocol
     - Fix: Reduced some over-exact certificate validation to unblock Aqara commissioning
     - Fix: Prevented issues where closing subscriptions could block the session closing or establishing new subscriptions
-    - Fix: Prevented to establish new exchanges while shutting down Exchange Manager
+    - Fix: Prevented establishing new exchanges while shutting down Exchange Manager
 
 ## 0.12.2 (2025-02-01)
 
 - @matter/node
     - Enhancement: Added support to check all device types of an endpoint against ACL definition and not only primary one
     - Enhancement: Optimized data handling for subscriptions by reading them endpoint wise to optimize memory usage and to reuse the used context
-    - Adjustment: Refactored ACL logic to just get relevant endpoint information instead a whole EndpointInterface
+    - Adjustment: Refactored ACL logic to just get relevant endpoint information instead of a whole EndpointInterface
 
 - @matter/nodejs
     - Fix: Added Workaround for IP family confusion in Node.js 18.0.0 till 18.3.0
@@ -486,7 +487,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## 0.12.0 (2025-01-23)
 
 - @matter/general
-    - Enhancement: Limits MDNS expires just to te relevant operational records when removing a fabric
+    - Enhancement: Limits MDNS expires just to the relevant operational records when removing fabric
 
 - @matter/model
     - Feature: The constraint evaluator now supports simple mathematical expressions
@@ -500,8 +501,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Fixes withBehaviors() method on endpoints
 
 - @matter/nodejs
-    - Breaking: Also the Sync Storage classes mainly used in legacy API now have an async close method!
-    - Fix: Converts commissioning.fabrics into dynamically generated property to ensure it is up to date when accessed
+    - Breaking: The Sync Storage classes mainly used in legacy API now have an async close method!
+    - Fix: Converts `commissioning.fabrics` into dynamically generated property to ensure it is up to date when accessed
 
 - @matter/nodejs-ble
     - Enhancement: Restructures BLE connection handling to improve reliability and eliminate hanging commissioning processes
@@ -509,7 +510,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Added workaround for Noble on Windows to prevent discovery issues
     - Fix: Considers formerly discovered devices as outdated when new discovery is started
 - @matter/protocol
-    - Feature: Reworks Event server handling and optionally allow Non-Volatile event storage (currently mainly used in tests)
+    - Feature: Reworks Event server handling and optionally allows Non-Volatile event storage (currently mainly used in tests)
     - Enhancement: Adds a too-fast-resubmission guard for Unicast MDNS messages
     - Enhancement: Optimized Logging for messages in various places
     - Enhancement: Added support for concurrent and non-concurrent commissioning flows
@@ -518,19 +519,19 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Corrects some Batch invoke checks and logic
     - Fix: Fixes MDNS discovery duration for retransmission cases to be 5s
     - Fix: Processes all TXT/SRV records in MDNS messages and optimized the processing
-    - Fix: Prevents multi message interactions from trying to continue on new exchange
+    - Fix: Prevents multi-message interactions from trying to continue on a new exchange
     - Fix: Fixes the timed node polling during discovery
     - Fix: Fixes commissionable devices discovery with timeout
     - Fix: Restores the possibility to cancel a (continuous) discovery for commissionable devices
     - Fix: Fixes enablement of MDNS broadcasts when BLE commissioning is used
 
 - @project-chip/matter.js
-    - Feature: (Breaking) Added Fabric Label for Controller as required property to initialize the Controller
+    - Feature: (Breaking) Added Fabric Label for Controller as a required property to initialize the Controller, 
       including setting the Fabric Label when commissioning and validating and updating the Fabric Label on
       connection
-    - Feature: Added autoConnect property to node connection options to allow to not automatically connect to a node when PairedNode instance is created. Also introduces a non-blocking PairedNode.connect() method to connect to a node
+    - Feature: Added autoConnect property to node connection options to allow not automatically connecting to a node when the PairedNode instance is created. Also introduces a non-blocking PairedNode.connect() method to connect to a node
     - Feature: Added CommissioningController.getNode() method to get a PairedNode instance for a node by its node ID without a direct connection
-    - Feature: Allows to update the Fabric Label during controller runtime using `updateFabricLabel()` on CommissioningController
+    - Feature: Allows updating the Fabric Label during controller runtime using `updateFabricLabel()` on CommissioningController
     - Enhancement: Improves Reconnection Handling for devices that use persisted subscriptions
     - Enhancement: Use data type definitions from Model for Controller Device type definitions
     - Enhancement: Added `remove*Listener()` to ClusterClient objects to remove listeners added with `add*Listener()` or `subscribe*()` (The subscription is not cleared!)
@@ -545,20 +546,20 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: EventsBehavior allows for configuration of event buffering
     - Enhancement: Matter protocol initialization now runs independently of and after behavior initialization, giving behaviors more flexibility in participating in protocol setup
     - Fix: ColorControl: Do not try to convert color mode details if they are not defined
-    - Fix: ColorControl: colorMode attribute needs to be defined if HS feature is not used because the default value 0 is else invalid
+    - Fix: ColorControl: colorMode attribute needs to be defined if the HS feature is not used because default value 0 is else invalid
 
 - @matter/protocol
-    - Fix: Also retry next discovered address when a Channel establishment error for PASE occurs
+    - Fix: Also retry the next discovered address when a Channel establishment error for PASE occurs
     - Fix: Optimizes MDNS cache handling to prevent too early cache invalidation
 
 - @matter/types
     - Enhancement: Deprecated fields are now also usable and just flagged as deprecated on generated code
-    - Enhancement: Removes default value from attribute ColorMode of ColorControl cluster because feature specific enum value was used
+    - Enhancement: Removes the default value from the attribute ColorMode of ColorControl cluster because feature specific enum value was used
 
 - @project-chip/matter.js
     - BREAKING: In `ContentLauncher` cluster `ParameterEnum` is renamed to `Parameter` and `Parameter` is renamed to `ParameterStruct`
     - Feature: Introduces PairedNode#triggerReconnect() method to trigger a reconnection
-    - Enhancement: Considers a node in reconnection state that should be decommissioned as already factory reset
+    - Enhancement: Considers a node in the reconnection state that should be decommissioned as already factory reset
     - Enhancement: Optimizes reconnection handling in Controller API
     - Fix: Do not try to convert color mode details if they are not defined
     - Fix: Clusters generated for extensions of base clusters such as Alarm Base and Mode Base now include full details of extended types; in particular extended enums such as Mode Tag were previously insufficiently defined
@@ -583,7 +584,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Correctly parse DataReports with duplicate non-Array data entries
 
 - @matter/node
-    - Fix: Ensures to completely remove all stored endpoint data when endpoint is deleted
+    - Fix: Ensures to completely remove all stored endpoint data when the endpoint is deleted
 
 - Matter cluster definitions and implementations
     - Fix: Fixes LevelControl cluster extension point definitions and adds a missing parameter
@@ -602,7 +603,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Fixes a typo and crash case on network closing when ending the matter.js process
 
 - @matter/protocol
-    - Fix: Adds missing subscription update when endpoint structure changes
+    - Fix: Adds missing subscription update when the endpoint structure changes
 
 - @matter/types
     - Fix: Do not use revisions of 0 for Unknown fallbacks
@@ -610,33 +611,33 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## 0.11.5 (2024-11-25)
 
 - @matter/create
-    - Feature: Added command line option "--verbose" to enable informational NPM messages during initialization
+    - Feature: Added a command line option "--verbose" to enable informational NPM messages during initialization
     - Feature: Added template "contributor" to bootstrap dev environment for working on matter.js itself
 
 - @matter/node
     - Enhancement: The `with` functions on endpoint and cluster behavior types now alias to `withBehaviors` and `withFeatures` respectively to make their function more explicit
     - Enhancement: Endpoints now ignore persisted values for clusters when features change across restarts. This allows for startup when persisted values become invalid due to conformance rules
-    - Fix: Triggers CommissioningServer#initiateCommissioning when server restarts outside of factory reset
-    - Fix: Ensures to initialize all known endpoint numbers to prevent dpuplicate number assignment edge cases
+    - Fix: Triggers CommissioningServer#initiateCommissioning when the server restarts outside of factory reset
+    - Fix: Ensures to initialize all known endpoint numbers to prevent duplicate number assignment edge cases
 
 - @matter/nodejs
     - Feature: New export @matter/nodejs/config allows for fine-grained configuration of Node.js bootstrap logic
     - Fix: Restores backward compatibility to sync storages from matter.js <0.11 in case ideas used special characters (uncommon)
 
 - @matter/protocol
-    - Fix: Corrects the DataVersion Filter shortening logic to ensure maximum message size is not exceeded
+    - Fix: Corrects the DataVersion Filter shortening logic to ensure the maximum message size is not exceeded
 
 - @matter/tools
     - Multi-project test runs now use a single process to improve performance
 
 - Matter cluster definitions and implementations
-    - Enhancement: Removes default value from attribute ControlSequenceOfOperation of Thermostat cluster because feature specific enum value was used
+    - Enhancement: Removes default value from the attribute ControlSequenceOfOperation of Thermostat cluster because a feature-specific enum value was used
     - Fix: Reverts MoveToLevel workaround from 0.11.4
     - Fix: ColorControl: Round calculated Kelvin values when calculated from Mireds
     - Fix: GeneralDiagnostics: Network interface names are now correctly shortened to 32 characters
 
 - matter.js git repository
-    - Feature: We've added project configuration for VS code including recommended extensions, code snippets and launch configurations
+    - Feature: We've added project configuration for VS code including recommended extensions, code snippets, and launch configurations
 
 ## 0.11.4 (2024-11-07)
 
@@ -650,7 +651,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Makes sure that the Async storage waits that all writes are finished in some cases
 
 - @matter/nodejs-ble
-    - Fix: When BLE scanning was not started we also do not need to stop it (and risk blocking issues)
+    - Fix: When BLE scanning was not started, we also did not need to stop it (and risk blocking issues)
 
 - @project-chip/matter-node.js
     - Fix invalid import for compat package
@@ -676,13 +677,13 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - Cross-module changes
     - Info: Matter.js now uses aliases via `package.json` "imports" field. This is an internal change that simplifies imports but should not affect consumers
-    - Info: Previously we used a mix of snake-case and CamelCase for sub-package exports. We have now standardized on snake case. Compatibility packages (see below) continue to support the original module names
+    - Info: Previously we used a mix of a snake-case and CamelCase for sub-package exports. We have now standardized on snake case. Compatibility packages (see below) continue to support the original module names
 
 - @matter/general:
     - Info: General functionality that is not Matter specific previously resided in `@project-chip/matter.js`. It now lives in `@matter/general`
     - BREAKING: The "ByteArray" type is removed, replaced with native-JS Uint8Array and a small collection of utility functions in the "Bytes" namespace
     - Feature: The default "Time" implementation is now fully functional across all standard JS runtimes
-    - Enhancement: Network transports can now self select which the protocols and addresses they support
+    - Enhancement: Network transports can now self-select which the protocols and addresses they support
     - Feature: A new `ObserverGroup` class simplifies binding management for multiple observables
     - Feature: Introduced a new Async Disk key/Value-Storage compatible with the sync one driven by node-localstorage and uses it by default in new API and controller instances
 
@@ -694,7 +695,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Info: Individual elements exported by name are now models (fully functional classes) rather than elements (raw JSON data). This should be backwards compatible but makes them more useful operationally
 
 - @matter/node:
-    - Info: The high-level APIs previously defined in `@project-chip/matter.js` now reside in `@matter/node`. The Node API includes node management, behavior definitions and endpoint definitions
+    - Info: The high-level APIs previously defined in `@project-chip/matter.js` now reside in `@matter/node`. The Node API includes node management, behavior definitions, and endpoint definitions
     - Info: We export behaviors under `@matter/node/behaviors` or individually (e.g. `@matter/node/behaviors/on-off`)
     - Info: We export device type definitions for system endpoints and devices under `@matter/node/endpoints` and `@matter/node/devices` respectively. You may also import these via index or individually
 
@@ -709,7 +710,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/nodejs-shell:
     - Breaking: The Shell Storage was moved to the new approach. Please use "--legacyStorage" on startup to connect with the old storage to get into your old shell history and commissioned devices. Storage migration guide see in the [README.md](./packages/nodejs-shell/README.md#matterjs-v011-storage-adjustment).
     - Feature: Added new shell command "tlv" with TLV decoding and structure logging tooling
-    - Enhancement: Added option to specify if attributes are loaded from remote or locally
+    - Enhancement: Added an option to specify if attributes are loaded from remote or locally
     - Enhancement: The shell now saves a 100 history of commands and restores this on startup
     - Enhancement: Add a "nodes status" command to show the status of all nodes
 
@@ -722,7 +723,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Limits the number of parallel exchanges to 5
     - Enhancement: Uses the session timing details to calculate the timeout for subscription messages when received as client additionally to the subscription maxInterval
     - Enhancement: Internal restructuring of Controller logic and setup. Introducing "peers" (commissioned node on a shared fabric)
-    - Fix: When subscribing with keepSubscriptions === false the existing subscriptions need to be removed earlier in the flow
+    - Fix: When subscribing with keepSubscriptions === false, the existing subscriptions need to be removed earlier in the flow
     - Fix: Clear resumption records also when fabric gets updated or deleted
 
 - @matter/types:
@@ -735,7 +736,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/cli-tool:
     - Feature: This new package offers a specialized JS environment for interacting with Matter and matter.js
     - The "matter" command supports standard JS syntax and a "shell" style syntax that emulates common shell commands
-    - The virtual filesystem exposed by the tool allows you to navigate matter.js's packages and active subsystems
+    - The virtual filesystem exposed by the tool allows you to navigate matter.js packages and active subsystems
     - This is an alpha feature. We'll add command line control and additional functionality over time
 
 - @matter/create
@@ -743,25 +744,25 @@ The main work (all changes without a GitHub username in brackets in the below li
     - For usage run `npm init @matter help` anywhere you have Node.js installed
 
 - Matter-Core functionality:
-    - Enhancement: Allow to discover VendorId + ProductId together optionally
+    - Enhancement: Allow discovering VendorId + ProductId together optionally
 
 - matter.js clusters:
-    - Adds convenience helper method for ElectricalEnergyMeasurement cluster (usage see new example MeasuredSocketDevice) to set measurements and also trigger the needed events when imported and exported values changed in the measurement and events are required by specification
+    - Adds convenience helper method for ElectricalEnergyMeasurement cluster (for usage, see new example MeasuredSocketDevice) to set measurements and also trigger the necessary events when imported and exported values changed in the measurement and events are required by specification
 - matter.js Controller API:
     - Breaking: PairedNode instances are now created and directly returned also when the node is not et connected. This do not block code flows anymore for offline devices
-    - Breaking: Because of this "getConnectedNode()" got renamed to "getPairedNode()"
+    - Breaking: Because of this, "getConnectedNode()" got renamed to "getPairedNode()"
     - Breaking: "nodeState" property on PairedNode got renamed to "state"
     - Breaking: Removed SupportedEventClient and UnknownSupportedEventClient and replaced by EventClient because EventList is provisional and was removed now (was not working for many devices anyway)
     - Breaking: Removed ClusterClient methods isEventSupported and isEventSupportedByName because event lists are no longer available
-    - Deprecation: The attributeChangedCallback, eventTriggeredCallback and nodeStateChangedCallbacks are deprecated and replaced by new events "attributeChanged", "eventTriggered" and "stateChanged", "structureChanged" and "decommissioned" on PairedNode
+    - Deprecation: The attributeChangedCallback, eventTriggeredCallback, and nodeStateChangedCallbacks are deprecated and replaced by new events "attributeChanged", "eventTriggered" and "stateChanged", "structureChanged" and "decommissioned" on PairedNode
     - Feature: Some more data (like Network interfaces, PowerSources, Thread details) are collected and used when connecting to the nodes
-    - Feature: Based on device type the minimum and maximum subscription interval is now automatically set based on certain best practices. When multiple nodes are subscribed all Thread based devices are initialized by a "4 in parallel queue" to limit the used thread bandwidth.
-    - Feature: Subscribed attribute data are cached for each node and used on reconnects by utilizing dataVersionFilters on read and subscribes to reduce bandwidth on reconnects. The data are no (yet) persisted, so after Controller restart the data are collected anew.
-    - Feature: Low level InteractionClient API allows to enrich the attribute data that are not returned because of dataVersionFilters.
-    - Feature: Properly announces the controller node on start for devices to find the controller if needed and to utilize persisted subscriptions on device side
-    - Enhancement: Only recreate PairedNode internal objects when structure really changed also on reconnects.
-    - Enhancement: Utilize more information (beside partList changes now also feature, serverList, attributeList, generatedCommandLists) as structure change to reinitialize objects.
-    - Enhancement: Huge refactoring in internal logic, optimized reconnection and rediscovery
+    - Feature: Based on a device type the minimum and maximum subscription interval is now automatically set based on certain best practices. When multiple nodes are subscribed, all Thread-based devices are initialized by a "4 in parallel queue" to limit the used thread bandwidth.
+    - Feature: Subscribed attribute data are cached for each node and used on reconnections by using dataVersionFilters on read and subscribes to reduce bandwidth on reconnections. The data are not (yet) persisted, so after Controller restarts, the data is collected anew.
+    - Feature: Low-level InteractionClient API allows enriching the attribute data that are not returned because of dataVersionFilters.
+    - Feature: Properly announces the controller node on start for devices to find the controller if needed and to use persisted subscriptions on the device side
+    - Enhancement: Only recreate PairedNode internal objects when the structure really changed also on reconnections.
+    - Enhancement: Utilize more information (beside partList changes now also feature, serverList, attributeList, generatedCommandLists) as the structure changes to reinitialize objects.
+    - Enhancement: Huge refactoring in internal logic, optimized reconnection, and rediscovery
 
 ## 0.10.7 (2024-11-07)
 
@@ -814,16 +815,16 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: We now generate some datatypes that are not officially global or part of a specific cluster but are nevertheless defined in Matter specifications.
     - Enhancement: Expanded dialect for conformance, constraint and "other quality" DSLs.
     - Enhancement: Includes numerous code generation improvements.
-- Matter.js Matter Definition, Clusters, Schemas and Device-Types (independent of the used API)
+- Matter.js Matter Definition, Clusters, Schemas, and Device-Types (independent of the used API)
     - Breaking: Cluster revisions have increased and there are new mandatory elements for a few clusters. We have implemented these in places where we provide non-skeletal cluster implementations.
-    - Breaking: Previously we generated redundant definitions for struct, enum and bitmap types in *Interface.ts and *Cluster.ts files. We've eliminated those in the interface files.
+    - Breaking: Previously we generated redundant definitions for struct, enum, and bitmap types in *Interface.ts and *Cluster.ts files. We've eliminated those in the interface files.
     - Breaking: Previously we generated redundant TLV and types for datatypes used by multiple clusters. We now only provide these types in their canonical location (globally or in the `ClusterName` namespace for the base cluster).
     - Breaking: Some datatype names have changed to align with changes in the Matter specification and to make names more logical.
     - Breaking: We've removed a few deprecated definitions for unused Matter elements such as the Scenes cluster.
     - Breaking: Globals.ts previously defined core datatypes for the Matter object model. These are now generated and individually importable.
-    - Breaking: We've removed a few old draft datatypes defined in [connectedhomeip](https://github.com/project-chip/connectedhomeip) that were abandoned, renamed or are still "draft" as of Matter 1.3.
+    - Breaking: We've removed a few old draft datatypes defined in [connectedhomeip](https://github.com/project-chip/connectedhomeip) that were abandoned, renamed, or are still "draft" as of Matter 1.3.
     - Breaking: Some types related to ClusterServer are simplified. This should be largely transparent but the template arguments are slightly different
-    - Feature: Adds all elements (clusters, attributes, events, commands, device types and datatypes) introduced in Matter 1.2 and Matter 1.3.
+    - Feature: Adds all elements (clusters, attributes, events, commands, device types, and datatypes) introduced in Matter 1.2 and Matter 1.3.
     - Feature: Adds all Standard Namespaces defined by Matter 1.3
 - Matter-Core functionality:
     - Breaking: Removes the discovery capability "softAccessPoint" as it was removed from the Matter specification
@@ -856,7 +857,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Synced attMtu handling with chip to always use MTU-3 bytes for BLE connections
 - matter.js API:
     - Breaking: Node.start() is now asynchronous and returns when the node is online. This is only breaking in that lack of await will result in an unhandled rejection. Node.bringOnline() is deprecated.
-    - Feature: Adds default implementations for i18n clusters including Localization, Time Format Localization and Unit Localization.
+    - Feature: Adds default implementations for i18n clusters including Localization, Time Format Localization, and Unit Localization.
     - Feature: Adds interactionBegin and interactionEnd events for ClusterBehaviors to demarcate online interactions that mutate state.
     - Feature: Any state value defined with schema is now configurable via the environment.
     - Feature: You may now mark endpoints as "non-essential" to prevent errors from incapacitating a node.
@@ -881,7 +882,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Deprecation: We've deprecated the hand-generated device type definitions used by the pre-0.8.0 API in DeviceTypes.ts. These device type definitions remain at Matter 1.1.
     - Removal: We removed old Scenes cluster implementation which was never fully implemented or used by any Matter controller
 - matter.js-react-native:
-    - Feature: Introduces new package to provides a React Native compatible platform Implementations for Matter.js. This package is still in development and not fully working and should be considered experimental for now! Currently it tries to support UDP, BLE, AsyncStorage and Crypto platform features. See [README](./packages/matter.js-react-native/README.md) for more information.
+    - Feature: Introduces new package to provides a React Native compatible platform Implementations for Matter.js. This package is still in development and not fully working and should be considered experimental for now! Currently it tries to support UDP, BLE, AsyncStorage, and Crypto platform features. See [README](./packages/matter.js-react-native/README.md) for more information.
 - matter.js chip and python Testing:
     - Includes updates and infrastructure improvements for Matter.js use of tests defined in [connectedhomeip](https://github.com/project-chip/connectedhomeip)
 
@@ -930,7 +931,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Persist also writable and fabric scoped data in new API
     - Fix: Releases locks also in Precommit errors
 - Chip testing:
-    - Added automatic testing of chip tests suites for ACE, ACL and partly IDM
+    - Added automatic testing of chip tests suites for ACE, ACL, and partly IDM
 
 ### 0.9.0 (2024-05-14)
 
@@ -963,7 +964,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Allows for cluster implementations to dynamically add/enable state attributes and events
     - Enhancement: Added "fieldName$Changing" event handlers that emit in transaction pre-commit and allow for state mutation and will cycle for a limited number of times until state is stable
     - Enhancement: Allows "fieldName$Changed" and "fieldName$Changing" event handlers to be async
-    - Enhancement: Adds Conformance validation for enums, fieldname references and some more cases
+    - Enhancement: Adds Conformance validation for enums, fieldname references, and some more cases
     - Enhancement: Makes various config variables apply dynamically
     - Enhancement: Added environment variable `network.interfaceNameTypeMap' to allow mapping of network interface names to types (Wifi, Thread, Ethernet)
     - Fix: Fixes some issues around event handling in the new API and makes sure events are not de-registered on factory resets
@@ -1058,7 +1059,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Adjusted logic to output detailed node information on nodes command
     - Enhancement: Do not subscribe all attributes when connecting a node for administrative actions (unpair, open commissioning windows)
     - Enhancement: Allowed to specify the BLE HCI id as shell start parameter and store in settings
-    - Enhancement: Added attribute, event and command actions in the shell based on the Cluster model (all known Matter 1.1 clusters are supported)
+    - Enhancement: Added attribute, event, and command actions in the shell based on the Cluster model (all known Matter 1.1 clusters are supported)
     - Enhancement: Enhanced the Shell Readme with many information and examples
     - Fix: Correctly quote when showing configuration values for wifi- and thread-credentials
     - Fix: Fixed issues when using quoted strings as CLI parameters (e.g. for wifi/thread credentials or JSON structs for commands/attribute writes)
@@ -1135,7 +1136,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Allows removal of Controller or Server instances from Matter server, optionally with deleting the storage
     - Enhance: Makes passcode and discriminator for CommissioningServer optional and randomly generate them if not provided
 - matter-node-shell.js
-    - Feature: Completely refactored and enhances shell to support commissioning, identify and many more new commands. See Readme, try it
+    - Feature: Completely refactored and enhances shell to support commissioning, identify, and many more new commands. See Readme, try it
 - matter-node.js-examples
     - Breaking: Rename parameter -announceinterface to -netinterface and use for announcements and scanning
 
@@ -1156,7 +1157,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Implemented Tag compression for DataReport messages (but disabled it because standard do not support it officially yet)
     - Feature: Refactor complete commissioning logic (AdministratorCommissioning, GeneralCommissioning, OperationalCredentials clusters) to match to specs and implement main logics as defined
     - Enhance: Memory footprint optimizations
-    - Enhance: Introduced building and building, running and test executions scripts to not use ts-node anymore and many more optimizations to test and build processes
+    - Enhance: Introduced building and building, running, and test executions scripts to not use ts-node anymore and many more optimizations to test and build processes
     - Enhance: ClusterFactory internally uses a simplified method of CLuster types that are compatible to the current ones but soon might replace them
     - Enhance: Using longer response timeouts when Failsafe timer is active during commissioning (Controller)
     - Enhance: Optimized Commissioning logic of Controller implementation regarding failsafe timers and network commissioning
@@ -1209,7 +1210,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Added support for dataVersionFiltering and eventFilters for read and subscribe requests for Device and Controllers
     - Feature: Added more parameters to several InteractionClient methods to allow to configure more parameters of the requests
     - Feature: Allows subscripts to be updated dynamically when the endpoint structure for bridges changes by adding or removing a device
-    - Feature: When used as Controller also "unknown" CLusters, Attributes, Events and DeviceTypes are generically parsed and supported and can be detected as unknown in code
+    - Feature: When used as Controller also "unknown" CLusters, Attributes, Events, and DeviceTypes are generically parsed and supported and can be detected as unknown in code
     - Feature: When used as controller the read data about supported attributes, events are considered when create Attribute/EventClient objects and can be differentiated by PresentAttributeClient/UnknownPresentAttributeClient class types
     - Enhance: Device port in MDNSBroadcaster is now dynamically set and add UDC (User directed Commissioning) Announcements
     - Enhance: Enhanced MessageCodec and check some more fields
@@ -1265,7 +1266,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - Matter-Core functionality:
     - Deprecation: The classes MatterDevice and MatterController are deprecated to be used externally to the library and will be removed in later versions.
     - Deprecation: The CLI Examples LegacyDeviceNode and LegacyControllerNode will be removed in next version! Use the new variants please.
-    - Feature: Generate global Attributes attributeList, acceptedCommandList and generatedCommandList when generating cluster servers (when used with New API!)
+    - Feature: Generate global Attributes attributeList, acceptedCommandList, and generatedCommandList when generating cluster servers (when used with New API!)
     - Feature: (@digitaldan) Added decoding of Pairingcodes to determine discriminator and pin for Controller usage
     - Feature: Provide the Endpoint as data field for command Handlers to allow to access the endpoint data and other clusters on that endpoint if needed
     - Feature: Add Implementations of Scenes and Groups-Clusters (still to be tested with Controllers in depth!)
@@ -1290,9 +1291,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: (@lauckhart) Enhance Logging framework to also allow ANSI and HTML colored output and added some features, details see #129
 - matter-node.js:
     - Breaking: Remove the exposed legacy API classes (MatterDevice/MatterController) and legacy examples from the exported lists
-    - Feature: Autoregister Crypto, Time and Network in their Node.js variants when including packages from @project-chip/matter-node.js root package but only if not yet registered (so can be overridden by the developer)
+    - Feature: Autoregister Crypto, Time, and Network in their Node.js variants when including packages from @project-chip/matter-node.js root package but only if not yet registered (so can be overridden by the developer)
     - Examples/Reference implementations:
-        - The reference implementations are moved to example directory and details moved into own [README.md](./packages/matter-node.js-examples/README.md) file
+        - The reference implementations are moved to the example directory and details moved into an own [README.md](./packages/matter-node.js-examples/README.md) file
         - the "npm run matter" command got renamed to "npm run matter-device" (same for binary usage
         - Add hints for all imports in the examples to show what the corresponding "matter-node.js" import would be (because they cannot be used directly for build reasons)
         - Added the "npm run matter-\*" commands also to the base package.json
