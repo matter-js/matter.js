@@ -15,7 +15,7 @@ export function NodeJsStyleInspectable<T extends object>(target: T, inspector: N
         options ??= {};
         inspect ??= target => `${target}`;
 
-        inspector.call(this, depth, options, inspect);
+        return inspector.call(this, depth, options, inspect);
     };
 
     Object.defineProperty(target, inspect, {
