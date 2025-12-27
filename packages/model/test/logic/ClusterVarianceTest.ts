@@ -113,7 +113,7 @@ function attrs(...definitions: AttributeDefinition[]) {
                 id: FeatureMap.id,
                 name: "FeatureMap",
                 type: "FeatureMap",
-                children: attr.map(f => ({ tag: "datatype", name: f })),
+                children: attr.map(f => ({ tag: "field", name: f })),
             };
         } else {
             result = {
