@@ -109,7 +109,7 @@
             "cwd": "${workspaceFolder}/packages/nodejs-shell",
             "args": [
                 "--clear",
-                "dist/cjs/app.js"
+                "dist/esm/app.js"
             ],
             "group": "tool",
             "program": "${workspaceFolder}/node_modules/.bin/matter-run",

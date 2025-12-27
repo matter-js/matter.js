@@ -77,7 +77,7 @@ addRun({ name: "Run current file", args: ["${file}"] });
 addRun({
     name: "Run shell",
     cwd: "packages/nodejs-shell",
-    args: ["dist/cjs/app.js"],
+    args: ["dist/esm/app.js"],
     group: "tool",
 });
 addRun({
