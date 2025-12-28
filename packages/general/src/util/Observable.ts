@@ -893,6 +893,14 @@ export class ObserverGroup {
         observable.off(observer);
     }
 
+    observes(observable: Observable<any[], any> | AsyncObservable<any>) {
+        return this.#observers.get(observable)?.length ?? 0 > 0;
+    }
+
+    has(observable: Observable<any[], any> | AsyncObservable<any>, observer: Observer<any[], any>) {
+        return this.#observers.get(observable)?.includes(observer) ?? false;
+    }
+
     /**
      * Remove all observers.
      */
