@@ -61,7 +61,7 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
 
     /**
      * Read chosen attributes remotely from the node. Known data versions are automatically injected into the request to
-     * optimize the read. Set `skipDataVersionInjection` is set in the request to prevent adding data versions.
+     * optimize the read. Set `skipDataVersionInjection` in the request to prevent adding data versions.
      * When data versions are used to filter the read request, the returned data only contains attributes that have
      * changed since the last read or subscription.
      */
