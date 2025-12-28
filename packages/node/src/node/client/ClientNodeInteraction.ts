@@ -61,12 +61,14 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
 
     /**
      * Read chosen attributes remotely from the node. Known data versions are automatically injected into the request to
-     * optimize the read.
-     * Therefore, the returned data only contains attributes that have changed since the last read or subscription.
-     * TODO: Allow control of data version injection and enrich response with attribute data missing in response due to data versioning?
+     * optimize the read. Set `skipDataVersionInjection` is set in the request to prevent adding data versions.
+     * When data versions are used to filter the read request, the returned data only contains attributes that have
+     * changed since the last read or subscription.
      */
     async *read(request: ClientRead, context?: ActionContext): ReadResult {
-        request = this.structure.injectVersionFilters(request);
+        if (!request.skipDataVersionInjection) {
+            request = this.structure.injectVersionFilters(request);
+        }
         const interaction = await this.#connect();
 
         const response = interaction.read(request, context);

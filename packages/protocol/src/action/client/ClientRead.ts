@@ -7,4 +7,6 @@
 import { Read } from "#action/request/Read.js";
 import { ClientRequest } from "./ClientRequest.js";
 
-export interface ClientRead extends Read, ClientRequest {}
+export interface ClientRead extends Read, ClientRequest {
+    skipDataVersionInjection?: boolean;
+}
