@@ -426,7 +426,7 @@ export class ClientStructure {
             }
 
             if (
-                // All global attributes have fallbacks so we can't wait until we're sure we have them all.  Instead
+                // All global attributes have fallbacks, so we can't wait until we're sure we have them all.  Instead,
                 // wait until we are sure there is something useful.  We therefore rely on unspecified behavior that all
                 // attributes travel consecutively to ensure we initialize fully as we have no other choice
                 cluster.attributes?.length ||
@@ -656,7 +656,7 @@ export class ClientStructure {
      *
      * Currently, we apply granular updates to clusters.  This will possibly result in subtle errors if peers change in
      * incompatible ways, but the backings are designed to be fairly resilient to this.  This is simpler for API users
-     * to deal with in the common case where they can just ignore. If it becomes problematic we can revert to replacing
+     * to deal with in the common case where they can just ignore. If it becomes problematic, we can revert to replacing
      * entire endpoints or behaviors when there are structural changes.
      */
     async #rebuild(structure: EndpointStructure) {
