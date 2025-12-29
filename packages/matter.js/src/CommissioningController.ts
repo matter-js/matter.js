@@ -14,9 +14,10 @@ import {
     ImplementationError,
     Logger,
     Minutes,
+    Time,
     UnexpectedDataError,
 } from "#general";
-import { Endpoint, NetworkClient, ServerNode, SoftwareUpdateManager } from "#node";
+import { CommissioningClient, Endpoint, NetworkClient, ServerNode, SoftwareUpdateManager } from "#node";
 import {
     ActiveSessionInformation,
     Ble,
@@ -309,7 +310,7 @@ export class CommissioningController {
 
         const { connectNodeAfterCommissioning = true, commissioningFlowImpl } = commissionOptions ?? {};
 
-        // IF OTA is enabled on the controller and no custom OTA provider location is provided, set it to the controller node
+        // If OTA is enabled on the controller and no custom OTA provider location is provided, set it to the controller node
         if (
             this.#options.enableOtaProvider &&
             nodeOptions.commissioning.otaUpdateProviderLocation === undefined &&
@@ -342,6 +343,10 @@ export class CommissioningController {
             });
             await node.events.initialized;
         }
+
+        await (
+            await this.node.peers.forAddress(this.fabric.addressOf(nodeId))
+        ).setStateOf(CommissioningClient, { commissionedAt: Time.nowMs });
 
         return nodeId;
     }
