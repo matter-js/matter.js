@@ -66,7 +66,7 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
      * changed since the last read or subscription.
      */
     async *read(request: ClientRead, context?: ActionContext): ReadResult {
-        if (!request.skipDataVersionInjection) {
+        if (!request.includeKnownVersions) {
             request = this.structure.injectVersionFilters(request);
         }
         const interaction = await this.#connect();
