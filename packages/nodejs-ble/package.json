@@ -36,7 +36,7 @@
         "@matter/tools": "*"
     },
     "optionalDependencies": {
-        "@stoprocent/bleno": "^0.12.0",
+        "@stoprocent/bleno": "^0.12.1",
         "@stoprocent/noble": "^2.3.10"
     },
     "engines": {
