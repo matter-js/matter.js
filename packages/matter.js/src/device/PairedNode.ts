@@ -1244,7 +1244,7 @@ export class PairedNode {
 
             const endpoint = this.#endpoints.get(endpointId);
             if (endpoint === undefined) {
-                // Should not happen or endpoint was invalid and that's why not created, then we ignore it
+                // Should not happen, or endpoint was invalid and that's why not created, then we ignore it
                 continue;
             }
             endpoint.getChildEndpoints().forEach(child => {
