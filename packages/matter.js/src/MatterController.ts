@@ -35,6 +35,7 @@ import {
     MatterError,
     MaybePromise,
     Minutes,
+    ObserverGroup,
     ServerAddress,
     ServerAddressUdp,
     StorageBackendMemory,
@@ -266,6 +267,7 @@ export class MatterController {
     #peers?: PeerSet;
     #fabric?: Fabric;
     #clients?: InteractionClientProvider;
+    #migratedPeerObservers = new ObserverGroup();
 
     get construction() {
         return this.#construction;
@@ -635,6 +637,7 @@ export class MatterController {
     }
 
     async close() {
+        this.#migratedPeerObservers.close();
         await this.#node?.close();
         this.#clients = undefined;
     }
@@ -753,14 +756,14 @@ export class MatterController {
 
         //await controllerStore.nodesStorage.delete("commissionedNodes"); // TODO
 
-        server.peers.clusterInstalled(BasicInformationClient).on(peer => {
+        this.#migratedPeerObservers.on(server.peers.clusterInstalled(BasicInformationClient), peer => {
             if (!migratedPeers.has(peer.id)) {
                 logger.info(`Migrating commissioned node ${peer.id} to old format`);
                 migratedPeers.add(peer.id);
                 peerStore.save().catch(error => logger.warn("Failed to persist legacy commissioned nodes", error));
             }
         });
-        server.peers.deleted.on(peer => {
+        this.#migratedPeerObservers.on(server.peers.deleted, peer => {
             migratedPeers.delete(peer.id);
             logger.info(`Deleted commissioned node ${peer.id} from old format`);
             peerStore.save().catch(error => logger.warn("Failed to persist legacy commissioned nodes", error));
