@@ -42,7 +42,9 @@ import {
     StorageManager,
     StorageService,
     SupportedStorageTypes,
+    Time,
 } from "#general";
+import type { ClientNodeInteraction } from "#node";
 import {
     ClientNode,
     CommissioningClient,
@@ -89,7 +91,6 @@ import {
     TypeFromPartialBitSchema,
     VendorId,
 } from "#types";
-import type { ClientNodeInteraction } from "@matter/node";
 
 export type CommissionedNodeDetails = {
     operationalServerAddress?: ServerAddressUdp;
@@ -461,7 +462,7 @@ export class MatterController {
      * Commission a device by its identifier and the Passcode. If a known address is provided this is tried first
      * before discovering devices in the network. If multiple addresses or devices are found, they are tried all after
      * each other. It returns the NodeId of the commissioned device.
-     * If it throws an PairRetransmissionLimitReachedError that means that no found device responded to the pairing
+     * If it throws a PairRetransmissionLimitReachedError that means that no found device responded to the pairing
      * request or the passode did not match to any discovered device/address.
      *
      * Use the connectNodeAfterCommissioning callback to implement an own logic to do the operative device discovery and
@@ -527,7 +528,6 @@ export class MatterController {
 
     /**
      * Method to complete the commissioning process to a node which was initialized with a PASE secure channel.
-     * TODO validate
      */
     async completeCommissioning(peerNodeId: NodeId, discoveryData?: DiscoveryData) {
         this.#construction.assert();
@@ -539,7 +539,7 @@ export class MatterController {
                 discoveryData,
             },
             allowUnknownPeer: true,
-        }); // Wait maximum 120s to find the operational device for commissioning process
+        }); // Wait maximum 120s to find the operational device for a commissioning process
         const generalCommissioningClusterClient = ClusterClient(
             GeneralCommissioning.Cluster,
             EndpointNumber(0),
@@ -553,6 +553,11 @@ export class MatterController {
             await this.#peers?.get(this.fabric.addressOf(peerNodeId))?.delete();
             throw new CommissioningError(`Commission error on commissioningComplete: ${errorCode}, ${debugText}`);
         }
+
+        await (
+            await this.node.peers.forAddress(this.fabric.addressOf(peerNodeId))
+        ).setStateOf(CommissioningClient, { commissionedAt: Time.nowMs });
+
         await this.fabric.persist();
     }
 
@@ -601,7 +606,7 @@ export class MatterController {
 
     /**
      * Connect to the device by opening a channel and creating a new CASE session if necessary.
-     * Returns a InteractionClient on success.
+     * Returns an InteractionClient on success.
      */
     async connect(peerNodeId: NodeId, options: MatterController.ConnectOptions) {
         const address = this.fabric.addressOf(peerNodeId);

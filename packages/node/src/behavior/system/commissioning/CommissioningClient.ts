@@ -215,6 +215,7 @@ export class CommissioningClient extends Behavior {
         try {
             await commissioner.commission(commissioningOptions);
             this.state.peerAddress = address;
+            this.state.commissionedAt = Time.nowMs;
         } catch (e) {
             identityService.releaseNodeAddress(address);
             throw e;
@@ -273,6 +274,7 @@ export class CommissioningClient extends Behavior {
         }
 
         this.state.peerAddress = undefined;
+        this.state.commissionedAt = undefined;
 
         await this.context.transaction.commit();
 
@@ -412,7 +414,7 @@ export namespace CommissioningClient {
         peerAddress?: PeerAddress;
 
         /**
-         * Known network addresses for the device.  If this is undefined the node has not been located on any network
+         * Known network addresses for the device.  If this is undefined, the node has not been located on any network
          * interface.
          */
         @field(listOf(NetworkAddress), nonvolatile)
@@ -435,6 +437,12 @@ export namespace CommissioningClient {
          */
         @field(systimeMs)
         offlineAt?: Timestamp;
+
+        /**
+         * Time at which the device was commissioned.
+         */
+        @field(systimeMs, nonvolatile)
+        commissionedAt?: Timestamp;
 
         /**
          * The TTL of the discovery record if applicable (in seconds).

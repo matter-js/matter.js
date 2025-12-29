@@ -80,7 +80,7 @@ describe("ClientNode", () => {
 
         // *** INITIAL STATE ***
 
-        // Obtain client view of the device
+        // Get a client view of the device
         const peer1 = controller.peers.get("peer1")!;
         expect(peer1).not.undefined;
 
@@ -112,7 +112,7 @@ describe("ClientNode", () => {
         const peer1b = controllerB.peers.get("peer1")!;
         expect(peer1b).not.undefined;
 
-        // Client nodes should fully initialize on initial load.  We could initialize asynchronously during ServerNode
+        // Client nodes should fully initialize on the initial load.  We could initialize asynchronously during ServerNode
         // initialization, but currently we don't
         expect(peer1b.construction.status).equals("active");
 
@@ -699,6 +699,7 @@ const PEER1_STATE = {
                 ttl: undefined,
             },
         ],
+        commissionedAt: expect.NUMBER,
         discoveredAt: expect.NUMBER,
         onlineAt: undefined,
         offlineAt: undefined,
