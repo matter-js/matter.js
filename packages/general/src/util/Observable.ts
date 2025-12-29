@@ -894,7 +894,26 @@ export class ObserverGroup {
     }
 
     /**
-     * Remove all observers.
+     * Checks if there are any observers currently subscribed to the given observable.
+     *
+     * @param observable the observable to observe
+     */
+    observes(observable: Observable<any[], any> | AsyncObservable<any>) {
+        return this.#observers.get(observable)?.length ?? 0 > 0;
+    }
+
+    /**
+     * Checks if the given observer is subscribed to the given observable.
+     *
+     * @param observable the observable to observe
+     * @param observer the observer function
+     */
+    has(observable: Observable<any[], any> | AsyncObservable<any>, observer: Observer<any[], any>) {
+        return this.#observers.get(observable)?.includes(observer) ?? false;
+    }
+
+    /**
+     * Remove all observers. The instance can be reused afterward to add new observers.
      */
     close() {
         for (const [observable, observers] of this.#observers.entries()) {

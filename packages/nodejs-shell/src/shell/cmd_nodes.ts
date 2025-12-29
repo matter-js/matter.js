@@ -306,7 +306,7 @@ export default function commands(theNode: MatterNode) {
                         yargs
                             .command(
                                 "known [node-id]",
-                                "List which OTA updates are known to be available for commissioned nodes. A first query by the provider must have happened for this to be filled.",
+                                "List which OTA updates are known to be available for commissioned nodes. Only nodes that are connected and subscribed are considered.",
                                 yargs => {
                                     return yargs
                                         .positional("node-id", {
@@ -345,7 +345,7 @@ export default function commands(theNode: MatterNode) {
                                         console.log(`OTA updates available for ${updatesAvailable.length} nodes:`);
                                         for (const { peerAddress, info } of updatesAvailable) {
                                             console.log(
-                                                peerAddress,
+                                                peerAddress.toString(),
                                                 `: new Version: ${info.softwareVersion} (${info.softwareVersionString})`,
                                             );
                                         }
