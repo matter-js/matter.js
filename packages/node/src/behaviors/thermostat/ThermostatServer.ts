@@ -568,7 +568,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         );
         this.maybeReactTo(this.events.remoteSensing$Changing, this.#assertRemoteSensingChanging);
 
-        // For backwards compatibility, this attributes is optionally writeable. However, any
+        // For backwards compatibility, this attribute is optionally writeable. However, any
         // writes to this attribute SHALL be silently ignored. So we just revert any changes.
         this.maybeReactTo(this.events.minSetpointDeadBand$Changing, this.#ensureMinSetpointDeadBandNotWritable);
         this.reactTo(
