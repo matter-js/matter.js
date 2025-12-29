@@ -279,6 +279,9 @@ export class SoftwareUpdateManager extends Behavior {
      * Checks all nodes, or optionally a defined one, for available updates from the DCL OTA Update Service.
      *
      * Returns a list of peers for which updates are available along with the collected update info.
+     *
+     * If `includeStoredUpdates` is set to true available and known local update will be returned without checking the
+     * DCL again.
      */
     async queryUpdates(options: { peerToCheck?: ClientNode; includeStoredUpdates?: boolean } = {}) {
         const { peerToCheck, includeStoredUpdates = false } = options;
@@ -337,6 +340,7 @@ export class SoftwareUpdateManager extends Behavior {
 
         // No need to query again if we already did and know that updates are available
         if (
+            includeStoredUpdates &&
             [...otaEndpoints.values()].every(({ peerAddress }) =>
                 this.internal.knownUpdates.has(peerAddress.toString()),
             )
@@ -425,7 +429,7 @@ export class SoftwareUpdateManager extends Behavior {
         // Todo sort out test vendors?
 
         // Node is applicable for update checks, register listener on softwareVersion to allow resetting update state
-        const event = peer.eventsOf(BasicInformationClient)?.softwareVersion$Changed;
+        const event = peer.eventsOf(BasicInformationClient).softwareVersion$Changed;
         if (!this.internal.versionUpdateObservers.observes(event)) {
             const that = this;
             function triggerVersionChange(newVersion: number) {
