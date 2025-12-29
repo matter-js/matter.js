@@ -49,7 +49,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
 
         super(opts);
 
-        // Block the OccurrenceManager from parent environment so we don't attempt to record events from peers
+        // Block the OccurrenceManager from the parent environment so we don't attempt to record events from peers
         this.env.close(OccurrenceManager);
 
         this.env.set(Node, this);
