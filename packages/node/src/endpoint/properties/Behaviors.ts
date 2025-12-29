@@ -504,6 +504,7 @@ export class Behaviors {
             return;
         }
 
+        const type = this.#supported[id];
         delete this.#supported[id];
 
         let promise: undefined | MaybePromise<void>;
@@ -534,7 +535,16 @@ export class Behaviors {
             if (detachedObservers) {
                 (this.#detachedObservers ??= {})[id] = detachedObservers;
             }
+
+            delete this.#events[id];
         }
+
+        delete (this.#endpoint.state as Record<string, Val.Struct>)[id];
+        if (type.schema.id !== undefined) {
+            delete (this.#endpoint.state as Record<string, Val.Struct>)[type.schema.id];
+        }
+
+        delete (this.#endpoint.events as Record<string, SupportedBehaviors.EventsOf<any>>)[id];
 
         return promise;
     }
@@ -618,7 +628,7 @@ export class Behaviors {
     /**
      * Access internal state for a {@link Behavior}.
      *
-     * Internal state is not stable API and not intended for consumption outside of the behavior.  However it is not
+     * Internal state is not a stable API and not intended for consumption outside the behavior.  However, it is not
      * truly private and may be accessed by tightly coupled implementation.
      *
      * As this API is intended for use by "friendly" code, it does not perform the same initialization assertions as
@@ -716,7 +726,7 @@ export class Behaviors {
     }
 
     /**
-     * Obtain a backing for a behavior.
+     * Get backing for a behavior.
      */
     #backingFor(type: Behavior.Type) {
         // Crash if endpoint is not initialized
@@ -790,7 +800,7 @@ export class Behaviors {
             Object.defineProperty(this.#endpoint.state, type.schema.id, { get, configurable: true });
         }
 
-        // When replacing a behavior, transplant listeners from previous incarnation if present
+        // When replacing a behavior, transplant listeners from the previous incarnation if present
         const detachedObservers = this.#detachedObservers?.[type.id];
         if (detachedObservers) {
             delete this.#detachedObservers![type.id];
