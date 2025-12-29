@@ -570,7 +570,99 @@ describe("ClientNode", () => {
 
         newValue = await MockTime.resolve(sawChange);
         expect(newValue).equals(12);
-    }).timeout(1e9);
+    });
+
+    it("correctly removes behavior", async () => {
+        // *** SETUP ***
+
+        const LiftWc = WindowCoveringServer.with("AbsolutePosition", "Lift", "PositionAwareLift").set({
+            currentPositionLift: 0,
+        });
+
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair({
+            device: {
+                type: ServerNode.RootEndpoint,
+                device: OnOffLightDevice.with(LiftWc),
+            },
+        });
+
+        const peer1 = controller.peers.get("peer1")!;
+        expect(peer1).not.undefined;
+
+        const clientEp1 = peer1.parts.get("ep1")!;
+        expect(clientEp1).not.undefined;
+
+        // *** VALIDATE SETUP ***
+
+        const serverEp1 = device.parts.get("part0")!;
+        expect(serverEp1).not.undefined;
+
+        expect(clientEp1.stateOf(WindowCoveringClient).currentPositionLift).equals(0);
+
+        expect(Object.keys(clientEp1.state)).deep.equals([
+            "identify",
+            "groups",
+            "scenesManagement",
+            "onOff",
+            "windowCovering",
+            "descriptor",
+        ]);
+        expect(clientEp1.behaviors.active.map(b => b.id)).deep.equals([
+            "identify",
+            "groups",
+            "scenesManagement",
+            "onOff",
+            "windowCovering",
+            "descriptor",
+        ]);
+
+        expect(clientEp1.behaviors.supported["windowCovering"]).to.be.ok;
+        // *** REMOVE CLUSTER ***
+
+        await MockTime.resolve(device.cancel());
+
+        await serverEp1.erase();
+
+        // Nudge so version number changes, otherwise new endpoint won't sync
+        device.env.set(Entropy, MockCrypto(0x20));
+
+        await device.add({
+            type: OnOffLightDevice,
+            number: 1,
+            id: "part0b",
+        });
+
+        const deleted = new Promise(resolve => peer1.env.get(ClientStructureEvents).clusterDeleted.on(resolve));
+
+        await MockTime.resolve(device.start());
+
+        // *** VALIDATE ***
+
+        await MockTime.resolve(deleted);
+
+        expect(clientEp1.maybeStateOf(WindowCoveringClient)).equals(undefined);
+
+        expect(clientEp1.stateOf(OnOffClient).onOff).false;
+
+        expect(clientEp1.behaviors.active.map(b => b.id)).deep.equals([
+            "identify",
+            "groups",
+            "scenesManagement",
+            "onOff",
+            "descriptor",
+        ]);
+
+        expect(clientEp1.behaviors.supported["windowCovering"]).to.be.undefined;
+
+        expect(Object.keys(clientEp1.state)).deep.equals([
+            "identify",
+            "groups",
+            "scenesManagement",
+            "onOff",
+            "descriptor",
+        ]);
+    });
 
     it("handles shutdown event and reestablishes connection", () => {
         // TODO
