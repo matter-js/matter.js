@@ -6,6 +6,7 @@
 
 import { AccessControl } from "#clusters";
 import {
+    deepCopy,
     Diagnostic,
     Duration,
     ImplementationError,
@@ -523,7 +524,7 @@ export class InteractionClient {
         const { id: attributeId } = attribute;
 
         if (this.#interaction instanceof ClientNodeInteraction) {
-            return this.#interaction.localStateFor(endpointId)?.[clusterId]?.[attributeId] as
+            return deepCopy(this.#interaction.localStateFor(endpointId)?.[clusterId]?.[attributeId]) as
                 | AttributeJsType<A>
                 | undefined;
         }
