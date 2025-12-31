@@ -72,19 +72,23 @@ export class ClientNodeStores {
     }
 
     /**
-     * Obtain the store for a single {@link ClientNode}.
+     * Get the store for a single {@link ClientNode} or peer Id.
      *
-     * These stores are cached internally by ID.
+     * These stores are cached internally by Id.
      */
-    storeForNode(node: ClientNode): ClientNodeStore {
+    storeForNode(nodeOrId: ClientNode | string): ClientNodeStore {
         this.#construction.assert();
 
-        const store = this.#stores[node.id];
+        if (typeof nodeOrId !== "string") {
+            nodeOrId = nodeOrId.id;
+        }
+
+        const store = this.#stores[nodeOrId];
         if (store) {
             return store;
         }
 
-        return this.#createNodeStore(node.id);
+        return this.#createNodeStore(nodeOrId);
     }
 
     storeForGroup(node: ClientGroup): ClientNodeStore {
