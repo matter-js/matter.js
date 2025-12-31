@@ -216,6 +216,14 @@ export class Peers extends EndpointContainer<ClientNode> {
 
         let node = this.get(peerAddress);
         if (!node) {
+            if (options.id !== undefined) {
+                // We want to initialize a node with a provided id. This could be an injected node, so ensure the
+                // ClientNodeStore is constructed. Without id the storage is empty anyway because id is newly assigned
+                // TODO: Remove when we remove legacy controller
+                const store = this.owner.env.get(ServerNodeStore).clientStores.storeForNode(options.id);
+                await store.construction;
+            }
+
             // We do not have that node till now, also not persisted, so create it
             const factory = this.owner.env.get(ClientNodeFactory);
             node = factory.create(options, peerAddress);

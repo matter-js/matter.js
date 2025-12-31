@@ -26,17 +26,12 @@ export namespace ServerEnvironment {
         const { env } = node;
 
         // Install support services
-        if (!env.has(ServerNodeStore)) {
-            // TODO Remove the "if" once the legacy controller is removed
-            const store = await ServerNodeStore.create(env, node.id);
-            env.set(ServerNodeStore, store);
-        }
+        const store = await ServerNodeStore.create(env, node.id);
+        env.set(ServerNodeStore, store);
+
         env.set(EndpointInitializer, new ServerEndpointInitializer(env));
         env.set(IdentityService, new IdentityService(node));
-        if (!env.has(PeerAddressStore)) {
-            // TODO Remove the "if" once the legacy controller is removed
-            env.set(PeerAddressStore, new NodePeerAddressStore(node));
-        }
+        env.set(PeerAddressStore, new NodePeerAddressStore(node));
         env.set(ChangeNotificationService, new ChangeNotificationService(node));
 
         // Ensure these are fully initialized
