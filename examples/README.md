@@ -5,7 +5,7 @@
 This directory provides a set of reference implementations to show several types of Matter device nodes or also a controller implementation.
 
 > This package was published as `@matter/examples` till version 0.15.x. If you want to use one of the examples as basis 
-> for an own devcie or to try around fee free to use the project creator using `npm init @matter` 
+> for an own devcie or to try around feel free to use the project creator using `npm init @matter`. 
 
 > [!IMPORTANT]
 > matter.js as library, along with all related tools (such as the Shell app) and examples, is not certified by the Connectivity Standards Alliance (CSA). They are provided solely to demonstrate the capabilities of our solution and to support testing and development.  Using matter.js does not certify your product — Connectivity Standards Alliance membership and product certification are required to release official Matter devices. For more details, see [A note on certification](https://github.com/matter-js/matter.js/blob/main/README.md#a-note-on-certification).
