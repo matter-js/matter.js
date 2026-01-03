@@ -93,42 +93,50 @@ export class BdxProtocol implements ProtocolHandler {
         switch (initMessageType) {
             case BdxMessageType.SendInit:
             case BdxMessageType.ReceiveInit:
-                logger.debug(
-                    `Initialize Session for ${BdxMessageType[initMessageType]} message on BDX protocol for exchange ${exchange.id}`,
-                );
-                await exchange.nextMessage(); // Read the message we just know
-
-                const { payload } = message;
-
-                const initMessage = new BdxInitMessageSchema().decode(payload);
-                const { fileDesignator: messageFileDesignator } = initMessage;
-                const fd = new FileDesignator(messageFileDesignator);
-                const [storageScope, fileDesignator] = fd.text.split("/");
-                const { storage, config } =
-                    this.#peerScopes.get(this.#peerScopeKey(exchange.session.peerAddress, storageScope)) ?? {};
-                if (storage === undefined || fileDesignator === undefined) {
-                    throw new BdxError(
-                        `No storage context found for BDX file designator "${fd.text}"`,
-                        BdxStatusCode.FileDesignatorUnknown,
-                    );
-                }
-
-                const messenger = new BdxMessenger(exchange, config?.messageTimeout);
-
-                const bdxSession = BdxSession.fromMessage(messenger, {
-                    initMessageType,
-                    initMessage,
-                    fileDesignator: new PersistedFileDesignator(fileDesignator, storage),
-                    ...config,
-                });
-                await this.#registerSession(messenger, bdxSession, storageScope);
-
+                let messenger: BdxMessenger | undefined = undefined;
                 try {
-                    await bdxSession.processTransfer();
-                } catch (error) {
-                    logger.error(`Error processing BDX transfer:`, error);
-                }
+                    logger.debug(
+                        `Initialize Session for ${BdxMessageType[initMessageType]} message on BDX protocol for exchange ${exchange.id}`,
+                    );
+                    await exchange.nextMessage(); // Read the message we just know
 
+                    const { payload } = message;
+
+                    const initMessage = new BdxInitMessageSchema().decode(payload);
+                    const { fileDesignator: messageFileDesignator } = initMessage;
+                    const fd = new FileDesignator(messageFileDesignator);
+                    const [storageScope, fileDesignator] = fd.text.split("/");
+                    const { storage, config } =
+                        this.#peerScopes.get(this.#peerScopeKey(exchange.session.peerAddress, storageScope)) ?? {};
+                    if (storage === undefined || fileDesignator === undefined) {
+                        throw new BdxError(
+                            `No storage context found for BDX file designator "${fd.text}"`,
+                            BdxStatusCode.FileDesignatorUnknown,
+                        );
+                    }
+
+                    messenger = new BdxMessenger(exchange, config?.messageTimeout);
+
+                    const bdxSession = BdxSession.fromMessage(messenger, {
+                        initMessageType,
+                        initMessage,
+                        fileDesignator: new PersistedFileDesignator(fileDesignator, storage),
+                        ...config,
+                    });
+                    await this.#registerSession(messenger, bdxSession, storageScope);
+
+                    try {
+                        await bdxSession.processTransfer();
+                    } catch (error) {
+                        logger.error(`Error processing BDX transfer:`, error);
+                    }
+                } catch (error) {
+                    BdxError.accept(error);
+                    await (messenger ?? new BdxMessenger(exchange)).sendError(error.code);
+
+                    logger.warn(`BDX session failed with error:`, error);
+                    return;
+                }
                 break;
             default:
                 logger.warn(
@@ -165,6 +173,15 @@ export class BdxProtocol implements ProtocolHandler {
             await session.close(new MatterError("BDX protocol handler closed"));
         }
         this.#activeBdxSessions.clear();
+    }
+
+    sessionFor(peerAddress: PeerAddress, scope: string) {
+        for (const { session, scope: activeScope } of this.#activeBdxSessions.values()) {
+            if (PeerAddress.is(peerAddress, session.peerAddress) && activeScope === scope) {
+                return session;
+            }
+        }
+        return undefined;
     }
 }
 

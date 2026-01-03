@@ -680,7 +680,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
 
         if (userConsentNeeded) {
             if (!this.state.canConsent) {
-                // Ignore update because we can not do a consent, should normally never happen
+                // Ignore update because we cannot do a consent, should normally never happen
                 logger.info(`OTA update requires user consent, but we cannot consent, ignoring update.`);
                 this.#markActiveOtaProviderNoUpdate(providerLocation);
                 this.#resetStateToIdle();
