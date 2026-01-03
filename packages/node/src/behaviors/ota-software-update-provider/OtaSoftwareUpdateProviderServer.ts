@@ -50,6 +50,7 @@ interface OtaUpdateInProgressDetails {
     lastState: OtaUpdateStatus;
     timestamp: Timestamp;
     versionToApply?: number;
+    directConsentObtained?: boolean;
 }
 
 export enum OtaSoftwareUpdateConsentState {
@@ -158,9 +159,6 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
         NodeSession.assert(session);
         const peerAddress = session.peerAddress;
 
-        // TODO Validate vendorId, productId, softwareVersion, hardwareVersion, location from OTA Requestor Node, so
-        //  get the data from the node - maybe actively via a read? Or not needed at all and we trust?
-
         const updateDetails = await this.checkUpdateAvailable(request, peerAddress);
         if (updateDetails === undefined) {
             return {
@@ -186,18 +184,18 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
             );
             return {
                 status: OtaSoftwareUpdateProvider.Status.Busy,
-                delayedActionTime: Seconds.of(Minutes(5)), // usual bdx session timeout are 5 minutes, so lets use this
+                delayedActionTime: Seconds.of(Minutes(5)), // the usual bdx session timeout is 5 minutes, so let's use this
             };
         }
 
         const crypto = this.env.get(Crypto);
         const updateToken = crypto.randomBytes(OTA_UPDATE_TOKEN_LENGTH_BYTES);
 
-        this.#updateInProgressDetails(peerAddress, updateToken, OtaUpdateStatus.Querying, newSoftwareVersion);
-
         // If the requestor can consent, we send the update without asking for a consent
         //  else we need to ask for consent if required by the update details
         if (consentRequired && !request.requestorCanConsent) {
+            this.#updateInProgressDetails(peerAddress, updateToken, OtaUpdateStatus.WaitForConsent, newSoftwareVersion);
+
             const { consentState, delayTime = Seconds(120) } = await this.requestUserConsentForUpdate(
                 request,
                 updateDetails,
@@ -211,18 +209,28 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
             switch (consentState) {
                 case OtaSoftwareUpdateConsentState.Granted:
                     // proceed
+                    this.#updateInProgressDetails(
+                        peerAddress,
+                        updateToken,
+                        OtaUpdateStatus.Querying,
+                        newSoftwareVersion,
+                        true,
+                    );
                     break;
-                case OtaSoftwareUpdateConsentState.Denied:
-                case OtaSoftwareUpdateConsentState.Unknown:
-                    return {
-                        status: OtaSoftwareUpdateProvider.Status.NotAvailable,
-                    };
                 case OtaSoftwareUpdateConsentState.Obtaining:
                     return {
                         status: OtaSoftwareUpdateProvider.Status.Busy,
                         delayedActionTime: Seconds.of(delayTime),
                     };
+                case OtaSoftwareUpdateConsentState.Denied:
+                case OtaSoftwareUpdateConsentState.Unknown:
+                default:
+                    return {
+                        status: OtaSoftwareUpdateProvider.Status.NotAvailable,
+                    };
             }
+        } else {
+            this.#updateInProgressDetails(peerAddress, updateToken, OtaUpdateStatus.Querying, newSoftwareVersion);
         }
 
         let imageUri: string;
@@ -317,10 +325,16 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
         } catch (error) {
             MatterError.accept(error);
             logger.info("Error while closing BDX session for OTA update apply request, continuing anyway:", error);
-            // TODO ?
         }
-        // TODO check the ota metadata again for the relevant file if "Softwareversion valid" was maybe changed in
-        //  the meantime if yes send Discontinue, but not for unknown update token
+
+        if (!this.#hasUpdateConsent(session.peerAddress, newVersion)) {
+            this.#updateInProgressDetails(session.peerAddress, updateToken, OtaUpdateStatus.Unknown, newVersion);
+
+            return {
+                action: OtaSoftwareUpdateProvider.ApplyUpdateAction.Discontinue,
+                delayedActionTime: Minutes(2),
+            };
+        }
 
         // Invoked by an OTA Requestor once it is ready to apply a previously downloaded Software Image.
         // Disable BDX protocol again
@@ -363,6 +377,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
 
     /**
      * Override to customize how to check for available updates.
+     * The default logic also validates the node details like vendorId and productId and the current version.
      * When the requestorCanConsent is true, we send the latest update we have also without a consent.
      * All additional data like hardware, location, and MetadataForProvider can be checked here for specific logic
      */
@@ -371,6 +386,13 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
         peerAddress: PeerAddress,
     ): MaybePromise<OtaUpdateAvailableDetails | undefined> {
         return this.endpoint.act(agent => agent.get(SoftwareUpdateManager).updateExistsFor(peerAddress, request));
+    }
+
+    #hasUpdateConsent(peerAddress: PeerAddress, targetSoftwareVersion?: number) {
+        return (
+            !!this.#inProgressDetailsForPeer(peerAddress)?.directConsentObtained ||
+            this.endpoint.act(agent => agent.get(SoftwareUpdateManager).hasConsent(peerAddress, targetSoftwareVersion))
+        );
     }
 
     /**
@@ -398,6 +420,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
         updateToken: Bytes,
         lastState: OtaUpdateStatus,
         versionToApply?: number,
+        directConsentObtained = false,
     ) {
         const { fabricIndex, nodeId: requestorNodeId } = peerAddress;
         const key = `${requestorNodeId}-${fabricIndex}-${Bytes.toHex(updateToken)}`;
@@ -407,6 +430,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
             fabricIndex,
             lastState,
             timestamp: Time.nowMs,
+            directConsentObtained,
         };
         if (versionToApply !== undefined) {
             if (details.versionToApply !== undefined && details.versionToApply !== versionToApply) {
@@ -417,6 +441,9 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
                 );
             }
             details.versionToApply = versionToApply;
+        }
+        if (directConsentObtained !== undefined) {
+            details.directConsentObtained = directConsentObtained;
         }
 
         logger.info(

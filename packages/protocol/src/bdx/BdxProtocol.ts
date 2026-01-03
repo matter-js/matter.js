@@ -166,6 +166,15 @@ export class BdxProtocol implements ProtocolHandler {
         }
         this.#activeBdxSessions.clear();
     }
+
+    sessionFor(peerAddress: PeerAddress, scope: string) {
+        for (const { session, scope: activeScope } of this.#activeBdxSessions.values()) {
+            if (PeerAddress.is(peerAddress, session.peerAddress) && activeScope === scope) {
+                return session;
+            }
+        }
+        return undefined;
+    }
 }
 
 export namespace BdxProtocol {
