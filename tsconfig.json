@@ -41,12 +41,6 @@
             "path": "packages/nodejs-shell"
         },
         {
-            "path": "packages/examples"
-        },
-        {
-            "path": "packages/create"
-        },
-        {
             "path": "packages/react-native"
         },
         {
@@ -54,6 +48,60 @@
         },
         {
             "path": "packages/nodejs-ws"
+        },
+        {
+            "path": "examples/control-onoff"
+        },
+        {
+            "path": "examples/controller"
+        },
+        {
+            "path": "examples/device-air-quality-sensor"
+        },
+        {
+            "path": "examples/device-bridge-onoff"
+        },
+        {
+            "path": "examples/device-composed-onoff"
+        },
+        {
+            "path": "examples/device-composed-wc-light"
+        },
+        {
+            "path": "examples/device-measuring-socket"
+        },
+        {
+            "path": "examples/device-multiple-onoff"
+        },
+        {
+            "path": "examples/device-onoff"
+        },
+        {
+            "path": "examples/device-onoff-advanced"
+        },
+        {
+            "path": "examples/device-onoff-light"
+        },
+        {
+            "path": "examples/device-robotic-vacuum-cleaner"
+        },
+        {
+            "path": "examples/device-sensor"
+        },
+        {
+            "path": "examples/device-simple"
+        },
+        {
+            "path": "examples/device-smoke-co-alarm"
+        },
+        {
+            "path": "examples/mqtt-device"
+        },
+        {
+            "path": "examples/web-socket-device"
+        },
+        {
+            "path": "packages/create"
         },
         {
             "path": "support/models"
