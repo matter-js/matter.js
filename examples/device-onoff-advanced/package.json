@@ -1,0 +1,23 @@
+{
+    "name": "@matter/examples-device-onoff-advanced",
+    "version": "0.0.0-git",
+    "private": true,
+    "license": "Apache-2.0",
+    "author": "matter.js authors",
+    "scripts": {
+        "clean": "matter-build clean",
+        "build": "matter-build",
+        "build-clean": "matter-build --clean"
+    },
+    "dependencies": {
+        "@matter/main": "*",
+        "@matter/nodejs": "*"
+    },
+    "optionalDependencies": {
+        "@matter/nodejs-ble": "*"
+    },
+    "engines": {
+        "node": ">=20.19.0 <22.0.0 || >=22.13.0"
+    },
+    "type": "module"
+}
