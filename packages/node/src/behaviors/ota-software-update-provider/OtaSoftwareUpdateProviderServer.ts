@@ -442,9 +442,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
             }
             details.versionToApply = versionToApply;
         }
-        if (directConsentObtained !== undefined) {
-            details.directConsentObtained = directConsentObtained;
-        }
+        details.directConsentObtained = directConsentObtained;
 
         logger.info(
             `OTA Update ${details.versionToApply !== undefined ? `to version ${details.versionToApply} ` : ""}for Requestor`,

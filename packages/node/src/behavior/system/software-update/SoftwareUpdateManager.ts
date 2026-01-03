@@ -210,8 +210,8 @@ export class SoftwareUpdateManager extends Behavior {
         const node = peers.get(peerAddress);
         const basicInfo = node?.maybeStateOf(BasicInformationClient);
         if (
-            basicInfo?.softwareVersion === softwareVersion ||
-            basicInfo?.vendorId === vendorId ||
+            basicInfo?.softwareVersion === softwareVersion &&
+            basicInfo?.vendorId === vendorId &&
             basicInfo?.productId === productId
         ) {
             return true;
@@ -685,7 +685,7 @@ export class SoftwareUpdateManager extends Behavior {
             entry.lastProgressStatus === OtaUpdateStatus.Done
         ) {
             // Too late, update is already applying or done
-            logger.info(`Can not cancel update for node ${peerAddress.toString()}, already applying or done`);
+            logger.info(`Cannot cancel update for node ${peerAddress.toString()}, already applying or done`);
             return;
         }
         this.internal.updateQueue.splice(entryIndex, 1);
@@ -754,7 +754,7 @@ export class SoftwareUpdateManager extends Behavior {
     }
 
     /**
-     * Checks for consent and remove it if present, also cancel if in progress. Use this to remove a formerly given
+     * Checks for consent and removes it if present, also cancels if in progress. Use this to remove a formerly given
      * consent.
      */
     removeConsent(peerAddress: PeerAddress, targetSoftwareVersion?: number) {
