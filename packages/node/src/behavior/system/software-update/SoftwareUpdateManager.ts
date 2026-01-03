@@ -32,7 +32,14 @@ import {
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { DclOtaUpdateService, FabricAuthority, FileDesignator, OtaUpdateError, PeerAddress } from "#protocol";
+import {
+    BdxProtocol,
+    DclOtaUpdateService,
+    FabricAuthority,
+    FileDesignator,
+    OtaUpdateError,
+    PeerAddress,
+} from "#protocol";
 import { VendorId } from "#types";
 
 const logger = Logger.get("SoftwareUpdateManager");
@@ -73,6 +80,7 @@ export interface OtaUpdateAvailableDetails {
 
 export enum OtaUpdateStatus {
     Unknown,
+    WaitForConsent,
     Querying,
     Downloading,
     WaitForApply,
@@ -191,15 +199,43 @@ export class SoftwareUpdateManager extends Behavior {
         return this.internal.otaService.storage;
     }
 
+    /** Validate that we know the peer the update is requested for and the details match to what we know */
+    async #validatePeerDetails(
+        peerAddress: PeerAddress,
+        details: { softwareVersion: number; vendorId: VendorId; productId: number },
+    ) {
+        const { softwareVersion, vendorId, productId } = details;
+
+        const peers = (Node.forEndpoint(this.endpoint) as ServerNode).peers;
+        const node = peers.get(peerAddress);
+        const basicInfo = node?.maybeStateOf(BasicInformationClient);
+        if (
+            basicInfo?.softwareVersion === softwareVersion &&
+            basicInfo?.vendorId === vendorId &&
+            basicInfo?.productId === productId
+        ) {
+            return true;
+        }
+        return false;
+    }
+
     /**
      * Used to determine if an update is existing in our storage for a peer with a certain software version.
      *
-     * It uses the already checked details and does not check again on-demand. It considers consents already given.
+     * It uses the already checked details and does not check again on-demand. It considers consents already given,
+     * but validates the peer data.
      */
     async updateExistsFor(
         peerAddress: PeerAddress,
         { softwareVersion, vendorId, productId, requestorCanConsent }: OtaSoftwareUpdateProvider.QueryImageRequest,
     ): Promise<OtaUpdateAvailableDetails | undefined> {
+        if (!(await this.#validatePeerDetails(peerAddress, { softwareVersion, vendorId, productId }))) {
+            logger.info(
+                `Peer details for node ${peerAddress.toString()} do not match values the update was requested for, ignoring`,
+            );
+            return undefined;
+        }
+
         // We just use what we know from our last check here, so no on-demand DCL checks for now
         const availableUpdates = await this.internal.otaService.find({ vendorId, productId });
 
@@ -237,7 +273,7 @@ export class SoftwareUpdateManager extends Behavior {
         let candidate: UpdateConsentEntry | undefined;
         let consentRequired = false;
         if (requestorCanConsent) {
-            // Ok the request can get consent himself, so we just use the first candidate version and determine if
+            // Ok, the request can get consent himself, so we just use the first candidate version and determine if
             // consent is needed to be requested or if we already have it
             candidate = candidatesWithConsent[0];
             consentRequired = !candidate.consentPeers.some(
@@ -474,6 +510,12 @@ export class SoftwareUpdateManager extends Behavior {
         }
         this.internal.updateQueue.splice(entryIndex, 1);
 
+        // Also clean up consents
+        this.internal.consents = this.internal.consents.filter(
+            ({ peerAddress: consentAddress, targetSoftwareVersion }) =>
+                !PeerAddress.is(peerAddress, consentAddress) || targetSoftwareVersion > newVersion,
+        );
+
         this.#triggerQueuedUpdate();
     }
 
@@ -622,6 +664,34 @@ export class SoftwareUpdateManager extends Behavior {
         await this.#triggerUpdateOnNode(entry);
     }
 
+    /** Tries to cancel an ongoing OTA update for the given peer address. */
+    async #cancelUpdate(peerAddress: PeerAddress) {
+        const bdxProtocol = this.env.get(BdxProtocol);
+
+        // Disable the Peer on BdxProtocol for the OTA scope if registered and also cancel an open BDX session, if any
+        await bdxProtocol.disablePeerForScope(peerAddress, this.storage, true);
+
+        const entryIndex = this.internal.updateQueue.findIndex(
+            e => e.peerAddress.fabricIndex === peerAddress.fabricIndex && e.peerAddress.nodeId === peerAddress.nodeId,
+        );
+        if (entryIndex < 0) {
+            logger.warn(`No Ota update queued for node ${peerAddress.toString()}`);
+            return;
+        }
+
+        const entry = this.internal.updateQueue[entryIndex];
+        if (
+            entry.lastProgressStatus === OtaUpdateStatus.Applying ||
+            entry.lastProgressStatus === OtaUpdateStatus.Done
+        ) {
+            // Too late, update is already applying or done
+            logger.info(`Cannot cancel update for node ${peerAddress.toString()}, already applying or done`);
+            return;
+        }
+        this.internal.updateQueue.splice(entryIndex, 1);
+        logger.info(`Cancelled OTA update for node ${peerAddress.toString()}`);
+    }
+
     /**
      * Adds or updates a consent for a given peer address, vendor ID, product ID, and target software version.
      * Filters out existing consents for the given peer address and replaces them with the new one.
@@ -669,6 +739,39 @@ export class SoftwareUpdateManager extends Behavior {
 
         this.#queueUpdate({ vendorId, productId, targetSoftwareVersion, peerAddress, endpoint: otaEndpoint });
         return true;
+    }
+
+    /**
+     * Checks if consent exists for the given peer address and optionally for a specific target software version.
+     */
+    hasConsent(peerAddress: PeerAddress, targetSoftwareVersion?: number) {
+        return this.internal.consents.some(
+            consent =>
+                consent.peerAddress.fabricIndex === peerAddress.fabricIndex &&
+                consent.peerAddress.nodeId === peerAddress.nodeId &&
+                (targetSoftwareVersion === undefined || consent.targetSoftwareVersion === targetSoftwareVersion),
+        );
+    }
+
+    /**
+     * Checks for consent and removes it if present, also cancels if in progress. Use this to remove a formerly given
+     * consent.
+     */
+    removeConsent(peerAddress: PeerAddress, targetSoftwareVersion?: number) {
+        const consentIndex = this.internal.consents.findIndex(
+            consent =>
+                consent.peerAddress.fabricIndex === peerAddress.fabricIndex &&
+                consent.peerAddress.nodeId === peerAddress.nodeId &&
+                (targetSoftwareVersion === undefined || consent.targetSoftwareVersion === targetSoftwareVersion),
+        );
+        if (consentIndex >= 0) {
+            this.internal.consents.splice(consentIndex, 1);
+        } else {
+            logger.info(
+                `No consent to remove found for node ${peerAddress.toString()}${targetSoftwareVersion !== undefined ? ` for version ${targetSoftwareVersion}` : ""}`,
+            );
+        }
+        return this.#cancelUpdate(peerAddress);
     }
 
     /**

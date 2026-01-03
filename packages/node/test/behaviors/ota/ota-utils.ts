@@ -4,15 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { OtaUpdateAvailableDetails } from "#behavior/system/software-update/index.js";
+import { OtaUpdateAvailableDetails, SoftwareUpdateManager } from "#behavior/system/software-update/index.js";
 import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
 import { OtaSoftwareUpdateRequestorServer } from "#behaviors/ota-software-update-requestor";
 import { OtaSoftwareUpdateProvider } from "#clusters/ota-software-update-provider";
 import { OtaSoftwareUpdateRequestor } from "#clusters/ota-software-update-requestor";
-import { Bytes, createPromise, Crypto, MaybePromise } from "#general";
+import { OtaProviderEndpoint } from "#endpoints/ota-provider";
+import { OtaRequestorEndpoint } from "#endpoints/ota-requestor";
+import { Bytes, createPromise, Crypto, MaybePromise, StandardCrypto } from "#general";
 import { ServerNode } from "#node/ServerNode.js";
 import { DclOtaUpdateService, OtaImageWriter, PeerAddress, PersistedFileDesignator } from "#protocol";
 import { VendorId } from "#types";
+import { MockSite } from "../../node/mock-site.js";
 
 /**
  * Generate random test payload data of specified size.
@@ -160,6 +163,61 @@ export async function storeOtaImage(node: ServerNode, otaImage: TestOtaImageResu
 
     const stream = streamFromBytes(Bytes.of(otaImage.image));
     return await otaService.store(stream, otaImage.updateInfo, isProduction);
+}
+
+export async function addTestOtaImage(device: ServerNode, controller: ServerNode) {
+    // Get device info from basicInformation
+    const { vendorId, productId, softwareVersion } = device.state.basicInformation;
+    const targetSoftwareVersion = softwareVersion + 1;
+
+    // Generate 500KB of test payload data
+    const payload = generateTestPayload(500 * 1024);
+
+    // Create OTA image for next version, applicable to the current version range
+    const otaImage = await createTestOtaImage(new StandardCrypto(), {
+        vendorId,
+        productId,
+        softwareVersion: targetSoftwareVersion,
+        softwareVersionString: `v${targetSoftwareVersion}.0.0`,
+        minApplicableSoftwareVersion: 0,
+        maxApplicableSoftwareVersion: softwareVersion,
+        payload,
+    });
+
+    // Store OTA image to the controller's OTA service (test mode)
+    await storeOtaImage(controller, otaImage, false /* isProduction = false for test */);
+
+    return { otaImage, vendorId, productId, softwareVersion, targetSoftwareVersion };
+}
+
+export async function initOtaSite(
+    TestOtaProviderServer: typeof OtaSoftwareUpdateProviderServer,
+    TestOtaRequestorServer: typeof OtaSoftwareUpdateRequestorServer,
+) {
+    const site = new MockSite();
+    // Device is automatically configured with vendorId 0xfff1 and productId 0x8000
+    const { controller, device } = await site.addCommissionedPair({
+        device: {
+            type: ServerNode.RootEndpoint,
+            parts: [{ id: "ota-requestor", type: OtaRequestorEndpoint.with(TestOtaRequestorServer) }],
+        },
+        controller: {
+            type: ServerNode.RootEndpoint,
+            parts: [{ id: "ota-provider", type: OtaProviderEndpoint.with(TestOtaProviderServer) }],
+        },
+    });
+
+    const otaProvider = controller.parts.get("ota-provider")!;
+    expect(otaProvider).not.undefined;
+    const otaRequestor = device.parts.get("ota-requestor")!;
+    expect(otaRequestor).not.undefined;
+
+    // Enable test OTA images in the SoftwareUpdateManager via act()
+    await otaProvider.act(agent => {
+        agent.get(SoftwareUpdateManager).state.allowTestOtaImages = true;
+    });
+
+    return { site, device, controller, otaProvider, otaRequestor };
 }
 
 export function InstrumentedOtaRequestorServer(
