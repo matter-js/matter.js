@@ -11,19 +11,14 @@ import {
     OtaSoftwareUpdateRequestorServer,
 } from "#behaviors/ota-software-update-requestor";
 import { OtaSoftwareUpdateRequestor } from "#clusters/ota-software-update-requestor";
-import { OtaProviderEndpoint } from "#endpoints/ota-provider";
-import { OtaRequestorEndpoint } from "#endpoints/ota-requestor";
-import { Bytes, StandardCrypto } from "#general";
-import { ServerNode } from "#node/ServerNode.js";
+import { Bytes, createPromise } from "#general";
 import { FabricAuthority, PeerAddress } from "#protocol";
 import { FabricIndex, VendorId } from "#types";
-import { MockSite } from "../../node/mock-site.js";
 import {
-    createTestOtaImage,
-    generateTestPayload,
+    addTestOtaImage,
+    initOtaSite,
     InstrumentedOtaProviderServer,
     InstrumentedOtaRequestorServer,
-    storeOtaImage,
 } from "./ota-utils.js";
 
 describe("Ota", () => {
@@ -53,28 +48,11 @@ describe("Ota", () => {
             requestUserConsentForUpdate: false, // not relevant
         });
 
-        await using site = new MockSite();
-        // Device is automatically configured with vendorId 0xfff1 and productId 0x8000
-        const { controller, device } = await site.addCommissionedPair({
-            device: {
-                type: ServerNode.RootEndpoint,
-                parts: [{ id: "ota-requestor", type: OtaRequestorEndpoint.with(TestOtaRequestorServer) }],
-            },
-            controller: {
-                type: ServerNode.RootEndpoint,
-                parts: [{ id: "ota-provider", type: OtaProviderEndpoint.with(TestOtaProviderServer) }],
-            },
-        });
-
-        const otaProvider = controller.parts.get("ota-provider")!;
-        expect(otaProvider).not.undefined;
-        const otaRequestor = device.parts.get("ota-requestor")!;
-        expect(otaRequestor).not.undefined;
-
-        // Enable test OTA images in the SoftwareUpdateManager via act()
-        await otaProvider.act(agent => {
-            agent.get(SoftwareUpdateManager).state.allowTestOtaImages = true;
-        });
+        const { site, device, controller, otaProvider, otaRequestor } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
 
         const fabric = await otaProvider.act(agent => agent.env.get(FabricAuthority).fabrics[0]);
 
@@ -92,29 +70,10 @@ describe("Ota", () => {
 
         // *** GENERATE AND STORE OTA IMAGE ***
 
-        // Get device info from basicInformation
-        const { vendorId, productId, softwareVersion } = device.state.basicInformation;
-        const targetSoftwareVersion = softwareVersion + 1;
-
-        // Generate 500KB of test payload data
-        const payload = generateTestPayload(500 * 1024);
-
-        // Create OTA image for next version, applicable to the current version range
-        const otaImage = await createTestOtaImage(new StandardCrypto(), {
-            vendorId,
-            productId,
-            softwareVersion: targetSoftwareVersion,
-            softwareVersionString: `v${targetSoftwareVersion}.0.0`,
-            minApplicableSoftwareVersion: 0,
-            maxApplicableSoftwareVersion: softwareVersion,
-            payload,
-        });
+        const { otaImage, vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
 
         // Store expected OTA image for verification in applyUpdate
         data.expectedOtaImage = Bytes.of(otaImage.image);
-
-        // Store OTA image to the controller's OTA service (test mode)
-        await storeOtaImage(controller, otaImage, false /* isProduction = false for test */);
 
         // *** TRIGGER OTA UPDATE ***
 
@@ -136,15 +95,9 @@ describe("Ota", () => {
 
         // Force the OTA update via SoftwareUpdateManager
         await otaProvider.act(agent => {
-            return agent.get(SoftwareUpdateManager).forceUpdate(
-                PeerAddress({
-                    nodeId: peerAddress!.nodeId,
-                    fabricIndex: FabricIndex(peerAddress!.fabricIndex),
-                }),
-                VendorId(vendorId),
-                productId,
-                targetSoftwareVersion,
-            );
+            return agent
+                .get(SoftwareUpdateManager)
+                .forceUpdate(peerAddress!, VendorId(vendorId), productId, targetSoftwareVersion);
         });
 
         await MockTime.resolve(announceOtaProviderPromise);
@@ -192,7 +145,103 @@ describe("Ota", () => {
                 targetSoftwareVersion: null,
             },
         ]);
+
+        await site[Symbol.asyncDispose]();
     }).timeout(10_000); // locally needs 1s, but CI might be slower
 
-    // TODO Add more test cases for cancelling consent, edge cases and error cases, also split out setup into helpers
+    it("Cancel a software update before download by removing consent", async () => {
+        // *** COMMISSIONING ***
+
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({ requestUserConsent: false });
+
+        const { queryImagePromise, TestOtaProviderServer } = InstrumentedOtaProviderServer({
+            requestUserConsentForUpdate: false, // not relevant
+        });
+
+        const { site, device, controller, otaProvider, otaRequestor } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        // *** GENERATE AND STORE OTA IMAGE ***
+
+        const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+
+        // *** TRIGGER OTA UPDATE ***
+
+        // Get the client view of the device (peer)
+        const peer1 = controller.peers.get("peer1")!;
+        expect(peer1).not.undefined;
+
+        // Get the peer address for force update
+        const peerAddress = peer1.state.commissioning.peerAddress;
+        expect(peerAddress).not.undefined;
+
+        const { promise: idlePromise, resolver: idleResolver } = createPromise<void>();
+        const updateStateEvents = new Array<OtaSoftwareUpdateRequestor.StateTransitionEvent>();
+        peer1.endpoints
+            .for(otaRequestor.number)
+            .eventsOf(OtaSoftwareUpdateRequestorClient)
+            .stateTransition.on((event: OtaSoftwareUpdateRequestor.StateTransitionEvent) => {
+                updateStateEvents.push(event);
+                if (event.newState === OtaSoftwareUpdateRequestor.UpdateState.Idle) {
+                    idleResolver();
+                }
+            });
+
+        const { promise: downloadingPromise, resolver: downloadingResolver } = createPromise<void>();
+        otaRequestor
+            .eventsOf(OtaSoftwareUpdateRequestorServer)
+            .stateTransition.on((event: OtaSoftwareUpdateRequestor.StateTransitionEvent) => {
+                if (event.newState === OtaSoftwareUpdateRequestor.UpdateState.Downloading) {
+                    downloadingResolver();
+                }
+            });
+
+        // Force the OTA update via SoftwareUpdateManager
+        await otaProvider.act(agent => {
+            return agent
+                .get(SoftwareUpdateManager)
+                .forceUpdate(peerAddress!, VendorId(vendorId), productId, targetSoftwareVersion);
+        });
+
+        await MockTime.resolve(queryImagePromise);
+
+        await MockTime.resolve(downloadingPromise);
+
+        await otaProvider.act(agent => {
+            return agent.get(SoftwareUpdateManager).removeConsent(
+                PeerAddress({
+                    nodeId: peerAddress!.nodeId,
+                    fabricIndex: FabricIndex(peerAddress!.fabricIndex),
+                }),
+            );
+        });
+
+        await MockTime.resolve(idlePromise);
+
+        expect(updateStateEvents).deep.equals([
+            {
+                previousState: OtaSoftwareUpdateRequestor.UpdateState.Idle,
+                newState: OtaSoftwareUpdateRequestor.UpdateState.Querying,
+                reason: OtaSoftwareUpdateRequestor.ChangeReason.Success,
+                targetSoftwareVersion: null,
+            },
+            {
+                previousState: OtaSoftwareUpdateRequestor.UpdateState.Querying,
+                newState: OtaSoftwareUpdateRequestor.UpdateState.Downloading,
+                reason: OtaSoftwareUpdateRequestor.ChangeReason.Success,
+                targetSoftwareVersion: 1,
+            },
+            {
+                previousState: OtaSoftwareUpdateRequestor.UpdateState.Downloading,
+                newState: OtaSoftwareUpdateRequestor.UpdateState.Idle,
+                reason: OtaSoftwareUpdateRequestor.ChangeReason.Failure,
+                targetSoftwareVersion: null,
+            },
+        ]);
+    }).timeout(10_000); // locally needs 1s, but CI might be slower
+
+    // TODO Add more test cases for edge cases and error cases, also split out setup into helpers
 });
