@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { PackageJson } from "@matter/tools";
 import { execSync } from "node:child_process";
 import { cp, mkdir, writeFile } from "node:fs/promises";
 import { basename, resolve } from "node:path";
@@ -13,7 +14,7 @@ import { bold } from "./formatting.js";
 import { notice } from "./messages.js";
 import { createAndValidateDest, install, ProjectError, TemplateNotFoundError } from "./new-project.js";
 
-const PACKAGE_JSON = {
+const PACKAGE_JSON: PackageJson = {
     dependencies: {} as Record<string, string>,
     devDependencies: {
         typescript: "*",
@@ -130,13 +131,15 @@ async function createPackageJson(project: ConsumerProject) {
 
     const config = await Config();
 
-    pkg.scripts.app = `node --enable-source-maps ${entrypointFor(project)}`;
+    pkg.scripts!.app = `node --enable-source-maps ${entrypointFor(project)}`;
 
+    pkg.engines = project.template.engines;
     pkg.dependencies = project.template.dependencies;
-    pkg.devDependencies["typescript"] = config.typescriptVersion;
-    pkg.devDependencies["@types/node"] = config.nodeTypesVersion;
+    pkg.optionalDependencies = project.template.optionalDependencies;
+    pkg.devDependencies!["typescript"] = config.typescriptVersion;
+    pkg.devDependencies!["@types/node"] = config.nodeTypesVersion;
 
-    (pkg as any).description = project.template.description;
+    pkg.description = project.template.description;
 
     let author, authorEmail;
     try {

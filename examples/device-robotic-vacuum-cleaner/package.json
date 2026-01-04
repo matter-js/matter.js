@@ -9,6 +9,7 @@
         "build": "matter-build",
         "build-clean": "matter-build --clean"
     },
+    "main": "src/RoboticVacuumCleanerDevice.ts",
     "dependencies": {
         "@matter/main": "*"
     },

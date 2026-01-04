@@ -399,6 +399,8 @@ export type PackageJson = {
     workspaces?: Array<string>;
     dependencies?: Record<string, string>;
     devDependencies?: Record<string, string>;
+    optionalDependencies?: Record<string, string>;
+    engines?: Record<string, string>;
     [key: string]: unknown;
 };
 
