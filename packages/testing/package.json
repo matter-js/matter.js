@@ -45,7 +45,7 @@
         "#tools/ansi-text": "@matter/tools/ansi-text"
     },
     "dependencies": {
-        "@matter/tools": "0.0.0-git",
+        "@matter/tools": "*",
         "@types/express": "^5.0.6",
         "ansi-colors": "^4.1.3",
         "chai": "^4.5.0",
