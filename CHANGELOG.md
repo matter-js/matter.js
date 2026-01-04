@@ -20,7 +20,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Upgraded to Matter specification version 1.4.2
 
 - @matter/examples
-    - Breaking: This package is no longer published. The examples are moved in the reporitory into the `examples/` directory. Simply use the project creator `npm init @matter` to create a new project based on one of the examples.
+    - Breaking: This package is no longer published. The examples are moved in the repository into the `examples/` directory. Simply use the project creator `npm init @matter` to create a new project based on one of the examples.
 
 - @matter/general
     - Breaking: Our time API is upgraded, most notably with proper typing for time intervals. This makes time handling more consistent and safer, but it does change how you convey intervals to matter.js. For example: `delay: Seconds(1)` rather than `delayMs: 1000`.
