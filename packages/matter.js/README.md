@@ -12,7 +12,7 @@ Implementation of Matter protocol in typescript with no native dependencies (and
 
 This is the JavaScript-only Core of the Matter protocol. It is used by other projects to implement Matter Nodes and Clients and add the relevant specific implementations for Network and other elements.
 
-> This package supports all Node.js LTS versions starting with 18.x
+> This package supports all Node.js LTS versions starting with 20.x
 
 The following features are abstracted away to allow to be implemented environment specific:
 

@@ -19,6 +19,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/\*:
     - Upgraded to Matter specification version 1.4.2
 
+- @matter/examples
+    - Breaking: This package is no longer published. The examples are moved in the reporitory into the `examples/` directory. Simply use the project creator `npm init @matter` to create a new project based on one of the examples. 
+
 - @matter/general
     - Breaking: Our time API is upgraded, most notably with proper typing for time intervals. This makes time handling more consistent and safer, but it does change how you convey intervals to matter.js. For example: `delay: Seconds(1)` rather than `delayMs: 1000`.
     - Breaking: There are other small time changes such as converting `nowMs()` (a function) to `nowMs` (a property).
@@ -121,10 +124,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: PairedNode attribute change callbacks and events does _not_ contain the `changed` and `oldValue` properties anymore
     - Breaking: Some PairedNode API methods got slightly reduced in functionality, but that should not affect most users
     - Breaking: The Storage location of the controller base data has moved. The data will be migrated automatically on the first start of the new version (be aware, this can take some seconds!)
-      - Cached node attribute data (formerly `node-<ID>.*` in the main storage) are now located in `nodes.peerX.endpoints.*` because they are now managed
-      - The fabric (formerly "credentials.fabric") is now located at "fabrics.*"
-      - The certificates (formerly other `credentials.*`) are now located in `certificates.*`
-      - The list of commissioned nodes (formerly "nodes.commissionedNodes") is now integrated in the node peer data (nodes.peerX)
+        - Cached node attribute data (formerly `node-<ID>.*` in the main storage) are now located in `nodes.peerX.endpoints.*` because they are now managed
+        - The fabric (formerly "credentials.fabric") is now located at "fabrics.*"
+        - The certificates (formerly other `credentials.*`) are now located in `certificates.*`
+        - The list of commissioned nodes (formerly "nodes.commissionedNodes") is now integrated in the node peer data (nodes.peerX)
     - Feature: Added new option `enableOtaProvider` to `CommissioningControllerOptions` to enable OTA Provider functionality
     - Enhancement: The PairedNode is data wise now backend by a ServerNode instance which acts as controller and provides all data management and peer access. This API can alredy be moved directly by using `PairedNode.node` - some convenience methods are also dorectly mapped on the PairedNode itself (see below). initial connection and reconnection management is still handled by PairedNode and will move later.
     - Enhancement: Added more convenient accessors for endpoint cached read-only state: `Endpoint.state` property for attributes for all clusters in generic way and `Endpoint.stateOf()` for typed access for a defined Client behavior
@@ -136,8 +139,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: New package implementing `@matter/main` MQTT abstraction using MQTT.js
 
 - @matter/nodejs-shell
-  - Fix: Changed the shell CLI option to enable ble to "--ble-enable" to not conflict with internal variables
-  - Adjustment: Adjusted to build ESM package by default
+    - Fix: Changed the shell CLI option to enable ble to "--ble-enable" to not conflict with internal variables
+    - Adjustment: Adjusted to build ESM package by default
 
 - @matter/nodejs-ws
     - Feature: New package implementing `@matter/main` WebSocket abstraction using ws package and Node.js HTTP server
