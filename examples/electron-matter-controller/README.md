@@ -1,6 +1,6 @@
 # Matter Electron Example Application
 
-This example application demonstrates a simple Matter controller using Electron and can eb seen as a simple Proof-of-Concept to show the functionality of the matter.js library.
+This example application demonstrates a simple Matter controller using Electron and can be seen as a simple Proof-of-Concept to show the functionality of the matter.js library.
 
 > [!IMPORTANT]
 > This application is **not** available via the project creator right now. So to get the code, please clone the repository and copy the files into an own directory.
