@@ -20,6 +20,7 @@
         "packages/nodejs-ws",
         "examples/control-onoff",
         "examples/controller",
+        "examples/controller-shared-fabric",
         "examples/device-air-quality-sensor",
         "examples/device-bridge-onoff",
         "examples/device-composed-onoff",

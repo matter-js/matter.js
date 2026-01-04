@@ -56,6 +56,9 @@
             "path": "examples/controller"
         },
         {
+            "path": "examples/controller-shared-fabric"
+        },
+        {
             "path": "examples/device-air-quality-sensor"
         },
         {
