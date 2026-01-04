@@ -239,7 +239,7 @@ export class ControllerNode {
                 node.connect();
             }
 
-            // Wait for initialization oif not yet initialized - this should only happen if we just commissioned it
+            // Wait for initialization of not yet initialized - this should only happen if we just commissioned it
             if (!node.initialized) {
                 await node.events.initialized;
             }
