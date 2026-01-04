@@ -39,7 +39,7 @@ export default function App() {
       parseInt(matterLongDiscriminatorText),
       parseInt(matterPasscodeText)
     );
-  }
+  };
 
   return (
     <div>
