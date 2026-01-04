@@ -170,7 +170,7 @@ The multi-controller reads certificates from environment variables or defaults:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MATTER_CERTDIR` | `.../connectedhomeip/certificates` | Certificate directory |
+| `MATTER_CERTDIR` | `./certificates` | Certificate directory |
 | `MATTER_FABRICID` | `1` | Fabric ID |
 | `MATTER_NODEID` | `200` | This controller's Node ID |
 | `MATTER_TARGETNODEID` | `1` | Target device Node ID |
