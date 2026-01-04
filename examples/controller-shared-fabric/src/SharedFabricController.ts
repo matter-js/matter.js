@@ -112,8 +112,8 @@ async function main() {
     // Certificate paths - Note: RCAC private key is NOT required when using ICAC
     // Only need: RCAC cert (public), ICAC cert, ICAC private key
     const rcacCertPath = path.join(certDir, "rcac.chip");
-    const icacCertPath = path.join(certDir, "icac2.chip");
-    const icacKeyPath = path.join(certDir, "icac2_key.bin");
+    const icacCertPath = path.join(certDir, "icac.chip");
+    const icacKeyPath = path.join(certDir, "icac_key.bin");
 
     // Verify files exist
     for (const [name, filePath] of [
