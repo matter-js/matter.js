@@ -8,7 +8,7 @@ import { ControllerNode } from './matter/ControllerNode';
 import './scss/styles.scss';
 
 // Import all of Bootstrap’s JS
-import * as bootstrap from 'bootstrap';
+import 'bootstrap';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
