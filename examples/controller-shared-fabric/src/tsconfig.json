@@ -1,9 +1,7 @@
 {
     "extends": "../../../packages/tools/tsc/tsconfig.app.json",
     "compilerOptions": {
-        "types": [
-            "node"
-        ]
+        "types": ["node"]
     },
     "references": [
         {
@@ -11,9 +9,6 @@
         },
         {
             "path": "../../../packages/matter.js/src"
-        },
-        {
-            "path": "../../../packages/nodejs-ble/src"
         }
     ]
 }

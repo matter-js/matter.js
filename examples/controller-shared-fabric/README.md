@@ -43,10 +43,10 @@ Each controller can have its own **Intermediate CA (ICAC)** and **Node Operation
 
 | Command | Description |
 |---------|-------------|
-| `npm run matter-shared-fabric toggle` | Toggle the device ON/OFF |
-| `npm run matter-shared-fabric on` | Turn device ON |
-| `npm run matter-shared-fabric off` | Turn device OFF |
-| `npm run matter-shared-fabric read` | Read current OnOff state |
+| `npm run matter-controller-shared-fabric toggle` | Toggle the device ON/OFF |
+| `npm run matter-controller-shared-fabric on` | Turn device ON |
+| `npm run matter-controller-shared-fabric off` | Turn device OFF |
+| `npm run matter-controller-shared-fabric read` | Read current OnOff state |
 
 ## Prerequisites
 
@@ -179,19 +179,19 @@ The multi-controller reads certificates from environment variables or defaults:
 ### Running
 
 ```bash
-cd packages/examples
+cd examples
 
 # Toggle the device ON/OFF
-npm run matter-shared-fabric toggle
+npm run matter-controller-shared-fabric toggle
 
 # Turn device ON
-npm run matter-shared-fabric on
+npm run matter-controller-shared-fabric on
 
 # Turn device OFF
-npm run matter-shared-fabric off
+npm run matter-controller-shared-fabric off
 
 # Read current OnOff state
-npm run matter-shared-fabric read
+npm run matter-controller-shared-fabric read
 ```
 
 ### With Custom Environment Variables
@@ -202,7 +202,7 @@ MATTER_FABRICID=2 \
 MATTER_NODEID=200 \
 MATTER_TARGETNODEID=1 \
 MATTER_ENDPOINT=1 \
-npm run matter-shared-fabric toggle
+npm run matter-controller-shared-fabric toggle
 ```
 
 ## How It Works
