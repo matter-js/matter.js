@@ -704,7 +704,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
 
         const unsecuredSession = this.#sessions.createUnsecuredSession({
             channel: operationalChannel,
-            // Use the session parameters from MDNS announcements when available and rest is assumed to be fall back
+            // Use the session parameters from MDNS announcements when available and rest is assumed to be fall-backs
             sessionParameters: mergedSessionParameters,
             isInitiator: true,
         });

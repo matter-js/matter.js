@@ -214,7 +214,7 @@ describe("CertificateAuthority", () => {
     describe("Configuration export", () => {
         it("exports complete configuration with ICAC", async () => {
             const ca = await CertificateAuthority.create(crypto, true);
-            const config = ca.config;
+            const config = ca.config as CertificateAuthority.ConfigurationWithIcac;
 
             expect(BigInt(config.rootCertId)).equal(BigInt(0));
             expect(BigInt(config.icacCertId!)).equal(BigInt(1));

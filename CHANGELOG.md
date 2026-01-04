@@ -78,6 +78,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/nodejs-shell
     - Feature: Added `cert` command for DCL certificate management with subcommands: list, details, as-pem, delete, and update
     - Feature: Added `ota` command for OTA update management with subcommands: info, extract, verify, list, add, delete, and copy for managing OTA image files in storage
+    - Feature: Added new commands to the `node` commands to check, download and apply OTA updates for nodes
 
 - @matter/protocol
     - Breaking: The platform-specific BLE abstraction has changed so that higher-level logic may be shared across platforms
@@ -92,7 +93,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: Added DclOtaUpdateService for checking and downloading Over-The-Air (OTA) software updates from DCL with full validation and checksum verification
     - Feature: Added DclVendorInfoService for retrieving vendor information from DCL
     - Feature: Added OTA image processing utilities (OtaImageReader, OtaImageWriter) for reading, validating, extracting, and creating Matter OTA update files
-    - Feature: (@ArtemisMucaj) Add support to pass / generate an intermediate CA in the CertificateAuthority class, when used the NOCs are signed with the ICAC cert
+    - Feature: (@ArtemisMucaj) Added support to pass / generate an intermediate CA in the CertificateAuthority class, when used the NOCs are signed with the ICAC cert
+    - Enhancement: (@bhargavnagotha9) Allows the Root keypair to be optional when ICAC is provided
     - Enhancement: MDNS broadcasts more aggressively until a connection is established
     - Enhancement: MDNS and BLE advertising schedules are now configurable and conform to Matter and DNS-SD specifications
     - Enhancement: MDNS client and server efficiency is improved with a shared socket and message parser
@@ -109,7 +111,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: (@ArtemisMucaj) Fixes noc trust chain verification; verify against both RCAC and ICAC if present
 
 - @matter/react-native
-    - Fix: (Luxni) Update UDP, BLE and Crypto usage to work with React Native
+    - Fix: (@Luxni) Update UDP, BLE and Crypto usage to work with React Native
 
 - @matter/types
     - Breaking: All "epoch-s" and "epoch-us" values are now converted automatically to the correct matter epoch, so that your own code can just use normal 1970-based epochS/US values. If you converted yourself to the Matter 2000-based values before, please remove this conversion.
