@@ -29,12 +29,13 @@ export interface Config {
 let config: Config | undefined;
 
 function patchVersion(version: string, dependencies: Record<string, string>) {
-    for (const name in dependencies) {
+    const patched: Record<string, string> = { ...dependencies };
+    for (const name in patched) {
         if (name.startsWith("@matter/") || name.startsWith("@project-chip/")) {
-            dependencies[name] = version;
+            patched[name] = version;
         }
     }
-    return dependencies;
+    return patched;
 }
 
 export async function Config() {
