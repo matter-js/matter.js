@@ -1,7 +1,7 @@
 {
-    "name": "matter-vite-ts",
-    "productName": "matter-vite-ts",
-    "version": "1.0.0",
+    "name": "@matter/example-electron-matter-controller",
+    "version": "0.0.0-git",
+    "private": true,
     "description": "My Electron application description",
     "main": ".vite/build/main.js",
     "scripts": {

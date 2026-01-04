@@ -3,30 +3,21 @@
 
 // import { NodeJsBle } from "@matter/nodejs-ble";
 
-import { Crypto, Diagnostic, Environment, Logger, singleton, StandardCrypto, StorageService } from "@matter/main";
+import { Crypto, Diagnostic, Environment, Logger, StandardCrypto, StorageService } from "@matter/main";
 import { BasicInformationCluster, DescriptorCluster, GeneralCommissioning, OnOff } from "@matter/main/clusters";
 // import { Ble, ClusterClientObj } from "@matter/main/protocol";
-import { Ble, ClusterClientObj } from "@matter/main/protocol";
+import { ClusterClientObj } from "@matter/main/protocol";
 import { NodeId } from "@matter/main/types";
-import { NodeJsBle } from "@matter/nodejs-ble";
 import { CommissioningController, NodeCommissioningOptions } from "@project-chip/matter.js";
 // // import { CommissioningController } from "@project-chip/matter.js";
 import { NodeStates } from "@project-chip/matter.js/device";
 
+// This installs BLE support if configuration variable "ble.enable" is true
+import "@matter/nodejs-ble";
+
 const logger = Logger.get("Controller");
 
 const environment = Environment.default;
-
-// if (environment.vars.get("ble")) {
-// Initialize Ble
-Ble.get = singleton(
-    () =>
-        new NodeJsBle({
-            // environment,
-            hciId: environment.vars.number("ble.hci.id"),
-        }),
-);
-// }
 
 const storageService = environment.get(StorageService);
 console.log(`Storage location: ${storageService.location} (Directory)`);

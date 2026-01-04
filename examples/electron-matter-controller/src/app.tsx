@@ -5,6 +5,7 @@ import ReactDOM from "react-dom/client";
 import "./scss/styles.scss";
 
 // Import all of Bootstrap’s JS
+import "bootstrap";
 
 import "bootstrap-icons/font/bootstrap-icons.css";
 
@@ -31,11 +32,20 @@ export default function App() {
         console.log(`matterPairingcodeText ` + matterPairingcodeText);
         console.log(`matterQRCodeText ` + matterQRCodeText);
 
+        const longDiscriminator = parseInt(matterLongDiscriminatorText, 10);
+        const passcode = parseInt(matterPasscodeText, 10);
+        if (Number.isNaN(longDiscriminator) || Number.isNaN(passcode)) {
+            console.error(
+                "Invalid numeric input for Matter commissioning: long discriminator or passcode is not a valid number.",
+            );
+            alert("Please enter valid numeric values for the Matter long discriminator and passcode.");
+            return;
+        }
         const _result = await window.electronAPI.handleMatter(
             threadNetworkNameText,
             threadOperationalDatasetText,
-            parseInt(matterLongDiscriminatorText),
-            parseInt(matterPasscodeText),
+            longDiscriminator,
+            passcode,
         );
     };
 
@@ -84,7 +94,7 @@ export default function App() {
                         <div className="col">
                             <h2>WiFi Network Settings</h2>
                             <div className="mb-3">
-                                <label htmlFor="threadNetworkName" className="form-label">
+                                <label htmlFor="wifiSSID" className="form-label">
                                     SSID
                                 </label>
                                 <input
@@ -100,7 +110,7 @@ export default function App() {
                                 />
                             </div>
                             <div className="mb-3">
-                                <label htmlFor="threadOperationalDataset" className="form-label">
+                                <label htmlFor="wifiCredential" className="form-label">
                                     Credential
                                 </label>
                                 <input

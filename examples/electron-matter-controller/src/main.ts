@@ -4,12 +4,6 @@ import path from "node:path";
 
 import { ControllerNode } from "./matter/ControllerNode";
 
-// Import our custom CSS
-import "./scss/styles.scss";
-
-// Import all of Bootstrap’s JS
-import "bootstrap";
-
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
     app.quit();
@@ -29,6 +23,8 @@ async function handleMatter(
         .catch(error => console.log(error));
     console.log("handleMatter()~");
 }
+
+let handlerRegistered = false;
 
 const createWindow = () => {
     // Create the browser window.
@@ -50,7 +46,10 @@ const createWindow = () => {
     // Open the DevTools.
     // mainWindow.webContents.openDevTools();
 
-    ipcMain.handle("handle-matter", handleMatter);
+    if (!handlerRegistered) {
+        ipcMain.handle("handle-matter", handleMatter);
+        handlerRegistered = true;
+    }
 };
 
 // This method will be called when Electron has finished
