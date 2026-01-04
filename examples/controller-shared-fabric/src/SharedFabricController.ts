@@ -94,8 +94,8 @@ function loadTlvCertificate(certPath: string): Bytes {
 async function computeKeyIdentifier(publicKey: Bytes): Promise<Bytes> {
     const nodeCrypto = await import("crypto");
     const publicKeyBuffer = Buffer.from(Bytes.of(publicKey));
-    const sha1 = nodeCrypto.createHash("sha1").update(publicKeyBuffer).digest();
-    return Bytes.of(new Uint8Array(sha1));
+    const sha256 = nodeCrypto.createHash("sha256").update(publicKeyBuffer).digest();
+    return Bytes.of(new Uint8Array(sha256));
 }
 
 function getDefaultChipToolIpk(): Bytes {
