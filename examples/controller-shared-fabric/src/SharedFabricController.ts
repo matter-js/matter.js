@@ -103,7 +103,7 @@ function getDefaultChipToolIpk(): Bytes {
 }
 
 async function main() {
-    const certDir = process.env.MATTER_CERTDIR ?? "/home/mantra/pooja/connectedhomeip/certificates";
+    const certDir = process.env.MATTER_CERTDIR ?? "./certificates";
     const fabricId = BigInt(process.env.MATTER_FABRICID ?? "1");
     const nodeId = Number(process.env.MATTER_NODEID ?? "200");
     const targetDeviceNodeId = Number(process.env.MATTER_TARGETNODEID ?? "1");
