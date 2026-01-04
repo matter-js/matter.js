@@ -1,15 +1,13 @@
-
 // // Matter.js
 // import { Logger, Environment, singleton } from "@matter/main";
 
 // import { NodeJsBle } from "@matter/nodejs-ble";
 
-import { Diagnostic, Environment, Logger, singleton, Crypto, StandardCrypto, StorageService, Time } from "@matter/main";
+import { Crypto, Diagnostic, Environment, Logger, singleton, StandardCrypto, StorageService } from "@matter/main";
 import { BasicInformationCluster, DescriptorCluster, GeneralCommissioning, OnOff } from "@matter/main/clusters";
 // import { Ble, ClusterClientObj } from "@matter/main/protocol";
-import { ClusterClientObj } from "@matter/main/protocol";
-import { Ble } from "@matter/main/protocol";
-import { ManualPairingCodeCodec, NodeId } from "@matter/main/types";
+import { Ble, ClusterClientObj } from "@matter/main/protocol";
+import { NodeId } from "@matter/main/types";
 import { NodeJsBle } from "@matter/nodejs-ble";
 import { CommissioningController, NodeCommissioningOptions } from "@project-chip/matter.js";
 // // import { CommissioningController } from "@project-chip/matter.js";
@@ -20,14 +18,14 @@ const logger = Logger.get("Controller");
 const environment = Environment.default;
 
 // if (environment.vars.get("ble")) {
-    // Initialize Ble
-    Ble.get = singleton(
-        () =>
-            new NodeJsBle({
-                // environment,
-                hciId: environment.vars.number("ble.hci.id"),
-            }),
-    );
+// Initialize Ble
+Ble.get = singleton(
+    () =>
+        new NodeJsBle({
+            // environment,
+            hciId: environment.vars.number("ble.hci.id"),
+        }),
+);
 // }
 
 const storageService = environment.get(StorageService);
@@ -45,7 +43,7 @@ export class ControllerNode {
         threadNetworkName: string,
         threadOperationalDataset: string,
         longDiscriminator: number,
-        setupPin: number
+        setupPin: number,
     ) {
         console.info(`node-matter Controller started`);
 
@@ -85,7 +83,7 @@ export class ControllerNode {
         const port = undefined;
 
         const uniqueId = "unique-but-not-unique"; // Time.nowMs().toString();
-        const adminFabricLabel ="matter.js Controller";
+        const adminFabricLabel = "matter.js Controller";
 
         const shortDiscriminator = undefined;
 
@@ -110,7 +108,7 @@ export class ControllerNode {
         //     );
         // }
 
-        logger.info('commissioningOptions OK');
+        logger.info("commissioningOptions OK");
 
         // Collect commissioning options from commandline parameters
         const commissioningOptions: NodeCommissioningOptions["commissioning"] = {
@@ -120,25 +118,25 @@ export class ControllerNode {
 
         let ble = false;
         // if (environment.vars.get("ble")) {
-            ble = true;
-            // const wifiSsid = environment.vars.string("ble.wifi.ssid");
-            // const wifiCredentials = environment.vars.string("ble.wifi.credentials");
-            // const threadNetworkName = environment.vars.string("ble.thread.networkname");
-            // const threadOperationalDataset = environment.vars.string("ble.thread.operationaldataset");
-            // if (wifiSsid !== undefined && wifiCredentials !== undefined) {
-            //     logger.info(`Registering Commissioning over BLE with WiFi: ${wifiSsid}`);
-            //     commissioningOptions.wifiNetwork = {
-            //         wifiSsid: wifiSsid,
-            //         wifiCredentials: wifiCredentials,
-            //     };
-            // }
-            if (threadNetworkName !== undefined && threadOperationalDataset !== undefined) {
-                logger.info(`Registering Commissioning over BLE with Thread: ${threadNetworkName}`);
-                commissioningOptions.threadNetwork = {
-                    networkName: threadNetworkName,
-                    operationalDataset: threadOperationalDataset,
-                };
-            }
+        ble = true;
+        // const wifiSsid = environment.vars.string("ble.wifi.ssid");
+        // const wifiCredentials = environment.vars.string("ble.wifi.credentials");
+        // const threadNetworkName = environment.vars.string("ble.thread.networkname");
+        // const threadOperationalDataset = environment.vars.string("ble.thread.operationaldataset");
+        // if (wifiSsid !== undefined && wifiCredentials !== undefined) {
+        //     logger.info(`Registering Commissioning over BLE with WiFi: ${wifiSsid}`);
+        //     commissioningOptions.wifiNetwork = {
+        //         wifiSsid: wifiSsid,
+        //         wifiCredentials: wifiCredentials,
+        //     };
+        // }
+        if (threadNetworkName !== undefined && threadOperationalDataset !== undefined) {
+            logger.info(`Registering Commissioning over BLE with Thread: ${threadNetworkName}`);
+            commissioningOptions.threadNetwork = {
+                networkName: threadNetworkName,
+                operationalDataset: threadOperationalDataset,
+            };
+        }
         // }
 
         /** Create Matter Controller Node and bind it to the Environment. */
@@ -317,4 +315,3 @@ export class ControllerNode {
         }
     }
 }
-
