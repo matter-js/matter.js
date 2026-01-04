@@ -142,6 +142,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/nodejs-ws
     - Feature: New package implementing `@matter/main` WebSocket abstraction using ws package and Node.js HTTP server
 
+- Example Applications
+    - (markus-becker-tridonic-com) Added an Electron-based example Application to demonstrate the use of Matter.js in a desktop application
+
 - Other
     - Feature: For developers working with the matter.js repository on Macs and Windows, we now offer a devcontainer to facilitate native Linux development
 
