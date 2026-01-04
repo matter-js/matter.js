@@ -9,6 +9,7 @@
         "build": "matter-build",
         "build-clean": "matter-build --clean"
     },
+    "main": "src/DeviceNodeFull.ts",
     "dependencies": {
         "@matter/main": "*",
         "@matter/nodejs": "*"
