@@ -585,14 +585,13 @@ export class SessionManager {
 
     async saveResumptionRecord(resumptionRecord: ResumptionRecord) {
         await this.#construction;
-        const { fabric } = resumptionRecord;
+        const { fabric, ...rest } = resumptionRecord;
 
         const record = {
-            ...resumptionRecord,
+            ...rest,
             fabricId: fabric.fabricId,
             fabricIndex: fabric.fabricIndex,
         };
-        delete (record as any).fabric;
         this.#resumptionRecords.set(fabric.addressOf(resumptionRecord.peerNodeId), record);
         await this.#storeResumptionRecords();
     }
