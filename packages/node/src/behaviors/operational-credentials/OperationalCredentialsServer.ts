@@ -365,6 +365,9 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
             // update FabricManager and Resumption records but leave the current session intact
             await timedOp.replaceFabric(updatedFabric);
 
+            // close all sessions found to the old fabric and just leave the one with this exchange open to deliver response
+            await timedOp.associatedFabric.replaced(this.context.exchange);
+
             return {
                 statusCode: OperationalCredentials.NodeOperationalCertStatus.Ok,
                 fabricIndex: updatedFabric.fabricIndex,
