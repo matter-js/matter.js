@@ -20,10 +20,12 @@ export class ClientNodeStore extends NodeStore {
     #storage?: StorageContext;
     #stores = new Map<EndpointNumber, ClientEndpointStore>();
     #write?: RemoteWriter;
+    #isPreexisting: boolean;
 
-    constructor(id: string, storage: StorageContextFactory) {
+    constructor(id: string, storage: StorageContextFactory, isPreexisting: boolean) {
         super(storage);
         this.#id = id;
+        this.#isPreexisting = isPreexisting;
     }
 
     override toString() {
@@ -32,6 +34,10 @@ export class ClientNodeStore extends NodeStore {
 
     get id() {
         return this.#id;
+    }
+
+    get isPreexisting() {
+        return this.#isPreexisting;
     }
 
     get write() {

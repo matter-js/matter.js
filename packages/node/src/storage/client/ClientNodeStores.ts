@@ -50,7 +50,7 @@ export class ClientNodeStores {
                 }
             }
 
-            this.#createNodeStore(id);
+            this.#createNodeStore(id, true);
         }
 
         await MatterAggregateError.allSettled(
@@ -121,14 +121,14 @@ export class ClientNodeStores {
     #createGroupStore(id: string) {
         const manager = new StorageManager(new StorageBackendMemory());
         manager.initialize();
-        const store = new ClientNodeStore(id, manager.createContext(id));
+        const store = new ClientNodeStore(id, manager.createContext(id), false);
         store.construction.start();
         this.#stores[id] = store;
         return store;
     }
 
-    #createNodeStore(id: string) {
-        const store = new ClientNodeStore(id, this.#storage.createContext(id));
+    #createNodeStore(id: string, isPreexisting = false) {
+        const store = new ClientNodeStore(id, this.#storage.createContext(id), isPreexisting);
         store.construction.start();
         this.#stores[id] = store;
         return store;
