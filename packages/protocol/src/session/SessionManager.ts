@@ -17,6 +17,7 @@ import {
     Duration,
     Environment,
     Environmental,
+    InternalError,
     Lifecycle,
     Logger,
     MatterAggregateError,
@@ -46,13 +47,20 @@ import { UnsecuredSession } from "./UnsecuredSession.js";
 
 const logger = Logger.get("SessionManager");
 
-export interface ResumptionRecord {
+/** Resumption record without a fabric reference but relevant lookup data used internally in SessionManager */
+interface InternalResumptionRecord {
     sharedSecret: Bytes;
     resumptionId: Bytes;
-    fabric: Fabric;
+    fabricId: FabricId;
+    fabricIndex: FabricIndex;
     peerNodeId: NodeId;
     sessionParameters: SessionParameters;
     caseAuthenticatedTags?: CaseAuthenticatedTag[];
+}
+
+/** Resumption record with Fabric reference. */
+export interface ResumptionRecord extends Omit<InternalResumptionRecord, "fabricId" | "fabricIndex"> {
+    fabric: Fabric;
 }
 
 type ResumptionStorageRecord = {
@@ -119,7 +127,7 @@ export class SessionManager {
     readonly #sessions = new BasicSet<NodeSession>();
     readonly #groupSessions = new Map<NodeId, BasicSet<GroupSession>>();
     #nextSessionId: number;
-    #resumptionRecords = new PeerAddressMap<ResumptionRecord>();
+    #resumptionRecords = new PeerAddressMap<InternalResumptionRecord>();
     readonly #globalUnencryptedMessageCounter;
     #sessionParameters: SessionParameters;
     readonly #construction: Construction<SessionManager>;
@@ -553,19 +561,39 @@ export class SessionManager {
         }
     }
 
+    #asExposedResumptionRecord(record: InternalResumptionRecord): ResumptionRecord {
+        return { ...record, fabric: this.#fabricForId(record.fabricId, record.fabricIndex) };
+    }
+
     findResumptionRecordById(resumptionId: Bytes) {
         this.#construction.assert();
-        return [...this.#resumptionRecords.values()].find(record => Bytes.areEqual(record.resumptionId, resumptionId));
+        const record = [...this.#resumptionRecords.values()].find(record =>
+            Bytes.areEqual(record.resumptionId, resumptionId),
+        );
+        if (record !== undefined) {
+            return this.#asExposedResumptionRecord(record);
+        }
     }
 
     findResumptionRecordByAddress(address: PeerAddress) {
         this.#construction.assert();
-        return this.#resumptionRecords.get(address);
+        const record = this.#resumptionRecords.get(address);
+        if (record !== undefined) {
+            return this.#asExposedResumptionRecord(record);
+        }
     }
 
     async saveResumptionRecord(resumptionRecord: ResumptionRecord) {
         await this.#construction;
-        this.#resumptionRecords.set(resumptionRecord.fabric.addressOf(resumptionRecord.peerNodeId), resumptionRecord);
+        const { fabric } = resumptionRecord;
+
+        const record = {
+            ...resumptionRecord,
+            fabricId: fabric.fabricId,
+            fabricIndex: fabric.fabricIndex,
+        };
+        delete (record as any).fabric;
+        this.#resumptionRecords.set(fabric.addressOf(resumptionRecord.peerNodeId), record);
         await this.#storeResumptionRecords();
     }
 
@@ -576,14 +604,22 @@ export class SessionManager {
             [...this.#resumptionRecords].map(
                 ([
                     address,
-                    { sharedSecret, resumptionId, peerNodeId, fabric, sessionParameters, caseAuthenticatedTags },
+                    {
+                        sharedSecret,
+                        resumptionId,
+                        peerNodeId,
+                        fabricId,
+                        fabricIndex,
+                        sessionParameters,
+                        caseAuthenticatedTags,
+                    },
                 ]): ResumptionStorageRecord => ({
                     nodeId: address.nodeId,
                     sharedSecret,
                     resumptionId,
-                    fabricId: fabric.fabricId,
-                    fabricIndex: fabric.fabricIndex,
-                    peerNodeId: peerNodeId,
+                    fabricId,
+                    fabricIndex,
+                    peerNodeId,
                     sessionParameters: {
                         ...sessionParameters,
                         supportedTransports: sessionParameters.supportedTransports
@@ -594,6 +630,23 @@ export class SessionManager {
                 }),
             ),
         );
+    }
+
+    #maybeFabricForId(fabricId: FabricId, fabricIndex?: FabricIndex) {
+        return this.#context.fabrics.find(
+            fabric =>
+                fabric.fabricId === fabricId &&
+                // Backward compatibility logic: fabricIndex was added later (0.15.5), so it might be undefined in older records
+                (fabricIndex === undefined || fabric.fabricIndex === fabricIndex),
+        );
+    }
+
+    #fabricForId(fabricId: FabricId, fabricIndex?: FabricIndex) {
+        const fabric = this.#maybeFabricForId(fabricId, fabricIndex);
+        if (fabric === undefined) {
+            throw new InternalError(`Fabric not found for ID=${fabricId}, index=${fabricIndex}`);
+        }
+        return fabric;
     }
 
     async #initialize() {
@@ -615,12 +668,7 @@ export class SessionManager {
                 sessionParameters,
                 caseAuthenticatedTags,
             }) => {
-                const fabric = this.#context.fabrics.find(
-                    fabric =>
-                        fabric.fabricId === fabricId &&
-                        // Backward compatibility logic: fabricIndex was added later (0.15.5), so it might be undefined in older records
-                        (fabricIndex === undefined || fabric.fabricIndex === fabricIndex),
-                );
+                const fabric = this.#maybeFabricForId(fabricId, fabricIndex);
                 if (!fabric) {
                     logger.warn(
                         `Ignoring resumption record for fabric 0x${toHex(fabricId)} and index ${fabricIndex} because we cannot find a matching fabric`,
@@ -639,7 +687,8 @@ export class SessionManager {
                 this.#resumptionRecords.set(fabric.addressOf(nodeId), {
                     sharedSecret,
                     resumptionId,
-                    fabric,
+                    fabricId,
+                    fabricIndex: fabric.fabricIndex,
                     peerNodeId,
                     // Make sure to initialize default values when restoring an older resumption record
                     sessionParameters: SessionParameters(sessionParameters),
