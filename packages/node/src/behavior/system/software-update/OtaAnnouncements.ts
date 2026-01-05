@@ -15,7 +15,7 @@ import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import { Fabric, PeerAddress, Write } from "#protocol";
-import { EndpointNumber } from "#types";
+import { EndpointNumber, FabricIndex, NodeId, VendorId } from "#types";
 
 const logger = new Logger("OTAAnnouncements");
 
@@ -23,7 +23,9 @@ export class OtaAnnouncements {
     #announcementQueue = new Array<PeerAddress>();
     #announcementTimer: Timer;
     #announcementDelayTimer: Timer;
-    #ownFabric: Fabric;
+    #ownNodeId: NodeId;
+    #ownFabricIndex: FabricIndex;
+    #ownVendorId: VendorId;
     #node: ServerNode;
     #otaProviderEndpoint: EndpointNumber;
     #announcementInterval: Duration;
@@ -31,7 +33,9 @@ export class OtaAnnouncements {
 
     constructor(endpoint: Endpoint, ownFabric: Fabric, interval: Duration) {
         this.#node = Node.forEndpoint(endpoint) as ServerNode;
-        this.#ownFabric = ownFabric;
+        this.#ownNodeId = ownFabric.rootNodeId;
+        this.#ownFabricIndex = ownFabric.fabricIndex;
+        this.#ownVendorId = ownFabric.rootVendorId;
         this.#otaProviderEndpoint = endpoint.number;
         if (interval < Hours(24)) {
             logger.warn("Announcements interval is too short, consider increasing it to at least 24 hours.");
@@ -124,13 +128,13 @@ export class OtaAnnouncements {
         }
 
         const consideredOtaProviderRecord = {
-            providerNodeId: this.#ownFabric.rootNodeId,
+            providerNodeId: this.#ownNodeId,
             endpoint: this.#otaProviderEndpoint,
-            fabricIndex: this.#ownFabric.fabricIndex,
+            fabricIndex: this.#ownFabricIndex,
         };
         const existingOtaProviderRecord = otaEndpoint
             .stateOf(OtaSoftwareUpdateRequestorClient)
-            .defaultOtaProviders.filter(({ fabricIndex }) => fabricIndex === this.#ownFabric.fabricIndex)[0];
+            .defaultOtaProviders.filter(({ fabricIndex }) => fabricIndex === this.#ownFabricIndex)[0];
 
         // Check and update the default OTA provider entry and add/update it
         if (
@@ -216,9 +220,9 @@ export class OtaAnnouncements {
         try {
             // Find the endpoint with Requestor behavior
             await endpoint.commandsOf(OtaSoftwareUpdateRequestorClient).announceOtaProvider({
-                providerNodeId: this.#ownFabric.rootNodeId,
-                vendorId: this.#ownFabric.rootVendorId,
-                fabricIndex: this.#ownFabric.fabricIndex,
+                providerNodeId: this.#ownNodeId,
+                vendorId: this.#ownVendorId,
+                fabricIndex: this.#ownFabricIndex,
                 announcementReason,
                 endpoint: this.#otaProviderEndpoint,
             });
