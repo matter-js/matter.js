@@ -378,6 +378,20 @@ export class Fabric {
     }
 
     /**
+     * Handles actions when a fabric got replaced.
+     *
+     * It flushes subscriptions to ensure fabric updates are reported and closes sessions.
+     */
+    async replaced(currentExchange?: MessageExchange) {
+        for (const session of [...this.#sessions]) {
+            await session.initiateClose(async () => {
+                await session.closeSubscriptions(true);
+            });
+            await session.initiateForceClose(currentExchange);
+        }
+    }
+
+    /**
      * Gracefully exit the fabric.
      *
      * Devices should use this to cleanly exit a fabric.  It flushes subscriptions to ensure the "leave" event emits
