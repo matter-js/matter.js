@@ -15,7 +15,7 @@ import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
-import { Diagnostic, Identity, Lifecycle, Logger, MaybePromise } from "#general";
+import { Diagnostic, Identity, InternalError, Lifecycle, Logger, MaybePromise } from "#general";
 import { Matter, MatterModel } from "#model";
 import { Interactable, OccurrenceManager, PeerAddress } from "#protocol";
 import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
@@ -92,7 +92,16 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
 
         initializer.structure.loadCache();
 
-        return super.initialize();
+        const promise = super.initialize();
+
+        if (store.isPreexisting && promise !== undefined) {
+            // We initialize ClientNodes on-demand but want them fully initialized for immediate use.  This means
+            // initialization must be synchronous.  Enforce this here to ensure we don't accidentally break this
+            // contract
+            throw new InternalError("Unsupported async initialization detected when loading known peer");
+        }
+
+        return promise;
     }
 
     override get owner(): ServerNode | undefined {
