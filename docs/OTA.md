@@ -262,22 +262,22 @@ If the file is valid, it will be stored in the internal matter.js storage with a
 
 ```typescript
 try {
-    const file = "..."; //Filename of the file to import in local Filesystem
-    console.log(`Importing OTA file: ${file}`);
+    const filePath = "..."; // Filename of the file to import in local filesystem
+    console.log(`Importing OTA file: ${filePath}`);
 
     // Create a stream for reading header info
     const stream1 = Readable.toWeb(createReadStream(filePath)) as ReadableStream<Uint8Array>;
     const updateInfo = await otaService.updateInfoFromStream(stream1, `file://${filePath}`);
 
-    console.log(`OTA file "${file}": vendorId=${updateInfo.vid}, productId=${updateInfo.pid}, version=${updateInfo.softwareVersion}`);
+    console.log(`OTA file "${filePath}": vendorId=${updateInfo.vid}, productId=${updateInfo.pid}, version=${updateInfo.softwareVersion}`);
 
     // Create another stream for storing
     const stream2 = Readable.toWeb(createReadStream(filePath)) as ReadableStream<Uint8Array>;
     await otaService.store(stream2, updateInfo, false);
 
-    console.log(`Successfully imported OTA file: ${file}`);
+    console.log(`Successfully imported OTA file: ${filePath}`);
 } catch (error) {
-    console.warn(`Failed to import OTA file "${file}": ${error}`);
+    console.warn(`Failed to import OTA file "${filePath}": ${error}`);
 }
 ```
 
