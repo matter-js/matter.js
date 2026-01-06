@@ -44,24 +44,33 @@ export function PeerAddress<T extends undefined | PeerAddress>(address: T): T {
         return internedAddress as T;
     }
 
-    internedFabric.set(
-        address.nodeId,
-        (internedAddress = {
-            ...address,
+    internedAddress = InternedAddress(address);
 
-            [interned]: true,
-
-            toString() {
-                return `@${this.fabricIndex.toString(16)}:${this.nodeId.toString(16)}`;
-            },
-
-            get [DiagnosticPresentation.value]() {
-                return this.toString();
-            },
-        } as PeerAddress),
-    );
+    internedFabric.set(address.nodeId, internedAddress);
 
     return internedAddress as T;
+}
+
+const InternedAddressPrototoype = {};
+
+Object.defineProperties(InternedAddressPrototoype, {
+    [interned]: { value: true },
+
+    toString: {
+        value() {
+            return `@${this.fabricIndex.toString(16)}:${this.nodeId.toString(16)}`;
+        },
+    },
+
+    [DiagnosticPresentation.value]: {
+        get() {
+            return this.toString();
+        },
+    },
+});
+
+export function InternedAddress(address: PeerAddress): PeerAddress {
+    return Object.create(InternedAddressPrototoype, Object.getOwnPropertyDescriptors(address));
 }
 
 export namespace PeerAddress {
