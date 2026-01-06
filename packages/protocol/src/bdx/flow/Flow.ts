@@ -121,11 +121,11 @@ export abstract class Flow {
         }
         this.progressInfo.emit(this.transferredBytes, this.dataLength);
 
-        if (!this.isClosed) {
+        if (this.isClosed) {
+            this.progressCancelled.emit();
+        } else {
             await this.finalizeTransfer();
             this.progressFinished.emit(this.transferredBytes);
-        } else {
-            this.progressCancelled.emit();
         }
     }
 
