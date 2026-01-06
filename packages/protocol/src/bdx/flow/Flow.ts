@@ -20,6 +20,7 @@ export abstract class Flow {
     #finalBlockCounter?: number;
     readonly progressInfo = Observable<[bytesTransferred: number, totalBytesLength: number | undefined]>();
     readonly progressFinished = Observable<[totalBytesTransferred: number]>();
+    readonly progressCancelled = Observable();
     #dataLength: number | undefined;
     #transferredBytes = 0;
 
@@ -120,10 +121,12 @@ export abstract class Flow {
         }
         this.progressInfo.emit(this.transferredBytes, this.dataLength);
 
-        if (!this.isClosed) {
+        if (this.isClosed) {
+            this.progressCancelled.emit();
+        } else {
             await this.finalizeTransfer();
+            this.progressFinished.emit(this.transferredBytes);
         }
-        this.progressFinished.emit(this.transferredBytes);
     }
 
     protected abstract initTransfer(): Promise<void>;

@@ -86,6 +86,7 @@ export enum OtaUpdateStatus {
     WaitForApply,
     Applying,
     Done,
+    Cancelled,
 }
 
 export interface SoftwareUpdateInfo {
@@ -786,9 +787,11 @@ export class SoftwareUpdateManager extends Behavior {
             e => e.peerAddress.fabricIndex === peerAddress.fabricIndex && e.peerAddress.nodeId === peerAddress.nodeId,
         );
         if (entryIndex < 0) {
-            logger.warn(
-                `Received OTA status update from unknown node ${peerAddress.toString()}, status=${OtaUpdateStatus[status]}`,
-            );
+            if (status !== OtaUpdateStatus.Cancelled) {
+                logger.warn(
+                    `Received OTA status update from unknown node ${peerAddress.toString()}, status=${OtaUpdateStatus[status]}`,
+                );
+            }
             return;
         }
 

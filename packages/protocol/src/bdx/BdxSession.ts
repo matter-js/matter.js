@@ -40,6 +40,7 @@ export class BdxSession {
     #transferFlow?: Flow;
     #progressInfo = Observable<[bytesTransferred: number, totalBytesLength: number | undefined]>();
     #progressFinished = Observable<[totalBytesTransferred: number]>();
+    #progressCancelled = Observable();
 
     /** Initializes a BdxSession as a sender, means that we upload data to the peer. */
     static asSender(messenger: BdxMessenger, options: BdxSessionConfiguration.SenderInitiatorOptions): BdxSession {
@@ -97,6 +98,10 @@ export class BdxSession {
         return this.#progressFinished;
     }
 
+    get progressCancelled() {
+        return this.#progressCancelled;
+    }
+
     /** Method called to start the session. It will end with a successful Transfer or with an error */
     async processTransfer() {
         if (this.#started) {
@@ -126,6 +131,7 @@ export class BdxSession {
             this.#transferFlow.progressFinished.on(totalBytesTransferred =>
                 this.#progressFinished.emit(totalBytesTransferred),
             );
+            this.#transferFlow.progressCancelled.on(() => this.#progressCancelled.emit());
 
             await this.#transferFlow.processTransfer();
 
