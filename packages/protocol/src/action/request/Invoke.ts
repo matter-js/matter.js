@@ -97,7 +97,10 @@ export function Invoke(
     const commandMap = new Map<number | undefined, Invoke.CommandRequest<any>>();
     const invokeRequests: InvokeCommandData[] = commands.map(cmd => {
         const cmdData = Invoke.Command(cmd, skipValidation);
-        timedRequest ||= !!cmdData.timed;
+        if (options.timed !== false) {
+            // When timed in options are set to false, we respect that even if we know it better
+            timedRequest ||= !!cmdData.timed;
+        }
         commandMap.set(cmdData.commandRef, cmd);
         return cmdData;
     });
