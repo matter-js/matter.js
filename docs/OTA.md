@@ -49,7 +49,7 @@ observers.on(
     (peerAddress, info: SoftwareUpdateInfo) => {
         const nodeId = peerAddress.nodeId.toString();
         console.log(`Update available for node ${nodeId}:`);
-        console.log(`  Current version: ${info.softwareVersion}`);
+        console.log(`  Available version (numeric): ${info.softwareVersion}`);
         console.log(`  New version: ${info.softwareVersionString} (${info.softwareVersion})`);
         console.log(`  Release notes: ${info.releaseNotesUrl || 'N/A'}`);
     }
