@@ -274,6 +274,14 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
                         newSoftwareVersion,
                     ),
                 );
+                bdxSession.progressCancelled.on(() =>
+                    this.#updateInProgressDetails(
+                        peerAddress,
+                        updateToken,
+                        OtaUpdateStatus.Cancelled,
+                        newSoftwareVersion,
+                    ),
+                );
             });
 
             // And keep it open until a minimum 5 minutes after the last block transfer to allow partial downloads
@@ -328,7 +336,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
         }
 
         if (!this.#hasUpdateConsent(session.peerAddress, newVersion)) {
-            this.#updateInProgressDetails(session.peerAddress, updateToken, OtaUpdateStatus.Unknown, newVersion);
+            this.#updateInProgressDetails(session.peerAddress, updateToken, OtaUpdateStatus.Cancelled, newVersion);
 
             return {
                 action: OtaSoftwareUpdateProvider.ApplyUpdateAction.Discontinue,
