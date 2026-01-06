@@ -1020,8 +1020,7 @@ export class InteractionClient {
         } = options;
         const { timed } = command;
         let { suppressResponse } = options;
-        const timedRequest =
-            (timed && !skipValidation) || asTimedRequest === true || options.timedRequestTimeout !== undefined;
+        const timedRequest = (timed && !skipValidation) || asTimedRequest === true || !!options.timedRequestTimeout;
 
         if (this.isGroupAddress) {
             if (endpointId !== undefined) {

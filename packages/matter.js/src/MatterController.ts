@@ -567,11 +567,7 @@ export class MatterController {
 
     getCommissionedNodes() {
         return this.node.peers
-            .map(
-                peer =>
-                    (peer.lifecycle.isReady && peer.maybeStateOf(CommissioningClient)?.peerAddress?.nodeId) ||
-                    undefined,
-            )
+            .map(peer => peer.maybeStateOf(CommissioningClient)?.peerAddress?.nodeId)
             .filter(nodeId => nodeId !== undefined);
     }
 
@@ -591,14 +587,14 @@ export class MatterController {
 
     getCommissionedNodesDetails(): PairedNodeDetails[] {
         return this.node.peers
-            .filter(peer => peer.lifecycle.isReady && peer.maybeStateOf(CommissioningClient)?.peerAddress !== undefined)
+            .filter(peer => peer.maybeStateOf(CommissioningClient)?.peerAddress !== undefined)
             .map(peer => this.#commissionedNodeDetailsForNode(peer));
     }
 
     getCommissionedNodeDetails(nodeId: NodeId) {
         const address = this.fabric.addressOf(nodeId);
         const peer = this.node.peers.get(address);
-        if (peer === undefined || !peer.lifecycle.isReady) {
+        if (peer === undefined) {
             throw new Error(`Node ${nodeId} is not commissioned.`);
         }
         return this.#commissionedNodeDetailsForNode(peer);

@@ -377,6 +377,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
             clusterId,
             command: clusterCommand,
             request: commandData,
+            asTimedRequest: timedInteractionTimeout !== undefined,
             timedRequestTimeout: timedInteractionTimeout,
             skipValidation: true,
         });
