@@ -69,7 +69,7 @@ export enum OtaSoftwareUpdateConsentState {
  *
  *
  * For special use cases the cluster provides the following extension point methods:
- * * {@link checkUpdateAvailable}: By default, the implementation uses the SoftwareUpdatemanager to check for available
+ * * {@link checkUpdateAvailable}: By default, the implementation uses the SoftwareUpdateManager to check for available
  *     updates from the DCL or being available in the local OTA storage. If this needs to be more vendor-specific, it
  *     can be implemented by overriding this method.
  *
@@ -455,7 +455,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
         logger.info(
             `OTA Update ${details.versionToApply !== undefined ? `to version ${details.versionToApply} ` : ""}for Requestor`,
             peerAddress.toString(),
-            `(${Bytes.toHex(updateToken)}) is now ${lastState}${origDetails === undefined ? "" : ` (formerly ${origDetails.lastState})`}`,
+            `(${Bytes.toHex(updateToken)}) is now ${OtaUpdateStatus[lastState]}${origDetails === undefined ? "" : ` (formerly ${OtaUpdateStatus[origDetails.lastState]})`}`,
         );
 
         this.internal.inProgressDetails.set(key, details);
