@@ -164,13 +164,14 @@ The `SoftwareUpdateManager` uses the following internal status values to track u
 
 ```typescript
 enum OtaUpdateStatus {
-    Unknown,       // Initial state or state after reset
+    Unknown,        // Initial state or state after reset
     WaitForConsent, // Update available, waiting for user consent
-    Querying,      // Device is querying for update information
-    Downloading,   // Firmware is being downloaded
-    WaitForApply,  // Download complete, waiting for apply approval request
-    Applying,      // Device is applying the update
-    Done           // Update completed successfully
+    Querying,       // Device is querying for update information
+    Downloading,    // Firmware is being downloaded
+    WaitForApply,   // Download complete, waiting for apply approval request
+    Applying,       // Device is applying the update
+    Done,           // Update completed successfully
+    Cancelled       // Update was cancelled before completion
 }
 ```
 
