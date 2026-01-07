@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # @license
-# Copyright 2022-2025 Matter.js Authors
+# Copyright 2022-2026 Matter.js Authors
 # SPDX-License-Identifier: Apache-2.0
 
 set -e
@@ -11,7 +11,7 @@ set -e
 
 # This is how you build using CHIP but flexibility is limited so we do it manually
 #
-# # Activation is unnecessary and will fail because we've dropped things it expects 
+# # Activation is unnecessary and will fail because we've dropped things it expects
 # sed -i '/scripts\/activate.sh/d' scripts/build_python.sh
 #
 # # Not sure why boringssl is hard-coded but it's expensive to install and unnecessary

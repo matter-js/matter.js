@@ -1,11 +1,11 @@
 # @license
-# Copyright 2022-2025 Matter.js Authors
+# Copyright 2022-2026 Matter.js Authors
 # SPDX-License-Identifier: Apache-2.0
 
 # Bootstrap CHIP environment
 
 # We do not use bootstrap.sh because it does a huge amount of unnecessary things.  Instead we use pigweed directly, and
-# only for CIPD...  Then perform minimal steps required to get build working 
+# only for CIPD...  Then perform minimal steps required to get build working
 
 set -e
 
@@ -41,7 +41,7 @@ scripts/setup/gen_pigweed_cipd_json.py \
 # Install CIPD packages.  We only use bootstrap for this so most of these arguments are unnecessary but keeping in case
 # we need to move back in the future
 #
-# We do not bootstrap anything else because 
+# We do not bootstrap anything else because
 pw_bootstrap \
     --shell-file $PW_ENVIRONMENT_ROOT/activate.sh \
     --install-dir $PW_ENVIRONMENT_ROOT \
