@@ -5,7 +5,7 @@ inputs:
   node-version:
     description: 'Node.js version'
     required: true
-    default: '20.x'
+    default: '22.x'
   os:
     description: 'Operating system'
     required: true
