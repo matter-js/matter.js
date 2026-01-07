@@ -92,11 +92,11 @@ jobs:
         if: steps.automerge.outputs.mergeResult == 'merged'
         uses: actions/checkout@v6
 
-      - name: Use Node.js 20.x
+      - name: Use Node.js 22.x
         if: steps.automerge.outputs.mergeResult == 'merged'
         uses: actions/setup-node@v6
         with:
-          node-version: 20.x
+          node-version: 22.x
 
       - name: Install dependencies and build
         if: steps.automerge.outputs.mergeResult == 'merged'
