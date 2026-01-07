@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # @license
-# Copyright 2022-2025 Matter.js Authors
+# Copyright 2022-2026 Matter.js Authors
 # SPDX-License-Identifier: Apache-2.0
 
 # Creates a binary using build-examples.py.  Strips, installs into /dist/bin and removes build artifacts
