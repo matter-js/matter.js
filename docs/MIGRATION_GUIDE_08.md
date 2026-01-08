@@ -42,7 +42,7 @@ The Environment to use can be provided in the configuration of the ServerNode in
 In fact this is all what they have in common, so the differences are:
 
 -   The default storage is defined by the Environment which is initialized - in the case of the Node.js Environment it is the file based key value store "node-localstorage". To exchange the storage to something else you can implement/extend an own Environment class (see [NodeJsEnvironment](../packages/nodejs/src/environment/NodeJsEnvironment.ts)) or just overwrite the storage factory (`Environment.default.get(StorageService).factory = (namespace: string) => createMyStorage(namespace);`)
--   Basic configuration can be provided via a config file, CLI parameters or also environment variables. Some defined configuration keys are used by the base environment or the Node.js environment (e.g. MDNS network interface and such), but also custom configuration can be added and access from within every place in the code by accessing the environment. So this also acts as central place to share configuration for the device implementation. Some variables and their usage is documented in the [Examples Readme](../packages/examples/README.md). Else check the [Environment.ts](../packages/general/src/environment/Environment.ts) and [NodeJsEnvironment.ts](../packages/nodejs/src/environment/NodeJsEnvironment.ts).
+-   Basic configuration can be provided via a config file, CLI parameters or also environment variables. Some defined configuration keys are used by the base environment or the Node.js environment (e.g. MDNS network interface and such), but also custom configuration can be added and access from within every place in the code by accessing the environment. So this also acts as central place to share configuration for the device implementation. Some variables and their usage is documented in the [Examples Readme](../examples/README.md). Else check the [Environment.ts](../packages/general/src/environment/Environment.ts) and [NodeJsEnvironment.ts](../packages/nodejs/src/environment/NodeJsEnvironment.ts).
 -   The "ProcessManager" of the environment will, in case of the Node.js environment, also register Process signal handlers to handle Shutdown (SIGINT, SIGTERM, exit) or to trigger logging diagnostic data (SIGUSR2). For other environments this needs to be implemented accordingly.
 -   The environment adds the concept of Workers that can execute tasks/jobs/logic and these workers are used to run Nodes and finish when they are ended. With this Matter Servers (old name CommissioningServer)/Server Nodes (new) are registered on the Environment as workers. The ServerNode (see below) has convenient methods to do that registration, so these Workers are ideally encapsulated and are not needed be used directly the developer, but could for own workloads. The Workers are all disposed/ended when the Environment is disposed.
 -   The environment adds the concept "variables" that is a general configuration hierarchy. You may set variables via OS environment variables, command line arguments or configuration file. See [VariableService](../packages/general/src/environment/VariableService.ts) and [EndpointVariableService](../packages/node/src/endpoint/EndpointVariableService.ts) for usage details.
@@ -57,7 +57,7 @@ The environment related classes are exported under `matter(-node).js/environment
 The `new CommissioningServer()` is replaced by `await ServerNode.create()` in the new API and both represent one Matter Server node that starts on a provided port, announces itself as Device in the network to be paired with Controllers. The instance also represents the Matter Root-Endpoint with all mandatory Root clusters. The configuration is provided in a comparable way to the ServerNode as before too and can contain node specific configurations (network, productDescription and commissioning details) and also Root endpoint cluster configurations.
 The create() method takes one or two parameters:
 
--   The definition of the RootEndpoint as first parameter. It can be omitted when it is the default RootEndpoint, or it is the definition including all relevant adjusted clusters or needed features. Check out [DeviceNodeFull.ts](../packages/examples/src/device-onoff-advanced/DeviceNodeFull.ts) or the [Testing Apps](../support/chip-testing/src/AllClustersTestInstance.ts) on how to extend the Root Cluster. See also details and examples below when we show the "Endpoint" component.
+-   The definition of the RootEndpoint as first parameter. It can be omitted when it is the default RootEndpoint, or it is the definition including all relevant adjusted clusters or needed features. Check out [DeviceNodeFull.ts](../examples/device-onoff-advanced/src/DeviceNodeFull.ts) or the [Testing Apps](../support/chip-testing/src/AllClustersTestInstance.ts) on how to extend the Root Cluster. See also details and examples below when we show the "Endpoint" component.
 -   The configuration of the node as second (or if definition above is omitted as first) parameter. Provide the default configuration for all relevant clusters and such here. The configuration should also contain a unique id property for the Node.
 
 When the node is created you add "Endpoints" to it which is comparable (and re-uses the name, but hs a different implementation and interface!) to the Device instances added in the legacy API. Please make sure to use the correct Endpoint class depending on if aou use the Legacy API or the new API!
@@ -292,7 +292,7 @@ matter.js also allows to define and add additional clusters to the system. Todo 
 **Note**
 Currently the TLV-Schema and the Model definition is kind of duplicated code and needs to match in their respective formats. In the future we plan to use a json representation like it is already in use for all official clusters - and then offer code generators also for custom clusters which would create all the relevant code automatically. But the adjusted generators are not yet ready.
 
-The DevicesFullNode.ts contains a [MyFancyFunctionality custom cluster](../packages/examples/src/device-onoff-advanced/cluster/MyFancyOwnFunctionality.ts) that shows how this can be built right now already (with a bit overhead as described). The code contained here in one file is normally split into several files in the generated code.
+The DevicesFullNode.ts contains a [MyFancyFunctionality custom cluster](../examples/device-onoff-advanced/src/cluster/MyFancyOwnFunctionality.ts) that shows how this can be built right now already (with a bit overhead as described). The code contained here in one file is normally split into several files in the generated code.
 
 ### React to change events on cluster attributes
 
@@ -439,7 +439,7 @@ endpoint.behaviors.require(BridgedDeviceBasicInformationServer, {
 
 ### More options?
 
-Take a look at the [DeviceNodeFull.ts](../packages/examples/src/device-onoff-advanced/DeviceNodeFull.ts) example for more interaction points.
+Take a look at the [DeviceNodeFull.ts](../examples/device-onoff-advanced/src/DeviceNodeFull.ts) example for more interaction points.
 
 ## FAQ
 
