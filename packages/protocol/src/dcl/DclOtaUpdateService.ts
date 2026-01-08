@@ -88,9 +88,11 @@ export class DclOtaUpdateService {
     }
 
     /**
-     * Check DCL for available software updates for a device, defined by it's vendor ID, product ID and current
+     * Check DCL for available software updates for a device, defined by its vendor ID, product ID, and current
      * software version. If a target software version is provided, only that version is checked for applicability and
      * ignoring other newer versions.
+     * If isProduction flag is specified, it is exactly used to find updates. Leave that flag undefined to find both
+     * test and production updates.
      */
     async checkForUpdate(options: {
         vendorId: number;
@@ -105,7 +107,7 @@ export class DclOtaUpdateService {
             productId,
             currentSoftwareVersion,
             includeStoredUpdates = false,
-            isProduction = true,
+            isProduction,
             targetSoftwareVersion,
         } = options;
 
@@ -182,7 +184,7 @@ export class DclOtaUpdateService {
             if (newerVersions.length === 0) {
                 logger.debug(`No newer versions available in DCL`, Diagnostic.dict(diagnosticInfo));
 
-                if (localUpdateFound !== undefined) {
+                if (localUpdateFound !== undefined && localUpdateFound.softwareVersion > currentSoftwareVersion) {
                     logger.info(`Other update already available locally`, Diagnostic.dict(diagnosticInfo));
                     return localUpdateFound;
                 }
