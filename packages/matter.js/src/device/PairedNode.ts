@@ -555,6 +555,8 @@ export class PairedNode {
 
         this.#clientReconnectInProgress = true;
         try {
+            // Use a queue for Thread devices to not flood too much
+            await using _slot = await this.#obtainQueueSlot();
             await this.#reconnectFunc(discoveryType, this.#options);
         } finally {
             this.#clientReconnectInProgress = false;
@@ -615,11 +617,8 @@ export class PairedNode {
             this.#setConnectionState(NodeStates.Reconnecting);
 
             try {
-                {
-                    // First, try a reconnection, but queued for thread, to a known address to see if the device is reachable
-                    await using _slot = await this.#obtainQueueSlot();
-                    await this.#handleReconnect(NodeDiscoveryType.None);
-                }
+                // First, try a reconnection, to a known address to see if the device is reachable
+                await this.#handleReconnect(NodeDiscoveryType.None);
                 this.#reconnectionInProgress = false;
                 await this.#initialize();
                 return;
