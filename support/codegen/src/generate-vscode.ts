@@ -117,7 +117,7 @@ for (const path of await Package.workspace.glob("support/chip-testing/test/*")) 
 }
 
 // Generate launches for each example
-for (const example of await Package.workspace.glob("packages/examples/src/*/*.ts")) {
+for (const example of await Package.workspace.glob("examples/*/src/*.ts")) {
     const name = basename(example, ".ts");
     if (name === "main" || name.startsWith("example")) {
         continue;

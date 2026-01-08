@@ -18,7 +18,7 @@ Our main goal is to create a robust and compliant library that enables the seaml
 > matter.js as library, along with all related tools (such as the Shell app) and examples, is not certified by the Connectivity Standards Alliance (CSA). They are provided solely to demonstrate the capabilities of our solution and to support testing and development.  Using matter.js does not certify your product — Connectivity Standards Alliance membership and product certification are required to release official Matter devices. For more details, see [A note on certification](#a-note-on-certification) for more details.
 
 matter.js consists of a set of pure JavaScript base packages without any native dependencies, implementing the Matter protocol and required interfaces in JavaScript, along with extensive typings for The Matter standard and the matter.js APIs.
-Further [packages with Node.js based native dependencies](./packages/nodejs) utilize the base package to implement platform-specific parts using Node.js for networking and other necessary native features or add [BLE support](./packages/nodejs-ble). [Node.js example scripts](./packages/examples) implement example CLI scripts for devices, bridges or controllers. A [Matter Shell](./packages/nodejs-shell) allows interaction with Matter devices as a controller via a CLI interface.
+Further [packages with Node.js based native dependencies](./packages/nodejs) utilize the base package to implement platform-specific parts using Node.js for networking and other necessary native features or add [BLE support](./packages/nodejs-ble). [Node.js example scripts](./examples) implement example CLI scripts for devices, bridges or controllers. A [Matter Shell](./packages/nodejs-shell) allows interaction with Matter devices as a controller via a CLI interface.
 
 To use matter.js in your own non-Node.js based projects you need to implement the platform specific parts. See [Using matter.js in unsupported JavaScript environments](#using-matterjs-in-unsupported-javascript-environments) for more details. If you do this, please contact us to add your platform to the list of supported platforms.
 
@@ -91,7 +91,7 @@ install them in Node.js as follows:
 npm install @matter/examples
 ```
 
-Please refer to the Examples readme for information regarding their usage: [@matter/examples](packages/examples/README.md)
+Please refer to the Examples readme for information regarding their usage: [examples](examples/README.md)
 
 ### Extending and contributing to matter.js
 
@@ -230,7 +230,7 @@ The following reference implementation and code references are available as basi
 
 - For Network, Crypto, Storage and Time functionality you can use the Node.js implementations provided by [@matter/nodejs](packages/nodejs/README.md) as reference. 
 - For BLE functionality you can use the Node.js implementations provided by [@matter/nodejs-ble](packages/nodejs-ble/README.md) as reference. 
-- For Wi-Fi/Thread Commissioning functionality you can use the [Node.js DeviceNode example script](packages/examples/src/device-onoff-advanced/cluster/DummyWifiNetworkCommissioningServer.ts) which contains a static "testing only" (but API complete for Wifi) reference.
+- For Wi-Fi/Thread Commissioning functionality you can use the [Node.js DeviceNode example script](examples/device-onoff-advanced/src/cluster/DummyWifiNetworkCommissioningServer.ts) which contains a static "testing only" (but API complete for Wifi) reference.
 
 If you implement a specific platform, we would be happy with a PR contributing the code so that other community members can benefit from it.
 

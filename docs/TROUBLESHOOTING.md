@@ -16,7 +16,7 @@ Before you think about opening an issue or such please have a lok at the informa
 * An Overview of the new API is also included in the [Migration to new API](./MIGRATION_GUIDE_08.md).
 * [List of clusters supported for Devices wir no/usage-ready default implementations](./CLUSTER_DEFAULT_IMPLEMENTATIONS.md)
 * [API/Code Documentation](./README.md)
-* Example packages in the [matter-node.js-examples](../packages/examples/README.md) package
+* Example packages in the [matter-node.js-examples](../examples/README.md) package
 
 ## How to report issues
 
