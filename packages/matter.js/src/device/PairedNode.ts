@@ -615,11 +615,11 @@ export class PairedNode {
             this.#setConnectionState(NodeStates.Reconnecting);
 
             try {
-                {
-                    // First, try a reconnection, but queued for thread, to a known address to see if the device is reachable
-                    await using _slot = await this.#obtainQueueSlot();
-                    await this.#handleReconnect(NodeDiscoveryType.None);
-                }
+                // First, try a reconnection, but queued for thread, to a known address to see if the device is reachable
+                const slot = await this.#obtainQueueSlot();
+                await this.#handleReconnect(NodeDiscoveryType.None);
+                slot?.close();
+
                 this.#reconnectionInProgress = false;
                 await this.#initialize();
                 return;
