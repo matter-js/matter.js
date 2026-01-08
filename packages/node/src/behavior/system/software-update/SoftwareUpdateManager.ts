@@ -390,6 +390,7 @@ export class SoftwareUpdateManager extends Behavior {
             productId,
             currentSoftwareVersion: softwareVersion,
             includeStoredUpdates,
+            isProduction: this.state.allowTestOtaImages ? false : undefined,
         });
         if (!updateDetails) {
             return [];
