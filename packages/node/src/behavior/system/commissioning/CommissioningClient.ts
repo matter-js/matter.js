@@ -357,15 +357,15 @@ export namespace CommissioningClient {
     /**
      * Concrete version of {@link SessionIntervals}.
      */
-    export class SessionIntervals implements ProtocolSessionIntervals {
-        @field(duration.extend({ constraint: "max 3600000" }), mandatory)
-        idleInterval: Duration;
+    export class SessionIntervals implements Partial<ProtocolSessionIntervals> {
+        @field(duration.extend({ constraint: "max 3600000" }))
+        idleInterval?: Duration;
 
-        @field(duration.extend({ constraint: "max 3600000" }), mandatory)
-        activeInterval: Duration;
+        @field(duration.extend({ constraint: "max 3600000" }))
+        activeInterval?: Duration;
 
-        @field(duration.extend({ constraint: "max 65535" }), mandatory)
-        activeThreshold: Duration;
+        @field(duration.extend({ constraint: "max 65535" }))
+        activeThreshold?: Duration;
 
         constructor(intervals: SessionIntervals) {
             this.idleInterval = intervals.idleInterval;
@@ -514,7 +514,7 @@ export namespace CommissioningClient {
          * The remote node's session intervals.
          */
         @field(SessionIntervals, nonvolatile)
-        sessionIntervals?: Partial<ProtocolSessionIntervals>;
+        sessionIntervals?: SessionIntervals;
 
         /**
          * TCP support bitmap.
