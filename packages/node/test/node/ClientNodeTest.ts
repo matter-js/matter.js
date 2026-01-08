@@ -217,7 +217,7 @@ describe("ClientNode", () => {
         // Recreate the controller
         const controllerB = await site.addNode(undefined, { index: 1 });
 
-        // Retrieve the client view of the device that should have been recreated from cache
+        // Verify that the decommissioned device was not recreated from cache after restart
         expect(controllerB.peers.size).equals(0);
 
         const peer1b = controllerB.peers.get("peer1")!;
