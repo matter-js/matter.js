@@ -184,7 +184,7 @@ export class DclOtaUpdateService {
             if (newerVersions.length === 0) {
                 logger.debug(`No newer versions available in DCL`, Diagnostic.dict(diagnosticInfo));
 
-                if (localUpdateFound !== undefined) {
+                if (localUpdateFound !== undefined && localUpdateFound.softwareVersion > currentSoftwareVersion) {
                     logger.info(`Other update already available locally`, Diagnostic.dict(diagnosticInfo));
                     return localUpdateFound;
                 }
