@@ -121,8 +121,10 @@ export class ControllerNode {
         //         wifiCredentials: wifiCredentials,
         //     };
         // }
-        if (threadNetworkName !== undefined && threadOperationalDataset !== undefined) {
-            logger.info(`Registering Commissioning over BLE with Thread: ${threadNetworkName}`);
+        if (threadOperationalDataset !== undefined) {
+            logger.info(
+                `Registering Commissioning over BLE with Thread: ${threadNetworkName ?? "via operational dataset"}`,
+            );
             commissioningOptions.threadNetwork = {
                 networkName: threadNetworkName,
                 operationalDataset: threadOperationalDataset,

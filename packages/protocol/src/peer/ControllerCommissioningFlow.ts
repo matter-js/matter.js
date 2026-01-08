@@ -91,7 +91,7 @@ export type ControllerCommissioningFlowOptions = {
      * If the device should connect to a thread network.
      */
     threadNetwork?: {
-        networkName: string;
+        networkName?: string;
         operationalDataset: string;
     };
 
@@ -1178,7 +1178,6 @@ export class ControllerCommissioningFlow {
                 !this.commissioningOptions.wifiNetwork.wifiSsid ||
                 !this.commissioningOptions.wifiNetwork.wifiCredentials) &&
             (this.commissioningOptions.threadNetwork === undefined ||
-                !this.commissioningOptions.threadNetwork.networkName ||
                 !this.commissioningOptions.threadNetwork.operationalDataset)
         ) {
             // Check if we have no networkCommissioning cluster or an Ethernet one
@@ -1507,7 +1506,7 @@ export class ControllerCommissioningFlow {
             throw new ThreadNetworkSetupFailedError(`Commissionee did not return network index`);
         }
         logger.debug(
-            `Commissionee added Thread network ${this.commissioningOptions.threadNetwork.networkName} with network index ${networkIndex}`,
+            `Commissionee added Thread network ${this.commissioningOptions.threadNetwork.networkName ?? "via operational dataset"} with network index ${networkIndex}`,
         );
 
         const [updatedNetworks] = await this.#readConcreteAttributeValues(
@@ -1527,7 +1526,7 @@ export class ControllerCommissioningFlow {
         if (connected) {
             logger.debug(
                 `Commissionee is already connected to Thread network ${
-                    this.commissioningOptions.threadNetwork.networkName
+                    this.commissioningOptions.threadNetwork.networkName ?? "via operational dataset"
                 } (networkId ${Bytes.toHex(networkId)})`,
             );
             return {
@@ -1560,7 +1559,7 @@ export class ControllerCommissioningFlow {
         }
         logger.debug(
             `Commissionee successfully connected to Thread network ${
-                this.commissioningOptions.threadNetwork.networkName
+                this.commissioningOptions.threadNetwork.networkName ?? "via operational dataset"
             } (networkId ${Bytes.toHex(networkId)})`,
         );
 
