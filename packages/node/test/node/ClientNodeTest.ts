@@ -208,6 +208,20 @@ describe("ClientNode", () => {
 
         expect(controller.peers.size).equals(0);
         expect(device.lifecycle.isCommissioned).is.false;
+
+        // *** RESTART controller ***
+
+        // Close all nodes
+        await site.close();
+
+        // Recreate the controller
+        const controllerB = await site.addNode(undefined, { index: 1 });
+
+        // Verify that the decommissioned device was not recreated from cache after restart
+        expect(controllerB.peers.size).equals(0);
+
+        const peer1b = controllerB.peers.get("peer1")!;
+        expect(peer1b).undefined;
     });
 
     it("writes attributes on commit", async () => {

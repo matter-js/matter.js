@@ -186,11 +186,14 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     }
 
     protected async eraseWithMutex() {
-        // First ensure we're offline
+        // First, ensure we're offline
         await this.cancelWithMutex();
 
         // Then reset
-        await this.resetWithMutex();
+        await super.resetWithMutex();
+
+        // and erase
+        await this.env.get(EndpointInitializer).eraseDescendant(this);
     }
 
     protected createRuntime(): NetworkRuntime {
