@@ -88,6 +88,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: Low-level advertising APIs have changed significantly; in particular, `MdnsBroadcaster`, `MdnsInstanceBroadcaster` and `MdnsScanner` are replaced by `MdnsServer`, `MdnsAdvertisement` and `MdnsClient`
     - Breaking: The `Ble.get()` singleton is removed; components now instead retrieve the `Ble` service from the environment
     - Breaking: Moved some controller API classes (Attribute/Event/Command/InteractionClient) into @project-chip/matter.js/cluster package and adjusted to use Node Interactable as backing
+    - Breaking: Reading multiple/all attributes via `InteractionClient` is always reading the data from the device and no longer enrich the result with already known data (option `enrichCachedAttributeData` is no longer supported). Ideally, use ClusterClient or new Node-based APIs to access the already stored data.
     - Feature: Adds support for advertising of TCP and ICD services (but matter.js does not yet implement those features otherwise)
     - Feature: Adds support for extended advertisement
     - Feature: Added support for Case Authenticated Tags (CATs) in operational CASE sessions for enhanced access control

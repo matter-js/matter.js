@@ -236,7 +236,6 @@ export class InteractionClient {
     async getAllAttributes(
         options: {
             dataVersionFilters?: { endpointId: EndpointNumber; clusterId: ClusterId; dataVersion: number }[];
-            enrichCachedAttributeData?: boolean;
             isFabricFiltered?: boolean;
             attributeChangeListener?: (
                 data: DecodedAttributeReportValue<any>,
@@ -274,7 +273,6 @@ export class InteractionClient {
                 clusterId: ClusterId;
                 dataVersion: number;
             }[];
-            enrichCachedAttributeData?: boolean;
             eventFilters?: TypeFromSchema<typeof TlvEventFilter>[];
             isFabricFiltered?: boolean;
             attributeChangeListener?: (
@@ -298,7 +296,6 @@ export class InteractionClient {
         options: {
             attributes?: { endpointId?: EndpointNumber; clusterId?: ClusterId; attributeId?: AttributeId }[];
             dataVersionFilters?: { endpointId: EndpointNumber; clusterId: ClusterId; dataVersion: number }[];
-            enrichCachedAttributeData?: boolean;
             isFabricFiltered?: boolean;
             attributeChangeListener?: (
                 data: DecodedAttributeReportValue<any>,
@@ -314,7 +311,6 @@ export class InteractionClient {
         options: {
             attributes?: { endpointId?: EndpointNumber; clusterId?: ClusterId; attributeId?: AttributeId }[];
             dataVersionFilters?: { endpointId: EndpointNumber; clusterId: ClusterId; dataVersion: number }[];
-            enrichCachedAttributeData?: boolean;
             isFabricFiltered?: boolean;
             attributeChangeListener?: (
                 data: DecodedAttributeReportValue<any>,
@@ -374,7 +370,7 @@ export class InteractionClient {
             attributeChangeListener: attributeListener,
         } = options;
 
-        const read = this.#interaction.read({
+        const read = (this.#interaction as ClientNodeInteraction).read({
             ...Read({
                 attributes: attributeRequests,
                 events: eventRequests,
@@ -386,6 +382,7 @@ export class InteractionClient {
                 fabricFilter: isFabricFiltered,
                 interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
             }),
+            includeKnownVersions: !dataVersionFilters,
             [Diagnostic.value]: () =>
                 Diagnostic.dict({
                     attributes: attributeRequests?.length
