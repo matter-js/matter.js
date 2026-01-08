@@ -44,6 +44,7 @@ import {
     ClusterClientObj,
     DecodedAttributeReportValue,
     DecodedEventReportValue,
+    InteractionQueue,
     NodeDiscoveryType,
     PaseClient,
     Read,
@@ -540,6 +541,12 @@ export class PairedNode {
         }
     }
 
+    #obtainQueueSlot() {
+        if (this.deviceInformation?.threadConnected || !this.deviceInformation?.rootEndpointServerList?.length) {
+            return this.node.env.get(InteractionQueue).obtainSlot();
+        }
+    }
+
     /** Make sure to not request a new Interaction client multiple times in parallel. */
     async #handleReconnect(discoveryType?: NodeDiscoveryType): Promise<void> {
         if (this.#clientReconnectInProgress) {
@@ -608,8 +615,11 @@ export class PairedNode {
             this.#setConnectionState(NodeStates.Reconnecting);
 
             try {
-                // First, try a reconnection to a known address to see if the device is reachable
-                await this.#handleReconnect(NodeDiscoveryType.None);
+                {
+                    // First, try a reconnection, but queued for thread, to a known address to see if the device is reachable
+                    await using _slot = await this.#obtainQueueSlot();
+                    await this.#handleReconnect(NodeDiscoveryType.None);
+                }
                 this.#reconnectionInProgress = false;
                 await this.#initialize();
                 return;
