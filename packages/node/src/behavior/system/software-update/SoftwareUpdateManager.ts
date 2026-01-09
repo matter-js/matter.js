@@ -109,7 +109,7 @@ export interface SoftwareUpdateInfo {
     /** SpecificationVersion of the updated device */
     specificationVersion?: number;
 
-    /** Source of the update returned, weather it is a local file, downloaded from test or production DCL */
+    /** Source of the update returned, whether it is a local file, downloaded from test or production DCL */
     source: OtaUpdateSource;
 }
 
