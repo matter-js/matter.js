@@ -26,6 +26,7 @@ import {
     NoResponseTimeoutError,
     ObservableSet,
     Seconds,
+    Semaphore,
     ServerAddress,
     ServerAddressUdp,
     Time,
@@ -89,6 +90,7 @@ export interface DiscoveryOptions {
 export interface PeerConnectionOptions {
     discoveryOptions?: DiscoveryOptions;
     caseAuthenticatedTags?: CaseAuthenticatedTag[];
+    queue?: Semaphore;
 }
 
 /**
@@ -280,7 +282,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
 
         const { promise: existingReconnectPromise } = peer.activeReconnection ?? {};
         if (existingReconnectPromise !== undefined) {
-            // There is an active timed reconnection running and we also do not want a Full discovery here, so return
+            // There is an active timed reconnection running, and we also do not want a Full discovery here, so return
             // the existing promise
             if (options.discoveryOptions?.discoveryType !== NodeDiscoveryType.FullDiscovery) {
                 return existingReconnectPromise;
@@ -456,6 +458,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                 discoveryData = this.get(address)?.descriptor.discoveryData,
             } = {},
             caseAuthenticatedTags,
+            queue,
         } = options ?? {};
         if (timeout !== undefined && requestedDiscoveryType !== NodeDiscoveryType.TimedDiscovery) {
             throw new ImplementationError("Cannot set timeout without timed discovery.");
@@ -492,15 +495,20 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             operationalAddress !== undefined &&
             (runningDiscoveryType === NodeDiscoveryType.None || requestedDiscoveryType === NodeDiscoveryType.None)
         ) {
-            const directReconnection = await this.#reconnectKnownAddress(
-                address,
-                operationalAddress,
-                discoveryData,
-                // When we use a timeout for discovery also use this for reconnecting to the node
-                { expectedProcessingTime: timeout, caseAuthenticatedTags },
-            );
-            if (directReconnection !== undefined) {
-                return directReconnection;
+            const queueSlot = await queue?.obtainSlot();
+            try {
+                const directReconnection = await this.#reconnectKnownAddress(
+                    address,
+                    operationalAddress,
+                    discoveryData,
+                    // When we use a timeout for discovery also use this for reconnecting to the node
+                    { expectedProcessingTime: timeout, caseAuthenticatedTags },
+                );
+                if (directReconnection !== undefined) {
+                    return directReconnection;
+                }
+            } finally {
+                queueSlot?.close();
             }
             if (requestedDiscoveryType === NodeDiscoveryType.None) {
                 throw new DiscoveryError(`${address} is not reachable right now.`);
@@ -538,6 +546,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                     "Controller reconnect",
                     RECONNECTION_POLLING_INTERVAL,
                     async () => {
+                        const queueSlot = await queue?.obtainSlot();
                         try {
                             logger.debug(`Polling for device at ${ServerAddress.urlFor(lastOperationalAddress)} ...`);
                             const result = await this.#reconnectKnownAddress(
@@ -565,6 +574,8 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                                 peer.activeDiscovery = undefined;
                                 rejecter(error);
                             }
+                        } finally {
+                            queueSlot?.close();
                         }
                     },
                 ).start();
@@ -605,11 +616,16 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                         ...discoveryData,
                         ...peer,
                     };
-                    const result = await this.#pair(address, operationalAddress, peerData, {
-                        caseAuthenticatedTags,
-                    });
-                    await this.#addOrUpdatePeer(address, operationalAddress, peerData);
-                    return result;
+                    const queueSlot = await queue?.obtainSlot();
+                    try {
+                        const result = await this.#pair(address, operationalAddress, peerData, {
+                            caseAuthenticatedTags,
+                        });
+                        await this.#addOrUpdatePeer(address, operationalAddress, peerData);
+                        return result;
+                    } finally {
+                        queueSlot?.close();
+                    }
                 },
             );
 

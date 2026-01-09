@@ -37,6 +37,7 @@ export interface WorkSlot extends Disposable {
  * which they hold while doing work. The slot must be released when work is complete.
  */
 export class Semaphore {
+    readonly #scope: string;
     readonly #delay: Duration;
     readonly #queue = new Array<{
         resolve: (slot: WorkSlot) => void;
@@ -47,7 +48,8 @@ export class Semaphore {
     #abort = new Abort();
     #closed = false;
 
-    constructor(concurrency = 1, delay = Instant) {
+    constructor(scope: string, concurrency = 1, delay = Instant) {
+        this.#scope = scope;
         this.#concurrency = concurrency;
         this.#delay = delay;
         this.#delayTimer = Time.getTimer("Queue delay", this.#delay, () => this.#processNextInQueue());
@@ -95,7 +97,7 @@ export class Semaphore {
 
         const entry = { resolve: resolver };
 
-        logger.debug("Queueing slot request at position", this.#queue.length + 1);
+        logger.debug(`[${this.#scope}] Queueing slot request at position`, this.#queue.length + 1);
         this.#queue.push(entry);
 
         // Ensure the timer is running to process queue (handles both capacity-wait and delay-wait)
@@ -108,7 +110,10 @@ export class Semaphore {
             const index = this.#queue.indexOf(entry);
             if (index !== -1) {
                 this.#queue.splice(index, 1);
-                logger.debug("Slot request aborted, removed from queue. Remaining:", this.#queue.length);
+                logger.debug(
+                    `[${this.#scope}] Slot request aborted, removed from queue. Remaining:`,
+                    this.#queue.length,
+                );
             }
             // Throw AbortedError (use reason if it's already an AbortedError)
             const reason = combinedAbort.reason;
@@ -184,6 +189,8 @@ export class Semaphore {
         }
 
         const next = this.#queue.shift()!;
+
+        logger.debug(`[${this.#scope}] Processing next queued slot, queue length now `, this.#queue.length);
 
         // Grant the slot to the next waiter
         const slot = this.#grantSlot();

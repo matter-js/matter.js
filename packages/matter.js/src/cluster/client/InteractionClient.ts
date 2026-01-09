@@ -13,6 +13,7 @@ import {
     MatterFlowError,
     Millis,
     Seconds,
+    Semaphore,
     ServerAddressUdp,
     UnexpectedDataError,
 } from "#general";
@@ -70,6 +71,8 @@ const REQUEST_ALL = [{}];
 const DEFAULT_TIMED_REQUEST_TIMEOUT = Seconds(10);
 const DEFAULT_MINIMUM_RESPONSE_TIMEOUT_WITH_FAILSAFE = Seconds(30);
 
+const CASE_QUEUE_CONCURRENCY = 4;
+
 const AclClusterId = AccessControl.Complete.id;
 const AclAttributeId = AccessControl.Complete.attributes.acl.id;
 const AclExtensionAttributeId = AccessControl.Complete.attributes.extension.id;
@@ -123,16 +126,28 @@ export class InteractionClientProvider {
     readonly #owner: ServerNode;
     readonly #peers: PeerSet;
     readonly #clients = new PeerAddressMap<InteractionClient>();
+    readonly #caseQueue: Semaphore;
 
     constructor(owner: ServerNode) {
         this.#owner = owner;
         this.#peers = owner.env.get(PeerSet);
         this.#peers.deleted.on(peer => this.#onPeerLoss(peer.address));
         this.#peers.disconnected.on(peer => this.#onPeerLoss(peer.address));
+        this.#caseQueue = new Semaphore(`case-${owner.id}`, CASE_QUEUE_CONCURRENCY);
     }
 
     get peers() {
         return this.#peers;
+    }
+
+    #queue(address: PeerAddress) {
+        const node = this.#owner.peers.get(address);
+        if (node !== undefined) {
+            const properties = (node.interaction as ClientNodeInteraction).physicalProperties;
+            if (properties.threadConnected || !properties.rootEndpointServerList?.length) {
+                return this.#caseQueue;
+            }
+        }
     }
 
     async connect(
@@ -142,13 +157,13 @@ export class InteractionClientProvider {
             operationalAddress?: ServerAddressUdp;
         },
     ): Promise<InteractionClient> {
-        await this.#peers.connect(address, options);
+        await this.#peers.connect(address, { ...options, queue: this.#queue(address) });
 
         return this.getNodeInteractionClient(address);
     }
 
     /**
-     * Returns an InteractionClient  for a session or PeerAddress which is not bound to a ClientNode Interactable
+     * Returns an InteractionClient for a session or PeerAddress which is not bound to a ClientNode Interactable
      * This should only be used for special cases.
      */
     async interactionClientFor(sessionOrAddress: SecureSession | PeerAddress): Promise<InteractionClient> {

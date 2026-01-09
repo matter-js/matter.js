@@ -11,7 +11,7 @@ import { Semaphore } from "#util/Semaphore.js";
 describe("Semaphore", () => {
     describe("slot acquisition", () => {
         it("grants slot immediately when capacity available", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
 
             const slot = await queue.obtainSlot();
 
@@ -22,7 +22,7 @@ describe("Semaphore", () => {
         });
 
         it("queues when at capacity", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
 
             const slot1 = await queue.obtainSlot();
             expect(queue.running).equals(1);
@@ -53,7 +53,7 @@ describe("Semaphore", () => {
         });
 
         it("releases slot via dispose", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
 
             {
                 using _slot = await queue.obtainSlot();
@@ -65,7 +65,7 @@ describe("Semaphore", () => {
         });
 
         it("release is idempotent", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
 
             const slot = await queue.obtainSlot();
             expect(queue.running).equals(1);
@@ -81,7 +81,7 @@ describe("Semaphore", () => {
 
     describe("concurrency", () => {
         it("respects concurrency limit of 1", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
             const executionOrder: string[] = [];
 
             const task1 = (async () => {
@@ -103,7 +103,7 @@ describe("Semaphore", () => {
         });
 
         it("allows parallel execution with concurrency 2", async () => {
-            const queue = new Semaphore(2);
+            const queue = new Semaphore("test", 2);
             const executionOrder: string[] = [];
 
             const task1 = (async () => {
@@ -127,7 +127,7 @@ describe("Semaphore", () => {
         });
 
         it("respects concurrency limit of 3", async () => {
-            const queue = new Semaphore(3);
+            const queue = new Semaphore("test", 3);
             let runningCount = 0;
             let maxRunning = 0;
 
@@ -146,7 +146,7 @@ describe("Semaphore", () => {
         });
 
         it("with concurrency 3, tasks 1-3 start before task 4", async () => {
-            const queue = new Semaphore(3);
+            const queue = new Semaphore("test", 3);
             const startOrder: number[] = [];
             const endOrder: number[] = [];
 
@@ -175,7 +175,7 @@ describe("Semaphore", () => {
         });
 
         it("with concurrency 2, task order is respected as slots free up", async () => {
-            const queue = new Semaphore(2);
+            const queue = new Semaphore("test", 2);
             const events: string[] = [];
 
             const createTask = (id: number, delay: number) =>
@@ -207,7 +207,7 @@ describe("Semaphore", () => {
         });
 
         it("queued tasks execute in FIFO order", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
             const executionOrder: number[] = [];
             let resolveBlocker!: () => void;
             const blockerReady = new Promise<void>(r => {
@@ -254,7 +254,7 @@ describe("Semaphore", () => {
 
     describe("abort handling", () => {
         it("throws if abort signal is already aborted", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
             const abortController = new AbortController();
             abortController.abort(new AbortedError("pre-aborted"));
 
@@ -269,7 +269,7 @@ describe("Semaphore", () => {
         });
 
         it("rejects queued request when abort signal fires", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
 
             // Take the only slot
             const slot1 = await queue.obtainSlot();
@@ -297,7 +297,7 @@ describe("Semaphore", () => {
         });
 
         it("abort does not affect requests without abort signal", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
 
             // Take the only slot
             const slot1 = await queue.obtainSlot();
@@ -333,7 +333,7 @@ describe("Semaphore", () => {
         });
 
         it("works with Abort utility class", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
 
             // Take the only slot
             const slot1 = await queue.obtainSlot();
@@ -363,7 +363,7 @@ describe("Semaphore", () => {
 
     describe("queue management", () => {
         it("reports correct count", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
 
             expect(queue.count).equals(0);
             expect(queue.running).equals(0);
@@ -390,7 +390,7 @@ describe("Semaphore", () => {
         });
 
         it("clear rejects all pending requests", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
 
             const slot1 = await queue.obtainSlot();
             const slot2Promise = queue.obtainSlot();
@@ -423,7 +423,7 @@ describe("Semaphore", () => {
         });
 
         it("close() marks queue as closed and rejects pending", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
 
             const slot1 = await queue.obtainSlot();
             const slot2Promise = queue.obtainSlot();
@@ -454,7 +454,7 @@ describe("Semaphore", () => {
 
     describe("async iterator pattern", () => {
         it("works with async iterators using slot", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
 
             async function* generator() {
                 yield 1;
@@ -476,7 +476,7 @@ describe("Semaphore", () => {
         });
 
         it("serializes async iterator processing", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
             const executionOrder: string[] = [];
 
             async function* gen1() {
@@ -510,7 +510,7 @@ describe("Semaphore", () => {
         });
 
         it("releases slot on iterator error", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
 
             async function* failingGenerator() {
                 yield 1;
@@ -532,7 +532,7 @@ describe("Semaphore", () => {
         });
 
         it("can abort while processing async iterator", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
 
             // Take the slot
             const slot1 = await queue.obtainSlot();
@@ -614,13 +614,13 @@ describe("Semaphore", () => {
         });
 
         it("wrapper works when queued", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
             const result = await withOptionalQueue(queue, true, async () => "success");
             expect(result).equals("success");
         });
 
         it("wrapper respects queue ordering", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
             const executionOrder: string[] = [];
 
             const task1 = withOptionalQueue(queue, true, async () => {
@@ -642,7 +642,7 @@ describe("Semaphore", () => {
         });
 
         it("wrapper bypasses queue when not queued", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
             const executionOrder: string[] = [];
 
             // Block the queue
@@ -665,7 +665,7 @@ describe("Semaphore", () => {
         });
 
         it("iterable wrapper yields values correctly when queued", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
 
             async function* generator() {
                 yield 1;
@@ -680,7 +680,7 @@ describe("Semaphore", () => {
         });
 
         it("iterable wrapper respects queue ordering", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
             const executionOrder: string[] = [];
 
             async function* gen1() {
@@ -708,7 +708,7 @@ describe("Semaphore", () => {
         });
 
         it("iterable wrapper waits when queue is at capacity", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
             const executionOrder: string[] = [];
             let resolveBlocker!: () => void;
 
@@ -746,7 +746,7 @@ describe("Semaphore", () => {
         });
 
         it("iterable wrapper handles errors correctly", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
 
             async function* failingGenerator() {
                 yield 1;
@@ -779,7 +779,7 @@ describe("Semaphore", () => {
         });
 
         it("iterable wrapper yields values as they are produced", async () => {
-            const queue = new Semaphore(1);
+            const queue = new Semaphore("test", 1);
             const yieldTimes: number[] = [];
             const start = Date.now();
 
