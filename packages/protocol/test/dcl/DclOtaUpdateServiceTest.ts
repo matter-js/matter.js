@@ -4,7 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DclOtaUpdateService, OtaUpdateError } from "#dcl/DclOtaUpdateService.js";
+import {
+    DclOtaUpdateService,
+    DeviceSoftwareVersionModelDclSchemaWithSource,
+    OtaUpdateError,
+} from "#dcl/DclOtaUpdateService.js";
 import {
     Crypto,
     DataWriter,
@@ -313,7 +317,7 @@ describe("DclOtaUpdateService", () => {
             const otaImage = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
 
             // Mock update info - using DeviceSoftwareVersionModelDclSchema structure
-            const updateInfo = {
+            const updateInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000,
                 softwareVersion: 3,
@@ -325,6 +329,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             // Mock OTA file download
@@ -345,7 +350,7 @@ describe("DclOtaUpdateService", () => {
         });
 
         it("throws error on download failure", async () => {
-            const updateInfo = {
+            const updateInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000,
                 softwareVersion: 3,
@@ -356,6 +361,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             fetchMock.addResponse("https://example.com/ota-v3.bin", { error: "Not found" }, { status: 404 });
@@ -373,7 +379,7 @@ describe("DclOtaUpdateService", () => {
             // Create OTA image with wrong vendor ID
             const otaImage = await createOtaImage(crypto, 0xfff2, 0x8000, 3); // Wrong VID
 
-            const updateInfo = {
+            const updateInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1), // Expected VID
                 pid: 0x8000,
                 softwareVersion: 3,
@@ -385,6 +391,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             fetchMock.addResponse("https://example.com/ota-v3.bin", otaImage, { binary: true });
@@ -401,7 +408,7 @@ describe("DclOtaUpdateService", () => {
         it("throws error on product ID mismatch", async () => {
             const otaImage = await createOtaImage(crypto, 0xfff1, 0x8001, 3); // Wrong PID
 
-            const updateInfo = {
+            const updateInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000, // Expected PID
                 softwareVersion: 3,
@@ -413,6 +420,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             fetchMock.addResponse("https://example.com/ota-v3.bin", otaImage, { binary: true });
@@ -429,7 +437,7 @@ describe("DclOtaUpdateService", () => {
         it("throws error on software version mismatch", async () => {
             const otaImage = await createOtaImage(crypto, 0xfff1, 0x8000, 4); // Wrong version
 
-            const updateInfo = {
+            const updateInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000,
                 softwareVersion: 3, // Expected version
@@ -441,6 +449,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             fetchMock.addResponse("https://example.com/ota-v3.bin", otaImage, { binary: true });
@@ -463,7 +472,7 @@ describe("DclOtaUpdateService", () => {
             writer.writeByteArray(new Uint8Array(90)); // Garbage data
             const badOtaImage = writer.toByteArray();
 
-            const updateInfo = {
+            const updateInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000,
                 softwareVersion: 3,
@@ -475,6 +484,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             fetchMock.addResponse("https://example.com/ota-v3.bin", badOtaImage, { binary: true });
@@ -488,7 +498,7 @@ describe("DclOtaUpdateService", () => {
         it("errors when trying to download file:// protocol for local files", async () => {
             const otaImage = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
 
-            const updateInfo = {
+            const updateInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000,
                 softwareVersion: 3,
@@ -500,6 +510,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             // Mock file:// URL
@@ -514,7 +525,7 @@ describe("DclOtaUpdateService", () => {
         it("reuses existing valid OTA file instead of re-downloading", async () => {
             const otaImage = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
 
-            const updateInfo = {
+            const updateInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000,
                 softwareVersion: 3,
@@ -526,6 +537,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             // First download
@@ -541,7 +553,7 @@ describe("DclOtaUpdateService", () => {
             fetchMock.clearResponses();
 
             // Second call should reuse existing file without downloading
-            const fileDesignator2 = await service.downloadUpdate(updateInfo, true);
+            const fileDesignator2 = await service.downloadUpdate(updateInfo, false);
             expect(fileDesignator2.exists()).to.be.true;
             expect(fileDesignator2.text).to.equal(fileDesignator1.text);
 
@@ -551,7 +563,7 @@ describe("DclOtaUpdateService", () => {
         });
 
         it("throws error for unsupported protocols", async () => {
-            const updateInfo = {
+            const updateInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000,
                 softwareVersion: 3,
@@ -562,6 +574,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             const service = new DclOtaUpdateService(environment);
@@ -573,7 +586,7 @@ describe("DclOtaUpdateService", () => {
         });
 
         it("throws error for invalid URLs", async () => {
-            const updateInfo = {
+            const updateInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000,
                 softwareVersion: 3,
@@ -584,6 +597,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             const service = new DclOtaUpdateService(environment);
@@ -650,7 +664,7 @@ describe("DclOtaUpdateService", () => {
             const otaImage3 = await createOtaImage(crypto, 0xfff2, 0x8000, 1);
 
             // Download multiple images
-            const updateInfo1 = {
+            const updateInfo1: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000,
                 softwareVersion: 3,
@@ -662,9 +676,10 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
-            const updateInfo2 = {
+            const updateInfo2: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8001,
                 softwareVersion: 2,
@@ -676,9 +691,10 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 1,
                 maxApplicableSoftwareVersion: 1,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
-            const updateInfo3 = {
+            const updateInfo3: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff2),
                 pid: 0x8000,
                 softwareVersion: 1,
@@ -690,6 +706,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 0,
                 maxApplicableSoftwareVersion: 0,
                 schemaVersion: 0,
+                source: "dcl-test",
             };
 
             fetchMock.addResponse("https://example.com/ota1.bin", otaImage1, { binary: true });
@@ -698,9 +715,9 @@ describe("DclOtaUpdateService", () => {
             fetchMock.install();
 
             const service = new DclOtaUpdateService(environment);
-            await service.downloadUpdate(updateInfo1, true);
-            await service.downloadUpdate(updateInfo2, true);
-            await service.downloadUpdate(updateInfo3, false); // Test mode
+            await service.downloadUpdate(updateInfo1);
+            await service.downloadUpdate(updateInfo2);
+            await service.downloadUpdate(updateInfo3); // Test mode
 
             // List all
             const allUpdates = await service.find({});
@@ -736,7 +753,7 @@ describe("DclOtaUpdateService", () => {
             const otaImage1 = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
             const otaImage2 = await createOtaImage(crypto, 0xfff1, 0x8001, 2);
 
-            const updateInfo1 = {
+            const updateInfo1: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000,
                 softwareVersion: 3,
@@ -748,9 +765,10 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
-            const updateInfo2 = {
+            const updateInfo2: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8001,
                 softwareVersion: 2,
@@ -762,6 +780,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 1,
                 maxApplicableSoftwareVersion: 1,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             fetchMock.addResponse("https://example.com/ota1.bin", otaImage1, { binary: true });
@@ -831,7 +850,7 @@ describe("DclOtaUpdateService", () => {
         it("re-downloads file when force is true", async () => {
             const otaImage = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
 
-            const updateInfo = {
+            const updateInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000,
                 softwareVersion: 3,
@@ -843,6 +862,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             fetchMock.addResponse("https://example.com/ota-v3.bin", otaImage, { binary: true });
@@ -851,17 +871,17 @@ describe("DclOtaUpdateService", () => {
             const service = new DclOtaUpdateService(environment);
 
             // First download
-            const fileDesignator1 = await service.downloadUpdate(updateInfo, true, false);
+            const fileDesignator1 = await service.downloadUpdate(updateInfo);
             expect(fileDesignator1.exists()).to.be.true;
 
             const callCountAfterFirst = fetchMock.getCallLog().length;
 
             // Second download without force - should reuse
-            await service.downloadUpdate(updateInfo, true, false);
+            await service.downloadUpdate(updateInfo, false);
             expect(fetchMock.getCallLog().length).to.equal(callCountAfterFirst); // No new download
 
             // Third download with force - should re-download
-            await service.downloadUpdate(updateInfo, true, true);
+            await service.downloadUpdate(updateInfo, true);
             expect(fetchMock.getCallLog().length).to.be.greaterThan(callCountAfterFirst); // New download occurred
         });
     });
@@ -870,7 +890,7 @@ describe("DclOtaUpdateService", () => {
         it("returns file designator for existing file", async () => {
             const otaImage = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
 
-            const updateInfo = {
+            const updateInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000,
                 softwareVersion: 3,
@@ -882,6 +902,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             fetchMock.addResponse("https://example.com/ota-v3.bin", otaImage, { binary: true });

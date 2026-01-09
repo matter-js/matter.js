@@ -147,7 +147,7 @@ export class DclCertificateService {
 
         try {
             const isProduction = options?.isProduction ?? true;
-            // Fetch root certificate list to find the certificate reference
+            // Fetch the root certificate list to find the certificate reference
             const dclClient = new DclClient(isProduction);
             const certRefs = await dclClient.fetchRootCertificateList(options);
 

@@ -309,23 +309,15 @@ export default function commands(theNode: MatterNode) {
                     "add <file>",
                     "Add an OTA image file to storage",
                     yargs => {
-                        return yargs
-                            .positional("file", {
-                                describe: "Absolute path to the OTA image file",
-                                type: "string",
-                                demandOption: true,
-                            })
-                            .option("mode", {
-                                describe: "Mode for the OTA file (prod or test)",
-                                type: "string",
-                                choices: ["prod", "test"],
-                                default: "prod",
-                            });
+                        return yargs.positional("file", {
+                            describe: "Absolute path to the OTA image file",
+                            type: "string",
+                            demandOption: true,
+                        });
                     },
                     async argv => {
-                        const { file, mode } = argv;
+                        const { file } = argv;
                         let filePath = file;
-                        const isProduction = mode === "prod";
 
                         if (filePath.startsWith("file://")) {
                             filePath = filePath.slice(7); // Remove "file://" prefix
@@ -355,16 +347,16 @@ export default function commands(theNode: MatterNode) {
                         console.log(`  Product ID: 0x${updateInfo.pid.toString(16).toUpperCase()}`);
                         console.log(`  Software Version: ${updateInfo.softwareVersion}`);
                         console.log(`  Software Version String: ${updateInfo.softwareVersionString}`);
-                        console.log(`  Mode: ${isProduction ? "production" : "test"}`);
+                        console.log(`  Mode: ${updateInfo.source}`);
 
                         // Download (copy to storage) using the existing logic
                         let fd: PersistedFileDesignator;
                         if (localFile) {
                             const nodeStream = createReadStream(filePath);
                             const webStream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
-                            fd = await theNode.otaService.store(webStream, updateInfo, isProduction);
+                            fd = await theNode.otaService.store(webStream, updateInfo);
                         } else {
-                            fd = await theNode.otaService.downloadUpdate(updateInfo, isProduction);
+                            fd = await theNode.otaService.downloadUpdate(updateInfo);
                         }
 
                         console.log(`\nOTA image added to storage successfully: ${fd.text}`);

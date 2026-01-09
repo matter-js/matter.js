@@ -13,7 +13,7 @@ import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import { OtaRequestorEndpoint } from "#endpoints/ota-requestor";
 import { Bytes, createPromise, Crypto, MaybePromise, StandardCrypto } from "#general";
 import { ServerNode } from "#node/ServerNode.js";
-import { DclOtaUpdateService, OtaImageWriter, PeerAddress, PersistedFileDesignator } from "#protocol";
+import { DclOtaUpdateService, OtaImageWriter, OtaUpdateSource, PeerAddress, PersistedFileDesignator } from "#protocol";
 import { VendorId } from "#types";
 import { MockSite } from "../../node/mock-site.js";
 
@@ -73,6 +73,7 @@ export interface TestOtaImageResult {
         schemaVersion: number;
         minApplicableSoftwareVersion: number;
         maxApplicableSoftwareVersion: number;
+        source: OtaUpdateSource;
     };
 }
 
@@ -123,6 +124,7 @@ export async function createTestOtaImage(crypto: Crypto, options: TestOtaImageOp
         schemaVersion: 0,
         filename: `${vendorId.toString(16)}-${productId.toString(16)}-test`,
         mode: "test" as const,
+        source: "dcl-test" as OtaUpdateSource,
         size: result.image.byteLength,
     };
 
