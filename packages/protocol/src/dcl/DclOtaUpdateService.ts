@@ -35,11 +35,17 @@ export class OtaUpdateError extends MatterError {
     }
 }
 
+export type OtaUpdateSource = "local" | "dcl-prod" | "dcl-test";
+
+export interface DeviceSoftwareVersionModelDclSchemaWithSource extends DeviceSoftwareVersionModelDclSchema {
+    source: OtaUpdateSource;
+}
+
 /**
  * Update information returned by checkForUpdate.
  * This is an alias for the DCL schema to provide better semantic meaning.
  */
-export type OtaUpdateInfo = DeviceSoftwareVersionModelDclSchema;
+export type OtaUpdateInfo = DeviceSoftwareVersionModelDclSchemaWithSource;
 
 const OTA_DOWNLOAD_TIMEOUT = Minutes(5);
 
@@ -87,55 +93,18 @@ export class DclOtaUpdateService {
         await this.#storageManager?.close();
     }
 
-    /**
-     * Check DCL for available software updates for a device, defined by its vendor ID, product ID, and current
-     * software version. If a target software version is provided, only that version is checked for applicability and
-     * ignoring other newer versions.
-     * If isProduction flag is specified, it is exactly used to find updates. Leave that flag undefined to find both
-     * test and production updates.
-     */
-    async checkForUpdate(options: {
+    async #queryDclForUpdate(options: {
         vendorId: number;
         productId: number;
         currentSoftwareVersion: number;
         includeStoredUpdates?: boolean;
-        isProduction?: boolean;
+        isProduction: boolean;
         targetSoftwareVersion?: number;
     }) {
-        const {
-            vendorId,
-            productId,
-            currentSoftwareVersion,
-            includeStoredUpdates = false,
-            isProduction,
-            targetSoftwareVersion,
-        } = options;
-
-        let localUpdateFound: DeviceSoftwareVersionModelDclSchema | undefined = undefined;
-        if (includeStoredUpdates) {
-            const localUpdates = await this.find({
-                vendorId,
-                productId,
-                isProduction,
-                currentVersion: currentSoftwareVersion,
-            });
-            if (localUpdates.length) {
-                localUpdateFound = {
-                    ...localUpdates[0],
-                    vid: VendorId(vendorId),
-                    pid: productId,
-                    cdVersionNumber: 0,
-                    softwareVersionValid: true,
-                    schemaVersion: 1,
-                    minApplicableSoftwareVersion: localUpdates[0].minApplicableSoftwareVersion ?? 0,
-                    maxApplicableSoftwareVersion:
-                        localUpdates[0].maxApplicableSoftwareVersion ?? localUpdates[0].softwareVersion - 1,
-                };
-                logger.debug(`Found local update`, Diagnostic.dict(localUpdateFound));
-            }
-        }
+        const { vendorId, productId, currentSoftwareVersion, isProduction, targetSoftwareVersion } = options;
 
         const dclClient = new DclClient(isProduction);
+        const dclLogStr = isProduction ? "Prod-DCL" : "Test-DCL";
 
         const diagnosticInfo = {
             vid: vendorId,
@@ -147,18 +116,8 @@ export class DclOtaUpdateService {
         try {
             // If a specific target version is requested, check only that version
             if (targetSoftwareVersion !== undefined) {
-                if (localUpdateFound !== undefined && localUpdateFound.softwareVersion === targetSoftwareVersion) {
-                    logger.debug(
-                        `Update already available locally for specific version`,
-                        Diagnostic.dict({
-                            ...diagnosticInfo,
-                            target: targetSoftwareVersion,
-                        }),
-                    );
-                    return localUpdateFound;
-                }
                 logger.debug(
-                    `Checking update in DCL for specific version`,
+                    `Checking update in ${dclLogStr} for specific version`,
                     Diagnostic.dict({
                         ...diagnosticInfo,
                         target: targetSoftwareVersion,
@@ -182,16 +141,14 @@ export class DclOtaUpdateService {
                 .sort((a, b) => b - a);
 
             if (newerVersions.length === 0) {
-                logger.debug(`No newer versions available in DCL`, Diagnostic.dict(diagnosticInfo));
-
-                if (localUpdateFound !== undefined && localUpdateFound.softwareVersion > currentSoftwareVersion) {
-                    logger.info(`Other update already available locally`, Diagnostic.dict(diagnosticInfo));
-                    return localUpdateFound;
-                }
+                logger.debug(`No newer versions available in ${dclLogStr}`, Diagnostic.dict(diagnosticInfo));
                 return;
             }
 
-            logger.debug(`Found ${newerVersions.length} newer version(s) in DCL`, Diagnostic.dict(diagnosticInfo));
+            logger.debug(
+                `Found ${newerVersions.length} newer version(s) in ${dclLogStr}`,
+                Diagnostic.dict(diagnosticInfo),
+            );
 
             // Check each version starting from highest, find the first applicable one
             for (const version of newerVersions) {
@@ -204,16 +161,10 @@ export class DclOtaUpdateService {
                         currentSoftwareVersion,
                     );
                     if (updateInfo !== undefined) {
-                        logger.info(`Update available in DCL`, Diagnostic.dict({ new: version, ...diagnosticInfo }));
-
-                        if (
-                            localUpdateFound !== undefined &&
-                            localUpdateFound.softwareVersion > updateInfo.softwareVersion
-                        ) {
-                            logger.info(`Newer update already available locally`, Diagnostic.dict(diagnosticInfo));
-                            return localUpdateFound;
-                        }
-
+                        logger.info(
+                            `Update available in ${dclLogStr}`,
+                            Diagnostic.dict({ new: version, ...diagnosticInfo }),
+                        );
                         return updateInfo;
                     }
                 } catch (error) {
@@ -222,16 +173,106 @@ export class DclOtaUpdateService {
                 }
             }
 
-            logger.info(`No applicable updates found in DCL`, Diagnostic.dict(diagnosticInfo));
+            logger.debug(`No applicable updates found in ${dclLogStr}`, Diagnostic.dict(diagnosticInfo));
         } catch (error) {
             MatterDclError.accept(error);
             logger.info(`Failed to check for updates for VID: ${vendorId}, PID: ${productId}: ${error.message}`);
         }
+    }
 
-        if (localUpdateFound !== undefined) {
-            logger.info(`Other update already available locally`, Diagnostic.dict(diagnosticInfo));
-            return localUpdateFound;
+    /**
+     * Check DCL for available software updates for a device, defined by its vendor ID, product ID, and current
+     * software version. If a target software version is provided, only that version is checked for applicability and
+     * ignoring other newer versions.
+     * If isProduction flag is specified, it is exactly used to find updates. Leave that flag undefined to find both
+     * test and production updates.
+     */
+    async checkForUpdate(options: {
+        vendorId: number;
+        productId: number;
+        currentSoftwareVersion: number;
+        includeStoredUpdates?: boolean;
+        isProduction?: boolean;
+        targetSoftwareVersion?: number;
+    }): Promise<DeviceSoftwareVersionModelDclSchemaWithSource | undefined> {
+        const {
+            vendorId,
+            productId,
+            currentSoftwareVersion,
+            includeStoredUpdates = false,
+            isProduction,
+            targetSoftwareVersion,
+        } = options;
+
+        const foundUpdates = new Array<DeviceSoftwareVersionModelDclSchemaWithSource>();
+
+        // Check for local updates if allowed
+        if (includeStoredUpdates) {
+            const localUpdates = await this.find({
+                vendorId,
+                productId,
+                isProduction,
+                currentVersion: currentSoftwareVersion,
+            });
+            if (localUpdates.length) {
+                const localUpdate: DeviceSoftwareVersionModelDclSchemaWithSource = {
+                    ...localUpdates[0],
+                    vid: VendorId(vendorId),
+                    pid: productId,
+                    cdVersionNumber: 0,
+                    softwareVersionValid: true,
+                    schemaVersion: 1,
+                    minApplicableSoftwareVersion: localUpdates[0].minApplicableSoftwareVersion ?? 0,
+                    maxApplicableSoftwareVersion:
+                        localUpdates[0].maxApplicableSoftwareVersion ?? localUpdates[0].softwareVersion - 1,
+                    source: "local",
+                };
+                logger.debug(`Found local update`, Diagnostic.dict(localUpdate));
+                if (targetSoftwareVersion !== undefined && localUpdate.softwareVersion === targetSoftwareVersion) {
+                    return localUpdate;
+                }
+                foundUpdates.push(localUpdate);
+            }
         }
+
+        // Check for Prod DCL updates
+        if (isProduction !== false) {
+            const prodUpdate = await this.#queryDclForUpdate({ ...options, isProduction: true });
+            if (prodUpdate !== undefined) {
+                const updateEntry: DeviceSoftwareVersionModelDclSchemaWithSource = {
+                    ...prodUpdate,
+                    source: "dcl-prod",
+                };
+                if (targetSoftwareVersion !== undefined && updateEntry.softwareVersion === targetSoftwareVersion) {
+                    return updateEntry;
+                }
+                foundUpdates.push(updateEntry);
+            }
+        }
+
+        // Check for Test DCL updates
+        if (isProduction !== true) {
+            const testUpdate = await this.#queryDclForUpdate({ ...options, isProduction: false });
+            if (testUpdate !== undefined) {
+                const updateEntry: DeviceSoftwareVersionModelDclSchemaWithSource = {
+                    ...testUpdate,
+                    source: "dcl-test",
+                };
+                if (targetSoftwareVersion !== undefined && updateEntry.softwareVersion === targetSoftwareVersion) {
+                    return updateEntry;
+                }
+                foundUpdates.push(updateEntry);
+            }
+        }
+
+        // The logic above would have found the update already when it would match that version, so no update found
+        if (targetSoftwareVersion !== undefined || !foundUpdates.length) {
+            return;
+        }
+
+        // Sort for versions, highest version number first
+        foundUpdates.sort((a, b) => b.softwareVersion - a.softwareVersion);
+        return foundUpdates[0];
     }
 
     async #verifyUpdate(updateInfo: OtaUpdateInfo, fileDesignator: PersistedFileDesignator) {
@@ -325,18 +366,14 @@ export class DclOtaUpdateService {
      *
      * Returns a PersistedFileDesignator for the validated OTA image
      */
-    async downloadUpdate(
-        updateInfo: OtaUpdateInfo,
-        isProduction = true,
-        force = false,
-        timeout = OTA_DOWNLOAD_TIMEOUT,
-    ) {
+    async downloadUpdate(updateInfo: OtaUpdateInfo, force = false, timeout = OTA_DOWNLOAD_TIMEOUT) {
         if (this.#storage === undefined) {
             await this.construction;
         }
         const storage = this.#storage!;
 
-        const { otaUrl, softwareVersion, softwareVersionString, vid, pid } = updateInfo;
+        const { otaUrl, softwareVersion, softwareVersionString, vid, pid, source } = updateInfo;
+        const isProduction = source === "dcl-prod";
 
         const diagnosticInfo = {
             vid,
@@ -552,6 +589,7 @@ export class DclOtaUpdateService {
                 header.softwareVersion - 1,
             releaseNotesUrl: header.releaseNotesUrl,
             schemaVersion: options?.schemaVersion ?? 0,
+            source: "local",
         };
 
         logger.debug(

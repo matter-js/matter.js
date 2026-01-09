@@ -38,6 +38,7 @@ import {
     FabricAuthority,
     FileDesignator,
     OtaUpdateError,
+    OtaUpdateSource,
     PeerAddress,
 } from "#protocol";
 import { VendorId } from "#types";
@@ -107,6 +108,9 @@ export interface SoftwareUpdateInfo {
 
     /** SpecificationVersion of the updated device */
     specificationVersion?: number;
+
+    /** Source of the update returned, whether it is a local file, downloaded from test or production DCL */
+    source: OtaUpdateSource;
 }
 
 /**
@@ -410,15 +414,16 @@ export class SoftwareUpdateManager extends Behavior {
 
         // Request consent or notify peers about the update if we have consent
         for (const { endpoint, peerAddress } of otaEndpoints) {
-            const { vid, pid, softwareVersion, softwareVersionString, releaseNotesUrl, specificationVersion } =
+            const { vid, pid, softwareVersion, softwareVersionString, releaseNotesUrl, specificationVersion, source } =
                 updateDetails;
-            const details = {
+            const details: SoftwareUpdateInfo = {
                 vendorId: vid,
                 productId: pid,
                 softwareVersion,
                 softwareVersionString,
                 releaseNotesUrl,
                 specificationVersion,
+                source,
             };
             this.internal.knownUpdates.set(peerAddress.toString(), details);
 
