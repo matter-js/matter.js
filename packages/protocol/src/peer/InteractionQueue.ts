@@ -11,7 +11,7 @@ const INTERACTION_QUEUE_DELAY = Millis(100);
 
 export class InteractionQueue extends Semaphore {
     constructor() {
-        super(CONCURRENT_QUEUED_INTERACTIONS, INTERACTION_QUEUE_DELAY);
+        super("interaction", CONCURRENT_QUEUED_INTERACTIONS, INTERACTION_QUEUE_DELAY);
     }
 
     static [Environmental.create](env: Environment) {
