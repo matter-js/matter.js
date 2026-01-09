@@ -36,6 +36,7 @@ import { PeerBehavior } from "./PeerBehavior.js";
 
 const logger = Logger.get("ClientStructure");
 
+const DESCRIPTOR_ID = Descriptor.Cluster.id;
 const DEVICE_TYPE_LIST_ATTR_ID = Descriptor.Cluster.attributes.deviceTypeList.id;
 const SERVER_LIST_ATTR_ID = Descriptor.Cluster.attributes.serverList.id;
 const PARTS_LIST_ATTR_ID = Descriptor.Cluster.attributes.partsList.id;
@@ -85,15 +86,21 @@ export class ClientStructure {
 
             const endpoint = this.#endpointFor(number as EndpointNumber);
 
-            // Load state for each behavior
-            for (const idStr of store.knownBehaviors) {
-                const id = Number.parseInt(idStr) as ClusterId;
-                if (!Number.isFinite(id)) {
-                    continue;
-                }
+            const knownBehaviors = [...store.knownBehaviors]
+                .map(idStr => Number.parseInt(idStr) as ClusterId)
+                .filter(id => Number.isFinite(id));
 
-                const cluster = this.#clusterFor(endpoint, id);
-                this.#synchronizeCluster(endpoint, cluster);
+            // Ensure we process Descriptor cluster first because we trust our storage and extraneous cluster data were
+            // there before too, so we simply load them also if they might not be contained in indices
+            const descriptorIndex = knownBehaviors.indexOf(DESCRIPTOR_ID);
+            if (descriptorIndex !== -1) {
+                knownBehaviors.splice(descriptorIndex, 1);
+                knownBehaviors.unshift(DESCRIPTOR_ID);
+            }
+
+            // Load state for each behavior
+            for (const id of knownBehaviors) {
+                this.#synchronizeCluster(endpoint, this.#clusterFor(endpoint, id));
             }
         }
 
@@ -332,7 +339,7 @@ export class ClientStructure {
     }
 
     /**
-     * Apply new attribute values for specific endpoint/cluster.
+     * Apply new attribute values for a specific endpoint / cluster.
      *
      * This is invoked in a batch when we've collected all sequential values for the current endpoint/cluster.
      */
@@ -387,7 +394,7 @@ export class ClientStructure {
     #synchronizeCluster(structure: EndpointStructure, cluster: ClusterStructure) {
         const { endpoint } = structure;
 
-        // Generate a behavior if enough             information is available
+        // Generate a behavior if enough information is available
         if (cluster.behavior === undefined) {
             if (cluster.store.initialValues) {
                 const {
@@ -437,6 +444,7 @@ export class ClientStructure {
 
                 if (endpoint.lifecycle.isInstalled) {
                     cluster.pendingBehavior = behaviorType;
+                    // TODO Should we somehow validate that against descriptor serverList because we might load data not in there
                     this.#scheduleStructureChange(
                         structure,
                         endpoint.behaviors.supported[behaviorType.id] ? "rebuild" : "install",
@@ -550,6 +558,7 @@ export class ClientStructure {
             }
 
             part.pendingOwner = structure;
+            // TODO Should we somehow validate that against descriptor serverList because we might load data not in there
             this.#scheduleStructureChange(part, "install");
         }
 
