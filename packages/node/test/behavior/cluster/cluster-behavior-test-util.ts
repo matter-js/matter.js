@@ -45,7 +45,7 @@ export namespace My {
     });
 
     export const Base = MutableCluster.Component({
-        id: 0x1234_fc00,
+        id: 0x1234_fc01,
         revision: 1,
         name: "MyCluster",
 
