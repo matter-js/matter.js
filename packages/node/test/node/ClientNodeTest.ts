@@ -464,11 +464,11 @@ describe("ClientNode", () => {
     it("properly supports unknown clusters", async () => {
         // *** SETUP ***
 
-        // Create a List attribute with 5x500byte data which will be transferred chunked in ny case to ensure correct decoding
+        // Create a List attribute with 5x500byte data which will be transferred chunked in any case to ensure correct decoding
         const crypto = MockCrypto();
-        const list = new Array<Bytes>();
+        const optList = new Array<Bytes>();
         for (let i = 0; i < 5; i++) {
-            list.push(crypto.randomBytes(500));
+            optList.push(crypto.randomBytes(500));
         }
 
         await using site = new MockSite();
@@ -476,7 +476,7 @@ describe("ClientNode", () => {
             device: {
                 type: ServerNode.RootEndpoint.with(MyBehavior),
                 myCluster: {
-                    list,
+                    optList,
                 },
             },
         });
@@ -506,7 +506,7 @@ describe("ClientNode", () => {
             expect(typeof state).equals("object");
             expect((state as Val.Struct)[1]).equals("hello");
             expect((state as Val.Struct).attr$1).equals("hello");
-            expect((state as Val.Struct).attr$14).deep.equals(list); // Attribute 20
+            expect((state as Val.Struct).attr$14).deep.equals(optList); // Attribute 20
         }
     });
 

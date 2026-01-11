@@ -73,7 +73,7 @@ export namespace My {
             condOptAttr2: OptionalAttribute(14, TlvUInt8, { default: 4 }),
 
             /** List attribute, optional */
-            list: OptionalAttribute(20, TlvArray(TlvByteString.bound({ maxLength: 500 }))),
+            optList: OptionalAttribute(20, TlvArray(TlvByteString.bound({ maxLength: 500 }))),
         },
 
         commands: {
@@ -144,7 +144,7 @@ export const MySchema = new ClusterModel({
         }),
         AttributeElement({
             id: 20,
-            name: "List",
+            name: "OptList",
             conformance: "O",
             type: "list",
             children: [FieldElement({ name: "entry", type: "octstr" })],
