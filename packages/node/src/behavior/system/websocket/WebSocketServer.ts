@@ -27,6 +27,6 @@ export namespace WebSocketServer {
          *   - ws+unix (WebSockets over a UNIX socket)
          *   - wss+unix (WebSockets over a secure UNIX socket)
          */
-        override address = "ws+unix:matter.sock";
+        override address = "ws+unix://matter.sock";
     }
 }
