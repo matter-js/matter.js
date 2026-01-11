@@ -766,8 +766,8 @@ export class PairedNode {
             // We need to determine the attribute name for the API
             let attributeName = this.#attributeIdToNameMap.get(attrKey);
             if (attributeName === undefined) {
-                const cluster = getClusterById(clusterId);
-                const attribute = getClusterAttributeById(cluster, attributeId as AttributeId);
+                const clusterDef = getClusterById(clusterId);
+                const attribute = getClusterAttributeById(clusterDef, attributeId as AttributeId);
                 attributeName = attribute?.name ?? `Unknown (${Diagnostic.hex(attributeId)})`;
                 this.#attributeIdToNameMap.set(attrKey, attributeName);
             }
