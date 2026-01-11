@@ -14,10 +14,19 @@ import {
     ImplementationError,
     Logger,
     Minutes,
+    Observable,
+    ObserverGroup,
     Time,
     UnexpectedDataError,
 } from "#general";
-import { CommissioningClient, Endpoint, NetworkClient, ServerNode, SoftwareUpdateManager } from "#node";
+import {
+    ChangeNotificationService,
+    CommissioningClient,
+    Endpoint,
+    NetworkClient,
+    ServerNode,
+    SoftwareUpdateManager,
+} from "#node";
 import {
     ActiveSessionInformation,
     Ble,
@@ -168,12 +177,14 @@ export class CommissioningController {
     readonly #options: CommissioningControllerOptions;
     #id: string;
 
-    #environment: Environment; // Set when new API was initialized correctly
+    #environment: Environment; // Set when the new API was initialized correctly
 
     #controllerInstance?: MatterController;
     readonly #initializedNodes = new Map<string, PairedNode>();
+    readonly #nodeChangeObservers = new Map<string, Observable<[changes: ChangeNotificationService.Change]>>();
     readonly #nodeUpdateLabelHandlers = new Map<NodeId, (nodeState: NodeStates) => Promise<void>>();
     readonly #sessionDisconnectedHandler = new Map<NodeId, () => Promise<void>>();
+    readonly #observers = new ObserverGroup();
 
     /**
      * Creates a new CommissioningController instance
@@ -411,6 +422,7 @@ export class CommissioningController {
         await controller.removeNode(nodeId);
         if (node !== undefined) {
             this.#initializedNodes.delete(node.id);
+            this.#nodeChangeObservers.delete(node.id);
         }
     }
 
@@ -495,6 +507,7 @@ export class CommissioningController {
             await peerNode.start();
         }
 
+        const changeObserver = new Observable<[changes: ChangeNotificationService.Change]>();
         const { caseAuthenticatedTags = this.#options.caseAuthenticatedTags } = connectOptions ?? {};
         const pairedNode = await PairedNode.create(
             nodeId,
@@ -514,8 +527,10 @@ export class CommissioningController {
             handler => this.#sessionDisconnectedHandler.set(nodeId, handler),
             controller.sessions,
             this.#crypto,
+            changeObserver,
         );
         this.#initializedNodes.set(peerNode.id, pairedNode);
+        this.#nodeChangeObservers.set(peerNode.id, changeObserver);
 
         return pairedNode;
     }
@@ -607,6 +622,7 @@ export class CommissioningController {
      * You can use "start()" to restart the controller after closing it.
      */
     async close() {
+        this.#observers.close();
         for (const node of this.#initializedNodes.values()) {
             node.close();
         }
@@ -614,6 +630,7 @@ export class CommissioningController {
 
         this.#controllerInstance = undefined;
         this.#initializedNodes.clear();
+        this.#nodeChangeObservers.clear();
         this.#ipv4Disabled = undefined;
         this.#started = false;
     }
@@ -671,9 +688,29 @@ export class CommissioningController {
             }
         });
 
+        const changeNotifications = this.#controllerInstance.node.env.get(ChangeNotificationService);
+        this.#observers.on(changeNotifications.change, this.#handleNodeChange.bind(this));
+
         if (this.#options.autoConnect !== false && this.#controllerInstance.isCommissioned()) {
             await this.connect();
         }
+    }
+
+    #handleNodeChange(changes: ChangeNotificationService.Change) {
+        const { endpoint } = changes;
+        const peerNodeId = endpoint.owner?.id;
+        if (peerNodeId === undefined) {
+            if (!(endpoint instanceof ServerNode)) {
+                logger.warn(`Received change notification for unknown endpoint ${endpoint.id}`);
+            }
+            return;
+        }
+        const changeHandler = this.#nodeChangeObservers.get(peerNodeId);
+        if (changeHandler === undefined) {
+            logger.warn(`Received change notification for unknown peer node ${peerNodeId}`);
+            return;
+        }
+        changeHandler.emit(changes);
     }
 
     /**

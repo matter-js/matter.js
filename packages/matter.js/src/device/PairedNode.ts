@@ -23,6 +23,7 @@ import {
     Millis,
     Minutes,
     Observable,
+    ObserverGroup,
     Seconds,
     Time,
     Timer,
@@ -30,6 +31,7 @@ import {
 import { AcceptedCommandList, AttributeList, ClusterRevision, FeatureMap } from "#model";
 import {
     Behavior,
+    ChangeNotificationService,
     Endpoint as ClientEndpoint,
     ClientNode,
     ClientNodeInteraction,
@@ -51,6 +53,7 @@ import {
     SessionManager,
     Subscribe,
     UnknownNodeError,
+    Val,
 } from "#protocol";
 import {
     AttributeId,
@@ -315,6 +318,8 @@ export class PairedNode {
     #deviceInformationUpdateNeeded = false;
     #nodeShutdownReason?: NodeShutDownReason;
     #nodeShutdownDetected = false;
+    #observers = new ObserverGroup();
+    #attributeIdToNameMap = new Map<string, string>();
 
     /**
      * Endpoint structure change information that are checked when updating structure
@@ -348,6 +353,7 @@ export class PairedNode {
         assignDisconnectedHandler: (handler: () => Promise<void>) => void,
         sessions: SessionManager,
         crypto: Crypto,
+        changes: Observable<[changes: ChangeNotificationService.Change]>,
     ): Promise<PairedNode> {
         const node = new PairedNode(
             nodeId,
@@ -359,6 +365,7 @@ export class PairedNode {
             assignDisconnectedHandler,
             sessions,
             crypto,
+            changes,
         );
         await node.construction;
         return node;
@@ -374,6 +381,7 @@ export class PairedNode {
         assignDisconnectedHandler: (handler: () => Promise<void>) => void,
         sessions: SessionManager,
         crypto: Crypto,
+        changes: Observable<[changes: ChangeNotificationService.Change]>,
     ) {
         assignDisconnectedHandler(async () => {
             logger.info(
@@ -391,10 +399,11 @@ export class PairedNode {
         this.#reconnectFunc = reconnectFunc;
         this.#crypto = crypto;
         this.#clientNode = clientNode;
+        this.#observers.on(changes, this.#handleNodeChange.bind(this));
 
         this.#interactionClient = interactionClient;
         if (this.#interactionClient.isReconnectable) {
-            this.#interactionClient.channelUpdated.on(() => {
+            this.#observers.on(this.#interactionClient.channelUpdated, () => {
                 // When we had planned a reconnection because of a disconnect, we can stop the timer now
                 if (
                     this.#reconnectDelayTimer?.isRunning &&
@@ -416,7 +425,7 @@ export class PairedNode {
         this.#nodeDetails = new DeviceInformation(clientNode);
         logger.info(`Node ${this.nodeId}: Created paired node with device data`, this.#nodeDetails.meta);
 
-        sessions.sessions.added.on(session => {
+        this.#observers.on(sessions.sessions.added, session => {
             if (
                 session.isInitiator || // If we initiated the session, we do not need to react to it
                 session.peerNodeId !== this.nodeId || // no session for this node
@@ -435,8 +444,10 @@ export class PairedNode {
         this.#clientNode.lifecycle.offline.on(() => this.#setConnectionState(NodeStates.Disconnected));
         */
 
-        this.#clientNode.lifecycle.decommissioned.on(() => this.#setConnectionState(NodeStates.Disconnected));
-        this.#clientNode.eventsOf(NetworkClient).subscriptionStatusChanged.on(isActive => {
+        this.#observers.on(this.#clientNode.lifecycle.decommissioned, () =>
+            this.#setConnectionState(NodeStates.Disconnected),
+        );
+        this.#observers.on(this.#clientNode.eventsOf(NetworkClient).subscriptionStatusChanged, isActive => {
             if (isActive) {
                 this.#setConnectionState(NodeStates.Connected);
             } else if (this.#connectionState === NodeStates.Connected) {
@@ -705,7 +716,7 @@ export class PairedNode {
             }
         }
 
-        // We do not have enought data of the device, postpone inititialization
+        // We need more data of the device, postpone initialization
         if (!rootEndpointIncluded || !otherEndpointIncluded) {
             return;
         }
@@ -715,6 +726,64 @@ export class PairedNode {
         // Inform interested parties that the node is initialized
         await this.events.initialized.emit(this.#nodeDetails.details);
         this.#localInitializationDone = true;
+    }
+
+    #handleNodeChange(changes: ChangeNotificationService.Change) {
+        const { kind } = changes;
+
+        if (kind !== "update" || this.#currentSubscriptionHandler === undefined) {
+            return;
+        }
+
+        const { behavior, endpoint, properties, version } = changes;
+        if (!ClusterBehavior.is(behavior)) {
+            return;
+        }
+        const endpointId = endpoint.number;
+        const device = this.#endpoints.get(endpointId);
+        if (device === undefined) {
+            return;
+        }
+
+        const clusterId = behavior.cluster.id;
+        const cluster = device.getClusterClientById(clusterId);
+        if (cluster === undefined) {
+            return;
+        }
+
+        const state = endpoint.stateOf(behavior);
+        const attributes = behavior.cluster.attributes;
+        for (const attribute of properties ?? Object.keys(attributes)) {
+            let attributeId = parseInt(attribute, 10);
+            if (isNaN(attributeId)) {
+                attributeId = attributes[attribute]?.id;
+                if (attributeId === undefined) {
+                    continue;
+                }
+            }
+            const attrKey = `${clusterId}.${attributeId}`;
+
+            // We need to determine the attribute name for the API
+            let attributeName = this.#attributeIdToNameMap.get(attrKey);
+            if (attributeName === undefined) {
+                const cluster = getClusterById(clusterId);
+                const attribute = getClusterAttributeById(cluster, attributeId as AttributeId);
+                attributeName = attribute?.name ?? `Unknown (${Diagnostic.hex(attributeId)})`;
+                this.#attributeIdToNameMap.set(attrKey, attributeName);
+            }
+            const value = (state as Val.Struct)[attribute];
+
+            this.#currentSubscriptionHandler?.attributeListener({
+                path: {
+                    endpointId,
+                    clusterId,
+                    attributeId: attributeId as AttributeId,
+                    attributeName,
+                },
+                value,
+                version,
+            });
+        }
     }
 
     /**
@@ -796,7 +865,7 @@ export class PairedNode {
 
     /**
      * Subscribe to all attributes and events of the device. Unless setting the Controller property autoSubscribe to
-     * false this is executed automatically. Alternatively you can manually subscribe by calling this method.
+     * false this is executed automatically. Alternatively, you can manually subscribe by calling this method.
      */
     async subscribeAllAttributesAndEvents(options?: {
         ignoreInitialTriggers?: boolean;
@@ -918,24 +987,7 @@ export class PairedNode {
         const convert = (entry: ReadResult.Report) => {
             switch (entry.kind) {
                 case "attr-value": {
-                    const {
-                        path: { endpointId, clusterId, attributeId },
-                        value,
-                        version,
-                    } = entry;
-
-                    const cluster = getClusterById(clusterId);
-                    const attribute = getClusterAttributeById(cluster, attributeId);
-                    subscriptionHandler.attributeListener({
-                        path: {
-                            endpointId,
-                            clusterId,
-                            attributeId,
-                            attributeName: attribute?.name ?? `Unknown (${Diagnostic.hex(attributeId)})`,
-                        },
-                        value,
-                        version,
-                    });
+                    // Attribute changes are handled via the ChangeNotificationService
                     break;
                 }
 
@@ -986,7 +1038,7 @@ export class PairedNode {
             eventFilters: [{ eventMin: this.#clientNode.stateOf(NetworkClient).maxEventNumber + 1n }],
         });
 
-        // Now subscribe for subsequent updates
+        // Now subscribe for later updates
         const subscription = await (this.#clientNode.interaction as ClientNodeInteraction).subscribe({
             ...subscribe,
             updated: async reports => {
@@ -1008,7 +1060,7 @@ export class PairedNode {
         this.#clientNode.behaviors.internalsOf(NetworkClient).activeSubscription = this.#currentSubscription =
             subscription;
 
-        // After initial data are processed we want to send out callbacks, so we set ignoreInitialTriggers to false
+        // After initial data are processed, we want to send out callbacks, so we set ignoreInitialTriggers to false
         ignoreInitialTriggers = false;
 
         return Seconds(subscription.maxInterval);
@@ -1609,6 +1661,7 @@ export class PairedNode {
 
     /** Closes the current subscription and ends all timers for reconnects or such used by this PairedNode instance. */
     close(sendDecommissionedStatus = false) {
+        this.#observers.close();
         this.#newChannelReconnectDelayTimer.stop();
         this.#reconnectDelayTimer?.stop();
         this.#reconnectDelayTimer = undefined;
