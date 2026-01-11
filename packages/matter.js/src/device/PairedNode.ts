@@ -767,8 +767,8 @@ export class PairedNode {
             let attributeName = this.#attributeIdToNameMap.get(attrKey);
             if (attributeName === undefined) {
                 const clusterDef = getClusterById(clusterId);
-                const attribute = getClusterAttributeById(clusterDef, attributeId as AttributeId);
-                attributeName = attribute?.name ?? `Unknown (${Diagnostic.hex(attributeId)})`;
+                const attributeDef = getClusterAttributeById(clusterDef, attributeId as AttributeId);
+                attributeName = attributeDef?.name ?? `Unknown (${Diagnostic.hex(attributeId)})`;
                 this.#attributeIdToNameMap.set(attrKey, attributeName);
             }
             const value = (state as Val.Struct)[attribute];
