@@ -8,8 +8,19 @@ import { Behavior } from "#behavior/Behavior.js";
 import { Environment, Environmental, isObject, VariableService } from "#general";
 import { Endpoint } from "./Endpoint.js";
 
+/**
+ * Prefix path segment for node-specific configuration values.
+ */
 const NODE_SUBKEY = "nodes";
+
+/**
+ * Optional prefix path segment for behavior-specific configuration values.
+ */
 const BEHAVIOR_SUBKEY = "behaviors";
+
+/**
+ * Path segment for configuring individual nodes within and endpoint.
+ */
 const PART_SUBKEY = "parts";
 
 /**
@@ -25,8 +36,8 @@ const PART_SUBKEY = "parts";
  *
  *   - Configure endpoint behaviors with `<endpoint subkey>.<behavior id>.<property name>` subkey
  *
- * Additionally you may configure behaviors globally (regardless of endpoint) using the `<behavior id>.<property name>`
- * subkey.  Endpoint-specific configuration overrides this value.
+ * Additionally you may configure behaviors globally (regardless of endpoint) using the
+ * `behaviors.<behavior id>.<property name>` subkey.  Endpoint-specific configuration overrides this value.
  *
  * Environmental configuration overrides values supplied in {@link Endpoint.Configuration}.
  *
@@ -36,7 +47,7 @@ const PART_SUBKEY = "parts";
  * For example, to set the vendor name for all nodes:
  *
  * ```bash
- *   export MATTER_BEHAVIORS_BASICINFORMATION_VENDORNAME="My Vendor Name"
+ *   export MATTER_BASICINFORMATION_VENDORNAME="My Vendor Name"
  * ```
  *
  * Or, to configure a light as on by default:
@@ -49,10 +60,8 @@ const PART_SUBKEY = "parts";
  *
  * ```json
  *   {
- *     "behaviors": {
- *       "basicInformation": {
- *         "vendorName": "My Vendor Name"
- *       }
+ *     "basicInformation": {
+ *       "vendorName": "My Vendor Name"
  *     },
  *
  *     "nodes": {
@@ -69,11 +78,11 @@ const PART_SUBKEY = "parts";
  *   }
  * ```
  *
- * Matter.js automatically expands dotted names so a more compact configuration option is:
+ * Matter.js automatically expands dotted names, so a more compact configuration option is:
  *
  * ```json
  * {
- *   "behaviors.basicInformation.vendorName": "My Vendor Name",
+ *   "basicInformation.vendorName": "My Vendor Name",
  *   "nodes.node1.parts.light.onOff.OnOff": true,
  * }
  * ```
@@ -150,7 +159,7 @@ export class EndpointVariableService {
     }
 
     /**
-     * Access the variable mape for a type of behavior.
+     * Access the variable map for a type of behavior.
      */
     forBehaviorType(type: Behavior.Type) {
         // Get cached value
@@ -160,7 +169,10 @@ export class EndpointVariableService {
         }
 
         // Load environment variables
-        const envVars = this.#env.vars.get(`${BEHAVIOR_SUBKEY}.${type.id}`) as VariableService.Value;
+        let envVars = this.#env.vars.get(`${BEHAVIOR_SUBKEY}.${type.id}`) as VariableService.Value;
+        if (!isObject(envVars)) {
+            envVars = this.#env.vars.get(type.id) as VariableService.Value;
+        }
         if (isObject(envVars)) {
             vars = envVars;
         } else {
