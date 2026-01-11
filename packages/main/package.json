@@ -29,11 +29,83 @@
         "embed-examples": "embedme **/README.md"
     },
     "imports": {
-        "#general": "@matter/general",
-        "#platform": "@matter/main/platform",
-        "#model": "@matter/model",
-        "#types": "@matter/types",
-        "#protocol": "@matter/protocol",
+        "#general": {
+            "types": "@matter/general",
+            "import": {
+                "types": "@matter/general/dist/esm/index.d.ts",
+                "default": "@matter/general/dist/esm/index.js"
+            },
+            "require": {
+                "types": "@matter/general/dist/cjs/index.d.ts",
+                "default": "@matter/general/dist/cjs/index.js"
+            }
+        },
+        "#platform": {
+            "types": "@matter/main/platform",
+            "node": {
+                "import": {
+                    "types": "./dist/esm/platform/nodejs.d.ts",
+                    "default": "./dist/esm/platform/nodejs.js"
+                },
+                "require": {
+                    "types": "./dist/cjs/platform/nodejs.d.ts",
+                    "default": "./dist/cjs/platform/nodejs.js"
+                }
+            },
+            "react-native": {
+                "import": {
+                    "types": "./dist/esm/platform/react-native.d.ts",
+                    "default": "./dist/esm/platform/react-native.js"
+                },
+                "require": {
+                    "types": "./dist/cjs/platform/react-native.d.ts",
+                    "default": "./dist/cjs/platform/react-native.js"
+                }
+            },
+            "default": {
+                "import": {
+                    "types": "./dist/esm/platform/default.d.ts",
+                    "default": "./dist/esm/platform/default.js"
+                },
+                "require": {
+                    "types": "./dist/cjs/platform/default.d.ts",
+                    "default": "./dist/cjs/platform/default.js"
+                }
+            }
+        },
+        "#model": {
+            "types": "@matter/model",
+            "import": {
+                "types": "@matter/model/dist/esm/index.d.ts",
+                "default": "@matter/model/dist/esm/index.js"
+            },
+            "require": {
+                "types": "@matter/model/dist/cjs/index.d.ts",
+                "default": "@matter/model/dist/cjs/index.js"
+            }
+        },
+        "#types": {
+            "types": "@matter/types",
+            "import": {
+                "types": "@matter/types/dist/esm/index.d.ts",
+                "default": "@matter/types/dist/esm/index.js"
+            },
+            "require": {
+                "types": "@matter/types/dist/cjs/index.d.ts",
+                "default": "@matter/types/dist/cjs/index.js"
+            }
+        },
+        "#protocol": {
+            "types": "@matter/protocol",
+            "import": {
+                "types": "@matter/protocol/dist/esm/index.d.ts",
+                "default": "@matter/protocol/dist/esm/index.js"
+            },
+            "require": {
+                "types": "@matter/protocol/dist/cjs/index.d.ts",
+                "default": "@matter/protocol/dist/cjs/index.js"
+            }
+        },
         "#clusters/*": "@matter/types/clusters/*",
         "#behaviors/*": "@matter/node/behaviors/*",
         "#endpoints/*": "@matter/node/endpoints/*",

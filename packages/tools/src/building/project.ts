@@ -202,15 +202,11 @@ export class Project {
 
     async #configureFormat(dir: string, format: Format, isDist: boolean) {
         // Build import map
+        // strip path for subpath imports.
+        // ./src/ -> ./, ./dist/(esm|cjs)/ -> ./
         let { imports } = this.pkg.json;
         if (isDist && typeof imports === "object") {
-            imports = { ...imports };
-            for (const key in imports) {
-                const value = imports[key];
-                if (typeof value === "string") {
-                    imports[key] = value.replace(/^\.\/src\//, "./");
-                }
-            }
+            imports = this.#stripImportPath(imports)
         }
 
         // Write package.json
@@ -230,6 +226,24 @@ export class Project {
             in: file,
             out: `${outdir}/${file.slice(inputPrefixLength)}`,
         }));
+    }
+
+    #stripImportPath<T extends string | Record<string, unknown> | undefined>(obj: T) {
+        if (typeof obj === "string") {
+            return obj
+                .replace(/^\.\/src\//, "./")
+                .replace(/^\.\/dist\/(?:cjs|esm)\//, "./") as T;
+        }
+
+        if (obj !== null && typeof obj === "object") {
+            const newObj = Object.create(null) as Record<string, unknown>;
+            for (const key of Object.keys(obj)) {
+                newObj[key] = this.#stripImportPath(obj[key] as string | Record<string, unknown>);
+            }
+            return newObj as T;
+        }
+        
+        return obj
     }
 }
 

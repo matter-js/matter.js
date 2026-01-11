@@ -49,9 +49,39 @@
         "LICENSE"
     ],
     "imports": {
-        "#general": "@matter/general",
-        "#protocol": "@matter/protocol",
-        "#types": "@matter/types"
+        "#general": {
+            "types": "@matter/general",
+            "import": {
+                "types": "@matter/general/dist/esm/index.d.ts",
+                "default": "@matter/general/dist/esm/index.js"
+            },
+            "require": {
+                "types": "@matter/general/dist/cjs/index.d.ts",
+                "default": "@matter/general/dist/cjs/index.js"
+            }
+        },
+        "#protocol": {
+            "types": "@matter/protocol",
+            "import": {
+                "types": "@matter/protocol/dist/esm/index.d.ts",
+                "default": "@matter/protocol/dist/esm/index.js"
+            },
+            "require": {
+                "types": "@matter/protocol/dist/cjs/index.d.ts",
+                "default": "@matter/protocol/dist/cjs/index.js"
+            }
+        },
+        "#types": {
+            "types": "@matter/types",
+            "import": {
+                "types": "@matter/types/dist/esm/index.d.ts",
+                "default": "@matter/types/dist/esm/index.js"
+            },
+            "require": {
+                "types": "@matter/types/dist/cjs/index.d.ts",
+                "default": "@matter/types/dist/cjs/index.js"
+            }
+        }
     },
     "type": "module",
     "main": "dist/cjs/index.js",

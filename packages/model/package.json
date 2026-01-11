@@ -57,7 +57,6 @@
                 "default": "./dist/cjs/index.js"
             }
         },
-
         "./resources": {
             "import": {
                 "types": "./dist/esm/standard/resources/index.d.ts",
@@ -70,8 +69,28 @@
         }
     },
     "imports": {
-        "#general": "@matter/general",
-        "#model": "@matter/model",
+        "#general": {
+            "types": "@matter/general",
+            "import": {
+                "types": "@matter/general/dist/esm/index.d.ts",
+                "default": "@matter/general/dist/esm/index.js"
+            },
+            "require": {
+                "types": "@matter/general/dist/cjs/index.d.ts",
+                "default": "@matter/general/dist/cjs/index.js"
+            }
+        },
+        "#model": {
+            "types": "@matter/model",
+            "import": {
+                "types": "@matter/model/dist/esm/index.d.ts",
+                "default": "@matter/model/dist/esm/index.js"
+            },
+            "require": {
+                "types": "@matter/model/dist/cjs/index.d.ts",
+                "default": "@matter/model/dist/cjs/index.js"
+            }
+        },
         "#*": "./src/*"
     },
     "types": "dist/esm/index.d.ts",
