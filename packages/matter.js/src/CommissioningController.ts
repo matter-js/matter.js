@@ -700,14 +700,10 @@ export class CommissioningController {
         const { endpoint } = changes;
         const peerNodeId = endpoint.owner?.id;
         if (peerNodeId === undefined) {
-            if (!(endpoint instanceof ServerNode)) {
-                logger.warn(`Received change notification for unknown endpoint ${endpoint.id}`);
-            }
             return;
         }
         const changeHandler = this.#nodeChangeObservers.get(peerNodeId);
         if (changeHandler === undefined) {
-            logger.warn(`Received change notification for unknown peer node ${peerNodeId}`);
             return;
         }
         changeHandler.emit(changes);
