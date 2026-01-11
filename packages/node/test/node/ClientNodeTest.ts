@@ -16,7 +16,7 @@ import { OnOffLightDevice } from "#devices/on-off-light";
 import { WindowCoveringDevice } from "#devices/window-covering";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
-import { b$, Crypto, deepCopy, Entropy, MockCrypto, Observable, Seconds, Time, TimeoutError } from "#general";
+import { b$, Bytes, Crypto, deepCopy, Entropy, MockCrypto, Observable, Seconds, Time, TimeoutError } from "#general";
 import { Specification } from "#model";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
 import { ServerNode } from "#node/ServerNode.js";
@@ -189,7 +189,7 @@ describe("ClientNode", () => {
 
         await MockTime.resolve(receivedUpdate);
 
-        // *** Test other command which is also in the featureset ***
+        // *** Test another command also in the feature-set ***
         await ep1.commandsOf(OnOffClient).offWithEffect({ effectIdentifier: 0, effectVariant: 0 });
     });
 
@@ -464,10 +464,20 @@ describe("ClientNode", () => {
     it("properly supports unknown clusters", async () => {
         // *** SETUP ***
 
+        // Create a List attribute with 5x500byte data which will be transferred chunked in any case to ensure correct decoding
+        const crypto = MockCrypto();
+        const optList = new Array<Bytes>();
+        for (let i = 0; i < 5; i++) {
+            optList.push(crypto.randomBytes(500));
+        }
+
         await using site = new MockSite();
         let { controller } = await site.addCommissionedPair({
             device: {
                 type: ServerNode.RootEndpoint.with(MyBehavior),
+                myCluster: {
+                    optList,
+                },
             },
         });
 
@@ -487,15 +497,16 @@ describe("ClientNode", () => {
         function verifyStructure() {
             const peer = controller.peers.get("peer1")!;
 
-            const behavior = peer.behaviors.supported.cluster$1;
+            const behavior = peer.behaviors.supported.cluster$1234fc01;
             expect(typeof behavior).equals("function");
-            expect((behavior as ClusterBehavior.Type).schema.id).equals(1);
-            expect((behavior as ClusterBehavior.Type).cluster.id).equals(1);
+            expect((behavior as ClusterBehavior.Type).schema.id).equals(0x1234_fc01);
+            expect((behavior as ClusterBehavior.Type).cluster.id).equals(0x1234_fc01);
 
-            const state = peer.maybeStateOf("cluster$1");
+            const state = peer.maybeStateOf("cluster$1234fc01");
             expect(typeof state).equals("object");
             expect((state as Val.Struct)[1]).equals("hello");
             expect((state as Val.Struct).attr$1).equals("hello");
+            expect((state as Val.Struct).attr$14).deep.equals(optList); // Attribute 20
         }
     });
 
