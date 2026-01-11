@@ -464,7 +464,7 @@ describe("ClientNode", () => {
     it("properly supports unknown clusters", async () => {
         // *** SETUP ***
 
-        // Create a List attribute with 4x500byte data which will be transferred chunked in ny case to ensure correct decoding
+        // Create a List attribute with 5x500byte data which will be transferred chunked in ny case to ensure correct decoding
         const crypto = MockCrypto();
         const list = new Array<Bytes>();
         for (let i = 0; i < 5; i++) {
