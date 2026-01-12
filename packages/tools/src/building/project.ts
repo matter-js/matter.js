@@ -201,16 +201,10 @@ export class Project {
     }
 
     async #configureFormat(dir: string, format: Format, isDist: boolean) {
-        // Build import map
-        let { imports } = this.pkg.json;
-        if (isDist && typeof imports === "object") {
-            imports = { ...imports };
-            for (const key in imports) {
-                const value = imports[key];
-                if (typeof value === "string") {
-                    imports[key] = value.replace(/^\.\/src\//, "./");
-                }
-            }
+        let imports: Record<string, unknown> | undefined = this.pkg.json.imports
+
+        if (isDist && imports !== undefined && typeof imports === "object") {
+            imports = this.#stripImportPath(imports, format) as Record<string, unknown>
         }
 
         // Write package.json
@@ -230,6 +224,61 @@ export class Project {
             in: file,
             out: `${outdir}/${file.slice(inputPrefixLength)}`,
         }));
+    }
+
+    #stripImportPath(obj: string | Record<string, unknown>, format: Format): string | Record<string, unknown> {
+        if (typeof obj === "string") {
+            return this.#fixImportPath(obj, format);
+        }
+
+        if (obj !== null && typeof obj === "object") {
+            const newObj = Object.create(null) as Record<string, unknown>;
+            for (const key of Object.keys(obj)) {
+                newObj[key] = this.#stripImportPath(
+                    obj[key] as string | Record<string, unknown>, format);
+            }
+            return newObj;
+        }
+
+        return obj;
+    }
+
+    /**
+     * Fix subpath import path for bun.js (v1.3.5)
+     * 
+     * WORKAROUND: Bun has issues with resolving subpath imports through the standard `exports` field.
+     * This explicitly maps `@matter/*` packages to their built dist
+     * files using conditional exports in the `imports` field.
+     * 
+     * @see https://nodejs.org/api/packages.html#subpath-imports
+     * 
+     * @todo FIND A BETTER SOLUTION THAN THIS.
+     */
+    #fixImportPath(path: string, format: Format) {
+        if (path.startsWith("@matter/") && !path.includes("*")) {
+            const purePkgName = path.match(/^@matter\/[-\.a-z0-9]+/)
+            if (purePkgName === null) {
+                return path
+            }
+            const subPath = path.substring(purePkgName[0].length)
+            const dirType = format === "cjs" ? "cjs" : "esm";
+
+            const multiExport = Object.create(null) as { bun: string, default: string };
+            multiExport.bun = `${purePkgName[0]}/dist/${dirType}${subPath}/`
+            multiExport.default = path;
+
+            // Edge cases
+            switch (path) {
+                case "@matter/main/platform":
+                    multiExport.bun += "nodejs.js"
+                    break;
+                default:
+                    multiExport.bun += "index.js"
+            }
+
+            return multiExport;
+        }
+        return path.replace(/^\.\/src\//, "./");
     }
 }
 
