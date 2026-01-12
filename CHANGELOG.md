@@ -9,7 +9,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
-### **WORK IN PROGRESS**
+### __WORK IN PROGRESS__
 
 - Breaking: matter.js now requires node.js 20.19+ or 22.13+ or 24.0+ (LTS versions). Node.js 18.x is no longer supported.
 - Breaking: Because of the upgrade to TypeScript 5.9, all usages of Uint8Array were changed to use a more convenient own type alias Bytes
