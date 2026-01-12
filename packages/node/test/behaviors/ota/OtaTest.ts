@@ -11,7 +11,7 @@ import {
     OtaSoftwareUpdateRequestorServer,
 } from "#behaviors/ota-software-update-requestor";
 import { OtaSoftwareUpdateRequestor } from "#clusters/ota-software-update-requestor";
-import { Bytes, createPromise } from "#general";
+import { Bytes, createPromise, MockFetch } from "#general";
 import { FabricAuthority, PeerAddress } from "#protocol";
 import { FabricIndex, VendorId } from "#types";
 import {
@@ -22,11 +22,39 @@ import {
 } from "./ota-utils.js";
 
 describe("Ota", () => {
+    let fetchMock: MockFetch;
+
     before(() => {
         MockTime.init();
 
         // Required for crypto to succeed
         MockTime.macrotasks = true;
+    });
+
+    beforeEach(() => {
+        // Mock DCL network requests to return 404 so tests don't hit real DCL servers
+        // This ensures the test uses locally stored OTA images only
+        fetchMock = new MockFetch();
+
+        // Mock both production and test DCL software version endpoints with 404 responses
+        // Production DCL: on.dcl.csa-iot.org
+        fetchMock.addResponse(
+            /on\.dcl\.csa-iot\.org\/dcl\/model\/versions\//,
+            { code: 404, message: "Not found", details: [] },
+            { status: 404 },
+        );
+        // Test DCL: on.test-net.dcl.csa-iot.org
+        fetchMock.addResponse(
+            /on\.test-net\.dcl\.csa-iot\.org\/dcl\/model\/versions\//,
+            { code: 404, message: "Not found", details: [] },
+            { status: 404 },
+        );
+
+        fetchMock.install();
+    });
+
+    afterEach(() => {
+        fetchMock.uninstall();
     });
 
     it("Successfully process a software update", async () => {

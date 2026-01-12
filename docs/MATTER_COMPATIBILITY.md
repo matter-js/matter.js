@@ -7,6 +7,7 @@ The Matter standard evolves continuously and delivers two updates per year. matt
 - **Matter 1.3**: matter.js 0.10.x and higher
 - **Matter 1.4**: matter.js 0.13.x and higher
 - **Matter 1.4.1**: matter.js 0.14.x and higher
+- **Matter 1.4.2**: matter.js 0.16.x and higher
 
 The following Matter protocol level features are not yet supported by matter.js:
 * Groups persistence for controller not yet implemented
