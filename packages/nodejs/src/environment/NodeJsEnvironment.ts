@@ -6,6 +6,7 @@
 
 import { config } from "#config.js";
 import { NodeJsCrypto } from "#crypto/NodeJsCrypto.js";
+import { NodeJsFallbackCrypto } from "#crypto/NodeJsFallbackCrypto.js";
 import {
     asError,
     Boot,
@@ -140,7 +141,13 @@ function rootDirOf(env: Environment) {
 function configureCrypto(env: Environment) {
     Boot.init(() => {
         if (config.installCrypto || (env.vars.boolean("nodejs.crypto") ?? true)) {
-            const crypto = new NodeJsCrypto();
+            let crypto: Crypto;
+            if (config.fallbackCrypto || (env.vars.boolean("nodejs.crypto.fallback") ?? false)) {
+                crypto = new NodeJsFallbackCrypto()
+            } else {
+                crypto = new NodeJsCrypto()
+            }
+
             env.set(Entropy, crypto);
             env.set(Crypto, crypto);
         } else {

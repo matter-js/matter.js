@@ -17,9 +17,13 @@ let trapUnhandledErrors = true;
 let setProcessExitCodeOnError = true;
 let installNetwork = true;
 
-// TODO - until we have proper feature detection, disable by default Node.js version of crypto in environments where
+// Seperate installCrypto and fallbackCrypto
+// for someone who wants to make own crypto implementation.
+let installCrypto = true;
+
+// TODO - until we have proper feature detection, use both StandardCrypto and NodeJsCrypto where
 // Node.js crypto emulation is insufficient
-let installCrypto = !process.versions.bun;
+let fallbackCrypto = !!process.versions.bun;
 
 export class NodeJsAlreadyInitializedError extends Error {}
 
@@ -135,6 +139,18 @@ export const config = {
     set installCrypto(value: boolean) {
         assertUninitialized("installNodeJsCrypto");
         installCrypto = value;
+    },
+
+    /**
+     * Enables uses of standard & node.js fallback crypto implementation (default: false, only true in bun.js)
+     */
+    get fallbackCrypto() {
+        return fallbackCrypto;
+    },
+
+    set fallbackCrypto(value: boolean) {
+        assertUninitialized("installNodeJsCrypto");
+        fallbackCrypto = value;
     },
 
     /**
