@@ -35,7 +35,7 @@
     "devDependencies": {
         "@matter/testing": "*",
         "@types/ws": "^8.18.1",
-        "ws": "^8.18.3"
+        "ws": "^8.19.0"
     },
     "matter": {
         "test": false
