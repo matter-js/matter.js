@@ -252,7 +252,7 @@ export class Project {
      * 
      * @see https://nodejs.org/api/packages.html#subpath-imports
      * 
-     * @todo FIND A BETTER SOLUTION THAN THIS.
+     * TODO - FIND A BETTER SOLUTION THAN THIS, PLEASE.
      */
     #fixImportPath(path: string, format: Format) {
         if (path.startsWith("@matter/") && !path.includes("*")) {

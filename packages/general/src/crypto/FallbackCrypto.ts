@@ -14,6 +14,7 @@ import type {
 } from "@matter/general";
 import { Crypto } from "@matter/general";
 
+// TODO - Logging `primaryCrypto` error if present? (could be error spam like `Unsupported: aes-128-ccm` )
 /**
  * A {@link Crypto} implementation that provides automatic fallback support.
  * 
