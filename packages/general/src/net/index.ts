@@ -7,6 +7,7 @@
 export * from "./AppAddress.js";
 export * from "./Channel.js";
 export * from "./ConnectionlessTransport.js";
+export * from "./dns-sd/index.js";
 export * from "./http/index.js";
 export * from "./mock/index.js";
 export * from "./mqtt/index.js";

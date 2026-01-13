@@ -12,12 +12,12 @@ import {
     Logger,
     MatterAggregateError,
     MaybePromise,
+    MdnsSocket,
     Network,
     VariableService,
 } from "#general";
 import { MdnsServer } from "../mdns/MdnsServer.js";
 import { MdnsClient } from "./MdnsClient.js";
-import { MdnsSocket } from "./MdnsSocket.js";
 
 const logger = Logger.get("MDNS");
 
