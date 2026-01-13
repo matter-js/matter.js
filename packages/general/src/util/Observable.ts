@@ -55,6 +55,16 @@ export interface Observable<T extends any[] = any[], R = void> extends AsyncIter
     on(observer: Observer<T, R>): void;
 
     /**
+     * Add an observer that may be released via disposal.
+     */
+    use(observer: Observer<T, R>): Disposable;
+
+    /**
+     * Add a "once" observer that may be released via disposal.
+     */
+    useOnce(observer: Observer<T, R>): Disposable;
+
+    /**
      * Remove an observer.
      */
     off(observer: Observer<T, R>): void;
@@ -148,7 +158,13 @@ export interface Observable<T extends any[] = any[], R = void> extends AsyncIter
  */
 export interface ObservableValue<T extends [any, ...any[]] = [boolean], R extends MaybePromise<void> = void>
     extends Observable<T, R>, Promise<T[0]> {
+    /**
+     * The current value.
+     *
+     * Setting the value will resolve the promise interface but you must use {@link emit} to also emit an event.
+     */
     value: T[0] | undefined;
+
     error?: Error;
 
     /**
@@ -166,6 +182,12 @@ export interface ObservableValue<T extends [any, ...any[]] = [boolean], R extend
     catch<TResult = never>(
         onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | null,
     ): Promise<T[0] | TResult>;
+
+    onError(handler: (cause: Error) => void): void;
+
+    offError(handler: (cause: Error) => void): void;
+
+    useError(handler: (cause: Error) => void): Disposable;
 }
 
 /**
@@ -344,7 +366,7 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
             };
         }
 
-        // Initially emit using a synchronous loop.  When we hit the first promies we convert to an async function
+        // Initially emit using a synchronous loop.  When we hit the first promise we convert to an async function
         for (; nextObserver < observers.length; nextObserver++) {
             let result: ReturnType<Observer<T, R>>;
 
@@ -410,8 +432,27 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
         this.#observers.add(observer);
     }
 
+    use(observer: Observer<T, R>) {
+        this.on(observer);
+        return {
+            [Symbol.dispose]: () => {
+                this.off(observer);
+            },
+        };
+    }
+
+    useOnce(observer: Observer<T, R>) {
+        this.once(observer);
+        return {
+            [Symbol.dispose]: () => {
+                this.off(observer);
+            },
+        };
+    }
+
     off(observer: Observer<T, R>) {
         this.#observers?.delete(observer);
+        this.#once?.delete(observer);
     }
 
     once(observer: Observer<T, R>) {
@@ -552,9 +593,9 @@ function event<E, N extends string>(emitter: E, name: N) {
 /**
  * A concrete {@link ObservableValue} implementation.
  */
-export class BasicObservableValue<T extends [any, ...any[]] = [boolean]>
-    extends BasicObservable<T, void>
-    implements ObservableValue<T>
+export class BasicObservableValue<T extends [any, ...any[]] = [boolean], R extends MaybePromise<void> = void>
+    extends BasicObservable<T, R>
+    implements ObservableValue<T, R>
 {
     #value: T | undefined;
     #error?: Error;
@@ -566,14 +607,12 @@ export class BasicObservableValue<T extends [any, ...any[]] = [boolean]>
     constructor(value?: T[0], handleError?: ObserverErrorHandler, asyncConfig?: ObserverPromiseHandler | boolean) {
         super(handleError, asyncConfig);
         this.#value = value;
-        this.on(this.#maybeResolve.bind(this) as unknown as Observer<T, void>);
+
+        const maybeResolve = this.#maybeResolve.bind(this) as unknown as Observer<T, R>;
+        Object.defineProperty(maybeResolve, observant, { value: false });
+        this.on(maybeResolve);
     }
 
-    /**
-     * The current value.
-     *
-     * This will resolve the promise interface but you must use {@link emit} to also emit an event..
-     */
     get value(): T[0] | undefined {
         return this.#value;
     }
@@ -637,6 +676,27 @@ export class BasicObservableValue<T extends [any, ...any[]] = [boolean]>
         onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | null,
     ): Promise<T | TResult> {
         return this.then(undefined, onrejected);
+    }
+
+    onError(handler: (cause: Error) => void) {
+        if (!this.#awaiters) {
+            this.#awaiters = [];
+        }
+        this.#awaiters?.push({ resolve: undefined, reject: handler });
+    }
+
+    offError(handler: (cause: Error) => void) {
+        this.#awaiters = this.#awaiters?.filter(awaiter => awaiter.resolve === undefined && awaiter.reject === handler);
+    }
+
+    useError(handler: (cause: Error) => void) {
+        this.onError(handler);
+
+        return {
+            [Symbol.dispose]: () => {
+                this.offError(handler);
+            },
+        };
     }
 
     finally(onfinally?: (() => void) | null): Promise<T> {
@@ -923,6 +983,10 @@ export class ObserverGroup {
         }
         this.#observers.clear();
         this.#boundObservers.clear();
+    }
+
+    [Symbol.dispose]() {
+        this.close();
     }
 }
 
