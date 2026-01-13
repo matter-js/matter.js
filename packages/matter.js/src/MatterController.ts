@@ -805,8 +805,9 @@ class CommissionedNodeStore extends PeerAddressStore {
             return [];
         }
 
-        const commissionedNodes =
-            await this.#controllerStore.nodesStorage.get<StoredOperationalPeer[]>("commissionedNodes");
+        const commissionedNodes = (await this.#controllerStore.nodesStorage.get(
+            "commissionedNodes",
+        )) as StoredOperationalPeer[];
 
         const nodes = new Array<CommissionedPeer>();
 
@@ -863,7 +864,7 @@ class CommissionedNodeStore extends PeerAddressStore {
                         },
                     ] satisfies StoredOperationalPeer;
                 })
-                .filter(details => details !== undefined),
+                .filter(details => details !== undefined) as SupportedStorageTypes,
         );
     }
 }

@@ -13,4 +13,5 @@ export * from "./mqtt/index.js";
 export * from "./Network.js";
 export * from "./RetrySchedule.js";
 export * from "./ServerAddress.js";
+export * from "./ServerAddressSet.js";
 export * from "./udp/index.js";
