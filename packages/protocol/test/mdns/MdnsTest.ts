@@ -16,6 +16,7 @@ import {
     Duration,
     Instant,
     InternalError,
+    MdnsSocket,
     Millis,
     MockCrypto,
     MockNetwork,
@@ -34,7 +35,6 @@ import {
     MdnsClient,
     MdnsScannerTargetCriteria,
     MdnsServer,
-    MdnsSocket,
     ServiceDescription,
 } from "#index.js";
 import { GlobalFabricId, NodeId, VendorId } from "#types";
