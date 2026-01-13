@@ -9,7 +9,12 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
-### 0.16.0 (2026-01-12)
+## __WORK IN PROGRESS__
+
+- @matter/protocol
+    - Prevents an unhandled promise rejection when reconnections are in progress whwen peers are closed
+
+## 0.16.0 (2026-01-12)
 
 - Breaking: matter.js now requires node.js 20.19+ or 22.13+ or 24.0+ (LTS versions). Node.js 18.x is no longer supported.
 - Breaking: Because of the upgrade to TypeScript 5.9, all usages of Uint8Array were changed to use a more convenient own type alias Bytes
