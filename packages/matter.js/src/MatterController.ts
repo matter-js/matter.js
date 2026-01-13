@@ -19,7 +19,6 @@ import { ControllerStore, ControllerStoreInterface } from "#ControllerStore.js";
 import { DeviceInformationData } from "#device/DeviceInformation.js";
 import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import {
-    AbortedError,
     Bytes,
     ChannelType,
     ClassExtends,
@@ -524,12 +523,7 @@ export class MatterController {
         const node = await this.node.peers.forAddress(peerAddress);
         const peer = this.node.env.get(PeerSet).for(peerAddress);
         await node.delete();
-        try {
-            await peer.delete();
-        } catch (error) {
-            // When there are open reconnections we could expect a peer closed abort error here, so ignore this
-            AbortedError.accept(error);
-        }
+        await peer.delete();
     }
 
     /**
