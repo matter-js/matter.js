@@ -9,7 +9,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
-## __WORK IN PROGRESS__
+## 0.16.1 (2026-01-13)
 
 - @matter/protocol
     - Prevents an unhandled promise rejection when reconnections are in progress whwen peers are closed
