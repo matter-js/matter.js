@@ -17,6 +17,7 @@ import {
     Lifetime,
     Logger,
     MatterAggregateError,
+    MdnsSocket,
     Millis,
     Minutes,
     NetworkInterfaceDetails,
@@ -24,7 +25,6 @@ import {
     Time,
     Timer,
 } from "#general";
-import { MdnsSocket } from "./MdnsSocket.js";
 
 const logger = Logger.get("MdnsServer");
 
