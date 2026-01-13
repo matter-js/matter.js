@@ -100,13 +100,18 @@ export class Peer {
      */
     async delete() {
         logger.info("Removing", Diagnostic.strong(this.toString()));
-        await this.close();
+        try {
+            await this.close();
+        } catch (error) {
+            // When there are open reconnections, we could expect a peer closed abort error here, so ignore this error case
+            AbortedError.accept(error);
+        }
         await this.#context.deletePeer(this);
         await this.#context.sessions.deleteResumptionRecord(this.address);
     }
 
     /**
-     * Close the peer without removing persistent state.
+     * Close the peer without removing the persistent state.
      */
     async close() {
         using _lifetime = this.#lifetime.closing();
