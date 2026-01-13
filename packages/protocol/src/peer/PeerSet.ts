@@ -296,14 +296,19 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
 
         this.#resume(address, options, operationalAddress)
             .then(channel => {
-                peer.activeReconnection = undefined;
-                resolver(channel);
+                if (peer.activeReconnection !== undefined) {
+                    peer.activeReconnection = undefined;
+                    resolver(channel);
+                }
             })
             .catch(error => {
-                peer.activeReconnection = undefined;
-                rejecter(error);
+                if (peer.activeReconnection !== undefined) {
+                    peer.activeReconnection = undefined;
+                    rejecter(error);
+                }
             });
 
+        console.trace();
         return promise;
     }
 
