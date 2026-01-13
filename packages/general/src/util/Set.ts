@@ -61,7 +61,7 @@ export interface IndexedSet<T> {
  * Unused features have minimal performance impact.
  */
 export class BasicSet<T, AddT = T> implements ImmutableSet<T>, MutableSet<T, AddT>, ObservableSet<T>, IndexedSet<T> {
-    #entries = new Set<T>();
+    #entries?: Set<T>;
     #added?: Observable<[T]>;
     #deleted?: Observable<[T]>;
     #empty?: ObservableValue;
@@ -79,11 +79,11 @@ export class BasicSet<T, AddT = T> implements ImmutableSet<T>, MutableSet<T, Add
     }
 
     [Symbol.iterator]() {
-        return this.#entries[Symbol.iterator]();
+        return this.#definedEntries[Symbol.iterator]();
     }
 
     get size() {
-        return this.#entries.size;
+        return this.#entries?.size ?? 0;
     }
 
     map<R>(mapper: (item: T) => R) {
@@ -109,17 +109,17 @@ export class BasicSet<T, AddT = T> implements ImmutableSet<T>, MutableSet<T, Add
     }
 
     has(item: T) {
-        return this.#entries.has(item);
+        return this.#entries?.has(item) ?? false;
     }
 
     add(item: AddT) {
         const created = this.create(item);
 
-        if (this.#entries.has(item as any)) {
+        if (this.#definedEntries.has(item as any)) {
             return;
         }
 
-        this.#entries.add(item as any);
+        this.#definedEntries.add(item as any);
 
         if (this.#indices) {
             for (const field in this.#indices) {
@@ -146,6 +146,13 @@ export class BasicSet<T, AddT = T> implements ImmutableSet<T>, MutableSet<T, Add
 
     get<F extends keyof T>(field: F, value: T[F]) {
         return this.#indexOf(field).get(value);
+    }
+
+    get #definedEntries() {
+        if (this.#entries === undefined) {
+            this.#entries = new Set();
+        }
+        return this.#entries;
     }
 
     #indexOf<F extends keyof T>(field: F) {
@@ -197,7 +204,7 @@ export class BasicSet<T, AddT = T> implements ImmutableSet<T>, MutableSet<T, Add
             }
         }
 
-        if (!this.#entries.delete(item)) {
+        if (!this.#entries?.delete(item)) {
             return false;
         }
 
@@ -246,7 +253,7 @@ export class BasicSet<T, AddT = T> implements ImmutableSet<T>, MutableSet<T, Add
 
     get empty() {
         if (this.#empty === undefined) {
-            this.#empty = ObservableValue(!this.#entries.size);
+            this.#empty = ObservableValue(!this.#entries?.size);
         }
         return this.#empty;
     }
