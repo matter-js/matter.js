@@ -308,7 +308,6 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                 }
             });
 
-        console.trace();
         return promise;
     }
 
