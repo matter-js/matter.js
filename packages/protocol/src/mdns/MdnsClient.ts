@@ -21,6 +21,7 @@ import {
     InternalError,
     Lifetime,
     Logger,
+    MdnsSocket,
     Millis,
     Minutes,
     ObserverGroup,
@@ -55,7 +56,6 @@ import {
     getShortDiscriminatorQname,
     getVendorQname,
 } from "./MdnsConsts.js";
-import { MdnsSocket } from "./MdnsSocket.js";
 
 const logger = Logger.get("MdnsClient");
 

@@ -8,4 +8,3 @@ export * from "./MdnsClient.js";
 export * from "./MdnsConsts.js";
 export * from "./MdnsServer.js";
 export * from "./MdnsService.js";
-export * from "./MdnsSocket.js";
