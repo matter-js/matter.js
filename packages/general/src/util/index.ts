@@ -23,6 +23,7 @@ export * from "./FormattedText.js";
 export * from "./Function.js";
 export * from "./GeneratedClass.js";
 export * from "./Github.js";
+export * from "./Heap.js";
 export * from "./identifier-case.js";
 export * from "./Ip.js";
 export * from "./Lifecycle.js";
