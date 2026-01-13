@@ -5,29 +5,27 @@
  */
 
 import {
-    AsyncObservable,
-    BasicObservable,
-    Bytes,
-    Diagnostic,
     DnsCodec,
     DnsMessage,
     DnsMessagePartiallyPreEncoded,
     DnsMessageType,
     DnsMessageTypeFlag,
-    Lifetime,
-    Logger,
-    MatterAggregateError,
     MAX_MDNS_MESSAGE_SIZE,
-    MaybePromise,
-    Network,
-    UdpMulticastServer,
-} from "#general";
-import { MDNS_BROADCAST_IPV4, MDNS_BROADCAST_IPV6, MDNS_BROADCAST_PORT } from "./MdnsConsts.js";
+} from "#codec/DnsCodec.js";
+import { Diagnostic } from "#log/Diagnostic.js";
+import { Logger } from "#log/Logger.js";
+import { MatterAggregateError } from "#MatterError.js";
+import { Network } from "#net/Network.js";
+import { UdpMulticastServer } from "#net/udp/UdpMulticastServer.js";
+import { Bytes } from "#util/Bytes.js";
+import { Lifetime } from "#util/Lifetime.js";
+import { AsyncObservable, BasicObservable } from "#util/Observable.js";
+import { MaybePromise } from "#util/Promises.js";
 
 const logger = Logger.get("MdnsListener");
 
 /**
- * Manages the UDP socket for {@link MdnsServer} and {@link MdnsClient}.
+ * Manages the UDP socket for other components that implement MDNS logic.
  */
 export class MdnsSocket {
     #socket: UdpMulticastServer;
@@ -48,9 +46,9 @@ export class MdnsSocket {
                 lifetime,
                 network,
                 netInterface,
-                broadcastAddressIpv4: enableIpv4 ? MDNS_BROADCAST_IPV4 : undefined,
-                broadcastAddressIpv6: MDNS_BROADCAST_IPV6,
-                listeningPort: MDNS_BROADCAST_PORT,
+                broadcastAddressIpv4: enableIpv4 ? MdnsSocket.BROADCAST_IPV4 : undefined,
+                broadcastAddressIpv6: MdnsSocket.BROADCAST_IPV6,
+                listeningPort: MdnsSocket.BROADCAST_PORT,
             }),
         );
         return socket;
@@ -198,4 +196,8 @@ export namespace MdnsSocket {
         sourceIp: string;
         sourceIntf: string;
     }
+
+    export const BROADCAST_IPV4 = "224.0.0.251";
+    export const BROADCAST_IPV6 = "ff02::fb";
+    export const BROADCAST_PORT = 5353;
 }
