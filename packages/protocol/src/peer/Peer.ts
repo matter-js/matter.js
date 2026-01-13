@@ -5,7 +5,16 @@
  */
 
 import { BasicInformation } from "#clusters/basic-information";
-import { BasicMultiplex, BasicSet, Diagnostic, isIpNetworkChannel, Lifetime, Logger, MaybePromise } from "#general";
+import {
+    AbortedError,
+    BasicMultiplex,
+    BasicSet,
+    Diagnostic,
+    isIpNetworkChannel,
+    Lifetime,
+    Logger,
+    MaybePromise,
+} from "#general";
 import type { MdnsClient } from "#mdns/MdnsClient.js";
 import type { NodeSession } from "#session/NodeSession.js";
 import type { SecureSession } from "#session/SecureSession.js";
@@ -112,8 +121,9 @@ export class Peer {
         }
 
         if (this.activeReconnection) {
-            this.activeReconnection.rejecter("Peer closed");
+            const rejecter = this.activeReconnection.rejecter;
             this.activeReconnection = undefined;
+            rejecter(new AbortedError("Peer closed"));
         }
 
         for (const session of this.#context.sessions.sessionsFor(this.address)) {

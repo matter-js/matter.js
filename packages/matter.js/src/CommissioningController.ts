@@ -518,12 +518,13 @@ export class CommissioningController {
                 forcedConnection: false,
                 caseAuthenticatedTags,
             }), // First, connect without discovery to the last known address
-            async (discoveryType?: NodeDiscoveryType) =>
-                void (await controller.connect(nodeId, {
+            async (discoveryType?: NodeDiscoveryType) => {
+                await controller.connect(nodeId, {
                     discoveryOptions: { discoveryType },
                     allowUnknownPeer: false,
                     caseAuthenticatedTags,
-                })),
+                });
+            },
             handler => this.#sessionDisconnectedHandler.set(nodeId, handler),
             controller.sessions,
             this.#crypto,
