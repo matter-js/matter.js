@@ -256,7 +256,7 @@ export class Project {
      */
     #fixImportPath(path: string, format: Format) {
         if (path.startsWith("@matter/") && !path.includes("*")) {
-            const purePkgName = path.match(/^@matter\/[-\.a-z0-9]+/)
+            const purePkgName = path.match(/^@matter\/[-.a-z0-9]+/)
             if (purePkgName === null) {
                 return path
             }

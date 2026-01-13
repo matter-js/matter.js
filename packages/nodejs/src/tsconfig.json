@@ -5,6 +5,9 @@
             "node"
         ]
     },
+    "include": [
+        "./**/*.ts"
+    ],
     "references": [
         {
             "path": "../../general/src"

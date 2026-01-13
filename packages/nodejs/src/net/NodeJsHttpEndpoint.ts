@@ -252,7 +252,7 @@ export class NodeJsHttpEndpoint implements HttpEndpoint {
             return;
         }
 
-        const nodeBodyStream = ReadStream.fromWeb(response.body as NodeReadableStream);
+        const nodeBodyStream = ReadStream.fromWeb(response.body as unknown as NodeReadableStream);
 
         nodeBodyStream.on("error", error => {
             logger.error("Error transmitting HTTP body", error);
@@ -310,7 +310,7 @@ class NodeJsHttpRequest extends Request {
         } as RequestInit;
 
         if (method !== "GET" && method !== "HEAD") {
-            init.body = IncomingMessage.toWeb(message) as ReadableStream;
+            init.body = IncomingMessage.toWeb(message) as unknown as ReadableStream;
         }
 
         super(url, init);
