@@ -165,7 +165,7 @@ export namespace RemoteDescriptor {
         }
 
         if (addresses?.length) {
-            long.addresses = addresses.map(ServerAddress.definitionOf);
+            long.addresses = addresses;
         }
 
         if (deviceIdentifier !== undefined) {
@@ -206,6 +206,7 @@ export namespace RemoteDescriptor {
         if ("CM" in descriptor) {
             long.commissioningMode = descriptor.CM;
         }
+
         return long;
     }
 }
