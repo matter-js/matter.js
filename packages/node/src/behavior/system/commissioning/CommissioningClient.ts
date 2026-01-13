@@ -377,7 +377,7 @@ export namespace CommissioningClient {
     /**
      * The network address of a node.
      */
-    export class NetworkAddress implements ServerAddress.Definition {
+    export class NetworkAddress {
         @field(string, mandatory)
         type!: "udp" | "tcp" | "ble";
 
@@ -418,7 +418,7 @@ export namespace CommissioningClient {
          * interface.
          */
         @field(listOf(NetworkAddress), nonvolatile)
-        addresses?: ServerAddress.Definition[];
+        addresses?: ServerAddress[];
 
         /**
          * Time at which the device was discovered.

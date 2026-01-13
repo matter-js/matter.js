@@ -5,6 +5,7 @@
  */
 
 import {
+    AddressLifespan,
     BasicSet,
     ChannelType,
     Diagnostic,
@@ -18,7 +19,6 @@ import {
     ImplementationError,
     Instant,
     InternalError,
-    Lifespan,
     Lifetime,
     Logger,
     MdnsSocket,
@@ -61,11 +61,11 @@ const logger = Logger.get("MdnsClient");
 
 const MDNS_EXPIRY_GRACE_PERIOD_FACTOR = 1.05;
 
-type MatterServerRecordWithExpire = ServerAddressUdp & Lifespan;
+type MatterServerRecordWithExpire = ServerAddressUdp & AddressLifespan;
 
 /** Type for commissionable Device records including Lifespan details. */
 type CommissionableDeviceRecordWithExpire = Omit<CommissionableDevice, "addresses"> &
-    Lifespan & {
+    AddressLifespan & {
         addresses: Map<string, MatterServerRecordWithExpire>; // Override addresses type to include expiration
         instanceId: string; // instance ID
         SD: number; // Additional Field for Short discriminator
@@ -75,12 +75,12 @@ type CommissionableDeviceRecordWithExpire = Omit<CommissionableDevice, "addresse
 
 /** Type for operational Device records including Lifespan details. */
 type OperationalDeviceRecordWithExpire = Omit<OperationalDevice, "addresses"> &
-    Lifespan & {
+    AddressLifespan & {
         addresses: Map<string, MatterServerRecordWithExpire>; // Override addresses type to include expiration
     };
 
 /** Type for any DNS record with Lifespan (discoveredAt and ttl) details. */
-type AnyDnsRecordWithExpiry = DnsRecord<any> & Lifespan;
+type AnyDnsRecordWithExpiry = DnsRecord<any> & AddressLifespan;
 
 /** Type for DNS answers with Address details structured for better direct access performance. */
 type StructuredDnsAddressAnswers = {
