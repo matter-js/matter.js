@@ -6,8 +6,10 @@
 
 import { InvalidMetadataError, MetadataConflictError } from "#decoration/errors.js";
 import type { ClassSemantics } from "#decoration/semantics/ClassSemantics.js";
+import { FieldSemantics } from "#decoration/semantics/FieldSemantics.js";
 import { Semantics } from "#decoration/semantics/Semantics.js";
 import { Decorator } from "#general";
+import { CommandModel } from "#models/CommandModel.js";
 import { Model } from "#models/Model.js";
 import { Schema } from "#models/Schema.js";
 
@@ -16,15 +18,41 @@ import { Schema } from "#models/Schema.js";
  */
 export function element<
     T extends Decorator.Collector | Decorator.ClassCollector | Decorator.PropertyCollector | Decorator.MethodCollector,
->(kind: Model.ConcreteType, ...modifiers: element.Modifier<T>[]) {
+>(kind: element.ElementKind, ...modifiers: element.Modifier<T>[]) {
+    let modelType: Model.ConcreteType;
+    if (kind.Tag === "response") {
+        modelType = CommandModel;
+    } else {
+        modelType = kind;
+    }
+
     // We want to force the element to the specific type.  Do this explicitly unless the initial modifier will do it for
     // us.  This prevents us from creating a separate local model if there is no further annotation
-    const forceType = !(modifiers[0] instanceof kind);
+    const forceType = !(modifiers[0] instanceof modelType);
 
     return Decorator((target: any, context: DecoratorContext) => {
-        const semantics = Semantics.of(context);
+        let semantics = Semantics.of(context);
+
+        if (kind.Tag === "response") {
+            semantics.modelType = CommandModel;
+
+            if (semantics.response === undefined) {
+                if (typeof context.name !== "string") {
+                    throw new InvalidMetadataError(
+                        `Cannot specify response for ${String(context.name) || "(anonymous)"} because element name is ${typeof context.name}`,
+                    );
+                }
+
+                const response = new FieldSemantics(semantics.owner, context.name);
+                response.modelType = CommandModel;
+                response.mutableModel.name = `${context.name}Response`;
+                (response.mutableModel as CommandModel).isResponse = true;
+                semantics = semantics.response = response;
+            }
+        }
+
         if (forceType) {
-            semantics.modelType = kind;
+            semantics.modelType = modelType;
         }
 
         if (context.kind === "class") {
@@ -49,7 +77,9 @@ export function element<
                         const subresult = (modifier as any)(target, context);
                         if (subresult) {
                             if (result) {
-                                throw new MetadataConflictError(`Multiple modifiers returned a value`);
+                                throw new MetadataConflictError(
+                                    `Multiple modifiers returned a value for ${String(context.name || "(anonymous)")}`,
+                                );
                             }
                             result = subresult;
                         }
@@ -75,7 +105,9 @@ export function element<
                     break;
             }
 
-            throw new InvalidMetadataError(`Unsupported modifier ${modifier}`);
+            throw new InvalidMetadataError(
+                `Unsupported modifier ${modifier} for ${String(context.name || "(anonymous)")}`,
+            );
         }
 
         return result;
@@ -125,4 +157,12 @@ export namespace element {
             | Decorator.PropertyCollector
             | Decorator.MethodCollector,
     > = Model.ConcreteType | Model | NewableFunction | number | string | T;
+
+    /**
+     * Specifies the type of model associated with an element.
+     *
+     * This is a concrete model class except in the case of responses which we special case to differentiate between
+     * commands a responses.
+     */
+    export type ElementKind = Model.ConcreteType | { Tag: "response" };
 }

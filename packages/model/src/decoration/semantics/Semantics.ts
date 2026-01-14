@@ -6,9 +6,11 @@
 
 import { MetadataConflictError } from "#decoration/errors.js";
 import { InternalError } from "#general";
+import { CommandModel } from "#models/CommandModel.js";
 import type { Model } from "#models/Model.js";
 import * as models from "#standard/elements/models.js";
 import type { ClassSemantics } from "./ClassSemantics.js";
+import type { FieldSemantics } from "./FieldSemantics.js";
 
 const standardModels = new Set(Object.values(models) as Model[]);
 
@@ -21,6 +23,8 @@ const standardModels = new Set(Object.values(models) as Model[]);
 export abstract class Semantics {
     #localModel?: Model;
     #isFinal = false;
+
+    response?: FieldSemantics;
 
     /**
      * Determine whether these semantics are final.
@@ -37,6 +41,19 @@ export abstract class Semantics {
     finalize() {
         if (this.#isFinal) {
             return;
+        }
+
+        if (this.response && this.semanticModel instanceof CommandModel) {
+            this.response.finalize();
+
+            const response = this.response.localModel;
+            if (response) {
+                if (response.id === undefined) {
+                    // Default response ID is request ID
+                    response.id = this.semanticModel.id;
+                }
+                (this.mutableModel as CommandModel).operationalResponse = this.response.localModel as CommandModel;
+            }
         }
 
         this.#isFinal = true;
@@ -144,6 +161,8 @@ export abstract class Semantics {
         this.#localModel = replacement;
     }
 
+    abstract owner: ClassSemantics;
+    abstract semanticModel?: Model;
     protected abstract createModel(type?: Model.ConcreteType): Model;
 }
 
