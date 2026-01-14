@@ -5,6 +5,7 @@
  */
 
 import { MatterFlowError } from "#general";
+import { ExchangeSendOptions } from "#protocol/MessageExchange.js";
 import { SecureMessageType, TypeFromSchema } from "#types";
 import { SecureChannelMessenger } from "../../securechannel/SecureChannelMessenger.js";
 import {
@@ -38,8 +39,8 @@ export class CaseServerMessenger extends SecureChannelMessenger {
 }
 
 export class CaseClientMessenger extends SecureChannelMessenger {
-    sendSigma1(sigma1: TypeFromSchema<typeof TlvCaseSigma1>) {
-        return this.send(sigma1, SecureMessageType.Sigma1, TlvCaseSigma1);
+    sendSigma1(sigma1: TypeFromSchema<typeof TlvCaseSigma1>, options?: ExchangeSendOptions) {
+        return this.send(sigma1, SecureMessageType.Sigma1, TlvCaseSigma1, options);
     }
 
     async readSigma2() {

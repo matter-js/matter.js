@@ -23,11 +23,6 @@ export interface WorkSlot extends Disposable {
      * This is called automatically when using `using` syntax.
      */
     close(): void;
-
-    /**
-     * Release the slot automatically when the object is garbage collected.
-     */
-    [Symbol.dispose](): void;
 }
 
 /**

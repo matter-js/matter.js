@@ -159,3 +159,8 @@ export const Days = TimeUnit("day", "d", 86_400_000);
  * A zero-length interval.
  */
 export const Instant = Millis(0);
+
+/**
+ * An infinite interval.
+ */
+export const Forever = Millis(Infinity);
