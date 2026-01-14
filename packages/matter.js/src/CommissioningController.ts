@@ -710,7 +710,7 @@ export class CommissioningController {
                 peerNodeId = Node.forEndpoint(endpoint).id;
                 this.#endpointsToPeers.set(endpoint, peerNodeId);
             } catch (error) {
-                // if for whatever reason the node cannot be determined, this error throws, accept that and ignore change
+                // If the node cannot be determined for any reason, accept the error and ignore the change
                 ImplementationError.accept(error);
                 return;
             }
