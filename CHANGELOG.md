@@ -9,6 +9,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+- @matter/node
+    - Fix: Always trust unknown attribute-ids and command-ids delivered by devices and do not validate them (only affects controller usage)
+
 ## 0.16.2 (2026-01-14)
 
 - @matter/protocol

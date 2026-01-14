@@ -20,17 +20,17 @@ import {
     type ValueModel,
 } from "#model";
 import {
-    Attribute,
     AttributeId,
     ClusterComposer,
     ClusterId,
     ClusterRegistry,
     ClusterType,
-    Command,
     CommandId,
     MutableCluster,
     TlvAny,
     TlvNoResponse,
+    UnknownAttribute,
+    UnknownCommand,
 } from "#types";
 import { ClientCommandMethod } from "./ClientCommandMethod.js";
 
@@ -208,7 +208,7 @@ function generateDiscoveredType(analysis: DiscoveredShapeAnalysis, baseType?: Be
 
         for (const id of extraAttrs) {
             const name = createUnknownName("attr", id);
-            cluster.attributes[camelize(name, false)] = Attribute(id, TlvAny);
+            cluster.attributes[camelize(name, false)] = UnknownAttribute(id);
             schema.children.push(new AttributeModel({ id, name, type: "any" }));
         }
 
@@ -220,7 +220,7 @@ function generateDiscoveredType(analysis: DiscoveredShapeAnalysis, baseType?: Be
 
         for (const id of extraCommands) {
             const name = createUnknownName("command", id);
-            cluster.commands[camelize(name, false)] = Command(id, TlvAny, 0, TlvNoResponse);
+            cluster.commands[camelize(name, false)] = UnknownCommand(id, TlvAny, 0, TlvNoResponse);
             schema.children.push(new CommandModel({ id, name, type: "any" }));
         }
     }
