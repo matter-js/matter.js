@@ -180,7 +180,9 @@ describe("Ota", () => {
     it("Cancel a software update before download by removing consent", async () => {
         // *** COMMISSIONING ***
 
-        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({ requestUserConsent: false });
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({
+            requestUserConsent: false,
+        });
 
         const { queryImagePromise, TestOtaProviderServer } = InstrumentedOtaProviderServer({
             requestUserConsentForUpdate: false, // not relevant
@@ -218,25 +220,12 @@ describe("Ota", () => {
                 }
             });
 
-        const { promise: downloadingPromise, resolver: downloadingResolver } = createPromise<void>();
-        otaRequestor
-            .eventsOf(OtaSoftwareUpdateRequestorServer)
-            .stateTransition.on((event: OtaSoftwareUpdateRequestor.StateTransitionEvent) => {
-                if (event.newState === OtaSoftwareUpdateRequestor.UpdateState.Downloading) {
-                    downloadingResolver();
-                }
-            });
-
         // Force the OTA update via SoftwareUpdateManager
         await otaProvider.act(agent => {
             return agent
                 .get(SoftwareUpdateManager)
                 .forceUpdate(peerAddress!, VendorId(vendorId), productId, targetSoftwareVersion);
         });
-
-        await MockTime.resolve(queryImagePromise);
-
-        await MockTime.resolve(downloadingPromise);
 
         await otaProvider.act(agent => {
             return agent.get(SoftwareUpdateManager).removeConsent(
@@ -246,6 +235,8 @@ describe("Ota", () => {
                 }),
             );
         });
+
+        await MockTime.resolve(queryImagePromise);
 
         await MockTime.resolve(idlePromise);
 
@@ -258,14 +249,8 @@ describe("Ota", () => {
             },
             {
                 previousState: OtaSoftwareUpdateRequestor.UpdateState.Querying,
-                newState: OtaSoftwareUpdateRequestor.UpdateState.Downloading,
-                reason: OtaSoftwareUpdateRequestor.ChangeReason.Success,
-                targetSoftwareVersion: 1,
-            },
-            {
-                previousState: OtaSoftwareUpdateRequestor.UpdateState.Downloading,
                 newState: OtaSoftwareUpdateRequestor.UpdateState.Idle,
-                reason: OtaSoftwareUpdateRequestor.ChangeReason.Failure,
+                reason: OtaSoftwareUpdateRequestor.ChangeReason.Success,
                 targetSoftwareVersion: null,
             },
         ]);
