@@ -10,18 +10,8 @@ LocalMatter.children.push({
     tag: "cluster",
     name: "FanControl",
 
-    //Datatype(
-    //             { name: "FanModeEnum", type: "enum8", xref: "cluster§4.4.5.5" },
-    //             Field({ name: "Off", id: 0x0, conformance: "M", description: "Fan is off" }),
-    //             Field({ name: "Low", id: 0x1, conformance: "O", description: "Fan using low speed" }),
-    //             Field({ name: "Medium", id: 0x2, conformance: "[Low]", description: "Fan using medium speed" }),
-    //             Field({ name: "High", id: 0x3, conformance: "M", description: "Fan using high speed" }),
-    //             Field({ name: "On", id: 0x4, conformance: "D" }),
-    //             Field({ name: "Auto", id: 0x5, conformance: "AUT", description: "Fan is using auto mode" }),
-    //             Field({ name: "Smart", id: 0x6, conformance: "D", description: "Fan is using smart mode" })
-    //         ),
     children: [
-        // Set NameSupport default to match feature default per the specification
+        // Override the conformance of "Medium" (according to spec it's "[Low]" which can never be validated for an enum)
         {
             tag: "datatype",
             name: "FanModeEnum",
