@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Import from index to ensure correct initialization order
+// Import from index to ensure the correct initialization order
 import { ClassSemantics } from "#decoration/semantics/index.js";
 
 import { cluster } from "#decoration/decorators/cluster.js";
