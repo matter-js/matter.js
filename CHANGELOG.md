@@ -14,6 +14,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/model
     - Fix: Adjust a Enum conformance in FanControl which can never be validated and so lead to errors 
 
+- @matter/node
+    - Fix: Always trust unknown attribute-ids and command-ids delivered by devices and do not validate them (only affects controller usage)
+
 ## 0.16.2 (2026-01-14)
 
 - @matter/protocol
