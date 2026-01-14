@@ -106,7 +106,7 @@ export const FanControl = Cluster(
         { name: "FanModeEnum", type: "enum8" },
         Field({ name: "Off", id: 0x0, conformance: "M" }),
         Field({ name: "Low", id: 0x1, conformance: "O" }),
-        Field({ name: "Medium", id: 0x2, conformance: "[Low]" }),
+        Field({ name: "Medium", id: 0x2, conformance: "O" }),
         Field({ name: "High", id: 0x3, conformance: "M" }),
         Field({ name: "On", id: 0x4, conformance: "D" }),
         Field({ name: "Auto", id: 0x5, conformance: "AUT" }),
