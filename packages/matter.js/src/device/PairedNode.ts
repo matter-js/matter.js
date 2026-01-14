@@ -627,7 +627,7 @@ export class PairedNode {
             } catch (error) {
                 if (error instanceof MatterError) {
                     logger.info(
-                        `Node ${this.nodeId}: Simple re-establishing session did not worked. Reconnect ... `,
+                        `Node ${this.nodeId}: Simple re-establishing session did not work. Reconnect ... `,
                         error,
                     );
                 } else {
