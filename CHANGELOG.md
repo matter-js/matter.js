@@ -9,7 +9,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
-## __WORK IN PROGRESS__
+## 0.16.2 (2026-01-14)
 
 - @matter/protocol
   - Improve handling of errors when peers are closed or when removing not-connected nodes
