@@ -24,6 +24,7 @@ import {
     CommissioningClient,
     Endpoint,
     NetworkClient,
+    Node,
     ServerNode,
     SoftwareUpdateManager,
 } from "#node";
@@ -185,6 +186,7 @@ export class CommissioningController {
     readonly #nodeUpdateLabelHandlers = new Map<NodeId, (nodeState: NodeStates) => Promise<void>>();
     readonly #sessionDisconnectedHandler = new Map<NodeId, () => Promise<void>>();
     readonly #observers = new ObserverGroup();
+    readonly #endpointsToPeers = new WeakMap<Endpoint, string>();
 
     /**
      * Creates a new CommissioningController instance
@@ -422,6 +424,9 @@ export class CommissioningController {
         await controller.removeNode(nodeId);
         if (node !== undefined) {
             this.#initializedNodes.delete(node.id);
+            for (const ep of node.node.endpoints) {
+                this.#endpointsToPeers.delete(ep);
+            }
             this.#nodeChangeObservers.delete(node.id);
         }
     }
@@ -699,9 +704,16 @@ export class CommissioningController {
 
     #handleNodeChange(changes: ChangeNotificationService.Change) {
         const { endpoint } = changes;
-        const peerNodeId = endpoint.owner?.id;
+        let peerNodeId = this.#endpointsToPeers.get(endpoint);
         if (peerNodeId === undefined) {
-            return;
+            try {
+                peerNodeId = Node.forEndpoint(endpoint).id;
+                this.#endpointsToPeers.set(endpoint, peerNodeId);
+            } catch (error) {
+                // if for whatever reason the node cannot be determined, this error throws, accept that and ignore change
+                ImplementationError.accept(error);
+                return;
+            }
         }
         const changeHandler = this.#nodeChangeObservers.get(peerNodeId);
         if (changeHandler === undefined) {
