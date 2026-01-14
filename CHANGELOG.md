@@ -20,6 +20,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/protocol
   - Enhancement: Exclude invoking commands from using the Interaction queue because users should know what they are doing and commands are usually smaller packages
 
+- @project-chip/matter.js
+    - Fix: Report attribute changes also for endpoints with multi-level structure. This broke in 0.16.0
+
 ## 0.16.2 (2026-01-14)
 
 - @matter/protocol
