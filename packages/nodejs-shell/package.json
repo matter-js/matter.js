@@ -22,6 +22,7 @@
         "type": "git",
         "url": "git+https://github.com/matter-js/matter.js.git"
     },
+    "type": "module",
     "scripts": {
         "clean": "matter-build clean",
         "build": "matter-build",
@@ -51,7 +52,7 @@
         "@matter/tools": "*",
         "@matter/types": "*",
         "@project-chip/matter.js": "*",
-        "ws": "^8.18.3",
+        "ws": "^8.19.0",
         "yargs": "^18.0.0"
     },
     "engines": {

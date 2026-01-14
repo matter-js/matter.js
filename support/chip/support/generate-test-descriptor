@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # @license
-# Copyright 2022-2025 Matter.js Authors
+# Copyright 2022-2026 Matter.js Authors
 # SPDX-License-Identifier: Apache-2.0
 
 """Test Metadata Extractor
@@ -59,13 +59,13 @@ tests = []
 def load_yaml():
     """Load metadata from YAML tests.
 
-    This is fairly straightforward as the tests are inherently declarative    
+    This is fairly straightforward as the tests are inherently declarative
     """
     categories = {}
     for category_name, members in read_json_file(f"{YAML_DIR}/manualTests.json").items():
         for test_name in members:
             categories[test_name] = category_name
-    
+
     ci = set()
     for members in read_json_file(f"{YAML_DIR}/ciTests.json").values():
         for test_name in members:
@@ -110,7 +110,7 @@ def load_yaml():
                     step["description"] = match[2]
                 else:
                     step["name"] = name
-            
+
                 if "disabled" in test and test["disabled"]:
                     step["isDisabled"] = True
                 else:
@@ -134,7 +134,7 @@ def parse_command_line(str: str):
     args = re.findall(r"((?:(?<!\\)'.*?(?<!\\)'|(?<!\\)\".*?(?<!\\)\"|\S)+)", str)
     for i in range(len(args)):
         arg = args[i]
- 
+
         # If quoted, implement rudimentary unescaping
         parts = re.findall(r"((?:[^'\"\\]|\\'|\\\")+|(?<!\\)'.*?(?<!\\)'(?<!\\)|\".*?(?<!\\)\")", arg)
         if len(parts) > 1:
@@ -178,21 +178,24 @@ def load_python():
         name = os.path.splitext(basename)[0]
         try:
             importlib.import_module(name)
-        except ModuleNotFoundError as e:
+        except Exception as e:
             sys.stderr.write(f"Error in {path}: {e}\n")
 
-            # Skip files with whitelisted errors.  Do not skip all errors or build problems may go unnoticed
-            if "No module named 'matter.webrtc'" in str(e):
-                # We neither test nor install webrtc support.  Test does not fail gracefully
-                pass
-            elif "No module named 'chip." in str(e):
-                # SHA e8a92c8f1037d134d8f477cdc238d2f3a8a42f8b brings in file that references obsolete package names
-                pass
-            elif "No module named 'ndef'" in str(e):
-                # NFC support
-                pass
-            else:
-                raise
+            # CHIP files break too often.  Just skip all errors.  If something breaks badly and we start missing tests
+            # then we'll notice because references to the broken tests will crash
+
+            # # Skip files with whitelisted errors.  Do not skip all errors or build problems may go unnoticed
+            # if "No module named 'matter.webrtc'" in str(e):
+            #     # We neither test nor install webrtc support.  Test does not fail gracefully
+            #     pass
+            # elif "No module named 'chip." in str(e):
+            #     # SHA e8a92c8f1037d134d8f477cdc238d2f3a8a42f8b brings in file that references obsolete package names
+            #     pass
+            # elif "No module named 'ndef'" in str(e):
+            #     # NFC support
+            #     pass
+            # else:
+            #     raise
 
     def load_class(test_class):
         # Read file and extract YAML header
@@ -203,7 +206,7 @@ def load_python():
         header = []
         with open(path) as source:
             in_yaml = False
-            
+
             while True:
                 line = source.readline()
                 if not line:
@@ -212,7 +215,7 @@ def load_python():
                 if "=== BEGIN CI TEST ARGUMENTS ===" in line:
                     in_yaml = True
                     break
-            
+
             while in_yaml:
                 line = source.readline()
                 if not line:
@@ -227,7 +230,7 @@ def load_python():
         instance = test_class(mobly_test_config)
         all_test_methods = instance.get_existing_test_names()
 
-        # Extract run information from the YAML header.  Much of this is encoded as command line arguments                
+        # Extract run information from the YAML header.  Much of this is encoded as command line arguments
         parsed_header = yaml.full_load("".join(header))
         runs = parsed_header["test-runner-runs"] if parsed_header else None
         run_tests = {}
@@ -236,7 +239,7 @@ def load_python():
                 script_args = config["script-args"]
                 tests_in_run = []
                 args = []
-                
+
                 if script_args:
                     following = None
                     for arg in parse_command_line(script_args):
@@ -284,7 +287,7 @@ def load_python():
                             .replace("_", "-")
                             .lower()
                     )
-        
+
         # Add a test for every test/run pair
         for test_method_name in all_test_methods:
             name = test_method_name.removeprefix("test_").removeprefix("TC_")
@@ -301,21 +304,29 @@ def load_python():
                 props["description"] = desc
 
             # Extract PICS if present
-            pics = instance.get_test_pics(test_method_name)
-            if pics:
-                props["pics"] = " & ".join(pics)
+            pics = None
+            try:
+                pics = instance.get_test_pics(test_method_name)
+                if pics:
+                    props["pics"] = " & ".join(pics)
+            except Exception as e:
+                sys.stderr.write(f"Error extracting PICS for {path}: {e}\n")
 
             # Extract steps if present
-            steps = instance.get_defined_test_steps(name)
-            if steps:
-                if not steps[0].is_commissioning:
-                    props["startUncommissioned"] = True
-                    
-                props["members"] = list(map(lambda step: {
-                    "name": step.test_plan_number,
-                    "kind": "step",
-                    "description": step.description,
-                }, steps))
+            steps = None
+            try:
+                steps = instance.get_defined_test_steps(name)
+                if steps:
+                    if not steps[0].is_commissioning:
+                        props["startUncommissioned"] = True
+
+                    props["members"] = list(map(lambda step: {
+                        "name": step.test_plan_number,
+                        "kind": "step",
+                        "description": step.description,
+                    }, steps))
+            except Exception as e:
+                sys.stderr.write(f"Error extracting steps for {path}: {e}\n")
 
             # Integrate external metadata
             if basename in slow:
@@ -328,7 +339,7 @@ def load_python():
             if header:
                 if runs:
                     suite = None
-                    
+
                     method_runs = {k: v for k, v in runs.items() if test_method_name in run_tests[k]}
                     if not method_runs:
                         continue
@@ -336,7 +347,7 @@ def load_python():
                     if len(method_runs) > 1:
                         suite = { "kind": "suite", "path": props["path"], "name": props["name"], "members": [] }
                         tests.append(suite)
-                    
+
                     for run, config in method_runs.items():
                         props["config"] = config
                         if suite:

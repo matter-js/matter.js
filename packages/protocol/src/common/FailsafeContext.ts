@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -244,9 +244,9 @@ export abstract class FailsafeContext {
         }
 
         await builder.setOperationalCert(nocValue, icacValue);
-        const fabricAlreadyExisting = this.#fabrics.find(fabric => builder.matchesToFabric(fabric));
+        const newGlobalId = await builder.globalId;
 
-        if (fabricAlreadyExisting) {
+        if (this.#fabrics.has(newGlobalId)) {
             throw new MatterFabricConflictError(
                 `Fabric with Id ${builder.fabricId} and Node Id ${builder.nodeId} already exists.`,
             );

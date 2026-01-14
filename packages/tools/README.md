@@ -18,8 +18,8 @@ does its best to run build and test as quickly as possible.
 
 ## Dev workflow
 
-Although Matter.js relies on third party tools for build and test, the interface is command-line oriented and unique to
-Matter.js.  As such it will be unfamiliar to new developers.
+Although Matter.js relies on third-party tools for build and test, the interface is command-line oriented and unique to
+Matter.js.  As such, it will be unfamiliar to new developers.
 
 To minimize developer burden, we also maintain traditional `tsconfig.json` files with project references in each `src/`
 and `test/`.  These files support traditional IDE and `tsc --watch` workflows and are largely (but not entirely) ignored

@@ -1,46 +1,75 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { Diagnostic } from "#log/Diagnostic.js";
 import { Duration } from "#time/Duration.js";
 import { Timestamp } from "#time/Timestamp.js";
-import { Seconds } from "#time/TimeUnit.js";
+
+export interface AddressLifespan {
+    /**
+     * Beginning of lifespan
+     */
+    discoveredAt: Timestamp;
+
+    /**
+     * Length of lifespan, if known
+     */
+    ttl: Duration;
+}
+
+export interface AddressStatus extends Partial<AddressLifespan> {
+    /**
+     * Time of last successful access.
+     */
+    healthyAt?: Timestamp;
+
+    /**
+     * Time of last unsuccessful access.
+     */
+    unhealthyAt?: Timestamp;
+
+    /**
+     * DNS priority.
+     */
+    priority?: number;
+
+    /**
+     * DNS weight.
+     */
+    weight?: number;
+}
 
 export type ServerAddressUdp = {
     type: "udp";
     ip: string;
     port: number;
-};
+} & AddressStatus;
 
 export type ServerAddressTcp = {
     type: "tcp";
     ip: string;
     port: number;
-};
+} & AddressStatus;
 
 export type ServerAddressBle = {
     type: "ble";
     peripheralAddress: string;
-};
+} & AddressStatus;
 
-export interface Lifespan {
-    /** Beginning of lifespan (system time in milliseconds) */
-    discoveredAt: Timestamp;
+export type ServerAddress = ServerAddressUdp | ServerAddressTcp | ServerAddressBle;
 
-    /** Length of lifespan, if known (seconds) */
-    ttl: Duration;
-}
-
-export type ServerAddress = (ServerAddressUdp | ServerAddressTcp | ServerAddressBle) & Partial<Lifespan>;
-
-export function ServerAddress(definition: ServerAddress.Definition) {
+export function ServerAddress(definition: ServerAddress) {
     return {
+        ttl: undefined,
         discoveredAt: undefined,
+        healthyAt: undefined,
+        unhealthyAt: undefined,
+        priority: undefined,
+        weight: undefined,
         ...definition,
-        ttl: Seconds(definition.ttl),
     } as ServerAddress;
 }
 
@@ -100,11 +129,56 @@ export namespace ServerAddress {
         return false;
     }
 
-    export function definitionOf(address: ServerAddress): Definition {
-        return address;
+    /**
+     * Compute logical health of an address.
+     *
+     * This returns heathyAt/unhealthyAt values with unhealthyAt set to undefined if the address was more recently
+     * healthy.
+     */
+    export function healthOf(health: AddressStatus): AddressStatus {
+        if (health.unhealthyAt === undefined) {
+            return health;
+        }
+
+        if (health.healthyAt !== undefined && health.healthyAt > health.unhealthyAt) {
+            return {
+                healthyAt: health.healthyAt,
+            };
+        }
+
+        return health;
     }
 
-    export interface Definition extends Omit<ServerAddress, "ttl"> {
-        ttl?: Duration;
+    /**
+     * Network address desirability from a Matter communication perspective.
+     *
+     * Lower values indicate higher preference.  This is not a standard "happy eyeballs" ranking but works similarly.
+     */
+    export enum SelectionPreference {
+        IPV6_ULA,
+        IPV6_LINK_LOCAL,
+        IPV6,
+        IPV4,
+        NOT_IP = 3,
+    }
+
+    export function selectionPreferenceOf(address: ServerAddress) {
+        if (!("ip" in address)) {
+            return SelectionPreference.NOT_IP;
+        }
+
+        if (address.ip.startsWith("fd")) {
+            return SelectionPreference.IPV6_ULA;
+        }
+
+        if (address.ip.startsWith("fe00")) {
+            return SelectionPreference.IPV6_LINK_LOCAL;
+        }
+
+        if (address.ip.includes(":")) {
+            return SelectionPreference.IPV6;
+        }
+
+        return SelectionPreference.IPV4;
     }
 }

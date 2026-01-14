@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -10,7 +10,6 @@ import { GeneralCommissioning, GroupKeyManagement } from "@matter/main/clusters"
 import {
     Certificate,
     CertificateAuthority,
-    InteractionClient,
     IPK_DEFAULT_EPOCH_START_TIME,
     NodeDiscoveryType,
     SecureSession,
@@ -37,6 +36,7 @@ import {
     VendorId,
 } from "@matter/main/types";
 import { CommissioningController, NodeCommissioningOptions } from "@project-chip/matter.js";
+import { InteractionClient } from "@project-chip/matter.js/cluster";
 import { CustomCommissioningFlow } from "../CustomCommissioningFlow.js";
 import {
     CommandHandler,
@@ -377,6 +377,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
             clusterId,
             command: clusterCommand,
             request: commandData,
+            asTimedRequest: timedInteractionTimeout !== undefined,
             timedRequestTimeout: timedInteractionTimeout,
             skipValidation: true,
         });
@@ -552,6 +553,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
         return {
             IPK: identityProtectionKey,
             NOC: await ca.generateNoc(operationalPublicKey, fabricId, nodeId),
+            ICAC: ca.icacCert,
             RCAC: rootCertBytes,
         };
     }

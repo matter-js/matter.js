@@ -1,6 +1,6 @@
 /**
  * @licensepart
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -18,6 +18,11 @@ export class BridgeTestInstance extends NodeTestInstance {
     static override id = "bridgeford-6100";
 
     serverNode: ServerNode | undefined;
+
+    override async initialize() {
+        await this.activateCommandPipe("bridge");
+        await super.initialize();
+    }
 
     async setupServer(): Promise<ServerNode> {
         Environment.default.get(StorageService).factory = (_namespace: string) => this.config.storage;

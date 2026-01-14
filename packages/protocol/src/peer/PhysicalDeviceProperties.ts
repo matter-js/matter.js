@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -78,7 +78,7 @@ export namespace PhysicalDeviceProperties {
         }
         if (maxIntervalCeiling < defaultCeiling) {
             logger.debug(
-                `${description}: maxIntervalCeilingSeconds ideally is ${defaultCeiling}s instead of ${maxIntervalCeiling}s due to device type`,
+                `${description}: maxIntervalCeilingSeconds ideally is ${Duration.format(defaultCeiling)} instead of ${Duration.format(maxIntervalCeiling)} due to device type`,
             );
         }
 

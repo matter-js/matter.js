@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 import {
@@ -167,7 +167,7 @@ export namespace OperationalCertificate {
 
     export const TlvIcac = BaseMatterCertificate({
         subject: {
-            icacId: TlvField(19, TlvUInt64),
+            icacId: TlvOptionalField(19, TlvUInt64),
             fabricId: TlvOptionalField(21, TlvFabricId),
         },
         issuer: AllowedSubjectAndIssuerMatterFields,

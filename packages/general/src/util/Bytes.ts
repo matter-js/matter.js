@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -128,6 +128,17 @@ export namespace Bytes {
         }
 
         return new TextEncoder().encode(string);
+    }
+
+    export function fromBigInt(value: bigint, minBytes?: number) {
+        // Quick & dirty for now
+        let hex = value.toString(16);
+        if (minBytes) {
+            hex = hex.padStart(minBytes * 2, "0");
+        } else if (hex.length % 2) {
+            hex = `0${hex}`;
+        }
+        return Bytes.fromHex(hex);
     }
 
     export function toString(bytes: string | Bytes): string {

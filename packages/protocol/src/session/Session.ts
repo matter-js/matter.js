@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -25,6 +25,7 @@ import {
 import { SessionClosedError } from "#protocol/errors.js";
 import { MessageChannel } from "#protocol/MessageChannel.js";
 import type { MessageExchange } from "#protocol/MessageExchange.js";
+import { SessionIntervals } from "#session/SessionIntervals.js";
 import type { NodeId, TypeFromPartialBitSchema } from "#types";
 import type {
     DecodedMessage,
@@ -58,9 +59,9 @@ export abstract class Session {
     readonly #exchanges = new Set<MessageExchange>();
     protected deferredClose = false;
 
-    protected readonly idleInterval: Duration;
-    protected readonly activeInterval: Duration;
-    protected readonly activeThreshold: Duration;
+    protected idleInterval: Duration;
+    protected activeInterval: Duration;
+    protected activeThreshold: Duration;
     protected readonly dataModelRevision: number;
     protected readonly interactionModelRevision: number;
     protected readonly specificationVersion: number;
@@ -197,6 +198,16 @@ export abstract class Session {
         };
     }
 
+    /**
+     * Allows updating the Session timing parameters based on received information from the peer during PASE/CASE initialization
+     */
+    set timingParameters(intervals: Partial<SessionIntervals>) {
+        const { idleInterval, activeInterval, activeThreshold } = SessionIntervals(intervals);
+        this.idleInterval = idleInterval;
+        this.activeInterval = activeInterval;
+        this.activeThreshold = activeThreshold;
+    }
+
     abstract isSecure: boolean;
     abstract id: number;
     abstract peerSessionId: number;
@@ -254,16 +265,21 @@ export abstract class Session {
     /**
      * Force-close the session.
      *
-     * This terminates subscriptions and exchanges without notifying peers.  It places the session in a closing state
-     * so no further exchanges are accepted.
+     * This terminates (potentially) subscriptions and exchanges without notifying peers.  It places the session in a
+     * closing state so no further exchanges are accepted.
      *
      * @param except an exchange that should not be forced close; this allows the current exchange to remain open
+     * @param keepSubscriptions whether to keep the subscriptions open after force-closing the session.
+     *  TODO refactor when moving subscriptions away from sessions
      */
-    async initiateForceClose(except?: MessageExchange) {
+    async initiateForceClose(except?: MessageExchange, keepSubscriptions = false) {
         await this.initiateClose(async () => {
-            await this.closeSubscriptions();
+            if (!keepSubscriptions) {
+                await this.closeSubscriptions();
+            }
             for (const exchange of this.#exchanges) {
                 if (exchange === except) {
+                    this.deferredClose = true;
                     continue;
                 }
                 await exchange.close(true);

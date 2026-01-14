@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -100,7 +100,7 @@ export class CommissionableMdnsAdvertisement extends MdnsAdvertisement<ServiceDe
 
     override isDuplicate(other: Advertisement) {
         // Only one commissioning advertisement allowed per advertiser
-        return other.isCommissioning();
+        return other.service === this.service && other.isCommissioning();
     }
 
     #validatePairingInstructions() {

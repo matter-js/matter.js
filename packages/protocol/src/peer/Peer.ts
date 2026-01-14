@@ -1,11 +1,20 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { BasicInformation } from "#clusters/basic-information";
-import { BasicMultiplex, BasicSet, Diagnostic, isIpNetworkChannel, Lifetime, Logger, MaybePromise } from "#general";
+import {
+    AbortedError,
+    BasicMultiplex,
+    BasicSet,
+    Diagnostic,
+    isIpNetworkChannel,
+    Lifetime,
+    Logger,
+    MaybePromise,
+} from "#general";
 import type { MdnsClient } from "#mdns/MdnsClient.js";
 import type { NodeSession } from "#session/NodeSession.js";
 import type { SecureSession } from "#session/SecureSession.js";
@@ -91,13 +100,18 @@ export class Peer {
      */
     async delete() {
         logger.info("Removing", Diagnostic.strong(this.toString()));
-        await this.close();
+        try {
+            await this.close();
+        } catch (error) {
+            // When there are open reconnections, we could expect a peer closed abort error here, so ignore this error case
+            AbortedError.accept(error);
+        }
         await this.#context.deletePeer(this);
         await this.#context.sessions.deleteResumptionRecord(this.address);
     }
 
     /**
-     * Close the peer without removing persistent state.
+     * Close the peer without removing the persistent state.
      */
     async close() {
         using _lifetime = this.#lifetime.closing();
@@ -112,8 +126,9 @@ export class Peer {
         }
 
         if (this.activeReconnection) {
-            this.activeReconnection.rejecter("Peer closed");
+            const rejecter = this.activeReconnection.rejecter;
             this.activeReconnection = undefined;
+            rejecter(new AbortedError("Peer closed"));
         }
 
         for (const session of this.#context.sessions.sessionsFor(this.address)) {

@@ -1,10 +1,9 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ReadScope } from "#action/client/ReadScope.js";
 import { Construction, MaybePromise } from "#general";
 import { DecodedAttributeReportValue } from "#interaction/AttributeDataDecoder.js";
 import { AttributeId, ClusterId, EndpointNumber, EventNumber } from "#types";
@@ -28,8 +27,6 @@ export abstract class PeerDataStore {
     abstract maxEventNumber: EventNumber;
     abstract updateLastEventNumber(eventNumber: EventNumber): MaybePromise<void>;
 
-    abstract persistAttributes(attributes: DecodedAttributeReportValue<any>[], scope: ReadScope): MaybePromise<void>;
-
     // TODO: Find a maybe better way to achieve this without functions
     abstract retrieveAttribute(
         endpointId: EndpointNumber,
@@ -37,10 +34,4 @@ export abstract class PeerDataStore {
         attributeId: AttributeId,
     ): DecodedAttributeReportValue<any> | undefined;
     abstract retrieveAttributes(endpointId: EndpointNumber, clusterId: ClusterId): DecodedAttributeReportValue<any>[];
-    abstract getClusterDataVersion(endpointId: EndpointNumber, clusterId: ClusterId): number | undefined;
-    abstract getClusterDataVersions(
-        filterEndpointId?: EndpointNumber,
-        filterClusterId?: ClusterId,
-    ): { endpointId: EndpointNumber; clusterId: ClusterId; dataVersion: number }[];
-    abstract cleanupAttributeData(endpointId: EndpointNumber, clusterIds?: ClusterId[]): MaybePromise<void>;
 }

@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -94,11 +94,26 @@ export class ClusterModel
     }
 
     get features() {
-        return this.featureMap.children ?? [];
+        // Do not use scope (e.g. via this.fields) because features are an input to scope computation
+        const features = new Map<string, FieldModel>();
+        new ModelTraversal().visitInheritance(this.featureMap, model => {
+            for (const child of model.children) {
+                if (child.tag !== "field") {
+                    continue;
+                }
+                if (features.has(child.name)) {
+                    continue;
+                }
+                features.set(child.name, child as FieldModel);
+            }
+        });
+        return [...features.values()];
     }
 
     get featureMap() {
-        return (this.member(FeatureMap.id, [ElementTag.Attribute]) as AttributeModel) ?? new AttributeModel(FeatureMap);
+        // Do not use scope because featureMap is an input to scope computation
+        return (new ModelTraversal().findMember(this, FeatureMap.id, [ElementTag.Attribute]) ??
+            new AttributeModel(FeatureMap)) as AttributeModel;
     }
 
     get definedFeatures(): FeatureSet {
@@ -125,21 +140,27 @@ export class ClusterModel
             this.children.push(featureMap);
         }
 
-        for (const feature of featureMap.children) {
+        for (let feature of this.features) {
             const desc = feature.title && camelize(feature.title);
+            let isSupported;
             if (desc !== undefined && featureSet.has(desc)) {
-                feature.default = true;
+                isSupported = true;
                 featureSet.delete(desc);
-                continue;
-            }
-
-            if (featureSet.has(feature.name)) {
+            } else if (featureSet.has(feature.name)) {
+                isSupported = true;
                 featureSet.delete(feature.name);
-                feature.default = true;
+            }
+
+            if (!!feature.default === isSupported) {
                 continue;
             }
 
-            feature.default = undefined;
+            if (feature.parent !== featureMap) {
+                feature = feature.clone();
+                featureMap.children.push(feature);
+            }
+
+            feature.default = isSupported ? true : undefined;
         }
 
         if (featureSet.size) {

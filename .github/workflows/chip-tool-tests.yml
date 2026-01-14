@@ -66,7 +66,7 @@ jobs:
               - "!packages/react-native/**"
               - "!packages/nodejs-ble/**"
               - "!packages/nodejs-shell/**"
-              - "!packages/examples/**"
+              - "!examples/**"
               - "!packages/tools/**"
             app-tests:
               - "packages/node/src/behaviors/"
@@ -133,6 +133,14 @@ jobs:
     if: ${{ github.repository == 'matter-js/matter.js' && (needs.chip-tests-needed.outputs.chip-tool-rebuild == 'true' || needs.chip-tests-needed.outputs.chip-tests-required == 'true' || needs.chip-tests-needed.outputs.chip-changes == 'true') }}
     runs-on: ubuntu-latest
     steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@v10
+        with:
+          root-reserve-mb: 5128
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+
       - name: Check out matter.js
         uses: actions/checkout@v6
 

@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -22,7 +22,7 @@ import {
     Observable,
 } from "#general";
 import { FieldElement } from "#model";
-import { Node } from "#node/index.js";
+import { Node } from "#node/Node.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { hasLocalActor, Val } from "#protocol";
 import { ClusterType, StatusResponse, TypeFromPartialBitSchema } from "#types";
@@ -568,7 +568,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         );
         this.maybeReactTo(this.events.remoteSensing$Changing, this.#assertRemoteSensingChanging);
 
-        // For backwards compatibility, this attributes is optionally writeable. However, any
+        // For backwards compatibility, this attribute is optionally writeable. However, any
         // writes to this attribute SHALL be silently ignored. So we just revert any changes.
         this.maybeReactTo(this.events.minSetpointDeadBand$Changing, this.#ensureMinSetpointDeadBandNotWritable);
         this.reactTo(

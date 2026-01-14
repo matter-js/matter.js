@@ -1,15 +1,14 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic } from "#general";
+import { camelize, Diagnostic } from "#general";
 import { ClusterModel, EventModel, MatterModel } from "#model";
 import { ClusterId } from "#types";
 import type { Argv } from "yargs";
-import { MatterNode } from "../MatterNode";
-import { camelize } from "../util/String";
+import { MatterNode } from "../MatterNode.js";
 
 function generateAllEventHandlersForCluster(yargs: Argv, theNode: MatterNode) {
     MatterModel.standard.clusters.forEach(cluster => {

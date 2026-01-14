@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -28,7 +28,7 @@ export namespace ConnectionlessTransport {
 }
 
 /**
- * A collection of {@link TransportInterfaces} managed as a unit.
+ * A collection of {@link ConnectionlessTransport}s managed as a unit.
  */
 export class ConnectionlessTransportSet<
     T extends ConnectionlessTransport = ConnectionlessTransport,

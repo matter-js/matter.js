@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -25,7 +25,6 @@ import { SecureChannelProtocol } from "#securechannel/SecureChannelProtocol.js";
 import { PaseServer } from "#session/pase/PaseServer.js";
 import { SessionManager } from "#session/SessionManager.js";
 import { CommissioningOptions, STANDARD_COMMISSIONING_TIMEOUT, StatusCode, StatusResponseError } from "#types";
-import type { ControllerCommissioner } from "../peer/ControllerCommissioner.js";
 import { DeviceAdvertiser } from "./DeviceAdvertiser.js";
 
 const logger = Logger.get("DeviceCommissioner");

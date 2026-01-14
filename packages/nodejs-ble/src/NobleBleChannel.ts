@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -328,7 +328,9 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                             this.#connectionsInProgress.delete(address);
                             this.#openChannels.delete(address);
                             if (peripheral.state === "connected") {
-                                logger.debug(`Disconnect because of initialization error of peripheral ${address}`);
+                                logger.debug(
+                                    `Disconnect because of initialization error of peripheral ${ServerAddress.urlFor(address)}`,
+                                );
                                 await peripheral
                                     .disconnectAsync()
                                     .catch(error =>

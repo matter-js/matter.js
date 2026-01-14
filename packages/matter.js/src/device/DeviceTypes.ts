@@ -1,13 +1,13 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import * as MatterClusters from "#clusters";
+import { capitalize } from "#general";
+import { MatterModel } from "#model";
 import { ClusterId, DeviceTypeId } from "#types";
-import { capitalize } from "@matter/general";
-import { MatterModel } from "@matter/model";
 
 /**
  * General device classification categories.

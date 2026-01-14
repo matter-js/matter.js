@@ -1,12 +1,10 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
 export * from "./Aggregator.js";
-export * from "./CachedClientNodeStore.js";
-export * from "./ClientEndpointStore.js";
 export * from "./ComposedDevice.js";
 export * from "./Device.js";
 export * from "./DeviceInformation.js";

@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -15,7 +15,7 @@ import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
-import { Diagnostic, Identity, Lifecycle, Logger, MaybePromise } from "#general";
+import { Diagnostic, Identity, InternalError, Lifecycle, Logger, MaybePromise } from "#general";
 import { Matter, MatterModel } from "#model";
 import { Interactable, OccurrenceManager, PeerAddress } from "#protocol";
 import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
@@ -49,7 +49,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
 
         super(opts);
 
-        // Block the OccurrenceManager from parent environment so we don't attempt to record events from peers
+        // Block the OccurrenceManager from the parent environment so we don't attempt to record events from peers
         this.env.close(OccurrenceManager);
 
         this.env.set(Node, this);
@@ -79,6 +79,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         return this.env.get(ServerNodeStore).clientStores.storeForNode(this);
     }
 
+    // This needs to be sync to ensure a sync initialization
     override initialize() {
         const store = this.store;
 
@@ -91,7 +92,16 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
 
         initializer.structure.loadCache();
 
-        return super.initialize();
+        const promise = super.initialize();
+
+        if (store.isPreexisting && promise !== undefined) {
+            // We initialize ClientNodes on-demand but want them fully initialized for immediate use.  This means
+            // initialization must be synchronous.  Enforce this here to ensure we don't accidentally break this
+            // contract
+            throw new InternalError("Unsupported async initialization detected when loading known peer");
+        }
+
+        return promise;
     }
 
     override get owner(): ServerNode | undefined {
@@ -113,7 +123,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
      * Remove this node from the fabric (if commissioned) and locally.
      * This method tries to communicate with the device to decommission it properly and will fail if the device is
      * unreachable.
-     * If you can not reach the device, use {@link delete} instead.
+     * If you cannot reach the device, use {@link delete} instead.
      */
     async decommission() {
         this.lifecycle.change(EndpointLifecycle.Change.Destroying);
@@ -129,11 +139,16 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     /**
      * Force-remove the node without first decommissioning.
      *
-     * If the node is still available you should use {@link decommission} to remove it properly from the fabric and only use
+     * If the node is still available, you should use {@link decommission} to remove it properly from the fabric and only use
      * this method as fallback.  You should also tell the user that he needs to manually factory-reset the device.
      */
     override async delete() {
+        // TODO If we know a peer address, get the Peer for it to delete it as well
+        //const peerAddress = this.behaviors.maybeStateOf("commissioning")?.peerAddress as PeerAddress | undefined;
+        //const peer = peerAddress !== undefined ? this.owner?.env.get(PeerSet).for(peerAddress) : undefined;
+
         await super.delete();
+        //await peer?.delete();
     }
 
     override async erase() {
@@ -171,11 +186,14 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     }
 
     protected async eraseWithMutex() {
-        // First ensure we're offline
+        // First, ensure we're offline
         await this.cancelWithMutex();
 
         // Then reset
-        await this.resetWithMutex();
+        await super.resetWithMutex();
+
+        // and erase
+        await this.env.get(EndpointInitializer).eraseDescendant(this);
     }
 
     protected createRuntime(): NetworkRuntime {

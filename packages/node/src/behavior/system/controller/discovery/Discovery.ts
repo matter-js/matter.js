@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -13,7 +13,7 @@ import { ControllerBehavior } from "../ControllerBehavior.js";
 import { ActiveDiscoveries } from "./ActiveDiscoveries.js";
 import { DiscoveryAggregateError } from "./DiscoveryError.js";
 
-const logger = Logger.get("Logger");
+const logger = Logger.get("Discovery");
 
 /**
  * Discovery of commissionable devices.

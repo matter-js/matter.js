@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -31,6 +31,7 @@ import "./ModeBaseOverrides.js";
 import "./ModeSelectOverrides.js";
 import "./namespace.js";
 import "./OperationalCredentialsOverrides.js";
+import "./OtaSoftwareUpdateRequestor.js";
 import "./PumpConfigurationAndControlOverrides.js";
 import "./ScenesManagementOverrides.js";
 import "./ScenesOverrides.js";

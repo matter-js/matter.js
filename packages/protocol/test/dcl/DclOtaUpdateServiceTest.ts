@@ -1,11 +1,14 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DclOtaUpdateService, OtaUpdateError } from "#dcl/DclOtaUpdateService.js";
-import { OtaImageWriter } from "#dcl/OtaImageWriter.js";
+import {
+    DclOtaUpdateService,
+    DeviceSoftwareVersionModelDclSchemaWithSource,
+    OtaUpdateError,
+} from "#dcl/DclOtaUpdateService.js";
 import {
     Crypto,
     DataWriter,
@@ -13,17 +16,19 @@ import {
     Environment,
     HashFipsAlgorithmId,
     MockFetch,
+    StandardCrypto,
     StorageBackendMemory,
     StorageService,
 } from "#general";
+import { OtaImageWriter } from "#ota/OtaImageWriter.js";
 import { VendorId } from "#types";
-import { createOtaImage, createVersionMetadata, mockVersionsList, StreamingCrypto } from "./dcl-ota-test-helpers.js";
+import { createOtaImage, createVersionMetadata, mockVersionsList } from "./dcl-ota-test-helpers.js";
 
 describe("DclOtaUpdateService", () => {
     let fetchMock: MockFetch;
     let environment: Environment;
     let storage: StorageBackendMemory;
-    const crypto = new StreamingCrypto();
+    const crypto = new StandardCrypto();
 
     beforeEach(async () => {
         fetchMock = new MockFetch();
@@ -48,7 +53,12 @@ describe("DclOtaUpdateService", () => {
             fetchMock.install();
 
             const service = new DclOtaUpdateService(environment);
-            const update = await service.checkForUpdate(0xfff1, 0x8000, 2, true);
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 2,
+                isProduction: true,
+            });
 
             expect(update).to.not.be.undefined;
             expect(update?.softwareVersion).to.equal(3);
@@ -62,7 +72,12 @@ describe("DclOtaUpdateService", () => {
             fetchMock.install();
 
             const service = new DclOtaUpdateService(environment);
-            const update = await service.checkForUpdate(0xfff1, 0x8000, 3, true);
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 3,
+                isProduction: true,
+            });
 
             expect(update).to.be.undefined;
         });
@@ -74,7 +89,12 @@ describe("DclOtaUpdateService", () => {
             fetchMock.install();
 
             const service = new DclOtaUpdateService(environment);
-            const update = await service.checkForUpdate(0xfff1, 0x8000, 1, true);
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 1,
+                isProduction: true,
+            });
 
             expect(update).to.not.be.undefined;
             expect(update?.softwareVersion).to.equal(2);
@@ -87,7 +107,12 @@ describe("DclOtaUpdateService", () => {
             fetchMock.install();
 
             const service = new DclOtaUpdateService(environment);
-            const update = await service.checkForUpdate(0xfff1, 0x8000, 1, true);
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 1,
+                isProduction: true,
+            });
 
             expect(update).to.not.be.undefined;
             expect(update?.softwareVersion).to.equal(2);
@@ -100,7 +125,12 @@ describe("DclOtaUpdateService", () => {
             fetchMock.install();
 
             const service = new DclOtaUpdateService(environment);
-            const update = await service.checkForUpdate(0xfff1, 0x8000, 1, true);
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 1,
+                isProduction: true,
+            });
 
             expect(update).to.be.undefined;
         });
@@ -124,13 +154,23 @@ describe("DclOtaUpdateService", () => {
             const service = new DclOtaUpdateService(environment);
 
             // Current version 2 is within range [2, 2]
-            const update1 = await service.checkForUpdate(0xfff1, 0x8000, 2, true);
+            const update1 = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 2,
+                isProduction: true,
+            });
             expect(update1).to.not.be.undefined;
             expect(update1?.softwareVersion).to.equal(3);
 
             // Current version 1 is below range [2, 2] for v3, but version 2 is also not applicable (range [0, 0])
             fetchMock.clearCallLog();
-            const update2 = await service.checkForUpdate(0xfff1, 0x8000, 1, true);
+            const update2 = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 1,
+                isProduction: true,
+            });
             expect(update2).to.be.undefined;
         });
 
@@ -140,7 +180,14 @@ describe("DclOtaUpdateService", () => {
 
             const service = new DclOtaUpdateService(environment);
 
-            expect(await service.checkForUpdate(0xfff1, 0x8000, 1, true)).to.be.undefined;
+            expect(
+                await service.checkForUpdate({
+                    vendorId: 0xfff1,
+                    productId: 0x8000,
+                    currentSoftwareVersion: 1,
+                    isProduction: true,
+                }),
+            ).to.be.undefined;
         });
 
         it("uses test DCL when production is false", async () => {
@@ -153,7 +200,12 @@ describe("DclOtaUpdateService", () => {
             fetchMock.install();
 
             const service = new DclOtaUpdateService(environment);
-            const update = await service.checkForUpdate(0xfff1, 0x8000, 2, false); // test DCL (isProduction = false)
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 2,
+                isProduction: false,
+            });
 
             expect(update).to.not.be.undefined;
             const callLog = fetchMock.getCallLog();
@@ -166,7 +218,13 @@ describe("DclOtaUpdateService", () => {
             fetchMock.install();
 
             const service = new DclOtaUpdateService(environment);
-            const update = await service.checkForUpdate(0xfff1, 0x8000, 1, true, 2); // Current: 1, Target: 2
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 1,
+                isProduction: true,
+                targetSoftwareVersion: 2,
+            }); // Current: 1, Target: 2
 
             expect(update).to.not.be.undefined;
             expect(update?.softwareVersion).to.equal(2);
@@ -188,7 +246,13 @@ describe("DclOtaUpdateService", () => {
 
             const service = new DclOtaUpdateService(environment);
             // Current version 1 is outside the applicable range [2, 2]
-            const update = await service.checkForUpdate(0xfff1, 0x8000, 1, true, 3);
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 1,
+                isProduction: true,
+                targetSoftwareVersion: 3,
+            });
 
             expect(update).to.be.undefined;
         });
@@ -204,7 +268,12 @@ describe("DclOtaUpdateService", () => {
             fetchMock.install();
 
             const service = new DclOtaUpdateService(environment);
-            const update = await service.checkForUpdate(0xfff1, 0x8000, 2, true);
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 2,
+                isProduction: true,
+            });
 
             // Should return undefined because the URL is not HTTPS
             expect(update).to.be.undefined;
@@ -230,7 +299,12 @@ describe("DclOtaUpdateService", () => {
             fetchMock.install();
 
             const service = new DclOtaUpdateService(environment);
-            const update = await service.checkForUpdate(0xfff1, 0x8000, 1, true);
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 1,
+                isProduction: true,
+            });
 
             // Should return undefined because DCL URLs must be HTTPS
             expect(update).to.be.undefined;
@@ -243,7 +317,7 @@ describe("DclOtaUpdateService", () => {
             const otaImage = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
 
             // Mock update info - using DeviceSoftwareVersionModelDclSchema structure
-            const updateInfo = {
+            const updateInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000,
                 softwareVersion: 3,
@@ -255,6 +329,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             // Mock OTA file download
@@ -266,15 +341,16 @@ describe("DclOtaUpdateService", () => {
 
             // Verify file was created
             expect(fileDesignator.exists()).to.be.true;
-            expect(fileDesignator.text).to.equal("fff1-8000-prod");
+            expect(fileDesignator.blobName).to.equal("prod");
+            expect(fileDesignator.text).to.equal("ota/fff1.8000.prod");
 
-            // Verify stored in storage with correct filename
+            // Verify stored in storage with the correct filename
             const stored = await fileDesignator.openBlob();
             expect(stored).to.not.be.null;
         });
 
         it("throws error on download failure", async () => {
-            const updateInfo = {
+            const updateInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000,
                 softwareVersion: 3,
@@ -285,6 +361,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             fetchMock.addResponse("https://example.com/ota-v3.bin", { error: "Not found" }, { status: 404 });
@@ -302,7 +379,7 @@ describe("DclOtaUpdateService", () => {
             // Create OTA image with wrong vendor ID
             const otaImage = await createOtaImage(crypto, 0xfff2, 0x8000, 3); // Wrong VID
 
-            const updateInfo = {
+            const updateInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1), // Expected VID
                 pid: 0x8000,
                 softwareVersion: 3,
@@ -314,6 +391,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             fetchMock.addResponse("https://example.com/ota-v3.bin", otaImage, { binary: true });
@@ -330,7 +408,7 @@ describe("DclOtaUpdateService", () => {
         it("throws error on product ID mismatch", async () => {
             const otaImage = await createOtaImage(crypto, 0xfff1, 0x8001, 3); // Wrong PID
 
-            const updateInfo = {
+            const updateInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000, // Expected PID
                 softwareVersion: 3,
@@ -342,6 +420,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             fetchMock.addResponse("https://example.com/ota-v3.bin", otaImage, { binary: true });
@@ -358,7 +437,7 @@ describe("DclOtaUpdateService", () => {
         it("throws error on software version mismatch", async () => {
             const otaImage = await createOtaImage(crypto, 0xfff1, 0x8000, 4); // Wrong version
 
-            const updateInfo = {
+            const updateInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000,
                 softwareVersion: 3, // Expected version
@@ -370,6 +449,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             fetchMock.addResponse("https://example.com/ota-v3.bin", otaImage, { binary: true });
@@ -392,7 +472,7 @@ describe("DclOtaUpdateService", () => {
             writer.writeByteArray(new Uint8Array(90)); // Garbage data
             const badOtaImage = writer.toByteArray();
 
-            const updateInfo = {
+            const updateInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000,
                 softwareVersion: 3,
@@ -404,6 +484,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             fetchMock.addResponse("https://example.com/ota-v3.bin", badOtaImage, { binary: true });
@@ -417,7 +498,7 @@ describe("DclOtaUpdateService", () => {
         it("errors when trying to download file:// protocol for local files", async () => {
             const otaImage = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
 
-            const updateInfo = {
+            const updateInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000,
                 softwareVersion: 3,
@@ -429,6 +510,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             // Mock file:// URL
@@ -443,7 +525,7 @@ describe("DclOtaUpdateService", () => {
         it("reuses existing valid OTA file instead of re-downloading", async () => {
             const otaImage = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
 
-            const updateInfo = {
+            const updateInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000,
                 softwareVersion: 3,
@@ -455,6 +537,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             // First download
@@ -470,7 +553,7 @@ describe("DclOtaUpdateService", () => {
             fetchMock.clearResponses();
 
             // Second call should reuse existing file without downloading
-            const fileDesignator2 = await service.downloadUpdate(updateInfo, true);
+            const fileDesignator2 = await service.downloadUpdate(updateInfo, false);
             expect(fileDesignator2.exists()).to.be.true;
             expect(fileDesignator2.text).to.equal(fileDesignator1.text);
 
@@ -480,7 +563,7 @@ describe("DclOtaUpdateService", () => {
         });
 
         it("throws error for unsupported protocols", async () => {
-            const updateInfo = {
+            const updateInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000,
                 softwareVersion: 3,
@@ -491,6 +574,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             const service = new DclOtaUpdateService(environment);
@@ -502,7 +586,7 @@ describe("DclOtaUpdateService", () => {
         });
 
         it("throws error for invalid URLs", async () => {
-            const updateInfo = {
+            const updateInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000,
                 softwareVersion: 3,
@@ -513,6 +597,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             const service = new DclOtaUpdateService(environment);
@@ -554,7 +639,12 @@ describe("DclOtaUpdateService", () => {
             const service = new DclOtaUpdateService(environment);
 
             // Check for update
-            const update = await service.checkForUpdate(0xfff1, 0x8000, 2, true);
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 2,
+                isProduction: true,
+            });
             expect(update).to.not.be.undefined;
             expect(update?.otaFileSize).to.equal(otaImage.byteLength);
 
@@ -562,7 +652,8 @@ describe("DclOtaUpdateService", () => {
             const fileDesignator = await service.downloadUpdate(update!, true);
 
             expect(fileDesignator.exists()).to.be.true;
-            expect(fileDesignator.text).to.equal("fff1-8000-prod");
+            expect(fileDesignator.blobName).to.equal("prod");
+            expect(fileDesignator.text).to.equal("ota/fff1.8000.prod");
         });
     });
 
@@ -573,7 +664,7 @@ describe("DclOtaUpdateService", () => {
             const otaImage3 = await createOtaImage(crypto, 0xfff2, 0x8000, 1);
 
             // Download multiple images
-            const updateInfo1 = {
+            const updateInfo1: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000,
                 softwareVersion: 3,
@@ -585,9 +676,10 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
-            const updateInfo2 = {
+            const updateInfo2: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8001,
                 softwareVersion: 2,
@@ -599,9 +691,10 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 1,
                 maxApplicableSoftwareVersion: 1,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
-            const updateInfo3 = {
+            const updateInfo3: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff2),
                 pid: 0x8000,
                 softwareVersion: 1,
@@ -613,6 +706,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 0,
                 maxApplicableSoftwareVersion: 0,
                 schemaVersion: 0,
+                source: "dcl-test",
             };
 
             fetchMock.addResponse("https://example.com/ota1.bin", otaImage1, { binary: true });
@@ -621,9 +715,9 @@ describe("DclOtaUpdateService", () => {
             fetchMock.install();
 
             const service = new DclOtaUpdateService(environment);
-            await service.downloadUpdate(updateInfo1, true);
-            await service.downloadUpdate(updateInfo2, true);
-            await service.downloadUpdate(updateInfo3, false); // Test mode
+            await service.downloadUpdate(updateInfo1);
+            await service.downloadUpdate(updateInfo2);
+            await service.downloadUpdate(updateInfo3); // Test mode
 
             // List all
             const allUpdates = await service.find({});
@@ -659,7 +753,7 @@ describe("DclOtaUpdateService", () => {
             const otaImage1 = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
             const otaImage2 = await createOtaImage(crypto, 0xfff1, 0x8001, 2);
 
-            const updateInfo1 = {
+            const updateInfo1: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000,
                 softwareVersion: 3,
@@ -671,9 +765,10 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
-            const updateInfo2 = {
+            const updateInfo2: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8001,
                 softwareVersion: 2,
@@ -685,6 +780,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 1,
                 maxApplicableSoftwareVersion: 1,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             fetchMock.addResponse("https://example.com/ota1.bin", otaImage1, { binary: true });
@@ -702,7 +798,7 @@ describe("DclOtaUpdateService", () => {
             const countBefore = (await service.find({})).length;
             expect(countBefore).to.equal(2);
 
-            await service.delete({ filename: "fff1-8000-prod" });
+            expect(await service.delete({ filename: "fff1.8000.prod" })).to.equal(1);
 
             const countAfter = (await service.find({})).length;
             expect(countAfter).to.equal(1);
@@ -734,7 +830,7 @@ describe("DclOtaUpdateService", () => {
         it("does not throw error when file not found with correct pattern", async () => {
             const service = new DclOtaUpdateService(environment);
 
-            expect(await service.delete({ filename: "0-0-test" })).equal(0);
+            expect(await service.delete({ filename: "0.0.test" })).equal(0);
         });
 
         it("throws error when file not found with invalid pattern", async () => {
@@ -754,7 +850,7 @@ describe("DclOtaUpdateService", () => {
         it("re-downloads file when force is true", async () => {
             const otaImage = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
 
-            const updateInfo = {
+            const updateInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000,
                 softwareVersion: 3,
@@ -766,6 +862,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             fetchMock.addResponse("https://example.com/ota-v3.bin", otaImage, { binary: true });
@@ -774,17 +871,17 @@ describe("DclOtaUpdateService", () => {
             const service = new DclOtaUpdateService(environment);
 
             // First download
-            const fileDesignator1 = await service.downloadUpdate(updateInfo, true, false);
+            const fileDesignator1 = await service.downloadUpdate(updateInfo);
             expect(fileDesignator1.exists()).to.be.true;
 
             const callCountAfterFirst = fetchMock.getCallLog().length;
 
             // Second download without force - should reuse
-            await service.downloadUpdate(updateInfo, true, false);
+            await service.downloadUpdate(updateInfo, false);
             expect(fetchMock.getCallLog().length).to.equal(callCountAfterFirst); // No new download
 
             // Third download with force - should re-download
-            await service.downloadUpdate(updateInfo, true, true);
+            await service.downloadUpdate(updateInfo, true);
             expect(fetchMock.getCallLog().length).to.be.greaterThan(callCountAfterFirst); // New download occurred
         });
     });
@@ -793,7 +890,7 @@ describe("DclOtaUpdateService", () => {
         it("returns file designator for existing file", async () => {
             const otaImage = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
 
-            const updateInfo = {
+            const updateInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
                 vid: VendorId(0xfff1),
                 pid: 0x8000,
                 softwareVersion: 3,
@@ -805,6 +902,7 @@ describe("DclOtaUpdateService", () => {
                 minApplicableSoftwareVersion: 2,
                 maxApplicableSoftwareVersion: 2,
                 schemaVersion: 0,
+                source: "dcl-prod",
             };
 
             fetchMock.addResponse("https://example.com/ota-v3.bin", otaImage, { binary: true });
@@ -813,9 +911,10 @@ describe("DclOtaUpdateService", () => {
             const service = new DclOtaUpdateService(environment);
             await service.downloadUpdate(updateInfo, true);
 
-            const fileDesignator = await service.fileDesignatorForUpdate("fff1-8000-prod");
+            const fileDesignator = await service.fileDesignatorForUpdate("fff1.8000.prod");
             expect(fileDesignator).to.not.be.undefined;
-            expect(fileDesignator.text).to.equal("fff1-8000-prod");
+            expect(fileDesignator.blobName).to.equal("prod");
+            expect(fileDesignator.text).to.equal("ota/fff1.8000.prod");
             expect(await fileDesignator.exists()).to.be.true;
         });
 
@@ -830,7 +929,7 @@ describe("DclOtaUpdateService", () => {
         it("throws error for non-existent file with valid pattern", async () => {
             const service = new DclOtaUpdateService(environment);
 
-            await expect(service.fileDesignatorForUpdate("0-0-test")).to.be.rejectedWith(/OTA file not found/);
+            await expect(service.fileDesignatorForUpdate("0.0.test")).to.be.rejectedWith(/OTA file not found/);
         });
     });
 });

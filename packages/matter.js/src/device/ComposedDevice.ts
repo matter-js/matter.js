@@ -1,10 +1,11 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 import { BridgedDeviceBasicInformationCluster } from "#clusters";
 import { ImplementationError } from "#general";
+import { Endpoint as NodeEndpoint } from "#node";
 import { Device } from "./Device.js";
 import { DeviceTypeDefinition } from "./DeviceTypes.js";
 import { Endpoint, EndpointOptions } from "./Endpoint.js";
@@ -17,12 +18,18 @@ export class ComposedDevice extends Endpoint {
     /**
      * Creates a new ComposedDevice.
      *
+     * @param endpoint Underlying ClientEndpoint instance
      * @param definition DeviceTypeDefinitions of the composed device
      * @param devices Array with devices that should be combined into one device that are directly added.
      * @param options Optional Endpoint options
      */
-    constructor(definition: DeviceTypeDefinition, devices: Device[] = [], options: EndpointOptions = {}) {
-        super([definition], options);
+    constructor(
+        endpoint: NodeEndpoint,
+        definition: DeviceTypeDefinition,
+        devices: Device[] = [],
+        options: EndpointOptions = {},
+    ) {
+        super(endpoint, [definition], options);
         devices.forEach(device => this.addDevice(device));
     }
 

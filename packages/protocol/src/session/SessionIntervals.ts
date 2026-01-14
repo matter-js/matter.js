@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -32,20 +32,23 @@ export interface SessionIntervals {
 }
 
 export function SessionIntervals(intervals?: Partial<SessionIntervals>): SessionIntervals {
-    const reified = { ...SessionIntervals.defaults, ...intervals };
-    const { idleInterval, activeInterval, activeThreshold } = reified;
+    const {
+        idleInterval = SessionIntervals.defaults.idleInterval,
+        activeInterval = SessionIntervals.defaults.activeInterval,
+        activeThreshold = SessionIntervals.defaults.activeThreshold,
+    } = intervals ?? {};
 
-    if (idleInterval && idleInterval > Hours.one) {
+    if (idleInterval > Hours.one) {
         throw new ImplementationError("Session Idle Interval must be less than 1 hour");
     }
-    if (activeInterval && activeInterval > Hours.one) {
+    if (activeInterval > Hours.one) {
         throw new ImplementationError("Session Active Interval must be less than 1 hour");
     }
-    if (activeThreshold && activeThreshold > Seconds(65535)) {
+    if (activeThreshold > Seconds(65535)) {
         throw new ImplementationError("Session Active Threshold must be less than 65535 seconds");
     }
 
-    return reified;
+    return { idleInterval, activeInterval, activeThreshold };
 }
 
 export namespace SessionIntervals {

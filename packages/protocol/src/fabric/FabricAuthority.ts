@@ -1,10 +1,11 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
+import { Noc } from "#certificate/kinds/Noc.js";
 import {
     AsyncObservable,
     Bytes,
@@ -53,6 +54,7 @@ export class FabricAuthority {
     #ca: CertificateAuthority;
     #fabrics: FabricManager;
     #fabricAdded = new AsyncObservable<[Fabric]>();
+    #rotatedFabricIndices = new Set<FabricIndex>(); // Remember which we already rotated in this run
 
     constructor({ ca, fabrics }: FabricAuthorityContext) {
         this.#ca = ca;
@@ -76,13 +78,17 @@ export class FabricAuthority {
     }
 
     /**
-     * Obtain the default fabric for this authority.
+     * Get the default fabric for this authority.
+     * When rotateNoc is true (the default), the NOC key pair is rotated once per runtime when the fabric already exists.
      */
-    async defaultFabric(config: FabricAuthorityConfiguration) {
+    async defaultFabric(config: FabricAuthorityConfiguration, rotateNoc = true) {
         // First search for a fabric associated with the CA's root certificate
         const caRootCert = this.#ca.rootCert;
-        const fabric = this.fabrics.find(fabric => Bytes.areEqual(fabric.rootCert, caRootCert));
+        let fabric = this.fabrics.find(fabric => Bytes.areEqual(fabric.rootCert, caRootCert));
         if (fabric !== undefined) {
+            if (rotateNoc) {
+                fabric = await this.#rotateFabricNocKey(fabric);
+            }
             if (fabric.label !== config.adminFabricLabel) {
                 await fabric.setLabel(config.adminFabricLabel);
             }
@@ -118,7 +124,7 @@ export class FabricAuthority {
     }
 
     /**
-     * Create a new fabric under our control.
+     * Create new fabric under our control.
      */
     async createFabric(config: FabricAuthorityConfiguration) {
         const rootNodeId = config.adminNodeId ?? NodeId.randomOperationalNodeId(this.#fabrics.crypto);
@@ -141,12 +147,13 @@ export class FabricAuthority {
         const fabricId = config.adminFabricId ?? FabricId(this.#fabrics.crypto.randomBigInt(8));
         await fabricBuilder.setOperationalCert(
             await this.#ca.generateNoc(fabricBuilder.publicKey, fabricId, rootNodeId, config.caseAuthenticatedTags),
+            this.#ca.icacCert,
         );
 
         let index = config.adminFabricIndex;
         if (index === undefined) {
             index = this.#fabrics.allocateFabricIndex();
-        } else if (this.#fabrics.maybeForIndex(index) !== undefined) {
+        } else if (this.#fabrics.maybeFor(index) !== undefined) {
             throw new ImplementationError(`Cannot allocate controller fabric ${index} because index is in use`);
         }
 
@@ -159,6 +166,33 @@ export class FabricAuthority {
         await this.#fabricAdded.emit(fabric);
 
         return fabric;
+    }
+
+    async #rotateFabricNocKey(fabric: Fabric) {
+        if (this.#rotatedFabricIndices.has(fabric.fabricIndex)) {
+            // We only rotate once per runtime
+            return fabric;
+        }
+
+        const builder = await FabricBuilder.create(this.#fabrics.crypto);
+        builder.initializeFromFabricForUpdate(fabric);
+        const {
+            subject: { nodeId, fabricId, caseAuthenticatedTags },
+        } = Noc.fromTlv(fabric.operationalCert).cert;
+        if (nodeId !== fabric.nodeId) {
+            throw new ImplementationError(`Cannot rotate NOC for fabric ${fabric.fabricIndex} because node ID changed`);
+        }
+        await builder.setOperationalCert(
+            await this.#ca.generateNoc(builder.publicKey, fabricId, nodeId, caseAuthenticatedTags),
+            fabric.intermediateCACert,
+        );
+        const newFabric = await builder.build(fabric.fabricIndex);
+        logger.info(`Rotated NOC for fabric ${fabric.fabricIndex}`);
+
+        await this.#fabrics.replaceFabric(newFabric);
+
+        this.#rotatedFabricIndices.add(fabric.fabricIndex);
+        return newFabric;
     }
 
     static [Environmental.create](env: Environment) {

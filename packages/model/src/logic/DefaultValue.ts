@@ -1,10 +1,10 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, camelize, Duration, NotImplementedError } from "@matter/general";
+import { Bytes, camelize, Duration, NotImplementedError } from "#general";
 import { FieldValue, Metatype } from "../common/index.js";
 import type { ValueModel } from "../models/ValueModel.js";
 import { DecodedBitmap } from "./DecodedBitmap.js";

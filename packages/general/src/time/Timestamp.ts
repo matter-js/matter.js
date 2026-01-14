@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -96,7 +96,7 @@ export namespace Timestamp {
     /**
      * Compute the duration between two timestamps.
      */
-    export function delta(from: Timestamp, to: Timestamp) {
+    export function delta(from: Timestamp, to: Timestamp = Time.nowMs) {
         return (to - from) as Duration;
     }
 }

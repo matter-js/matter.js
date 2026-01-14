@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -110,7 +110,8 @@ export class PaseServer implements ProtocolHandler {
                 }
             } finally {
                 this.#pairingMessenger = undefined;
-                // Destroy the unsecure session used to establish the Pase session
+                // Detach and Destroy the unsecure session used to establish the Pase session
+                exchange.session.detachChannel();
                 await exchange.session.initiateClose();
             }
         }
@@ -144,6 +145,11 @@ export class PaseServer implements ProtocolHandler {
         const responderRandom = crypto.randomBytes(32);
 
         const responderSessionParams = this.sessions.sessionParameters;
+
+        // Update the session timing parameters with the just received ones to optimize the session establishment
+        if (initiatorSessionParams !== undefined) {
+            messenger.channel.session.timingParameters = initiatorSessionParams;
+        }
 
         const responsePayload = await messenger.sendPbkdfParamResponse({
             initiatorRandom,

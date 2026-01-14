@@ -1,0 +1,29 @@
+{
+    "extends": "../packages/tools/tsc/tsconfig.app.json",
+    "compilerOptions": {
+        "types": ["node"]
+    },
+    "references": [
+        {
+            "path": "../packages/main/src"
+        },
+        {
+            "path": "../packages/matter.js/src"
+        },
+        {
+            "path": "../packages/mqtt/src"
+        },
+        {
+            "path": "../packages/nodejs-ble/src"
+        },
+        {
+            "path": "../packages/nodejs-ws/src"
+        },
+        {
+            "path": "../packages/nodejs/src"
+        },
+        {
+            "path": "../packages/tools/src"
+        }
+    ]
+}

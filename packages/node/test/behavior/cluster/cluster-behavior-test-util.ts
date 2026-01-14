@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -17,7 +17,9 @@ import {
     OptionalCommand,
     OptionalEvent,
     Priority,
+    TlvArray,
     TlvBoolean,
+    TlvByteString,
     TlvNoResponse,
     TlvString,
     TlvUInt8,
@@ -43,7 +45,7 @@ export namespace My {
     });
 
     export const Base = MutableCluster.Component({
-        id: 1,
+        id: 0x1234_fc01,
         revision: 1,
         name: "MyCluster",
 
@@ -69,6 +71,9 @@ export namespace My {
 
             /** This attribute is conditionally optional */
             condOptAttr2: OptionalAttribute(14, TlvUInt8, { default: 4 }),
+
+            /** List attribute, optional */
+            optList: OptionalAttribute(20, TlvArray(TlvByteString.bound({ maxLength: 500 }))),
         },
 
         commands: {
@@ -97,7 +102,7 @@ export const MyCluster = My.Cluster;
 export type MyCluster = typeof MyCluster;
 
 export const MySchema = new ClusterModel({
-    id: 1,
+    id: 0x1234_fc01,
     name: "MyCluster",
 
     children: [
@@ -136,6 +141,13 @@ export const MySchema = new ClusterModel({
             conformance: "[CondOptAttr2 > 4]",
             type: "uint8",
             default: 4,
+        }),
+        AttributeElement({
+            id: 20,
+            name: "OptList",
+            conformance: "O",
+            type: "list",
+            children: [FieldElement({ name: "entry", type: "octstr" })],
         }),
     ],
 });

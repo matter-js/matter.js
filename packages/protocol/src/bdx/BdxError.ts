@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -10,6 +10,8 @@ import { BdxStatusCode, GeneralStatusCode } from "#types";
 /** Error class used by the BDX protocol. */
 export class BdxError extends MatterError {
     #code: BdxStatusCode;
+    bytesTransferred = 0;
+    totalBytesLength?: number;
 
     constructor(message: string, code: BdxStatusCode = BdxStatusCode.Unknown) {
         super(`BDX error ${BdxStatusCode[code]}(${code}): ${message}`);

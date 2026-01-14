@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -28,7 +28,7 @@ import type {
  * Iteration occurs in chunks for performance reasons.  A chunk is an iterable of reports, one per output attribute or
  * event.
  */
-export interface ReadResult<Chunk = ReadResult.Chunk> extends AsyncIterableIterator<Chunk> {}
+export interface ReadResult<Chunk = ReadResult.Chunk> extends AsyncIterable<Chunk> {}
 
 export namespace ReadResult {
     export type Chunk = Iterable<Report>;

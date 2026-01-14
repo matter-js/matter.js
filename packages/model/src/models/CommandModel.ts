@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -14,6 +14,8 @@ export class CommandModel extends ValueModel<CommandElement> implements CommandE
     direction?: CommandElement.Direction;
     response?: string;
 
+    operationalResponse?: CommandModel | null;
+
     get fabricScoped() {
         return !!this.effectiveAccess.fabric;
     }
@@ -26,8 +28,21 @@ export class CommandModel extends ValueModel<CommandElement> implements CommandE
         return this.effectiveDirection === CommandElement.Direction.Response;
     }
 
+    set isResponse(isResponse: boolean) {
+        this.direction = isResponse ? CommandElement.Direction.Response : CommandElement.Direction.Request;
+    }
+
     get responseModel() {
-        return new ModelTraversal().findResponse(this);
+        switch (this.operationalResponse) {
+            case undefined:
+                return new ModelTraversal().findResponse(this);
+
+            case null:
+                return undefined;
+
+            default:
+                return this.operationalResponse;
+        }
     }
 
     get effectiveDirection() {
@@ -55,11 +70,12 @@ export class CommandModel extends ValueModel<CommandElement> implements CommandE
         return this.direction;
     }
 
-    constructor(definition: Model.Definition<CommandModel>, ...children: Model.ChildDefinition<CommandModel>[]) {
+    constructor(definition: CommandModel.Definition, ...children: Model.ChildDefinition<CommandModel>[]) {
         super(definition, ...children);
 
         this.direction = definition.direction as CommandElement.Direction;
         this.response = definition.response;
+        this.operationalResponse = definition.operationalResponse;
     }
 
     override toElement(omitResources = false, extra?: Record<string, unknown>) {
@@ -70,8 +86,23 @@ export class CommandModel extends ValueModel<CommandElement> implements CommandE
         });
     }
 
+    override finalize() {
+        if (this.isFinal) {
+            return;
+        }
+
+        const operationalResponse = this.operationalResponse ?? (this.operationalResponse = this.responseModel ?? null);
+        operationalResponse?.finalize();
+
+        super.finalize();
+    }
+
     static Tag = CommandElement.Tag;
     static requiresId = true;
+}
+
+export namespace CommandModel {
+    export type Definition = Model.Definition<CommandModel> & { operationalResponse?: CommandModel };
 }
 
 CommandModel.register();

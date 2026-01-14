@@ -1,15 +1,11 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { PairingHintBitmap } from "#advertisement/PairingHintBitmap.js";
-import { VendorId } from "#types";
-
-export const MDNS_BROADCAST_IPV4 = "224.0.0.251";
-export const MDNS_BROADCAST_IPV6 = "ff02::fb";
-export const MDNS_BROADCAST_PORT = 5353;
+import { GlobalFabricId, NodeId, VendorId } from "#types";
 
 export const SERVICE_DISCOVERY_QNAME = "_services._dns-sd._udp.local";
 export const MATTER_COMMISSION_SERVICE_QNAME = "_matterc._udp.local";
@@ -35,9 +31,10 @@ export const PAIRING_HINTS_REQUIRING_INSTRUCTION = Array<keyof typeof PairingHin
     "pressSetupButtonNumberOfTimes",
 );
 
-export const getFabricQname = (operationalIdString: string) => `_I${operationalIdString}._sub.${MATTER_SERVICE_QNAME}`;
-export const getOperationalDeviceQname = (operationalIdString: string, nodeIdString: string) =>
-    `${operationalIdString}-${nodeIdString}.${MATTER_SERVICE_QNAME}`;
+export const getFabricQname = (fabric: GlobalFabricId) =>
+    `_I${GlobalFabricId.strOf(fabric).toUpperCase()}._sub.${MATTER_SERVICE_QNAME}`;
+export const getOperationalDeviceQname = (fabric: GlobalFabricId, node: NodeId) =>
+    `${GlobalFabricId.strOf(fabric).toUpperCase()}-${NodeId.strOf(node).toUpperCase()}.${MATTER_SERVICE_QNAME}`;
 export const getVendorQname = (vendorId: VendorId) => `_V${vendorId}._sub.${MATTER_COMMISSION_SERVICE_QNAME}`;
 export const getDeviceTypeQname = (deviceType: number) => `_T${deviceType}._sub.${MATTER_COMMISSION_SERVICE_QNAME}`;
 export const getShortDiscriminatorQname = (shortDiscriminator: number) =>

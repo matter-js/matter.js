@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -12,6 +12,7 @@ import { CommissioningDiscovery } from "#behavior/system/controller/discovery/Co
 import { ContinuousDiscovery } from "#behavior/system/controller/discovery/ContinuousDiscovery.js";
 import { Discovery } from "#behavior/system/controller/discovery/Discovery.js";
 import { InstanceDiscovery } from "#behavior/system/controller/discovery/InstanceDiscovery.js";
+import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { Endpoint } from "#endpoint/Endpoint.js";
@@ -33,7 +34,15 @@ import {
 } from "#general";
 import { ClientGroup } from "#node/ClientGroup.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
-import { ClientSubscriptionHandler, ClientSubscriptions, FabricManager, PeerAddress, PeerSet } from "#protocol";
+import {
+    ClientSubscriptionHandler,
+    ClientSubscriptions,
+    FabricManager,
+    InteractionQueue,
+    PeerAddress,
+    PeerSet,
+    SessionManager,
+} from "#protocol";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { FabricIndex } from "@matter/types";
 import { ClientNode } from "../ClientNode.js";
@@ -53,9 +62,10 @@ const EXPIRATION_INTERVAL = Minutes.one;
  */
 export class Peers extends EndpointContainer<ClientNode> {
     #expirationInterval?: CancelablePromise;
-    #subscriptionHandler?: ClientSubscriptionHandler;
+    #installedSubscriptionHandler?: ClientSubscriptionHandler;
     #mutex = new Mutex(this);
     #closed = false;
+    #queue: InteractionQueue;
 
     constructor(owner: ServerNode) {
         super(owner);
@@ -65,6 +75,8 @@ export class Peers extends EndpointContainer<ClientNode> {
         }
 
         owner.env.applyTo(InteractionServer, this.#configureInteractionServer.bind(this));
+
+        this.#queue = this.owner.env.get(InteractionQueue); // Queue is Node wide
 
         this.added.on(this.#handlePeerAdded.bind(this));
         this.deleted.on(this.#manageExpiration.bind(this));
@@ -117,16 +129,19 @@ export class Peers extends EndpointContainer<ClientNode> {
     }
 
     /**
-     * Find a specific commissionable node.
+     * Find a specific commissionable node, or, if no discovery options are provided, returns the first discovered node.
+     * TODO: Allow to provide an array of options for multiple discoveries (e.g. from a Multi QR code).
      */
     locate(options?: Discovery.Options) {
         return new InstanceDiscovery(this.owner, options);
     }
 
     /**
-     * Employ discovery to find a set of commissionable nodes.
+     * Employ discovery to find a set of commissionable nodes, the options can be used to limit the discovered devices
+     * (e.g. just a specific vendor).
+     * TODO: Allow to provide multiple identifiers for multiple discoveries (e.g. from a Multi QR code).
      *
-     * If you do not provide a timeout value, will search until canceled and you need to add a listener to
+     * If you do not provide a timeout value, will search until canceled, and you need to add a listener to
      * {@link Discovery#discovered} or {@link added} to receive discovered nodes.
      */
     discover(options?: Discovery.Options) {
@@ -161,14 +176,15 @@ export class Peers extends EndpointContainer<ClientNode> {
     /**
      * Emits when fixed attributes
      */
-
     override get(id: number | string | PeerAddress) {
         if (typeof id !== "string" && typeof id !== "number") {
             const address = PeerAddress(id);
             for (const node of this) {
-                const nodeAddress = node.state.commissioning.peerAddress;
-                if (nodeAddress && PeerAddress.is(nodeAddress, address)) {
-                    return node;
+                if (node.behaviors.active.some(({ id }) => id === "commissioning")) {
+                    const nodeAddress = node.maybeStateOf("commissioning")?.peerAddress as PeerAddress | undefined;
+                    if (nodeAddress !== undefined && PeerAddress.is(nodeAddress, address)) {
+                        return node;
+                    }
                 }
             }
             return undefined;
@@ -200,6 +216,14 @@ export class Peers extends EndpointContainer<ClientNode> {
 
         let node = this.get(peerAddress);
         if (!node) {
+            if (options.id !== undefined) {
+                // We want to initialize a node with a provided id. This could be an injected node, so ensure the
+                // ClientNodeStore is constructed. Without id the storage is empty anyway because id is newly assigned
+                // TODO: Remove when we remove legacy controller
+                const store = this.owner.env.get(ServerNodeStore).clientStores.storeForNode(options.id);
+                await store.construction;
+            }
+
             // We do not have that node till now, also not persisted, so create it
             const factory = this.owner.env.get(ClientNodeFactory);
             node = factory.create(options, peerAddress);
@@ -218,7 +242,8 @@ export class Peers extends EndpointContainer<ClientNode> {
 
     override async close() {
         this.#closed = true;
-        await this.#subscriptionHandler?.close();
+        this.#queue.close();
+        await this.#installedSubscriptionHandler?.close();
         this.#cancelExpiration();
         await this.#mutex;
         await super.close();
@@ -242,18 +267,19 @@ export class Peers extends EndpointContainer<ClientNode> {
      * If required, installs a listener in the environment's {@link InteractionServer} to handle subscription responses.
      */
     #configureInteractionServer() {
-        if (this.#closed || this.size > 0 || !this.owner.env.has(InteractionServer)) {
+        if (
+            this.#closed ||
+            this.#installedSubscriptionHandler !== undefined ||
+            !this.owner.env.has(InteractionServer)
+        ) {
             return;
         }
 
         const subscriptions = this.owner.env.get(ClientSubscriptions);
         const interactionServer = this.owner.env.get(InteractionServer);
 
-        if (!this.#subscriptionHandler) {
-            this.#subscriptionHandler = new ClientSubscriptionHandler(subscriptions);
-        }
-
-        interactionServer.clientHandler = this.#subscriptionHandler;
+        this.#installedSubscriptionHandler = new ClientSubscriptionHandler(subscriptions);
+        interactionServer.clientHandler = this.#installedSubscriptionHandler;
     }
 
     /**
@@ -281,6 +307,9 @@ export class Peers extends EndpointContainer<ClientNode> {
     }
 
     #onExpirationIntervalElapsed() {
+        if (this.#closed) {
+            return;
+        }
         this.#mutex.run(() =>
             this.#cullExpiredNodesAndAddresses()
                 .catch(error => {
@@ -297,7 +326,13 @@ export class Peers extends EndpointContainer<ClientNode> {
             const now = Time.nowMs;
 
             for (const node of this) {
-                const state = node.state.commissioning;
+                if (!node.lifecycle.isReady) {
+                    continue;
+                }
+                const state = node.maybeStateOf(CommissioningClient);
+                if (state === undefined) {
+                    continue;
+                }
                 const { addresses } = state;
                 const isCommissioned = state.peerAddress !== undefined;
 
@@ -358,6 +393,10 @@ export class Peers extends EndpointContainer<ClientNode> {
         node.eventsOf(type).capabilityMinima$Changed.on(setPeerLimits);
 
         function setPeerLimits() {
+            if (!node.env.has(PeerSet)) {
+                // Node is not yet online, delay setting limits
+                return;
+            }
             const peerAddress = node.maybeStateOf(CommissioningClient)?.peerAddress;
             if (peerAddress) {
                 node.env.get(PeerSet).for(peerAddress).limits = node.stateOf(type).capabilityMinima;
@@ -392,14 +431,35 @@ export class Peers extends EndpointContainer<ClientNode> {
                 return;
             }
 
+            // Ignore leave events received during an initial subscription establishment as they may be stale events
+            // from before the device was re-commissioned with the same identifier.
+            // The reason is that we saw such cases and should prevent discarding a node directly after commissioning.
+            // This solution still has some holes that could prevent removing nodes automatically, but best-effort
+            // variant for now until we know how often that happens in practice.
+            if (!node.act(agent => agent.get(NetworkClient).subscriptionActive)) {
+                logger.info(
+                    "Leave event for peer",
+                    Diagnostic.strong(node.id),
+                    " received without active subscription. Ignoring.",
+                );
+                return;
+            }
+
             logger.notice("Peer", Diagnostic.strong(node.id), "has left the fabric");
             node.lifecycle.decommissioned.emit(LocalActorContext.ReadOnly);
             await node.delete();
         });
     }
 
-    #onShutdown(_node: ClientNode) {
-        // TODO
+    async #onShutdown(node: ClientNode) {
+        if (!node.lifecycle.isReady || !node.lifecycle.isOnline) {
+            return;
+        }
+        const peerAddress = node.maybeStateOf(CommissioningClient)?.peerAddress;
+        if (peerAddress !== undefined) {
+            // Shutdown event means the device reboots, handle it like a peer loss and remove all sessions
+            await this.owner.env.get(SessionManager).handlePeerShutdown(peerAddress);
+        }
     }
 }
 

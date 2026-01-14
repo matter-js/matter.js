@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -245,9 +245,9 @@ export class ExchangeManager {
             message.payloadHeader.messageType,
         );
         const messageDiagnostics = Diagnostic.dict({
-            message: messageId,
+            message: hex.fixed(messageId, 8),
             protocol: message.payloadHeader.protocolId,
-            exId: message.payloadHeader.exchangeId,
+            exId: hex.word(message.payloadHeader.exchangeId),
             via: channel.name,
         });
 

@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -9,8 +9,8 @@ import { DiscoveryCapabilitiesSchema, ManualPairingCodeCodec, NodeId, QrCode, Qr
 import { BasicInformationCluster, DescriptorCluster, GeneralCommissioning } from "@matter/types/clusters";
 import { NodeCommissioningOptions } from "@project-chip/matter.js";
 import type { Argv } from "yargs";
-import { MatterNode } from "../MatterNode";
-import { createDiagnosticCallbacks } from "./cmd_nodes";
+import { MatterNode } from "../MatterNode.js";
+import { createDiagnosticCallbacks } from "./cmd_nodes.js";
 
 export default function commands(theNode: MatterNode) {
     return {

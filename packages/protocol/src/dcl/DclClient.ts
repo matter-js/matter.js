@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 import {
@@ -90,12 +90,11 @@ export class DclClient {
             return await response.json();
         } catch (error) {
             MatterDclResponseError.reject(error);
-            MatterError.accept(error);
             throw new MatterDclResponseError(
                 path,
                 {
                     code: 500,
-                    message: error.message,
+                    message: (error as Error).message ?? error,
                     details: [],
                 },
                 { cause: error },

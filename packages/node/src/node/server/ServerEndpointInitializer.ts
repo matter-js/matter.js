@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -8,8 +8,8 @@ import { Behavior } from "#behavior/Behavior.js";
 import { limitEndpointAttributeDataToAllowedFabrics } from "#behavior/cluster/FabricScopedDataHandler.js";
 import { BehaviorBacking } from "#behavior/internal/BehaviorBacking.js";
 import { ServerBehaviorBacking } from "#behavior/internal/ServerBehaviorBacking.js";
+import type { Agent } from "#endpoint/Agent.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import type { Agent } from "#endpoint/index.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { Environment, InternalError, Logger, MaybePromise } from "#general";
 import { FabricManager } from "#protocol";

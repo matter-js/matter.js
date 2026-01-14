@@ -32,8 +32,8 @@
     },
     "homepage": "https://github.com/matter-js/matter.js#readme",
     "devDependencies": {
-        "@matter/tools": "0.0.0-git",
-        "@types/node": "^24.10.2",
+        "@matter/tools": "*",
+        "@types/node": "^25.0.6",
         "@types/tar-stream": "^3.1.4"
     },
     "publishConfig": {

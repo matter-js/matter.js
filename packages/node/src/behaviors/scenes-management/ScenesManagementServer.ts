@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -240,12 +240,16 @@ export class ScenesManagementServer extends ScenesManagementBase {
                 }
             }
         }
+
+        this.#updateFabricSceneInfoCountsForFabric(fabricIndex);
     }
 
     /** Handles removal of all groups in a fabric. This method is called by the GroupsServer implementation. */
     removeScenesForAllGroupsForFabric(fabricIndex: FabricIndex) {
         this.state.sceneTable = deepCopy(this.state.sceneTable).filter(s => s.fabricIndex !== fabricIndex);
         this.#invalidateFabricSceneInfoForFabric(fabricIndex);
+
+        this.#updateFabricSceneInfoCountsForFabric(fabricIndex);
     }
 
     /** Validates the groupId and sceneId parameters of scene commands and returns convenient data for further processing */
@@ -393,6 +397,8 @@ export class ScenesManagementServer extends ScenesManagementBase {
             }
         }
 
+        this.#updateFabricSceneInfoCountsForFabric(fabricIndex);
+
         return { status: Status.Success, groupId, sceneId };
     }
 
@@ -474,7 +480,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
 
         // Recall the scene by setting all attributes to the stored values and marking it active
         const scene = this.state.sceneTable[existingSceneIndex];
-        await this.#applySceneAttributeValues(scene.sceneValues, transitionTime);
+        await this.#applySceneAttributeValues(scene.sceneValues, transitionTime ?? scene.sceneTransitionTime);
         this.#activateSceneInFabricSceneInfo(fabricIndex, groupId, sceneId);
     }
 

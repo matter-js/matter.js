@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -12,12 +12,12 @@ import {
     Logger,
     MatterAggregateError,
     MaybePromise,
+    MdnsSocket,
     Network,
     VariableService,
 } from "#general";
 import { MdnsServer } from "../mdns/MdnsServer.js";
 import { MdnsClient } from "./MdnsClient.js";
-import { MdnsSocket } from "./MdnsSocket.js";
 
 const logger = Logger.get("MDNS");
 

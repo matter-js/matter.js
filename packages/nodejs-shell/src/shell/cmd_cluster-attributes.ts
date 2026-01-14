@@ -1,17 +1,16 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic } from "#general";
+import { camelize, Diagnostic } from "#general";
 import { AttributeModel, ClusterModel, MatterModel } from "#model";
-import { SupportedAttributeClient } from "#protocol";
 import { AttributeId, ClusterId, EndpointNumber, ValidationError } from "#types";
+import { SupportedAttributeClient } from "@project-chip/matter.js/cluster";
 import type { Argv } from "yargs";
-import { MatterNode } from "../MatterNode";
-import { convertJsonDataWithModel } from "../util/Json";
-import { camelize } from "../util/String";
+import { MatterNode } from "../MatterNode.js";
+import { convertJsonDataWithModel } from "../util/Json.js";
 
 function generateAllAttributeHandlersForCluster(yargs: Argv, theNode: MatterNode) {
     MatterModel.standard.clusters.forEach(cluster => {

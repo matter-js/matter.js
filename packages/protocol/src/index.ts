@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -21,6 +21,7 @@ export * from "./fabric/index.js";
 export * from "./groups/index.js";
 export * from "./interaction/index.js";
 export * from "./mdns/index.js";
+export * from "./ota/index.js";
 export * from "./peer/index.js";
 export * from "./protocol/index.js";
 export * from "./securechannel/index.js";

@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -15,6 +15,7 @@ import {
     Logger,
     Repo,
     StorageContext,
+    StorageManager,
     StorageService,
     Time,
     Timer,
@@ -39,6 +40,7 @@ const GITHUB_CERT_PATH = "credentials/development/paa-root-certs";
  */
 export class DclCertificateService {
     readonly #construction: Construction<DclCertificateService>;
+    #storageManager?: StorageManager;
     #storage?: StorageContext;
     #certificateIndex = new Map<string, DclCertificateService.CertificateMetadata>();
     #updateTimer?: Timer;
@@ -51,7 +53,8 @@ export class DclCertificateService {
         this.#options = options;
 
         this.#construction = Construction(this, async () => {
-            this.#storage = (await environment.get(StorageService).open("certificates")).createContext("root");
+            this.#storageManager = await environment.get(StorageService).open("certificates");
+            this.#storage = this.#storageManager.createContext("root");
             await this.#loadIndex(this.#storage);
             await this.update();
 
@@ -70,7 +73,7 @@ export class DclCertificateService {
     }
 
     /**
-     * Normalize subject key identifier to a consistent string format.
+     * Normalize the subject key identifier to a consistent string format.
      * Accepts either Bytes or string (with or without colons).
      */
     #normalizeSubjectKeyId(subjectKeyId: Bytes | string) {
@@ -144,7 +147,7 @@ export class DclCertificateService {
 
         try {
             const isProduction = options?.isProduction ?? true;
-            // Fetch root certificate list to find the certificate reference
+            // Fetch the root certificate list to find the certificate reference
             const dclClient = new DclClient(isProduction);
             const certRefs = await dclClient.fetchRootCertificateList(options);
 
@@ -212,9 +215,10 @@ export class DclCertificateService {
     /**
      * Close the service and stop all timers.
      */
-    close() {
+    async close() {
         this.#closed = true;
         this.#updateTimer?.stop();
+        await this.#storageManager?.close();
     }
 
     /**

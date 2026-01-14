@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -27,6 +27,7 @@ export class DrivingReceivingFlow extends InboundFlow {
             message: { blockCounter: dataBlockCounter, data },
         } = await this.messenger.readBlock();
         this.validateCounter(dataBlockCounter, blockCounter);
+        this.transferredBytes += data.byteLength;
 
         // Write the received data chunk into the writing stream
         if (this.writeDataChunk(writeController, data, messageType)) {

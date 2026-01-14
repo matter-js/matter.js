@@ -1,16 +1,16 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import {
+    AddressLifespan,
     BasicSet,
     ChannelType,
     Duration,
     Environment,
     Environmental,
-    Lifespan,
     ServerAddress,
     ServerAddressUdp,
 } from "#general";
@@ -57,7 +57,7 @@ export type DiscoveryData = {
 };
 
 export type DiscoverableDevice<SA extends ServerAddress> = DiscoveryData &
-    Partial<Lifespan> & {
+    Partial<AddressLifespan> & {
         /** The device's addresses IP/port pairs */
         addresses: SA[];
     };

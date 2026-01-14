@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -78,7 +78,7 @@ export class CaseServer implements ProtocolHandler {
     async #handleSigma1(messenger: CaseServerMessenger) {
         logger.info("Received pairing request", Mark.INBOUND, Diagnostic.via(messenger.channelName));
 
-        // Initialize context with information from peer
+        // Initialize context with information from a peer
         const { sigma1Bytes, sigma1 } = await messenger.readSigma1();
         const resumptionRecord =
             sigma1.resumptionId !== undefined && sigma1.initiatorResumeMic !== undefined
@@ -86,6 +86,11 @@ export class CaseServer implements ProtocolHandler {
                 : undefined;
 
         const context = new Sigma1Context(this.#fabrics.crypto, messenger, sigma1Bytes, sigma1, resumptionRecord);
+
+        // Update the session timing parameters with the just received ones to optimize the session establishment
+        if (sigma1.initiatorSessionParams !== undefined) {
+            messenger.channel.session.timingParameters = sigma1.initiatorSessionParams;
+        }
 
         // Attempt resumption
         if (await this.#resume(context, messenger.channel.channel)) {
@@ -133,7 +138,7 @@ export class CaseServer implements ProtocolHandler {
             return false;
         }
 
-        // All good! Create secure session
+        // Create a secure session
         const responderSessionId = await this.#sessions.getNextAvailableSessionId();
         const secureSessionSalt = Bytes.concat(cx.peerRandom, cx.peerResumptionId);
         const secureSession = await this.#sessions.createSecureSession({
@@ -268,7 +273,7 @@ export class CaseServer implements ProtocolHandler {
 
         await crypto.verifyEcdsa(PublicKey(peerPublicKey), peerSignatureData, new EcdsaSignature(peerSignature));
 
-        // All good! Create secure session
+        // All good! Create a secure session
         const secureSessionSalt = Bytes.concat(
             operationalIdentityProtectionKey,
             await crypto.computeHash([cx.bytes, sigma2Bytes, sigma3Bytes]),

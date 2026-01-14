@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -149,7 +149,7 @@ class NodeState {
                 if (!fabrics) {
                     fabrics = node.env.get(FabricManager);
                 }
-                return fabrics.maybeForIndex(index)?.nodeId;
+                return fabrics.maybeFor(index)?.nodeId;
             },
 
             get eventHandler() {

@@ -2,7 +2,7 @@
  * Utils for promises.
  *
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -10,6 +10,13 @@ import { Duration } from "#time/Duration.js";
 import { asError } from "#util/Error.js";
 import { InternalError, TimeoutError } from "../MatterError.js";
 import { Time } from "../time/Time.js";
+import type {
+    AsyncObservable,
+    AsyncObservableValue,
+    AsyncObserver,
+    Observable,
+    ObservableValue,
+} from "./Observable.js";
 
 /**
  * Obtain a promise with functions to resolve and reject.
@@ -413,10 +420,14 @@ export namespace SafePromise {
      *     https://github.com/nodejs/node/issues/17469#issuecomment-685216777
      *
      * ...although this isn't an issue specific to Node.
+     *
+     * We specialize support for {@link Observable} and {@link ObservableValue}.  Those contracts are awaitable like a
+     * {@link Promise} but we instead register listeners directly so we can unregister using {@link Observable#off}.
      */
     export function race<T>(values: Iterable<T>): Promise<Awaited<T>> {
         let listener!: SettlementListener;
         let registered: undefined | Set<SettlementListener>[];
+        let disposables: undefined | Disposable[];
 
         let race = new Promise<Awaited<T>>((resolve, reject) => {
             listener = { resolve, reject };
@@ -425,6 +436,44 @@ export namespace SafePromise {
                 // If this is not a promise we can safely use Promise#resolve
                 if (!MaybePromise.is<any>(value)) {
                     Promise.resolve(value).then(resolve, reject);
+                    continue;
+                }
+
+                // If this is an Observable, use on/off so we can reliably unregister listeners
+                if (
+                    "use" in value &&
+                    "off" in value &&
+                    typeof value.use === "function" &&
+                    typeof value.off === "function"
+                ) {
+                    // Further specialize for ObservableValue contract, which behaves as resolved when a truthy value is
+                    // present
+                    if ("value" in value && value.value) {
+                        Promise.resolve(value.value as Awaited<T>).then(resolve, reject);
+                        continue;
+                    }
+
+                    if (!disposables) {
+                        disposables = [];
+                    }
+
+                    let observer: AsyncObserver<[Awaited<T>]>;
+                    if ("value" in value) {
+                        // For observable value, only resolve if value is truthy
+                        observer = value => {
+                            if (value) {
+                                resolve(value);
+                            }
+                        };
+
+                        // And handle errors
+                        disposables.push((value as unknown as AsyncObservableValue).useError(reject));
+                    } else {
+                        // Normal observables "resolve" on any emit and do not have an error channel
+                        observer = resolve;
+                    }
+                    disposables.push((value as unknown as AsyncObservable<[Awaited<T>]>).use(observer));
+
                     continue;
                 }
 
@@ -447,11 +496,19 @@ export namespace SafePromise {
             }
         });
 
-        // If there were any unsettled promises, unregister our listener when settled
-        if (registered) {
+        // Ensure we unregister listeners when settled
+        if (registered || disposables) {
             race = race.finally(() => {
-                for (const listeners of registered!) {
-                    listeners.delete(listener);
+                if (registered) {
+                    for (const listeners of registered) {
+                        listeners.delete(listener);
+                    }
+                }
+
+                if (disposables) {
+                    for (const disposable of disposables) {
+                        disposable[Symbol.dispose]();
+                    }
                 }
             });
         }

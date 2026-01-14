@@ -1,0 +1,55 @@
+{
+    "name": "@matter/example-electron-matter-controller",
+    "version": "0.0.0-git",
+    "private": true,
+    "description": "My Electron application description",
+    "main": ".vite/build/main.js",
+    "scripts": {
+        "start": "electron-forge start",
+        "package": "electron-forge package",
+        "make": "electron-forge make",
+        "publish": "electron-forge publish",
+        "lint": "eslint --ext .ts,.tsx ."
+    },
+    "keywords": [],
+    "author": {
+        "name": "Markus Becker",
+        "email": "markus.becker@tridonic.com"
+    },
+    "license": "MIT",
+    "devDependencies": {
+        "@electron-forge/cli": "^7.10.2",
+        "@electron-forge/maker-deb": "^7.10.2",
+        "@electron-forge/maker-rpm": "^7.10.2",
+        "@electron-forge/maker-squirrel": "^7.10.2",
+        "@electron-forge/maker-zip": "^7.10.2",
+        "@electron-forge/plugin-auto-unpack-natives": "^7.10.2",
+        "@electron-forge/plugin-fuses": "^7.10.2",
+        "@electron-forge/plugin-vite": "^7.10.2",
+        "@electron/fuses": "^1.8.0",
+        "@matter/main": "0.16.0",
+        "@matter/nodejs": "0.16.0",
+        "@matter/nodejs-ble": "0.16.0",
+        "@project-chip/matter.js": "0.16.0",
+        "@types/react": "^19.2.7",
+        "@types/react-dom": "^19.2.3",
+        "@typescript-eslint/eslint-plugin": "^5.62.0",
+        "@typescript-eslint/parser": "^5.62.0",
+        "electron": "37.10.3",
+        "eslint": "^8.57.1",
+        "eslint-plugin-import": "^2.32.0",
+        "sass": "^1.97.1",
+        "ts-node": "^10.9.2",
+        "typescript": "~5.9.3",
+        "vite": "^5.4.21"
+    },
+    "dependencies": {
+        "@popperjs/core": "^2.11.8",
+        "bootstrap": "^5.3.8",
+        "bootstrap-icons": "^1.13.1",
+        "electron-squirrel-startup": "^1.0.1",
+        "react": "^19.2.3",
+        "react-bootstrap": "^2.10.10",
+        "react-dom": "^19.2.3"
+    }
+}

@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -8,14 +8,16 @@
 import "#decoration/semantics/index.js";
 
 import { attribute } from "#decoration/decorators/attribute.js";
+import { command } from "#decoration/decorators/command.js";
 import { field } from "#decoration/decorators/field.js";
 import { listOf } from "#decoration/decorators/listOf.js";
 import { nonvolatile } from "#decoration/decorators/nonvolatile.js";
 import { nullable } from "#decoration/decorators/nullable.js";
+import { response } from "#decoration/decorators/response.js";
 import { AttributeModel } from "#models/AttributeModel.js";
-import { FieldModel } from "#models/index.js";
+import { CommandModel, FieldModel } from "#models/index.js";
 import { Schema } from "#models/Schema.js";
-import { uint16, uint32 } from "#standard/elements/models.js";
+import { uint16, uint32, uint8 } from "#standard/elements/models.js";
 
 describe("FieldSemantics", () => {
     it("sets type", () => {
@@ -115,5 +117,28 @@ describe("FieldSemantics", () => {
         expect(entry).not.undefined;
         expect(entry!.base).not.undefined;
         expect(entry!.base!.name).equals("Item");
+    });
+
+    it("sets command response", () => {
+        class Worker {
+            @command(1, uint8)
+            @response(uint32)
+            work() {}
+        }
+
+        const schema = Schema(Worker)!;
+        expect(schema).not.undefined;
+        expect(schema.children.length).equals(2);
+
+        const work = schema.get(CommandModel, "work")!;
+        expect(work).not.undefined;
+        expect(work.id).equals(1);
+        expect(work.name).equals("work");
+
+        const rsp = work.responseModel!;
+        expect(rsp).not.undefined;
+        expect(rsp.id).equals(1);
+        expect(rsp.name).equals("workResponse");
+        expect(rsp.isResponse).true;
     });
 });

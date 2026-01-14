@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -162,7 +162,9 @@ describe("ClusterEvents", () => {
                 | "condOptAttr1$Changing"
                 | "condOptAttr1$Changed"
                 | "condOptAttr2$Changing"
-                | "condOptAttr2$Changed";
+                | "condOptAttr2$Changed"
+                | "optList$Changing"
+                | "optList$Changed";
             "" as "reqEv" | "optEv" | "reqAttr$Changed" | "optAttr$Changed" satisfies keyof Props;
         });
 

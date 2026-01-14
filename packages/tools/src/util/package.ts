@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -399,6 +399,8 @@ export type PackageJson = {
     workspaces?: Array<string>;
     dependencies?: Record<string, string>;
     devDependencies?: Record<string, string>;
+    optionalDependencies?: Record<string, string>;
+    engines?: Record<string, string>;
     [key: string]: unknown;
 };
 

@@ -72,7 +72,7 @@ This project heavily uses code generation:
 - Add endpoints to nodes: `await server.add(endpoint);`
 - Start the server non-blocking: `await server.start();` (resolves when online)
 - Run the server blocking: `await server.run();` (resolves when server shuts down)
-- See `packages/examples/src/device-onoff-advanced/DeviceNodeFull.ts` for comprehensive examples
+- See `examples/device-onoff-advanced/src/DeviceNodeFull.ts` for comprehensive examples
 
 ### Models
 - Use `ClusterModel`, `DeviceTypeModel`, `AttributeModel` etc. from `@matter/model`
@@ -109,8 +109,8 @@ npm run shell              # Interactive Matter shell
 ### Running Examples
 Use `matter-run` to execute any TypeScript example directly:
 ```bash
-matter-run packages/examples/src/device-onoff/DeviceNode.ts
-matter-run packages/examples/src/controller/ControllerNode.ts
+matter-run examples/device-onoff/src/DeviceNode.ts
+matter-run examples/controller/src/ControllerNode.ts
 ```
 
 ## TypeScript Configuration

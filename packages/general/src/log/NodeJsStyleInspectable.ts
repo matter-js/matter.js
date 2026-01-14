@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -15,7 +15,7 @@ export function NodeJsStyleInspectable<T extends object>(target: T, inspector: N
         options ??= {};
         inspect ??= target => `${target}`;
 
-        inspector.call(this, depth, options, inspect);
+        return inspector.call(this, depth, options, inspect);
     };
 
     Object.defineProperty(target, inspect, {

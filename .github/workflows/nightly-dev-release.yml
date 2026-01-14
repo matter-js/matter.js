@@ -33,6 +33,7 @@ jobs:
         root-reserve-mb: 5128
         remove-dotnet: 'true'
         remove-android: 'true'
+        remove-haskell: 'true'
 
     - name: Checkout code
       uses: actions/checkout@v6
@@ -156,7 +157,7 @@ jobs:
     - name: Create Pull Request
       if: steps.changes.outputs.result == 'ok'
       id: cpr
-      uses: peter-evans/create-pull-request@v7
+      uses: peter-evans/create-pull-request@v8
       with:
         token: ${{ secrets.PR_TOKEN }}
         commit-message: "[NIGHTLY DEV RELEASE] ${{ steps.version.outputs.result }}"

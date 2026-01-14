@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -19,6 +19,7 @@ import {
     DeviceClassification,
     DeviceTypeModel,
     FeatureMap,
+    GeneratedCommandList,
     Matter,
     type FeatureBitmap,
 } from "#model";
@@ -35,6 +36,7 @@ import { PeerBehavior } from "./PeerBehavior.js";
 
 const logger = Logger.get("ClientStructure");
 
+const DESCRIPTOR_ID = Descriptor.Cluster.id;
 const DEVICE_TYPE_LIST_ATTR_ID = Descriptor.Cluster.attributes.deviceTypeList.id;
 const SERVER_LIST_ATTR_ID = Descriptor.Cluster.attributes.serverList.id;
 const PARTS_LIST_ATTR_ID = Descriptor.Cluster.attributes.partsList.id;
@@ -84,15 +86,21 @@ export class ClientStructure {
 
             const endpoint = this.#endpointFor(number as EndpointNumber);
 
-            // Load state for each behavior
-            for (const idStr of store.knownBehaviors) {
-                const id = Number.parseInt(idStr) as ClusterId;
-                if (!Number.isFinite(id)) {
-                    continue;
-                }
+            const knownBehaviors = [...store.knownBehaviors]
+                .map(idStr => Number.parseInt(idStr) as ClusterId)
+                .filter(id => Number.isFinite(id));
 
-                const cluster = this.#clusterFor(endpoint, id);
-                this.#synchronizeCluster(endpoint, cluster);
+            // Ensure we process Descriptor cluster first because we trust our storage and extraneous cluster data were
+            // there before too, so we simply load them also if they might not be contained in indices
+            const descriptorIndex = knownBehaviors.indexOf(DESCRIPTOR_ID);
+            if (descriptorIndex !== -1) {
+                knownBehaviors.splice(descriptorIndex, 1);
+                knownBehaviors.unshift(DESCRIPTOR_ID);
+            }
+
+            // Load state for each behavior
+            for (const id of knownBehaviors) {
+                this.#synchronizeCluster(endpoint, this.#clusterFor(endpoint, id));
             }
         }
 
@@ -197,7 +205,7 @@ export class ClientStructure {
                         logger.debug(
                             "Received status for",
                             change.kind === "attr-status" ? "attribute" : "event",
-                            Diagnostic.strong(change.path.toString()),
+                            Diagnostic.strong(Diagnostic.dict(change.path)),
                             `: ${Status[change.status]}#${change.status}${change.clusterStatus !== undefined ? `/${Status[change.clusterStatus]}#${change.clusterStatus}` : ""}`,
                         );
                         break;
@@ -236,10 +244,18 @@ export class ClientStructure {
         await this.#emitPendingEvents();
     }
 
-    /** Reference to the default subscription used when the node was started. */
-    protected get subscribedFabricFiltered() {
+    /** Determines if the subscription is fabric filtered */
+    protected get subscribedFabricFiltered(): boolean {
         if (this.#subscribedFabricFiltered === undefined) {
-            this.#subscribedFabricFiltered = this.#node.state.network.defaultSubscription?.isFabricFiltered ?? true;
+            const defaultSubscription =
+                this.#node.state.network.defaultSubscription ??
+                ({} as { isFabricFiltered?: boolean; fabricFiltered?: boolean }); // Either Subscribe or Options
+            this.#subscribedFabricFiltered =
+                ("isFabricFiltered" in defaultSubscription
+                    ? defaultSubscription.isFabricFiltered
+                    : "fabricFiltered" in defaultSubscription
+                      ? defaultSubscription.fabricFiltered
+                      : true) ?? true;
             this.#node.events.network.defaultSubscription$Changed.on(newSubscription => {
                 this.#subscribedFabricFiltered = newSubscription?.isFabricFiltered ?? true;
             });
@@ -292,7 +308,7 @@ export class ClientStructure {
         const { endpointId, clusterId } = occurrence.path;
 
         const endpoint = this.#endpoints.get(endpointId);
-        // If we are building updates on current cluster or endpoint has pending changes, delay event emission
+        // If we are building updates on the current cluster or endpoint has pending changes, delay event emission
         if (
             (currentUpdates && (currentUpdates.endpointId === endpointId || currentUpdates.clusterId === clusterId)) ||
             (endpoint !== undefined && this.#pendingChanges?.has(endpoint))
@@ -323,7 +339,7 @@ export class ClientStructure {
     }
 
     /**
-     * Apply new attribute values for specific endpoint/cluster.
+     * Apply new attribute values for a specific endpoint / cluster.
      *
      * This is invoked in a batch when we've collected all sequential values for the current endpoint/cluster.
      */
@@ -386,6 +402,7 @@ export class ClientStructure {
                     [FeatureMap.id]: features,
                     [AttributeList.id]: attributeList,
                     [AcceptedCommandList.id]: commandList,
+                    [GeneratedCommandList.id]: generatedCommandList,
                 } = cluster.store.initialValues;
 
                 if (typeof clusterRevision === "number") {
@@ -407,18 +424,27 @@ export class ClientStructure {
                         (a, b) => a - b,
                     );
                 }
+
+                if (Array.isArray(generatedCommandList)) {
+                    cluster.generatedCommands = (
+                        generatedCommandList.filter(cmd => typeof cmd === "number") as CommandId[]
+                    ).sort((a, b) => a - b);
+                }
             }
 
             if (
-                cluster.revision !== undefined &&
-                cluster.features !== undefined &&
-                cluster.attributes !== undefined &&
-                cluster.commands !== undefined
+                // All global attributes have fallbacks, so we can't wait until we're sure we have them all.  Instead,
+                // wait until we are sure there is something useful.  We therefore rely on unspecified behavior that all
+                // attributes travel consecutively to ensure we initialize fully as we have no other choice
+                cluster.attributes?.length ||
+                cluster.commands?.length ||
+                cluster.generatedCommands?.length
             ) {
                 const behaviorType = PeerBehavior(cluster as PeerBehavior.ClusterShape);
 
                 if (endpoint.lifecycle.isInstalled) {
                     cluster.pendingBehavior = behaviorType;
+                    // TODO Should we somehow validate that against descriptor serverList because we might load data not in there
                     this.#scheduleStructureChange(
                         structure,
                         endpoint.behaviors.supported[behaviorType.id] ? "rebuild" : "install",
@@ -532,6 +558,7 @@ export class ClientStructure {
             }
 
             part.pendingOwner = structure;
+            // TODO Should we somehow validate that against descriptor serverList because we might load data not in there
             this.#scheduleStructureChange(part, "install");
         }
 
@@ -638,7 +665,7 @@ export class ClientStructure {
      *
      * Currently, we apply granular updates to clusters.  This will possibly result in subtle errors if peers change in
      * incompatible ways, but the backings are designed to be fairly resilient to this.  This is simpler for API users
-     * to deal with in the common case where they can just ignore. If it becomes problematic we can revert to replacing
+     * to deal with in the common case where they can just ignore. If it becomes problematic, we can revert to replacing
      * entire endpoints or behaviors when there are structural changes.
      */
     async #rebuild(structure: EndpointStructure) {

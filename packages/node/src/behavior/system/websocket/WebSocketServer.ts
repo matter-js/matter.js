@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -27,6 +27,6 @@ export namespace WebSocketServer {
          *   - ws+unix (WebSockets over a UNIX socket)
          *   - wss+unix (WebSockets over a secure UNIX socket)
          */
-        override address = "ws+unix:matter.sock";
+        override address = "ws+unix://matter.sock";
     }
 }

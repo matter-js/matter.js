@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -50,7 +50,7 @@ export class ClientNodeStores {
                 }
             }
 
-            this.#createNodeStore(id);
+            this.#createNodeStore(id, true);
         }
 
         await MatterAggregateError.allSettled(
@@ -72,19 +72,23 @@ export class ClientNodeStores {
     }
 
     /**
-     * Obtain the store for a single {@link ClientNode}.
+     * Get the store for a single {@link ClientNode} or peer Id.
      *
-     * These stores are cached internally by ID.
+     * These stores are cached internally by Id.
      */
-    storeForNode(node: ClientNode): ClientNodeStore {
+    storeForNode(nodeOrId: ClientNode | string): ClientNodeStore {
         this.#construction.assert();
 
-        const store = this.#stores[node.id];
+        if (typeof nodeOrId !== "string") {
+            nodeOrId = nodeOrId.id;
+        }
+
+        const store = this.#stores[nodeOrId];
         if (store) {
             return store;
         }
 
-        return this.#createNodeStore(node.id);
+        return this.#createNodeStore(nodeOrId);
     }
 
     storeForGroup(node: ClientGroup): ClientNodeStore {
@@ -117,14 +121,14 @@ export class ClientNodeStores {
     #createGroupStore(id: string) {
         const manager = new StorageManager(new StorageBackendMemory());
         manager.initialize();
-        const store = new ClientNodeStore(id, manager.createContext(id));
+        const store = new ClientNodeStore(id, manager.createContext(id), false);
         store.construction.start();
         this.#stores[id] = store;
         return store;
     }
 
-    #createNodeStore(id: string) {
-        const store = new ClientNodeStore(id, this.#storage.createContext(id));
+    #createNodeStore(id: string, isPreexisting = false) {
+        const store = new ClientNodeStore(id, this.#storage.createContext(id), isPreexisting);
         store.construction.start();
         this.#stores[id] = store;
         return store;

@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -291,15 +291,15 @@ export class ClassSemantics extends Semantics {
         // Invoke any custom extension logic
         this.#new?.[ClassSemantics.extend]?.(this);
 
-        // Apply base finalization
-        super.finalize();
-
         // Finalize fields
         if (this.#definedFields) {
             for (const field of this.#definedFields.values()) {
                 field.finalize();
             }
         }
+
+        // Apply base finalization
+        super.finalize();
     }
 
     #applyBaseSemantics() {
@@ -354,6 +354,10 @@ export class ClassSemantics extends Semantics {
             name = "Unnamed";
         }
         return new type({ name, operationalBase: struct });
+    }
+
+    get owner() {
+        return this;
     }
 }
 

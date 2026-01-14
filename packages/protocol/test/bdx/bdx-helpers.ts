@@ -1,17 +1,18 @@
 import { BdxSessionConfiguration } from "#bdx/BdxSessionConfiguration.js";
-import { BdxClient, BdxMessage, BdxMessenger, BdxProtocol, BdxStatusMessage } from "#bdx/index.js";
+import { BdxClient, BdxMessage, BdxMessenger, BdxProtocol, BdxStatusMessage, ScopedStorage } from "#bdx/index.js";
 import { Message } from "#codec/MessageCodec.js";
 import { MaybePromise, StorageBackendMemory, StorageManager } from "#general";
 import { ProtocolMocks } from "#protocol/ProtocolMocks.js";
+import { SecureSession } from "#session/index.js";
 import { BDX_PROTOCOL_ID, BdxMessageType, SecureMessageType } from "#types";
-import { createPromise, StorageContext } from "@matter/general";
+import { createPromise } from "@matter/general";
 
 type MessageRecords = { type: BdxMessageType | SecureMessageType.StatusReport; data: any };
 
 export async function bdxTransfer(params: {
     prepare: (
-        clientStorage: StorageContext,
-        serverStorage: StorageContext,
+        clientStorage: ScopedStorage,
+        serverStorage: ScopedStorage,
         messenger: BdxMessenger,
     ) => MaybePromise<{
         bdxClient: BdxClient;
@@ -19,8 +20,8 @@ export async function bdxTransfer(params: {
         serverLimits?: BdxSessionConfiguration.Config;
     }>;
     validate: (
-        clientStorage: StorageContext,
-        serverStorage: StorageContext,
+        clientStorage: ScopedStorage,
+        serverStorage: ScopedStorage,
         meta: {
             clientExchangeData: MessageRecords[];
             serverExchangeData: MessageRecords[];
@@ -41,8 +42,8 @@ export async function bdxTransfer(params: {
     const storage = new StorageManager(new StorageBackendMemory());
     storage.close = () => {};
     await storage.initialize();
-    const clientStorage = storage.createContext("Client");
-    const serverStorage = storage.createContext("Server");
+    const clientStorage = new ScopedStorage(storage.createContext("Client"), "ota");
+    const serverStorage = new ScopedStorage(storage.createContext("Server"), "ota");
 
     // Prepare the test data and create Client
     const { bdxClient, expectedInitialMessageType, serverLimits } = await params.prepare(
@@ -59,11 +60,10 @@ export async function bdxTransfer(params: {
         if (params.clientExchangeManipulator) {
             message = params.clientExchangeManipulator(message);
         }
+        await receivingExchange.write(message);
         if (clientExchangeData.length === 1) {
             // We catch the first message because this is used to initialize the Server Bdx Protocol
             resolver(message);
-        } else {
-            await receivingExchange.write(message);
         }
     });
 
@@ -81,7 +81,12 @@ export async function bdxTransfer(params: {
     const message = await promise;
     expect(clientExchangeData[0].type).equals(expectedInitialMessageType);
 
-    const bdxProtocol = new BdxProtocol(serverStorage, serverLimits);
+    const bdxProtocol = new BdxProtocol();
+    bdxProtocol.enablePeerForScope(
+        (receivingExchange.session as SecureSession).peerAddress,
+        serverStorage,
+        serverLimits,
+    );
 
     let serverError: unknown;
     try {

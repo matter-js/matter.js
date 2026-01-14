@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -150,11 +150,18 @@ export class CaseClient {
                 responderSessionId: peerSessionId,
                 responderSessionParams,
             } = sigma2;
+
+            // Update the session timing parameters with the just received ones to optimize the session establishment
+            if (responderSessionParams !== undefined) {
+                exchange.session.timingParameters = responderSessionParams;
+            }
+
             // We use the Fallbacks for the session parameters overridden by what was sent by the device in Sigma2
             const peerSessionParameters = {
                 ...exchange.session.parameters,
                 ...(responderSessionParams ?? {}),
             };
+
             const sharedSecret = await crypto.generateDhSecret(localKey, PublicKey(peerKey));
             const sigma2Salt = Bytes.concat(
                 operationalIdentityProtectionKey,
@@ -228,8 +235,7 @@ export class CaseClient {
             const sigma3Bytes = await messenger.sendSigma3({ encrypted });
             await messenger.waitForSuccess("Sigma3-Success");
 
-            // All good! Create secure session
-            // Configured CATs take precedence over resumption record ones
+            // Create a secure session. Configured CATs take precedence over resumption record ones
             const sessionCaseAuthenticatedTags = caseAuthenticatedTags ?? resumptionRecord?.caseAuthenticatedTags;
             const secureSessionSalt = Bytes.concat(
                 operationalIdentityProtectionKey,

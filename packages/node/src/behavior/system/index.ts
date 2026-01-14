@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -15,4 +15,5 @@ export * from "./parts/index.js";
 export * from "./product-description/index.js";
 export * from "./remote/index.js";
 export * from "./sessions/index.js";
+export * from "./software-update/index.js";
 export * from "./websocket/index.js";

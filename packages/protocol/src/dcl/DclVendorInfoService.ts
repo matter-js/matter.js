@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -11,6 +11,7 @@ import {
     Environment,
     Logger,
     StorageContext,
+    StorageManager,
     StorageService,
     Time,
     Timer,
@@ -39,6 +40,7 @@ export type VendorInfo = {
  */
 export class DclVendorInfoService {
     readonly #construction: Construction<DclVendorInfoService>;
+    #storageManager?: StorageManager;
     #storage?: StorageContext;
     #vendorIndex = new Map<number, VendorInfo>();
     #updateTimer?: Timer;
@@ -51,7 +53,8 @@ export class DclVendorInfoService {
         this.#options = options;
 
         this.#construction = Construction(this, async () => {
-            this.#storage = (await environment.get(StorageService).open("vendors")).createContext("info");
+            this.#storageManager = await environment.get(StorageService).open("vendors");
+            this.#storage = this.#storageManager.createContext("info");
             await this.#loadVendors(this.#storage);
             await this.update();
 
@@ -200,6 +203,8 @@ export class DclVendorInfoService {
             this.#updateTimer.stop();
             this.#updateTimer = undefined;
         }
+
+        await this.#storageManager?.close();
     }
 }
 

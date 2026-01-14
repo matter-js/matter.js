@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -16,6 +16,10 @@ export class Rcac extends OperationalBase<OperationalCertificate.Rcac> {
     /** Construct the class from a Tlv version of the certificate */
     static fromTlv(tlv: Bytes): Rcac {
         return new Rcac(OperationalCertificate.TlvRcac.decode(tlv));
+    }
+
+    static publicKeyOfTlv(tlv: Bytes): Bytes {
+        return Rcac.fromTlv(tlv).cert.ellipticCurvePublicKey;
     }
 
     /** Construct the class from an ASN.1/DER encoded certificate */

@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -77,7 +77,7 @@ addRun({ name: "Run current file", args: ["${file}"] });
 addRun({
     name: "Run shell",
     cwd: "packages/nodejs-shell",
-    args: ["dist/cjs/app.js"],
+    args: ["dist/esm/app.js"],
     group: "tool",
 });
 addRun({
@@ -117,7 +117,7 @@ for (const path of await Package.workspace.glob("support/chip-testing/test/*")) 
 }
 
 // Generate launches for each example
-for (const example of await Package.workspace.glob("packages/examples/src/*/*.ts")) {
+for (const example of await Package.workspace.glob("examples/*/src/*.ts")) {
     const name = basename(example, ".ts");
     if (name === "main" || name.startsWith("example")) {
         continue;

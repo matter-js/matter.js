@@ -1,12 +1,12 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import {
+    AddressLifespan,
     BasicSet,
-    Bytes,
     ChannelType,
     Diagnostic,
     DnsMessageType,
@@ -19,9 +19,9 @@ import {
     ImplementationError,
     Instant,
     InternalError,
-    Lifespan,
     Lifetime,
     Logger,
+    MdnsSocket,
     Millis,
     Minutes,
     ObserverGroup,
@@ -36,7 +36,7 @@ import {
     isIPv6,
 } from "#general";
 import { PeerAddress } from "#peer/PeerAddress.js";
-import { NodeId, VendorId } from "#types";
+import { GlobalFabricId, NodeId, VendorId } from "#types";
 import {
     CommissionableDevice,
     CommissionableDeviceIdentifiers,
@@ -56,17 +56,16 @@ import {
     getShortDiscriminatorQname,
     getVendorQname,
 } from "./MdnsConsts.js";
-import { MdnsSocket } from "./MdnsSocket.js";
 
 const logger = Logger.get("MdnsClient");
 
 const MDNS_EXPIRY_GRACE_PERIOD_FACTOR = 1.05;
 
-type MatterServerRecordWithExpire = ServerAddressUdp & Lifespan;
+type MatterServerRecordWithExpire = ServerAddressUdp & AddressLifespan;
 
 /** Type for commissionable Device records including Lifespan details. */
 type CommissionableDeviceRecordWithExpire = Omit<CommissionableDevice, "addresses"> &
-    Lifespan & {
+    AddressLifespan & {
         addresses: Map<string, MatterServerRecordWithExpire>; // Override addresses type to include expiration
         instanceId: string; // instance ID
         SD: number; // Additional Field for Short discriminator
@@ -76,12 +75,12 @@ type CommissionableDeviceRecordWithExpire = Omit<CommissionableDevice, "addresse
 
 /** Type for operational Device records including Lifespan details. */
 type OperationalDeviceRecordWithExpire = Omit<OperationalDevice, "addresses"> &
-    Lifespan & {
+    AddressLifespan & {
         addresses: Map<string, MatterServerRecordWithExpire>; // Override addresses type to include expiration
     };
 
 /** Type for any DNS record with Lifespan (discoveredAt and ttl) details. */
-type AnyDnsRecordWithExpiry = DnsRecord<any> & Lifespan;
+type AnyDnsRecordWithExpiry = DnsRecord<any> & AddressLifespan;
 
 /** Type for DNS answers with Address details structured for better direct access performance. */
 type StructuredDnsAddressAnswers = {
@@ -114,7 +113,7 @@ export interface MdnsScannerTargetCriteria {
 
     /** List of operational targets. */
     operationalTargets: {
-        operationalId: Bytes;
+        fabricId: GlobalFabricId;
         nodeId?: NodeId;
     }[];
 }
@@ -209,12 +208,13 @@ export class MdnsClient implements Scanner {
         for (const criteria of this.#targetCriteriaProviders) {
             const { operationalTargets, commissionable } = criteria;
             cacheCommissionableDevices = cacheCommissionableDevices || commissionable;
-            for (const { operationalId, nodeId } of operationalTargets) {
-                const operationalIdString = Bytes.toHex(operationalId).toUpperCase();
+            for (const { fabricId, nodeId } of operationalTargets) {
                 if (nodeId === undefined) {
-                    this.#operationalScanTargets.add(operationalIdString);
+                    this.#operationalScanTargets.add(GlobalFabricId.strOf(fabricId));
                 } else {
-                    this.#operationalScanTargets.add(`${operationalIdString}-${NodeId.toHexString(nodeId)}`);
+                    this.#operationalScanTargets.add(
+                        `${GlobalFabricId.strOf(fabricId)}-${NodeId.strOf(nodeId)}`.toUpperCase(),
+                    );
                 }
             }
         }
@@ -494,11 +494,6 @@ export class MdnsClient implements Scanner {
         return this.#recordWaiters.has(queryId);
     }
 
-    #createOperationalMatterQName(operationalId: Bytes, nodeId: NodeId) {
-        const operationalIdString = Bytes.toHex(operationalId).toUpperCase();
-        return getOperationalDeviceQname(operationalIdString, NodeId.toHexString(nodeId));
-    }
-
     /**
      * Method to find an operational device (already commissioned) and return a promise with the list of discovered
      * IP/ports or an empty array if not found.
@@ -512,7 +507,7 @@ export class MdnsClient implements Scanner {
         if (this.#closing) {
             throw new ImplementationError("Cannot discover operational device because scanner is closing.");
         }
-        const deviceMatterQname = this.#createOperationalMatterQName(fabric.operationalId, nodeId);
+        const deviceMatterQname = getOperationalDeviceQname(fabric.globalId, nodeId);
 
         let storedDevice = ignoreExistingRecords ? undefined : this.#getOperationalDeviceRecords(deviceMatterQname);
         if (storedDevice === undefined) {
@@ -538,7 +533,7 @@ export class MdnsClient implements Scanner {
     }
 
     cancelOperationalDeviceDiscovery(fabric: Fabric, nodeId: NodeId, resolvePromise = true) {
-        const deviceMatterQname = this.#createOperationalMatterQName(fabric.operationalId, nodeId);
+        const deviceMatterQname = getOperationalDeviceQname(fabric.globalId, nodeId);
         this.#finishWaiter(deviceMatterQname, resolvePromise);
     }
 
@@ -550,8 +545,8 @@ export class MdnsClient implements Scanner {
         this.#finishWaiter(queryId, resolvePromise);
     }
 
-    getDiscoveredOperationalDevice({ operationalId }: Fabric, nodeId: NodeId) {
-        return this.#getOperationalDeviceRecords(this.#createOperationalMatterQName(operationalId, nodeId));
+    getDiscoveredOperationalDevice({ globalId }: Fabric, nodeId: NodeId) {
+        return this.#getOperationalDeviceRecords(getOperationalDeviceQname(globalId, nodeId));
     }
 
     /**
@@ -1576,9 +1571,9 @@ export class MdnsClient implements Scanner {
     static discoveryDataDiagnostics(data: DiscoveryData, kind?: string) {
         return Diagnostic.dict({
             kind,
-            SII: Duration.format(data.SII),
-            SAI: Duration.format(data.SAI),
-            SAT: Duration.format(data.SAT),
+            SII: data.SII !== undefined ? Duration.format(data.SII) : undefined,
+            SAI: data.SAI !== undefined ? Duration.format(data.SAI) : undefined,
+            SAT: data.SAT !== undefined ? Duration.format(data.SAT) : undefined,
             T: data.T,
             DT: data.DT,
             PH: data.PH,

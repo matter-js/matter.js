@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -172,7 +172,7 @@ export class Logger {
      */
     static reportUnhandledError(error: Error) {
         try {
-            Logger.get("Logger").fatal("Unhandled error detected:", error);
+            Logger.get("Unhandled").fatal("Unhandled error detected:", error);
         } catch (e) {
             // We do not want to cause yet another error so if logging fails for any reason it goes unreported
         }

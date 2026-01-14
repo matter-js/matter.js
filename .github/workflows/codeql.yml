@@ -38,7 +38,7 @@ jobs:
           config: |
             paths-ignore:
               - packages/node/src/node/ServerNode.ts
-              - packages/examples/**
+              - examples/**
               - support/chip-testing/**
               - '**/test/**/*Test.ts'
 

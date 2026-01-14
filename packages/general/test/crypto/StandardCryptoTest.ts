@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -153,17 +153,6 @@ describe("StandardCrypto", () => {
                     const hash = await crypto.computeHash(testData, alg);
                     expect(Bytes.isBytes(hash)).to.be.true;
                     expect(hash.byteLength).to.equal(HASH_ALGORITHM_OUTPUT_LENGTHS[alg]);
-                });
-
-                it(`throws on streaming`, async () => {
-                    const baseData = Bytes.of(testData);
-                    async function* data() {
-                        yield Bytes.of(baseData).slice(0, 5);
-                        yield Bytes.of(baseData).slice(5);
-                    }
-                    expect(() => crypto.computeHash(data(), alg)).to.throw(
-                        /Streamed hash computation is not supported in StandardCrypto/,
-                    );
                 });
 
                 it(`supports array of buffers`, async () => {

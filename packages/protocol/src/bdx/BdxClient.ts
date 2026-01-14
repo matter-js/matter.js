@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -34,6 +34,14 @@ export class BdxClient {
 
     constructor(bdxSession: BdxSession) {
         this.#session = bdxSession;
+    }
+
+    get progressInfo() {
+        return this.#session.progressInfo;
+    }
+
+    get progressFinished() {
+        return this.#session.progressFinished;
     }
 
     /** This is the main entry point to initiate and process the BDX transfer. */

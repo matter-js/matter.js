@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -49,7 +49,7 @@ describe("a large bridge", () => {
         const node = (await createLargeBridge()).owner as MockServerNode;
         await commissioning.commission(node);
 
-        await interaction.read(node, node.env.get(FabricManager).maybeForIndex(FabricIndex(1))!, false, {});
+        await interaction.read(node, node.env.get(FabricManager).maybeFor(FabricIndex(1))!, false, {});
 
         await node.close();
     });

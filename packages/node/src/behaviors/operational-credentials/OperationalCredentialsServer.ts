@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2022-2025 Matter.js Authors
+ * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -32,6 +32,7 @@ import {
 import {
     Command,
     FabricIndex,
+    NodeId,
     StatusCode,
     StatusResponse,
     StatusResponseError,
@@ -302,7 +303,9 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
         //  session context with the FabricIndex generated above, such that subsequent interactions have the proper
         //  accessing fabric.
 
-        logger.info(`addNoc success, adminVendorId ${adminVendorId}, caseAdminSubject ${caseAdminSubject}`);
+        logger.info(
+            `addNoc success, adminVendorId ${adminVendorId}, caseAdminSubject ${NodeId.strOf(caseAdminSubject)}`,
+        );
 
         return {
             statusCode: OperationalCredentials.NodeOperationalCertStatus.Ok,
@@ -332,7 +335,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
 
         if (timedOp.rootCertSet) {
             // CERTIFICATION BUG WORKAROUND
-            // This should be a ConstraintError but tests require this error
+            // This should be a ConstraintError, but tests require this error
             // See https://github.com/CHIP-Specifications/chip-test-plans/issues/4807
             return {
                 statusCode: OperationalCredentials.NodeOperationalCertStatus.MissingCsr,
@@ -341,7 +344,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
 
         if (timedOp.forUpdateNoc === undefined) {
             // CERTIFICATION BUG WORKAROUND
-            // This should be a ConstraintError but tests require this error
+            // This should be a ConstraintError, but tests require this error
             // See https://github.com/CHIP-Specifications/chip-test-plans/issues/4807
             return {
                 statusCode: OperationalCredentials.NodeOperationalCertStatus.MissingCsr,
@@ -359,8 +362,11 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
         try {
             const updatedFabric = await timedOp.buildUpdatedFabric(nocValue, icacValue);
 
-            // update FabricManager and Resumption records but leave current session intact
+            // update FabricManager and Resumption records but leave the current session intact
             await timedOp.replaceFabric(updatedFabric);
+
+            // close all sessions found to the old fabric and just leave the one with this exchange open to deliver response
+            await timedOp.associatedFabric.replaced(this.context.exchange);
 
             return {
                 statusCode: OperationalCredentials.NodeOperationalCertStatus.Ok,
@@ -394,7 +400,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
     override async removeFabric({ fabricIndex }: OperationalCredentials.RemoveFabricRequest) {
         assertRemoteActor(this.context);
 
-        const fabric = this.env.get(FabricManager).maybeForIndex(fabricIndex);
+        const fabric = this.env.get(FabricManager).maybeFor(fabricIndex);
 
         if (fabric === undefined) {
             return {
@@ -476,7 +482,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
             attChallenge: this.context.session.attestationChallengeKey,
             clientChallenge,
             fabricIndex,
-            fabric: fabric.config,
+            fabric,
         });
 
         return {
