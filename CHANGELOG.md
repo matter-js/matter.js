@@ -11,6 +11,12 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/model
+    - Fix: Adjust a Enum conformance in FanControl which can never be validated and so lead to errors 
+
+- @matter/node
+    - Fix: Always trust unknown attribute-ids and command-ids delivered by devices and do not validate them (only affects controller usage)
+
 - @project-chip/matter.js
     - Fix: Report attribute changes also for endpoints with multi-level structure. This broke in 0.16.0
 
