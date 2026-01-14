@@ -9,15 +9,20 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+- @matter/protocol
+  - Enhancement: Exclude invoking commands from using the Interaction queue because the user should know what he does and commands are usually smaller packages
+
 ## 0.16.2 (2026-01-14)
 
 - @matter/protocol
-  - Improve handling of errors when peers are closed or when removing not-connected nodes
+    - Fix: Improve handling of errors when peers are closed or when removing not-connected nodes
 
 ## 0.16.1 (2026-01-13)
 
 - @matter/protocol
-    - Prevents an unhandled promise rejection when reconnections are in progress when peers are closed
+    - Fix: Prevents an unhandled promise rejection when reconnections are in progress when peers are closed
 
 ## 0.16.0 (2026-01-12)
 

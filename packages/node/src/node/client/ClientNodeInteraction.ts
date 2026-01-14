@@ -131,7 +131,8 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
      * The returned command response is returned as response chunks
      */
     async *invoke(request: ClientInvoke, context?: ActionContext): DecodedInvokeResult {
-        const client = await this.#connect();
+        // For commands, we always ignore the queue because the user is responsible itself for that
+        const client = await this.#connect(false);
 
         yield* client.invoke(request, context);
     }
@@ -149,15 +150,16 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
 
     /**
      * Ensure the node is online and return the ClientInteraction.
+     * When respectQueue is set to false, then the queued interaction is not used even if it is relevant for the device.
      */
-    async #connect(): Promise<ClientInteraction> {
+    async #connect(respectQueue = true): Promise<ClientInteraction> {
         if (!this.#node.lifecycle.isOnline) {
             await this.#node.start();
         }
         const props = this.physicalProperties;
         // When we have a thread device, then we use the queue, or when we do not know anything
-        // (usually before the initial subscription)
-        return props.threadConnected || !props.rootEndpointServerList.length
+        // (usually before the initial subscription) unless the queue is ignored by method parameter
+        return respectQueue && (props.threadConnected || !props.rootEndpointServerList.length)
             ? this.#node.env.get(QueuedClientInteraction)
             : this.#node.env.get(ClientInteraction);
     }
