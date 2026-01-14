@@ -101,7 +101,7 @@ export function element<
                     if (modifier instanceof Model) {
                         semantics.mutableModel = modifier;
                         if (semantics.mutableModel instanceof CommandModel && kind.Tag !== "response") {
-                            (semantics.mutableModel as CommandModel).isResponse = false;
+                            semantics.mutableModel.isResponse = false;
                         }
                         continue;
                     }
