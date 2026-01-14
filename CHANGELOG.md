@@ -12,7 +12,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @project-chip/matter.js
-    - Fix: Report attribute changes also for endpoints with multi-level structured. This broke in 0.16.0
+    - Fix: Report attribute changes also for endpoints with multi-level structure. This broke in 0.16.0
 
 ## 0.16.2 (2026-01-14)
 
