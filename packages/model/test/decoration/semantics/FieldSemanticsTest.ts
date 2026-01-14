@@ -4,11 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Ensure correct initialization order
+// Ensure the correct initialization order
 import "#decoration/semantics/index.js";
 
 import { attribute } from "#decoration/decorators/attribute.js";
 import { command } from "#decoration/decorators/command.js";
+import { datatype } from "#decoration/decorators/datatype.js";
 import { field } from "#decoration/decorators/field.js";
 import { listOf } from "#decoration/decorators/listOf.js";
 import { nonvolatile } from "#decoration/decorators/nonvolatile.js";
@@ -122,7 +123,7 @@ describe("FieldSemantics", () => {
     it("sets command response", () => {
         class Worker {
             @command(1, uint8)
-            @response(uint32)
+            @response(2, uint32)
             work() {}
         }
 
@@ -134,11 +135,36 @@ describe("FieldSemantics", () => {
         expect(work).not.undefined;
         expect(work.id).equals(1);
         expect(work.name).equals("work");
+        expect(work.isRequest).true;
 
         const rsp = work.responseModel!;
         expect(rsp).not.undefined;
-        expect(rsp.id).equals(1);
+        expect(rsp.id).equals(2);
         expect(rsp.name).equals("workResponse");
         expect(rsp.isResponse).true;
+    });
+
+    it("adds a command without response", () => {
+        @datatype()
+        class FooParameter {
+            @field(listOf(uint32))
+            list!: number[];
+        }
+
+        class Foo {
+            @command(2, FooParameter)
+            myMethod(_params: FooParameter) {}
+        }
+
+        const schema = Schema.Required(Foo);
+        expect(schema.children.length).equals(1);
+        const myMethod = schema.get(CommandModel, "myMethod");
+        expect(myMethod).not.undefined;
+        expect(myMethod!.name).equals("myMethod");
+        expect(myMethod!.direction).is.undefined;
+        expect(myMethod!.response).is.undefined;
+        expect(myMethod!.id).equals(2);
+
+        expect(myMethod!.responseModel).is.undefined;
     });
 });
