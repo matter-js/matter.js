@@ -6,8 +6,10 @@
 
 export * from "./attribute.js";
 export * from "./cluster.js";
+export * from "./command.js";
 export * from "./datatype.js";
 export * from "./element.js";
+export * from "./event.js";
 export * from "./field.js";
 export * from "./listOf.js";
 export * from "./mandatory.js";
