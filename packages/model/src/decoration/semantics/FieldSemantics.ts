@@ -15,10 +15,21 @@ import { Semantics } from "./Semantics.js";
  * Decorator metadata associated with a specific class field.
  */
 export class FieldSemantics extends Semantics {
+    #owner: ClassSemantics;
+
     constructor(owner: ClassSemantics, name: string) {
         super();
+        this.#owner = owner;
 
         this.mutableModel = new FieldModel({ name, parent: owner.mutableModel });
+    }
+
+    get owner() {
+        return this.#owner;
+    }
+
+    get semanticModel() {
+        return this.localModel;
     }
 
     protected override createModel(): Model {
