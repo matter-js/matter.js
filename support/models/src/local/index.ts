@@ -22,6 +22,7 @@ import "./duration.js";
 import "./ElectricalPowerMeasurementOverrides.js";
 import "./epoch-s.js";
 import "./epoch-us.js";
+import "./FanControl.js";
 import "./GroupKeyManagementOverrides.js";
 import "./GroupsOverrides.js";
 import "./IlluminanceMeasurementOverrides.js";
