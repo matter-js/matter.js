@@ -700,6 +700,25 @@ export const ConditionalCommand = <RequestT, ResponseT, F extends BitSchema>(
     mandatoryIf,
 });
 
+export const UnknownCommand = <RequestT, ResponseT, F extends BitSchema>(
+    requestId: number,
+    requestSchema: TlvSchema<RequestT>,
+    responseId: number,
+    responseSchema: TlvSchema<ResponseT>,
+    { invokeAcl = AccessLevel.Operate, timed = false }: CommandOptions = {},
+): Command<RequestT, ResponseT, F> => ({
+    optional: false,
+    requestId: requestId as CommandId,
+    requestSchema,
+    responseId: responseId as CommandId,
+    responseSchema,
+    invokeAcl,
+    timed,
+    isConditional: false,
+    optionalIf: [],
+    mandatoryIf: [],
+});
+
 /**
  * @deprecated use {@link Priority}
  */
