@@ -18,7 +18,7 @@ const COMPRESSED_FABRIC_ID_INFO = Bytes.fromString("CompressedFabric");
  *
  * @see {@link MatterSpecification.v14.Core} § 4.3.2.2
  */
-export type GlobalFabricId = Branded<bigint, "CompressedFabricId">;
+export type GlobalFabricId = Branded<bigint, "GlobalFabricId">;
 
 export function GlobalFabricId(value: Parameters<typeof BigInt>[0] | Bytes): GlobalFabricId {
     if (Bytes.isBytes(value)) {

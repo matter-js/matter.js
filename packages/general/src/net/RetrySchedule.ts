@@ -68,7 +68,7 @@ export namespace RetrySchedule {
         /**
          * Overall timeout.
          *
-         * Leave undefined to allow indefinite transmission.
+         * Leave undefined to allow unlimited retries.
          */
         readonly timeout?: Duration;
 

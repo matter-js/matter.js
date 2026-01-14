@@ -96,7 +96,7 @@ export namespace Timestamp {
     /**
      * Compute the duration between two timestamps.
      */
-    export function delta(from: Timestamp, to: Timestamp) {
+    export function delta(from: Timestamp, to: Timestamp = Time.nowMs) {
         return (to - from) as Duration;
     }
 }
