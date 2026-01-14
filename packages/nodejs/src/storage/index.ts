@@ -6,3 +6,4 @@
 
 export * from "./StorageBackendDisk.js";
 export * from "./StorageBackendJsonFile.js";
+export * from "./sqlite/index.js";

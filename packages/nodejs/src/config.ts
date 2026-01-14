@@ -16,10 +16,10 @@ let trapProcessSignals = true;
 let trapUnhandledErrors = true;
 let setProcessExitCodeOnError = true;
 let installNetwork = true;
-
-// TODO - until we have proper feature detection, disable by default Node.js version of crypto in environments where
-// Node.js crypto emulation is insufficient
-let installCrypto = !process.versions.bun;
+// Automatic replace to `StandardCrypto` in bun.js
+let installCrypto = true;
+// SQLite based storage (forcefully disable in Node.js <22)
+let sqliteStorage = false;
 
 export class NodeJsAlreadyInitializedError extends Error {}
 
@@ -161,6 +161,20 @@ export const config = {
     set initializeStorage(value: boolean) {
         assertUninitialized("initializeStorage");
         initializeStorage = value;
+    },
+
+    /**
+     * Enables sqlite storage instead of file-system based storage (default: false).
+     * 
+     * [Experimental]
+     */
+    get sqliteStorage() {
+        return sqliteStorage;
+    },
+
+    set sqliteStorage(value: boolean) {
+        assertUninitialized("initializeStorage");
+        sqliteStorage = value;
     },
 
     /**

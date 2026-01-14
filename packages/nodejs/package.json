@@ -47,7 +47,8 @@
         "@matter/general": "*",
         "@matter/node": "*",
         "@matter/protocol": "*",
-        "@matter/types": "*"
+        "@matter/types": "*",
+        "@types/bun": "^1.3.6"
     },
     "devDependencies": {
         "@matter/model": "*",
