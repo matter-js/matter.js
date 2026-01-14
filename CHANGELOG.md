@@ -17,6 +17,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/node
     - Fix: Always trust unknown attribute-ids and command-ids delivered by devices and do not validate them (only affects controller usage)
 
+- @project-chip/matter.js
+    - Fix: Report attribute changes also for endpoints with multi-level structure. This broke in 0.16.0
+
 ## 0.16.2 (2026-01-14)
 
 - @matter/protocol
