@@ -24,7 +24,7 @@ import {
 import { NodeJsCrypto } from "#crypto/NodeJsCrypto.js";
 import { NodeJsHttpEndpoint } from "#net/NodeJsHttpEndpoint.js";
 import { createSqliteDisk } from "#storage/index.js";
-import { isBunjs, supportsSqlite } from "#util/RuntimeChecks.js";
+import { isBunjs, supportsSqlite } from "#util/runtimeChecks.js";
 
 import { existsSync, readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";

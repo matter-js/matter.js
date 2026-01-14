@@ -5,7 +5,7 @@
  */
 
 import { findDefaultExport } from "#util/findDefaultExport.js"
-import { isBunjs } from "#util/RuntimeChecks.js"
+import { isBunjs } from "#util/runtimeChecks.js"
 import type { StorageSqliteDisk } from "./StorageSqliteDisk.js"
 
 /**
