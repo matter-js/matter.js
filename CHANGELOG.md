@@ -18,7 +18,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Always trust unknown attribute-ids and command-ids delivered by devices and do not validate them (only affects controller usage)
 
 - @matter/protocol
-  - Enhancement: Exclude invoking commands from using the Interaction queue because the user should know what he does and commands are usually smaller packages
+  - Enhancement: Exclude invoking commands from using the Interaction queue because users should know what they are doing and commands are usually smaller packages
 
 ## 0.16.2 (2026-01-14)
 
