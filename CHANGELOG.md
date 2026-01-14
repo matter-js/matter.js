@@ -9,6 +9,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+- @matter/model
+    - Fix: Adjust a Enum conformance in FanControl which can never be validated and so lead to errors 
+
 ## 0.16.2 (2026-01-14)
 
 - @matter/protocol
