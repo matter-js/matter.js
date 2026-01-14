@@ -36,6 +36,7 @@ export * from "./NamedHandler.js";
 export * from "./Number.js";
 export * from "./Observable.js";
 export * from "./Promises.js";
+export * from "./Scheduler.js";
 export * from "./Semaphore.js";
 export * from "./serialize.js";
 export * from "./Set.js";
