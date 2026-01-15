@@ -64,7 +64,7 @@ export class StorageMigrator {
     - Success: ${result.success}
     - Migrated: ${result.migratedCount}
     - Skipped: ${result.skippedCount}
-    `.replace(/^\s+/mg, "")
+    `.replace(/^\s+/gm, "")
     if (result.skippedCount > 0 && result.skippedItems.length > 0) {
       logContent += `\n## Skipped Items\n`
       for (const item of result.skippedItems) {

@@ -216,8 +216,10 @@ function configureStorage(env: Environment) {
                 // Remove whatever old data
                 try {
                     await rm(path, { recursive: true, force: true })
-                } catch (err) { }
-                return createSqliteDisk(path, true)
+                } catch (err) {
+                    // do not care about result
+                }
+                return await createSqliteDisk(path, true)
             }
 
             const sqliteDisk = await createSqliteDisk(path, false)
