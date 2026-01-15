@@ -9,6 +9,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+- @matter/protocol
+    - Fix: Correctly handle local found production OTA files as "from production"
+
 ## 0.16.4 (2026-01-15)
 
 - @project-chip/matter.js
