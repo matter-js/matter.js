@@ -11,3 +11,4 @@ export type {
   DatabaseLike,
   DatabaseCreator,
 } from "./SqliteTypes.js"
+export { buildContextKeyLog } from "./SqliteStorageUtil.js"

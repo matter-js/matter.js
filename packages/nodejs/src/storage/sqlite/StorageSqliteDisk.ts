@@ -14,8 +14,13 @@ import {
 } from "@matter/general"
 
 import { SqliteStorageError } from "./SqliteStorageError.js"
-import { buildContextKeyLog, buildContextKeyPair, buildContextPath, ensureExtension, escapeGlob } from "./SqliteStorageUtil.js"
-
+import {
+  buildContextKeyLog,
+  buildContextKeyPair,
+  buildContextPath,
+  ensureExtension,
+  escapeGlob
+} from "./SqliteStorageUtil.js"
 import { SQLiteTransaction as Transaction } from "./SqliteTypes.js"
 import type {
   SafeUint8Array,
@@ -277,27 +282,24 @@ export class StorageSqliteDisk extends Storage implements CloneableStorage {
     return this.isInitialized
   }
 
-  override async initialize(migrate = false): Promise<void> {
+  override async initialize(): Promise<void> {
     if (this.#clear) {
       this.clear()
-    }
-    if (migrate) {
-      // migrate
     }
     this.isInitialized = true
   }
 
-  public async clone() {
+  public clone(): Storage {
     const clonedStorage = new StorageSqliteDisk({
       databaseCreator: this.#databaseCreator,
       path: null,
       tableName: this.#tableName,
       clear: false,
     })
-    await clonedStorage.initialize(false)
 
     const rawData = this.getRawAll()
     clonedStorage.setRaw(rawData)
+    clonedStorage.isInitialized = true
     return clonedStorage
   }
 

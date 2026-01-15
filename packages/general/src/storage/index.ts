@@ -8,6 +8,7 @@ export * from "./BytesStreamReader.js";
 export * from "./Storage.js";
 export * from "./StorageBackendMemory.js";
 export * from "./StorageContext.js";
+export * from "./StorageMigrator.js";
 export * from "./StorageManager.js";
 export * from "./StorageService.js";
 export * from "./StringifyTools.js";

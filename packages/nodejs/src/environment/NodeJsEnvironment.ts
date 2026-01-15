@@ -23,15 +23,14 @@ import {
 } from "#general";
 import { NodeJsCrypto } from "#crypto/NodeJsCrypto.js";
 import { NodeJsHttpEndpoint } from "#net/NodeJsHttpEndpoint.js";
-import { createSqliteDisk } from "#storage/index.js";
+import { createSqliteDisk, migrateDirectoryStorage, StorageBackendDisk } from "#storage/index.js";
 import { isBunjs, supportsSqlite } from "#util/runtimeChecks.js";
 
 import { existsSync, readFileSync } from "node:fs";
-import { writeFile } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { NodeJsNetwork } from "../net/NodeJsNetwork.js";
-import { StorageBackendDisk } from "../storage/StorageBackendDisk.js";
 import { ProcessManager } from "./ProcessManager.js";
 
 /**
@@ -208,11 +207,25 @@ function configureStorage(env: Environment) {
         supportsSqlite() &&
         (config.sqliteStorage || (env.vars.boolean("nodejs.storage.sqlite") ?? false))
     ) {
-        // SQLite storage
-        service.factory = namespace => createSqliteDisk(
-            resolve(service.location ?? ".", namespace),
-            env.vars.get("storage.clear", false),
-        )
+        // SQLite storage with migration
+        service.factory = async (namespace) => {
+            // migrateDirectoryStorage
+            const path = resolve(service.location ?? ".", namespace)
+            const clear = env.vars.get("storage.clear", false)
+            if (clear) {
+                // Remove whatever old data
+                try {
+                    await rm(path, { recursive: true, force: true })
+                } catch (err) { }
+                return createSqliteDisk(path, true)
+            }
+
+            const sqliteDisk = await createSqliteDisk(path, false)
+            // Try Migrate (ignore result)
+            await migrateDirectoryStorage(path, sqliteDisk)
+            // return sqliteDisk
+            return sqliteDisk
+        }
     } else {
         // File system storage
         service.factory = namespace => new StorageBackendDisk(
