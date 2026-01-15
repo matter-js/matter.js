@@ -13,6 +13,7 @@ import {
     Environment,
     ImplementationError,
     Logger,
+    MatterError,
     Minutes,
     Observable,
     ObserverGroup,
@@ -406,6 +407,18 @@ export class CommissioningController {
     async removeNode(nodeId: NodeId, tryDecommissioning = true) {
         const controller = this.#assertControllerIsStarted();
         const node = this.#pairedNodeForNodeId(nodeId);
+
+        // IF we have a node already remove the endpoints, they are lazily readded if decommissioning fails
+        if (node !== undefined) {
+            try {
+                for (const ep of node.node.endpoints) {
+                    this.#endpointsToPeers.delete(ep);
+                }
+            } catch (error) {
+                MatterError.accept(error);
+            }
+        }
+
         let decommissionSuccess = false;
         if (tryDecommissioning) {
             try {
@@ -424,9 +437,6 @@ export class CommissioningController {
         await controller.removeNode(nodeId);
         if (node !== undefined) {
             this.#initializedNodes.delete(node.id);
-            for (const ep of node.node.endpoints) {
-                this.#endpointsToPeers.delete(ep);
-            }
             this.#nodeChangeObservers.delete(node.id);
         }
     }
