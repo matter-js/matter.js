@@ -225,7 +225,7 @@ export class DclOtaUpdateService {
                     minApplicableSoftwareVersion: localUpdates[0].minApplicableSoftwareVersion ?? 0,
                     maxApplicableSoftwareVersion:
                         localUpdates[0].maxApplicableSoftwareVersion ?? localUpdates[0].softwareVersion - 1,
-                    source: "local",
+                    source: localUpdates[0].mode === "prod" ? "dcl-prod" : "local",
                 };
                 logger.debug(`Found local update`, Diagnostic.dict(localUpdate));
                 if (targetSoftwareVersion !== undefined && localUpdate.softwareVersion === targetSoftwareVersion) {
