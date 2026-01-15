@@ -408,7 +408,7 @@ export class CommissioningController {
         const controller = this.#assertControllerIsStarted();
         const node = this.#pairedNodeForNodeId(nodeId);
 
-        // IF we have a node already remove the endpoints, they are lazily readded if decommissioning fails
+        // If we have a node already remove the endpoints, they are lazily re-added if decommissioning fails
         if (node !== undefined) {
             try {
                 for (const ep of node.node.endpoints) {
