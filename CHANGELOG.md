@@ -9,15 +9,29 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## 0.16.3 (2026-01-15)
+
+- @matter/model
+    - Fix: Adjust a Enum conformance in FanControl which can never be validated and so lead to errors 
+
+- @matter/node
+    - Fix: Always trust unknown attribute-ids and command-ids delivered by devices and do not validate them (only affects controller usage)
+
+- @matter/protocol
+  - Enhancement: Exclude invoking commands from using the Interaction queue because users should know what they are doing and commands are usually smaller packages
+
+- @project-chip/matter.js
+    - Fix: Report attribute changes also for endpoints with multi-level structure. This broke in 0.16.0
+
 ## 0.16.2 (2026-01-14)
 
 - @matter/protocol
-  - Improve handling of errors when peers are closed or when removing not-connected nodes
+    - Fix: Improve handling of errors when peers are closed or when removing not-connected nodes
 
 ## 0.16.1 (2026-01-13)
 
 - @matter/protocol
-    - Prevents an unhandled promise rejection when reconnections are in progress when peers are closed
+    - Fix: Prevents an unhandled promise rejection when reconnections are in progress when peers are closed
 
 ## 0.16.0 (2026-01-12)
 

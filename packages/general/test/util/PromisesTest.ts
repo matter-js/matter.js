@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Observable, ObservableValue } from "#index.js";
 import { SafePromise } from "#util/Promises.js";
 
 describe("Promises", () => {
@@ -67,6 +68,67 @@ describe("Promises", () => {
             await promise2;
 
             expect(thens).equals(1);
+        });
+
+        it("works with observables", async () => {
+            const observable = new Observable<[boolean]>();
+
+            const done = SafePromise.race([observable]);
+
+            expect(observable.isObserved).true;
+
+            observable.emit(false);
+
+            expect(await done).equals(false);
+
+            expect(observable.isObserved).false;
+        });
+
+        it("unbinds observers on resolve", async () => {
+            let resolve!: () => void;
+            const promise = new Promise<void>(r => (resolve = r));
+
+            const observable = new Observable<[]>();
+
+            const done = SafePromise.race([promise, observable]);
+
+            expect(observable.isObserved).true;
+
+            resolve();
+
+            await done;
+
+            expect(observable.isObserved).false;
+        });
+
+        it("works with observable values", async () => {
+            const value = new ObservableValue<[boolean]>();
+
+            const done = SafePromise.race([value]);
+
+            expect(value.isObserved).true;
+
+            value.emit(false);
+
+            expect(value.isObserved).true;
+
+            value.emit(true);
+
+            expect(await done).equals(true);
+
+            expect(value.isObserved).false;
+        });
+
+        it("handles observable value rejection", async () => {
+            const value = new ObservableValue<[boolean]>();
+
+            const done = SafePromise.race([value]);
+
+            value.reject(new Error("oops"));
+
+            await expect(done).rejectedWith(Error, "oops");
+
+            expect(value.isObserved).false;
         });
     });
 });
