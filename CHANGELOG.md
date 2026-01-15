@@ -9,7 +9,12 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
-## __WORK IN PROGRESS__
+## 0.16.4 (2026-01-15)
+
+- @project-chip/matter.js
+    - Fix: Preventing crash on removing a node
+
+## 0.16.3 (2026-01-15)
 
 - @matter/model
     - Fix: Adjust a Enum conformance in FanControl which can never be validated and so lead to errors 
