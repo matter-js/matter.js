@@ -5,6 +5,7 @@
  */
 
 import type { DecodedPacket } from "#codec/MessageCodec.js";
+import { Mark } from "#common/Mark.js";
 import { SupportedTransportsSchema } from "#common/SupportedTransportsBitmap.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import {
@@ -17,6 +18,7 @@ import {
     Duration,
     Environment,
     Environmental,
+    hex,
     InternalError,
     Lifecycle,
     Logger,
@@ -702,7 +704,7 @@ export class SessionManager {
         return [...this.#sessions]
             .filter(session => session.isSecure && !session.isPase)
             .map(session => ({
-                name: session.via,
+                name: `${session.peerAddress.toString()}${Mark.SESSION}${hex.word(session.id)}`,
                 nodeId: session.nodeId,
                 peerNodeId: session.peerNodeId,
                 fabric: session instanceof SecureSession ? session.fabric?.externalInformation : undefined,

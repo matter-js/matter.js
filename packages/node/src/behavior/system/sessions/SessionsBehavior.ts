@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { EventEmitter, Observable } from "#general";
+import { EventEmitter, hex, Observable } from "#general";
 import type { ServerNode } from "#node/ServerNode.js";
-import { ExposedFabricInformation, NodeSession, SessionManager, Subscription } from "#protocol";
+import { ExposedFabricInformation, Mark, NodeSession, SessionManager, Subscription } from "#protocol";
 import { NodeId } from "#types";
 import { NodeLifecycle } from "../../../node/NodeLifecycle.js";
 import { Behavior } from "../../Behavior.js";
@@ -30,7 +30,7 @@ export class SessionsBehavior extends Behavior {
 
     #convertToExposedSession(session: NodeSession): SessionsBehavior.Session {
         return {
-            name: session.via,
+            name: `${session.peerAddress.toString()}${Mark.SESSION}${hex.word(session.id)}`,
             nodeId: session.nodeId,
             peerNodeId: session.peerNodeId,
             fabric: session.fabric?.externalInformation,
