@@ -195,6 +195,8 @@ jobs:
               --app-path all-clusters:../support/chip-testing/dist/esm/AllClustersTestApp.js \
               --app-path bridge:../support/chip-testing/dist/esm/BridgeTestApp.js \
               --app-path tv:../support/chip-testing/dist/esm/TvTestApp.js \
+              --app-path rvc:../support/chip-testing/AllClustersTestApp.sh \
+              --app-path lit-icd:../support/chip-testing/AllClustersTestApp.sh \
             '
 
 
@@ -243,6 +245,8 @@ jobs:
               --app-path all-clusters:../support/chip-testing/dist/esm/AllClustersTestApp.js \
               --app-path bridge:../support/chip-testing/dist/esm/BridgeTestApp.js \
               --app-path tv:../support/chip-testing/dist/esm/TvTestApp.js \
+              --app-path rvc:../support/chip-testing/AllClustersTestApp.sh \
+              --app-path lit-icd:../support/chip-testing/AllClustersTestApp.sh \
             '
 
   # Execute the fast application cluster tests
