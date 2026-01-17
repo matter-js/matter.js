@@ -87,6 +87,9 @@ describe("Ota", () => {
         expect(device.state.commissioning.commissioned).equals(true);
         expect(controller.peers.size).equals(1);
 
+        // Wait until defaults got announced
+        await MockTime.resolve(otaRequestor.eventsOf(OtaSoftwareUpdateRequestorServer).defaultOtaProviders$Changed);
+
         // Verify that the Provider was correctly identified and written to the device
         expect(otaRequestor.stateOf(OtaSoftwareUpdateRequestorServer).defaultOtaProviders).deep.equals([
             {

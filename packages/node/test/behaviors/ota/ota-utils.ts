@@ -216,7 +216,9 @@ export async function initOtaSite(
 
     // Enable test OTA images in the SoftwareUpdateManager via act()
     await otaProvider.act(agent => {
-        agent.get(SoftwareUpdateManager).state.allowTestOtaImages = true;
+        const su = agent.get(SoftwareUpdateManager);
+        su.state.allowTestOtaImages = true;
+        su.state.announceAsDefaultProvider = true;
     });
 
     return { site, device, controller, otaProvider, otaRequestor };

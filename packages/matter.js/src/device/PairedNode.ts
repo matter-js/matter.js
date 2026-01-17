@@ -320,6 +320,7 @@ export class PairedNode {
     #nodeShutdownDetected = false;
     #observers = new ObserverGroup();
     #attributeIdToNameMap = new Map<string, string>();
+    #decommissioned = false;
 
     /**
      * Endpoint structure change information that are checked when updating structure
@@ -444,9 +445,7 @@ export class PairedNode {
         this.#clientNode.lifecycle.offline.on(() => this.#setConnectionState(NodeStates.Disconnected));
         */
 
-        this.#observers.on(this.#clientNode.lifecycle.decommissioned, () =>
-            this.#setConnectionState(NodeStates.Disconnected),
-        );
+        this.#observers.on(this.#clientNode.lifecycle.decommissioned, () => this.#handleNodeDecommissioning());
         this.#observers.on(this.#clientNode.eventsOf(NetworkClient).subscriptionStatusChanged, isActive => {
             if (isActive) {
                 this.#setConnectionState(NodeStates.Connected);
@@ -572,6 +571,9 @@ export class PairedNode {
      * The provided connection options will be set and used internally if the node reconnects successfully.
      */
     connect(connectOptions?: CommissioningControllerNodeOptions) {
+        if (this.#decommissioned) {
+            throw new UnknownNodeError("This node is decommissioned and cannot be connected to.");
+        }
         if (connectOptions !== undefined) {
             this.#options = connectOptions;
         }
@@ -601,6 +603,9 @@ export class PairedNode {
      * Please use the triggerReconnect method for a non-blocking reconnection triggering.
      */
     async reconnect(connectOptions?: CommissioningControllerNodeOptions) {
+        if (this.#decommissioned) {
+            throw new UnknownNodeError("This node is decommissioned and cannot be connected to.");
+        }
         if (connectOptions !== undefined) {
             this.#options = connectOptions;
         }
@@ -1551,7 +1556,17 @@ export class PairedNode {
 
         await this.#clientNode.act(agent => agent.get(CommissioningClient).decommission());
 
+        await this.#handleNodeDecommissioning();
+    }
+
+    async #handleNodeDecommissioning() {
+        if (this.#decommissioned) {
+            return;
+        }
+        this.#decommissioned = true;
+
         this.#setConnectionState(NodeStates.Disconnected);
+
         await this.#commissioningController.removeNode(this.nodeId, false);
     }
 
@@ -1667,6 +1682,7 @@ export class PairedNode {
         this.#reconnectDelayTimer = undefined;
         this.#updateEndpointStructureTimer.stop();
         if (sendDecommissionedStatus) {
+            this.#decommissioned = true;
             this.#options.stateInformationCallback?.(this.nodeId, NodeStateInformation.Decommissioned);
             this.events.decommissioned.emit();
         }
