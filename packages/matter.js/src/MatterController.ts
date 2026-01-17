@@ -767,7 +767,7 @@ export class MatterController {
         this.#migratedPeerObservers.on(server.peers.deleted, peer => {
             migratedPeers.delete(peer.id);
             logger.info(`Deleted commissioned node ${peer.id} from old format`);
-            peerStore.save().catch(error => logger.warn("Failed to persist legacy commissioned nodes", error));
+            peerStore.save(peer.id).catch(error => logger.warn("Failed to persist legacy commissioned nodes", error));
         });
 
         logger.info("Commissioned nodes migration completed.");
@@ -832,11 +832,14 @@ class CommissionedNodeStore extends PeerAddressStore {
         return this.save();
     }
 
-    async save() {
+    async save(ignorePeer?: string) {
         await this.#controllerStore.nodesStorage.set(
             "commissionedNodes",
             this.#peers
                 .map(peer => {
+                    if ((ignorePeer !== undefined && peer.id === ignorePeer) || !peer.lifecycle.isCommissioned) {
+                        return undefined;
+                    }
                     const commissioningState = peer.maybeStateOf(CommissioningClient);
                     const address = commissioningState?.peerAddress;
                     const operationalServerAddress = commissioningState?.addresses?.[0];
