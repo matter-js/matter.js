@@ -11,7 +11,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
-
+- @project-chip/matter.js
+  - Fix: Extend error handling when persisting legacy node details
 
 ## 0.16.5 (2026-01-16)
 

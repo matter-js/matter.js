@@ -19,6 +19,7 @@ import { ControllerStore, ControllerStoreInterface } from "#ControllerStore.js";
 import { DeviceInformationData } from "#device/DeviceInformation.js";
 import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import {
+    BasicMultiplex,
     Bytes,
     ChannelType,
     ClassExtends,
@@ -269,6 +270,7 @@ export class MatterController {
     #fabric?: Fabric;
     #clients?: InteractionClientProvider;
     #migratedPeerObservers = new ObserverGroup();
+    #legacyPeerStore?: CommissionedNodeStore;
 
     get construction() {
         return this.#construction;
@@ -639,6 +641,7 @@ export class MatterController {
 
     async close() {
         this.#migratedPeerObservers.close();
+        await this.#legacyPeerStore?.close();
         await this.#node?.close();
         this.#clients = undefined;
     }
@@ -679,6 +682,8 @@ export class MatterController {
             logger.debug("No former commissioned nodes to migrate.");
             return;
         }
+        this.#legacyPeerStore = peerStore;
+
         const migratedPeers = new Set<string>();
 
         const newClientStores = serverStore.clientStores;
@@ -761,13 +766,13 @@ export class MatterController {
             if (!migratedPeers.has(peer.id)) {
                 logger.info(`Migrating commissioned node ${peer.id} to old format`);
                 migratedPeers.add(peer.id);
-                peerStore.save().catch(error => logger.warn("Failed to persist legacy commissioned nodes", error));
+                peerStore.save();
             }
         });
-        this.#migratedPeerObservers.on(server.peers.deleted, peer => {
+        this.#migratedPeerObservers.on(server.peers.deleted, async peer => {
             migratedPeers.delete(peer.id);
             logger.info(`Deleted commissioned node ${peer.id} from old format`);
-            peerStore.save().catch(error => logger.warn("Failed to persist legacy commissioned nodes", error));
+            peerStore.save(peer.id);
         });
 
         logger.info("Commissioned nodes migration completed.");
@@ -788,6 +793,7 @@ class CommissionedNodeStore extends PeerAddressStore {
     #peers: Peers;
     #controllerStore: ControllerStoreInterface;
     #fabric: Fabric;
+    #saves = new BasicMultiplex();
 
     constructor(controllerStore: ControllerStoreInterface, fabric: Fabric, peers: Peers) {
         super();
@@ -824,47 +830,58 @@ class CommissionedNodeStore extends PeerAddressStore {
     }
 
     async updatePeer() {
-        return this.save();
+        this.save();
+        return this.#saves;
     }
 
     async deletePeer(address: PeerAddress) {
         await (await this.#controllerStore.clientNodeStore(address.nodeId.toString())).clearAll();
-        return this.save();
+        this.save();
+        return this.#saves;
     }
 
-    async save() {
-        await this.#controllerStore.nodesStorage.set(
-            "commissionedNodes",
-            this.#peers
-                .map(peer => {
-                    const commissioningState = peer.maybeStateOf(CommissioningClient);
-                    const address = commissioningState?.peerAddress;
-                    const operationalServerAddress = commissioningState?.addresses?.[0];
-                    const discoveryData =
-                        commissioningState !== undefined
-                            ? RemoteDescriptor.fromLongForm(commissioningState)
-                            : undefined;
-                    const deviceData = {
-                        meta: (peer.interaction as ClientNodeInteraction).physicalProperties,
-                        basicInformation: peer.maybeStateOf(BasicInformationClient),
-                    };
+    save(ignorePeer?: string) {
+        this.#saves.add(
+            this.#controllerStore.nodesStorage.set(
+                "commissionedNodes",
+                this.#peers
+                    .map(peer => {
+                        if ((ignorePeer !== undefined && peer.id === ignorePeer) || !peer.lifecycle.isCommissioned) {
+                            return undefined;
+                        }
+                        const commissioningState = peer.maybeStateOf(CommissioningClient);
+                        const address = commissioningState?.peerAddress;
+                        const operationalServerAddress = commissioningState?.addresses?.[0];
+                        const discoveryData =
+                            commissioningState !== undefined
+                                ? RemoteDescriptor.fromLongForm(commissioningState)
+                                : undefined;
+                        const deviceData = {
+                            meta: (peer.interaction as ClientNodeInteraction).physicalProperties,
+                            basicInformation: peer.maybeStateOf(BasicInformationClient),
+                        };
 
-                    if (address === undefined) {
-                        return;
-                    }
-                    return [
-                        address.nodeId,
-                        {
-                            operationalServerAddress:
-                                operationalServerAddress !== undefined && operationalServerAddress.type === "udp"
-                                    ? (ServerAddress(operationalServerAddress) as ServerAddressUdp)
-                                    : undefined,
-                            discoveryData,
-                            deviceData,
-                        },
-                    ] satisfies StoredOperationalPeer;
-                })
-                .filter(details => details !== undefined) as SupportedStorageTypes,
+                        if (address === undefined) {
+                            return;
+                        }
+                        return [
+                            address.nodeId,
+                            {
+                                operationalServerAddress:
+                                    operationalServerAddress !== undefined && operationalServerAddress.type === "udp"
+                                        ? (ServerAddress(operationalServerAddress) as ServerAddressUdp)
+                                        : undefined,
+                                discoveryData,
+                                deviceData,
+                            },
+                        ] satisfies StoredOperationalPeer;
+                    })
+                    .filter(details => details !== undefined) as SupportedStorageTypes,
+            ),
         );
+    }
+
+    async close() {
+        await this.#saves;
     }
 }
