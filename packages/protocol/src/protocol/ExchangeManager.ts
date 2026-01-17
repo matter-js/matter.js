@@ -26,6 +26,7 @@ import {
     UnexpectedDataError,
 } from "#general";
 import { PeerAddress } from "#peer/PeerAddress.js";
+import { SessionClosedError } from "#protocol/errors.js";
 import { DEFAULT_EXPECTED_PROCESSING_TIME } from "#protocol/MessageChannel.js";
 import { SecureChannelMessenger } from "#securechannel/SecureChannelMessenger.js";
 import { NodeSession } from "#session/NodeSession.js";
@@ -265,11 +266,18 @@ export class ExchangeManager {
                     messageDiagnostics,
                 );
 
-                await exchange.send(SecureMessageType.StandaloneAck, new Uint8Array(0), {
-                    includeAcknowledgeMessageId: message.packetHeader.messageId,
-                    protocolId: SECURE_CHANNEL_PROTOCOL_ID,
-                });
-                await exchange.close();
+                try {
+                    await exchange.send(SecureMessageType.StandaloneAck, new Uint8Array(0), {
+                        includeAcknowledgeMessageId: message.packetHeader.messageId,
+                        protocolId: SECURE_CHANNEL_PROTOCOL_ID,
+                    });
+                } catch (error) {
+                    // We already know that the exchange closed, ignore the case that the session is also already closed
+                    SessionClosedError.accept(error);
+                } finally {
+                    // Ensure we close the exchange even if sending the ack failed
+                    await exchange.close();
+                }
                 return;
             }
 

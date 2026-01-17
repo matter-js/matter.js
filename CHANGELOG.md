@@ -11,7 +11,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
-
+- @matter/protocol
+  - Fix: Ignore errors for closed sessions on resubmissions on already closed exchanges. Were false positive logs before.
 
 ## 0.16.5 (2026-01-16)
 
