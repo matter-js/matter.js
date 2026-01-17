@@ -11,6 +11,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/protocol
+  - Adjustment: Change the default value of "announceAsDefaultProvider" to false to avoid device race conditions for now
+
 - @project-chip/matter.js
   - Fix: Correctly handle node decommissioning by other controllers
   - Fix: Prevent creation of new peers when decommissioning of a node was working
