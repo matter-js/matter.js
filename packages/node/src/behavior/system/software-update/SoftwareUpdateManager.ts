@@ -836,8 +836,11 @@ export namespace SoftwareUpdateManager {
         /** Default Update check Interval */
         updateCheckInterval = Hours(24);
 
-        /** Announce this controller as Update provider to all nodes */
-        announceAsDefaultProvider = true;
+        /**
+         * Announce this controller as Update provider to all nodes
+         * Defaults to false because we saw strange effects in the field
+         */
+        announceAsDefaultProvider = false;
 
         /** Interval to Announces this controller as Update provider. Must not be lower than 24h! */
         announcementInterval = Hours(24);
