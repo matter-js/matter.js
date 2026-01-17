@@ -7,7 +7,7 @@
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import { DataModelPath, FieldModel } from "#model";
-import { IntegerRangeError } from "#protocol";
+import { DatatypeError, IntegerRangeError } from "#protocol";
 
 describe("ValueValidator", () => {
     implementInt("uint8", 0, 0xff);
@@ -48,6 +48,18 @@ function implementIntWithNullability(type: string, nullable: boolean, min: numbe
         it("accepts 0", () => {
             expect(() => validator(0, {} as ValueSupervisor.Session, { path: DataModelPath(schema.path) }));
         });
+
+        if (nullable) {
+            it("accepts null", () => {
+                expect(() => validator(null, {} as ValueSupervisor.Session, { path: DataModelPath(schema.path) }));
+            });
+        } else {
+            it(`rejects null`, () => {
+                expect(() =>
+                    validator(null, {} as ValueSupervisor.Session, { path: DataModelPath(schema.path) }),
+                ).throws(DatatypeError, `Value "null" is not a number or bigint`);
+            });
+        }
 
         it(`accepts ${min} (min)`, () => {
             expect(() => validator(min, {} as ValueSupervisor.Session, { path: DataModelPath(schema.path) }));
