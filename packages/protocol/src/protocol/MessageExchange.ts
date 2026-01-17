@@ -37,7 +37,7 @@ import {
     StatusResponseError,
 } from "#types";
 import { RetransmissionLimitReachedError, SessionClosedError, UnexpectedMessageError } from "./errors.js";
-import { DEFAULT_EXPECTED_PROCESSING_TIME, MRP } from "./MessageChannel.js";
+import { DEFAULT_EXPECTED_PROCESSING_TIME, MessageChannel, MRP } from "./MessageChannel.js";
 
 const logger = Logger.get("MessageExchange");
 
@@ -163,6 +163,7 @@ export class MessageExchange {
     readonly #protocolId: number;
     readonly #closed = AsyncObservableValue();
     readonly #closing = AsyncObservableValue();
+    #channel?: MessageChannel;
 
     constructor(config: MessageExchange.Config) {
         const { context, isInitiator, peerSessionId, nodeId, peerNodeId, exchangeId, protocolId } = config;
@@ -242,7 +243,10 @@ export class MessageExchange {
     }
 
     get channel() {
-        return this.session.channel;
+        if (this.#channel === undefined) {
+            this.#channel = this.session.channel;
+        }
+        return this.#channel;
     }
 
     /**
