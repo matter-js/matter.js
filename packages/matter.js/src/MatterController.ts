@@ -641,7 +641,7 @@ export class MatterController {
 
     async close() {
         this.#migratedPeerObservers.close();
-        this.#legacyPeerStore?.close();
+        await this.#legacyPeerStore?.close();
         await this.#node?.close();
         this.#clients = undefined;
     }
