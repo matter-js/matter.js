@@ -143,6 +143,8 @@ export class SoftwareUpdateManager extends Behavior {
         if (node.lifecycle.isOnline) {
             await this.#nodeOnline();
         }
+
+        this.reactTo(this.events.announceAsDefaultProvider$Changed, this.#announceAsDefaultProviderChanged);
     }
 
     async #nodeOnline() {
@@ -151,24 +153,7 @@ export class SoftwareUpdateManager extends Behavior {
             this.internal.announcements = undefined;
         }
 
-        // For now let's just provide update functionality when we are the fabric owner
-        // In theory we could also claim that for any other fabric but could conflict with the main controller of
-        // the fabric that then also claims being "the one provider".
-        const fabricAuthority = this.env.get(FabricAuthority);
-        const ownFabric = fabricAuthority.fabrics[0];
-        if (!ownFabric) {
-            // Can only happen if the SoftwareUpdateManager is used without any commissioned nodes
-            logger.info(`No commissioned peers yet, cannot check for OTA updates. Wait for Fabric being added.`);
-            fabricAuthority.fabricAdded.once(this.callback(this.#nodeOnline));
-            return;
-        }
-        if (this.state.announceAsDefaultProvider) {
-            this.internal.announcements = new OtaAnnouncements(
-                this.endpoint,
-                ownFabric,
-                this.state.announcementInterval,
-            );
-        }
+        this.#announceAsDefaultProviderChanged(this.state.announceAsDefaultProvider);
 
         // Randomly force the first update check 5-10 minutes after startup
         const delay = Millis(Seconds(Math.floor(Math.random() * 300)) + Minutes(5));
@@ -179,6 +164,36 @@ export class SoftwareUpdateManager extends Behavior {
             delay,
             this.callback(this.#initializeUpdateCheck),
         ).start();
+    }
+
+    #announceAsDefaultProviderChanged(enabled: boolean) {
+        if (!!this.internal.announcements === enabled) {
+            return;
+        }
+
+        if (enabled) {
+            // For now let's just provide update functionality when we are the fabric owner
+            // In theory we could also claim that for any other fabric but could conflict with the main controller of
+            // the fabric that then also claims being "the one provider".
+            const fabricAuthority = this.env.get(FabricAuthority);
+            const ownFabric = fabricAuthority.fabrics[0];
+            if (!ownFabric) {
+                // Can only happen if the SoftwareUpdateManager is used without any commissioned nodes
+                logger.info(`No commissioned peers yet, cannot check for OTA updates. Wait for Fabric being added.`);
+                fabricAuthority.fabricAdded.once(this.callback(this.#nodeOnline));
+                return;
+            }
+
+            this.internal.announcements = new OtaAnnouncements(
+                this.endpoint,
+                ownFabric,
+                this.state.announcementInterval,
+            );
+        } else {
+            const announcements = this.internal.announcements!;
+            this.internal.announcements = undefined;
+            this.env.runtime.add(announcements.close());
+        }
     }
 
     /**
@@ -873,5 +888,7 @@ export namespace SoftwareUpdateManager {
 
         /** Emitted when an update for a Peer is finished */
         updateDone = Observable<[peer: PeerAddress]>();
+
+        announceAsDefaultProvider$Changed = Observable<[announceAsDefaultProvider: boolean]>();
     }
 }
