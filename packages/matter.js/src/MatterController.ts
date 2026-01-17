@@ -521,13 +521,9 @@ export class MatterController {
     async removeNode(nodeId: NodeId) {
         const peerAddress = this.fabric.addressOf(nodeId);
         const node = this.node.peers.get(peerAddress);
-        if (!node) {
-            // Unknown or already removed
-            return;
-        }
-        const peer = this.node.env.get(PeerSet).for(peerAddress);
-        await node.delete();
-        await peer.delete();
+        const peer = this.node.env.get(PeerSet).get(peerAddress);
+        await node?.delete();
+        await peer?.delete();
     }
 
     /**
