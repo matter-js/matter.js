@@ -11,14 +11,19 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/general
+    - Fix: Split mDNS Query message that are too big to fit into one mDNS message
+    - Fix: Fix some mDNS handling issues
+    - Fix: Add some protection to better ignore invalid mDNS packets
+
 - @matter/protocol
-  - Fix: Ignore errors for closed sessions on resubmissions on already closed exchanges. Were false positive logs before.
-  - Adjustment: Change the default value of "announceAsDefaultProvider" to false to avoid device race conditions for now
+    - Adjustment: Change the default value of "announceAsDefaultProvider" to false to avoid device race conditions for now
+    - Fix: Ignore errors for closed sessions on resubmissions on already closed exchanges. Were false positive logs before.
 
 - @project-chip/matter.js
-  - Fix: Correctly handle node decommissioning by other controllers
-  - Fix: Prevent creation of new peers when decommissioning of a node was working
-  - Fix: Extend error handling when persisting legacy node details
+    - Fix: Correctly handle node decommissioning by other controllers
+    - Fix: Prevent creation of new peers when decommissioning of a node was working
+    - Fix: Extend error handling when persisting legacy node details
 
 ## 0.16.5 (2026-01-16)
 
