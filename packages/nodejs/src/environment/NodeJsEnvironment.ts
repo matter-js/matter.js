@@ -67,10 +67,10 @@ import { ProcessManager } from "./ProcessManager.js";
  * * `trace.enable` - Enable writing a trace file
  * * `storage.path` - Where to store storage files, Default: "path.root"
  * * `storage.clear` - Clear storage on start? Default: false
+ * * `storage.driver` - Storage driver to use: "file" (default) or "sqlite" (requires Node.js v22+). Automatically migrates data when switching drivers.
  * * `nodejs.crypto` - Enables crypto implementation in this package.  Default: true
  * * `nodejs.network` - Enables network implementation in this package.  Default: true
- * * `nodejs.storage` - Enables file-based storage implementation in this package.  Default: true
- * * `nodejs.storage.sqlite` - Enables sqlite-based storage implementation instead of file-based in this package. Default: false (Requires nodejs v22+)
+ * * `nodejs.storage` - Enables storage implementation in this package.  Default: true
  * * `runtime.signals` - By default register SIGINT and SIGUSR2 (diag) handlers, set to false if not wanted
  * * `runtime.exitcode` - By default we set the process.exitcode to 0 (ok) or 1 (crash); set to false to disable
  * * `runtime.unhandlederrors` - By default we log unhandled errors to matter.js log; set to false to disable
