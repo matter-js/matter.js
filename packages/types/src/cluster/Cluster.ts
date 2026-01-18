@@ -561,7 +561,7 @@ export interface UnknownAttribute<T, F extends BitSchema> extends Attribute<T, F
     unknown: true;
 }
 export const UnknownAttribute = <F extends BitSchema>(id: number): UnknownAttribute<any, F> => ({
-    id: AttributeId(id),
+    id: id as AttributeId,
     schema: TlvAny,
     optional: false,
     writable: true,

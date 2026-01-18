@@ -265,11 +265,15 @@ export class ExchangeManager {
                     messageDiagnostics,
                 );
 
-                await exchange.send(SecureMessageType.StandaloneAck, new Uint8Array(0), {
-                    includeAcknowledgeMessageId: message.packetHeader.messageId,
-                    protocolId: SECURE_CHANNEL_PROTOCOL_ID,
-                });
-                await exchange.close();
+                try {
+                    await exchange.send(SecureMessageType.StandaloneAck, new Uint8Array(0), {
+                        includeAcknowledgeMessageId: message.packetHeader.messageId,
+                        protocolId: SECURE_CHANNEL_PROTOCOL_ID,
+                    });
+                } finally {
+                    // Ensure we close the exchange even if sending the ack failed
+                    await exchange.close();
+                }
                 return;
             }
 
