@@ -702,7 +702,7 @@ export class SessionManager {
         return [...this.#sessions]
             .filter(session => session.isSecure && !session.isPase)
             .map(session => ({
-                name: session.via,
+                name: `${session.via}`,
                 nodeId: session.nodeId,
                 peerNodeId: session.peerNodeId,
                 fabric: session instanceof SecureSession ? session.fabric?.externalInformation : undefined,

@@ -450,9 +450,11 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             }
         } else {
             if (this.state.externalMeasuredIndoorTemperature === undefined) {
-                logger.warn(
-                    "No local TemperatureMeasurement cluster available and externalMeasuredIndoorTemperature state not set. Setting localTemperature to null",
-                );
+                if (this.state.localTemperatureCalibration !== undefined) {
+                    logger.warn(
+                        "No local TemperatureMeasurement cluster available, externalMeasuredIndoorTemperature state not set but localTemperatureCalibration is used: Ensure to correctly consider the calibration when updating the localTemperature value",
+                    );
+                }
             } else {
                 logger.info("Using measured temperature via externalMeasuredIndoorTemperature state");
                 localTemperature = this.state.externalMeasuredIndoorTemperature ?? null;
