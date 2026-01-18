@@ -5,7 +5,7 @@
  */
 
 import type { Bytes } from "@matter/general";
-import { createSqliteDisk, SqliteStorageError, StorageSqliteDisk } from "#storage/index.js";
+import { PlatformSqlite, SqliteStorage, SqliteStorageError } from "#storage/index.js";
 import * as assert from "node:assert";
 
 const CONTEXTx1 = ["context"];
@@ -17,10 +17,10 @@ const CONTEXTx3 = [...CONTEXTx2, "subsubcontext"];
  */
 
 describe("StorageSqliteDisk", () => {
-  let storage: StorageSqliteDisk;
+  let storage: SqliteStorage;
 
   beforeEach(async () => {
-    storage = await createSqliteDisk(null);
+    storage = await PlatformSqlite(null);
     await storage.initialize();
   });
 

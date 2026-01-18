@@ -6,4 +6,4 @@
 
 export * from "./fs/index.js";
 export * from "./sqlite/index.js";
-export * from "./sqlite/migrateDirectory.js";
+export * from "./StorageFactory.js";

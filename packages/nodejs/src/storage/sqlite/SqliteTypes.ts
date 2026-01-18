@@ -11,9 +11,9 @@
 // bytes
 export type SafeUint8Array = Uint8Array<ArrayBuffer>
 // TEXT, BLOB, NUMBER, null
-export type SQLiteDataType = null | number | bigint | string | SafeUint8Array
+export type SqliteDataType = null | number | bigint | string | SafeUint8Array
 // Key-Value of SQLiteDataType
-export type SQLiteResultType = Record<string, SQLiteDataType>
+export type SqliteResultType = Record<string, SqliteDataType>
 
 /**
  * DatabaseLike
@@ -21,7 +21,7 @@ export type SQLiteResultType = Record<string, SQLiteDataType>
  * compatible with `node:sqlite`(type mismatch), `bun:sqlite`
  */
 export interface DatabaseLike {
-  prepare<O extends SQLiteResultType | void>(query: string): SQLRunnableSimple<O> & SQLRunnableParam<any, O>
+  prepare<O extends SqliteResultType | void>(query: string): SqlRunnableSimple<O> & SqlRunnableParam<any, O>
   exec(sql: string): void
   close(): void
 }
@@ -37,17 +37,17 @@ export type DatabaseCreator = (path: string) => DatabaseLike
  * 
  * `void` type is used for no input/output.
  */
-export type SQLRunnable<
-  I extends SQLiteResultType | void,
-  O extends SQLiteResultType | void
-> = I extends SQLiteResultType ? SQLRunnableParam<I, O> : SQLRunnableSimple<O>
+export type SqlRunnable<
+  I extends SqliteResultType | void,
+  O extends SqliteResultType | void
+  > = I extends SqliteResultType ? SqlRunnableParam<I, O> : SqlRunnableSimple<O>
 
 /**
  * Database method with no parameter.
  * 
  * (`I` must be void)
  */
-interface SQLRunnableSimple<O extends SQLiteResultType | void> {
+interface SqlRunnableSimple<O extends SqliteResultType | void> {
   run(): { changes: number | bigint }
   get(): O | null | undefined
   all(): Array<O | undefined> // Bun uses Array<T | undefined>
@@ -56,7 +56,7 @@ interface SQLRunnableSimple<O extends SQLiteResultType | void> {
 /**
  * Database method with parameter.
  */
-interface SQLRunnableParam<I extends SQLiteResultType, O extends SQLiteResultType | void> {
+interface SqlRunnableParam<I extends SqliteResultType, O extends SqliteResultType | void> {
   run(arg: I): { changes: number | bigint }
   get(arg: I): O | null | undefined
   all(arg: I): Array<O | undefined> // Bun uses Array<T | undefined>
@@ -64,8 +64,11 @@ interface SQLRunnableParam<I extends SQLiteResultType, O extends SQLiteResultTyp
 
 /**
  * SQLite Transaction mode
+ * 
+ * TODO: Move transaction control to higher level (matter.js Transaction API)
+ * and remove this
  */
-export enum SQLiteTransaction {
+export enum SqliteTransaction {
   BEGIN,
   COMMIT,
   ROLLBACK,

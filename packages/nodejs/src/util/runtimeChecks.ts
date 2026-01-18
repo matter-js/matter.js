@@ -3,8 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-
-// DO NOT IMPORT BUN SPECIFIC MODULE IN HERE
+// Some utilities for checking runtime feature.
 
 /**
  * Check runtime is bun.js
@@ -27,5 +26,6 @@ export function supportsSqlite() {
   if (Number.isNaN(majorNum)) {
     return false
   }
+  // Don't need to check minor version because of minimum requirement version.
   return majorNum >= 22
 }

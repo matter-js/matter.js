@@ -23,11 +23,12 @@ import {
 } from "#general";
 import { NodeJsCrypto } from "#crypto/NodeJsCrypto.js";
 import { NodeJsHttpEndpoint } from "#net/NodeJsHttpEndpoint.js";
-import { createSqliteDisk, migrateDirectoryStorage, StorageBackendDisk } from "#storage/index.js";
-import { isBunjs, supportsSqlite } from "#util/runtimeChecks.js";
+import { StorageFactory } from "#storage/index.js";
+
+import { isBunjs } from "#util/runtimeChecks.js";
 
 import { existsSync, readFileSync } from "node:fs";
-import { rm, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { NodeJsNetwork } from "../net/NodeJsNetwork.js";
@@ -203,37 +204,22 @@ function configureStorage(env: Environment) {
         service.location = env.vars.get("storage.path", rootDirOf(env));
     });
 
-    if (
-        supportsSqlite() &&
-        (config.sqliteStorage || (env.vars.boolean("nodejs.storage.sqlite") ?? false))
-    ) {
-        // SQLite storage with migration
-        service.factory = async (namespace) => {
-            // migrateDirectoryStorage
-            const path = resolve(service.location ?? ".", namespace)
-            const clear = env.vars.get("storage.clear", false)
-            if (clear) {
-                // Remove whatever old data
-                try {
-                    await rm(path, { recursive: true, force: true })
-                } catch (err) {
-                    // do not care about result
-                }
-                return await createSqliteDisk(path, true)
-            }
+    const shouldClear = env.vars.get("storage.clear", false);
+    let storageDriver = config.storageDriver ?? env.vars.string("storage.driver") ?? "file"
 
-            const sqliteDisk = await createSqliteDisk(path, false)
-            // Try Migrate (ignore result)
-            await migrateDirectoryStorage(path, sqliteDisk)
-            // return sqliteDisk
-            return sqliteDisk
-        }
-    } else {
-        // File system storage
-        service.factory = namespace => new StorageBackendDisk(
-            resolve(service.location ?? ".", namespace),
-            env.vars.get("storage.clear", false),
-        )
+    // fallback 'file' when storageDriver is blank
+    if (storageDriver.length === 0) {
+        storageDriver = "file"
+    }
+
+    // code is moved to StorageFactory
+    service.factory = async (namespace) => {
+        return await StorageFactory.create({
+            driver: storageDriver,
+            rootDir: service.location ?? ".",
+            namespace,
+            clear: shouldClear,
+        })
     }
 
     service.resolve = (...paths) => resolve(rootDirOf(env), ...paths);

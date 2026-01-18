@@ -18,8 +18,8 @@ let setProcessExitCodeOnError = true;
 let installNetwork = true;
 // Automatic replace to `StandardCrypto` in bun.js
 let installCrypto = true;
-// SQLite based storage (forcefully disable in Node.js <22)
-let sqliteStorage = false;
+// Storage driver
+let storageDriver = "file";
 
 export class NodeJsAlreadyInitializedError extends Error {}
 
@@ -164,17 +164,17 @@ export const config = {
     },
 
     /**
-     * Enables sqlite storage instead of file-system based storage (default: false).
+     * Set storage driver to use (default: 'file').
      * 
-     * [Experimental]
+     * Currently, 'file' and 'sqlite' (Node.js v22+) is supported.
      */
-    get sqliteStorage() {
-        return sqliteStorage;
+    get storageDriver() {
+        return storageDriver as "file" | "sqlite";
     },
 
-    set sqliteStorage(value: boolean) {
+    set storageDriver(value: "file" | "sqlite") {
         assertUninitialized("initializeStorage");
-        sqliteStorage = value;
+        storageDriver = value;
     },
 
     /**

@@ -61,19 +61,3 @@ export function buildKey(key: string) {
 export function escapeGlob(value: string) {
   return value.replace(/[*[?]/g, "[$&]")
 }
-
-/**
- * Ensure extensions of `path`
- */
-export function ensureExtension(path: string, extension: string[]) {
-  if (extension.length <= 0) {
-    return path
-  }
-
-  for (const ext of extension) {
-    if (path.endsWith(`.${ext}`)) {
-      return path
-    }
-  }
-  return `${path}.${extension[0]}`
-}

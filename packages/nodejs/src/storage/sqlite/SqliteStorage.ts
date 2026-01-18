@@ -18,16 +18,17 @@ import {
   buildContextKeyLog,
   buildContextKeyPair,
   buildContextPath,
-  ensureExtension,
   escapeGlob
-} from "./SqliteStorageUtil.js"
-import { SQLiteTransaction as Transaction } from "./SqliteTypes.js"
+} from "./SqliteUtil.js"
+import { SqliteTransaction as Transaction } from "./SqliteTypes.js"
 import type {
   SafeUint8Array,
-  SQLRunnable,
+  SqlRunnable,
   DatabaseLike,
   DatabaseCreator,
 } from "./SqliteTypes.js"
+
+import { rm } from "node:fs/promises"
 
 /**
  * Type of Key-Value store table
@@ -48,10 +49,10 @@ type KVStoreType<T extends string | SafeUint8Array = string | SafeUint8Array> = 
  * `I`: keyof KVStoreType -> KVStoreType
  * `O`: keyof KVStoreType -> KVStoreType
  */
-type SQLRunnableKV<
+type SqlRunnableKV<
   I extends keyof KVStoreType<string> | void,
   O extends keyof KVStoreType<string> | void,
-> = SQLRunnable<
+  > = SqlRunnable<
   I extends keyof KVStoreType<string> ? Pick<KVStoreType<string>, I> : void,
   O extends keyof KVStoreType<string> ? Pick<KVStoreType<string>, O> : void
 >
@@ -63,11 +64,12 @@ type SQLRunnableKV<
  * 
  * Supports `node:sqlite`, `bun:sqlite`. (maybe also `better-sqlite3` support)
  */
-export class StorageSqliteDisk extends Storage implements CloneableStorage {
+export class SqliteStorage extends Storage implements CloneableStorage {
   public static readonly memoryPath = ":memory:"
   public static readonly defaultTableName = "kvstore"
 
   protected isInitialized = false
+  #inTransaction = false
 
   // internal values
   readonly #database: DatabaseLike
@@ -77,35 +79,35 @@ export class StorageSqliteDisk extends Storage implements CloneableStorage {
   readonly #databaseCreator: DatabaseCreator
 
   // queries
-  readonly #queryInit: SQLRunnable<void, void>
-  readonly #queryGet: SQLRunnableKV<"context" | "key", "value_json">
-  readonly #queryGetRaw: SQLRunnable<void, KVStoreType>
-  readonly #querySet: SQLRunnableKV<"context" | "key" | "value_json", void>
-  readonly #querySetRaw: SQLRunnable<KVStoreType, void>
-  readonly #queryDelete: SQLRunnableKV<"context" | "key", void>
-  readonly #queryKeys: SQLRunnableKV<"context", "key">
-  readonly #queryValues: SQLRunnable<
+  readonly #queryInit: SqlRunnable<void, void>
+  readonly #queryGet: SqlRunnableKV<"context" | "key", "value_json">
+  readonly #queryGetRaw: SqlRunnable<void, KVStoreType>
+  readonly #querySet: SqlRunnableKV<"context" | "key" | "value_json", void>
+  readonly #querySetRaw: SqlRunnable<KVStoreType, void>
+  readonly #queryDelete: SqlRunnableKV<"context" | "key", void>
+  readonly #queryKeys: SqlRunnableKV<"context", "key">
+  readonly #queryValues: SqlRunnable<
     { context: string },
     { key: string, value_json: string }
   >
-  readonly #queryContextSub: SQLRunnable<
+  readonly #queryContextSub: SqlRunnable<
     { contextGlob: string },
     { context: string }
   >
-  readonly #queryClear: SQLRunnable<void, void>
-  readonly #queryClearAll: SQLRunnable<
+  readonly #queryClear: SqlRunnable<void, void>
+  readonly #queryClearAll: SqlRunnable<
     { context: string, contextGlob: string },
     void
   >
-  readonly #queryHas: SQLRunnable<
+  readonly #queryHas: SqlRunnable<
     { context: string, key: string },
     { has_record: 1 }
   >
-  readonly #queryOpenBlob: SQLRunnable<
+  readonly #queryOpenBlob: SqlRunnable<
     Pick<KVStoreType, "context" | "key">,
     Pick<KVStoreType, "value_type" | "value_json" | "value_blob">
   >
-  readonly #queryWriteBlob: SQLRunnable<
+  readonly #queryWriteBlob: SqlRunnable<
     Pick<KVStoreType, "context" | "key" | "value_blob">,
     void
   >
@@ -127,14 +129,13 @@ export class StorageSqliteDisk extends Storage implements CloneableStorage {
     super()
     const { databaseCreator, path, tableName, clear } = args
 
-    this.#dbPath = (path === null) ?
-      StorageSqliteDisk.memoryPath : ensureExtension(path, ["db", "sqlite"])
+    this.#dbPath = (path === null) ? SqliteStorage.memoryPath : path
     this.#databaseCreator = databaseCreator
     this.#database = databaseCreator(this.#dbPath)
 
     // tableName is vulnerable
     // DO NOT USE FROM USER'S INPUT
-    this.#tableName = tableName ?? StorageSqliteDisk.defaultTableName
+    this.#tableName = tableName ?? SqliteStorage.defaultTableName
     this.#clear = clear ?? false
 
     // ═════════════════════════════════════════════════════════════
@@ -262,19 +263,61 @@ export class StorageSqliteDisk extends Storage implements CloneableStorage {
   }
 
   /**
-   * Start transaction
+   * Manual transaction control
+   * 
+   * Use this for explicit transaction management across multiple operations.
+   * Internal methods like `set()` will automatically detect and use external transactions.
+   * 
+   * TODO: Sync transaction to native matter.js API 
    */
-  protected transaction(mode: Transaction) {
+  public transaction(mode: Transaction) {
     switch (mode) {
       case Transaction.BEGIN:
+        if (this.#inTransaction) {
+          throw new SqliteStorageError(
+            "transaction", "BEGIN",
+            "Transaction is in progress."
+          )
+        }
         this.#database.exec("BEGIN IMMEDIATE TRANSACTION")
+        this.#inTransaction = true
         break
+
       case Transaction.COMMIT:
+        if (!this.#inTransaction) {
+          throw new SqliteStorageError(
+            "transaction", "COMMIT",
+            "No transaction in progress."
+          )
+        }
         this.#database.exec("COMMIT")
+        this.#inTransaction = false
         break
+
       case Transaction.ROLLBACK:
+        if (!this.#inTransaction) {
+          return
+        }
         this.#database.exec("ROLLBACK")
+        this.#inTransaction = false
         break
+    }
+  }
+
+  protected withAnyTransaction<T>(callback: () => T) {
+    if (this.#inTransaction) {
+      // Use external transaction
+      return callback()
+    }
+    // Use internal transaction
+    this.transaction(Transaction.BEGIN)
+    try {
+      const result = callback()
+      this.transaction(Transaction.COMMIT)
+      return result
+    } catch (err) {
+      this.transaction(Transaction.ROLLBACK)
+      throw err
     }
   }
 
@@ -290,7 +333,7 @@ export class StorageSqliteDisk extends Storage implements CloneableStorage {
   }
 
   public clone(): Storage {
-    const clonedStorage = new StorageSqliteDisk({
+    const clonedStorage = new SqliteStorage({
       databaseCreator: this.#databaseCreator,
       path: null,
       tableName: this.#tableName,
@@ -351,17 +394,12 @@ export class StorageSqliteDisk extends Storage implements CloneableStorage {
       }
       this.setValue(contexts, keyOrValues, toJson(value))
     } else {
-      // use transaction
-      try {
-        this.transaction(Transaction.BEGIN)
+      // use internal/external transaction
+      this.withAnyTransaction(() => {
         for (const [key, value] of Object.entries(keyOrValues)) {
           this.setValue(contexts, key, toJson(value ?? null))
         }
-        this.transaction(Transaction.COMMIT)
-      } catch (err) {
-        this.transaction(Transaction.ROLLBACK)
-        throw err
-      }
+      })
     }
   }
 
@@ -405,8 +443,8 @@ export class StorageSqliteDisk extends Storage implements CloneableStorage {
       }
       return
     }
-    try {
-      this.transaction(Transaction.BEGIN)
+
+    this.withAnyTransaction(() => {
       for (const raw of rawData) {
         const { changes } = this.#querySetRaw.run({
           context: raw.context, key: raw.key, value_type: raw.value_type, value_json: raw.value_json, value_blob: raw.value_blob,
@@ -418,11 +456,7 @@ export class StorageSqliteDisk extends Storage implements CloneableStorage {
           )
         }
       }
-      this.transaction(Transaction.COMMIT)
-    } catch (err) {
-      this.transaction(Transaction.ROLLBACK)
-      throw err
-    }
+    })
   }
 
   override delete(contexts: string[], key: string) {
@@ -499,7 +533,14 @@ export class StorageSqliteDisk extends Storage implements CloneableStorage {
     ))]
   }
 
-  public clear() {
+  public async clear(completely?: boolean) {
+    if (completely ?? false) {
+      this.close()
+      if (this.#dbPath !== SqliteStorage.memoryPath) {
+        await rm(this.#dbPath, { force: true })
+      }
+      return
+    }
     this.#queryClear.run()
   }
 

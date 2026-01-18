@@ -252,7 +252,7 @@ export class NodeJsHttpEndpoint implements HttpEndpoint {
             return;
         }
 
-        const nodeBodyStream = ReadStream.fromWeb(response.body as unknown as NodeReadableStream);
+        const nodeBodyStream = ReadStream.fromWeb(response.body as NodeReadableStream);
 
         nodeBodyStream.on("error", error => {
             logger.error("Error transmitting HTTP body", error);
