@@ -5,7 +5,7 @@
  */
 
 import { Bytes } from "#general";
-import { StorageBackendJsonFile } from "#storage/StorageBackendJsonFile.js";
+import { StorageBackendJsonFile } from "#storage/index.js";
 import * as assert from "node:assert";
 import { readFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";

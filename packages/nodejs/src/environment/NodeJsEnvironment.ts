@@ -5,7 +5,6 @@
  */
 
 import { config } from "#config.js";
-import { NodeJsCrypto } from "#crypto/NodeJsCrypto.js";
 import {
     asError,
     Boot,
@@ -18,15 +17,21 @@ import {
     Logger,
     Network,
     ServiceBundle,
+    StandardCrypto,
     StorageService,
     VariableService,
 } from "#general";
+import { NodeJsCrypto } from "#crypto/NodeJsCrypto.js";
 import { NodeJsHttpEndpoint } from "#net/NodeJsHttpEndpoint.js";
+import { StorageFactory } from "#storage/index.js";
+
+import { isBunjs } from "#util/runtimeChecks.js";
+
 import { existsSync, readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+
 import { NodeJsNetwork } from "../net/NodeJsNetwork.js";
-import { StorageBackendDisk } from "../storage/StorageBackendDisk.js";
 import { ProcessManager } from "./ProcessManager.js";
 
 /**
@@ -62,9 +67,10 @@ import { ProcessManager } from "./ProcessManager.js";
  * * `trace.enable` - Enable writing a trace file
  * * `storage.path` - Where to store storage files, Default: "path.root"
  * * `storage.clear` - Clear storage on start? Default: false
+ * * `storage.driver` - Storage driver to use: "file" (default) or "sqlite" (requires Node.js v22+). Automatically migrates data when switching drivers.
  * * `nodejs.crypto` - Enables crypto implementation in this package.  Default: true
  * * `nodejs.network` - Enables network implementation in this package.  Default: true
- * * `nodejs.storage` - Enables file-based storage implementation in this package.  Default: true
+ * * `nodejs.storage` - Enables storage implementation in this package.  Default: true
  * * `runtime.signals` - By default register SIGINT and SIGUSR2 (diag) handlers, set to false if not wanted
  * * `runtime.exitcode` - By default we set the process.exitcode to 0 (ok) or 1 (crash); set to false to disable
  * * `runtime.unhandlederrors` - By default we log unhandled errors to matter.js log; set to false to disable
@@ -140,7 +146,14 @@ function rootDirOf(env: Environment) {
 function configureCrypto(env: Environment) {
     Boot.init(() => {
         if (config.installCrypto || (env.vars.boolean("nodejs.crypto") ?? true)) {
-            const crypto = new NodeJsCrypto();
+            let crypto: Crypto
+            if (isBunjs()) {
+                // Bun does not support `AES-128-CCM`
+                // so use StandardCrypto
+                crypto = new StandardCrypto()
+            } else {
+                crypto = new NodeJsCrypto()
+            }
             env.set(Entropy, crypto);
             env.set(Crypto, crypto);
         } else {
@@ -191,8 +204,23 @@ function configureStorage(env: Environment) {
         service.location = env.vars.get("storage.path", rootDirOf(env));
     });
 
-    service.factory = namespace =>
-        new StorageBackendDisk(resolve(service.location ?? ".", namespace), env.vars.get("storage.clear", false));
+    const shouldClear = env.vars.get("storage.clear", false);
+    let storageDriver = config.storageDriver ?? env.vars.string("storage.driver") ?? "file"
+
+    // fallback 'file' when storageDriver is blank
+    if (storageDriver.length === 0) {
+        storageDriver = "file"
+    }
+
+    // code is moved to StorageFactory
+    service.factory = async (namespace) => {
+        return await StorageFactory.create({
+            driver: storageDriver,
+            rootDir: service.location ?? ".",
+            namespace,
+            clear: shouldClear,
+        })
+    }
 
     service.resolve = (...paths) => resolve(rootDirOf(env), ...paths);
 }
