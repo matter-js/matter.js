@@ -4,15 +4,17 @@
     "description": "Matter.js tooling",
     "type": "module",
     "scripts": {
-        "clean": "node bin/build.js clean",
-        "build": "node bin/build.js",
-        "build-clean": "node bin/build.js --clean",
-        "version": "node bin/version.js"
+        "clean": "matter-build clean",
+        "build": "matter-build",
+        "build-clean": "matter-build --clean",
+        "version": "matter-version",
+        "relock": "matter-relock"
     },
     "bin": {
         "matter-build": "bin/build.js",
         "matter-run": "bin/run.js",
-        "matter-version": "bin/version.js"
+        "matter-version": "bin/version.js",
+        "matter-relock": "bin/relock.js"
     },
     "exports": {
         ".": {

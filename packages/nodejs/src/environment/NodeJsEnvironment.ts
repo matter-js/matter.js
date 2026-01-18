@@ -6,6 +6,7 @@
 
 import { config } from "#config.js";
 import { NodeJsCrypto } from "#crypto/NodeJsCrypto.js";
+import { NodeJsFallbackCrypto } from "#crypto/NodeJsFallbackCrypto.js";
 import {
     asError,
     Boot,
@@ -28,6 +29,7 @@ import { resolve } from "node:path";
 import { NodeJsNetwork } from "../net/NodeJsNetwork.js";
 import { StorageBackendDisk } from "../storage/StorageBackendDisk.js";
 import { ProcessManager } from "./ProcessManager.js";
+import { isBunjs } from "#util/isBun.js";
 
 /**
  * This is the default environment implementation for Node.js:
@@ -63,6 +65,7 @@ import { ProcessManager } from "./ProcessManager.js";
  * * `storage.path` - Where to store storage files, Default: "path.root"
  * * `storage.clear` - Clear storage on start? Default: false
  * * `nodejs.crypto` - Enables crypto implementation in this package.  Default: true
+ * * `nodejs.crypto.fallback` - Enables crypto implementation *with fallback* in this package.  Default: false (true in Bun.js)
  * * `nodejs.network` - Enables network implementation in this package.  Default: true
  * * `nodejs.storage` - Enables file-based storage implementation in this package.  Default: true
  * * `runtime.signals` - By default register SIGINT and SIGUSR2 (diag) handlers, set to false if not wanted
@@ -140,7 +143,13 @@ function rootDirOf(env: Environment) {
 function configureCrypto(env: Environment) {
     Boot.init(() => {
         if (config.installCrypto || (env.vars.boolean("nodejs.crypto") ?? true)) {
-            const crypto = new NodeJsCrypto();
+            let crypto: Crypto;
+            if (config.fallbackCrypto || (env.vars.boolean("nodejs.crypto.fallback") ?? false)) {
+                crypto = new NodeJsFallbackCrypto()
+            } else {
+                crypto = new NodeJsCrypto()
+            }
+
             env.set(Entropy, crypto);
             env.set(Crypto, crypto);
         } else {
@@ -191,8 +200,25 @@ function configureStorage(env: Environment) {
         service.location = env.vars.get("storage.path", rootDirOf(env));
     });
 
-    service.factory = namespace =>
-        new StorageBackendDisk(resolve(service.location ?? ".", namespace), env.vars.get("storage.clear", false));
+    if (config.sqliteStorage || (env.vars.boolean("nodejs.storage.sqlite") ?? false)) {
+
+        // sqlite storage
+        service.factory = async (namespace) => {
+            const clear = env.vars.get("storage.clear", false);
+            const resolvePath = resolve(service.location ?? ".", namespace);
+            if (isBunjs()) {
+                const { BunSqliteDisk } = await import("#storage/BunSqliteDisk.js");
+                return new BunSqliteDisk(resolvePath, clear);
+            } else {
+                const { NodeJsSqliteDisk } = await import("#storage/NodeJsSqliteDisk.js");
+                return new NodeJsSqliteDisk(resolvePath, clear)
+            }
+        }
+    } else {
+    // file-system storage
+        service.factory = namespace =>
+            new StorageBackendDisk(resolve(service.location ?? ".", namespace), env.vars.get("storage.clear", false));
+    }
 
     service.resolve = (...paths) => resolve(rootDirOf(env), ...paths);
 }

@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { isBunjs } from "#util/isBun.js";
+
 let isInitialized = false;
 let defaultEnvironmentName = "default";
 let defaultStoragePath: string | undefined = undefined;
@@ -16,10 +18,15 @@ let trapProcessSignals = true;
 let trapUnhandledErrors = true;
 let setProcessExitCodeOnError = true;
 let installNetwork = true;
+let sqliteStorage = false;
 
-// TODO - until we have proper feature detection, disable by default Node.js version of crypto in environments where
+// Seperate installCrypto and fallbackCrypto
+// for someone who wants to make own crypto implementation.
+let installCrypto = true;
+
+// TODO - until we have proper feature detection, use both StandardCrypto and NodeJsCrypto where
 // Node.js crypto emulation is insufficient
-let installCrypto = !process.versions.bun;
+let fallbackCrypto = !!isBunjs();
 
 export class NodeJsAlreadyInitializedError extends Error {}
 
@@ -138,6 +145,18 @@ export const config = {
     },
 
     /**
+     * Enables uses of standard & node.js fallback crypto implementation (default: false, only true in bun.js)
+     */
+    get fallbackCrypto() {
+        return fallbackCrypto;
+    },
+
+    set fallbackCrypto(value: boolean) {
+        assertUninitialized("installNodeJsCrypto");
+        fallbackCrypto = value;
+    },
+
+    /**
      * Enables installation of node.js networking into default environment.
      */
     get installNetwork() {
@@ -161,6 +180,20 @@ export const config = {
     set initializeStorage(value: boolean) {
         assertUninitialized("initializeStorage");
         initializeStorage = value;
+    },
+
+    /**
+     * Enables sqlite storage instead of file-system based storage (default: false).
+     * 
+     * Experimental.
+     */
+    get sqliteStorage() {
+        return sqliteStorage;
+    },
+
+    set sqliteStorage(value: boolean) {
+        assertUninitialized("initializeStorage");
+        sqliteStorage = value;
     },
 
     /**
