@@ -20,6 +20,14 @@ The main work (all changes without a GitHub username in brackets in the below li
   - Fix: Prevent creation of new peers when decommissioning of a node was working
   - Fix: Extend error handling when persisting legacy node details
 
+- @matter/nodejs [@craftingmod]
+  - Feat: SQLite storage support with storage driver selection
+  - Feat: Auto-migration between storages(`file`, `sqlite`)
+  - WIP: Preparing `Bun` support...
+
+- @matter/general [@craftingmod]
+  - Chore: Storage migration utility function
+
 ## 0.16.5 (2026-01-16)
 
 - @matter/protocol
