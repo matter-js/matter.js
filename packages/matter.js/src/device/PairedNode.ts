@@ -1364,8 +1364,6 @@ export class PairedNode {
             }),
         );
 
-        logger.debug(() => `Node ${this.nodeId}: Endpoint usages`, Diagnostic.json(endpointUsages));
-
         while (true) {
             // get all endpoints with only one usage
             const singleUsageEndpoints = Object.entries(endpointUsages).filter(([_, usages]) => usages.length === 1);
@@ -1374,8 +1372,6 @@ export class PairedNode {
                     throw new InternalError(`Endpoint structure for Node ${this.nodeId} could not be parsed!`);
                 break;
             }
-
-            logger.debug(() => `Node ${this.nodeId}: Processing Endpoint ${Diagnostic.json(singleUsageEndpoints)}`);
 
             const idsToCleanup: { [key: EndpointNumber]: boolean } = {};
             singleUsageEndpoints.forEach(([childId, usages]) => {
