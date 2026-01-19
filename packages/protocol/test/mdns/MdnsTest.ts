@@ -1299,11 +1299,14 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
 
         describe("Initial query on new operational targets", () => {
             function waitForQuery(): Promise<DnsMessage> {
-                return new Promise(resolve => {
+                return new Promise((resolve, reject) => {
                     const listener = scanListener.onData((_netInterface, _peerAddress, _peerPort, data) => {
                         const message = DnsCodec.decode(data);
                         if (message && DnsMessageType.isQuery(message.messageType)) {
-                            listener.close().then(() => resolve(message));
+                            listener.close().then(
+                                () => resolve(message),
+                                err => reject(err as Error),
+                            );
                         }
                     });
                 });
