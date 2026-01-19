@@ -17,7 +17,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Add some protection to better ignore invalid mDNS packets
 
 - @matter/node
-  - Fix: Correctly set the color temperature on the device restart
+  - Fix: Ignore startup definitions for bridged devices (affects OnOff, LevelControl, and ColorControl clusters)
 
 - @matter/protocol
     - Adjustment: Change the default value of "announceAsDefaultProvider" to false to avoid device race conditions for now
