@@ -1284,11 +1284,11 @@ export class PairedNode {
             }
 
             const isRecreation = eventsToEmit.get(endpointId) === "nodeEndpointChanged";
-            logger.debug(
-                () => `Node ${this.nodeId}: ${isRecreation ? "Recreating" : "Creating"} endpoint`,
+            logger.debug(() => [
+                `Node ${this.nodeId}: ${isRecreation ? "Recreating" : "Creating"} endpoint`,
                 endpointId,
                 Diagnostic.json(endpoint.state),
-            );
+            ]);
             this.#endpoints.set(endpointId, this.#createDevice(endpointId, endpoint, this.#interactionClient));
             if (!isRecreation) {
                 eventsToEmit.set(endpointId, "nodeEndpointAdded");
@@ -1349,7 +1349,7 @@ export class PairedNode {
         const partLists = Array.from(descriptors.entries()).map(
             ([epNo, ep]) => [epNo, ep.stateOf(DescriptorClient).partsList] as [EndpointNumber, EndpointNumber[]], // else Typescript gets confused
         );
-        logger.debug(() => `Node ${this.nodeId}: Endpoints from PartsLists`, Diagnostic.json(partLists));
+        logger.debug(() => [`Node ${this.nodeId}: Endpoints from PartsLists`, Diagnostic.json(partLists)]);
 
         const endpointUsages: { [key: EndpointNumber]: EndpointNumber[] } = {};
         partLists.forEach(([parent, partsList]) =>
@@ -1395,7 +1395,7 @@ export class PairedNode {
                 delete endpointUsages[EndpointNumber(parseInt(childId))];
                 idsToCleanup[usages[0]] = true;
             });
-            logger.debug(() => `Node ${this.nodeId}: Endpoint data Cleanup`, Diagnostic.json(idsToCleanup));
+            logger.debug(() => [`Node ${this.nodeId}: Endpoint data Cleanup`, Diagnostic.json(idsToCleanup)]);
             Object.keys(idsToCleanup).forEach(idToCleanup => {
                 Object.keys(endpointUsages).forEach(id => {
                     const usageId = EndpointNumber(parseInt(id));
