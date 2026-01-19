@@ -1014,8 +1014,13 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
 
                 const result = await client.findOperationalDevice(FABRIC, NODE_ID, Seconds.one);
 
-                // Ensure no queries sent
-                expect(messages.findIndex(m => m?.messageType === DnsMessageType.Query)).equals(-1);
+                // Ensure no additional queries sent (only the initial PTR query from criteria add should exist)
+                // findOperationalDevice should use cached data from the broadcast
+                expect(
+                    messages.filter(
+                        m => m?.messageType === DnsMessageType.Query && m.queries[0]?.recordType === DnsRecordType.SRV,
+                    ).length,
+                ).equals(0);
 
                 expect(result?.addresses).deep.equal(IPIntegrationResultsPort1);
 
@@ -1043,7 +1048,13 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
 
                 await MockTime.resolve(findPromise);
 
-                expectMessage(DnsCodec.decode(sentData[0]), {
+                // Find the SRV query (not the initial PTR query from criteria add)
+                const srvQueryData = sentData.find(data => {
+                    const msg = DnsCodec.decode(data);
+                    return msg?.queries[0]?.recordType === DnsRecordType.SRV;
+                });
+                expect(srvQueryData).not.undefined;
+                expectMessage(DnsCodec.decode(srvQueryData!), {
                     additionalRecords: [],
                     answers: [],
                     authorities: [],
@@ -1077,14 +1088,26 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
             });
 
             it("the client queries the server record and get correct response also with multiple announced instances", async () => {
-                const messages = waitForMessages({ count: 2 });
+                // Wait for 4 messages: 1 initial PTR query + 1 PTR response + 1 SRV query + 1 SRV response
+                const messages = waitForMessages({ count: 4 });
 
                 await serve(COMMISSIONABLE_SERVICE, PORT);
                 await serve(OPERATIONAL_SERVICE, PORT2);
 
                 const findPromise = client.findOperationalDevice(FABRIC, NODE_ID);
 
-                const [query, response] = await MockTime.resolve(messages);
+                const allMessages = await MockTime.resolve(messages);
+
+                // Find the SRV query and SRV response (skip the initial PTR query/response)
+                const query = allMessages.find(
+                    m => m?.messageType === DnsMessageType.Query && m.queries[0]?.recordType === DnsRecordType.SRV,
+                );
+                // Find response that contains an SRV answer (not the PTR response from initial query)
+                const response = allMessages.find(
+                    m =>
+                        DnsMessageType.isResponse(m?.messageType ?? 0) &&
+                        m?.answers.some(a => a.recordType === DnsRecordType.SRV),
+                );
 
                 expectMessage(query, {
                     additionalRecords: [],
@@ -1175,7 +1198,13 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
 
                 expect(packetManipulated).to.equal(true);
 
-                expectMessage(DnsCodec.decode(sentData[0]), {
+                // Find the SRV query (not the initial PTR query from criteria add)
+                const srvQueryData = sentData.find(data => {
+                    const msg = DnsCodec.decode(data);
+                    return msg?.queries[0]?.recordType === DnsRecordType.SRV;
+                });
+                expect(srvQueryData).not.undefined;
+                expectMessage(DnsCodec.decode(srvQueryData!), {
                     additionalRecords: [],
                     answers: [],
                     authorities: [],
@@ -1268,6 +1297,143 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
             await close();
         });
 
+        describe("Initial query on new operational targets", () => {
+            function waitForQuery(): Promise<DnsMessage> {
+                return new Promise(resolve => {
+                    const listener = scanListener.onData((_netInterface, _peerAddress, _peerPort, data) => {
+                        const message = DnsCodec.decode(data);
+                        if (message && DnsMessageType.isQuery(message.messageType)) {
+                            listener.close().then(() => resolve(message));
+                        }
+                    });
+                });
+            }
+
+            it("sends initial PTR query when a new operational target is added", async () => {
+                const queryPromise = waitForQuery();
+
+                // Add criteria with operational target - should trigger initial query
+                const criteria: MdnsScannerTargetCriteria = {
+                    commissionable: false,
+                    operationalTargets: [{ fabricId: GLOBAL_ID, nodeId: NODE_ID }],
+                };
+
+                client.targetCriteriaProviders.add(criteria);
+
+                const query = await queryPromise;
+
+                expect(query.messageType).equals(DnsMessageType.Query);
+                expect(query.queries).deep.includes({
+                    name: "0000000000000018-0000000000000001._matter._tcp.local",
+                    recordClass: 1,
+                    recordType: DnsRecordType.PTR,
+                    uniCastResponse: false,
+                });
+
+                client.targetCriteriaProviders.delete(criteria);
+            });
+
+            it("sends initial PTR query for fabric-only target", async () => {
+                const queryPromise = waitForQuery();
+
+                // Add criteria with fabric-only operational target (no nodeId)
+                const criteria: MdnsScannerTargetCriteria = {
+                    commissionable: false,
+                    operationalTargets: [{ fabricId: GLOBAL_ID }],
+                };
+
+                client.targetCriteriaProviders.add(criteria);
+
+                const query = await queryPromise;
+
+                expect(query.messageType).equals(DnsMessageType.Query);
+                expect(query.queries).deep.includes({
+                    name: "_I0000000000000018._sub._matter._tcp.local",
+                    recordClass: 1,
+                    recordType: DnsRecordType.PTR,
+                    uniCastResponse: false,
+                });
+
+                client.targetCriteriaProviders.delete(criteria);
+            });
+
+            it("does not send initial query for already known targets", async () => {
+                // First add a criteria to establish a known target
+                const queryPromise1 = waitForQuery();
+
+                const criteria1: MdnsScannerTargetCriteria = {
+                    commissionable: false,
+                    operationalTargets: [{ fabricId: GLOBAL_ID, nodeId: NODE_ID }],
+                };
+
+                client.targetCriteriaProviders.add(criteria1);
+                await queryPromise1; // Wait for initial query
+
+                // Now add same target again via different criteria - should NOT trigger new query
+                let queryReceived = false;
+                const listener = scanListener.onData((_netInterface, _peerAddress, _peerPort, data) => {
+                    const message = DnsCodec.decode(data);
+                    if (message && DnsMessageType.isQuery(message.messageType)) {
+                        queryReceived = true;
+                    }
+                });
+
+                const criteria2: MdnsScannerTargetCriteria = {
+                    commissionable: false,
+                    operationalTargets: [{ fabricId: GLOBAL_ID, nodeId: NODE_ID }],
+                };
+
+                client.targetCriteriaProviders.add(criteria2);
+
+                // Wait a bit for any potential query
+                await MockTime.resolve(Time.sleep("wait", Millis(10)));
+
+                // No new queries should be sent for already known target
+                expect(queryReceived).equals(false);
+
+                await listener.close();
+                client.targetCriteriaProviders.delete(criteria1);
+                client.targetCriteriaProviders.delete(criteria2);
+            });
+
+            it("sends initial queries for multiple new targets in one message", async () => {
+                const queryPromise = waitForQuery();
+
+                const GLOBAL_ID_2 = GlobalFabricId(0x19);
+                const NODE_ID_2 = NodeId(2);
+
+                // Add criteria with multiple operational targets
+                const criteria: MdnsScannerTargetCriteria = {
+                    commissionable: false,
+                    operationalTargets: [
+                        { fabricId: GLOBAL_ID, nodeId: NODE_ID },
+                        { fabricId: GLOBAL_ID_2, nodeId: NODE_ID_2 },
+                    ],
+                };
+
+                client.targetCriteriaProviders.add(criteria);
+
+                const query = await queryPromise;
+
+                expect(query.messageType).equals(DnsMessageType.Query);
+                expect(query.queries.length).equals(2);
+                expect(query.queries).deep.includes({
+                    name: "0000000000000018-0000000000000001._matter._tcp.local",
+                    recordClass: 1,
+                    recordType: DnsRecordType.PTR,
+                    uniCastResponse: false,
+                });
+                expect(query.queries).deep.includes({
+                    name: "0000000000000019-0000000000000002._matter._tcp.local",
+                    recordClass: 1,
+                    recordType: DnsRecordType.PTR,
+                    uniCastResponse: false,
+                });
+
+                client.targetCriteriaProviders.delete(criteria);
+            });
+        });
+
         describe("Operational and commissionable discovery", () => {
             const criteria: MdnsScannerTargetCriteria = {
                 commissionable: true,
@@ -1277,7 +1443,8 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
             afterEach(() => client.targetCriteriaProviders.delete(criteria));
 
             it("the client knows announced records if scanning is enabled by criteria", async () => {
-                const messages = waitForMessages({ count: 2 });
+                // Wait for 3 messages: 1 initial PTR query (from criteria add) + 2 broadcast responses
+                const messages = waitForMessages({ count: 3 });
                 advertise(COMMISSIONABLE_SERVICE);
                 advertise(OPERATIONAL_SERVICE, PORT2);
 
@@ -1332,8 +1499,13 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
 
                 const result = await client.findOperationalDevice(FABRIC, NODE_ID, Seconds(10));
 
-                // Ensure no queries sent
-                expect(messages.findIndex(m => m?.messageType === DnsMessageType.Query)).equals(-1);
+                // Ensure no additional SRV queries sent (only the initial PTR query from criteria add should exist)
+                // findOperationalDevice should use cached data from the broadcast
+                expect(
+                    messages.filter(
+                        m => m?.messageType === DnsMessageType.Query && m.queries[0]?.recordType === DnsRecordType.SRV,
+                    ).length,
+                ).equals(0);
 
                 expect(result?.addresses).deep.equal(IPIntegrationResultsPort2);
 

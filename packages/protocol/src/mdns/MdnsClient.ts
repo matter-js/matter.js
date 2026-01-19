@@ -52,6 +52,7 @@ import {
     getCommissionableDeviceQname,
     getCommissioningModeQname,
     getDeviceTypeQname,
+    getFabricQname,
     getLongDiscriminatorQname,
     getOperationalDeviceQname,
     getShortDiscriminatorQname,
@@ -205,7 +206,7 @@ export class MdnsClient implements Scanner {
         }
 
         const formerTargets = new Set(this.#operationalScanTargets);
-        const newTargets = new Set<string>();
+        const initialSendQueries = new Set<string>();
         // Add all operational targets from the criteria providers
         this.#operationalScanTargets.clear();
         let cacheCommissionableDevices = false;
@@ -213,14 +214,19 @@ export class MdnsClient implements Scanner {
             const { operationalTargets, commissionable } = criteria;
             cacheCommissionableDevices = cacheCommissionableDevices || commissionable;
             for (const { fabricId, nodeId } of operationalTargets) {
-                const target = (
-                    nodeId === undefined
-                        ? GlobalFabricId.strOf(fabricId)
-                        : `${GlobalFabricId.strOf(fabricId)}-${NodeId.strOf(nodeId)}`
-                ).toUpperCase();
+                let target: string;
+                let scanTarget: string;
+                if (nodeId === undefined) {
+                    target = GlobalFabricId.strOf(fabricId).toUpperCase();
+                    scanTarget = getFabricQname(fabricId);
+                } else {
+                    target = `${GlobalFabricId.strOf(fabricId)}-${NodeId.strOf(nodeId)}`.toUpperCase();
+                    scanTarget = getOperationalDeviceQname(fabricId, nodeId);
+                }
+
                 this.#operationalScanTargets.add(target);
                 if (!formerTargets.has(target)) {
-                    newTargets.add(target);
+                    initialSendQueries.add(scanTarget);
                 }
             }
         }
@@ -232,15 +238,17 @@ export class MdnsClient implements Scanner {
         }
         this.#updateListeningStatus();
 
-        if (newTargets.size > 0) {
-            logger.debug(`Sending initial operational mDNS queries for ${newTargets.size} new operational targets`);
+        if (initialSendQueries.size > 0) {
+            logger.debug(
+                `Sending initial operational mDNS queries for ${initialSendQueries.size} new operational targets`,
+            );
             if (this.#operationalInitialQueries === undefined) {
                 this.#operationalInitialQueries = new BasicMultiplex();
             }
             this.#operationalInitialQueries.add(
                 this.#socket.send({
                     messageType: DnsMessageType.Query,
-                    queries: Array.from(newTargets.values()).map(target => ({
+                    queries: Array.from(initialSendQueries.values()).map(target => ({
                         name: target,
                         recordClass: DnsRecordClass.IN,
                         recordType: DnsRecordType.PTR,
@@ -325,10 +333,7 @@ export class MdnsClient implements Scanner {
                     ),
             );
             if (newQueries.length === 0) {
-                // All queries already sent out
-                logger.debug(
-                    `No new query records for query ${queryId}, keeping existing queries and do not re-announce.`,
-                );
+                // All queries already sent out, will be re-queried automatically
                 return;
             }
             queries = [...newQueries, ...existingQueries];
