@@ -12,7 +12,6 @@ import {
     DnsMessageTypeFlag,
     MAX_MDNS_MESSAGE_SIZE,
 } from "#codec/DnsCodec.js";
-import { Diagnostic } from "#log/Diagnostic.js";
 import { Logger } from "#log/Logger.js";
 import { MatterAggregateError } from "#MatterError.js";
 import { Network } from "#net/Network.js";
@@ -129,15 +128,6 @@ export class MdnsSocket {
             const answerEncoded = DnsCodec.encodeRecord(answer);
 
             if (chunkSize + answerEncoded.byteLength > MAX_MDNS_MESSAGE_SIZE) {
-                if (chunk.answers.length === 0) {
-                    // Single answer exceeds message size - log warning but send anyway
-                    logger.warn(
-                        `Sending oversized DNS answer record (${answerEncoded.byteLength} bytes) that exceeds max message size: ${Diagnostic.json(
-                            chunk.queries,
-                        )}`,
-                    );
-                }
-
                 // New answer does not fit anymore, send out the message
                 // When sending a query, we set the Truncated flag to indicate more answers are available
                 await this.#send(
