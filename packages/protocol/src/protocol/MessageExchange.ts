@@ -19,6 +19,7 @@ import {
     InternalError,
     Lifetime,
     Logger,
+    MatterError,
     MatterFlowError,
     Millis,
     Time,
@@ -280,7 +281,7 @@ export class MessageExchange {
         const isStandaloneAck = SecureMessageType.isStandaloneAck(protocolId, messageType);
         if (protocolId !== this.#protocolId && !isStandaloneAck) {
             throw new MatterFlowError(
-                `Drop received a message for an unexpected protocol. Expected: ${this.#protocolId}, received: ${protocolId}`,
+                `${Message.via(this, message).toString()} Drop received a message for an unexpected protocol. Expected: ${this.#protocolId}, received: ${protocolId}`,
             );
         }
 
@@ -304,14 +305,14 @@ export class MessageExchange {
         if (sentMessageIdToAck !== undefined) {
             if (ackedMessageId === undefined) {
                 // The message has no ack, but one previous message sent still needs to be acked.
-                throw new MatterFlowError("Previous message ack is missing");
+                throw new MatterFlowError(`${Message.via(this, message).toString()} Previous message ack is missing`);
             } else if (ackedMessageId !== sentMessageIdToAck) {
                 // The message has an ack for another message.
                 if (isStandaloneAck) {
                     // Ignore if this is a standalone ack, probably this was a retransmission.
                 } else {
                     throw new MatterFlowError(
-                        `Incorrect ack received. Expected ${sentMessageIdToAck}, received: ${ackedMessageId}`,
+                        `${Message.via(this, message).toString()} Incorrect ack received. Expected ${sentMessageIdToAck}, received: ${ackedMessageId}`,
                     );
                 }
             } else {
@@ -374,7 +375,9 @@ export class MessageExchange {
             }
         }
         if (this.#sentMessageToAck !== undefined && !isStandaloneAck) {
-            throw new MatterFlowError("The previous message has not been acked yet, cannot send a new message.");
+            throw new MatterFlowError(
+                `${Message.via(this, this.#sentMessageToAck).toString()} The previous message has not been acked yet, cannot send a new message.`,
+            );
         }
 
         this.#used = true;
@@ -478,7 +481,7 @@ export class MessageExchange {
         }
     }
 
-    nextMessage(options?: { expectedProcessingTime?: Duration; timeout?: Duration }) {
+    async nextMessage(options?: { expectedProcessingTime?: Duration; timeout?: Duration }) {
         let timeout: Duration;
         if (options?.timeout !== undefined) {
             timeout = options.timeout;
@@ -491,7 +494,14 @@ export class MessageExchange {
                 options?.expectedProcessingTime,
             );
         }
-        return this.#messagesQueue.read(timeout);
+        try {
+            return await this.#messagesQueue.read(timeout);
+        } catch (error) {
+            MatterError.accept(error);
+            // Add context to exception
+            error.message = `${this.via.toString()} ${error.message}`;
+            throw error;
+        }
     }
 
     async #sendStandaloneAckForMessage(message: Message) {

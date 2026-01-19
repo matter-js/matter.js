@@ -692,7 +692,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         discoveryData?: DiscoveryData,
         options?: CaseClient.PairOptions,
     ) {
-        logger.debug(`Pair with ${address} at ${ServerAddress.urlFor(operationalServerAddress)}`);
+        logger.info(`Pair with ${address} at ${ServerAddress.urlFor(operationalServerAddress)}`);
         const { ip, port } = operationalServerAddress;
         // Do CASE pairing
         const isIpv6Address = isIPv6(ip);
@@ -779,7 +779,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     }
 
     /**
-     * Obtain an operational address for a logical address from cache.
+     * Get an operational address for a logical address from cache.
      */
     #knownOperationalAddressFor(address: PeerAddress, ignoreDiscoveredAddresses = false) {
         const lastKnownAddress = this.#getLastOperationalAddress(address);
