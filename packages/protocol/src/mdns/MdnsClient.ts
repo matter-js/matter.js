@@ -6,6 +6,7 @@
 
 import {
     AddressLifespan,
+    BasicMultiplex,
     BasicSet,
     ChannelType,
     Diagnostic,
@@ -124,6 +125,7 @@ export interface MdnsScannerTargetCriteria {
  */
 export class MdnsClient implements Scanner {
     readonly #lifetime: Lifetime;
+    #operationalInitialQueries?: BasicMultiplex;
 
     readonly type = ChannelType.UDP;
 
@@ -202,6 +204,8 @@ export class MdnsClient implements Scanner {
             return;
         }
 
+        const formerTargets = new Set(this.#operationalScanTargets);
+        const newTargets = new Set<string>();
         // Add all operational targets from the criteria providers
         this.#operationalScanTargets.clear();
         let cacheCommissionableDevices = false;
@@ -209,12 +213,14 @@ export class MdnsClient implements Scanner {
             const { operationalTargets, commissionable } = criteria;
             cacheCommissionableDevices = cacheCommissionableDevices || commissionable;
             for (const { fabricId, nodeId } of operationalTargets) {
-                if (nodeId === undefined) {
-                    this.#operationalScanTargets.add(GlobalFabricId.strOf(fabricId));
-                } else {
-                    this.#operationalScanTargets.add(
-                        `${GlobalFabricId.strOf(fabricId)}-${NodeId.strOf(nodeId)}`.toUpperCase(),
-                    );
+                const target = (
+                    nodeId === undefined
+                        ? GlobalFabricId.strOf(fabricId)
+                        : `${GlobalFabricId.strOf(fabricId)}-${NodeId.strOf(nodeId)}`
+                ).toUpperCase();
+                this.#operationalScanTargets.add(target);
+                if (!formerTargets.has(target)) {
+                    newTargets.add(target);
                 }
             }
         }
@@ -225,6 +231,23 @@ export class MdnsClient implements Scanner {
             this.#registerOperationalQuery(queryId);
         }
         this.#updateListeningStatus();
+
+        if (newTargets.size > 0) {
+            logger.debug(`Sending initial operational mDNS queries for ${newTargets.size} new operational targets`);
+            if (this.#operationalInitialQueries === undefined) {
+                this.#operationalInitialQueries = new BasicMultiplex();
+            }
+            this.#operationalInitialQueries.add(
+                this.#socket.send({
+                    messageType: DnsMessageType.Query,
+                    queries: Array.from(newTargets.values()).map(target => ({
+                        name: target,
+                        recordClass: DnsRecordClass.IN,
+                        recordType: DnsRecordType.PTR,
+                    })),
+                }),
+            );
+        }
     }
 
     /** Update the status if we care about MDNS messages or not */
@@ -848,6 +871,7 @@ export class MdnsClient implements Scanner {
         this.#observers.close();
         this.#periodicTimer.stop();
         this.#queryTimer?.stop();
+        await this.#operationalInitialQueries?.close();
         // Resolve all pending promises where logic waits for the response (aka: has a timer)
         [...this.#recordWaiters.keys()].forEach(queryId =>
             this.#finishWaiter(queryId, !!this.#recordWaiters.get(queryId)?.timer),
