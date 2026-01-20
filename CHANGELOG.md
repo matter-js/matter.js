@@ -17,7 +17,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Add some protection to better ignore invalid mDNS packets
 
 - @matter/protocol
-    - Adjustment: Change the default value of "announceAsDefaultProvider" to false to avoid device race conditions for now
+    - Adjustment: Change the default value of "announceAsDefaultProvider" to false, which avoids device race conditions for now
     - Fix: Ignore errors for closed sessions on resubmissions on already closed exchanges. Were false positive logs before.
 
 - @project-chip/matter.js
