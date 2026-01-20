@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { DatabaseSync } from "node:sqlite"
+import { rm } from "node:fs/promises"
 
 import { SqliteStorage } from "../SqliteStorage.js"
 import { DatabaseLike } from "../SqliteTypes.js"
@@ -21,5 +22,14 @@ export class NodeJsSqlite extends SqliteStorage {
       path,
       clear,
     })
+  }
+
+  override async clear(completely?: boolean) {
+    await super.clear()
+    if (completely ?? false) {
+      this.close()
+      await rm(this.dbPath, { force: true })
+      this.isInitialized = false
+    }
   }
 }

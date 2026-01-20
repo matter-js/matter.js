@@ -7,6 +7,8 @@
 import { SqliteStorage } from "../SqliteStorage.js"
 // @ts-expect-error - bun:sqlite is only available in Bun runtime
 import { Database } from "bun:sqlite"
+// @ts-expect-error - Bun is only available in Bun runtime
+import Bun from "bun"
 
 /**
  * `StorageSqliteDisk` for Bun
@@ -24,5 +26,14 @@ export class BunSqlite extends SqliteStorage {
       path,
       clear,
     })
+  }
+
+  override async clear(completely?: boolean) {
+    await super.clear()
+    if (completely ?? false) {
+      this.close()
+      await Bun.file(this.dbPath).delete()
+      this.isInitialized = false
+    }
   }
 }

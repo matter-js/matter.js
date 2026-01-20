@@ -70,11 +70,11 @@ export class SqliteStorage extends Storage implements CloneableStorage {
   #inTransaction = false
 
   // internal values
-  readonly #database: DatabaseLike
-  readonly #dbPath: string
-  readonly #tableName: string
-  readonly #clear: boolean
-  readonly #databaseCreator: DatabaseCreator
+  protected readonly database: DatabaseLike
+  protected readonly dbPath: string
+  protected readonly tableName: string
+  protected readonly clearOnInit: boolean
+  protected readonly databaseCreator: DatabaseCreator
 
   // queries
   readonly #queryInit: SqlRunnable<void, void>
@@ -127,14 +127,14 @@ export class SqliteStorage extends Storage implements CloneableStorage {
     super()
     const { databaseCreator, path, tableName, clear } = args
 
-    this.#dbPath = (path === null) ? SqliteStorage.memoryPath : path
-    this.#databaseCreator = databaseCreator
-    this.#database = databaseCreator(this.#dbPath)
+    this.dbPath = (path === null) ? SqliteStorage.memoryPath : path
+    this.databaseCreator = databaseCreator
+    this.database = databaseCreator(this.dbPath)
 
     // tableName is vulnerable
     // DO NOT USE FROM USER'S INPUT
-    this.#tableName = tableName ?? SqliteStorage.defaultTableName
-    this.#clear = clear ?? false
+    this.tableName = tableName ?? SqliteStorage.defaultTableName
+    this.clearOnInit = clear ?? false
 
     // ═════════════════════════════════════════════════════════════
     // Query Preparation
@@ -143,8 +143,8 @@ export class SqliteStorage extends Storage implements CloneableStorage {
     // ─────────────────────────────────────────────────────────────
     // Schema Initialization
     // ─────────────────────────────────────────────────────────────
-    this.#queryInit = this.#database.prepare(`
-      CREATE TABLE IF NOT EXISTS ${this.#tableName} (
+    this.#queryInit = this.database.prepare(`
+      CREATE TABLE IF NOT EXISTS ${this.tableName} (
         context TEXT NOT NULL,
         key TEXT NOT NULL,
         value_type TEXT CHECK(value_type IN ('json', 'blob')),
@@ -158,20 +158,20 @@ export class SqliteStorage extends Storage implements CloneableStorage {
     // ─────────────────────────────────────────────────────────────
     // Read Operations
     // ─────────────────────────────────────────────────────────────
-    this.#queryGet = this.#database.prepare(`
-      SELECT value_json FROM ${this.#tableName} WHERE
+    this.#queryGet = this.database.prepare(`
+      SELECT value_json FROM ${this.tableName} WHERE
         context=$context AND
         key=$key AND
         value_type='json'
     `)
 
-    this.#queryGetRaw = this.#database.prepare(`
-      SELECT * FROM ${this.#tableName}
+    this.#queryGetRaw = this.database.prepare(`
+      SELECT * FROM ${this.tableName}
     `)
 
-    this.#queryHas = this.#database.prepare(`
+    this.#queryHas = this.database.prepare(`
       SELECT EXISTS(
-        SELECT 1 FROM ${this.#tableName}
+        SELECT 1 FROM ${this.tableName}
         WHERE context=$context AND key=$key
       ) as has_record
     `)
@@ -179,8 +179,8 @@ export class SqliteStorage extends Storage implements CloneableStorage {
     // ─────────────────────────────────────────────────────────────
     // Write Operations
     // ─────────────────────────────────────────────────────────────
-    this.#querySet = this.#database.prepare(`
-      INSERT INTO ${this.#tableName}
+    this.#querySet = this.database.prepare(`
+      INSERT INTO ${this.tableName}
         (context, key, value_type, value_json, value_blob)
       VALUES($context, $key, 'json', $value_json, NULL)
       ON CONFLICT(context, key)
@@ -190,8 +190,8 @@ export class SqliteStorage extends Storage implements CloneableStorage {
         value_blob = NULL
     `)
 
-    this.#querySetRaw = this.#database.prepare(`
-      INSERT INTO ${this.#tableName}
+    this.#querySetRaw = this.database.prepare(`
+      INSERT INTO ${this.tableName}
         (context, key, value_type, value_json, value_blob)
       VALUES($context, $key, $value_type, $value_json, $value_blob)
       ON CONFLICT(context, key)
@@ -204,51 +204,51 @@ export class SqliteStorage extends Storage implements CloneableStorage {
     // ─────────────────────────────────────────────────────────────
     // Delete Operations
     // ─────────────────────────────────────────────────────────────
-    this.#queryDelete = this.#database.prepare(`
-      DELETE FROM ${this.#tableName} WHERE
+    this.#queryDelete = this.database.prepare(`
+      DELETE FROM ${this.tableName} WHERE
         context=$context AND
         key=$key
     `)
 
-    this.#queryClear = this.#database.prepare(`
-      DELETE FROM ${this.#tableName}
+    this.#queryClear = this.database.prepare(`
+      DELETE FROM ${this.tableName}
     `)
 
-    this.#queryClearAll = this.#database.prepare(`
-      DELETE FROM ${this.#tableName} WHERE
+    this.#queryClearAll = this.database.prepare(`
+      DELETE FROM ${this.tableName} WHERE
         context=$context OR context GLOB $contextGlob
     `)
 
     // ─────────────────────────────────────────────────────────────
     // Context & Key Queries
     // ─────────────────────────────────────────────────────────────
-    this.#queryKeys = this.#database.prepare(`
-      SELECT DISTINCT key FROM ${this.#tableName} WHERE
+    this.#queryKeys = this.database.prepare(`
+      SELECT DISTINCT key FROM ${this.tableName} WHERE
         context=$context
     `)
 
-    this.#queryValues = this.#database.prepare(`
-      SELECT key, value_json FROM ${this.#tableName} WHERE
+    this.#queryValues = this.database.prepare(`
+      SELECT key, value_json FROM ${this.tableName} WHERE
         context=$context AND
         value_type='json'
     `)
 
-    this.#queryContextSub = this.#database.prepare(`
-      SELECT DISTINCT context FROM ${this.#tableName} WHERE
+    this.#queryContextSub = this.database.prepare(`
+      SELECT DISTINCT context FROM ${this.tableName} WHERE
         context GLOB $contextGlob
     `)
 
     // ─────────────────────────────────────────────────────────────
     // Blob Operations
     // ─────────────────────────────────────────────────────────────
-    this.#queryOpenBlob = this.#database.prepare(`
-      SELECT value_type, value_json, value_blob FROM ${this.#tableName} WHERE
+    this.#queryOpenBlob = this.database.prepare(`
+      SELECT value_type, value_json, value_blob FROM ${this.tableName} WHERE
         context=$context AND
         key=$key
     `)
 
-    this.#queryWriteBlob = this.#database.prepare(`
-      INSERT INTO ${this.#tableName}
+    this.#queryWriteBlob = this.database.prepare(`
+      INSERT INTO ${this.tableName}
         (context, key, value_type, value_json, value_blob)
       VALUES($context, $key, 'blob', NULL, $value_blob)
       ON CONFLICT(context, key)
@@ -277,7 +277,7 @@ export class SqliteStorage extends Storage implements CloneableStorage {
             "Transaction is in progress."
           )
         }
-        this.#database.exec("BEGIN IMMEDIATE TRANSACTION")
+        this.database.exec("BEGIN IMMEDIATE TRANSACTION")
         this.#inTransaction = true
         break
 
@@ -288,7 +288,7 @@ export class SqliteStorage extends Storage implements CloneableStorage {
             "No transaction in progress."
           )
         }
-        this.#database.exec("COMMIT")
+        this.database.exec("COMMIT")
         this.#inTransaction = false
         break
 
@@ -296,7 +296,7 @@ export class SqliteStorage extends Storage implements CloneableStorage {
         if (!this.#inTransaction) {
           return
         }
-        this.#database.exec("ROLLBACK")
+        this.database.exec("ROLLBACK")
         this.#inTransaction = false
         break
     }
@@ -324,17 +324,17 @@ export class SqliteStorage extends Storage implements CloneableStorage {
   }
 
   override async initialize(): Promise<void> {
-    if (this.#clear) {
-      this.clear()
+    if (this.clearOnInit) {
+      await this.clear(false)
     }
     this.isInitialized = true
   }
 
   public clone(): Storage {
     const clonedStorage = new SqliteStorage({
-      databaseCreator: this.#databaseCreator,
+      databaseCreator: this.databaseCreator,
       path: null,
-      tableName: this.#tableName,
+      tableName: this.tableName,
       clear: false,
     })
 
@@ -346,7 +346,7 @@ export class SqliteStorage extends Storage implements CloneableStorage {
 
   override close() {
     this.isInitialized = false
-    this.#database.close()
+    this.database.close()
   }
 
   override get<T extends SupportedStorageTypes>(contexts: string[], key: string): T | null | undefined {
@@ -531,7 +531,13 @@ export class SqliteStorage extends Storage implements CloneableStorage {
     ))]
   }
 
-  public clear() {
+  /**
+   * Should be implement to platform specific class
+   * when `completely = true`
+   * 
+   * basic cleanup query for here.
+   */
+  public async clear(_completely?: boolean) {
     this.#queryClear.run()
   }
 

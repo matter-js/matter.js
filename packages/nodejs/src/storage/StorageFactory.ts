@@ -8,7 +8,7 @@ import { supportsSqlite } from "#util/runtimeChecks.js"
 import { Logger, StorageError, StorageMigration, toJson } from "@matter/general"
 import { StorageBackendDisk } from "./fs/StorageBackendDisk.js"
 import { PlatformSqlite } from "./sqlite/index.js"
-import { lstat, mkdir, writeFile, rename, rm } from "node:fs/promises"
+import { lstat, mkdir, writeFile, rm, rename } from "node:fs/promises"
 import { resolve } from "node:path"
 
 const logger = new Logger("StorageFactory")
@@ -68,17 +68,23 @@ export namespace StorageFactory {
       type, rootDir, namespace
     )
 
-    // No migrate if not exists or clear = true
+    // No migrate if exists or clear = true
     if (clear || await exists(path)) {
       return await createRawInit(type, path, clear)
     }
 
+    // Storage which will use
     const storage = await createRawInit(type, path, false)
-    // Start migrate
+
+    const migrationRootDir = resolve(rootDir, ".migrations",
+      getResultDirName(namespace)
+    )
+
     for (const otherType of StorageTypes) {
       if (type === otherType) {
         continue
       }
+
       const otherPath = getRealPath(
         otherType, rootDir, namespace
       )
@@ -88,13 +94,13 @@ export namespace StorageFactory {
 
       try {
         const otherStorage = await createRawInit(otherType, otherPath, false)
+        // Migrate
         const migrationResult = await StorageMigration.migrate(otherStorage, storage)
-
+        // close otherStorage
         await otherStorage.close()
+
         // Create result dir
-        const resultDir = resolve(rootDir, ".migrations",
-          getResultDirName(otherType, type)
-        )
+        const resultDir = resolve(migrationRootDir, otherType)
         await mkdir(resultDir, { recursive: true })
 
         // Export log
@@ -102,6 +108,7 @@ export namespace StorageFactory {
           resolve(resultDir, "migration.log"),
           StorageMigration.resultToLog(migrationResult),
         )
+
         // Export metadata
         await writeFile(
           resolve(resultDir, "metadata.json"),
@@ -113,17 +120,18 @@ export namespace StorageFactory {
             result: migrationResult,
           }), 4)
         )
-        // Move to migration dir
-        const moveToPath = getRealPath(otherType, resultDir, namespace)
-        await rename(otherPath, moveToPath)
-        // Logging
-        logger.info(`[migrate] '${namespace}' migration from '${otherType}' to '${type}' complete!`)
+
+        // Move migration data
+        const backupPath = getRealPath(otherType, resultDir, namespace)
+        await rename(otherPath, backupPath)
+
       } catch (err) {
         const errorMessage = (err as Error)?.message ?? String(err)
         logger.error(
           `[migrate] Failed to migrate '${namespace}' from ${otherType} to ${type}!\nError: ${errorMessage}`
         )
       }
+
     }
 
     return storage
@@ -198,6 +206,8 @@ export namespace StorageFactory {
    * Check if storage exists at the given path.
    * 
    * Path should be `getRealPath` instead of namespace path!
+   * 
+   * TODO: replace this check to Storage-specific method?
    */
   async function hasStorage(type: StorageType, path: string): Promise<boolean> {
 
@@ -221,13 +231,14 @@ export namespace StorageFactory {
   /**
    * Get name of backup directory
    */
-  function getResultDirName(fromType: StorageType, toType: StorageType) {
+  function getResultDirName(namespace: string) {
     const timestamp = new Date().toISOString()
       .slice(0, 19) // 2026-01-18T09:45:00
       .replace(/[-:]/g, "")
-      .replace("T", "_")
+      .replace("T", "_").substring(2)
+    // 260118_094500
 
-    return `${timestamp}_${fromType}2${toType}`
+    return `${namespace}_${timestamp}_${generateRandomId()}`
   }
 
   /**
@@ -283,6 +294,24 @@ export namespace StorageFactory {
       default:
         throw new Error(`NOT IMPLEMENTED ${type} type.`)
     }
+  }
+
+  /**
+   * A temporary random id generator
+   * 
+   * TODO: find a better way than this
+   */
+  function generateRandomId() {
+    const characters = "abcdefghijklmnopqrstuvwxyz0123456789"
+
+    let result = ""
+    for (let i = 0; i < 6; i += 1) {
+      result += characters.charAt(
+        Math.floor(Math.random() * characters.length)
+      )
+    }
+
+    return result
   }
 
   async function exists(path: string) {
