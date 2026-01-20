@@ -18,10 +18,7 @@ const CONTEXTx2 = [...CONTEXTx1, "subcontext"]
 const CONTEXTx3 = [...CONTEXTx2, "subsubcontext"]
 
 
-describe("StorageMigration", async () => {
-  // init
-  await mkdir(TEST_STORAGE_LOCATION, { recursive: true })
-
+describe("StorageMigration", () => {
   const testPairs = [{
     source: StorageType.FILE,
     target: StorageType.SQLITE,
@@ -29,6 +26,10 @@ describe("StorageMigration", async () => {
     source: StorageType.SQLITE,
     target: StorageType.FILE,
   }]
+
+  before(async () => {
+    await mkdir(TEST_STORAGE_LOCATION, { recursive: true })
+  })
 
   for (const pair of testPairs) {
     describe(`${pair.source} to ${pair.target}`, () => {

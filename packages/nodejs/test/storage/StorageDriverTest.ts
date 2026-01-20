@@ -18,13 +18,17 @@ const CONTEXTx1 = ["context"]
 const CONTEXTx2 = [...CONTEXTx1, "subcontext"]
 const CONTEXTx3 = [...CONTEXTx2, "subsubcontext"]
 
-describe("StorageDrivers", async () => {
-  // init
-  await mkdir(TEST_STORAGE_LOCATION, { recursive: true })
+describe("StorageDrivers", () => {
+
   const drivers = [
     StorageType.FILE,
     StorageType.SQLITE,
   ]
+
+  before(async () => {
+    await mkdir(TEST_STORAGE_LOCATION, { recursive: true })
+  })
+
   for (const driver of drivers) {
     describe(`${driver} driver`, () => {
       const driverInfo = {
