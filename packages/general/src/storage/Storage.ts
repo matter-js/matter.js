@@ -25,6 +25,7 @@ export abstract class Storage {
     abstract values(contexts: string[]): MaybePromise<Record<string, SupportedStorageTypes>>;
     abstract contexts(contexts: string[]): MaybePromise<string[]>;
     abstract clearAll(contexts: string[]): MaybePromise<void>;
+    abstract clear(): MaybePromise<void>;
 
     /**
      * Checks if a key exists in the storage for the given contexts.

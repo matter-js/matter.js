@@ -8,10 +8,19 @@ import { supportsSqlite } from "#util/runtimeChecks.js"
 import { Logger, StorageError, StorageMigration, toJson } from "@matter/general"
 import { StorageBackendDisk } from "./fs/StorageBackendDisk.js"
 import { PlatformSqlite } from "./sqlite/index.js"
-import { lstat, mkdir, writeFile, rename } from "node:fs/promises"
+import { lstat, mkdir, writeFile, rename, rm } from "node:fs/promises"
 import { resolve } from "node:path"
 
 const logger = new Logger("StorageFactory")
+
+/**
+ * Storage Types which is implemented.
+ */
+// Note: Only use lowercase of enum value.
+export enum StorageType {
+  FILE = "file",
+  SQLITE = "sqlite"
+}
 
 /**
  * Factory for creating storage backends with automatic migration support.
@@ -24,21 +33,14 @@ const logger = new Logger("StorageFactory")
  */
 export namespace StorageFactory {
 
-  /**
-   * Storage Types which is implemented.
-   */
-  // Note: Only use lowercase of enum value.
-  export enum StorageType {
-    FILE = "file",
-    SQLITE = "sqlite"
-  }
-
   const StorageTypes: StorageType[] = [
     StorageType.FILE, StorageType.SQLITE,
   ]
 
   /**
    * Creates a storage instance with automatic migration support.
+   * 
+   * It is also initialized while creating.
    * 
    * This is the main entry point for creating storage backends.
    * It handles:
@@ -68,11 +70,11 @@ export namespace StorageFactory {
 
     // No migrate if not exists or clear = true
     if (clear || await exists(path)) {
-      return await createRaw(type, path, clear)
+      return await createRawInit(type, path, clear)
     }
 
+    const storage = await createRawInit(type, path, false)
     // Start migrate
-    const storage = await createRaw(type, path, false)
     for (const otherType of StorageTypes) {
       if (type === otherType) {
         continue
@@ -85,9 +87,10 @@ export namespace StorageFactory {
       }
 
       try {
-        const otherStorage = await createRaw(otherType, otherPath, false)
+        const otherStorage = await createRawInit(otherType, otherPath, false)
         const migrationResult = await StorageMigration.migrate(otherStorage, storage)
 
+        await otherStorage.close()
         // Create result dir
         const resultDir = resolve(rootDir, ".migrations",
           getResultDirName(otherType, type)
@@ -127,7 +130,31 @@ export namespace StorageFactory {
   }
 
   /**
-   * Create storage backend without migration
+   * Remove the storage instance completely.
+   *
+   * use `storage.clear()` for clearing without remove completely.
+   */
+  export async function remove(args: {
+    driver: StorageType | string,
+    rootDir: string,
+    namespace: string,
+  }) {
+    const { driver, namespace } = args
+    const rootDir = resolve(args.rootDir)
+    const type = getStorageType(driver)
+
+    const path = getRealPath(
+      type, rootDir, namespace
+    )
+
+    if (!await exists(path)) {
+      return
+    }
+    await rm(path, { recursive: true, force: true })
+  }
+
+  /**
+   * Create storage backend without migration/init
    */
   async function createRaw(type: StorageType, path: string, clear: boolean) {
     const normalizedType = type.toLowerCase()
@@ -156,6 +183,15 @@ export namespace StorageFactory {
     throw new Error(
       `'${type}' storage type is not implemented.`
     )
+  }
+
+  /**
+   * `createRaw` with initialize
+   */
+  async function createRawInit(type: StorageType, path: string, clear: boolean) {
+    const storage = await createRaw(type, path, clear)
+    await storage.initialize()
+    return storage
   }
 
   /**

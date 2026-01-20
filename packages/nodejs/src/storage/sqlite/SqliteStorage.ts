@@ -28,8 +28,6 @@ import type {
   DatabaseCreator,
 } from "./SqliteTypes.js"
 
-import { rm } from "node:fs/promises"
-
 /**
  * Type of Key-Value store table
  * 
@@ -533,14 +531,7 @@ export class SqliteStorage extends Storage implements CloneableStorage {
     ))]
   }
 
-  public async clear(completely?: boolean) {
-    if (completely ?? false) {
-      this.close()
-      if (this.#dbPath !== SqliteStorage.memoryPath) {
-        await rm(this.#dbPath, { force: true })
-      }
-      return
-    }
+  public clear() {
     this.#queryClear.run()
   }
 
