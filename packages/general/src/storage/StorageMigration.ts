@@ -107,7 +107,7 @@ async function migrateContext(args: {
         continue
       }
       // Json
-      target.set(contexts, key, value)
+      await target.set(contexts, key, value)
       result.migratedCount += 1
     } catch (err) {
       result.skippedCount += 1
