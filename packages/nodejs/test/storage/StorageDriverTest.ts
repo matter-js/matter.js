@@ -274,10 +274,11 @@ describe("StorageDrivers", () => {
         assert.equal(done, true)
       })
 
-      // After
-      after(async () => {
-        await rm(TEST_STORAGE_LOCATION, { recursive: true, force: true })
-      })
     })
   }
+
+  // Cleanup
+  after(async () => {
+    await rm(TEST_STORAGE_LOCATION, { recursive: true, force: true })
+  })
 })
