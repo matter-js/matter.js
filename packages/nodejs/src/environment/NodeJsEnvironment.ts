@@ -147,22 +147,23 @@ function configureCrypto(env: Environment) {
     Boot.init(() => {
         if (config.installCrypto || (env.vars.boolean("nodejs.crypto") ?? true)) {
             let crypto: Crypto
-            if (isBunjs()) {
-                // Bun does not support `AES-128-CCM`
-                // so use StandardCrypto
-                crypto = new StandardCrypto()
+            if (!isBunjs()) {
+                // Platform implemented crypto
+                crypto = new NodeJsCrypto();
             } else {
-                crypto = new NodeJsCrypto()
+                // Unsupported environment fallback
+                crypto = new StandardCrypto(global.crypto);
             }
             env.set(Entropy, crypto);
             env.set(Crypto, crypto);
-        } else {
-            if (Environment.default.has(Entropy)) {
-                env.set(Entropy, Environment.default.get(Entropy));
-            }
-            if (Environment.default.has(Crypto)) {
-                env.set(Crypto, Environment.default.get(Crypto));
-            }
+            return;
+        }
+        // Extends default crypto
+        if (Environment.default.has(Entropy)) {
+            env.set(Entropy, Environment.default.get(Entropy));
+        }
+        if (Environment.default.has(Crypto)) {
+            env.set(Crypto, Environment.default.get(Crypto));
         }
     });
 }
