@@ -21,6 +21,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ignore errors for closed sessions on resubmissions on already closed exchanges. Were false positive logs before.
 
 - @project-chip/matter.js
+    - Enhancement: Initialize ClusterClient-based structure for PairedNode only when needed
     - Fix: Correctly handle node decommissioning by other controllers
     - Fix: Prevent creation of new peers when decommissioning of a node was working
     - Fix: Extend error handling when persisting legacy node details

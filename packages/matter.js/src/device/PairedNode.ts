@@ -20,6 +20,7 @@ import {
     InternalError,
     Logger,
     MatterError,
+    MaybePromise,
     Millis,
     Minutes,
     Observable,
@@ -38,6 +39,7 @@ import {
     ClusterBehavior,
     Commands,
     CommissioningClient,
+    EndpointLifecycle,
     NetworkClient,
 } from "#node";
 import {
@@ -274,7 +276,9 @@ function areNumberListsSame(list1: Immutable<number[]>, list2: Immutable<number[
  */
 export class PairedNode {
     readonly #clientNode: ClientNode;
-    readonly #endpoints = new Map<number, Endpoint>();
+
+    /** Legacy Endpoint structure, only initialized when needed */
+    #endpoints?: Map<number, Endpoint>;
     #interactionClient: InteractionClient;
     #reconnectDelayTimer?: Timer;
     #newChannelReconnectDelayTimer = Time.getTimer(
@@ -296,9 +300,7 @@ export class PairedNode {
     );
     #reconnectErrorCount = 0;
     readonly #updateEndpointStructureTimer = Time.getTimer("Endpoint structure update", STRUCTURE_UPDATE_TIMEOUT, () =>
-        this.#updateEndpointStructure().catch(error =>
-            logger.warn(`Node ${this.nodeId}: Error updating endpoint structure`, error),
-        ),
+        this.#updateEndpointStructure(),
     );
     #connectionState: NodeStates = NodeStates.Disconnected;
     #reconnectionInProgress = false;
@@ -320,6 +322,9 @@ export class PairedNode {
     #nodeShutdownDetected = false;
     #observers = new ObserverGroup();
     #attributeIdToNameMap = new Map<string, string>();
+
+    /** Collected Node change events from node level. Only filled when legacy endpoint structure is NOT used. */
+    #pendingNodeChangeEvents = new Map<EndpointNumber, keyof PairedNode.NodeStructureEvents>();
     #decommissioned = false;
 
     /**
@@ -401,6 +406,17 @@ export class PairedNode {
         this.#crypto = crypto;
         this.#clientNode = clientNode;
         this.#observers.on(changes, this.#handleNodeChange.bind(this));
+        this.#observers.on(this.#clientNode.lifecycle.changed, (type, endpoint) => {
+            if (this.#endpoints !== undefined) {
+                // When using legacy Endpoint structure, we handle that differently
+                return;
+            }
+            switch (type) {
+                case EndpointLifecycle.Change.PartsReady:
+                    this.#pendingNodeChangeEvents.set(endpoint.number, "nodeEndpointAdded");
+                    break;
+            }
+        });
 
         this.#interactionClient = interactionClient;
         if (this.#interactionClient.isReconnectable) {
@@ -726,8 +742,6 @@ export class PairedNode {
             return;
         }
 
-        await this.#initializeEndpointStructure(false);
-
         // Inform interested parties that the node is initialized
         await this.events.initialized.emit(this.#nodeDetails.details);
         this.#localInitializationDone = true;
@@ -736,7 +750,21 @@ export class PairedNode {
     #handleNodeChange(changes: ChangeNotificationService.Change) {
         const { kind } = changes;
 
-        if (kind !== "update" || this.#currentSubscriptionHandler === undefined) {
+        if (this.#currentSubscriptionHandler === undefined) {
+            return;
+        }
+
+        if (kind === "delete") {
+            if (this.#endpoints !== undefined) {
+                // When using the legacy Endpoint structure, events are handled differently
+                return;
+            }
+            const { endpoint } = changes;
+            if (endpoint === this.#clientNode) {
+                // Node was deleted, so the event is useless anyway, we get a decommission event
+                return;
+            }
+            this.#pendingNodeChangeEvents.set(endpoint.number, "nodeEndpointRemoved");
             return;
         }
 
@@ -745,16 +773,7 @@ export class PairedNode {
             return;
         }
         const endpointId = endpoint.number;
-        const device = this.#endpoints.get(endpointId);
-        if (device === undefined) {
-            return;
-        }
-
         const clusterId = behavior.cluster.id;
-        const cluster = device.getClusterClientById(clusterId);
-        if (cluster === undefined) {
-            return;
-        }
 
         const state = endpoint.stateOf(behavior);
         const attributes = behavior.cluster.attributes;
@@ -819,14 +838,22 @@ export class PairedNode {
                     },
                 }); // Ignore Triggers from Subscribing during initialization
 
-                await this.#initializeEndpointStructure();
+                if (this.#endpoints !== undefined) {
+                    // Update the legacy structure if we initialized it before
+                    this.#initializeEndpointStructure();
+                }
 
                 this.#remoteInitializationInProgress = false; // We are done, rest is bonus and should not block reconnections
 
                 this.#currentSubscriptionIntervalS = maxInterval;
             } else {
                 await this.#readAllAttributes();
-                await this.#initializeEndpointStructure();
+
+                if (this.#endpoints !== undefined) {
+                    // Update the legacy structure if we initialized it before
+                    this.#initializeEndpointStructure();
+                }
+
                 this.#remoteInitializationInProgress = false; // We are done, rest is bonus and should not block reconnections
             }
             if (!this.#remoteInitializationDone) {
@@ -858,13 +885,8 @@ export class PairedNode {
         return this.#ensureConnection();
     }
 
-    /** Method to log the structure of this node with all endpoint and clusters. */
+    /** Method to log the structure of this node with all endpoints and clusters. */
     logStructure() {
-        const rootEndpoint = this.#endpoints.get(EndpointNumber(0));
-        if (rootEndpoint === undefined) {
-            logger.info(`Node ${this.nodeId} has not yet been initialized!`);
-            return;
-        }
         logger.info(this.#clientNode);
     }
 
@@ -894,21 +916,19 @@ export class PairedNode {
                     path: { endpointId, clusterId, attributeId },
                     value,
                 } = data;
-                const device = this.#endpoints.get(endpointId);
-                if (device === undefined) {
-                    return;
-                }
-                const cluster = device.getClusterClientById(clusterId);
-                if (cluster === undefined) {
+                const cluster = this.#endpoints?.get(endpointId)?.getClusterClientById(clusterId);
+                if (this.#endpoints !== undefined && cluster === undefined) {
                     return;
                 }
                 logger.debug(
-                    `Node ${this.nodeId} Trigger attribute update for ${endpointId}.${cluster.name}.${attributeId} to ${Diagnostic.json(
+                    `Node ${this.nodeId} Trigger attribute update for ${endpointId}.${(cluster ?? getClusterById(clusterId)).name}.${attributeId} to ${Diagnostic.json(
                         value,
                     )}`,
                 );
 
-                asClusterClientInternal(cluster)._triggerAttributeUpdate(attributeId, value);
+                if (cluster !== undefined) {
+                    asClusterClientInternal(cluster)._triggerAttributeUpdate(attributeId, value);
+                }
                 attributeChangedCallback?.(data);
 
                 this.#checkAttributesForNeededUpdates(endpointId, clusterId, attributeId, value);
@@ -919,18 +939,17 @@ export class PairedNode {
                     path: { endpointId, clusterId, eventId },
                     events,
                 } = data;
-                const device = this.#endpoints.get(endpointId);
-                if (device === undefined) {
-                    return;
-                }
-                const cluster = device.getClusterClientById(clusterId);
-                if (cluster === undefined) {
+                const cluster = this.#endpoints?.get(endpointId)?.getClusterClientById(clusterId);
+                if (this.#endpoints !== undefined && cluster === undefined) {
                     return;
                 }
                 logger.debug(
-                    `Node ${this.nodeId} Trigger event update for ${endpointId}.${cluster.name}.${eventId} for ${events.length} events`,
+                    `Node ${this.nodeId} Trigger event update for ${endpointId}.${(cluster ?? getClusterById(clusterId)).name}.${eventId} for ${events.length} events`,
                 );
-                asClusterClientInternal(cluster)._triggerEventUpdate(eventId, events);
+
+                if (cluster !== undefined) {
+                    asClusterClientInternal(cluster)._triggerEventUpdate(eventId, events);
+                }
 
                 eventTriggeredCallback?.(data);
 
@@ -956,16 +975,13 @@ export class PairedNode {
 
                 if (
                     this.#remoteInitializationDone &&
-                    this.#registeredEndpointStructureChanges.size > 0 &&
+                    (this.#registeredEndpointStructureChanges.size > 0 || this.#pendingNodeChangeEvents.size > 0) &&
                     !this.#updateEndpointStructureTimer.isRunning
                 ) {
                     logger.info(`Node ${this.nodeId}: Endpoint structure needs to be updated ...`);
                     this.#updateEndpointStructureTimer.stop().start();
                 } else if (this.#deviceInformationUpdateNeeded) {
-                    const rootEndpoint = this.getRootEndpoint();
-                    if (rootEndpoint !== undefined) {
-                        this.events.deviceInformationChanged.emit(this.#nodeDetails.details);
-                    }
+                    this.events.deviceInformationChanged.emit(this.#nodeDetails.details);
                 }
                 this.#deviceInformationUpdateNeeded = false;
 
@@ -1160,13 +1176,29 @@ export class PairedNode {
         this.#reconnectDelayTimer.start();
     }
 
-    async #updateEndpointStructure() {
-        await this.#initializeEndpointStructure(true);
+    #updateEndpointStructure() {
+        if (this.#endpoints === undefined) {
+            // Combine triggers from attribute changes with the collected node details
+            for (const endpointId of this.#registeredEndpointStructureChanges.keys()) {
+                if (!this.#pendingNodeChangeEvents.has(endpointId)) {
+                    this.#pendingNodeChangeEvents.set(endpointId, "nodeEndpointChanged");
+                }
+            }
+            const eventsToEmit = new Map(this.#pendingNodeChangeEvents);
 
-        const rootEndpoint = this.getRootEndpoint();
-        if (rootEndpoint !== undefined) {
-            await this.events.deviceInformationChanged.emit(this.#nodeDetails.details);
+            this.#registeredEndpointStructureChanges.clear();
+            this.#pendingNodeChangeEvents.clear();
+
+            this.#triggerNodeStructureChanges(eventsToEmit);
+        } else {
+            this.#initializeEndpointStructure(true);
         }
+
+        MaybePromise.then(
+            this.events.deviceInformationChanged.emit(this.#nodeDetails.details),
+            () => {},
+            error => logger.warn(`Node ${this.nodeId}: Error updating endpoint structure`, error),
+        );
     }
 
     /**
@@ -1219,16 +1251,45 @@ export class PairedNode {
         );
     }
 
-    /** Reads all data from the device and create a device object structure out of it. */
-    async #initializeEndpointStructure(
-        updateStructure = this.#localInitializationDone || this.#remoteInitializationDone,
-    ) {
+    /** Trigger collected node and endpoint changes */
+    #triggerNodeStructureChanges(eventsToEmit: Map<EndpointNumber, keyof PairedNode.NodeStructureEvents>) {
+        const emitChangeEvents = () => {
+            for (const [endpointId, eventName] of eventsToEmit.entries()) {
+                logger.debug(`Node ${this.nodeId}: Emitting event ${eventName} for endpoint ${endpointId}`);
+                this.events[eventName].emit(endpointId);
+            }
+            this.#options.stateInformationCallback?.(this.nodeId, NodeStateInformation.StructureChanged);
+            this.events.structureChanged.emit();
+        };
+
+        if (this.#connectionState === NodeStates.Connected) {
+            // If we are connected, we can emit the events right away
+            emitChangeEvents();
+        } else {
+            // If we are not connected, we need to wait until we are connected again and emit these changes afterwards
+            this.events.stateChanged.once(State => {
+                if (State === NodeStates.Connected) {
+                    emitChangeEvents();
+                }
+            });
+        }
+    }
+
+    /**
+     * This method initializes the legacy ClusterClient-based structure.
+     * Reads all data from the device and create a device object structure out of it.
+     *
+     */
+    #initializeEndpointStructure(updateStructure = this.#localInitializationDone || this.#remoteInitializationDone) {
+        if (this.#endpoints === undefined) {
+            this.#endpoints = new Map();
+        }
         if (this.#updateEndpointStructureTimer.isRunning) {
             this.#updateEndpointStructureTimer.stop();
         }
         const eventsToEmit = new Map<EndpointNumber, keyof PairedNode.NodeStructureEvents>();
-        const structureUpdateDetails = this.#registeredEndpointStructureChanges;
-        this.#registeredEndpointStructureChanges = new Map();
+        const structureUpdateDetails = new Map(this.#registeredEndpointStructureChanges);
+        this.#registeredEndpointStructureChanges.clear();
 
         // Collect the descriptor data for all endpoints referenced in the structure
         const endpoints = new Map<EndpointNumber, ClientEndpoint>();
@@ -1241,7 +1302,7 @@ export class PairedNode {
                 const device = this.#endpoints.get(endpointId);
                 if (device !== undefined) {
                     // Check if there are any changes to the device that require a re-creation
-                    // When structureUpdateDetails from subscription updates state changes we do a deep validation
+                    // When structureUpdateDetails from subscription updates state changes, we do a deep validation
                     // to prevent ordering changes to cause unnecessary device re-creations
                     const hasChanged = structureUpdateDetails.has(endpointId);
                     if (!hasChanged || !this.#hasEndpointChanged(device, endpoints.get(endpointId))) {
@@ -1318,26 +1379,7 @@ export class PairedNode {
         this.#structureEndpoints(endpoints);
 
         if (updateStructure && eventsToEmit.size) {
-            const emitChangeEvents = () => {
-                for (const [endpointId, eventName] of eventsToEmit.entries()) {
-                    logger.debug(`Node ${this.nodeId}: Emitting event ${eventName} for endpoint ${endpointId}`);
-                    this.events[eventName].emit(endpointId);
-                }
-                this.#options.stateInformationCallback?.(this.nodeId, NodeStateInformation.StructureChanged);
-                this.events.structureChanged.emit();
-            };
-
-            if (this.#connectionState === NodeStates.Connected) {
-                // If we are connected we can emit the events right away
-                emitChangeEvents();
-            } else {
-                // If we are not connected we need to wait until we are connected again and emit these changes afterwards
-                this.events.stateChanged.once(State => {
-                    if (State === NodeStates.Connected) {
-                        emitChangeEvents();
-                    }
-                });
-            }
+            this.#triggerNodeStructureChanges(eventsToEmit);
         }
     }
 
@@ -1346,6 +1388,9 @@ export class PairedNode {
      * right place as children, Cleanup is not happening here
      */
     #structureEndpoints(descriptors: Map<EndpointNumber, ClientEndpoint>) {
+        if (this.#endpoints === undefined) {
+            throw new InternalError("Endpoints not initialized yet! Should never happen");
+        }
         const partLists = Array.from(descriptors.entries()).map(
             ([epNo, ep]) => [epNo, ep.stateOf(DescriptorClient).partsList] as [EndpointNumber, EndpointNumber[]], // else Typescript gets confused
         );
@@ -1374,7 +1419,7 @@ export class PairedNode {
             }
 
             const idsToCleanup: { [key: EndpointNumber]: boolean } = {};
-            singleUsageEndpoints.forEach(([childId, usages]) => {
+            for (const [childId, usages] of singleUsageEndpoints) {
                 const childEndpointId = EndpointNumber(parseInt(childId));
                 const childEndpoint = this.#endpoints.get(childEndpointId);
                 const parentEndpoint = this.#endpoints.get(usages[0]);
@@ -1394,7 +1439,7 @@ export class PairedNode {
 
                 delete endpointUsages[EndpointNumber(parseInt(childId))];
                 idsToCleanup[usages[0]] = true;
-            });
+            }
             logger.debug(() => [`Node ${this.nodeId}: Endpoint data Cleanup`, Diagnostic.json(idsToCleanup)]);
             Object.keys(idsToCleanup).forEach(idToCleanup => {
                 Object.keys(endpointUsages).forEach(id => {
@@ -1521,14 +1566,22 @@ export class PairedNode {
         return this.getRootEndpoint()?.parts ?? new Map<number, Endpoint>();
     }
 
+    /** Ensures that the legacy Endpoint structure is initialized when needed. */
+    #ensureLegacyEndpointStructure() {
+        if (this.#endpoints === undefined) {
+            this.#initializeEndpointStructure(false);
+        }
+        return this.#endpoints!;
+    }
+
     /** Returns the functional devices/endpoints (the "childs" of the Root Endpoint) known for this node. */
     getDevices(): Endpoint[] {
-        return this.#endpoints.get(EndpointNumber(0))?.getChildEndpoints() ?? [];
+        return this.#ensureLegacyEndpointStructure().get(EndpointNumber(0))?.getChildEndpoints() ?? [];
     }
 
     /** Returns the device/endpoint with the given endpoint ID. */
     getDeviceById(endpointId: number) {
-        return this.#endpoints.get(EndpointNumber(endpointId));
+        return this.#ensureLegacyEndpointStructure().get(EndpointNumber(endpointId));
     }
 
     /** Returns the Root Endpoint of the device. */
@@ -1689,7 +1742,7 @@ export class PairedNode {
      * @param cluster ClusterServer to get or undefined if not existing
      */
     getRootClusterServer<const T extends ClusterType>(cluster: T): ClusterServerObj<T> | undefined {
-        return this.#endpoints.get(EndpointNumber(0))?.getClusterServer(cluster);
+        return this.#ensureLegacyEndpointStructure().get(EndpointNumber(0))?.getClusterServer(cluster);
     }
 
     /**
@@ -1698,7 +1751,7 @@ export class PairedNode {
      * @param cluster ClusterClient to get or undefined if not existing
      */
     getRootClusterClient<const T extends ClusterType>(cluster: T): ClusterClientObj<T> | undefined {
-        return this.#endpoints.get(EndpointNumber(0))?.getClusterClient(cluster);
+        return this.#ensureLegacyEndpointStructure().get(EndpointNumber(0))?.getClusterClient(cluster);
     }
 
     /**
