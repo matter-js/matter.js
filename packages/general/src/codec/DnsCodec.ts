@@ -8,6 +8,7 @@ import { Diagnostic } from "#log/Diagnostic.js";
 import { Logger } from "#log/Logger.js";
 import { Duration } from "#time/Duration.js";
 import { Seconds } from "#time/TimeUnit.js";
+import { isObject } from "#util/index.js";
 import { InternalError, NotImplementedError, UnexpectedDataError } from "../MatterError.js";
 import { Bytes, Endian } from "../util/Bytes.js";
 import { DataReader } from "../util/DataReader.js";
@@ -199,15 +200,24 @@ export class DnsCodec {
             }
             const answers = new Array<DnsRecord<any>>();
             for (let i = 0; i < answersCount; i++) {
-                answers.push(this.decodeRecord(reader, message));
+                const record = this.decodeRecord(reader, message);
+                if (record !== undefined) {
+                    answers.push(record);
+                }
             }
             const authorities = new Array<DnsRecord<any>>();
             for (let i = 0; i < authoritiesCount; i++) {
-                authorities.push(this.decodeRecord(reader, message));
+                const record = this.decodeRecord(reader, message);
+                if (record !== undefined) {
+                    authorities.push(record);
+                }
             }
             const additionalRecords = new Array<DnsRecord<any>>();
             for (let i = 0; i < additionalRecordsCount; i++) {
-                additionalRecords.push(this.decodeRecord(reader, message));
+                const record = this.decodeRecord(reader, message);
+                if (record !== undefined) {
+                    additionalRecords.push(record);
+                }
             }
             return { transactionId, messageType, queries, answers, authorities, additionalRecords };
         } catch (error) {
@@ -224,7 +234,7 @@ export class DnsCodec {
         return { name, recordType, recordClass, uniCastResponse };
     }
 
-    static decodeRecord(reader: DataReader<Endian.Big>, message: Bytes): DnsRecord<any> {
+    static decodeRecord(reader: DataReader<Endian.Big>, message: Bytes): DnsRecord<any> | undefined {
         const name = this.decodeQName(reader, message);
         const recordType = reader.readUInt16();
         const classInt = reader.readUInt16();
@@ -234,6 +244,12 @@ export class DnsCodec {
         const valueLength = reader.readUInt16();
         const valueBytes = reader.readByteArray(valueLength);
         const value = this.decodeRecordValue(valueBytes, recordType, message);
+
+        // Validate that the record has required fields
+        if (recordType === undefined || value === undefined) {
+            return undefined;
+        }
+
         return { name, recordType, recordClass, ttl, value, flushCache };
     }
 
@@ -353,7 +369,22 @@ export class DnsCodec {
         return writer.toByteArray();
     }
 
+    static encodeQuery(query: DnsQuery): Bytes {
+        const { name, recordType, recordClass, uniCastResponse = false } = query;
+        const writer = new DataWriter();
+        writer.writeByteArray(this.encodeQName(name));
+        writer.writeUInt16(recordType);
+        writer.writeUInt16(recordClass | (uniCastResponse ? 0x8000 : 0));
+        return writer.toByteArray();
+    }
+
     static encodeRecord(record: DnsRecord<any>): Bytes {
+        // Validate record is a proper object with required fields
+        if (!isObject(record) || Object.keys(record).length === 0) {
+            logger.debug("Skipping record encoding: record is empty or not an object");
+            return new Uint8Array(0);
+        }
+
         const { name, recordType, recordClass, ttl, value, flushCache = false } = record;
 
         if (recordType === undefined || value === undefined) {

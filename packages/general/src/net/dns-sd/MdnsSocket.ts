@@ -12,7 +12,6 @@ import {
     DnsMessageTypeFlag,
     MAX_MDNS_MESSAGE_SIZE,
 } from "#codec/DnsCodec.js";
-import { Diagnostic } from "#log/Diagnostic.js";
 import { Logger } from "#log/Logger.js";
 import { MatterAggregateError } from "#MatterError.js";
 import { Network } from "#net/Network.js";
@@ -76,7 +75,35 @@ export class MdnsSocket {
     }
 
     async send(message: Partial<DnsMessage> & { messageType: DnsMessageType }, intf?: string, unicastDest?: string) {
-        const { messageType } = message;
+        const { messageType, queries = [] } = message;
+
+        // Check if queries need to be split across multiple messages
+        const queryChunks = this.#splitQueries(queries);
+
+        if (queryChunks.length > 1) {
+            // Query splitting required - send each chunk as an independent query message.
+            // RFC 6762 does not specify how to handle queries that exceed the message size limit.
+            //
+            // When we split queries across multiple messages, known answer suppression will not work anyway, and it is
+            // an edge case likely on start of the server when re-discovering many devices, so we likely have
+            // few known answers anyway.
+            //
+            // See: https://www.rfc-editor.org/rfc/rfc6762.html Section 7.2
+            for (const queryChunk of queryChunks) {
+                const chunkMessage: DnsMessagePartiallyPreEncoded = {
+                    transactionId: 0,
+                    messageType,
+                    queries: queryChunk,
+                    answers: [],
+                    authorities: message.authorities ?? [],
+                    additionalRecords: [],
+                };
+                await this.#send(chunkMessage, intf, unicastDest);
+            }
+            return;
+        }
+
+        // Normal case: all queries fit in one message - proceed with answer splitting if needed
         // When we send Queries that are too long they need to have the Truncated flag set
         const truncatedMessageType = DnsMessageType.isQuery(messageType)
             ? messageType | DnsMessageTypeFlag.TC
@@ -93,24 +120,14 @@ export class MdnsSocket {
             additionalRecords: [],
         };
 
-        // Note - for size calculations we assume queries are relatively small.  We only split answers across messages
         let encodedChunkWithoutAnswers = DnsCodec.encode(chunk);
         let chunkSize = encodedChunkWithoutAnswers.byteLength;
 
-        // Add answers, splitting message as necessary
+        // Add answers, splitting the message as necessary
         for (const answer of message.answers ?? []) {
             const answerEncoded = DnsCodec.encodeRecord(answer);
 
             if (chunkSize + answerEncoded.byteLength > MAX_MDNS_MESSAGE_SIZE) {
-                if (chunk.answers.length === 0) {
-                    // The first answer is already too big, log at least a warning
-                    logger.warn(
-                        `MDNS message with ${Diagnostic.json(
-                            chunk.queries,
-                        )} is too big to fit into a single MDNS message. Send anyway, but please report!`,
-                    );
-                }
-
                 // New answer does not fit anymore, send out the message
                 // When sending a query, we set the Truncated flag to indicate more answers are available
                 await this.#send(
@@ -148,6 +165,44 @@ export class MdnsSocket {
         }
 
         await this.#send(chunk, intf, unicastDest);
+    }
+
+    /**
+     * Split queries into chunks that fit within MAX_MDNS_MESSAGE_SIZE.
+     * Returns an array of query arrays - if all queries fit in one message, returns [[...queries]].
+     */
+    #splitQueries(queries: DnsMessage["queries"]): DnsMessage["queries"][] {
+        if (queries.length === 0) {
+            return [[]];
+        }
+
+        // DNS header is 12 bytes
+        const DNS_HEADER_SIZE = 12;
+        const chunks: DnsMessage["queries"][] = [];
+        let currentChunk: DnsMessage["queries"] = [];
+        let currentChunkSize = DNS_HEADER_SIZE;
+
+        for (const query of queries) {
+            const querySize = DnsCodec.encodeQuery(query).byteLength;
+
+            // If adding this query exceeds the limit, and we have queries in the current chunk,
+            // start a new chunk
+            if (currentChunkSize + querySize > MAX_MDNS_MESSAGE_SIZE && currentChunk.length > 0) {
+                chunks.push(currentChunk);
+                currentChunk = [];
+                currentChunkSize = DNS_HEADER_SIZE;
+            }
+
+            currentChunk.push(query);
+            currentChunkSize += querySize;
+        }
+
+        // Remember the last chunk
+        if (currentChunk.length > 0) {
+            chunks.push(currentChunk);
+        }
+
+        return chunks;
     }
 
     async #send(message: DnsMessagePartiallyPreEncoded, intf?: string, unicastDest?: string) {

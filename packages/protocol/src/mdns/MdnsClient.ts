@@ -916,7 +916,7 @@ export class MdnsClient implements Scanner {
                     combinedAnswers.operational[recordType] = combinedAnswers.operational[recordType] ?? new Map();
                     records.forEach(record => {
                         const existingRecord = combinedAnswers.operational![recordType].get(record.name);
-                        if (existingRecord && existingRecord.discoveredAt < record.discoveredAt) {
+                        if (!existingRecord || existingRecord.discoveredAt < record.discoveredAt) {
                             if (record.ttl === 0) {
                                 combinedAnswers.operational![recordType].delete(record.name);
                             } else {
@@ -936,7 +936,7 @@ export class MdnsClient implements Scanner {
                         combinedAnswers.commissionable[recordType] ?? new Map();
                     records.forEach(record => {
                         const existingRecord = combinedAnswers.commissionable![recordType].get(record.name);
-                        if (existingRecord && existingRecord.discoveredAt < record.discoveredAt) {
+                        if (!existingRecord || existingRecord.discoveredAt < record.discoveredAt) {
                             if (record.ttl === 0) {
                                 combinedAnswers.commissionable![recordType].delete(record.name);
                             } else {
@@ -953,13 +953,13 @@ export class MdnsClient implements Scanner {
                     Map<string, AnyDnsRecordWithExpiry>,
                 ][]) {
                     combinedAnswers.addressesV6[name] = combinedAnswers.addressesV6[name] ?? new Map();
-                    Object.values(records).forEach(record => {
+                    records.forEach(record => {
                         const existingRecord = combinedAnswers.addressesV6![name].get(record.value);
-                        if (existingRecord && existingRecord.discoveredAt < record.discoveredAt) {
+                        if (!existingRecord || existingRecord.discoveredAt < record.discoveredAt) {
                             if (record.ttl === 0) {
-                                combinedAnswers.addressesV6![name].delete(name);
+                                combinedAnswers.addressesV6![name].delete(record.value);
                             } else {
-                                combinedAnswers.addressesV6![name].set(name, record);
+                                combinedAnswers.addressesV6![name].set(record.value, record);
                             }
                         }
                     });
@@ -972,13 +972,13 @@ export class MdnsClient implements Scanner {
                     Map<string, AnyDnsRecordWithExpiry>,
                 ][]) {
                     combinedAnswers.addressesV4[name] = combinedAnswers.addressesV4[name] ?? new Map();
-                    Object.values(records).forEach(record => {
+                    records.forEach(record => {
                         const existingRecord = combinedAnswers.addressesV4![name].get(record.value);
-                        if (existingRecord && existingRecord.discoveredAt < record.discoveredAt) {
+                        if (!existingRecord || existingRecord.discoveredAt < record.discoveredAt) {
                             if (record.ttl === 0) {
-                                combinedAnswers.addressesV4![name].delete(name);
+                                combinedAnswers.addressesV4![name].delete(record.value);
                             } else {
-                                combinedAnswers.addressesV4![name].set(name, record);
+                                combinedAnswers.addressesV4![name].set(record.value, record);
                             }
                         }
                     });
