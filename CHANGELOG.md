@@ -20,6 +20,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
   - Fix: Ignore startup definitions for bridged devices (affects OnOff, LevelControl, and ColorControl clusters)
+  - Fix: Fixes the collection of IPv6 addresses in GeneralDiagnostics cluster
 
 - @matter/protocol
     - Adjustment: Change the default value of "announceAsDefaultProvider" to false, which avoids device race conditions for now
