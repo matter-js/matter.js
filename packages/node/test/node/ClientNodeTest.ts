@@ -883,7 +883,7 @@ const PEER1_STATE = {
                 offPremiseServicesReachableIPv6: null,
                 hardwareAddress: b$`001122334402`,
                 iPv4Addresses: [b$`0a0a0a02`],
-                iPv6Addresses: [b$`57000000`],
+                iPv6Addresses: [b$`11112222333344445555666677778802`],
                 type: 2,
             },
         ],

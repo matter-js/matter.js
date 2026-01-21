@@ -21,6 +21,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
   - Fix: Ignore startup definitions for bridged devices (affects OnOff, LevelControl, and ColorControl clusters)
+  - Fix: Fixes the collection of IPv6 addresses in GeneralDiagnostics cluster
 
 - @matter/nodejs
   - Feature: (@craftingmod) SQLite storage support with storage driver selection
