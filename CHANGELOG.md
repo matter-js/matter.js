@@ -20,10 +20,13 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
   - Fix: Ignore startup definitions for bridged devices (affects OnOff, LevelControl, and ColorControl clusters)
-  - Fix: Fixes the collection of IPv6 addresses in GeneralDiagnostics cluster
+  - Fix: Fixes the collection of IPv6 addresses in the GeneralDiagnostics cluster
 
 - @matter/protocol
+    - Feature: Automatically decides if multiple invokes can be sent in one or multiple messages depending on the device capabilities
     - Adjustment: Change the default value of "announceAsDefaultProvider" to false, which avoids device race conditions for now
+    - Fix: Correctly handle multi-message write interactions according to Matter specification
+    - Fix: Correctly handle multi-message invoke responses according to Matter specification
     - Fix: Ignore errors for closed sessions on resubmissions on already closed exchanges. Were false positive logs before.
 
 - @project-chip/matter.js
