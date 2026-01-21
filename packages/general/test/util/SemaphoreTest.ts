@@ -80,6 +80,11 @@ describe("Semaphore", () => {
     });
 
     describe("concurrency", () => {
+        // Windows uses ~15ms timer resolution which can cause tests with small delays to fail 
+        // as execution order becomes non-deterministic. We use larger delays (>= 20ms margin)
+        // to ensure stable results across all platforms.
+        // See: https://github.com/jsdom/jsdom/issues/3262
+
         it("respects concurrency limit of 1", async () => {
             const queue = new Semaphore("test", 1);
             const executionOrder: string[] = [];
@@ -87,7 +92,7 @@ describe("Semaphore", () => {
             const task1 = (async () => {
                 using _slot = await queue.obtainSlot();
                 executionOrder.push("task1-start");
-                await new Promise(resolve => setTimeout(resolve, 10));
+                await new Promise(resolve => setTimeout(resolve, 20));
                 executionOrder.push("task1-end");
             })();
 
@@ -109,14 +114,14 @@ describe("Semaphore", () => {
             const task1 = (async () => {
                 using _slot = await queue.obtainSlot();
                 executionOrder.push("task1-start");
-                await new Promise(resolve => setTimeout(resolve, 20));
+                await new Promise(resolve => setTimeout(resolve, 40));
                 executionOrder.push("task1-end");
             })();
 
             const task2 = (async () => {
                 using _slot = await queue.obtainSlot();
                 executionOrder.push("task2-start");
-                await new Promise(resolve => setTimeout(resolve, 10));
+                await new Promise(resolve => setTimeout(resolve, 20));
                 executionOrder.push("task2-end");
             })();
 
@@ -136,7 +141,7 @@ describe("Semaphore", () => {
                     using _slot = await queue.obtainSlot();
                     runningCount++;
                     maxRunning = Math.max(maxRunning, runningCount);
-                    await new Promise(resolve => setTimeout(resolve, 10));
+                    await new Promise(resolve => setTimeout(resolve, 20));
                     runningCount--;
                 })();
 
@@ -159,10 +164,10 @@ describe("Semaphore", () => {
                 })();
 
             // Task 4 has shortest delay but should still wait for a slot
-            const t1 = createTask(1, 30);
-            const t2 = createTask(2, 20);
-            const t3 = createTask(3, 10);
-            const t4 = createTask(4, 5);
+            const t1 = createTask(1, 150);
+            const t2 = createTask(2, 100);
+            const t3 = createTask(3, 50);
+            const t4 = createTask(4, 25);
 
             await Promise.all([t1, t2, t3, t4]);
 
@@ -186,10 +191,10 @@ describe("Semaphore", () => {
                     events.push(`end-${id}`);
                 })();
 
-            const t1 = createTask(1, 40); // Slot 1: runs 0-40ms
-            const t2 = createTask(2, 20); // Slot 2: runs 0-20ms
-            const t3 = createTask(3, 15); // Waits, then slot 2: runs 20-35ms
-            const t4 = createTask(4, 10); // Waits, then slot 2: runs 35-45ms
+            const t1 = createTask(1, 160); // Slot 1: runs 0-160ms
+            const t2 = createTask(2, 80); // Slot 2: runs 0-80ms
+            const t3 = createTask(3, 60); // Waits, then slot 2: runs 80-140ms
+            const t4 = createTask(4, 40); // Waits, then slot 2: runs 140-180ms
 
             await Promise.all([t1, t2, t3, t4]);
 
@@ -240,7 +245,7 @@ describe("Semaphore", () => {
             })();
 
             // Wait for tasks to queue up
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await new Promise(resolve => setTimeout(resolve, 20));
 
             // Release the blocker
             resolveBlocker();
