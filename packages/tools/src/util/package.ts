@@ -105,7 +105,7 @@ export class Package {
      * Does package forcefully require `CJS` build?
      */
     get requireCjs() {
-        return this.json.matter?.requireCjs ?? false
+        return this.json.matter?.requireCjs ?? false;
     }
 
     get hasCodegen() {

@@ -173,7 +173,7 @@ export async function main(argv = process.argv) {
             return;
         }
 
-        const isBun = !!process.versions.bun
+        const isBun = !!process.versions.bun;
 
         // If no test types are specified explicitly, run all enabled types
         const thisTestTypes = new Set(testTypes);

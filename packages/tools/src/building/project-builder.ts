@@ -176,7 +176,7 @@ export class ProjectBuilder {
         }
         if (targets.has(Target.cjs)) {
             if (!process.versions.bun) {
-            // Node.js expected behavior
+                // Node.js expected behavior
                 formats.push("cjs");
             } else {
                 // Bun.js subpath import workaround
