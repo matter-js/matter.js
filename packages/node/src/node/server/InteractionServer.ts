@@ -44,7 +44,6 @@ import {
     Subscription,
     TimedRequest,
     WriteRequest,
-    WriteResponse,
 } from "#protocol";
 import {
     DEFAULT_MAX_PATHS_PER_INVOKE,
@@ -53,12 +52,9 @@ import {
     Status,
     StatusCode,
     StatusResponseError,
-    TlvAny,
     TlvAttributePath,
     TlvClusterPath,
     TlvEventPath,
-    TlvInvokeResponseData,
-    TlvInvokeResponseForSend,
     TlvSubscribeResponse,
     TypeFromSchema,
 } from "#types";
@@ -227,6 +223,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         message?: Message,
         fabricFiltered?: boolean,
         timed = false,
+        messenger?: InteractionServerMessenger,
     ): RemoteActorContext.Options {
         return {
             activity: (exchange as NodeActivity.WithActivity)[NodeActivity.activityKey],
@@ -235,6 +232,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             message,
             exchange,
             node: this.#node,
+            messenger,
         };
     }
 
@@ -314,7 +312,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         exchange: MessageExchange,
         writeRequest: WriteRequest,
         message: Message,
-    ): Promise<WriteResponse> {
+        messenger?: InteractionServerMessenger,
+    ): Promise<void> {
         const { suppressResponse, timedRequest, writeRequests, interactionModelRevision, moreChunkedMessages } =
             writeRequest;
         const sessionType = message.packetHeader.sessionType;
@@ -350,7 +349,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         }
 
         if (exchange.hasExpiredTimedInteraction()) {
-            exchange.clearTimedInteraction(); // ??
+            exchange.clearTimedInteraction();
             throw new StatusResponseError(`Timed request window expired. Decline write request.`, StatusCode.Timeout);
         }
 
@@ -379,25 +378,16 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             );
         }
 
-        // TODO: We still need to add multi message writes!
-
-        const result = await this.#serverInteraction.write(
-            writeRequest,
-            this.#prepareOnlineContext(
-                exchange,
-                message,
-                true, // always fabric filtered
-                receivedWithinTimedInteraction,
-            ),
+        const context = this.#prepareOnlineContext(
+            exchange,
+            message,
+            true, // always fabric filtered
+            receivedWithinTimedInteraction,
+            messenger,
         );
 
-        return {
-            writeResponses: result?.map(({ path, status, clusterStatus }) => ({
-                path,
-                status: { status, clusterStatus },
-            })),
-            interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
-        };
+        // Consume the generator to process all writes-messages (results are sent via messenger internally)
+        for await (const _status of this.#serverInteraction.write(writeRequest, context));
     }
 
     async handleSubscribeRequest(
@@ -712,8 +702,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
     async handleInvokeRequest(
         exchange: MessageExchange,
         request: InvokeRequest,
-        messenger: InteractionServerMessenger,
         message: Message,
+        messenger?: InteractionServerMessenger,
     ): Promise<void> {
         const { invokeRequests, timedRequest, suppressResponse, interactionModelRevision } = request;
         logger.info(() => [
@@ -738,7 +728,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
 
         const receivedWithinTimedInteraction = exchange.hasActiveTimedInteraction();
         if (exchange.hasExpiredTimedInteraction()) {
-            exchange.clearTimedInteraction(); // ??
+            exchange.clearTimedInteraction();
             throw new StatusResponseError(`Timed request window expired. Decline invoke request.`, StatusCode.Timeout);
         }
 
@@ -767,110 +757,16 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             );
         }
 
-        const isGroupSession = message.packetHeader.sessionType === SessionType.Group;
-        const invokeResponseMessage: TypeFromSchema<typeof TlvInvokeResponseForSend> = {
-            suppressResponse: false, // Deprecated but must be present
-            interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
-            invokeResponses: [],
-            moreChunkedMessages: invokeRequests.length > 1, // Assume for now we have multiple responses when having multiple invokes
-        };
-        const emptyInvokeResponseBytes = TlvInvokeResponseForSend.encode(invokeResponseMessage);
-        let messageSize = emptyInvokeResponseBytes.byteLength;
-        let invokeResultsProcessed = 0;
+        const context = this.#prepareOnlineContext(
+            exchange,
+            message,
+            undefined,
+            receivedWithinTimedInteraction,
+            messenger,
+        );
 
-        // To lower potential latency when we would process all invoke messages and just send responses at the end we
-        // assemble response on the fly locally here and send when message becomes too big
-        // TODO generalize as streaming like DataReports
-        const processResponseResult = async (
-            invokeResponse: TypeFromSchema<typeof TlvInvokeResponseData>,
-        ): Promise<void> => {
-            invokeResultsProcessed++;
-
-            if (isGroupSession) {
-                // We send no responses at all for group sessions
-                return;
-            }
-            const encodedInvokeResponse = TlvInvokeResponseData.encodeTlv(invokeResponse);
-            const invokeResponseBytes = TlvAny.getEncodedByteLength(encodedInvokeResponse);
-
-            if (
-                messageSize + invokeResponseBytes > exchange.maxPayloadSize ||
-                invokeResultsProcessed === invokeRequests.length
-            ) {
-                let lastMessageProcessed = false;
-                if (messageSize + invokeResponseBytes <= exchange.maxPayloadSize) {
-                    // last invoke response and matches in the message
-                    invokeResponseMessage.invokeResponses.push(encodedInvokeResponse);
-                    lastMessageProcessed = true;
-                }
-                // Send the response when the message is full or when all responses are processed
-                if (invokeResponseMessage.invokeResponses.length > 0) {
-                    if (invokeRequests.length > 1) {
-                        logger.debug(
-                            `${lastMessageProcessed ? "Final " : ""}Invoke response`,
-                            Mark.OUTBOUND,
-                            Diagnostic.dict({ commands: invokeResponseMessage.invokeResponses.length }),
-                        );
-                    }
-                    const moreChunkedMessages = lastMessageProcessed ? undefined : true;
-                    await messenger.send(
-                        MessageType.InvokeResponse,
-                        TlvInvokeResponseForSend.encode({
-                            ...invokeResponseMessage,
-                            moreChunkedMessages,
-                        }),
-                        {
-                            logContext: {
-                                invokeMsgFlags: Diagnostic.asFlags({
-                                    suppressResponse,
-                                    moreChunkedMessages,
-                                }),
-                            },
-                        },
-                    );
-                    invokeResponseMessage.invokeResponses = [];
-                    messageSize = emptyInvokeResponseBytes.byteLength;
-                }
-                if (!lastMessageProcessed) {
-                    invokeResultsProcessed--; // Correct counter again because we recall the method
-                    return processResponseResult(invokeResponse);
-                }
-            } else {
-                invokeResponseMessage.invokeResponses.push(encodedInvokeResponse);
-                messageSize += invokeResponseBytes;
-            }
-        };
-
-        for await (const chunk of this.#serverInteraction.invoke(
-            request,
-            this.#prepareOnlineContext(exchange, message, undefined, receivedWithinTimedInteraction),
-        )) {
-            if (suppressResponse) {
-                throw new InternalError("Received response that should be suppressed for invoke");
-            }
-            for (const data of chunk) {
-                switch (data.kind) {
-                    case "cmd-response": {
-                        const { path: commandPath, commandRef, data: commandFields } = data;
-                        await processResponseResult({
-                            command: {
-                                commandPath,
-                                commandFields,
-                                commandRef,
-                            },
-                        });
-                        break;
-                    }
-
-                    case "cmd-status": {
-                        const { path, commandRef, status, clusterStatus } = data;
-                        await processResponseResult({
-                            status: { commandPath: path, status: { status, clusterStatus }, commandRef },
-                        });
-                    }
-                }
-            }
-        }
+        // Consume the generator to process all invoke-messages (results are sent via messenger internally)
+        for await (const _result of this.#serverInteraction.invoke(request, context));
     }
 
     handleTimedRequest(exchange: MessageExchange, { timeout, interactionModelRevision }: TimedRequest) {

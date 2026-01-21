@@ -4,18 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Write } from "#action/request/Write.js";
 import { ExpandedPath } from "#common/ExpandedPath.js";
 import { ExpandedStatus } from "#common/ExpandedStatus.js";
 import { PathError } from "#common/PathError.js";
 import { MatterAggregateError } from "#general";
 import { Status, type AttributeId, type AttributePath, type ClusterId, type EndpointNumber, type NodeId } from "#types";
 
-export type WriteResult<T extends Write = Write> = Promise<
-    T extends { suppressResponse: true } ? void : WriteResult.AttributeStatus[]
->;
+export type WriteResult = AsyncIterable<WriteResult.Chunk>;
 
 export namespace WriteResult {
+    export type Chunk = Iterable<AttributeStatus>;
+
     export interface ConcreteAttributePath extends AttributePath {
         nodeId?: NodeId;
         endpointId: EndpointNumber;
@@ -31,14 +30,18 @@ export namespace WriteResult {
         clusterStatus?: number;
     }
 
-    export function assertSuccess(result: AttributeStatus[]) {
-        const errors = result
-            .filter(attr => attr.status !== Status.Success)
-            .map(attr => {
-                const path = ExpandedPath({ ...attr, kind: "attribute" });
-                const status = new ExpandedStatus(attr);
-                return new PathError({ path, status });
-            });
+    export async function assertSuccess(result: WriteResult) {
+        const errors = new Array<PathError>();
+
+        for await (const chunk of result) {
+            for (const attr of chunk) {
+                if (attr.status !== Status.Success) {
+                    const path = ExpandedPath({ ...attr, kind: "attribute" });
+                    const status = new ExpandedStatus(attr);
+                    errors.push(new PathError({ path, status }));
+                }
+            }
+        }
 
         if (!errors.length) {
             return;

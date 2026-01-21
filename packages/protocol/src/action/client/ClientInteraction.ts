@@ -19,6 +19,7 @@ import { BdxMessenger } from "#bdx/BdxMessenger.js";
 import { Mark } from "#common/Mark.js";
 import {
     Abort,
+    AsyncIterator,
     BasicSet,
     Diagnostic,
     Duration,
@@ -38,8 +39,9 @@ import { InteractionClientMessenger, MessageType } from "#interaction/Interactio
 import { Subscription } from "#interaction/Subscription.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { ExchangeProvider } from "#protocol/ExchangeProvider.js";
+import { SessionClosedError } from "#protocol/index.js";
 import { SecureSession } from "#session/SecureSession.js";
-import { Status, TlvAttributeReport, TlvNoResponse, TlvSubscribeResponse, TypeFromSchema } from "#types";
+import { NodeId, TlvAttributeReport, TlvNoResponse, TlvSubscribeResponse, TypeFromSchema } from "#types";
 import { ClientWrite } from "./ClientWrite.js";
 import { InputChunk } from "./InputChunk.js";
 import { ClientSubscribe } from "./subscription/ClientSubscribe.js";
@@ -186,12 +188,13 @@ export class ClientInteraction<
     }
 
     /**
-     * Update node attributes.
+     * Write to node attributes.
      *
-     * Writes with the Matter protocol are generally not atomic, so this method only throws if the entire action fails.
-     * You must check each {@link WriteResult.AttributeStatus} to determine whether individual updates failed.
+     * Yields write status results as they are processed. For large write requests that exceed the maximum
+     * message size, the messenger automatically chunks the writes into multiple messages.
+     * When suppressResponse is true, yields nothing.
      */
-    async write<T extends ClientWrite>(request: T, session?: SessionT): WriteResult<T> {
+    async *write(request: ClientWrite, session?: SessionT): WriteResult {
         await using context = await this.#begin("writing", request, session);
         const { checkAbort, messenger } = context;
 
@@ -202,60 +205,55 @@ export class ClientInteraction<
 
         logger.info("Write", Mark.OUTBOUND, messenger.exchange.via, request);
 
-        const response = await messenger.sendWriteCommand(request);
-        checkAbort();
         if (request.suppressResponse) {
-            return undefined as Awaited<WriteResult<T>>;
-        }
-        if (!response || !response.writeResponses?.length) {
-            return [] as Awaited<WriteResult<T>>;
+            // For suppressResponse, just consume the generator (sends without expecting response)
+            for await (const _ of messenger.sendWriteCommand(request)) {
+                checkAbort();
+                // No responses expected
+            }
+            return;
         }
 
         let successCount = 0;
-        let failureCount = 0;
-        const result = response.writeResponses.map(
-            ({
-                path: { nodeId, endpointId, clusterId, attributeId, listIndex },
-                status: { status, clusterStatus },
-            }) => {
-                if (status === Status.Success) {
-                    successCount++;
-                } else {
-                    failureCount++;
-                }
-                return {
-                    kind: "attr-status",
-                    path: {
-                        nodeId,
-                        endpointId: endpointId!,
-                        clusterId: clusterId!,
-                        attributeId: attributeId!,
-                        listIndex,
-                    },
-                    status,
-                    clusterStatus,
-                };
-            },
-        ) as Awaited<WriteResult<T>>;
+
+        for await (const response of messenger.sendWriteCommand(request)) {
+            checkAbort();
+
+            const chunk = response.writeResponses.map(
+                ({ path, status }) =>
+                    ({
+                        kind: "attr-status",
+                        path: {
+                            nodeId: path.nodeId !== undefined ? NodeId(path.nodeId) : undefined,
+                            endpointId: path.endpointId!,
+                            clusterId: path.clusterId!,
+                            attributeId: path.attributeId!,
+                            listIndex: path.listIndex,
+                        },
+                        status: status.status,
+                        clusterStatus: status.clusterStatus,
+                    }) satisfies WriteResult.AttributeStatus,
+            );
+            successCount += chunk.length;
+
+            if (chunk.length > 0) {
+                yield chunk;
+            }
+            checkAbort();
+        }
 
         logger.info(
             "Write",
             Mark.INBOUND,
             messenger.exchange.via,
-            Diagnostic.weak(
-                successCount + failureCount === 0
-                    ? "(empty)"
-                    : Diagnostic.dict({ success: successCount, failure: failureCount }),
-            ),
+            Diagnostic.weak(successCount === 0 ? "(empty)" : Diagnostic.dict({ success: successCount })),
         );
-
-        return result;
     }
 
     /**
-     * Invoke one or more commands.
+     * Invoke a single batch of commands (internal implementation).
      */
-    async *invoke(request: ClientInvoke, session?: SessionT): DecodedInvokeResult {
+    async *#invokeSingle(request: ClientInvoke, session?: SessionT): DecodedInvokeResult {
         await using context = await this.#begin("invoking", request, session);
         const { checkAbort, messenger } = context;
 
@@ -355,6 +353,63 @@ export class ClientInteraction<
                 yield [];
             }
             checkAbort();
+        }
+    }
+
+    /**
+     * Split commands across multiple parallel invoke-exchanges.
+     * Results are streamed as they arrive from any batch, not buffered.
+     */
+    async *#invokeWithSplitting(
+        request: ClientInvoke,
+        maxPathsPerInvoke: number,
+        session?: SessionT,
+    ): DecodedInvokeResult {
+        // Split commands into batches
+        const allCommands = [...request.commands.entries()];
+        const batches = new Array<ClientInvoke["commands"]>();
+
+        for (let i = 0; i < allCommands.length; i += maxPathsPerInvoke) {
+            const batchEntries = allCommands.slice(i, i + maxPathsPerInvoke);
+            batches.push(new Map(batchEntries));
+        }
+
+        // Create async iterators for each batch and merge results as they arrive
+        const iterators = batches.map(batchCommands => {
+            const batchRequest: ClientInvoke = {
+                ...request,
+                commands: batchCommands,
+            };
+            return this.#invokeSingle(batchRequest, session);
+        });
+
+        yield* AsyncIterator.merge(iterators, "One or more invoke batches failed");
+    }
+
+    /** Get the effective MaxPathsPerInvoke parameter from the session, or 1 as a fallback as defined by spec. */
+    get #maxPathsPerInvoke(): number {
+        try {
+            return this.session.parameters.maxPathsPerInvoke;
+        } catch (error) {
+            SessionClosedError.accept(error);
+            return 1;
+        }
+    }
+
+    /**
+     * Invoke one or more commands.
+     *
+     * When the number of commands exceeds the peer's MaxPathsPerInvoke limit (or 1 for older nodes),
+     * commands are split across multiple parallel exchanges automatically.
+     */
+    async *invoke(request: ClientInvoke, session?: SessionT): DecodedInvokeResult {
+        const maxPathsPerInvoke = this.#maxPathsPerInvoke;
+        const commandCount = request.commands.size;
+
+        if (commandCount > maxPathsPerInvoke) {
+            yield* this.#invokeWithSplitting(request, maxPathsPerInvoke, session);
+        } else {
+            yield* this.#invokeSingle(request, session);
         }
     }
 

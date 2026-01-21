@@ -118,17 +118,20 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
 
     /**
      * Write chosen attributes remotely to the node.
-     * The returned attribute write status information is returned.
+     * Yields attribute write status information as it is processed.
      */
-    async write<T extends ClientWrite>(request: T, context?: ActionContext): WriteResult<T> {
+    async *write(request: ClientWrite, context?: ActionContext): WriteResult {
         const client = await this.#connect();
 
-        return client.write(request, context);
+        yield* client.write(request, context);
     }
 
     /**
      * Invoke a command remotely on the node.
-     * The returned command response is returned as response chunks
+     * The returned command response is returned as response chunks (attr-status).
+     *
+     * When the number of commands exceeds the peer's MaxPathsPerInvoke limit (or 1 for older nodes),
+     * commands are split across multiple parallel exchanges automatically by ClientInteraction.
      */
     async *invoke(request: ClientInvoke, context?: ActionContext): DecodedInvokeResult {
         // For commands, we always ignore the queue because the user is responsible for managing that themselves

@@ -55,8 +55,7 @@ export function RemoteWriter(node: ClientNode, structure: ClientStructure): Remo
         }
 
         const write = Write(...attrWrites);
-        const response = await node.interaction.write(write);
-        WriteResult.assertSuccess(response);
+        await WriteResult.assertSuccess(node.interaction.write(write));
     };
 }
 

@@ -52,7 +52,16 @@ export class AttributeWriteResponse<
         this.#fabricIndex = session.fabric ?? FabricIndex.NO_FABRIC;
     }
 
-    async process<T extends Write>({ writeRequests, suppressResponse }: T): WriteResult<T> {
+    /**
+     * Update the session for processing the next chunk.
+     * This allows reusing the same writer instance across multiple chunks while
+     * maintaining a state like previousProcessedAttributePath for list operations.
+     */
+    continueWithSession(session: SessionT) {
+        this.updateSession(session);
+    }
+
+    async process({ writeRequests, suppressResponse }: Write): Promise<WriteResult.AttributeStatus[] | undefined> {
         using _writing = this.join("writing");
 
         const writeResponses = new Array<WriteResult.AttributeStatus>();
@@ -75,9 +84,9 @@ export class AttributeWriteResponse<
         }
 
         if (!suppressResponse) {
-            return writeResponses as Awaited<WriteResult<T>>;
+            return writeResponses;
         }
-        return undefined as Awaited<WriteResult<T>>;
+        return undefined;
     }
 
     /** Guarded accessor for this.#currentEndpoint.  This should never be undefined */

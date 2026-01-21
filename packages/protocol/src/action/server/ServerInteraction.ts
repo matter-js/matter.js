@@ -65,15 +65,18 @@ export class ServerInteraction<
         throw new NotImplementedError();
     }
 
-    async write<T extends Write>(request: T, session: SessionT): WriteResult<T> {
+    async *write(request: Write, session: SessionT): WriteResult {
         // TODO - validate request
 
         const writer = new AttributeWriteResponse(this.#node, session);
-        return await writer.process(request);
+        const result = await writer.process(request);
+        if (result !== undefined) {
+            yield result;
+        }
     }
 
     async *invoke(request: Invoke, session: SessionT): InvokeResult {
-        // TODO -  validate request
+        // TODO - validate request
 
         const invoker = new CommandInvokeResponse(this.#node, session);
         yield* invoker.process(request);
