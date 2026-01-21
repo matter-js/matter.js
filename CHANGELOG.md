@@ -13,6 +13,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/general
     - Enhancement: When generally discovering for operational targets, send one initial query for them to fill the cache
+    - Enhancement: (@craftingmod) Storage migration utility function
     - Fix: Store operational devices matching operational scan targets also when not explicitly discovered
     - Fix: Split mDNS Query message that are too big to fit into one mDNS message
     - Fix: Fix some mDNS handling issues
@@ -20,6 +21,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
   - Fix: Ignore startup definitions for bridged devices (affects OnOff, LevelControl, and ColorControl clusters)
+
+- @matter/nodejs
+  - Feature: (@craftingmod) SQLite storage support with storage driver selection
+  - Feature: (@craftingmod) Auto-migration between storages(`file`, `sqlite`)
+  - Enhancement: (@craftingmod) Optimizing `Bun` support
 
 - @matter/protocol
     - Adjustment: Change the default value of "announceAsDefaultProvider" to false, which avoids device race conditions for now
@@ -30,14 +36,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Correctly handle node decommissioning by other controllers
     - Fix: Prevent creation of new peers when decommissioning of a node was working
     - Fix: Extend error handling when persisting legacy node details
-
-- @matter/nodejs [@craftingmod]
-  - Feat: SQLite storage support with storage driver selection
-  - Feat: Auto-migration between storages(`file`, `sqlite`)
-  - WIP: Preparing `Bun` support...
-
-- @matter/general [@craftingmod]
-  - Chore: Storage migration utility function
 
 ## 0.16.5 (2026-01-16)
 
