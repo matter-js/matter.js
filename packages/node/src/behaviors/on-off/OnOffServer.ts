@@ -8,6 +8,7 @@ import { GeneralDiagnosticsBehavior } from "#behaviors/general-diagnostics";
 import { ScenesManagementServer } from "#behaviors/scenes-management";
 import { GeneralDiagnostics } from "#clusters/general-diagnostics";
 import { OnOff } from "#clusters/on-off";
+import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { BasicMultiplex, MaybePromise, Millis, Time, Timer } from "#general";
 import { ServerNode } from "#node/ServerNode.js";
 import { hasRemoteActor, Val } from "#protocol";
@@ -30,10 +31,14 @@ export class OnOffBaseServer extends OnOffLogicBase {
     declare protected internal: OnOffBaseServer.Internal;
 
     override initialize(): MaybePromise {
-        if (this.features.lighting && this.#getBootReason() !== GeneralDiagnostics.BootReason.SoftwareUpdateCompleted) {
+        if (
+            this.features.lighting &&
+            this.#getBootReason() !== GeneralDiagnostics.BootReason.SoftwareUpdateCompleted &&
+            !this.endpoint.ownerOfType(AggregatorEndpoint)
+        ) {
             const startUpOnOffValue = this.state.startUpOnOff ?? null;
-            const currentOnOffStatus = this.state.onOff;
             if (startUpOnOffValue !== null) {
+                const currentOnOffStatus = this.state.onOff;
                 const targetOnOffValue =
                     startUpOnOffValue === OnOff.StartUpOnOff.Toggle
                         ? !currentOnOffStatus

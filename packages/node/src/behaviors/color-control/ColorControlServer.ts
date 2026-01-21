@@ -13,6 +13,7 @@ import { ScenesManagementServer } from "#behaviors/scenes-management";
 import { ColorControl } from "#clusters/color-control";
 import { GeneralDiagnostics } from "#clusters/general-diagnostics";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { AggregatorEndpoint } from "#endpoints/aggregator";
 import {
     addValueWithOverflow,
     AsyncObservable,
@@ -373,22 +374,19 @@ export class ColorControlBaseServer extends ColorControlBase {
      */
     protected initializeColorTemperature() {
         // Handle startup color Temperature when the color Temperature feature is supported
-        if (this.#getBootReason() !== GeneralDiagnostics.BootReason.SoftwareUpdateCompleted) {
+        if (
+            this.#getBootReason() !== GeneralDiagnostics.BootReason.SoftwareUpdateCompleted &&
+            !this.endpoint.ownerOfType(AggregatorEndpoint)
+        ) {
             const startUpMiredsValue = this.state.startUpColorTemperatureMireds ?? null;
-            const currentMiredsValue = this.state.colorTemperatureMireds;
-            let targetMiredsValue: number | null;
-            switch (startUpMiredsValue) {
-                case null:
-                    targetMiredsValue = this.#cropColorTemperature(currentMiredsValue);
-                    break;
-                default:
-                    targetMiredsValue = startUpMiredsValue;
-                    break;
-            }
-            if (targetMiredsValue !== currentMiredsValue) {
-                this.state.colorMode = ColorControl.ColorMode.ColorTemperatureMireds;
-                this.state.enhancedColorMode = ColorControl.EnhancedColorMode.ColorTemperatureMireds;
-                this.state.colorTemperatureMireds = targetMiredsValue;
+            if (startUpMiredsValue !== null) {
+                const currentMiredsValue = this.#cropColorTemperature(this.state.colorTemperatureMireds);
+                const targetMiredsValue = this.#cropColorTemperature(startUpMiredsValue);
+                if (targetMiredsValue !== currentMiredsValue) {
+                    this.state.colorMode = ColorControl.ColorMode.ColorTemperatureMireds;
+                    this.state.enhancedColorMode = ColorControl.EnhancedColorMode.ColorTemperatureMireds;
+                    this.state.colorTemperatureMireds = targetMiredsValue;
+                }
             }
         }
     }
