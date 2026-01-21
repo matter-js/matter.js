@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { InteractionClient } from "#cluster/client/InteractionClient.js";
-import { OperationalCredentials } from "#clusters";
+import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import {
     ClassExtends,
     Crypto,
@@ -57,7 +58,6 @@ import {
     TypeFromPartialBitSchema,
     VendorId,
 } from "#types";
-import { OtaProviderEndpoint } from "@matter/node/endpoints";
 import { CommissioningControllerNodeOptions, NodeStates, PairedNode } from "./device/PairedNode.js";
 import { MatterController, PairedNodeDetails } from "./MatterController.js";
 
@@ -790,14 +790,17 @@ export class CommissioningController {
         if (node === undefined) {
             throw new ImplementationError(`Node ${nodeId} is not connected!`);
         }
-        const operationalCredentialsCluster = node.getRootClusterClient(OperationalCredentials.Cluster);
-        if (operationalCredentialsCluster === undefined) {
+        if (!node.node.behaviors.has(OperationalCredentialsClient)) {
             throw new UnexpectedDataError(`Node ${nodeId}: Operational Credentials Cluster not available!`);
         }
-        const fabrics = await operationalCredentialsCluster.getFabricsAttribute(false, true);
+        let fabrics = node.node.stateOf(OperationalCredentialsClient).fabrics;
         if (fabrics.length !== 1) {
-            logger.info(`Invalid fabrics returned from node ${nodeId}.`, fabrics);
-            return;
+            const ownFabricId = node.node.stateOf(OperationalCredentialsClient).currentFabricIndex;
+            fabrics = fabrics.filter(fabric => fabric.fabricIndex === ownFabricId);
+            if (fabrics.length !== 1) {
+                logger.info(`Invalid fabrics returned from node ${nodeId}.`, fabrics);
+                return;
+            }
         }
         const label = controller.fabricConfig.label;
         const fabric = fabrics[0];
@@ -805,7 +808,7 @@ export class CommissioningController {
             logger.info(
                 `Node ${nodeId}: Fabric label "${fabric.label}" does not match requested admin fabric Label "${label}". Updating...`,
             );
-            await operationalCredentialsCluster.updateFabricLabel({
+            await node.node.commandsOf(OperationalCredentialsClient).updateFabricLabel({
                 label,
                 fabricIndex: fabric.fabricIndex,
             });
