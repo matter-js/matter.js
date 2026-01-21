@@ -6,6 +6,7 @@
 
 import {
     AddressLifespan,
+    BasicMultiplex,
     BasicSet,
     ChannelType,
     Diagnostic,
@@ -51,6 +52,7 @@ import {
     getCommissionableDeviceQname,
     getCommissioningModeQname,
     getDeviceTypeQname,
+    getFabricQname,
     getLongDiscriminatorQname,
     getOperationalDeviceQname,
     getShortDiscriminatorQname,
@@ -124,6 +126,7 @@ export interface MdnsScannerTargetCriteria {
  */
 export class MdnsClient implements Scanner {
     readonly #lifetime: Lifetime;
+    #operationalInitialQueries?: BasicMultiplex;
 
     readonly type = ChannelType.UDP;
 
@@ -202,6 +205,8 @@ export class MdnsClient implements Scanner {
             return;
         }
 
+        const formerTargets = new Set(this.#operationalScanTargets);
+        const initialSendQueries = new Set<string>();
         // Add all operational targets from the criteria providers
         this.#operationalScanTargets.clear();
         let cacheCommissionableDevices = false;
@@ -209,12 +214,19 @@ export class MdnsClient implements Scanner {
             const { operationalTargets, commissionable } = criteria;
             cacheCommissionableDevices = cacheCommissionableDevices || commissionable;
             for (const { fabricId, nodeId } of operationalTargets) {
+                let target: string;
+                let scanTarget: string;
                 if (nodeId === undefined) {
-                    this.#operationalScanTargets.add(GlobalFabricId.strOf(fabricId));
+                    target = GlobalFabricId.strOf(fabricId).toUpperCase();
+                    scanTarget = getFabricQname(fabricId);
                 } else {
-                    this.#operationalScanTargets.add(
-                        `${GlobalFabricId.strOf(fabricId)}-${NodeId.strOf(nodeId)}`.toUpperCase(),
-                    );
+                    target = `${GlobalFabricId.strOf(fabricId)}-${NodeId.strOf(nodeId)}`.toUpperCase();
+                    scanTarget = getOperationalDeviceQname(fabricId, nodeId);
+                }
+
+                this.#operationalScanTargets.add(target);
+                if (!formerTargets.has(target)) {
+                    initialSendQueries.add(scanTarget);
                 }
             }
         }
@@ -225,6 +237,25 @@ export class MdnsClient implements Scanner {
             this.#registerOperationalQuery(queryId);
         }
         this.#updateListeningStatus();
+
+        if (initialSendQueries.size > 0) {
+            logger.debug(
+                `Sending initial operational mDNS queries for ${initialSendQueries.size} new operational targets`,
+            );
+            if (this.#operationalInitialQueries === undefined) {
+                this.#operationalInitialQueries = new BasicMultiplex();
+            }
+            this.#operationalInitialQueries.add(
+                this.#socket.send({
+                    messageType: DnsMessageType.Query,
+                    queries: Array.from(initialSendQueries.values()).map(target => ({
+                        name: target,
+                        recordClass: DnsRecordClass.IN,
+                        recordType: DnsRecordType.PTR,
+                    })),
+                }),
+            );
+        }
     }
 
     /** Update the status if we care about MDNS messages or not */
@@ -302,10 +333,7 @@ export class MdnsClient implements Scanner {
                     ),
             );
             if (newQueries.length === 0) {
-                // All queries already sent out
-                logger.debug(
-                    `No new query records for query ${queryId}, keeping existing queries and do not re-announce.`,
-                );
+                // All queries already sent out, will be re-queried automatically
                 return;
             }
             queries = [...newQueries, ...existingQueries];
@@ -848,6 +876,7 @@ export class MdnsClient implements Scanner {
         this.#observers.close();
         this.#periodicTimer.stop();
         this.#queryTimer?.stop();
+        await this.#operationalInitialQueries?.close();
         // Resolve all pending promises where logic waits for the response (aka: has a timer)
         [...this.#recordWaiters.keys()].forEach(queryId =>
             this.#finishWaiter(queryId, !!this.#recordWaiters.get(queryId)?.timer),
