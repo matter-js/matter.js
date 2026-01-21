@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+import { MaybePromise } from "#util/Promises.js";
 
 import { NoProviderError } from "../MatterError.js";
 import { Environment } from "../environment/Environment.js";
@@ -15,12 +16,13 @@ import { StorageManager } from "./StorageManager.js";
  * Service adapter for the Matter.js storage API.
  */
 export class StorageService {
-    #factory?: (namespace: string) => Storage;
+    #factory?: (namespace: string) => MaybePromise<Storage>;
     #location?: string;
 
     constructor(
         environment: Environment,
-        factory?: (namespace: string) => Storage,
+
+        factory?: (namespace: string) => MaybePromise<Storage>,
         resolver?: (...paths: string[]) => string,
     ) {
         environment.set(StorageService, this);
@@ -45,7 +47,7 @@ export class StorageService {
             throw new NoProviderError("Storage is unavailable because no platform implementation is installed");
         }
 
-        const storage = this.#factory(namespace);
+        const storage = await this.#factory(namespace);
         const manager = new StorageManager(storage);
         await manager.initialize();
         return manager;
@@ -54,7 +56,7 @@ export class StorageService {
     /**
      * Install a factory for opening storage.  Without such a factory storage is unavailable.
      */
-    set factory(factory: (namespace: string) => Storage) {
+    set factory(factory: (namespace: string) => MaybePromise<Storage>) {
         this.#factory = factory;
     }
 
