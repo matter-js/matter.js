@@ -18,6 +18,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Fix some mDNS handling issues
     - Fix: Add some protection to better ignore invalid mDNS packets
 
+- @matter/node
+  - Fix: Ignore startup definitions for bridged devices (affects OnOff, LevelControl, and ColorControl clusters)
+
 - @matter/protocol
     - Adjustment: Change the default value of "announceAsDefaultProvider" to false to avoid device race conditions for now
     - Fix: Ignore errors for closed sessions on resubmissions on already closed exchanges. Were false positive logs before.
