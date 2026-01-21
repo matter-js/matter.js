@@ -101,6 +101,13 @@ export class Package {
         return this.json.exports;
     }
 
+    /**
+     * Does package forcefully require `CJS` build?
+     */
+    get requireCjs() {
+        return this.json.matter?.requireCjs ?? false
+    }
+
     get hasCodegen() {
         return this.hasDirectory(CODEGEN_PATH);
     }
@@ -391,6 +398,7 @@ export type PackageJson = {
     imports?: Record<string, string>;
     matter?: {
         test?: boolean;
+        requireCjs?: boolean;
     };
     scripts?: Record<string, string>;
     exports?: Exports;

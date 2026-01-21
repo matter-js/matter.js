@@ -41,8 +41,7 @@
     },
     "homepage": "https://github.com/matter-js/matter.js#readme",
     "imports": {
-        "#tools": "@matter/tools",
-        "#tools/ansi-text": "@matter/tools/ansi-text"
+        "#tools": "@matter/tools"
     },
     "dependencies": {
         "@matter/tools": "*",
@@ -75,5 +74,8 @@
     },
     "publishConfig": {
         "access": "public"
+    },
+    "matter": {
+        "requireCjs": true
     }
 }

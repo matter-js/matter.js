@@ -175,7 +175,18 @@ export class ProjectBuilder {
             formats.push("esm");
         }
         if (targets.has(Target.cjs)) {
-            formats.push("cjs");
+            if (!process.versions.bun) {
+            // Node.js expected behavior
+                formats.push("cjs");
+            } else {
+                // Bun.js subpath import workaround
+                // Only build CJS if package must be built in `CJS`
+                // like @matter/tools, @matter/testing
+                // Issue: https://github.com/oven-sh/bun/issues/26069
+                if (project.pkg.requireCjs) {
+                    formats.push("cjs");
+                }
+            }
         }
 
         if (formats.length) {

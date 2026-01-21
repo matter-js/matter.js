@@ -48,6 +48,8 @@ export async function testWeb(runner: TestRunner, manual: boolean) {
 
         if (manual) {
             console.log(`Run tests manually at ${url}`);
+            // TODO: determine success or fail
+            setTimeout(resolve, 30000);
         } else {
             testInBrowser(url, runner.reporter, runner.options)
                 .then(() => {

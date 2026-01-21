@@ -173,13 +173,16 @@ export async function main(argv = process.argv) {
             return;
         }
 
+        const isBun = !!process.versions.bun
+
         // If no test types are specified explicitly, run all enabled types
         const thisTestTypes = new Set(testTypes);
         if (!thisTestTypes.size) {
             if (pkg.supportsEsm) {
                 thisTestTypes.add(TestType.esm);
             }
-            if (pkg.supportsCjs) {
+            // Bun.js workaround
+            if (pkg.supportsCjs && (pkg.requireCjs || !isBun)) {
                 thisTestTypes.add(TestType.cjs);
             }
             if (args.web && (!detectWeb || supportsWebTests(pkg))) {
@@ -200,7 +203,9 @@ export async function main(argv = process.argv) {
         }
 
         if (thisTestTypes.has(TestType.web)) {
-            await runner.runWeb(manual);
+            // playwright does not support bun.js
+            // Issue: https://github.com/microsoft/playwright/issues/27139
+            await runner.runWeb(manual || isBun);
         }
 
         progress.close();
