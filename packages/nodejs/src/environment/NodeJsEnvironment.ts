@@ -5,6 +5,7 @@
  */
 
 import { config } from "#config.js";
+import { NodeJsCrypto } from "#crypto/NodeJsCrypto.js";
 import {
     asError,
     Boot,
@@ -21,7 +22,6 @@ import {
     StorageService,
     VariableService,
 } from "#general";
-import { NodeJsCrypto } from "#crypto/NodeJsCrypto.js";
 import { NodeJsHttpEndpoint } from "#net/NodeJsHttpEndpoint.js";
 import { StorageFactory } from "#storage/index.js";
 
@@ -146,7 +146,7 @@ function rootDirOf(env: Environment) {
 function configureCrypto(env: Environment) {
     Boot.init(() => {
         if (config.installCrypto || (env.vars.boolean("nodejs.crypto") ?? true)) {
-            let crypto: Crypto
+            let crypto: Crypto;
             if (!isBunjs()) {
                 // Platform implemented crypto
                 crypto = new NodeJsCrypto();
@@ -206,22 +206,22 @@ function configureStorage(env: Environment) {
     });
 
     const shouldClear = env.vars.get("storage.clear", false);
-    let storageDriver = config.storageDriver ?? env.vars.string("storage.driver") ?? "file"
+    let storageDriver = config.storageDriver ?? env.vars.string("storage.driver") ?? "file";
 
     // fallback 'file' when storageDriver is blank
     if (storageDriver.length === 0) {
-        storageDriver = "file"
+        storageDriver = "file";
     }
 
     // code is moved to StorageFactory
-    service.factory = async (namespace) => {
+    service.factory = async namespace => {
         return await StorageFactory.create({
             driver: storageDriver,
             rootDir: service.location ?? ".",
             namespace,
             clear: shouldClear,
-        })
-    }
+        });
+    };
 
     service.resolve = (...paths) => resolve(rootDirOf(env), ...paths);
 }
