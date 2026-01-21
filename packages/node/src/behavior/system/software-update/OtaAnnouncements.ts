@@ -144,7 +144,6 @@ export class OtaAnnouncements {
             try {
                 // Fabric scoped attribute, so we just overwrite our value
                 // Consume the write-result iterator to execute the writing
-                // Ignores any error sas of now
                 const writeResult = peer.interaction.write(
                     Write(
                         Write.Attribute({

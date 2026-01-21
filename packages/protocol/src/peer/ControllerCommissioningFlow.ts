@@ -1674,7 +1674,6 @@ export class ControllerCommissioningFlow {
         for (const requestorEndpoint of this.collectedCommissioningData.otaRequestorList) {
             try {
                 // Fabric scoped attribute, so we just overwrite our value
-                // Ignore any errors for now
                 const writeResult = this.interaction.write(
                     Write(
                         Write.Attribute({
