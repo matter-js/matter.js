@@ -1313,7 +1313,11 @@ describe("InteractionProtocol", () => {
                 moreChunkedMessages: true,
                 writeRequests: [
                     {
-                        path: { endpointId: EndpointNumber(0), clusterId: ClusterId(0x1f), attributeId: AttributeId(0) },
+                        path: {
+                            endpointId: EndpointNumber(0),
+                            clusterId: ClusterId(0x1f),
+                            attributeId: AttributeId(0),
+                        },
                         data: TlvArray(TlvAclTestSchema).encodeTlv([]),
                     },
                 ],
