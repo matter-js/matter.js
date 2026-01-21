@@ -14,6 +14,7 @@ import { ScenesManagementServer } from "#behaviors/scenes-management";
 import { GeneralDiagnostics } from "#clusters/general-diagnostics";
 import { LevelControl } from "#clusters/level-control";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { AsyncObservable, cropValueRange, Identity, Logger, MaybePromise, Millis } from "#general";
 import { ServerNode } from "#node/ServerNode.js";
 import { Val } from "#protocol";
@@ -185,7 +186,10 @@ export class LevelControlBaseServer extends LevelControlBase {
             );
         }
 
-        if (this.#getBootReason() !== GeneralDiagnostics.BootReason.SoftwareUpdateCompleted) {
+        if (
+            this.#getBootReason() !== GeneralDiagnostics.BootReason.SoftwareUpdateCompleted &&
+            !this.endpoint.ownerOfType(AggregatorEndpoint)
+        ) {
             const startUpLevelValue = this.state.startUpCurrentLevel ?? null;
             const currentLevelValue = this.state.currentLevel;
             let targetLevelValue: number | null;

@@ -12,9 +12,14 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/general
+    - Enhancement: When generally discovering for operational targets, send one initial query for them to fill the cache
+    - Fix: Store operational devices matching operational scan targets also when not explicitly discovered
     - Fix: Split mDNS Query message that are too big to fit into one mDNS message
     - Fix: Fix some mDNS handling issues
     - Fix: Add some protection to better ignore invalid mDNS packets
+
+- @matter/node
+  - Fix: Ignore startup definitions for bridged devices (affects OnOff, LevelControl, and ColorControl clusters)
 
 - @matter/protocol
     - Adjustment: Change the default value of "announceAsDefaultProvider" to false, which avoids device race conditions for now
