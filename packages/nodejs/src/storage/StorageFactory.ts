@@ -78,6 +78,11 @@ export namespace StorageFactory {
                 continue;
             }
 
+            // Skip if runtime does not support sqlite
+            if (otherType === StorageType.SQLITE && !supportsSqlite()) {
+                continue;
+            }
+
             const otherPath = getRealPath(otherType, rootDir, namespace);
             if (!(await hasStorage(otherType, otherPath))) {
                 continue;
