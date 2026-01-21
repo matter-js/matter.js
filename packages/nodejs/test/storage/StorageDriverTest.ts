@@ -5,6 +5,7 @@
  */
 
 import { SqliteStorageError, StorageFactory, StorageType } from "#storage/index.js";
+import { supportsSqlite } from "#util/runtimeChecks.js";
 import { Bytes, Storage, StorageError } from "@matter/general";
 import * as assert from "node:assert";
 import { mkdir, rm } from "node:fs/promises";
@@ -18,7 +19,10 @@ const CONTEXTx2 = [...CONTEXTx1, "subcontext"];
 const CONTEXTx3 = [...CONTEXTx2, "subsubcontext"];
 
 describe("StorageDrivers", () => {
-    const drivers = [StorageType.FILE, StorageType.SQLITE];
+    const drivers = [StorageType.FILE];
+    if (supportsSqlite()) {
+        drivers.push(StorageType.SQLITE);
+    }
 
     before(async () => {
         await mkdir(TEST_STORAGE_LOCATION, { recursive: true });

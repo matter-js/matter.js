@@ -5,6 +5,7 @@
  */
 
 import { StorageFactory, StorageType } from "#storage/index.js";
+import { supportsSqlite } from "#util/runtimeChecks.js";
 import { Bytes, Storage } from "@matter/general";
 import * as assert from "node:assert";
 import { mkdir, rm } from "node:fs/promises";
@@ -17,7 +18,10 @@ const CONTEXTx1 = ["context"];
 const CONTEXTx2 = [...CONTEXTx1, "subcontext"];
 const CONTEXTx3 = [...CONTEXTx2, "subsubcontext"];
 
-describe("StorageMigration", () => {
+// Only test if runtime supports sqlite
+const describeIfSqlite = supportsSqlite() ? describe : describe.skip;
+
+describeIfSqlite("StorageMigration", () => {
     const testPairs = [
         {
             source: StorageType.FILE,
