@@ -1574,7 +1574,7 @@ export class PairedNode {
         return this.#endpoints!;
     }
 
-    /** Returns the functional devices/endpoints (the "childs" of the Root Endpoint) known for this node. */
+    /** Returns the functional devices/endpoints (the "children" of the Root Endpoint) known for this node. */
     getDevices(): Endpoint[] {
         return this.#ensureLegacyEndpointStructure().get(EndpointNumber(0))?.getChildEndpoints() ?? [];
     }
