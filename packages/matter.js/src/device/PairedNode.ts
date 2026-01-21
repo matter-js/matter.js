@@ -1267,8 +1267,8 @@ export class PairedNode {
             emitChangeEvents();
         } else {
             // If we are not connected, we need to wait until we are connected again and emit these changes afterwards
-            this.events.stateChanged.once(State => {
-                if (State === NodeStates.Connected) {
+            this.events.stateChanged.once(state => {
+                if (state === NodeStates.Connected) {
                     emitChangeEvents();
                 }
             });
