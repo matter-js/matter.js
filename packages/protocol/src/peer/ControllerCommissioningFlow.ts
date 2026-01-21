@@ -6,6 +6,7 @@
 
 import { ClientInteraction } from "#action/client/ClientInteraction.js";
 import { ClientRead } from "#action/client/ClientRead.js";
+import { WriteResult } from "#action/index.js";
 import { Invoke } from "#action/request/Invoke.js";
 import { Read } from "#action/request/Read.js";
 import { Write } from "#action/request/Write.js";
@@ -1673,7 +1674,8 @@ export class ControllerCommissioningFlow {
         for (const requestorEndpoint of this.collectedCommissioningData.otaRequestorList) {
             try {
                 // Fabric scoped attribute, so we just overwrite our value
-                await this.interaction.write(
+                // Ignore any errors for now
+                const writeResult = this.interaction.write(
                     Write(
                         Write.Attribute({
                             endpoint: requestorEndpoint,
@@ -1689,6 +1691,9 @@ export class ControllerCommissioningFlow {
                         }),
                     ),
                 );
+
+                await WriteResult.assertSuccess(writeResult);
+
                 success = true;
                 logger.debug(`Added default OTA provider on endpoint ${endpoint}`);
             } catch (error) {
