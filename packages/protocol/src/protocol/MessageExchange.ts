@@ -374,7 +374,9 @@ export class MessageExchange {
             }
         }
         if (this.#sentMessageToAck !== undefined && !isStandaloneAck) {
-            throw new MatterFlowError("The previous message has not been acked yet, cannot send a new message.");
+            throw new MatterFlowError(
+                `The previous message ${Message.via(this, this.#sentMessageToAck)} has not been acked yet, cannot send a new message.`,
+            );
         }
 
         this.#used = true;
