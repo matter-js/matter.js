@@ -362,9 +362,6 @@ export function ClusterClient<const T extends ClusterType>(
             if (attributeToId[attributeId] === undefined) {
                 const attribute = UnknownAttribute(attributeId);
                 addAttributeToResult(attribute, `unknownAttribute_${Diagnostic.hex(attributeId)}`);
-                logger.info(
-                    `Added unknown attribute ${Diagnostic.hex(attributeId)} to cluster ${Diagnostic.hex(clusterId)}`,
-                );
             }
         }
     }
@@ -420,13 +417,6 @@ export function ClusterClient<const T extends ClusterType>(
         };
         commands[requestId as unknown as keyof T["commands"]] = commands[commandName as keyof T["commands"]];
         result[commandName] = result.commands[commandName];
-    }
-    if (globalAttributeValues?.acceptedCommandList !== undefined) {
-        for (const requestId of globalAttributeValues.acceptedCommandList) {
-            if (commandToId[requestId] === undefined) {
-                logger.info(`Ignoring unknown command ${requestId} at cluster ${Diagnostic.hex(clusterId)}`);
-            }
-        }
     }
 
     return result as ClusterClientObj<T>;

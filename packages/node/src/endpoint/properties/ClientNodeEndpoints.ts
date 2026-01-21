@@ -6,6 +6,7 @@
 
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
+import { hex } from "#general";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Endpoints } from "./Endpoints.js";
 
@@ -27,7 +28,7 @@ export class ClientNodeEndpoints extends Endpoints {
             id: `ep${endpointId}`,
             number: endpointId,
             type: EndpointType({
-                name: "Unknown",
+                name: `Unknown#${hex.word(type.deviceType ?? EndpointType.UNKNOWN_DEVICE_TYPE)}`,
                 deviceType: EndpointType.UNKNOWN_DEVICE_TYPE,
                 deviceRevision: EndpointType.UNKNOWN_DEVICE_REVISION,
                 ...type,

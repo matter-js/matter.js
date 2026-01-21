@@ -11,7 +11,7 @@ import { Descriptor } from "#clusters/descriptor";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { RootEndpoint } from "#endpoints/root";
-import { Diagnostic, InternalError, isDeepEqual, Logger, Observable } from "#general";
+import { Diagnostic, hex, InternalError, isDeepEqual, Logger, Observable } from "#general";
 import {
     AcceptedCommandList,
     AttributeList,
@@ -499,8 +499,9 @@ export class ClientStructure {
                 endpointType.deviceType = dt.deviceType;
                 endpointType.deviceRevision = dt.revision;
                 endpointType.deviceClass = model?.classification ?? DeviceClassification.Simple;
+                endpointType.name = model?.name ?? `Unknown#${hex.word(dt.deviceType)}`;
 
-                // If we found a known application device type we stop because this is the classification we want to
+                // If we found a known application device type, we stop because this is the classification we want to
                 // report
                 if (isApp) {
                     break;
