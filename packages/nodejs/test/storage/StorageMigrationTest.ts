@@ -18,20 +18,25 @@ const CONTEXTx1 = ["context"];
 const CONTEXTx2 = [...CONTEXTx1, "subcontext"];
 const CONTEXTx3 = [...CONTEXTx2, "subsubcontext"];
 
-// Only test if runtime supports sqlite
-const describeIfSqlite = supportsSqlite() ? describe : describe.skip;
+describe("StorageMigration", () => {
+    const testPairs: { source: StorageType; target: StorageType }[] = [];
 
-describeIfSqlite("StorageMigration", () => {
-    const testPairs = [
-        {
-            source: StorageType.FILE,
-            target: StorageType.SQLITE,
-        },
-        {
-            source: StorageType.SQLITE,
-            target: StorageType.FILE,
-        },
-    ];
+    if (supportsSqlite()) {
+        testPairs.push(
+            {
+                source: StorageType.FILE,
+                target: StorageType.SQLITE,
+            },
+            {
+                source: StorageType.SQLITE,
+                target: StorageType.FILE,
+            },
+        );
+    } else {
+        it.skip("requires SQLite support (Node.js v22+)", () => {
+            // This test is informative blank test.
+        });
+    }
 
     before(async () => {
         await mkdir(TEST_STORAGE_LOCATION, { recursive: true });
