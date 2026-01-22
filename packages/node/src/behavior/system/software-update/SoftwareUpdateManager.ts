@@ -882,6 +882,6 @@ export namespace SoftwareUpdateManager {
 
         announceAsDefaultProvider$Changed = Observable<[announceAsDefaultProvider: boolean]>();
 
-        announcementInterval$Changed = Observable<[announcementInterval: boolean]>();
+        announcementInterval$Changed = Observable<[announcementInterval: Duration]>();
     }
 }
