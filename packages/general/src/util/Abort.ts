@@ -23,13 +23,15 @@ import { SafePromise } from "./Promises.js";
  * Optionally will register for abort with an outer {@link AbortController} and/or add a timeout.  You must abort or
  * invoke {@link close} if you use either of these options.
  */
-export class Abort extends Callable<[reason?: Error]> implements AbortController, AbortSignal, PromiseLike<Error> {
+export class Abort
+    extends Callable<[reason?: string | Error]>
+    implements AbortController, AbortSignal, PromiseLike<Error>
+{
     // The native controller implementation
     #controller: AbortController;
 
     // Optional abort chaining
-    #dependents?: AbortSignal[];
-    #listener?: (reason: any) => void;
+    #unregisterDependencies?: () => void;
 
     // Optional PromiseLike behavior
     #aborted?: Promise<Error>;
@@ -38,49 +40,106 @@ export class Abort extends Callable<[reason?: Error]> implements AbortController
     // Optional timeout
     #timeout?: Timer;
 
-    constructor({ abort, timeout, handler }: Abort.Options = {}) {
-        super(() => this.abort());
+    constructor({ abort: aborts, timeout, handler, timeoutHandler }: Abort.Options = {}) {
+        const abort = (reason?: Error | string) => {
+            if (typeof reason === "string") {
+                reason = new AbortedError(reason);
+            }
+            this.abort(reason);
+        };
+
+        super(abort);
 
         this.#controller = new AbortController();
+
+        const throwIfAborted = this.#controller.signal.throwIfAborted.bind(this.#controller.signal);
+        this.#controller.signal.throwIfAborted = () => {
+            try {
+                throwIfAborted();
+            } catch (e) {
+                const error = new AbortedError();
+
+                // Remove stack lines for this abort logic
+                error.stack = error.stack
+                    ?.split("\n")
+                    .filter(line => !line.match(/\.throwIfAborted/))
+                    .join("\n");
+
+                error.cause = e;
+                throw error;
+            }
+        };
 
         const self = (reason?: any) => {
             this.abort(reason);
         };
         Object.setPrototypeOf(self, Object.getPrototypeOf(this));
 
-        if (abort && !Array.isArray(abort)) {
-            abort = [abort];
+        if (aborts && !Array.isArray(aborts)) {
+            aborts = [aborts];
         }
 
-        if (abort?.length) {
-            const dependents = abort.map(abort => ("signal" in abort ? abort.signal : abort));
-            this.#dependents = dependents;
+        if (aborts?.length) {
+            const dependencies = aborts.map(abort => abort && ("signal" in abort ? abort.signal : abort));
 
-            this.#listener = (reason: any) => this.abort(reason);
-            for (const dependent of dependents) {
-                dependent.addEventListener("abort", this.#listener);
+            for (const dependency of dependencies) {
+                if (dependency === undefined) {
+                    continue;
+                }
+
+                const listener = () => this.abort(asError(dependency.reason));
+                dependency.addEventListener("abort", listener);
+                const unregisterPrev = this.#unregisterDependencies;
+                this.#unregisterDependencies = () => {
+                    unregisterPrev?.();
+                    dependency.removeEventListener("abort", listener);
+                };
             }
         }
 
-        if (timeout) {
-            this.#timeout = Time.getPeriodicTimer("subtask timeout", timeout, () => {
-                if (this.aborted) {
-                    return;
-                }
+        if (timeout !== undefined) {
+            if (timeoutHandler) {
+                const original = timeoutHandler;
+                timeoutHandler = () => {
+                    try {
+                        original.call(this);
+                    } catch (e) {
+                        this.abort(asError(e));
+                    }
+                };
+            } else {
+                timeoutHandler = () => this.abort(new TimeoutError());
+            }
 
-                this.abort(new TimeoutError());
-            });
+            if (timeout <= 0) {
+                timeoutHandler.call(this);
+            } else {
+                this.#timeout = Time.getPeriodicTimer("subtask timeout", timeout, () => {
+                    if (this.aborted) {
+                        return;
+                    }
 
-            this.#timeout.start();
+                    timeoutHandler!.call(this);
+                });
+
+                this.#timeout.start();
+            }
         }
 
         if (handler) {
-            this.addEventListener("abort", () => handler(this.reason));
+            if (this.aborted) {
+                handler.call(this, this.reason);
+            } else {
+                this.addEventListener("abort", () => handler.call(this, this.reason));
+            }
         }
     }
 
-    abort(reason?: any) {
-        this.#controller.abort(reason ?? new AbortedError());
+    abort(reason?: Error | string) {
+        if (typeof reason === "string") {
+            reason = new AbortedError(reason);
+        }
+        this.#controller.abort(reason ?? new AbortedError("Operation aborted with no reason given"));
     }
 
     get signal() {
@@ -100,7 +159,7 @@ export class Abort extends Callable<[reason?: Error]> implements AbortController
      * Race with throw on abort.
      */
     async attempt<T>(...promises: Array<T | PromiseLike<T>>) {
-        return Abort.attempt(this, ...promises);
+        return await Abort.attempt(this, ...promises);
     }
 
     /**
@@ -111,11 +170,7 @@ export class Abort extends Callable<[reason?: Error]> implements AbortController
      */
     close() {
         this.#timeout?.stop();
-        if (this.#listener && this.#dependents) {
-            for (const dependent of this.#dependents) {
-                dependent.removeEventListener("abort", this.#listener);
-            }
-        }
+        this.#unregisterDependencies?.();
     }
 
     [Symbol.dispose]() {
@@ -208,7 +263,7 @@ export namespace Abort {
          *
          * This functions similarly to {@link AbortSignal.any} but has additional protection against memory leaks.
          */
-        abort?: Signal | Signal[];
+        abort?: Signal | (Signal | undefined)[];
 
         /**
          * An abort timeout.
@@ -220,7 +275,14 @@ export namespace Abort {
         /**
          * Adds a default abort handler.
          */
-        handler?: (reason?: Error) => void;
+        handler?: (this: Abort, reason?: Error) => void;
+
+        /**
+         * Replaces the default timeout handler.
+         *
+         * The default implementation aborts with {@link TimeoutError}.
+         */
+        timeoutHandler?: (this: Abort) => void;
     }
 
     /**
