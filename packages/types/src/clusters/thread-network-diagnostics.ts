@@ -1004,7 +1004,7 @@ export namespace ThreadNetworkDiagnostics {
              *
              * @see {@link MatterSpecification.v142.Core} § 11.14.6.6
              */
-            meshLocalPrefix: Attribute(0x5, TlvNullable(TlvByteString)),
+            meshLocalPrefix: Attribute(0x5, TlvNullable(TlvByteString.bound({ minLength: 1, maxLength: 17 }))),
 
             /**
              * Indicates the current list of Nodes that comprise the neighbor table on the Node.

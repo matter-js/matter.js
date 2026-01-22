@@ -9,5 +9,5 @@
 import { MatterDefinition } from "../MatterDefinition.js";
 import { DatatypeElement as Datatype } from "../../elements/index.js";
 
-export const ipadr = Datatype({ name: "ipadr", type: "octstr", isSeed: true });
+export const ipadr = Datatype({ name: "ipadr", type: "octstr", constraint: "4 to 16", isSeed: true });
 MatterDefinition.children.push(ipadr);

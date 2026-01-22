@@ -9,5 +9,5 @@
 import { MatterDefinition } from "../MatterDefinition.js";
 import { DatatypeElement as Datatype } from "../../elements/index.js";
 
-export const hwadr = Datatype({ name: "hwadr", type: "octstr", isSeed: true });
+export const hwadr = Datatype({ name: "hwadr", type: "octstr", constraint: "6 to 8", isSeed: true });
 MatterDefinition.children.push(hwadr);
