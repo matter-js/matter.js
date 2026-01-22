@@ -610,8 +610,9 @@ function invokeCommand(
             result = Promise.resolve(result)
                 .then(result => {
                     if (isObject(result)) {
-                        logger.debug(
-                            "Invoke result",
+                        logger.info(
+                            "Invoke",
+                            Mark.OUTBOUND,
                             Diagnostic.strong(`${path.toString()}.${command.name}`),
                             session.transaction!.via,
                             Diagnostic.dict(result),
@@ -622,8 +623,9 @@ function invokeCommand(
                 .finally(() => activity?.[Symbol.dispose]());
         } else {
             if (isObject(result)) {
-                logger.debug(
-                    "Invoke result",
+                logger.info(
+                    "Invoke",
+                    Mark.OUTBOUND,
                     Diagnostic.strong(`${path.toString()}.${command.name}`),
                     session.transaction.via,
                     Diagnostic.dict(result),
