@@ -24,9 +24,13 @@ import {
     ObserverGroup,
     Time,
     Timer,
+    Timestamp,
 } from "#general";
 
 const logger = Logger.get("MdnsServer");
+
+/** RFC 6762 §7.3 - Window for duplicate question suppression (999ms per python-zeroconf) */
+const QUESTION_SUPPRESSION_WINDOW = Millis(999);
 
 export class MdnsServer {
     #lifetime: Lifetime;
@@ -51,6 +55,14 @@ export class MdnsServer {
     );
     readonly #recordLastSentAsMulticastAnswer = new Map<string, number>();
     readonly #truncatedQueryCache = new Map<string, { message: MdnsSocket.Message; timer: Timer }>();
+    /** RFC 6762 §7.3 - Tracks recently answered queries for duplicate suppression */
+    readonly #recentlyAnsweredQueries = new Map<
+        string,
+        {
+            knownAnswerHashes: Set<string>;
+            timestamp: Timestamp;
+        }
+    >();
 
     readonly #socket: MdnsSocket;
 
@@ -135,6 +147,11 @@ export class MdnsServer {
                 );
                 if (answers.length === 0) continue; // Nothing to send
 
+                // RFC 6762 §7.3 - Check for duplicate question suppression
+                if (this.#shouldSuppressResponse(queries, knownAnswers, sourceIntf, answers)) {
+                    continue; // Another responder already answered
+                }
+
                 answers.forEach(answer =>
                     this.#recordLastSentAsMulticastAnswer.set(this.buildDnsRecordKey(answer, sourceIntf), now),
                 );
@@ -181,7 +198,6 @@ export class MdnsServer {
                 for (const [service, serviceRecords] of records) {
                     if (services.length && !services.includes(service)) continue;
 
-                    // TODO: try to combine the messages to avoid sending multiple messages but keep under 1500 bytes per message
                     await this.#announceRecordsForInterface(netInterface, serviceRecords);
                     await Time.sleep("MDNS delay", Millis(20 + Math.floor(Math.random() * 100))); // as per DNS-SD spec wait 20-120ms before sending more packets
                 }
@@ -198,15 +214,12 @@ export class MdnsServer {
                 const records = await this.#records.get(netInterface);
                 for (const [service, serviceRecords] of records) {
                     if (services.length && !services.includes(service)) continue;
-                    const instanceSet = new Set<string>();
+
+                    // Set TTL to Instant for all records to expire them
                     serviceRecords.forEach(record => {
                         record.ttl = Instant;
-                        if (record.recordType === DnsRecordType.TXT) {
-                            instanceSet.add(record.name);
-                        }
                     });
 
-                    // TODO: try to combine the messages to avoid sending multiple messages but keep under 1500 bytes per message
                     await this.#announceRecordsForInterface(netInterface, serviceRecords);
                     this.#recordsGenerator.delete(service);
                     await Time.sleep("MDNS delay", Millis(20 + Math.floor(Math.random() * 100))); // as per DNS-SD spec wait 20-120ms before sending more packets
@@ -220,12 +233,14 @@ export class MdnsServer {
     async setRecordsGenerator(service: string, generator: MdnsServer.RecordGenerator) {
         await this.#records.clear();
         this.#recordLastSentAsMulticastAnswer.clear();
+        this.#recentlyAnsweredQueries.clear();
         this.#recordsGenerator.set(service, generator);
     }
 
     async #resetServices() {
         await this.#records.clear();
         this.#recordLastSentAsMulticastAnswer.clear();
+        this.#recentlyAnsweredQueries.clear();
     }
 
     async close() {
@@ -237,6 +252,7 @@ export class MdnsServer {
         }
         this.#truncatedQueryCache.clear();
         this.#recordLastSentAsMulticastAnswer.clear();
+        this.#recentlyAnsweredQueries.clear();
     }
 
     #getMulticastInterfacesForAnnounce() {
@@ -250,6 +266,63 @@ export class MdnsServer {
         } else {
             return records.filter(record => record.name === name && record.recordType === recordType);
         }
+    }
+
+    /**
+     * RFC 6762 §7.3 - Checks if we should suppress a response because another responder
+     * has recently answered the same question with answers that cover what we'd send.
+     * Also, lazily cleans up expired entries from the cache.
+     */
+    #shouldSuppressResponse(
+        queries: { name: string; recordType: DnsRecordType }[],
+        knownAnswers: DnsRecord<any>[],
+        sourceIntf: string,
+        answers: DnsRecord<any>[],
+    ): boolean {
+        const now = Time.nowMs;
+
+        // Clean up expired entries
+        for (const [key, entry] of this.#recentlyAnsweredQueries) {
+            if (now - entry.timestamp >= QUESTION_SUPPRESSION_WINDOW) {
+                this.#recentlyAnsweredQueries.delete(key);
+            }
+        }
+
+        // Build query signature
+        const queryKey =
+            queries
+                .map(q => `${q.name}-${q.recordType}`)
+                .sort()
+                .join("|") + `-${sourceIntf}`;
+
+        const cached = this.#recentlyAnsweredQueries.get(queryKey);
+
+        if (cached && now - cached.timestamp < QUESTION_SUPPRESSION_WINDOW) {
+            // Check if all our answers are already in the known answers from the cached response
+            const answerHashes = answers.map(a => this.buildDnsRecordKey(a, sourceIntf));
+            const allAnswersKnown = answerHashes.every(h => cached.knownAnswerHashes.has(h));
+
+            if (allAnswersKnown) {
+                return true; // Suppress - another responder already answered with our records
+            }
+        }
+
+        // Record that we're answering this question
+        const knownAnswerHashes = new Set<string>();
+        for (const answer of knownAnswers) {
+            knownAnswerHashes.add(this.buildDnsRecordKey(answer, sourceIntf));
+        }
+        // Also add our answers to the known set
+        for (const answer of answers) {
+            knownAnswerHashes.add(this.buildDnsRecordKey(answer, sourceIntf));
+        }
+
+        this.#recentlyAnsweredQueries.set(queryKey, {
+            knownAnswerHashes,
+            timestamp: now,
+        });
+
+        return false;
     }
 
     async #processTruncatedQuery(key: string) {

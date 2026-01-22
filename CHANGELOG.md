@@ -9,6 +9,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+- @matter/protocol
+    - Enhancement: Add RFC 6762 §7.3 compliant duplicate question suppression to MdnsServer
+
 ## 0.16.6 (2026-01-22)
 
 - @matter/general

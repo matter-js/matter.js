@@ -1009,4 +1009,103 @@ describe("MdnsServer", () => {
             ]);
         });
     });
+
+    describe("Duplicate question suppression (RFC 6762 §7.3)", () => {
+        it("suppresses response when same question was recently answered", async () => {
+            const responses = new Array<{ message?: DnsMessage; netInterface?: string; uniCastTarget?: string }>();
+            onResponse = async (message: Bytes, netInterface?: string, uniCastTarget?: string) => {
+                responses.push({ message: DnsCodec.decode(message), netInterface, uniCastTarget });
+            };
+
+            // First query - should get response
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query,
+                    queries: [
+                        {
+                            name: DUMMY_QNAME,
+                            recordClass: DnsRecordClass.IN,
+                            recordType: DnsRecordType.PTR,
+                        },
+                    ],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+
+            await MockTime.yield3();
+            expect(responses.length).equals(1);
+
+            responses.length = 0;
+
+            // Second identical query within suppression window - should be suppressed
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query,
+                    queries: [
+                        {
+                            name: DUMMY_QNAME,
+                            recordClass: DnsRecordClass.IN,
+                            recordType: DnsRecordType.PTR,
+                        },
+                    ],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+
+            await MockTime.yield3();
+            expect(responses.length).equals(0); // Suppressed
+        });
+
+        it("responds after suppression window expires", async () => {
+            const responses = new Array<{ message?: DnsMessage; netInterface?: string; uniCastTarget?: string }>();
+            onResponse = async (message: Bytes, netInterface?: string, uniCastTarget?: string) => {
+                responses.push({ message: DnsCodec.decode(message), netInterface, uniCastTarget });
+            };
+
+            // First query
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query,
+                    queries: [
+                        {
+                            name: DUMMY_QNAME,
+                            recordClass: DnsRecordClass.IN,
+                            recordType: DnsRecordType.PTR,
+                        },
+                    ],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+
+            await MockTime.yield3();
+            expect(responses.length).equals(1);
+
+            responses.length = 0;
+
+            // Wait past the 999ms suppression window
+            await MockTime.advance(1001);
+
+            // Query again - should respond since window expired
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query,
+                    queries: [
+                        {
+                            name: DUMMY_QNAME,
+                            recordClass: DnsRecordClass.IN,
+                            recordType: DnsRecordType.PTR,
+                        },
+                    ],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+
+            await MockTime.yield3();
+            expect(responses.length).equals(1); // Should respond after window expires
+        });
+    });
 });
