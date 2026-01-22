@@ -101,6 +101,30 @@ export class MatterError extends Error {
     }
 
     /**
+     * Replace the message in an error.
+     *
+     * In addition to setting the message, updates the message in the stack.
+     */
+    static replaceMessage(error: Error, message: string) {
+        const oldMessage = error.message;
+        error.message = message;
+
+        const stack = error.stack?.split("\n");
+        const messagePos = stack?.findIndex(line => {
+            if (line.startsWith("Error: ")) {
+                line = line.slice(7);
+            }
+            if (line === oldMessage) {
+                return true;
+            }
+        });
+        if (messagePos !== undefined && messagePos !== -1) {
+            stack![messagePos] = message;
+            error.stack = stack!.join("\n");
+        }
+    }
+
+    /**
      * The fallback formatter factory.  This produces a limited plaintext formatter.
      */
     static defaultFormatterFactory = () => fallbackFormatter;
@@ -291,10 +315,10 @@ export class TimeoutError extends MatterError {
 }
 
 /**
- * Thrown on abort when there is not an underlying error.
+ * Thrown as the primary cause when an {@link AbortController} aborts.
  */
 export class AbortedError extends CanceledError {
-    constructor(message = "This operation was aborted", options?: ErrorOptions) {
+    constructor(message = "Operation aborted", options?: ErrorOptions) {
         super(message, options);
     }
 
@@ -319,6 +343,11 @@ export class AbortedError extends CanceledError {
         return super.accept(cause);
     }
 }
+
+/**
+ * Thrown when an operation can't complete because a resource is closed.
+ */
+export class ClosedError extends CanceledError {}
 
 /**
  * Node.js-style object inspection.
