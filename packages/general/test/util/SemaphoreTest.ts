@@ -80,7 +80,7 @@ describe("Semaphore", () => {
     });
 
     describe("concurrency", () => {
-        // Windows uses ~15ms timer resolution which can cause tests with small delays to fail 
+        // Windows uses ~15ms timer resolution which can cause tests with small delays to fail
         // as execution order becomes non-deterministic. We use larger delays (>= 20ms margin)
         // to ensure stable results across all platforms.
         // See: https://github.com/jsdom/jsdom/issues/3262
