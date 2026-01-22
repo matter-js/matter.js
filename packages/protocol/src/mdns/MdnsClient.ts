@@ -63,6 +63,19 @@ const logger = Logger.get("MdnsClient");
 
 const MDNS_EXPIRY_GRACE_PERIOD_FACTOR = 1.05;
 
+/**
+ * Protection window for out-of-order goodbye packets (RFC 6762).
+ * If a record was discovered within this window, ignore TTL=0 goodbye packets
+ * as they likely arrived out of order (goodbye sent before an announcement but received after).
+ */
+const GOODBYE_PROTECTION_WINDOW = Millis(1000);
+
+/**
+ * Minimum TTL for PTR records to prevent DoS attacks with very short TTLs.
+ * Value based on python-zeroconf implementation.
+ */
+const PTR_MIN_TTL = Millis(1125);
+
 type MatterServerRecordWithExpire = ServerAddressUdp & AddressLifespan;
 
 /** Type for commissionable Device records including Lifespan details. */
@@ -891,6 +904,12 @@ export class MdnsClient implements Scanner {
         answersList.forEach(answers =>
             answers.forEach(answer => {
                 const { name, recordType } = answer;
+
+                // Enforce minimum TTL for PTR records to prevent DoS attacks with very short TTLs
+                if (recordType === DnsRecordType.PTR && answer.ttl < PTR_MIN_TTL) {
+                    answer = { ...answer, ttl: PTR_MIN_TTL };
+                }
+
                 if (name.endsWith(MATTER_SERVICE_QNAME)) {
                     structuredAnswers.operational = structuredAnswers.operational ?? {};
                     structuredAnswers.operational[recordType] = structuredAnswers.operational[recordType] ?? [];
@@ -926,8 +945,32 @@ export class MdnsClient implements Scanner {
         return structuredAnswers;
     }
 
+    /**
+     * Merge a record into a map with goodbye protection.
+     * Returns true if the record was processed (added or deleted), false if skipped due to protection.
+     */
+    #mergeRecordWithGoodbyeProtection(
+        targetMap: Map<string, AnyDnsRecordWithExpiry>,
+        key: string,
+        record: AnyDnsRecordWithExpiry,
+        now: number,
+    ): void {
+        const existingRecord = targetMap.get(key);
+        if (!existingRecord || existingRecord.discoveredAt < record.discoveredAt) {
+            if (record.ttl === 0) {
+                // Apply goodbye protection - ignore if the existing record is young
+                if (existingRecord && now - existingRecord.discoveredAt < GOODBYE_PROTECTION_WINDOW) {
+                    return;
+                }
+                targetMap.delete(key);
+            } else {
+                targetMap.set(key, record);
+            }
+        }
+    }
+
     #combineStructuredAnswers(...answersList: StructuredDnsAnswers[]): StructuredDnsAnswers {
-        // Special type for easier combination of answers
+        // Special type for an easier combination of answers
         const combinedAnswers: {
             operational?: Record<number, Map<string, AnyDnsRecordWithExpiry>>;
             commissionable?: Record<number, Map<string, AnyDnsRecordWithExpiry>>;
@@ -935,7 +978,9 @@ export class MdnsClient implements Scanner {
             addressesV6?: Record<string, Map<string, AnyDnsRecordWithExpiry>>;
         } = {};
 
+        const now = Time.nowMs;
         for (const answers of answersList) {
+            // Process operational records
             if (answers.operational) {
                 combinedAnswers.operational = combinedAnswers.operational ?? {};
                 for (const [recordType, records] of Object.entries(answers.operational) as unknown as [
@@ -943,18 +988,18 @@ export class MdnsClient implements Scanner {
                     AnyDnsRecordWithExpiry[],
                 ][]) {
                     combinedAnswers.operational[recordType] = combinedAnswers.operational[recordType] ?? new Map();
-                    records.forEach(record => {
-                        const existingRecord = combinedAnswers.operational![recordType].get(record.name);
-                        if (!existingRecord || existingRecord.discoveredAt < record.discoveredAt) {
-                            if (record.ttl === 0) {
-                                combinedAnswers.operational![recordType].delete(record.name);
-                            } else {
-                                combinedAnswers.operational![recordType].set(record.name, record);
-                            }
-                        }
-                    });
+                    for (const record of records) {
+                        this.#mergeRecordWithGoodbyeProtection(
+                            combinedAnswers.operational[recordType],
+                            record.name,
+                            record,
+                            now,
+                        );
+                    }
                 }
             }
+
+            // Process commissionable records
             if (answers.commissionable) {
                 combinedAnswers.commissionable = combinedAnswers.commissionable ?? {};
                 for (const [recordType, records] of Object.entries(answers.commissionable) as unknown as [
@@ -963,18 +1008,18 @@ export class MdnsClient implements Scanner {
                 ][]) {
                     combinedAnswers.commissionable[recordType] =
                         combinedAnswers.commissionable[recordType] ?? new Map();
-                    records.forEach(record => {
-                        const existingRecord = combinedAnswers.commissionable![recordType].get(record.name);
-                        if (!existingRecord || existingRecord.discoveredAt < record.discoveredAt) {
-                            if (record.ttl === 0) {
-                                combinedAnswers.commissionable![recordType].delete(record.name);
-                            } else {
-                                combinedAnswers.commissionable![recordType].set(record.name, record);
-                            }
-                        }
-                    });
+                    for (const record of records) {
+                        this.#mergeRecordWithGoodbyeProtection(
+                            combinedAnswers.commissionable[recordType],
+                            record.name,
+                            record,
+                            now,
+                        );
+                    }
                 }
             }
+
+            // Process IPv6 addresses
             if (answers.addressesV6) {
                 combinedAnswers.addressesV6 = combinedAnswers.addressesV6 ?? {};
                 for (const [name, records] of Object.entries(answers.addressesV6) as unknown as [
@@ -982,18 +1027,18 @@ export class MdnsClient implements Scanner {
                     Map<string, AnyDnsRecordWithExpiry>,
                 ][]) {
                     combinedAnswers.addressesV6[name] = combinedAnswers.addressesV6[name] ?? new Map();
-                    records.forEach(record => {
-                        const existingRecord = combinedAnswers.addressesV6![name].get(record.value);
-                        if (!existingRecord || existingRecord.discoveredAt < record.discoveredAt) {
-                            if (record.ttl === 0) {
-                                combinedAnswers.addressesV6![name].delete(record.value);
-                            } else {
-                                combinedAnswers.addressesV6![name].set(record.value, record);
-                            }
-                        }
-                    });
+                    for (const record of records.values()) {
+                        this.#mergeRecordWithGoodbyeProtection(
+                            combinedAnswers.addressesV6[name],
+                            record.value,
+                            record,
+                            now,
+                        );
+                    }
                 }
             }
+
+            // Process IPv4 addresses
             if (this.#socket.supportsIpv4 && answers.addressesV4) {
                 combinedAnswers.addressesV4 = combinedAnswers.addressesV4 ?? {};
                 for (const [name, records] of Object.entries(answers.addressesV4) as unknown as [
@@ -1001,16 +1046,14 @@ export class MdnsClient implements Scanner {
                     Map<string, AnyDnsRecordWithExpiry>,
                 ][]) {
                     combinedAnswers.addressesV4[name] = combinedAnswers.addressesV4[name] ?? new Map();
-                    records.forEach(record => {
-                        const existingRecord = combinedAnswers.addressesV4![name].get(record.value);
-                        if (!existingRecord || existingRecord.discoveredAt < record.discoveredAt) {
-                            if (record.ttl === 0) {
-                                combinedAnswers.addressesV4![name].delete(record.value);
-                            } else {
-                                combinedAnswers.addressesV4![name].set(record.value, record);
-                            }
-                        }
-                    });
+                    for (const record of records.values()) {
+                        this.#mergeRecordWithGoodbyeProtection(
+                            combinedAnswers.addressesV4[name],
+                            record.value,
+                            record,
+                            now,
+                        );
+                    }
                 }
             }
         }
@@ -1065,6 +1108,45 @@ export class MdnsClient implements Scanner {
     }
 
     /**
+     * Update IP address records in a target map with goodbye protection.
+     * Returns true if any records were updated.
+     */
+    #updateIpAddressRecords(
+        sourceAddresses: Record<string, Map<string, AnyDnsRecordWithExpiry>> | undefined,
+        targetAddresses: Record<string, Map<string, AnyDnsRecordWithExpiry>> | undefined,
+        now: number,
+    ): boolean {
+        if (!sourceAddresses || !targetAddresses) {
+            return false;
+        }
+        let updated = false;
+        for (const [target, ipAddresses] of Object.entries(sourceAddresses)) {
+            const targetMap = targetAddresses[target];
+            if (targetMap === undefined) {
+                continue;
+            }
+            for (const [ip, record] of Object.entries(ipAddresses)) {
+                if (record.ttl === 0) {
+                    const existingRecord = targetMap.get(ip);
+                    if (existingRecord) {
+                        const recordAge = now - existingRecord.discoveredAt;
+                        if (recordAge < GOODBYE_PROTECTION_WINDOW) {
+                            // Record was recently added - ignore goodbye (likely out-of-order packet)
+                            continue;
+                        }
+                        targetMap.delete(ip);
+                        updated = true;
+                    }
+                } else {
+                    targetMap.set(ip, record);
+                    updated = true;
+                }
+            }
+        }
+        return updated;
+    }
+
+    /**
      * Update the discovered matter relevant IP records with the new data from the DNS message.
      */
     #updateIpRecords(answers: StructuredDnsAnswers, netInterface: string) {
@@ -1072,36 +1154,14 @@ export class MdnsClient implements Scanner {
         if (interfaceRecords === undefined) {
             return;
         }
-        let updated = false;
-        if (answers.addressesV6) {
-            for (const [target, ipAddresses] of Object.entries(answers.addressesV6)) {
-                if (interfaceRecords.addressesV6?.[target] !== undefined) {
-                    for (const [ip, record] of Object.entries(ipAddresses)) {
-                        if (record.ttl === 0) {
-                            interfaceRecords.addressesV6[target].delete(ip);
-                        } else {
-                            interfaceRecords.addressesV6[target].set(ip, record);
-                        }
-                        updated = true;
-                    }
-                }
-            }
-        }
-        if (this.#socket.supportsIpv4 && answers.addressesV4) {
-            for (const [target, ipAddresses] of Object.entries(answers.addressesV4)) {
-                if (interfaceRecords.addressesV4?.[target] !== undefined) {
-                    for (const [ip, record] of Object.entries(ipAddresses)) {
-                        if (record.ttl === 0) {
-                            interfaceRecords.addressesV4[target].delete(ip);
-                        } else {
-                            interfaceRecords.addressesV4[target].set(ip, record);
-                        }
-                        updated = true;
-                    }
-                }
-            }
-        }
-        if (updated) {
+        const now = Time.nowMs;
+
+        const updatedV6 = this.#updateIpAddressRecords(answers.addressesV6, interfaceRecords.addressesV6, now);
+        const updatedV4 =
+            this.#socket.supportsIpv4 &&
+            this.#updateIpAddressRecords(answers.addressesV4, interfaceRecords.addressesV4, now);
+
+        if (updatedV6 || updatedV4) {
             this.#discoveredIpRecords.set(netInterface, interfaceRecords);
         }
     }
@@ -1197,20 +1257,37 @@ export class MdnsClient implements Scanner {
         );
     }
 
+    /**
+     * Handle goodbye (TTL=0) for an operational device record with protection against out-of-order packets.
+     * Returns true if the goodbye was processed (record deleted or protected), false if no action needed.
+     */
+    #handleOperationalDeviceGoodbye(matterName: string, netInterface: string, now: number): boolean {
+        const existingRecord = this.#operationalDeviceRecords.get(matterName);
+        if (!existingRecord) {
+            return false;
+        }
+        const recordAge = now - existingRecord.discoveredAt;
+        if (recordAge < GOODBYE_PROTECTION_WINDOW) {
+            // Record was recently added - ignore goodbye (likely out-of-order packet)
+            return true;
+        }
+        logger.debug(
+            `Removing operational device ${matterName} from cache (interface ${netInterface}) because of ttl=0`,
+        );
+        this.#operationalDeviceRecords.delete(matterName);
+        return true;
+    }
+
     #handleOperationalTxtRecord(record: DnsRecord<any>, netInterface: string) {
         const { name: matterName, value, ttl } = record as DnsRecord<string[]>;
-        const discoveredAt = Time.nowMs;
+        const now = Time.nowMs;
 
-        // we got an expiry info, so we can remove the record if we know it already and are done
+        // we got expiry info, so we can remove the record if we know it already and are done
         if (ttl === 0) {
-            if (this.#operationalDeviceRecords.has(matterName)) {
-                logger.debug(
-                    `Removing operational device ${matterName} from cache (interface ${netInterface}) because of ttl=0`,
-                );
-                this.#operationalDeviceRecords.delete(matterName);
-            }
+            this.#handleOperationalDeviceGoodbye(matterName, netInterface, now);
             return;
         }
+        const discoveredAt = now;
         if (!Array.isArray(value)) return;
 
         // Existing records are always updated if relevant, but no new are added if they are not matching the criteria
@@ -1256,14 +1333,11 @@ export class MdnsClient implements Scanner {
             value: { target, port },
         } = record;
 
+        const now = Time.nowMs;
+
         // We got device expiry info, so we can remove the record if we know it already and are done
         if (ttl === 0) {
-            if (this.#operationalDeviceRecords.has(matterName)) {
-                logger.debug(
-                    `Removing operational device ${matterName} from cache (interface ${netInterface}) because of ttl=0`,
-                );
-                this.#operationalDeviceRecords.delete(matterName);
-            }
+            this.#handleOperationalDeviceGoodbye(matterName, netInterface, now);
             return;
         }
 
@@ -1276,7 +1350,7 @@ export class MdnsClient implements Scanner {
             return;
         }
 
-        const discoveredAt = Time.nowMs;
+        const discoveredAt = now;
         const device = this.#operationalDeviceRecords.get(matterName) ?? {
             deviceIdentifier: matterName,
             addresses: new Map<string, MatterServerRecordWithExpire>(),
@@ -1288,10 +1362,18 @@ export class MdnsClient implements Scanner {
         if (ips.length > 0) {
             for (const { value: ip, ttl } of ips) {
                 if (ttl === 0) {
-                    logger.debug(
-                        `Removing IP ${ip} for operational device ${matterName} from cache (interface ${netInterface}) because of ttl=0`,
-                    );
-                    addresses.delete(ip);
+                    const existingAddress = addresses.get(ip);
+                    if (existingAddress) {
+                        const addressAge = now - existingAddress.discoveredAt;
+                        if (addressAge < GOODBYE_PROTECTION_WINDOW) {
+                            // Address was recently added - ignore goodbye (likely out-of-order packet)
+                            continue;
+                        }
+                        logger.debug(
+                            `Removing IP ${ip} for operational device ${matterName} from cache (interface ${netInterface}) because of ttl=0`,
+                        );
+                        addresses.delete(ip);
+                    }
                     continue;
                 }
                 const address = addresses.get(ip) ?? ({ ip, port, type: "udp" } as MatterServerRecordWithExpire);
@@ -1321,6 +1403,25 @@ export class MdnsClient implements Scanner {
         return;
     }
 
+    /**
+     * Handle goodbye (TTL=0) for a commissionable device record with protection against out-of-order packets.
+     * Returns true if the goodbye should be skipped (record is protected), false if processed or no record exists.
+     */
+    #handleCommissionableDeviceGoodbye(name: string, netInterface: string, now: number): boolean {
+        const existingRecord = this.#commissionableDeviceRecords.get(name);
+        if (!existingRecord) {
+            return false;
+        }
+        const recordAge = now - existingRecord.discoveredAt;
+        if (recordAge < GOODBYE_PROTECTION_WINDOW) {
+            // Record was recently added - ignore goodbye (likely out-of-order packet)
+            return true;
+        }
+        logger.debug(`Removing commissionable device ${name} from cache (interface ${netInterface}) because of ttl=0`);
+        this.#commissionableDeviceRecords.delete(name);
+        return false;
+    }
+
     #handleCommissionableRecords(
         answers: StructuredDnsAnswers,
         formerAnswers: StructuredDnsAnswers,
@@ -1341,17 +1442,14 @@ export class MdnsClient implements Scanner {
 
         const queryMissingDataForInstances = new Set<string>();
 
+        const now = Time.nowMs;
+
         // First process the TXT records
         const txtRecords = commissionableRecords[DnsRecordType.TXT] ?? [];
         for (const record of txtRecords) {
             const { name, ttl } = record;
             if (ttl === 0) {
-                if (this.#commissionableDeviceRecords.has(name)) {
-                    logger.debug(
-                        `Removing commissionable device ${name} from cache (interface ${netInterface}) because of ttl=0`,
-                    );
-                    this.#commissionableDeviceRecords.delete(name);
-                }
+                this.#handleCommissionableDeviceGoodbye(name, netInterface, now);
                 continue;
             }
             const txtRecord = this.#parseCommissionableTxtRecord(record);
@@ -1392,10 +1490,8 @@ export class MdnsClient implements Scanner {
                 ttl,
             } = record as DnsRecord<SrvRecordValue>;
             if (ttl === 0) {
-                logger.debug(
-                    `Removing commissionable device ${record.name} from cache (interface ${netInterface}) because of ttl=0`,
-                );
-                this.#commissionableDeviceRecords.delete(record.name);
+                // Handle goodbye - either deletes or protects the record
+                this.#handleCommissionableDeviceGoodbye(record.name, netInterface, now);
                 continue;
             }
 
@@ -1405,15 +1501,23 @@ export class MdnsClient implements Scanner {
             if (ips.length > 0) {
                 for (const { value: ip, ttl } of ips) {
                     if (ttl === 0) {
-                        logger.debug(
-                            `Removing IP ${ip} for commissionable device ${record.name} from cache (interface ${netInterface}) because of ttl=0`,
-                        );
-                        storedRecord.addresses.delete(ip);
+                        const existingAddress = storedRecord.addresses.get(ip);
+                        if (existingAddress) {
+                            const addressAge = now - existingAddress.discoveredAt;
+                            if (addressAge < GOODBYE_PROTECTION_WINDOW) {
+                                // Address was recently added - ignore goodbye (likely out-of-order packet)
+                                continue;
+                            }
+                            logger.debug(
+                                `Removing IP ${ip} for commissionable device ${record.name} from cache (interface ${netInterface}) because of ttl=0`,
+                            );
+                            storedRecord.addresses.delete(ip);
+                        }
                         continue;
                     }
                     const matterServer =
                         storedRecord.addresses.get(ip) ?? ({ ip, port, type: "udp" } as MatterServerRecordWithExpire);
-                    matterServer.discoveredAt = Time.nowMs;
+                    matterServer.discoveredAt = now;
                     matterServer.ttl = ttl;
 
                     storedRecord.addresses.set(ip, matterServer);

@@ -9,6 +9,12 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+- @matter/protocol
+    - Enhancement: Add protection against out-of-order mDNS goodbye packets (TTL=0) that could incorrectly remove recently discovered devices
+    - Enhancement: Add minimum TTL protection for PTR records to prevent DoS attacks with very short TTLs
+
 ## 0.16.6 (2026-01-22)
 
 - @matter/general
