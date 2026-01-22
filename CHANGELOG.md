@@ -9,6 +9,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+- @matter/node
+  - Enhancement: Added automatic Command batching for non-root-endpoint commands when a node supports it and commands come in within the same macro-tick
+
 ## 0.16.6 (2026-01-22)
 
 - @matter/general

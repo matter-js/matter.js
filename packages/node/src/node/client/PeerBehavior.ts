@@ -32,7 +32,7 @@ import {
     UnknownAttribute,
     UnknownCommand,
 } from "#types";
-import { ClientCommandMethod } from "./ClientCommandMethod.js";
+import { ClientCommandMethod } from "./commands/ClientCommandMethod.js";
 
 const BIT_BLOCK_SIZE = Math.log2(Number.MAX_SAFE_INTEGER);
 

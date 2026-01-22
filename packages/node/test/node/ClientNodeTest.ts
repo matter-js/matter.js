@@ -182,15 +182,16 @@ describe("ClientNode", () => {
         const receivedUpdate = new Promise<boolean>(resolve => ep1.eventsOf(OnOffClient).onOff$Changed.on(resolve));
 
         // *** INVOCATION ***
+        // Commands are batched via a timer, so we need MockTime.resolve() to advance time
 
-        await ep1.commandsOf(OnOffClient).toggle();
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle());
 
         // *** UPDATE ***
 
         await MockTime.resolve(receivedUpdate);
 
         // *** Test another command also in the feature-set ***
-        await ep1.commandsOf(OnOffClient).offWithEffect({ effectIdentifier: 0, effectVariant: 0 });
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).offWithEffect({ effectIdentifier: 0, effectVariant: 0 }));
     });
 
     it("decommissions", async () => {
@@ -336,7 +337,7 @@ describe("ClientNode", () => {
             ep1.eventsOf(OnOffClient).onOff$Changed.once(resolve);
         });
 
-        await ep1.commandsOf(OnOffClient).toggle();
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle());
 
         await MockTime.resolve(toggled);
 
