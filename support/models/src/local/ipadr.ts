@@ -9,5 +9,5 @@ import { LocalMatter } from "../local.js";
 LocalMatter.children.push({
     tag: "datatype",
     name: "ipadr",
-    constraint: "4 to 16", // Formally 4 OR 16, but we do not support this, so min/max is the best we can do
+    constraint: "4, 16", // Formally 4 OR 16, but we do not support this, so min/max is the best we can do
 });

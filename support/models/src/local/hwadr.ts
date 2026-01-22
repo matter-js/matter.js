@@ -9,5 +9,5 @@ import { LocalMatter } from "../local.js";
 LocalMatter.children.push({
     tag: "datatype",
     name: "hwadr",
-    constraint: "6 to 8", // Formally 6 OR 8, but we do not support this, so min/max is the best we can do
+    constraint: "6, 8", // Formally 6 OR 8, but we do not support this, so min/max is the best we can do
 });

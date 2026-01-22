@@ -197,7 +197,7 @@ export namespace GeneralDiagnostics {
          *
          * @see {@link MatterSpecification.v142.Core} § 11.12.5.6.5
          */
-        hardwareAddress: TlvField(4, TlvByteString.bound({ minLength: 6, maxLength: 8 })),
+        hardwareAddress: TlvField(4, TlvByteString),
 
         /**
          * This field shall provide a list of the IPv4 addresses that are currently assigned to the network interface.

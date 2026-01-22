@@ -273,7 +273,7 @@ export namespace NetworkCommissioning {
          *
          * @see {@link MatterSpecification.v142.Core} § 11.9.5.7.1
          */
-        extendedAddress: TlvOptionalField(5, TlvByteString.bound({ minLength: 6, maxLength: 8 })),
+        extendedAddress: TlvOptionalField(5, TlvByteString),
 
         rssi: TlvOptionalField(6, TlvInt8),
         lqi: TlvOptionalField(7, TlvUInt8)
