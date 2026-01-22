@@ -9,10 +9,15 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+- @matter/node
+    - Fix: Prevent error when writing Thermostat systemMode attribute
+
 ## 0.16.7 (2026-01-22)
 
 - @matter/node
-  - Fix: Allow querying for updates even when we do not announce us as a default provider
+    - Fix: Allow querying for updates even when we do not announce us as a default provider
 
 ## 0.16.6 (2026-01-22)
 
