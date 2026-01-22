@@ -107,10 +107,10 @@ function loadVariables(env: Environment) {
     vars.addConfigStyle(getDefaults(vars));
 
     // Preload environment and argv so we can use it to find config file
-    if (config.loadProcessArgv) {
+    if (config.loadProcessEnv) {
         vars.addUnixEnvStyle(process.env);
     }
-    if (config.loadProcessEnv) {
+    if (config.loadProcessArgv) {
         vars.addArgvStyle(process.argv);
     }
 
@@ -121,10 +121,10 @@ function loadVariables(env: Environment) {
     }
 
     // Reload environment and argv so they override config
-    if (config.loadProcessArgv) {
+    if (config.loadProcessEnv) {
         vars.addUnixEnvStyle(process.env);
     }
-    if (config.loadProcessEnv) {
+    if (config.loadProcessArgv) {
         vars.addArgvStyle(process.argv);
     }
 
@@ -145,7 +145,7 @@ function rootDirOf(env: Environment) {
 
 function configureCrypto(env: Environment) {
     Boot.init(() => {
-        if (config.installCrypto || (env.vars.boolean("nodejs.crypto") ?? true)) {
+        if (env.vars.boolean("nodejs.crypto")) {
             let crypto: Crypto;
             if (!isBunjs()) {
                 // Platform implemented crypto
@@ -169,22 +169,19 @@ function configureCrypto(env: Environment) {
 }
 
 function configureNetwork(env: Environment) {
-    if (!config.installNetwork || !(env.vars.boolean("nodejs.network") ?? true)) {
-        return;
-    }
-
     Boot.init(() => {
-        if (config.installNetwork || (env.vars.boolean("nodejs.network") ?? true)) {
+        if (env.vars.boolean("nodejs.network")) {
             const basePathForUnixSockets = rootDirOf(env);
             env.set(Network, new NodeJsNetwork());
             env.set(HttpEndpointFactory, new NodeJsHttpEndpoint.Factory(basePathForUnixSockets));
-        } else {
-            if (Environment.default.has(Network)) {
-                env.set(Network, Environment.default.get(Network));
-            }
-            if (Environment.default.has(HttpEndpointFactory)) {
-                env.set(HttpEndpointFactory, Environment.default.get(HttpEndpointFactory));
-            }
+            return;
+        }
+        // Extends default Network
+        if (Environment.default.has(Network)) {
+            env.set(Network, Environment.default.get(Network));
+        }
+        if (Environment.default.has(HttpEndpointFactory)) {
+            env.set(HttpEndpointFactory, Environment.default.get(HttpEndpointFactory));
         }
     });
 }
@@ -195,35 +192,39 @@ function configureRuntime(env: Environment) {
 }
 
 function configureStorage(env: Environment) {
-    if (!config.initializeStorage || !(env.vars.boolean("nodejs.storage") ?? true)) {
-        return;
-    }
+    Boot.init(() => {
+        if (env.vars.boolean("nodejs.storage")) {
+            const service = env.get(StorageService);
 
-    const service = env.get(StorageService);
+            env.vars.use(() => {
+                service.location = env.vars.get("storage.path", rootDirOf(env));
+            });
 
-    env.vars.use(() => {
-        service.location = env.vars.get("storage.path", rootDirOf(env));
+            const shouldClear = env.vars.boolean("storage.clear") ?? false;
+            let storageDriver = env.vars.string("storage.driver") ?? "file";
+
+            // fallback 'file' when storageDriver is blank
+            if (storageDriver.length === 0) {
+                storageDriver = "file";
+            }
+
+            service.factory = async namespace => {
+                return await StorageFactory.create({
+                    driver: storageDriver as "file" | "sqlite",
+                    rootDir: service.location ?? ".",
+                    namespace,
+                    clear: shouldClear,
+                });
+            };
+
+            service.resolve = (...paths) => resolve(rootDirOf(env), ...paths);
+            return;
+        }
+        // Extends default Storage
+        if (Environment.default.has(StorageService)) {
+            env.set(StorageService, Environment.default.get(StorageService));
+        }
     });
-
-    const shouldClear = env.vars.get("storage.clear", false);
-    let storageDriver = config.storageDriver ?? env.vars.string("storage.driver") ?? "file";
-
-    // fallback 'file' when storageDriver is blank
-    if (storageDriver.length === 0) {
-        storageDriver = "file";
-    }
-
-    // code is moved to StorageFactory
-    service.factory = async namespace => {
-        return await StorageFactory.create({
-            driver: storageDriver,
-            rootDir: service.location ?? ".",
-            namespace,
-            clear: shouldClear,
-        });
-    };
-
-    service.resolve = (...paths) => resolve(rootDirOf(env), ...paths);
 }
 
 export function loadConfigFile(vars: VariableService) {
@@ -283,6 +284,14 @@ export function getDefaults(vars: VariableService) {
             signals: config.trapProcessSignals,
             exitcode: config.setProcessExitCodeOnError,
             unhandlederrors: config.trapUnhandledErrors,
+        },
+        nodejs: {
+            crypto: config.installCrypto,
+            network: config.installNetwork,
+            storage: config.initializeStorage,
+        },
+        storage: {
+            driver: config.storageDriver,
         },
     };
 }
