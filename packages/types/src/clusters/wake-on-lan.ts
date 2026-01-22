@@ -45,7 +45,7 @@ export namespace WakeOnLan {
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.12.4.2
              */
-            linkLocalAddress: OptionalFixedAttribute(0x1, TlvByteString)
+            linkLocalAddress: OptionalFixedAttribute(0x1, TlvByteString.bound({ length: 16 }))
         }
     });
 

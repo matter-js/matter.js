@@ -237,10 +237,6 @@ export function normalizeAndDecodeAttributeData(
             const cluster = getClusterById(clusterId);
             const attributeDetail = getClusterAttributeById(cluster, attributeId);
             if (attributeDetail === undefined) {
-                logger.debug(
-                    `Decode unknown attribute ${Diagnostic.hex(clusterId)}/${Diagnostic.hex(attributeId)} via the AnySchema.`,
-                );
-
                 const attributeName = `Unknown (${Diagnostic.hex(attributeId)})`;
                 const value = decodeUnknownAttributeValue(values);
                 result.push({

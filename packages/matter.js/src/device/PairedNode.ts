@@ -50,6 +50,7 @@ import {
     DecodedEventReportValue,
     NodeDiscoveryType,
     PaseClient,
+    PeerAddress,
     Read,
     ReadResult,
     SessionManager,
@@ -290,7 +291,8 @@ export class PairedNode {
                 this.#connectionState === NodeStates.Reconnecting
             ) {
                 logger.info(
-                    `Node ${this.nodeId}: Still not connected after new session establishment, trying to reconnect ...`,
+                    this.#peerAddress,
+                    `Still not connected after new session establishment, trying to reconnect ...`,
                 );
                 // Try the last known address first to speed up reconnection
                 this.#setConnectionState(NodeStates.Reconnecting);
@@ -326,6 +328,7 @@ export class PairedNode {
     /** Collected Node change events from node level. Only filled when legacy endpoint structure is NOT used. */
     #pendingNodeChangeEvents = new Map<EndpointNumber, keyof PairedNode.NodeStructureEvents>();
     #decommissioned = false;
+    #peerAddress: PeerAddress;
 
     /**
      * Endpoint structure change information that are checked when updating structure
@@ -391,7 +394,8 @@ export class PairedNode {
     ) {
         assignDisconnectedHandler(async () => {
             logger.info(
-                `Node ${this.nodeId}: Session disconnected while Node is ${NodeStates[this.#connectionState]}${
+                this.#peerAddress,
+                `Session disconnected while Node is ${NodeStates[this.#connectionState]}${
                     this.#connectionState === NodeStates.Connected ? ", trying to reconnect ..." : ""
                 }`,
             );
@@ -401,6 +405,7 @@ export class PairedNode {
         });
 
         this.#commissioningController = commissioningController;
+        this.#peerAddress = commissioningController.fabric.addressOf(nodeId);
         this.#options = options;
         this.#reconnectFunc = reconnectFunc;
         this.#crypto = crypto;
@@ -430,17 +435,18 @@ export class PairedNode {
                 ) {
                     this.#reconnectDelayTimer?.stop();
                     this.#reconnectDelayTimer = undefined;
-                    logger.info(`Node ${this.nodeId}: Got a reconnect, lets force a reconnection ...`);
+                    logger.info(this.#peerAddress, `Got a reconnect, lets force a reconnection ...`);
                     this.#scheduleReconnect(RECONNECT_DELAY);
                 }
             });
         } else {
             logger.warn(
-                `Node ${this.nodeId}: InteractionClient is not reconnectable, no automatic reconnection will happen in case of errors.`,
+                this.#peerAddress,
+                `InteractionClient is not reconnectable, no automatic reconnection will happen in case of errors.`,
             );
         }
         this.#nodeDetails = new DeviceInformation(clientNode);
-        logger.info(`Node ${this.nodeId}: Created paired node with device data`, this.#nodeDetails.meta);
+        logger.info(this.#peerAddress, `Created paired node with device data`, this.#nodeDetails.meta);
 
         this.#observers.on(sessions.sessions.added, session => {
             if (
@@ -477,7 +483,7 @@ export class PairedNode {
             if (this.#options.autoConnect !== false) {
                 // This kicks of the remote initialization and automatic reconnection handling if it can not be connected
                 this.#initialize().catch(error => {
-                    logger.info(`Node ${nodeId}: Error during remote initialization`, error);
+                    logger.info(this.#peerAddress, `Error during remote initialization`, error);
                     if (this.connectionState !== NodeStates.Disconnected) {
                         this.#setConnectionState(NodeStates.WaitingForDeviceDiscovery);
                         this.#scheduleReconnect();
@@ -604,7 +610,8 @@ export class PairedNode {
     triggerReconnect() {
         if (this.#reconnectionInProgress || this.#remoteInitializationInProgress) {
             logger.info(
-                `Node ${this.nodeId}: Ignoring reconnect request because ${this.#remoteInitializationInProgress ? "initialization" : "reconnect"} already in progress.`,
+                this.#peerAddress,
+                `Ignoring reconnect request because ${this.#remoteInitializationInProgress ? "initialization" : "reconnect"} already in progress.`,
             );
             return;
         }
@@ -627,7 +634,8 @@ export class PairedNode {
         }
         if (this.#reconnectionInProgress || this.#remoteInitializationInProgress) {
             logger.debug(
-                `Node ${this.nodeId}: Ignoring reconnect request because ${this.#remoteInitializationInProgress ? "initialization" : "reconnect"} already underway.`,
+                this.#peerAddress,
+                `Ignoring reconnect request because ${this.#remoteInitializationInProgress ? "initialization" : "reconnect"} already underway.`,
             );
             return;
         }
@@ -648,7 +656,8 @@ export class PairedNode {
             } catch (error) {
                 if (error instanceof MatterError) {
                     logger.info(
-                        `Node ${this.nodeId}: Simple re-establishing session did not work. Reconnect ... `,
+                        this.#peerAddress,
+                        `Simple re-establishing session did not work. Reconnect ... `,
                         error,
                     );
                 } else {
@@ -666,17 +675,17 @@ export class PairedNode {
             MatterError.accept(error);
 
             if (error instanceof UnknownNodeError) {
-                logger.info(`Node ${this.nodeId}: Node is unknown by controller, we can not connect.`);
+                logger.info(this.#peerAddress, `Node is unknown by controller, we can not connect.`);
                 this.#setConnectionState(NodeStates.Disconnected);
             } else if (this.#connectionState === NodeStates.Disconnected) {
-                logger.info(`Node ${this.nodeId}: No reconnection desired because requested status is Disconnected.`);
+                logger.info(this.#peerAddress, `No reconnection desired because requested status is Disconnected.`);
             } else {
                 if (error instanceof ChannelStatusResponseError) {
-                    logger.info(`Node ${this.nodeId}: Error while establishing new Channel, retrying ...`, error);
+                    logger.info(this.#peerAddress, `Error while establishing new Channel, retrying ...`, error);
                 } else if (error instanceof StatusResponseError) {
-                    logger.info(`Node ${this.nodeId}: Error while communicating with the device, retrying ...`, error);
+                    logger.info(this.#peerAddress, `Error while communicating with the device, retrying ...`, error);
                 } else {
-                    logger.info(`Node ${this.nodeId}: Error waiting for device rediscovery, retrying`, error);
+                    logger.info(this.#peerAddress, `Error waiting for device rediscovery, retrying`, error);
                 }
                 this.#reconnectErrorCount++;
                 this.#scheduleReconnect();
@@ -815,7 +824,7 @@ export class PairedNode {
      */
     async #initialize() {
         if (this.#remoteInitializationInProgress) {
-            logger.info(`Node ${this.nodeId}: Remote initialization already in progress ...`);
+            logger.info(this.#peerAddress, `Remote initialization already in progress ...`);
             return;
         }
         this.#remoteInitializationInProgress = true;
@@ -860,7 +869,7 @@ export class PairedNode {
                 try {
                     await this.#commissioningController.validateAndUpdateFabricLabel(this.nodeId);
                 } catch (error) {
-                    logger.info(`Node ${this.nodeId}: Error updating fabric label`, error);
+                    logger.info(this.#peerAddress, `Error updating fabric label`, error);
                 }
             }
             this.#reconnectErrorCount = 0;
@@ -921,7 +930,8 @@ export class PairedNode {
                     return;
                 }
                 logger.debug(
-                    `Node ${this.nodeId} Trigger attribute update for ${endpointId}.${(cluster ?? getClusterById(clusterId)).name}.${attributeId} to ${Diagnostic.json(
+                    this.#peerAddress,
+                    `Trigger attribute update for ${endpointId}.${(cluster ?? getClusterById(clusterId)).name}.${attributeId} to ${Diagnostic.json(
                         value,
                     )}`,
                 );
@@ -944,7 +954,8 @@ export class PairedNode {
                     return;
                 }
                 logger.debug(
-                    `Node ${this.nodeId} Trigger event update for ${endpointId}.${(cluster ?? getClusterById(clusterId)).name}.${eventId} for ${events.length} events`,
+                    this.#peerAddress,
+                    `Trigger event update for ${endpointId}.${(cluster ?? getClusterById(clusterId)).name}.${eventId} for ${events.length} events`,
                 );
 
                 if (cluster !== undefined) {
@@ -956,7 +967,7 @@ export class PairedNode {
                 this.#checkEventsForNeededStructureUpdate(endpointId, clusterId, eventId);
             },
             updateTimeoutHandler: () => {
-                logger.info(`Node ${this.nodeId}: Subscription timed out ... trying to re-establish ...`);
+                logger.info(this.#peerAddress, `Subscription timed out ... trying to re-establish ...`);
                 if (this.#connectionState === NodeStates.Connected || !this.#reconnectDelayTimer?.isRunning) {
                     this.triggerReconnect();
                 }
@@ -967,7 +978,7 @@ export class PairedNode {
                     this.#connectionState === NodeStates.Reconnecting &&
                     !this.#nodeShutdownDetected
                 ) {
-                    logger.info(`Node ${this.nodeId}: Got subscription update, so reconnection not needed anymore ...`);
+                    logger.info(this.#peerAddress, `Got subscription update, so reconnection not needed anymore ...`);
                     this.#reconnectDelayTimer.stop();
                     this.#reconnectDelayTimer = undefined;
                     this.#setConnectionState(NodeStates.Connected);
@@ -978,7 +989,7 @@ export class PairedNode {
                     (this.#registeredEndpointStructureChanges.size > 0 || this.#pendingNodeChangeEvents.size > 0) &&
                     !this.#updateEndpointStructureTimer.isRunning
                 ) {
-                    logger.info(`Node ${this.nodeId}: Endpoint structure needs to be updated ...`);
+                    logger.info(this.#peerAddress, `Endpoint structure needs to be updated ...`);
                     this.#updateEndpointStructureTimer.stop().start();
                 } else if (this.#deviceInformationUpdateNeeded) {
                     this.events.deviceInformationChanged.emit(this.#nodeDetails.details);
@@ -1153,7 +1164,8 @@ export class PairedNode {
             this.#nodeShutdownReason = NodeShutDownReason.Unknown;
         }
         logger.info(
-            `Node ${this.nodeId}: Node shutdown${this.#nodeShutdownReason === NodeShutDownReason.ForUpdate ? " for software update" : ""} detected, trying to reconnect ...`,
+            this.#peerAddress,
+            `Node shutdown${this.#nodeShutdownReason === NodeShutDownReason.ForUpdate ? " for software update" : ""} detected, trying to reconnect ...`,
         );
         this.#nodeShutdownDetected = true;
     }
@@ -1171,7 +1183,7 @@ export class PairedNode {
             delay = Duration.min(Millis(RECONNECT_DELAY * 2 ** this.#reconnectErrorCount), RECONNECT_MAX_DELAY);
         }
 
-        logger.info(`Node ${this.nodeId}: Reconnecting ${delay ? `in ${Duration.format(delay)}` : "now"} ...`);
+        logger.info(this.#peerAddress, `Reconnecting ${delay ? `in ${Duration.format(delay)}` : "now"} ...`);
         this.#reconnectDelayTimer = Time.getTimer("Reconnect delay", delay, async () => await this.reconnect());
         this.#reconnectDelayTimer.start();
     }
@@ -1197,7 +1209,7 @@ export class PairedNode {
         MaybePromise.then(
             this.events.deviceInformationChanged.emit(this.#nodeDetails.details),
             () => {},
-            error => logger.warn(`Node ${this.nodeId}: Error updating endpoint structure`, error),
+            error => logger.warn(this.#peerAddress, `Error updating endpoint structure`, error),
         );
     }
 
@@ -1210,7 +1222,7 @@ export class PairedNode {
             return;
         }
         if (!this.#clientNode.endpoints.has(endpointId)) {
-            logger.info(`Endpoint ${endpointId} not found on node ${this.nodeId}! Ignoring endpoint ...`);
+            logger.info(this.#peerAddress, `Endpoint ${endpointId} not found on node. Ignoring endpoint ...`);
             return;
         }
         const endpoint = this.#clientNode.endpoints.for(endpointId);
@@ -1255,7 +1267,7 @@ export class PairedNode {
     #triggerNodeStructureChanges(eventsToEmit: Map<EndpointNumber, keyof PairedNode.NodeStructureEvents>) {
         const emitChangeEvents = () => {
             for (const [endpointId, eventName] of eventsToEmit.entries()) {
-                logger.debug(`Node ${this.nodeId}: Emitting event ${eventName} for endpoint ${endpointId}`);
+                logger.debug(this.#peerAddress, `Emitting event ${eventName} for endpoint ${endpointId}`);
                 this.events[eventName].emit(endpointId);
             }
             this.#options.stateInformationCallback?.(this.nodeId, NodeStateInformation.StructureChanged);
@@ -1307,7 +1319,8 @@ export class PairedNode {
                     const hasChanged = structureUpdateDetails.has(endpointId);
                     if (!hasChanged || !this.#hasEndpointChanged(device, endpoints.get(endpointId))) {
                         logger.debug(
-                            `Node ${this.nodeId}: Retaining endpoint`,
+                            this.#peerAddress,
+                            `Retaining endpoint`,
                             endpointId,
                             hasChanged ? "(with only structure changes)" : "(unchanged)",
                         );
@@ -1316,7 +1329,7 @@ export class PairedNode {
                             eventsToEmit.set(endpointId, "nodeEndpointChanged");
                         }
                     } else {
-                        logger.debug(`Node ${this.nodeId}: Recreating endpoint`, endpointId);
+                        logger.debug(this.#peerAddress, `Recreating endpoint`, endpointId);
                         eventsToEmit.set(endpointId, "nodeEndpointChanged");
                     }
                 }
@@ -1327,7 +1340,7 @@ export class PairedNode {
                 const device = this.#endpoints.get(endpointId);
                 if (device !== undefined) {
                     if (eventsToEmit.get(endpointId) !== "nodeEndpointChanged") {
-                        logger.debug(`Node ${this.nodeId}: Removing endpoint`, endpointId);
+                        logger.debug(this.#peerAddress, `Removing endpoint`, endpointId);
                         eventsToEmit.set(endpointId, "nodeEndpointRemoved");
                     }
                     device.removeFromStructure();
@@ -1346,7 +1359,8 @@ export class PairedNode {
 
             const isRecreation = eventsToEmit.get(endpointId) === "nodeEndpointChanged";
             logger.debug(() => [
-                `Node ${this.nodeId}: ${isRecreation ? "Recreating" : "Creating"} endpoint`,
+                this.#peerAddress,
+                `${isRecreation ? "Recreating" : "Creating"} endpoint`,
                 endpointId,
                 Diagnostic.json(endpoint.state),
             ]);
@@ -1394,14 +1408,14 @@ export class PairedNode {
         const partLists = Array.from(descriptors.entries()).map(
             ([epNo, ep]) => [epNo, ep.stateOf(DescriptorClient).partsList] as [EndpointNumber, EndpointNumber[]], // else Typescript gets confused
         );
-        logger.debug(() => [`Node ${this.nodeId}: Endpoints from PartsLists`, Diagnostic.json(partLists)]);
+        logger.debug(() => [this.#peerAddress, `Endpoints from PartsLists`, Diagnostic.json(partLists)]);
 
         const endpointUsages: { [key: EndpointNumber]: EndpointNumber[] } = {};
         partLists.forEach(([parent, partsList]) =>
             partsList.forEach(endPoint => {
                 if (endPoint === parent) {
                     // There could be more cases of invalid and cycling structures that never should happen ... so lets not over optimize to try to find all of them right now
-                    logger.warn(`Node ${this.nodeId}: Endpoint ${endPoint} is referencing itself!`);
+                    logger.warn(this.#peerAddress, `Endpoint ${endPoint} is referencing itself!`);
                     return;
                 }
                 endpointUsages[endPoint] = endpointUsages[endPoint] || [];
@@ -1426,7 +1440,8 @@ export class PairedNode {
                 const existingChildEndpoint = parentEndpoint?.getChildEndpoint(childEndpointId);
                 if (childEndpoint === undefined || parentEndpoint === undefined) {
                     logger.warn(
-                        `Node ${this.nodeId}: Endpoint ${usages[0]} not found in the data received from the device!`,
+                        this.#peerAddress,
+                        `Endpoint ${usages[0]} not found in the data received from the device!`,
                     );
                 } else if (existingChildEndpoint !== childEndpoint) {
                     if (existingChildEndpoint !== undefined) {
@@ -1440,7 +1455,7 @@ export class PairedNode {
                 delete endpointUsages[EndpointNumber(parseInt(childId))];
                 idsToCleanup[usages[0]] = true;
             }
-            logger.debug(() => [`Node ${this.nodeId}: Endpoint data Cleanup`, Diagnostic.json(idsToCleanup)]);
+            logger.debug(() => [this.#peerAddress, `Endpoint data Cleanup`, Diagnostic.json(idsToCleanup)]);
             Object.keys(idsToCleanup).forEach(idToCleanup => {
                 Object.keys(endpointUsages).forEach(id => {
                     const usageId = EndpointNumber(parseInt(id));
@@ -1463,19 +1478,21 @@ export class PairedNode {
             const deviceTypeDefinition = getDeviceTypeDefinitionFromModelByCode(deviceType);
             if (deviceTypeDefinition === undefined) {
                 logger.info(
-                    `NodeId ${this.nodeId}: Device type with code ${deviceType} not known, use generic replacement.`,
+                    this.#peerAddress,
+                    `Device type with code ${deviceType} not known, use generic replacement.`,
                 );
                 return UnknownDeviceType(deviceType, revision);
             }
             if (deviceTypeDefinition.revision < revision) {
                 logger.debug(
-                    `NodeId ${this.nodeId}: Device type with code ${deviceType} and revision ${revision} not supported, some data might be unknown.`,
+                    this.#peerAddress,
+                    `Device type with code ${deviceType} and revision ${revision} not supported, some data might be unknown.`,
                 );
             }
             return deviceTypeDefinition;
         });
         if (deviceTypes.length === 0) {
-            logger.info(`NodeId ${this.nodeId}: No device type found for endpoint ${endpointId}, ignore`);
+            logger.info(this.#peerAddress, `No device type found for endpoint ${endpointId}, ignore`);
             throw new MatterError(`NodeId ${this.nodeId}: No device type found for endpoint`);
         }
 
