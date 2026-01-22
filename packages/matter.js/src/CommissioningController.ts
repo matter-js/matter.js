@@ -498,8 +498,8 @@ export class CommissioningController {
             return existingNode;
         }
 
-        logger.info(`Connecting to node ${nodeId}...`);
         const peerAddress = controller.fabric.addressOf(nodeId);
+        logger.info("Connecting to node", peerAddress, "...");
 
         let peerNode = this.node.peers.get(peerAddress);
         if (peerNode === undefined) {
