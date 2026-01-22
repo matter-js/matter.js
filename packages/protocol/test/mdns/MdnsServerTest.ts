@@ -23,7 +23,7 @@ import {
     TxtRecord,
     UdpMulticastServer,
 } from "#general";
-import { MdnsServer } from "#mdns/MdnsServer.js";
+import { MdnsServer, QUESTION_SUPPRESSION_WINDOW } from "#mdns/MdnsServer.js";
 
 const CLIENT_IPv4 = "192.168.200.2";
 const CLIENT_MAC = "CA:FE:00:00:BE:EF";
@@ -594,7 +594,7 @@ describe("MdnsServer", () => {
             expect(responses).deep.equal(EXPEECTED_RESPONSE);
 
             responses.length = 0;
-            await MockTime.advance(1001);
+            await MockTime.advance(QUESTION_SUPPRESSION_WINDOW + 2);
 
             send(
                 DnsCodec.encode({
@@ -1086,7 +1086,7 @@ describe("MdnsServer", () => {
             responses.length = 0;
 
             // Wait past the 999ms suppression window
-            await MockTime.advance(1001);
+            await MockTime.advance(QUESTION_SUPPRESSION_WINDOW + 2);
 
             // Query again - should respond since window expired
             send(

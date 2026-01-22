@@ -30,7 +30,7 @@ import {
 const logger = Logger.get("MdnsServer");
 
 /** RFC 6762 §7.3 - Window for duplicate question suppression (999ms per python-zeroconf) */
-const QUESTION_SUPPRESSION_WINDOW = Millis(999);
+export const QUESTION_SUPPRESSION_WINDOW = Millis(999);
 
 export class MdnsServer {
     #lifetime: Lifetime;
