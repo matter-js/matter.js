@@ -139,4 +139,4 @@ jobs:
           name: Release v${{ steps.version.outputs.result }}
           draft: false
           prerelease: ${{ contains(steps.version.outputs.result, '-') }}
-          body: "${{ contains(steps.version.outputs.result, '-') && 'Nightly release' || 'Official release, check CHANGELOG.md for details' }}"
+          body: "${{ contains(steps.version.outputs.result, '-') && 'Nightly release' || 'Official release, check [CHANGELOG.md](https://github.com/matter-js/matter.js/blob/main/CHANGELOG.md) for details' }}"
