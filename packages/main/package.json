@@ -30,7 +30,10 @@
     },
     "imports": {
         "#general": "@matter/general",
-        "#platform": "@matter/main/platform",
+        "#platform": {
+            "bun": "./src/platform/nodejs.ts",
+            "default": "@matter/main/platform"
+        },
         "#model": "@matter/model",
         "#types": "@matter/types",
         "#protocol": "@matter/protocol",

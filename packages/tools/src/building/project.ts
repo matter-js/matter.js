@@ -202,15 +202,15 @@ export class Project {
 
     async #configureFormat(dir: string, format: Format, isDist: boolean) {
         // Build import map
-        let { imports } = this.pkg.json;
+        let imports: Record<string, unknown> | undefined = this.pkg.json.imports;
+
         if (isDist && typeof imports === "object") {
-            imports = { ...imports };
-            for (const key in imports) {
-                const value = imports[key];
-                if (typeof value === "string") {
-                    imports[key] = value.replace(/^\.\/src\//, "./");
-                }
-            }
+            imports = this.#stripImportPath(
+                {
+                    ...imports,
+                },
+                format,
+            ) as Record<string, unknown>;
         }
 
         // Write package.json
@@ -220,6 +220,33 @@ export class Project {
             imports,
         };
         await writeFile(path, JSON.stringify(json, undefined, 4));
+    }
+
+    /**
+     * Strip import path recursively
+     */
+    #stripImportPath(obj: string | Record<string, unknown>, format: Format): string | Record<string, unknown> {
+        if (typeof obj === "string") {
+            return this.#fixImportPath(obj);
+        }
+
+        if (obj !== null && typeof obj === "object") {
+            const newObj = Object.create(null) as Record<string, unknown>;
+            for (const key of Object.keys(obj)) {
+                newObj[key] = this.#stripImportPath(obj[key] as string | Record<string, unknown>, format);
+            }
+            return newObj;
+        }
+
+        return obj;
+    }
+
+    #fixImportPath(path: string) {
+        path = path.replace(/^\.\/src\//, "./");
+        if (path.endsWith(".ts") && !path.endsWith(".d.ts")) {
+            path = `${path.substring(0, path.length - 3)}.js`;
+        }
+        return path;
     }
 
     async #targetsOf(indir: string, outdir: string, ...extensions: string[]) {
