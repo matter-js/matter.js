@@ -16,10 +16,10 @@ let trapProcessSignals = true;
 let trapUnhandledErrors = true;
 let setProcessExitCodeOnError = true;
 let installNetwork = true;
-
-// TODO - until we have proper feature detection, disable by default Node.js version of crypto in environments where
-// Node.js crypto emulation is insufficient
-let installCrypto = !process.versions.bun;
+// Automatic replace to `StandardCrypto` in bun.js
+let installCrypto = true;
+// Storage driver
+let storageDriver = "file";
 
 export class NodeJsAlreadyInitializedError extends Error {}
 
@@ -161,6 +161,20 @@ export const config = {
     set initializeStorage(value: boolean) {
         assertUninitialized("initializeStorage");
         initializeStorage = value;
+    },
+
+    /**
+     * Set storage driver to use (default: 'file').
+     *
+     * Currently, 'file' and 'sqlite' (Node.js v22+) is supported.
+     */
+    get storageDriver() {
+        return storageDriver as "file" | "sqlite";
+    },
+
+    set storageDriver(value: "file" | "sqlite") {
+        assertUninitialized("initializeStorage");
+        storageDriver = value;
     },
 
     /**
