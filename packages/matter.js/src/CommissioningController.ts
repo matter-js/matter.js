@@ -498,8 +498,8 @@ export class CommissioningController {
             return existingNode;
         }
 
-        logger.info(`Connecting to node ${nodeId}...`);
         const peerAddress = controller.fabric.addressOf(nodeId);
+        logger.info("Connecting to node", peerAddress, "...");
 
         let peerNode = this.node.peers.get(peerAddress);
         if (peerNode === undefined) {
@@ -806,7 +806,8 @@ export class CommissioningController {
         const fabric = fabrics[0];
         if (fabric.label !== label) {
             logger.info(
-                `Node ${nodeId}: Fabric label "${fabric.label}" does not match requested admin fabric Label "${label}". Updating...`,
+                this.fabric.addressOf(nodeId),
+                `Fabric label "${fabric.label}" does not match requested admin fabric Label "${label}". Updating...`,
             );
             await node.node.commandsOf(OperationalCredentialsClient).updateFabricLabel({
                 label,
@@ -838,12 +839,16 @@ export class CommissioningController {
             }
             if (!node.remoteInitializationDone) {
                 // Node not online and was also not yet initialized, means update happens
-                // automatically when node connects
-                logger.info(`Node ${node.nodeId} is offline. Fabric label will be updated on next connection.`);
+                // automatically when the node connects
+                logger.info(
+                    this.fabric.addressOf(node.nodeId),
+                    `Node is offline. Fabric label will be updated on next connection.`,
+                );
                 return;
             }
             logger.info(
-                `Node ${node.nodeId} is reconnecting. Delaying fabric label update to when node is back online.`,
+                this.fabric.addressOf(node.nodeId),
+                `Node is reconnecting. Delaying fabric label update to when node is back online.`,
             );
 
             // If no update handler is registered, register one
