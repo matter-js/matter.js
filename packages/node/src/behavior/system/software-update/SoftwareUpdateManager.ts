@@ -846,7 +846,7 @@ export namespace SoftwareUpdateManager {
         updateCheckInterval = Hours(24);
 
         /** Announce this controller as Update provider to all nodes */
-        announceAsDefaultProvider = true;
+        announceAsDefaultProvider = false;
 
         /** Interval to Announces this controller as Update provider. Must not be lower than 24h! */
         announcementInterval = Hours(24);

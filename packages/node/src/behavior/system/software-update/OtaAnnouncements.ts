@@ -51,6 +51,7 @@ export class OtaAnnouncements {
         if (interval === undefined) {
             this.#announcementInterval = undefined;
             this.#announcementTimer?.stop();
+            this.#announcementTimer = undefined;
             return;
         }
 
