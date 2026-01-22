@@ -85,8 +85,8 @@ export class SharedEnvironmentServices implements ServiceProvider {
     /**
      * Load an environmental service asynchronously and register this instance as a consumer.
      *
-     * Waits for the service's construction promise to resolve if present, then tracks
-     * the service for lifecycle management.
+     * Waits for the service's construction promise to resolve if present, then tracks the service for lifecycle
+     * management.
      */
     async load<T extends Environmental.Service>(type: Environmental.Factory<T>): Promise<T> {
         this.#assertClosed();
