@@ -20,7 +20,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Allow querying for updates even when we do not announce us as a default provider
 
 - @project-chip/matter.js
-  - Fix: Optimize edge case to receive attribute data for (yet?) unsupported attributes
+  - Fix: Prevent error when receiving attribute changes for behaviors that are not yet supported by an endpoint
 
 ## 0.16.6 (2026-01-22)
 
