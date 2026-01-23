@@ -19,6 +19,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/node
     - Fix: Allow querying for updates even when we do not announce us as a default provider
 
+- @project-chip/matter.js
+  - Fix: Optimize edge case to receive attribute data for (yet?) unsupported attributes
+
 ## 0.16.6 (2026-01-22)
 
 - @matter/general
