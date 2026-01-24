@@ -14,6 +14,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/node
     - Fix: Prevent error when writing Thermostat systemMode attribute
 
+- @matter/protocol
+    - Enhancement: Add RFC 6762 §7.3 compliant duplicate question suppression to MdnsServer
+
 ## 0.16.7 (2026-01-22)
 
 - @matter/node
