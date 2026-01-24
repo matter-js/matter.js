@@ -422,17 +422,18 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 const { path } = request;
                 const listIndex = path.listIndex;
 
-                // Check if this is a list ADD that needs BUSY
                 if (listIndex === null) {
-                    // This is a list ADD - check if previous path matches
+                    // This is a list ADD - check if a previous path matches
                     if (
                         previousProcessedAttributePath?.endpointId !== path.endpointId ||
                         previousProcessedAttributePath?.clusterId !== path.clusterId ||
                         previousProcessedAttributePath?.attributeId !== path.attributeId
                     ) {
-                        // Invalid ADD - process any pending batch first, then add BUSY
+                        // Invalid ADD - process any pending batch first
                         await processBatch();
 
+                        // According to Specification, ADDs are only allowed with a REPLACE before them
+                        // Chip SDK returns "BUSY" in cases where this rule is not followed, so we do too
                         allResponses.push({
                             kind: "attr-status",
                             path: path as WriteResult.ConcreteAttributePath,
@@ -866,12 +867,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             );
         }
 
-        const context = this.#prepareOnlineContext(
-            exchange,
-            message,
-            undefined,
-            receivedWithinTimedInteraction,
-        );
+        const context = this.#prepareOnlineContext(exchange, message, undefined, receivedWithinTimedInteraction);
 
         const isGroupSession = message.packetHeader.sessionType === SessionType.Group;
 
