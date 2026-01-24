@@ -39,6 +39,9 @@ export class CommandBatcher extends CommandInvoker {
     #nextCommandRef = 1;
     #closed = false;
     #supportsMultipleInvokes?: boolean;
+    #resetMultipleInvokes = () => {
+        this.#supportsMultipleInvokes = undefined;
+    };
 
     constructor(node: ClientNode) {
         super(node);
@@ -46,9 +49,7 @@ export class CommandBatcher extends CommandInvoker {
         this.#flushTimer = Time.getTimer("command-batcher", Instant, () => this.#flush());
 
         // Clear cached maxPathsPerInvoke when the node goes offline
-        node.lifecycle.offline.on(() => {
-            this.#supportsMultipleInvokes = undefined;
-        });
+        node.lifecycle.offline.on(this.#resetMultipleInvokes);
     }
 
     /**
@@ -76,9 +77,10 @@ export class CommandBatcher extends CommandInvoker {
             throw new ImplementationError("CommandBatcher is closed");
         }
 
-        // Bypass batching for endpoint 0 (root endpoint) - these are typically
-        // administrative/commissioning commands that should execute immediately
-        // Also bypass when multiple invokes are not supported
+        // Bypass batching for:
+        // * endpoint 0 (root endpoint) - (typically administrative/commissioning commands, better to execute immediately)
+        // * endpoint is undefined - multi-endpoint invoke, better also execute directly
+        // * when multiple invokes are not supported
         const endpointId =
             typeof request.endpoint === "number" ? request.endpoint : (request.endpoint as { number?: number })?.number;
         if (!endpointId || !this.#enabled) {
@@ -222,6 +224,7 @@ export class CommandBatcher extends CommandInvoker {
      */
     override async close() {
         this.#closed = true;
+        this.node.lifecycle.offline.off(this.#resetMultipleInvokes);
         this.#flushTimer.stop();
 
         // Reject any remaining pending commands
