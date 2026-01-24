@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DecodedMessage, MessageCodec, SessionType } from "#codec/MessageCodec.js";
+import { DecodedMessage, Message, MessageCodec, SessionType } from "#codec/MessageCodec.js";
 import { Mark } from "#common/Mark.js";
 import {
     BasicMultiplex,
@@ -20,6 +20,7 @@ import {
     ImplementationError,
     Lifetime,
     Logger,
+    MatterError,
     MatterFlowError,
     ObserverGroup,
     UdpInterface,
@@ -252,32 +253,37 @@ export class ExchangeManager {
         });
 
         if (exchange !== undefined) {
-            this.#lifetime.details.exchange = exchange.idStr;
-            if (exchange.session.id !== packet.header.sessionId || (exchange.considerClosed && !isStandaloneAck)) {
-                logger.debug(
-                    exchange.via,
-                    "Ignore",
-                    Mark.INBOUND,
-                    "message because",
-                    exchange.considerClosed
-                        ? "exchange is closing"
-                        : `session ID mismatch (header session is ${Session.idStrOf(packet)}`,
-                    messageDiagnostics,
-                );
+            try {
+                this.#lifetime.details.exchange = exchange.idStr;
+                if (exchange.session.id !== packet.header.sessionId || (exchange.considerClosed && !isStandaloneAck)) {
+                    logger.debug(
+                        exchange.via,
+                        "Ignore",
+                        Mark.INBOUND,
+                        "message because",
+                        exchange.considerClosed
+                            ? "exchange is closing"
+                            : `session ID mismatch (header session is ${Session.idStrOf(packet)}`,
+                        messageDiagnostics,
+                    );
 
-                try {
-                    await exchange.send(SecureMessageType.StandaloneAck, new Uint8Array(0), {
-                        includeAcknowledgeMessageId: message.packetHeader.messageId,
-                        protocolId: SECURE_CHANNEL_PROTOCOL_ID,
-                    });
-                } finally {
-                    // Ensure we close the exchange even if sending the ack failed
-                    await exchange.close();
+                    try {
+                        await exchange.send(SecureMessageType.StandaloneAck, new Uint8Array(0), {
+                            includeAcknowledgeMessageId: message.packetHeader.messageId,
+                            protocolId: SECURE_CHANNEL_PROTOCOL_ID,
+                        });
+                    } finally {
+                        // Ensure we close the exchange even if sending the ack failed
+                        await exchange.close();
+                    }
+                    return;
                 }
-                return;
-            }
 
-            await exchange.onMessageReceived(message, isDuplicate);
+                await exchange.onMessageReceived(message, isDuplicate);
+            } catch (error) {
+                MatterError.accept(error);
+                logger.error(`${Message.via(exchange, message)} Error:`, error);
+            }
         } else {
             if (this.#isClosing) return;
             if (session.isClosing) {
@@ -315,18 +321,29 @@ export class ExchangeManager {
                 const exchange = MessageExchange.fromInitialMessage(this.#messageExchangeContextFor(session), message);
                 this.#lifetime.details.exchange = exchange.idStr;
                 this.#addExchange(exchangeIndex, exchange);
-                await exchange.onMessageReceived(message);
-                await protocolHandler.onNewExchange(exchange, message);
+                try {
+                    await exchange.onMessageReceived(message);
+                    await protocolHandler.onNewExchange(exchange, message);
+                } catch (error) {
+                    MatterError.accept(error);
+                    logger.error(`${Message.via(exchange, message)} Error:`, error);
+                }
             } else if (message.payloadHeader.requiresAck) {
                 const exchange = MessageExchange.fromInitialMessage(this.#messageExchangeContextFor(session), message);
                 this.#lifetime.details.exchange = exchange.idStr;
                 this.#addExchange(exchangeIndex, exchange);
-                await exchange.send(SecureMessageType.StandaloneAck, new Uint8Array(0), {
-                    includeAcknowledgeMessageId: message.packetHeader.messageId,
-                    protocolId: SECURE_CHANNEL_PROTOCOL_ID,
-                });
-                await exchange.close();
-                logger.debug("Ignore", Mark.INBOUND, "unsolicited message", messageDiagnostics);
+
+                try {
+                    await exchange.send(SecureMessageType.StandaloneAck, new Uint8Array(0), {
+                        includeAcknowledgeMessageId: message.packetHeader.messageId,
+                        protocolId: SECURE_CHANNEL_PROTOCOL_ID,
+                    });
+                    await exchange.close();
+                    logger.debug("Ignore", Mark.INBOUND, "unsolicited message", messageDiagnostics);
+                } catch (error) {
+                    MatterError.accept(error);
+                    logger.error(`${Message.via(exchange, message)} Error:`, error);
+                }
             } else {
                 if (protocolHandler === undefined) {
                     throw new MatterFlowError(`Unsupported protocol ${message.payloadHeader.protocolId}`);

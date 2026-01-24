@@ -1,3 +1,7 @@
+# Enforce LF line endings for all text files (matches Prettier's endOfLine: lf)
+* text=auto eol=lf
+
+# Linguist overrides for generated files
 packages/model/src/standard/elements/*.ts linguist-generated=true
 packages/model/src/standard/resources/*.ts linguist-generated=true
 packages/types/src/clusters/* linguist-generated=true

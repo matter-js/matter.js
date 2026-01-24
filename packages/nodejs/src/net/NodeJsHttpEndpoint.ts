@@ -310,7 +310,7 @@ class NodeJsHttpRequest extends Request {
         } as RequestInit;
 
         if (method !== "GET" && method !== "HEAD") {
-            init.body = IncomingMessage.toWeb(message) as ReadableStream;
+            init.body = IncomingMessage.toWeb(message) as unknown as ReadableStream;
         }
 
         super(url, init);

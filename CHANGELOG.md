@@ -11,22 +11,40 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/node
+    - Fix: Prevent error when writing Thermostat systemMode attribute
+
+- @matter/protocol
+    - Feature: Automatically decides if multiple invokes can be sent in one or multiple messages depending on the device capabilities
+    - Fix: Correctly handle multi-message write interactions according to Matter specification
+    - Fix: Correctly handle multi-message invoke responses according to Matter specification
+
+## 0.16.7 (2026-01-22)
+
+- @matter/node
+    - Fix: Allow querying for updates even when we do not announce us as a default provider
+
+## 0.16.6 (2026-01-22)
+
 - @matter/general
     - Enhancement: When generally discovering for operational targets, send one initial query for them to fill the cache
+    - Enhancement: (@craftingmod) Storage migration utility function
     - Fix: Store operational devices matching operational scan targets also when not explicitly discovered
     - Fix: Split mDNS Query message that are too big to fit into one mDNS message
     - Fix: Fix some mDNS handling issues
     - Fix: Add some protection to better ignore invalid mDNS packets
 
 - @matter/node
-  - Fix: Ignore startup definitions for bridged devices (affects OnOff, LevelControl, and ColorControl clusters)
-  - Fix: Fixes the collection of IPv6 addresses in the GeneralDiagnostics cluster
+    - Fix: Ignore startup definitions for bridged devices (affects OnOff, LevelControl, and ColorControl clusters)
+    - Fix: Fixes the collection of IPv6 addresses in the GeneralDiagnostics cluster
+
+- @matter/nodejs
+    - Feature: (@craftingmod) SQLite storage support with storage driver selection
+    - Feature: (@craftingmod) Auto-migration between storages(`file`, `sqlite`)
+    - Enhancement: (@craftingmod) Optimizing `Bun` support
 
 - @matter/protocol
-    - Feature: Automatically decides if multiple invokes can be sent in one or multiple messages depending on the device capabilities
     - Adjustment: Change the default value of "announceAsDefaultProvider" to false, which avoids device race conditions for now
-    - Fix: Correctly handle multi-message write interactions according to Matter specification
-    - Fix: Correctly handle multi-message invoke responses according to Matter specification
     - Fix: Ignore errors for closed sessions on resubmissions on already closed exchanges. Were false positive logs before.
 
 - @project-chip/matter.js
