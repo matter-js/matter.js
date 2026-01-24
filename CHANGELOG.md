@@ -11,8 +11,16 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/node
+    - Fix: Prevent error when writing Thermostat systemMode attribute
+
 - @matter/protocol
     - Enhancement: Add RFC 6762 §7.3 compliant duplicate question suppression to MdnsServer
+
+## 0.16.7 (2026-01-22)
+
+- @matter/node
+    - Fix: Allow querying for updates even when we do not announce us as a default provider
 
 ## 0.16.6 (2026-01-22)
 
@@ -25,13 +33,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Add some protection to better ignore invalid mDNS packets
 
 - @matter/node
-  - Fix: Ignore startup definitions for bridged devices (affects OnOff, LevelControl, and ColorControl clusters)
-  - Fix: Fixes the collection of IPv6 addresses in GeneralDiagnostics cluster
+    - Fix: Ignore startup definitions for bridged devices (affects OnOff, LevelControl, and ColorControl clusters)
+    - Fix: Fixes the collection of IPv6 addresses in GeneralDiagnostics cluster
 
 - @matter/nodejs
-  - Feature: (@craftingmod) SQLite storage support with storage driver selection
-  - Feature: (@craftingmod) Auto-migration between storages(`file`, `sqlite`)
-  - Enhancement: (@craftingmod) Optimizing `Bun` support
+    - Feature: (@craftingmod) SQLite storage support with storage driver selection
+    - Feature: (@craftingmod) Auto-migration between storages(`file`, `sqlite`)
+    - Enhancement: (@craftingmod) Optimizing `Bun` support
 
 - @matter/protocol
     - Adjustment: Change the default value of "announceAsDefaultProvider" to false, which avoids device race conditions for now

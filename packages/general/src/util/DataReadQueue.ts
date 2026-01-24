@@ -8,8 +8,9 @@
 
 import { Duration } from "#time/Duration.js";
 import { Minutes } from "#time/TimeUnit.js";
-import { MatterFlowError } from "../MatterError.js";
+import { AbortedError, MatterFlowError } from "../MatterError.js";
 import { Time, Timer } from "../time/Time.js";
+import { Abort } from "./Abort.js";
 import { asError } from "./Error.js";
 import { createPromise } from "./Promises.js";
 import { EndOfStreamError, NoResponseTimeoutError } from "./Streams.js";
@@ -19,7 +20,7 @@ export class DataReadQueue<T> {
     #pendingRead?: { resolver: (data: T) => void; rejecter: (reason: any) => void; timeoutTimer?: Timer };
     #closed = false;
 
-    async read(timeout = Minutes.one): Promise<T> {
+    async read({ timeout = Minutes.one, abort }: { timeout?: Duration; abort?: AbortSignal } = {}): Promise<T> {
         const { promise, resolver, rejecter } = createPromise<T>();
         if (this.#closed) throw new EndOfStreamError();
         const data = this.#queue.shift();
@@ -39,22 +40,39 @@ export class DataReadQueue<T> {
             ).start(),
         };
 
+        let localAbort: Abort | undefined;
         try {
+            if (abort) {
+                localAbort = new Abort({
+                    abort,
+
+                    handler: reason => {
+                        this.#clearPendingRead();
+                        rejecter(reason);
+                    },
+                });
+            }
+
             return await promise;
         } catch (e) {
+            if (e instanceof AbortedError) {
+                throw e;
+            }
+
             // The stack trace where we created the error is useless (either a timer or close()) so replace here
             const error = asError(e);
             error.stack = new Error().stack;
             throw error;
+        } finally {
+            localAbort?.close();
         }
     }
 
     write(data: T) {
         if (this.#closed) throw new EndOfStreamError();
-        if (this.#pendingRead !== undefined) {
-            this.#pendingRead.timeoutTimer?.stop();
-            const pendingRead = this.#pendingRead;
-            this.#pendingRead = undefined;
+        const pendingRead = this.#pendingRead;
+        this.#clearPendingRead();
+        if (pendingRead) {
             pendingRead.resolver(data);
             return;
         }
@@ -71,5 +89,14 @@ export class DataReadQueue<T> {
         if (this.#pendingRead === undefined) return;
         this.#pendingRead.timeoutTimer?.stop();
         this.#pendingRead.rejecter(new EndOfStreamError());
+    }
+
+    #clearPendingRead() {
+        if (this.#pendingRead === undefined) {
+            return;
+        }
+
+        this.#pendingRead.timeoutTimer?.stop();
+        this.#pendingRead = undefined;
     }
 }
