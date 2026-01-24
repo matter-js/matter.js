@@ -72,9 +72,9 @@ const GOODBYE_PROTECTION_WINDOW = Millis(1000);
 
 /**
  * Minimum TTL for PTR records to prevent DoS attacks with very short TTLs.
- * Value based on python-zeroconf implementation.
+ * Value based on python-zeroconf/bonjour implementation.
  */
-const PTR_MIN_TTL = Millis(1125);
+const PTR_MIN_TTL = 15; // Seconds
 
 type MatterServerRecordWithExpire = ServerAddressUdp & AddressLifespan;
 
@@ -906,7 +906,7 @@ export class MdnsClient implements Scanner {
                 const { name, recordType } = answer;
 
                 // Enforce minimum TTL for PTR records to prevent DoS attacks with very short TTLs
-                if (recordType === DnsRecordType.PTR && answer.ttl < PTR_MIN_TTL) {
+                if (answer.ttl < PTR_MIN_TTL) {
                     answer = { ...answer, ttl: PTR_MIN_TTL };
                 }
 
