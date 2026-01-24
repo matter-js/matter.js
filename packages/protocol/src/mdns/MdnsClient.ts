@@ -74,7 +74,7 @@ const GOODBYE_PROTECTION_WINDOW = Millis(1000);
  * Minimum TTL for PTR records to prevent DoS attacks with very short TTLs.
  * Value based on python-zeroconf/bonjour implementation.
  */
-const PTR_MIN_TTL = 15; // Seconds
+const PTR_MIN_TTL = Seconds(15);
 
 type MatterServerRecordWithExpire = ServerAddressUdp & AddressLifespan;
 
