@@ -105,7 +105,7 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
         this.#notify("update", key, recordWithExpire);
     }
 
-    deleteRecord(record: DnsRecord) {
+    deleteRecord(record: DnsRecord, ifOlderThan?: Timestamp) {
         const key = keyOf(record);
         if (key === undefined) {
             this.#deleteIfUnused();
@@ -115,6 +115,10 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
         const recordWithExpire = this.#records?.get(key);
         if (!recordWithExpire) {
             this.#deleteIfUnused();
+            return;
+        }
+
+        if (ifOlderThan !== undefined && recordWithExpire.expiresAt - recordWithExpire.ttl >= ifOlderThan) {
             return;
         }
 

@@ -150,9 +150,7 @@ export class IpServiceStatus {
             },
         );
 
-        if (!this.#connecting.size) {
-            this.#connectionInitiatedAt = Time.nowMs;
-        }
+        this.#connectionInitiatedAt = Time.nowMs;
         this.#connecting.add(result);
 
         this.#maybeStartResolving();

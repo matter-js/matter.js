@@ -5,6 +5,10 @@
  */
 
 import { DnsRecord } from "#codec/DnsCodec.js";
+import { Duration } from "#time/Duration.js";
+import { Time } from "#time/Time.js";
+import { Timestamp } from "#time/Timestamp.js";
+import { Seconds } from "#time/TimeUnit.js";
 import { Entropy } from "#util/Entropy.js";
 import { Lifetime } from "#util/Lifetime.js";
 import { Observable, ObserverGroup } from "#util/Observable.js";
@@ -28,13 +32,24 @@ export class DnssdNames {
     readonly #names = new Map<string, DnssdName>();
     readonly #expiration: Scheduler<DnssdName.Record>;
     readonly #discovered = new Observable<[name: DnssdName]>();
+    readonly #goodbyeProtectionWindow: Duration;
+    readonly #minTtl: Duration;
 
-    constructor({ socket, lifetime = Lifetime.process, entropy, filter }: DnssdNames.Context) {
+    constructor({
+        socket,
+        lifetime = Lifetime.process,
+        entropy,
+        filter,
+        goodbyeProtectionWindow,
+        minTtl: minTtl,
+    }: DnssdNames.Context) {
         this.#socket = socket;
         this.#lifetime = lifetime.join("mdns client");
         this.#entropy = entropy;
         this.#filter = filter;
         this.#solicitor = new QueryMulticaster(this);
+        this.#goodbyeProtectionWindow = goodbyeProtectionWindow ?? DnssdNames.defaults.goodbyeProtectionWindow;
+        this.#minTtl = minTtl ?? DnssdNames.defaults.minTtl;
         this.#observers.on(this.#socket.receipt, this.#handleMessage.bind(this));
 
         this.#expiration = new Scheduler({
@@ -53,20 +68,27 @@ export class DnssdNames {
     }
 
     #handleMessage(message: MdnsSocket.Message) {
-        for (const record of [...message.answers, ...message.additionalRecords]) {
+        let goodbyesBefore: undefined | Timestamp;
+        for (let record of [...message.answers, ...message.additionalRecords]) {
             if (this.#filter && !this.#filter(record)) {
                 continue;
             }
 
             const name = this.get(record.name);
-            if (record.ttl > 0) {
+            if (record.ttl) {
+                if (record.ttl < this.#minTtl) {
+                    record = { ...record, ttl: this.#minTtl };
+                }
                 const wasDiscovered = name.isDiscovered;
                 name.installRecord(record);
                 if (!wasDiscovered && name.isDiscovered) {
                     this.#discovered.emit(name);
                 }
             } else {
-                name.deleteRecord(record);
+                if (goodbyesBefore === undefined) {
+                    goodbyesBefore = Timestamp(Time.nowMs - this.#goodbyeProtectionWindow);
+                }
+                name.deleteRecord(record, goodbyesBefore);
             }
         }
     }
@@ -164,5 +186,23 @@ export namespace DnssdNames {
         lifetime?: Lifetime.Owner;
         entropy: Entropy;
         filter?: (record: DnsRecord) => boolean;
+
+        /**
+         * The interval after discovering a record for which we ignore goodbyes.
+         *
+         * This serves as protection for out-of-order messages when a device expires then broadcasts the same record
+         * in a very short amount of time.
+         */
+        goodbyeProtectionWindow?: Duration;
+
+        /**
+         * Minimum TTL for PTR records.
+         */
+        minTtl?: Duration;
     }
+
+    export const defaults = {
+        goodbyeProtectionWindow: Seconds(1),
+        minTtl: Seconds(15), // This is the value that Apple uses
+    };
 }
