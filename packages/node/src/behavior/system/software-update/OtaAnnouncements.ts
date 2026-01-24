@@ -14,7 +14,7 @@ import { Duration, Hours, isDeepEqual, Logger, MatterError, Millis, Minutes, Sec
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { Fabric, PeerAddress, Write } from "#protocol";
+import { Fabric, PeerAddress, Write, WriteResult } from "#protocol";
 import { EndpointNumber, FabricIndex, NodeId, VendorId } from "#types";
 
 const logger = new Logger("OTAAnnouncements");
@@ -170,16 +170,19 @@ export class OtaAnnouncements {
         ) {
             try {
                 // Fabric scoped attribute, so we just overwrite our value
-                await peer.interaction.write(
-                    Write(
-                        Write.Attribute({
-                            endpoint: otaEndpoint.number,
-                            cluster: OtaSoftwareUpdateRequestor.Complete,
-                            attributes: ["defaultOtaProviders"],
-                            value: [consideredOtaProviderRecord],
-                        }),
+                WriteResult.assertSuccess(
+                    await peer.interaction.write(
+                        Write(
+                            Write.Attribute({
+                                endpoint: otaEndpoint.number,
+                                cluster: OtaSoftwareUpdateRequestor.Complete,
+                                attributes: ["defaultOtaProviders"],
+                                value: [consideredOtaProviderRecord],
+                            }),
+                        ),
                     ),
                 );
+
                 logger.debug(
                     `${existingOtaProviderRecord === undefined ? "Added" : "Updated"} default OTA provider for`,
                     peerAddress,

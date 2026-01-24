@@ -43,6 +43,14 @@ export abstract class DataResponse<SessionT extends InteractionSession = Interac
     }
 
     /**
+     * Update the session for processing subsequent chunks.
+     * This allows reusing the same response instance while maintaining state across chunks.
+     */
+    protected updateSession(session: SessionT) {
+        this.#session = session;
+    }
+
+    /**
      * The node ID used to filter paths with node ID specified.  Unsure if this is ever actually used.
      */
     protected get nodeId() {
