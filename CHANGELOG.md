@@ -16,6 +16,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/protocol
     - Feature: Automatically decides if multiple invokes can be sent in one or multiple messages depending on the device capabilities
+    - Enhancement: Add protection against out-of-order mDNS goodbye packets (TTL=0) that could incorrectly remove recently discovered devices
+    - Enhancement: Add minimum TTL protection for PTR records to prevent DoS attacks with very short TTLs
     - Enhancement: Add RFC 6762 §7.3 compliant duplicate question suppression to MdnsServer
     - Fix: Correctly handle multi-message write interactions (server and client) according to Matter specification
     - Fix: Correctly handle multi-message invoke responses (server and client) according to Matter specification
