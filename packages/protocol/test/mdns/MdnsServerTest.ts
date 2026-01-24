@@ -23,7 +23,7 @@ import {
     TxtRecord,
     UdpMulticastServer,
 } from "#general";
-import { MdnsServer } from "#mdns/MdnsServer.js";
+import { MdnsServer, QUESTION_SUPPRESSION_WINDOW } from "#mdns/MdnsServer.js";
 
 const CLIENT_IPv4 = "192.168.200.2";
 const CLIENT_MAC = "CA:FE:00:00:BE:EF";
@@ -594,7 +594,7 @@ describe("MdnsServer", () => {
             expect(responses).deep.equal(EXPEECTED_RESPONSE);
 
             responses.length = 0;
-            await MockTime.advance(1001);
+            await MockTime.advance(QUESTION_SUPPRESSION_WINDOW + 2);
 
             send(
                 DnsCodec.encode({
@@ -1007,6 +1007,105 @@ describe("MdnsServer", () => {
                     uniCastTarget: undefined,
                 },
             ]);
+        });
+    });
+
+    describe("Duplicate question suppression (RFC 6762 §7.3)", () => {
+        it("suppresses response when same question was recently answered", async () => {
+            const responses = new Array<{ message?: DnsMessage; netInterface?: string; uniCastTarget?: string }>();
+            onResponse = async (message: Bytes, netInterface?: string, uniCastTarget?: string) => {
+                responses.push({ message: DnsCodec.decode(message), netInterface, uniCastTarget });
+            };
+
+            // First query - should get response
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query,
+                    queries: [
+                        {
+                            name: DUMMY_QNAME,
+                            recordClass: DnsRecordClass.IN,
+                            recordType: DnsRecordType.PTR,
+                        },
+                    ],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+
+            await MockTime.yield3();
+            expect(responses.length).equals(1);
+
+            responses.length = 0;
+
+            // Second identical query within suppression window - should be suppressed
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query,
+                    queries: [
+                        {
+                            name: DUMMY_QNAME,
+                            recordClass: DnsRecordClass.IN,
+                            recordType: DnsRecordType.PTR,
+                        },
+                    ],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+
+            await MockTime.yield3();
+            expect(responses.length).equals(0); // Suppressed
+        });
+
+        it("responds after suppression window expires", async () => {
+            const responses = new Array<{ message?: DnsMessage; netInterface?: string; uniCastTarget?: string }>();
+            onResponse = async (message: Bytes, netInterface?: string, uniCastTarget?: string) => {
+                responses.push({ message: DnsCodec.decode(message), netInterface, uniCastTarget });
+            };
+
+            // First query
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query,
+                    queries: [
+                        {
+                            name: DUMMY_QNAME,
+                            recordClass: DnsRecordClass.IN,
+                            recordType: DnsRecordType.PTR,
+                        },
+                    ],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+
+            await MockTime.yield3();
+            expect(responses.length).equals(1);
+
+            responses.length = 0;
+
+            // Wait past the 999ms suppression window
+            await MockTime.advance(QUESTION_SUPPRESSION_WINDOW + 2);
+
+            // Query again - should respond since window expired
+            send(
+                DnsCodec.encode({
+                    messageType: DnsMessageType.Query,
+                    queries: [
+                        {
+                            name: DUMMY_QNAME,
+                            recordClass: DnsRecordClass.IN,
+                            recordType: DnsRecordType.PTR,
+                        },
+                    ],
+                }),
+                DUMMY_IP,
+                INTERFACE_NAME,
+            );
+
+            await MockTime.yield3();
+            expect(responses.length).equals(1); // Should respond after window expires
         });
     });
 });
