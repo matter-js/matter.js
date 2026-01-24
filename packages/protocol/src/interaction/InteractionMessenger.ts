@@ -30,6 +30,7 @@ import {
     TlvDataVersionFilter,
     TlvInvokeRequest,
     TlvInvokeResponse,
+    TlvInvokeResponseForSend,
     TlvReadRequest,
     TlvSchema,
     TlvStatusResponse,
@@ -76,6 +77,7 @@ export type SubscribeRequest = TypeFromSchema<typeof TlvSubscribeRequest>;
 export type SubscribeResponse = TypeFromSchema<typeof TlvSubscribeResponse>;
 export type InvokeRequest = TypeFromSchema<typeof TlvInvokeRequest>;
 export type InvokeResponse = TypeFromSchema<typeof TlvInvokeResponse>;
+export type InvokeResponseForSend = TypeFromSchema<typeof TlvInvokeResponseForSend>;
 export type TimedRequest = TypeFromSchema<typeof TlvTimedRequest>;
 export type WriteRequest = TypeFromSchema<typeof TlvWriteRequest>;
 export type WriteResponse = TypeFromSchema<typeof TlvWriteResponse>;
@@ -211,7 +213,12 @@ export interface InteractionRecipient {
         request: ReadRequest,
         message: Message,
     ): Promise<{ dataReport: DataReport; payload?: DataReportPayloadIterator }>;
-    handleWriteRequest(exchange: MessageExchange, request: WriteRequest, message: Message): Promise<WriteResponse>;
+    handleWriteRequest(
+        exchange: MessageExchange,
+        request: WriteRequest,
+        messenger: InteractionServerMessenger,
+        message: Message,
+    ): Promise<void>;
     handleSubscribeRequest(
         exchange: MessageExchange,
         request: SubscribeRequest,
@@ -262,11 +269,8 @@ export class InteractionServerMessenger extends InteractionMessenger {
                     }
                     case MessageType.WriteRequest: {
                         const writeRequest = TlvWriteRequest.decode(message.payload);
-                        const { suppressResponse } = writeRequest;
-                        const writeResponse = await recipient.handleWriteRequest(this.exchange, writeRequest, message);
-                        if (!suppressResponse && !isGroupSession) {
-                            await this.send(MessageType.WriteResponse, TlvWriteResponse.encode(writeResponse));
-                        }
+                        await recipient.handleWriteRequest(this.exchange, writeRequest, this, message);
+                        // response is sent by the handler
                         break;
                     }
                     case MessageType.SubscribeRequest: {
@@ -278,7 +282,7 @@ export class InteractionServerMessenger extends InteractionMessenger {
                         }
                         const subscribeRequest = TlvSubscribeRequest.decode(message.payload);
                         await recipient.handleSubscribeRequest(this.exchange, subscribeRequest, this, message);
-                        // response is sent by handler
+                        // response is sent by the handler
                         break;
                     }
                     case MessageType.InvokeRequest: {
@@ -797,6 +801,60 @@ export class InteractionServerMessenger extends InteractionMessenger {
             }
         }
     }
+
+    /**
+     * Send a WriteResponse message.
+     */
+    async sendWriteResponse(response: WriteResponse, options?: { logContext?: string }) {
+        await this.send(MessageType.WriteResponse, TlvWriteResponse.encode(response), {
+            logContext: options?.logContext ? { for: options.logContext } : undefined,
+        });
+    }
+
+    /**
+     * Wait for and decode the next WriteRequest message (for chunked writes).
+     */
+    async readNextWriteRequest(): Promise<{ writeRequest: WriteRequest; message: Message }> {
+        const message = await this.nextMessage(MessageType.WriteRequest, undefined, "WriteRequest-chunk");
+        return {
+            writeRequest: TlvWriteRequest.decode(message.payload),
+            message,
+        };
+    }
+
+    /**
+     * Send an intermediate InvokeResponse chunk with moreChunkedMessages=true and wait for Status.Success.
+     * Returns true if a client acknowledged, and we should continue, false if a client terminated the chunked series.
+     */
+    async sendInvokeResponseChunk(response: InvokeResponseForSend): Promise<boolean> {
+        await this.send(
+            MessageType.InvokeResponse,
+            TlvInvokeResponseForSend.encode({
+                ...response,
+                moreChunkedMessages: true,
+            }),
+            {
+                logContext: { for: "InvokeResponse-chunk" },
+            },
+        );
+
+        try {
+            await this.waitForSuccess("InvokeResponse-chunk");
+            return true; // Continue sending chunks
+        } catch (error) {
+            // Any non-success status or error terminate further transmission of InvokeResponseMessages,
+            // close the exchange, and consider the Invoke Interaction completed.
+            logger.debug("Chunked invoke response terminated by client", error);
+            return false;
+        }
+    }
+
+    /**
+     * Send the final InvokeResponse (without moreChunkedMessages flag).
+     */
+    async sendInvokeResponse(response: InvokeResponseForSend) {
+        await this.send(MessageType.InvokeResponse, TlvInvokeResponseForSend.encode(response));
+    }
 }
 
 export class IncomingInteractionClientMessenger extends InteractionMessenger {
@@ -972,7 +1030,14 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
         await this.send(MessageType.SubscribeRequest, request);
     }
 
-    async sendInvokeCommand(invokeRequest: InvokeRequest, expectedProcessingTime?: Duration) {
+    /**
+     * Send an invoke command and handle chunked responses.
+     * Returns a combined InvokeResponse with all responses from all chunks, or undefined if suppressResponse
+     */
+    async sendInvokeCommand(
+        invokeRequest: InvokeRequest,
+        expectedProcessingTime?: Duration,
+    ): Promise<InvokeResponse | undefined> {
         if (invokeRequest.suppressResponse) {
             await this.requestWithSuppressedResponse(
                 MessageType.InvokeRequest,
@@ -980,16 +1045,49 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
                 invokeRequest,
                 expectedProcessingTime,
             );
-        } else {
-            return await this.request(
-                MessageType.InvokeRequest,
-                TlvInvokeRequest,
-                MessageType.InvokeResponse,
-                TlvInvokeResponse,
-                invokeRequest,
-                expectedProcessingTime,
-            );
+            return undefined;
         }
+
+        // Send invoke request
+        await this.send(MessageType.InvokeRequest, TlvInvokeRequest.encode(invokeRequest), {
+            expectAckOnly: false,
+            expectedProcessingTime,
+        });
+
+        // Receive and accumulate responses from potentially multiple chunks
+        const allInvokeResponses: InvokeResponse["invokeResponses"] = [];
+        let finalResponse: InvokeResponse | undefined;
+
+        while (true) {
+            const responseMessage = await this.nextMessage(
+                MessageType.InvokeResponse,
+                { expectedProcessingTime },
+                "InvokeResponse",
+            );
+            const response = TlvInvokeResponse.decode(responseMessage.payload);
+
+            // Accumulate responses from this chunk
+            if (response.invokeResponses) {
+                allInvokeResponses.push(...response.invokeResponses);
+            }
+
+            // Check if more chunks are coming
+            if (response.moreChunkedMessages) {
+                await this.sendStatus(Status.Success, {
+                    multipleMessageInteraction: true,
+                    logContext: { for: "InvokeResponse-chunk" },
+                });
+            } else {
+                // This is the final chunk
+                finalResponse = {
+                    ...response,
+                    invokeResponses: allInvokeResponses,
+                };
+                break;
+            }
+        }
+
+        return finalResponse;
     }
 
     async sendWriteCommand(writeRequest: WriteRequest) {
