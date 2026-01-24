@@ -320,8 +320,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         messenger: InteractionServerMessenger,
         message: Message,
     ): Promise<void> {
-        let { suppressResponse, timedRequest, writeRequests, interactionModelRevision, moreChunkedMessages } =
-            writeRequest;
+        let { suppressResponse, writeRequests, moreChunkedMessages } = writeRequest;
+        const { timedRequest, interactionModelRevision } = writeRequest;
         const sessionType = message.packetHeader.sessionType;
 
         logger.info(() => [
