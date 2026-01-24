@@ -16,8 +16,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/protocol
     - Feature: Automatically decides if multiple invokes can be sent in one or multiple messages depending on the device capabilities
-    - Fix: Correctly handle multi-message write interactions according to Matter specification
-    - Fix: Correctly handle multi-message invoke responses according to Matter specification
+    - Enhancement: Add RFC 6762 §7.3 compliant duplicate question suppression to MdnsServer
+    - Fix: Correctly handle multi-message write interactions (server and client) according to Matter specification
+    - Fix: Correctly handle multi-message invoke responses (server and client) according to Matter specification
 
 ## 0.16.7 (2026-01-22)
 
