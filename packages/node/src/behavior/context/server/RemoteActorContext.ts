@@ -12,7 +12,6 @@ import {
     AccessControl,
     AclEndpointContext,
     FabricAccessControl,
-    InteractionServerMessenger,
     Message,
     MessageExchange,
     NodeProtocol,
@@ -285,10 +284,5 @@ export namespace RemoteActorContext {
         timed?: boolean;
         fabricFiltered?: boolean;
         message?: Message;
-
-        /**
-         * Optional messenger for testing. If not provided, one will be created from the exchange.
-         */
-        messenger?: InteractionServerMessenger;
     };
 }

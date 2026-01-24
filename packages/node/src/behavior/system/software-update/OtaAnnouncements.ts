@@ -170,19 +170,19 @@ export class OtaAnnouncements {
         ) {
             try {
                 // Fabric scoped attribute, so we just overwrite our value
-                // Consume the write-result iterator to execute the writing
-                const writeResult = peer.interaction.write(
-                    Write(
-                        Write.Attribute({
-                            endpoint: otaEndpoint.number,
-                            cluster: OtaSoftwareUpdateRequestor.Complete,
-                            attributes: ["defaultOtaProviders"],
-                            value: [consideredOtaProviderRecord],
-                        }),
+                WriteResult.assertSuccess(
+                    await peer.interaction.write(
+                        Write(
+                            Write.Attribute({
+                                endpoint: otaEndpoint.number,
+                                cluster: OtaSoftwareUpdateRequestor.Complete,
+                                attributes: ["defaultOtaProviders"],
+                                value: [consideredOtaProviderRecord],
+                            }),
+                        ),
                     ),
                 );
 
-                WriteResult.assertSuccess(await writeResult);
                 logger.debug(
                     `${existingOtaProviderRecord === undefined ? "Added" : "Updated"} default OTA provider for`,
                     peerAddress,

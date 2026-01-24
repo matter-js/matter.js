@@ -231,7 +231,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         message?: Message,
         fabricFiltered?: boolean,
         timed = false,
-        messenger?: InteractionServerMessenger,
     ): RemoteActorContext.Options {
         return {
             activity: (exchange as NodeActivity.WithActivity)[NodeActivity.activityKey],
@@ -240,7 +239,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             message,
             exchange,
             node: this.#node,
-            messenger,
         };
     }
 
@@ -408,7 +406,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                     message,
                     true, // always fabric filtered
                     receivedWithinTimedInteraction,
-                    messenger,
                 );
 
                 // Send batch to OnlineServerInteraction
@@ -874,7 +871,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             message,
             undefined,
             receivedWithinTimedInteraction,
-            messenger,
         );
 
         const isGroupSession = message.packetHeader.sessionType === SessionType.Group;
