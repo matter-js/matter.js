@@ -6,7 +6,7 @@
 
 import { BasicInformationBehavior } from "#behaviors/basic-information";
 import { GeneralCommissioning } from "#clusters/general-commissioning";
-import { Crypto, InternalError } from "#general";
+import { Bytes, Crypto, InternalError } from "#general";
 import { CommissioningServer, InteractionServer } from "#index.js";
 import { Specification } from "#model";
 import {
@@ -14,11 +14,13 @@ import {
     Fabric,
     FabricManager,
     InteractionServerMessenger,
+    InvokeResponseForSend,
     Message,
     MessageType,
     SessionType,
     TestFabric,
     TlvCertSigningRequest,
+    WriteResponse,
 } from "#protocol";
 import {
     AttributeReport,
@@ -26,10 +28,10 @@ import {
     FabricId,
     FabricIndex,
     NodeId,
+    Status,
     TlvDataReport,
     TlvInvokeRequest,
     TlvInvokeResponseData,
-    TlvInvokeResponseForSend,
     TlvReadRequest,
     TlvSubscribeRequest,
     TlvWriteRequest,
@@ -234,11 +236,36 @@ export function CommissioningHelper() {
 
 export namespace interaction {
     const BarelyMockedMessenger = {
-        sendStatus: _code => {},
-        sendDataReport: async _options => {},
-        send: async (_type, _message) => {},
+        sendStatus: (_code: Status) => {},
+        sendDataReport: async (_options: unknown) => {},
+        send: async (_type: number, _message: Bytes) => {},
         close: async () => {},
-    } as InteractionServerMessenger;
+        sendWriteResponse: async (_response: WriteResponse) => {},
+        readNextWriteRequest: async () => {
+            throw new Error("No more chunks expected");
+        },
+        sendInvokeResponseChunk: async (_response: InvokeResponseForSend) => true,
+        sendInvokeResponse: async (_response: InvokeResponseForSend) => {},
+    } as unknown as InteractionServerMessenger;
+
+    /**
+     * Creates a mock messenger that captures the invoke response.
+     */
+    export function createInvokeMessenger(): {
+        messenger: InteractionServerMessenger;
+        getResponse: () => InvokeResponseForSend | undefined;
+    } {
+        let capturedResponse: InvokeResponseForSend | undefined;
+        return {
+            messenger: {
+                ...BarelyMockedMessenger,
+                sendInvokeResponse: async (response: InvokeResponseForSend) => {
+                    capturedResponse = response;
+                },
+            } as unknown as InteractionServerMessenger,
+            getResponse: () => capturedResponse,
+        };
+    }
 
     export const BarelyMockedMessage = {
         packetHeader: { sessionType: SessionType.Unicast, messageId: 123 },
@@ -263,16 +290,13 @@ export namespace interaction {
     ) {
         const { exchange, interactionServer } = await connect(node, fabric);
 
-        await interactionServer.handleWriteRequest(
-            exchange,
-            {
-                suppressResponse: true,
-                interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
-                timedRequest: false,
-                writeRequests: [request],
-            },
-            BarelyMockedMessage,
-        );
+        const writeRequest = {
+            suppressResponse: true,
+            interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+            timedRequest: false,
+            writeRequests: [request],
+        };
+        await interactionServer.handleWriteRequest(exchange, writeRequest, BarelyMockedMessenger, BarelyMockedMessage);
     }
 
     export async function read(
@@ -307,6 +331,7 @@ export namespace interaction {
     ) {
         const { exchange, interactionServer } = await connect(node, fabric);
 
+        const { messenger, getResponse } = createInvokeMessenger();
         await interactionServer.handleInvokeRequest(
             exchange,
             {
@@ -315,15 +340,16 @@ export namespace interaction {
                 suppressResponse: false,
                 timedRequest: false,
             },
-            {
-                ...BarelyMockedMessenger,
-                send: async (_type, message) => {
-                    const response = TlvInvokeResponseForSend.decode(message).invokeResponses[0];
-                    responder(TlvInvokeResponseData.decodeTlv(response));
-                },
-            } as InteractionServerMessenger,
+            messenger,
             BarelyMockedMessage,
         );
+
+        // Process the response
+        const result = getResponse();
+        if (result?.invokeResponses?.length) {
+            const response = result.invokeResponses[0];
+            responder(TlvInvokeResponseData.decodeTlv(response));
+        }
     }
 
     export async function subscribe(

@@ -69,7 +69,6 @@ export class QueuedClientInteraction<
 
     /**
      * Write chosen attributes remotely to the node.
-     * The returned attribute writing status information is returned.
      */
     override async write<T extends ClientWrite>(request: T, session?: SessionT): WriteResult<T> {
         using _slot = await this.queue.obtainSlot();

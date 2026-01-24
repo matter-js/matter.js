@@ -6,6 +6,7 @@
 
 export * from "./Abort.js";
 export * from "./Array.js";
+export * from "./AsyncIterator.js";
 export * from "./Boot.js";
 export * from "./Bytes.js";
 export * from "./Cache.js";
