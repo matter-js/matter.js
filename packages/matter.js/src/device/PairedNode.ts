@@ -784,6 +784,11 @@ export class PairedNode {
         const endpointId = endpoint.number;
         const clusterId = behavior.cluster.id;
 
+        if (!endpoint.behaviors.supported[behavior.id]) {
+            logger.info(`Ignoring attribute changes for ${endpointId}.${behavior.cluster.name} for fields`, properties);
+            return;
+        }
+
         const state = endpoint.stateOf(behavior);
         const attributes = behavior.cluster.attributes;
         for (const attribute of properties ?? Object.keys(attributes)) {
