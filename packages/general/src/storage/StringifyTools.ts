@@ -15,7 +15,8 @@ type SupportedStorageBaseTypes = string | number | boolean | bigint | Bytes;
 
 /** Supported combined types to stringify the data for the storage that can be used as values. */
 type SupportedComplexStorageTypes =
-    | Array<SupportedStorageBaseTypes | SupportedComplexStorageTypes> // Arrays
+    | (SupportedStorageBaseTypes | SupportedComplexStorageTypes)[] // Arrays
+    | readonly (SupportedStorageBaseTypes | SupportedComplexStorageTypes)[] // Arrays
     | { [key: string]: SupportedStorageBaseTypes | SupportedComplexStorageTypes | null | undefined } // Objects
     | Array<[SupportedStorageBaseTypes, SupportedStorageBaseTypes | SupportedComplexStorageTypes | null | undefined]> // Map style arrays
     | Map<SupportedStorageBaseTypes, SupportedStorageBaseTypes | SupportedComplexStorageTypes>

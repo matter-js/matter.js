@@ -9,5 +9,5 @@
 import { MatterDefinition } from "../MatterDefinition.js";
 import { DatatypeElement as Datatype } from "../../elements/index.js";
 
-export const ipv4Adr = Datatype({ name: "ipv4adr", type: "octstr", isSeed: true });
+export const ipv4Adr = Datatype({ name: "ipv4adr", type: "octstr", constraint: "4", isSeed: true });
 MatterDefinition.children.push(ipv4Adr);

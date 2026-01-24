@@ -493,7 +493,7 @@ export class MessageExchange {
                 options?.expectedProcessingTime,
             );
         }
-        return this.#messagesQueue.read(timeout);
+        return this.#messagesQueue.read({ timeout });
     }
 
     async #sendStandaloneAckForMessage(message: Message) {
