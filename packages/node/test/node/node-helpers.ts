@@ -296,7 +296,7 @@ export namespace interaction {
             timedRequest: false,
             writeRequests: [request],
         };
-        await interactionServer.handleWriteRequest(exchange, writeRequest, BarelyMockedMessage, BarelyMockedMessenger);
+        await interactionServer.handleWriteRequest(exchange, writeRequest, BarelyMockedMessenger, BarelyMockedMessage);
     }
 
     export async function read(
@@ -340,8 +340,8 @@ export namespace interaction {
                 suppressResponse: false,
                 timedRequest: false,
             },
-            BarelyMockedMessage,
             messenger,
+            BarelyMockedMessage,
         );
 
         // Process the response

@@ -40,7 +40,6 @@ export class AttributeWriteResponse<
     // a cache between producers that touch the same endpoint and/or cluster
     #currentEndpoint?: EndpointProtocol;
     #currentCluster?: ClusterProtocol;
-    #previousProcessedAttributePath?: WriteResult.ConcreteAttributePath;
 
     // Count how many attribute status (on error) and attribute values (on success) we have emitted
     #statusCount = 0;
@@ -50,15 +49,6 @@ export class AttributeWriteResponse<
     constructor(node: NodeProtocol, session: SessionT) {
         super(node, session);
         this.#fabricIndex = session.fabric ?? FabricIndex.NO_FABRIC;
-    }
-
-    /**
-     * Update the session for processing the next chunk.
-     * This allows reusing the same writer instance across multiple chunks while
-     * maintaining a state like previousProcessedAttributePath for list operations.
-     */
-    continueWithSession(session: SessionT) {
-        this.updateSession(session);
     }
 
     async process({ writeRequests, suppressResponse }: Write): Promise<WriteResult.AttributeStatus[] | undefined> {
@@ -403,9 +393,6 @@ export class AttributeWriteResponse<
             );
         }
 
-        const previousPath = this.#previousProcessedAttributePath;
-        this.#previousProcessedAttributePath = path;
-
         try {
             const { tlv } = attribute;
             if (listIndex === undefined) {
@@ -417,15 +404,7 @@ export class AttributeWriteResponse<
                 writeState[attributeId] = decoded;
                 await this.session.transaction?.commit();
             } else if (listIndex === null) {
-                if (
-                    previousPath?.endpointId !== path.endpointId ||
-                    previousPath?.clusterId !== path.clusterId ||
-                    previousPath?.attributeId !== path.attributeId
-                ) {
-                    // Mimic chip sdk behavior
-                    throw new StatusResponseError("ADD list action without a former REPLACE_ALL action", Status.Busy);
-                }
-                // ADD
+                // ADD - caller (InteractionServer) has already validated that this ADD is allowed
                 if (!(tlv instanceof ArraySchema)) {
                     throw new StatusResponseError(
                         `Unsupported Write path provided: listIndex === ${listIndex} but attribute is not a list`,

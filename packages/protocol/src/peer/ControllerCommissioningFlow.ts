@@ -1674,7 +1674,7 @@ export class ControllerCommissioningFlow {
         for (const requestorEndpoint of this.collectedCommissioningData.otaRequestorList) {
             try {
                 // Fabric scoped attribute, so we just overwrite our value
-                const writeResult = this.interaction.write(
+                const writeResult = await this.interaction.write(
                     Write(
                         Write.Attribute({
                             endpoint: requestorEndpoint,
@@ -1691,7 +1691,7 @@ export class ControllerCommissioningFlow {
                     ),
                 );
 
-                await WriteResult.assertSuccess(writeResult);
+                WriteResult.assertSuccess(writeResult);
 
                 success = true;
                 logger.debug(`Added default OTA provider on endpoint ${endpoint}`);

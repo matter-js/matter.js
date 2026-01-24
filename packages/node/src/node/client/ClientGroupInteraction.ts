@@ -31,7 +31,10 @@ export class ClientGroupInteraction extends ClientNodeInteraction {
         throw new InvalidGroupOperationError("Groups do not support subscribing to attributes");
     }
 
-    override async *write(request: Write, context?: ActionContext): WriteResult {
+    override async write<T extends Write>(
+        request: T,
+        context?: ActionContext,
+    ): WriteResult<T & { suppressResponse: true }> {
         if (request.timedRequest) {
             throw new InvalidGroupOperationError("Timed requests are not supported for group address writes.");
         }
@@ -50,8 +53,8 @@ export class ClientGroupInteraction extends ClientNodeInteraction {
             throw new InvalidGroupOperationError("Not all attribute write paths are valid for group address writes.");
         }
 
-        // Writing to a group does not yield a response, but we still have the same interface
-        yield* super.write({ ...request, suppressResponse: true }, context);
+        // Writing to a group does not yield a response
+        return super.write({ ...request, suppressResponse: true }, context);
     }
 
     override invoke(request: ClientInvoke, context?: ActionContext): DecodedInvokeResult {

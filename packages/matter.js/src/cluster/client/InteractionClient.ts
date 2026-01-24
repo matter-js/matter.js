@@ -708,7 +708,7 @@ export class InteractionClient {
             throw new ImplementationError("Timed requests are not supported for group address writes.");
         }
 
-        const writeResult = this.#interaction.write({
+        const response = await this.#interaction.write({
             ...Write({
                 writes: writeRequests,
                 timed: asTimedRequest,
@@ -728,21 +728,20 @@ export class InteractionClient {
                 }),
         });
 
-        const results = new Array<AttributeStatus>();
-        for await (const chunk of writeResult) {
-            for (const { status, clusterStatus, path } of chunk) {
-                results.push({
-                    path,
-                    status: status ?? clusterStatus ?? StatusCode.Failure,
-                });
+        if (response === undefined) {
+            if (!suppressResponse) {
+                throw new MatterFlowError(`No response received from write interaction but expected.`);
             }
+            return [];
         }
-
-        if (results.length === 0 && !suppressResponse) {
-            throw new MatterFlowError(`No response received from write interaction but expected.`);
-        }
-
-        return results.filter(({ status }) => status !== StatusCode.Success);
+        return response
+            .flatMap(({ status, clusterStatus, path: { nodeId, endpointId, clusterId, attributeId } }) => {
+                return {
+                    path: { nodeId, endpointId, clusterId, attributeId },
+                    status: status ?? clusterStatus ?? StatusCode.Failure,
+                };
+            })
+            .filter(({ status }) => status !== StatusCode.Success);
     }
 
     async subscribeAttribute<A extends Attribute<any, any>>(options: {

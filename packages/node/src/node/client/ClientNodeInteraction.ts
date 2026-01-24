@@ -118,12 +118,12 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
 
     /**
      * Write chosen attributes remotely to the node.
-     * Yields attribute write status information as it is processed.
+     * The returned attribute write status information is returned.
      */
-    async *write(request: ClientWrite, context?: ActionContext): WriteResult {
+    async write<T extends ClientWrite>(request: T, context?: ActionContext): WriteResult<T> {
         const client = await this.#connect();
 
-        yield* client.write(request, context);
+        return client.write(request, context);
     }
 
     /**

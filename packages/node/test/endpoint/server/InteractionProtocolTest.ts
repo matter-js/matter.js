@@ -1249,8 +1249,8 @@ describe("InteractionProtocol", () => {
             await interactionProtocol.handleWriteRequest(
                 await createDummyMessageExchange(node),
                 WRITE_REQUEST,
-                interaction.BarelyMockedMessage,
                 messenger,
+                interaction.BarelyMockedMessage,
             );
 
             expect(getResponse()).deep.equals(WRITE_RESPONSE);
@@ -1271,8 +1271,8 @@ describe("InteractionProtocol", () => {
             await interactionProtocol.handleWriteRequest(
                 await createDummyMessageExchange(node, { fabric }),
                 CHUNKED_ARRAY_WRITE_REQUEST,
-                interaction.BarelyMockedMessage,
                 messenger,
+                interaction.BarelyMockedMessage,
             );
 
             expect(getResponse()).deep.equals(CHUNKED_ARRAY_WRITE_RESPONSE);
@@ -1381,8 +1381,8 @@ describe("InteractionProtocol", () => {
             await interactionProtocol.handleWriteRequest(
                 await createDummyMessageExchange(node, { fabric }),
                 firstChunkRequest,
-                interaction.BarelyMockedMessage,
                 messenger,
+                interaction.BarelyMockedMessage,
             );
 
             // Should have received two responses (one per chunk)
@@ -1422,8 +1422,8 @@ describe("InteractionProtocol", () => {
                 interactionProtocol.handleWriteRequest(
                     await createDummyMessageExchange(node),
                     ILLEGAL_MASS_WRITE_REQUEST,
-                    interaction.BarelyMockedMessage,
                     messenger,
+                    interaction.BarelyMockedMessage,
                 ),
             ).rejectedWith("Wildcard path write must specify a clusterId and attributeId");
         });
@@ -1433,8 +1433,8 @@ describe("InteractionProtocol", () => {
             await interactionProtocol.handleWriteRequest(
                 await createDummyMessageExchange(node),
                 MASS_WRITE_REQUEST,
-                interaction.BarelyMockedMessage,
                 messenger,
+                interaction.BarelyMockedMessage,
             );
 
             expect(getResponse()).deep.equals(MASS_WRITE_RESPONSE);
@@ -1453,8 +1453,8 @@ describe("InteractionProtocol", () => {
                 interactionProtocol.handleWriteRequest(
                     messageExchange,
                     timedWriteRequest,
-                    interaction.BarelyMockedMessage,
                     messenger,
+                    interaction.BarelyMockedMessage,
                 ),
             ).rejectedWith(
                 "timedRequest flag of write interaction (true) mismatch with expected timed interaction (false).",
@@ -1474,8 +1474,8 @@ describe("InteractionProtocol", () => {
                 interactionProtocol.handleWriteRequest(
                     messageExchange,
                     WRITE_REQUEST,
-                    interaction.BarelyMockedMessage,
                     messenger,
+                    interaction.BarelyMockedMessage,
                 ),
             ).rejectedWith(
                 "timedRequest flag of write interaction (false) mismatch with expected timed interaction (true).",
@@ -1517,8 +1517,8 @@ describe("InteractionProtocol", () => {
             await interactionProtocol.handleWriteRequest(
                 messageExchange,
                 timedWriteRequest,
-                interaction.BarelyMockedMessage,
                 messenger,
+                interaction.BarelyMockedMessage,
             );
 
             expect(getResponse()).deep.equals(WRITE_RESPONSE_TIMED_REQUIRED);
@@ -1537,8 +1537,8 @@ describe("InteractionProtocol", () => {
                 interactionProtocol.handleWriteRequest(
                     messageExchange,
                     timedWriteRequest,
-                    interaction.BarelyMockedMessage,
                     messenger,
+                    interaction.BarelyMockedMessage,
                 ),
             ).rejectedWith("Timed request window expired. Decline write request.");
 
@@ -1557,8 +1557,8 @@ describe("InteractionProtocol", () => {
                 interactionProtocol.handleWriteRequest(
                     messageExchange,
                     timedWriteRequest,
-                    interaction.BarelyMockedGroupMessage,
                     messenger,
+                    interaction.BarelyMockedGroupMessage,
                 ),
             ).rejectedWith("Write requests are only allowed on unicast sessions when a timed interaction is running.");
 
@@ -1576,8 +1576,8 @@ describe("InteractionProtocol", () => {
             await interactionProtocol.handleWriteRequest(
                 messageExchange,
                 timedWriteRequest,
-                interaction.BarelyMockedMessage,
                 messenger,
+                interaction.BarelyMockedMessage,
             );
 
             expect(timedInteractionCleared).equals(true);
@@ -1616,8 +1616,8 @@ describe("InteractionProtocol", () => {
             await interactionProtocol.handleInvokeRequest(
                 exchange,
                 INVOKE_COMMAND_REQUEST_WITH_EMPTY_ARGS,
-                interaction.BarelyMockedMessage,
                 messenger,
+                interaction.BarelyMockedMessage,
             );
 
             expect(decodeInvokeResponse(getResponse()!)).deep.equals(INVOKE_COMMAND_RESPONSE);
@@ -1630,8 +1630,8 @@ describe("InteractionProtocol", () => {
             await interactionProtocol.handleInvokeRequest(
                 exchange,
                 INVOKE_COMMAND_REQUEST_WITH_NO_ARGS,
-                interaction.BarelyMockedMessage,
                 messenger,
+                interaction.BarelyMockedMessage,
             );
 
             expect(decodeInvokeResponse(getResponse()!)).deep.equals(INVOKE_COMMAND_RESPONSE);
@@ -1644,8 +1644,8 @@ describe("InteractionProtocol", () => {
             await interactionProtocol.handleInvokeRequest(
                 exchange,
                 INVOKE_COMMAND_REQUEST_INVALID,
-                interaction.BarelyMockedMessage,
                 messenger,
+                interaction.BarelyMockedMessage,
             );
 
             expect(decodeInvokeResponse(getResponse()!)).deep.equals(INVOKE_COMMAND_RESPONSE_INVALID);
@@ -1659,8 +1659,8 @@ describe("InteractionProtocol", () => {
                 interactionProtocol.handleInvokeRequest(
                     exchange,
                     INVOKE_COMMAND_REQUEST_MULTI_WILDCARD,
-                    interaction.BarelyMockedMessage,
                     messenger,
+                    interaction.BarelyMockedMessage,
                 ),
             ).rejectedWith("Wildcard path must not be used with multiple invokes");
         });
@@ -1680,8 +1680,8 @@ describe("InteractionProtocol", () => {
                 interactionProtocol.handleInvokeRequest(
                     exchange,
                     INVOKE_COMMAND_REQUEST_MULTI,
-                    interaction.BarelyMockedMessage,
                     messenger,
+                    interaction.BarelyMockedMessage,
                 ),
             ).rejectedWith("Only 1 invoke requests are supported in one message. This message contains 4");
 
@@ -1702,8 +1702,8 @@ describe("InteractionProtocol", () => {
             await interactionProtocol.handleInvokeRequest(
                 exchange,
                 INVOKE_COMMAND_REQUEST_MULTI,
-                interaction.BarelyMockedMessage,
                 messenger,
+                interaction.BarelyMockedMessage,
             );
 
             expect(decodeInvokeResponse(getResponse()!)).deep.equals(INVOKE_COMMAND_RESPONSE_MULTI); // TODO Add again later when we support it officially
@@ -1744,8 +1744,8 @@ describe("InteractionProtocol", () => {
             await interactionProtocol.handleInvokeRequest(
                 exchange,
                 request,
-                interaction.BarelyMockedMessage,
                 messenger,
+                interaction.BarelyMockedMessage,
             );
 
             // Combine intermediate chunks with final result
@@ -1769,8 +1769,8 @@ describe("InteractionProtocol", () => {
                 interactionProtocol.handleInvokeRequest(
                     exchange,
                     INVOKE_COMMAND_REQUEST_MULTI_SAME,
-                    interaction.BarelyMockedMessage,
                     messenger,
+                    interaction.BarelyMockedMessage,
                 ),
             ).rejectedWith("Duplicate concrete command path RootNode:0x0.OnOff:0x6.on:0x1 on batch invoke");
         });
@@ -1785,8 +1785,8 @@ describe("InteractionProtocol", () => {
             await interactionProtocol.handleInvokeRequest(
                 exchange,
                 { ...INVOKE_COMMAND_REQUEST_WITH_EMPTY_ARGS },
-                interaction.BarelyMockedMessage,
                 messenger,
+                interaction.BarelyMockedMessage,
             );
 
             expect(decodeInvokeResponse(getResponse()!)).deep.equals(INVOKE_COMMAND_RESPONSE_BUSY);
@@ -1802,8 +1802,8 @@ describe("InteractionProtocol", () => {
                 interactionProtocol.handleInvokeRequest(
                     exchange,
                     { ...INVOKE_COMMAND_REQUEST_WITH_EMPTY_ARGS, timedRequest: true },
-                    interaction.BarelyMockedMessage,
                     messenger,
+                    interaction.BarelyMockedMessage,
                 ),
             ).rejectedWith(
                 "timedRequest flag of invoke interaction (true) mismatch with expected timed interaction (false).",
@@ -1823,8 +1823,8 @@ describe("InteractionProtocol", () => {
                 interactionProtocol.handleInvokeRequest(
                     exchange,
                     INVOKE_COMMAND_REQUEST_WITH_EMPTY_ARGS,
-                    interaction.BarelyMockedMessage,
                     messenger,
+                    interaction.BarelyMockedMessage,
                 ),
             ).rejectedWith(
                 "timedRequest flag of invoke interaction (false) mismatch with expected timed interaction (true).",
@@ -1844,8 +1844,8 @@ describe("InteractionProtocol", () => {
                 interactionProtocol.handleInvokeRequest(
                     exchange,
                     { ...INVOKE_COMMAND_REQUEST_WITH_EMPTY_ARGS, timedRequest: true },
-                    interaction.BarelyMockedMessage,
                     messenger,
+                    interaction.BarelyMockedMessage,
                 ),
             ).rejectedWith("Timed request window expired. Decline invoke request.");
 
@@ -1863,8 +1863,8 @@ describe("InteractionProtocol", () => {
                 interactionProtocol.handleInvokeRequest(
                     exchange,
                     { ...INVOKE_COMMAND_REQUEST_WITH_EMPTY_ARGS, timedRequest: true },
-                    interaction.BarelyMockedGroupMessage,
                     messenger,
+                    interaction.BarelyMockedGroupMessage,
                 ),
             ).rejectedWith("Invoke requests are only allowed on unicast sessions when a timed interaction is running.");
 
@@ -1881,8 +1881,8 @@ describe("InteractionProtocol", () => {
             await interactionProtocol.handleInvokeRequest(
                 exchange,
                 { ...INVOKE_COMMAND_REQUEST_WITH_EMPTY_ARGS, timedRequest: true },
-                interaction.BarelyMockedMessage,
                 messenger,
+                interaction.BarelyMockedMessage,
             );
 
             expect(decodeInvokeResponse(getResponse()!)).deep.equals(INVOKE_COMMAND_RESPONSE);
@@ -1901,8 +1901,8 @@ describe("InteractionProtocol", () => {
             await interactionProtocol.handleInvokeRequest(
                 exchange,
                 INVOKE_COMMAND_REQUEST_TIMED_REQUIRED,
-                interaction.BarelyMockedMessage,
                 messenger,
+                interaction.BarelyMockedMessage,
             );
 
             expect(decodeInvokeResponse(getResponse()!)).deep.equals(INVOKE_COMMAND_RESPONSE_TIMED_REQUIRED);
@@ -1920,8 +1920,8 @@ describe("InteractionProtocol", () => {
             await interactionProtocol.handleInvokeRequest(
                 exchange,
                 { ...INVOKE_COMMAND_REQUEST_TIMED_REQUIRED, timedRequest: true },
-                interaction.BarelyMockedMessage,
                 messenger,
+                interaction.BarelyMockedMessage,
             );
 
             expect(decodeInvokeResponse(getResponse()!)).deep.equals(INVOKE_COMMAND_RESPONSE_TIMED_REQUIRED_SUCCESS);

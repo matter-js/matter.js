@@ -10,7 +10,6 @@ import {
     Bytes,
     Diagnostic,
     Duration,
-    ImplementationError,
     InternalError,
     Logger,
     MatterFlowError,
@@ -22,12 +21,10 @@ import {
 import { Specification } from "#model";
 import { RetransmissionLimitReachedError, SessionClosedError, UnexpectedMessageError } from "#protocol/errors.js";
 import {
-    AttributeData,
     ReceivedStatusResponseError,
     Status,
     StatusResponseError,
     TlvAny,
-    TlvAttributeData,
     TlvDataReport,
     TlvDataReportForSend,
     TlvDataVersionFilter,
@@ -216,14 +213,24 @@ export interface InteractionRecipient {
         request: ReadRequest,
         message: Message,
     ): Promise<{ dataReport: DataReport; payload?: DataReportPayloadIterator }>;
-    handleWriteRequest(exchange: MessageExchange, request: WriteRequest, message: Message): Promise<void>;
+    handleWriteRequest(
+        exchange: MessageExchange,
+        request: WriteRequest,
+        messenger: InteractionServerMessenger,
+        message: Message,
+    ): Promise<void>;
     handleSubscribeRequest(
         exchange: MessageExchange,
         request: SubscribeRequest,
         messenger: InteractionServerMessenger,
         message: Message,
     ): Promise<void>;
-    handleInvokeRequest(exchange: MessageExchange, request: InvokeRequest, message: Message): Promise<void>;
+    handleInvokeRequest(
+        exchange: MessageExchange,
+        request: InvokeRequest,
+        messenger: InteractionServerMessenger,
+        message: Message,
+    ): Promise<void>;
     handleTimedRequest(exchange: MessageExchange, request: TimedRequest, message: Message): void;
 }
 
@@ -262,7 +269,7 @@ export class InteractionServerMessenger extends InteractionMessenger {
                     }
                     case MessageType.WriteRequest: {
                         const writeRequest = TlvWriteRequest.decode(message.payload);
-                        await recipient.handleWriteRequest(this.exchange, writeRequest, message);
+                        await recipient.handleWriteRequest(this.exchange, writeRequest, this, message);
                         // response is sent by the handler
                         break;
                     }
@@ -280,7 +287,7 @@ export class InteractionServerMessenger extends InteractionMessenger {
                     }
                     case MessageType.InvokeRequest: {
                         const invokeRequest = TlvInvokeRequest.decode(message.payload);
-                        await recipient.handleInvokeRequest(this.exchange, invokeRequest, message);
+                        await recipient.handleInvokeRequest(this.exchange, invokeRequest, this, message);
                         // response is sent by the handler
                         break;
                     }
@@ -1083,99 +1090,18 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
         return finalResponse;
     }
 
-    /**
-     * Send a write command, automatically chunking into multiple messages if needed.
-     * Yields WriteResponse for each chunk. For suppressResponse, yields nothing.
-     */
-    async *sendWriteCommand(writeRequest: WriteRequest): AsyncGenerator<WriteResponse> {
-        const { writeRequests, suppressResponse } = writeRequest;
-
-        if (writeRequests.length === 0) {
-            throw new ImplementationError("Write request must contain at least one attribute");
-        }
-
-        // Chunk the write-requests based on max payload size
-        const chunks = this.#chunkWriteRequests(writeRequests, writeRequest);
-
-        if (suppressResponse) {
-            if (chunks.length > 1) {
-                throw new ImplementationError("Write request with suppressResponse cannot be chunked");
-            }
-
-            await this.requestWithSuppressedResponse(MessageType.WriteRequest, TlvWriteRequest, {
-                ...writeRequest,
-                writeRequests: chunks[0],
-                moreChunkedMessages: undefined,
-            });
-
-            // Nothing to yield for a suppressed response
-            return;
-        }
-
-        for (let i = 0; i < chunks.length; i++) {
-            const chunk = chunks[i];
-            const isLastChunk = i === chunks.length - 1;
-
-            const chunkRequest: WriteRequest = {
-                ...writeRequest,
-                writeRequests: chunk,
-                moreChunkedMessages: isLastChunk ? undefined : true,
-            };
-
-            // Send the chunk and receive WriteResponse
-            const response = await this.request(
+    async sendWriteCommand(writeRequest: WriteRequest) {
+        if (writeRequest.suppressResponse) {
+            await this.requestWithSuppressedResponse(MessageType.WriteRequest, TlvWriteRequest, writeRequest);
+        } else {
+            return await this.request(
                 MessageType.WriteRequest,
                 TlvWriteRequest,
                 MessageType.WriteResponse,
                 TlvWriteResponse,
-                chunkRequest,
+                writeRequest,
             );
-
-            yield response;
         }
-    }
-
-    /**
-     * Chunk write requests into messages that fit within the max payload size.
-     * Packs as many write requests as possible into each message. For list operations,
-     * the server accumulates ADDs until seeing a new REPLACE_ALL or end of chunked writes.
-     */
-    #chunkWriteRequests(writeRequests: AttributeData[], baseRequest: WriteRequest): AttributeData[][] {
-        const maxPayloadSize = this.exchange.maxPayloadSize;
-
-        // Calculate the overhead of the WriteRequest message (without writeRequests)
-        const emptyRequest: WriteRequest = {
-            ...baseRequest,
-            writeRequests: [],
-            moreChunkedMessages: true, // Assume chunking for size calculation
-        };
-        const baseMessageSize = TlvWriteRequest.encode(emptyRequest).byteLength;
-        const availableForData = maxPayloadSize - baseMessageSize;
-
-        // Pack write requests into chunks, fitting as many as possible in each message
-        const chunks = new Array<AttributeData[]>();
-        let currentChunk = new Array<AttributeData>();
-        let currentChunkSize = 0;
-
-        for (const request of writeRequests) {
-            const requestSize = TlvAttributeData.encode(request).byteLength;
-
-            if (currentChunkSize + requestSize > availableForData && currentChunk.length > 0) {
-                // This request doesn't fit - start a new chunk
-                chunks.push(currentChunk);
-                currentChunk = [];
-                currentChunkSize = 0;
-            }
-
-            currentChunk.push(request);
-            currentChunkSize += requestSize;
-        }
-
-        if (currentChunk.length > 0) {
-            chunks.push(currentChunk);
-        }
-
-        return chunks;
     }
 
     sendTimedRequest(timeout: Duration) {

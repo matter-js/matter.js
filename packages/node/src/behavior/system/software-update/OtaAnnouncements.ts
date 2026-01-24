@@ -182,7 +182,7 @@ export class OtaAnnouncements {
                     ),
                 );
 
-                await WriteResult.assertSuccess(writeResult);
+                WriteResult.assertSuccess(await writeResult);
                 logger.debug(
                     `${existingOtaProviderRecord === undefined ? "Added" : "Updated"} default OTA provider for`,
                     peerAddress,

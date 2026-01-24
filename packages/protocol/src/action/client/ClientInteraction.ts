@@ -41,7 +41,7 @@ import { PeerAddress } from "#peer/PeerAddress.js";
 import { ExchangeProvider } from "#protocol/ExchangeProvider.js";
 import { SessionClosedError } from "#protocol/index.js";
 import { SecureSession } from "#session/SecureSession.js";
-import { NodeId, TlvAttributeReport, TlvNoResponse, TlvSubscribeResponse, TypeFromSchema } from "#types";
+import { Status, TlvAttributeReport, TlvNoResponse, TlvSubscribeResponse, TypeFromSchema } from "#types";
 import { ClientWrite } from "./ClientWrite.js";
 import { InputChunk } from "./InputChunk.js";
 import { ClientSubscribe } from "./subscription/ClientSubscribe.js";
@@ -189,12 +189,8 @@ export class ClientInteraction<
 
     /**
      * Write to node attributes.
-     *
-     * Yields write status results as they are processed. For large write requests that exceed the maximum
-     * message size, the messenger automatically chunks the writes into multiple messages.
-     * When suppressResponse is true, yields nothing.
      */
-    async *write(request: ClientWrite, session?: SessionT): WriteResult {
+    async write<T extends ClientWrite>(request: T, session?: SessionT): WriteResult<T> {
         await using context = await this.#begin("writing", request, session);
         const { checkAbort, messenger } = context;
 
@@ -205,49 +201,54 @@ export class ClientInteraction<
 
         logger.info("Write", Mark.OUTBOUND, messenger.exchange.via, request);
 
+        const response = await messenger.sendWriteCommand(request);
+        checkAbort();
         if (request.suppressResponse) {
-            // For suppressResponse, just consume the generator (sends without expecting response)
-            for await (const _ of messenger.sendWriteCommand(request)) {
-                checkAbort();
-                // No responses expected
-            }
-            return;
+            return undefined as Awaited<WriteResult<T>>;
+        }
+        if (!response || !response.writeResponses?.length) {
+            return [] as Awaited<WriteResult<T>>;
         }
 
         let successCount = 0;
-
-        for await (const response of messenger.sendWriteCommand(request)) {
-            checkAbort();
-
-            const chunk = response.writeResponses.map(
-                ({ path, status }) =>
-                    ({
-                        kind: "attr-status",
-                        path: {
-                            nodeId: path.nodeId !== undefined ? NodeId(path.nodeId) : undefined,
-                            endpointId: path.endpointId!,
-                            clusterId: path.clusterId!,
-                            attributeId: path.attributeId!,
-                            listIndex: path.listIndex,
-                        },
-                        status: status.status,
-                        clusterStatus: status.clusterStatus,
-                    }) satisfies WriteResult.AttributeStatus,
-            );
-            successCount += chunk.length;
-
-            if (chunk.length > 0) {
-                yield chunk;
-            }
-            checkAbort();
-        }
+        let failureCount = 0;
+        const result = response.writeResponses.map(
+            ({
+                path: { nodeId, endpointId, clusterId, attributeId, listIndex },
+                status: { status, clusterStatus },
+            }) => {
+                if (status === Status.Success) {
+                    successCount++;
+                } else {
+                    failureCount++;
+                }
+                return {
+                    kind: "attr-status",
+                    path: {
+                        nodeId,
+                        endpointId: endpointId!,
+                        clusterId: clusterId!,
+                        attributeId: attributeId!,
+                        listIndex,
+                    },
+                    status,
+                    clusterStatus,
+                };
+            },
+        ) as Awaited<WriteResult<T>>;
 
         logger.info(
             "Write",
             Mark.INBOUND,
             messenger.exchange.via,
-            Diagnostic.weak(successCount === 0 ? "(empty)" : Diagnostic.dict({ success: successCount })),
+            Diagnostic.weak(
+                successCount + failureCount === 0
+                    ? "(empty)"
+                    : Diagnostic.dict({ success: successCount, failure: failureCount }),
+            ),
         );
+
+        return result;
     }
 
     /**

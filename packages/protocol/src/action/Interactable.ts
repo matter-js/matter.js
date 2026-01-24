@@ -37,7 +37,7 @@ export interface Interactable<SessionT = InteractionSession> {
     /**
      * Perform a Matter write interaction.
      */
-    write(request: Write, session?: SessionT): WriteResult;
+    write<T extends Write>(request: T, session?: SessionT): WriteResult<T>;
 
     /**
      * Perform a Matter invoke interaction.

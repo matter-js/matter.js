@@ -29,6 +29,7 @@ import {
     InteractionRecipient,
     InteractionServerMessenger,
     InvokeRequest,
+    InvokeResponseForSend,
     Mark,
     Message,
     MessageExchange,
@@ -44,17 +45,24 @@ import {
     Subscription,
     TimedRequest,
     WriteRequest,
+    WriteResponse,
+    WriteResult,
 } from "#protocol";
 import {
+    AttributeData,
     DEFAULT_MAX_PATHS_PER_INVOKE,
     INTERACTION_PROTOCOL_ID,
+    InvokeResponseData,
     ReceivedStatusResponseError,
     Status,
     StatusCode,
     StatusResponseError,
+    TlvAny,
     TlvAttributePath,
     TlvClusterPath,
     TlvEventPath,
+    TlvInvokeResponseData,
+    TlvInvokeResponseForSend,
     TlvSubscribeResponse,
     TypeFromSchema,
 } from "#types";
@@ -311,10 +319,10 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
     async handleWriteRequest(
         exchange: MessageExchange,
         writeRequest: WriteRequest,
+        messenger: InteractionServerMessenger,
         message: Message,
-        messenger?: InteractionServerMessenger,
     ): Promise<void> {
-        const { suppressResponse, timedRequest, writeRequests, interactionModelRevision, moreChunkedMessages } =
+        let { suppressResponse, timedRequest, writeRequests, interactionModelRevision, moreChunkedMessages } =
             writeRequest;
         const sessionType = message.packetHeader.sessionType;
 
@@ -378,16 +386,120 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             );
         }
 
-        const context = this.#prepareOnlineContext(
-            exchange,
-            message,
-            true, // always fabric filtered
-            receivedWithinTimedInteraction,
-            messenger,
-        );
+        // Track the previous processed attribute path for list operations across chunks.
+        // A list ADD (listIndex === null) is only valid if the previous write was to the same attribute.
+        let previousProcessedAttributePath: WriteResult.ConcreteAttributePath | undefined;
 
-        // Consume the generator to process all writes-messages (results are sent via messenger internally)
-        for await (const _status of this.#serverInteraction.write(writeRequest, context));
+        // Process chunks until moreChunkedMessages is false
+        while (true) {
+            const allResponses = new Array<WriteResult.AttributeStatus>();
+
+            // Separate write requests into batches based on list validity
+            // A list ADD without a prior REPLACE_ALL to the same attribute gets a BUSY response
+            let currentBatch = new Array<AttributeData>();
+
+            const processBatch = async () => {
+                if (currentBatch.length === 0) {
+                    return;
+                }
+
+                const context = this.#prepareOnlineContext(
+                    exchange,
+                    message,
+                    true, // always fabric filtered
+                    receivedWithinTimedInteraction,
+                    messenger,
+                );
+
+                // Send batch to OnlineServerInteraction
+                const batchRequest = { ...writeRequest, writeRequests: currentBatch, suppressResponse: false };
+                const batchResults = await this.#serverInteraction.write(batchRequest, context);
+                if (batchResults) {
+                    allResponses.push(...batchResults);
+                }
+
+                currentBatch = [];
+            };
+
+            for (const request of writeRequests) {
+                const { path } = request;
+                const listIndex = path.listIndex;
+
+                // Check if this is a list ADD that needs BUSY
+                if (listIndex === null) {
+                    // This is a list ADD - check if previous path matches
+                    if (
+                        previousProcessedAttributePath?.endpointId !== path.endpointId ||
+                        previousProcessedAttributePath?.clusterId !== path.clusterId ||
+                        previousProcessedAttributePath?.attributeId !== path.attributeId
+                    ) {
+                        // Invalid ADD - process any pending batch first, then add BUSY
+                        await processBatch();
+
+                        allResponses.push({
+                            kind: "attr-status",
+                            path: path as WriteResult.ConcreteAttributePath,
+                            status: Status.Busy,
+                        });
+
+                        // Don't update previousProcessedAttributePath for BUSY responses
+                        continue;
+                    }
+                }
+
+                // Valid write - add to batch and update tracking
+                currentBatch.push(request);
+                if (path.endpointId !== undefined && path.clusterId !== undefined && path.attributeId !== undefined) {
+                    previousProcessedAttributePath = path as WriteResult.ConcreteAttributePath;
+                }
+            }
+
+            // Process any remaining batch
+            await processBatch();
+
+            if (suppressResponse) {
+                // No response to send, we are done
+                break;
+            }
+
+            // Send WriteResponse for this chunk
+            const chunkResponse: WriteResponse = {
+                writeResponses: allResponses.map(({ path, status, clusterStatus }) => ({
+                    path,
+                    status: { status, clusterStatus },
+                })),
+                interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+            };
+
+            await messenger.sendWriteResponse(chunkResponse, {
+                logContext: moreChunkedMessages ? "WriteResponse-chunk" : undefined,
+            });
+
+            if (!moreChunkedMessages) {
+                // Was the last message, so we are done
+                break;
+            }
+
+            // Wait for the next chunk
+            const nextChunk = await messenger.readNextWriteRequest();
+            const nextRequest = nextChunk.writeRequest;
+            ({ writeRequests, moreChunkedMessages, suppressResponse } = nextRequest);
+
+            logger.info(() => [
+                "Write",
+                Mark.INBOUND,
+                exchange.via,
+                Diagnostic.asFlags({ suppressResponse, moreChunkedMessages }),
+                Diagnostic.weak(writeRequests.map(req => this.#node.protocol.inspectPath(req.path)).join(", ")),
+            ]);
+
+            if (suppressResponse) {
+                throw new StatusResponseError(
+                    "Multiple chunked messages and SuppressResponse cannot be used together in write messages",
+                    StatusCode.InvalidAction,
+                );
+            }
+        }
     }
 
     async handleSubscribeRequest(
@@ -702,8 +814,8 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
     async handleInvokeRequest(
         exchange: MessageExchange,
         request: InvokeRequest,
+        messenger: InteractionServerMessenger,
         message: Message,
-        messenger?: InteractionServerMessenger,
     ): Promise<void> {
         const { invokeRequests, timedRequest, suppressResponse, interactionModelRevision } = request;
         logger.info(() => [
@@ -765,8 +877,113 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             messenger,
         );
 
-        // Consume the generator to process all invoke-messages (results are sent via messenger internally)
-        for await (const _result of this.#serverInteraction.invoke(request, context));
+        const isGroupSession = message.packetHeader.sessionType === SessionType.Group;
+
+        // Get the invoke-results from the server interaction
+        const results = this.#serverInteraction.invoke(request, context);
+
+        // For suppressResponse or group sessions, just consume the iterator without sending responses
+        if (suppressResponse || isGroupSession) {
+            for await (const _chunk of results);
+            return;
+        }
+
+        // Track accumulated responses for the current message
+        const currentChunkResponses = new Array<InvokeResponseData>();
+        const emptyInvokeResponse: InvokeResponseForSend = {
+            suppressResponse: false, // Deprecated but must be present
+            interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+            invokeResponses: [],
+        };
+        const emptyInvokeResponseLength = TlvInvokeResponseForSend.encode(emptyInvokeResponse).byteLength;
+        let messageSize = emptyInvokeResponseLength;
+        let chunkedTransmissionTerminated = false;
+
+        /**
+         * Send a chunk when the message size limit would be exceeded.
+         */
+        const sendChunkIfNeeded = async (invokeResponse: InvokeResponseData): Promise<void> => {
+            const encodedInvokeResponse = TlvInvokeResponseData.encodeTlv(invokeResponse);
+            const invokeResponseBytes = TlvAny.getEncodedByteLength(encodedInvokeResponse);
+
+            // Check if adding this response would exceed message size
+            if (messageSize + invokeResponseBytes > exchange.maxPayloadSize && currentChunkResponses.length > 0) {
+                logger.debug(
+                    "Invoke (chunk)",
+                    Mark.OUTBOUND,
+                    exchange.via,
+                    Diagnostic.dict({ commands: currentChunkResponses.length }),
+                );
+
+                const chunkResponse: InvokeResponseForSend = {
+                    ...emptyInvokeResponse,
+                    invokeResponses: currentChunkResponses.map(r => TlvInvokeResponseData.encodeTlv(r)),
+                };
+
+                if (!(await messenger.sendInvokeResponseChunk(chunkResponse))) {
+                    chunkedTransmissionTerminated = true;
+                    return;
+                }
+
+                // Reset for next chunk
+                currentChunkResponses.length = 0;
+                messageSize = emptyInvokeResponseLength;
+            }
+
+            // Add to the current chunk
+            currentChunkResponses.push(invokeResponse);
+            messageSize += invokeResponseBytes;
+        };
+
+        // Process all invoke results
+        for await (const chunk of results) {
+            if (chunkedTransmissionTerminated) {
+                // Client terminated the chunked series, continue consuming but don't send
+                continue;
+            }
+
+            for (const data of chunk) {
+                switch (data.kind) {
+                    case "cmd-response": {
+                        const { path: commandPath, commandRef, data: commandFields } = data;
+                        await sendChunkIfNeeded({
+                            command: {
+                                commandPath,
+                                commandFields,
+                                commandRef,
+                            },
+                        });
+                        break;
+                    }
+
+                    case "cmd-status": {
+                        const { path, commandRef, status, clusterStatus } = data;
+                        await sendChunkIfNeeded({
+                            status: { commandPath: path, status: { status, clusterStatus }, commandRef },
+                        });
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Send the final response if not already terminated
+        if (!chunkedTransmissionTerminated) {
+            if (currentChunkResponses.length > 0) {
+                logger.debug(
+                    "Invoke (final)",
+                    Mark.OUTBOUND,
+                    exchange.via,
+                    Diagnostic.dict({ commands: currentChunkResponses.length }),
+                );
+            }
+
+            const finalResponse: InvokeResponseForSend = {
+                ...emptyInvokeResponse,
+                invokeResponses: currentChunkResponses.map(r => TlvInvokeResponseData.encodeTlv(r)),
+            };
+            await messenger.sendInvokeResponse(finalResponse);
+        }
     }
 
     handleTimedRequest(exchange: MessageExchange, { timeout, interactionModelRevision }: TimedRequest) {
