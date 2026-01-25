@@ -47,7 +47,7 @@ import { SessionParameters } from "#session/SessionParameters.js";
 import { CaseAuthenticatedTag, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "#types";
 import { ControllerDiscovery, DiscoveryError, PairRetransmissionLimitReachedError } from "./ControllerDiscovery.js";
 import { Peer } from "./Peer.js";
-import { PeerAddressStore, PeerDataStore } from "./PeerAddressStore.js";
+import { PeerAddressStore } from "./PeerAddressStore.js";
 import { PeerDescriptor } from "./PeerDescriptor.js";
 
 const logger = Logger.get("PeerSet");
@@ -118,7 +118,6 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     readonly #peers = new BasicSet<Peer>();
     readonly #construction: Construction<PeerSet>;
     readonly #store: PeerAddressStore;
-    readonly #nodeCachedData = new PeerAddressMap<PeerDataStore>(); // Temporarily until we store it in new API
     readonly #disconnected = AsyncObservable<[peer: Peer]>();
     readonly #peerContext: Peer.Context;
 
@@ -751,12 +750,8 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         try {
             exchange = this.#exchanges.initiateExchangeForSession(paseSession, SECURE_CHANNEL_PROTOCOL_ID);
 
-            const { session, resumed } = await this.#caseClient.pair(exchange, fabric, address.nodeId, options);
+            const { session } = await this.#caseClient.pair(exchange, fabric, address.nodeId, options);
 
-            if (!resumed) {
-                // When the session was not resumed then most likely the device firmware got updated, so we clear the cache
-                this.#nodeCachedData.delete(address);
-            }
             return session;
         } catch (error) {
             await exchange?.close();
@@ -816,7 +811,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     ) {
         let peer = this.get(address);
         if (peer === undefined) {
-            peer = new Peer({ address, dataStore: await this.#store.createNodeStore(address) }, this.#peerContext);
+            peer = new Peer({ address }, this.#peerContext);
             this.#peers.add(peer);
         }
         if (operationalServerAddress !== undefined) {
