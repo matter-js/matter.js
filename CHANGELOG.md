@@ -21,6 +21,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Add RFC 6762 §7.3 compliant duplicate question suppression to MdnsServer
     - Fix: Correctly handle multi-message write interactions (server and client) according to Matter specification
     - Fix: Correctly handle multi-message invoke responses (server and client) according to Matter specification
+    - Fix: Ensures to correctly stores and updates the "last known address" from the current session
+    - Fix: Reuse sessions that are pushed by devices themselves, even when we are in a reconnection cycle
+    - Fix: Handle new sessions that devices pushed during a reconnection cycle as successful reconnections in more places
 
 ## 0.16.7 (2026-01-22)
 
