@@ -422,6 +422,5 @@ export namespace NodeSession {
         isInitiator: boolean;
         isResumption: boolean;
         peerSessionParameters?: SessionParameters.Config;
-        delayManagerRegistration?: true;
     }
 }

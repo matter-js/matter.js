@@ -63,7 +63,7 @@ export class Peer {
                 this.#sessions.delete(session);
             });
 
-            // Ensure the operational address is always the most recent IP
+            // Ensure the operational address is always set to the most recent IP
             const { channel } = session.channel;
             if (isIpNetworkChannel(channel)) {
                 this.#descriptor.operationalAddress = channel.networkAddress;

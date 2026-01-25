@@ -464,7 +464,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         address: PeerAddress,
         operationalAddress?: ServerAddressUdp,
         options?: PeerConnectionOptions,
-    ) {
+    ): Promise<SecureSession> {
         address = PeerAddress(address);
         const {
             discoveryOptions: {
@@ -516,7 +516,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             if (queueSlot !== undefined) {
                 // If we got a new session while waiting for the queue slot, we assume we are done here
                 const currentSession = this.#sessions.maybeSessionFor(address);
-                if (session !== currentSession) {
+                if (currentSession?.isSecure && session !== currentSession) {
                     queueSlot.close();
                     return currentSession;
                 }

@@ -374,6 +374,7 @@ export abstract class Session {
 export namespace Session {
     export interface CommonConfig {
         manager?: SessionManager;
+        delayManagerRegistration?: true;
         channel?: Channel<Bytes>;
     }
 
