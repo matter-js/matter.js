@@ -5,7 +5,7 @@ inputs:
   connectedhomeip-tag:
     description: 'Tag of the connectedhomeip repo to use'
     required: true
-    default: 'master' # "v1.1-branch" is not containing our current status, so we use master till 1.2 comes out
+    default: 'v1.5-branch'
   rebuild-chip-tool:
     description: 'Rebuild the chip-tool'
     required: true
