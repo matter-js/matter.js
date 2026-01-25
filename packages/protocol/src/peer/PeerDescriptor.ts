@@ -6,7 +6,6 @@
 
 import { DiscoveryData } from "#common/Scanner.js";
 import { isDeepEqual, ServerAddressUdp } from "#general";
-import type { PeerDataStore } from "#peer/PeerAddressStore.js";
 import { PeerAddress } from "./PeerAddress.js";
 
 /**
@@ -29,27 +28,18 @@ export interface PeerDescriptor {
      * Additional information collected while locating the peer.
      */
     discoveryData?: DiscoveryData;
-
-    /**
-     * The data store for the peer.
-     *
-     * @deprecated
-     */
-    dataStore?: PeerDataStore;
 }
 
 export class ObservablePeerDescriptor implements PeerDescriptor {
     #address: PeerAddress;
     #operationalAddress?: ServerAddressUdp;
     #discoveryData?: DiscoveryData;
-    #dataStore?: PeerDataStore;
     #onChange: () => void;
 
-    constructor({ address, operationalAddress, discoveryData, dataStore }: PeerDescriptor, onChange: () => void) {
+    constructor({ address, operationalAddress, discoveryData }: PeerDescriptor, onChange: () => void) {
         this.#address = PeerAddress(address);
         this.#operationalAddress = operationalAddress;
         this.#discoveryData = discoveryData;
-        this.#dataStore = dataStore;
         this.#onChange = onChange;
     }
 
@@ -81,9 +71,5 @@ export class ObservablePeerDescriptor implements PeerDescriptor {
 
         this.#discoveryData = { ...this.#discoveryData, ...value };
         this.#onChange();
-    }
-
-    get dataStore() {
-        return this.#dataStore;
     }
 }
