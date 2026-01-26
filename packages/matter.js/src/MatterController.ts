@@ -34,7 +34,6 @@ import {
     isObject,
     Logger,
     MatterError,
-    MaybePromise,
     Minutes,
     ObserverGroup,
     ServerAddress,
@@ -72,7 +71,6 @@ import {
     PeerAddress,
     PeerAddressStore,
     PeerConnectionOptions,
-    PeerDataStore,
     PeerDescriptor,
     PeerSet,
     PhysicalDeviceProperties,
@@ -800,10 +798,6 @@ class CommissionedNodeStore extends PeerAddressStore {
         this.#controllerStore = controllerStore;
         this.#fabric = fabric;
         this.#peers = peers;
-    }
-
-    createNodeStore(_address: PeerAddress): MaybePromise<PeerDataStore | undefined> {
-        throw new ImplementationError("Not implemented");
     }
 
     async loadPeers() {

@@ -96,7 +96,7 @@ export class ClientNetworkRuntime extends NetworkRuntime {
             }
 
             const address = PeerAddress(commissioningState.peerAddress);
-            if (!address || session.peerAddress !== address) {
+            if (!address || !PeerAddress.is(session.peerAddress, address)) {
                 return;
             }
 
@@ -109,11 +109,11 @@ export class ClientNetworkRuntime extends NetworkRuntime {
             }
 
             const address = PeerAddress(commissioningState.peerAddress);
-            if (session.peerAddress !== address) {
+            if (!PeerAddress.is(session.peerAddress, address)) {
                 return;
             }
 
-            if (address && sessions.find(({ peerAddress }) => peerAddress === address)) {
+            if (address && sessions.find(({ peerAddress }) => PeerAddress.is(peerAddress, address))) {
                 return;
             }
 
