@@ -1551,6 +1551,215 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                 expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 })).deep.equal([]);
             });
         });
+
+        describe("Goodbye protection against out-of-order packets", () => {
+            const criteria: MdnsScannerTargetCriteria = {
+                commissionable: true,
+                operationalTargets: [{ fabricId: GLOBAL_ID }],
+            };
+            beforeEach(() => client.targetCriteriaProviders.add(criteria));
+            afterEach(() => client.targetCriteriaProviders.delete(criteria));
+
+            it("ignores goodbye (TTL=0) for operational device discovered within 1 second", async () => {
+                // Wait for the initial announcement to be received
+                const messages = waitForMessages({ count: 2 });
+                advertise(OPERATIONAL_SERVICE);
+                await messages;
+
+                // Verify the device is discovered
+                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)?.addresses).deep.equal(
+                    IPIntegrationResultsPort1,
+                );
+
+                // Send a goodbye message (TTL=0) immediately - simulating out-of-order packet
+                await serverSocket.send(
+                    {
+                        messageType: DnsMessageType.Response,
+                        answers: [
+                            {
+                                name: "0000000000000018-0000000000000001._matter._tcp.local",
+                                recordType: DnsRecordType.TXT,
+                                recordClass: 1,
+                                ttl: Instant, // TTL=0
+                                value: [],
+                                flushCache: false,
+                            },
+                        ],
+                    },
+                    "fake0",
+                );
+
+                // Wait for the message to be processed
+                await MockTime.resolve(Time.sleep("process", Millis(50)));
+
+                // Device should still be there - goodbye was ignored due to protection window
+                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)?.addresses).deep.equal(
+                    IPIntegrationResultsPort1,
+                );
+
+                await closeAll();
+            });
+
+            it("accepts goodbye (TTL=0) for operational device discovered more than 1 second ago", async () => {
+                // Wait for initial announcement to be received
+                const messages = waitForMessages({ count: 2 });
+                advertise(OPERATIONAL_SERVICE);
+                await messages;
+
+                // Verify device is discovered
+                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)?.addresses).deep.equal(
+                    IPIntegrationResultsPort1,
+                );
+
+                // Wait more than 1 second (protection window)
+                await MockTime.resolve(Time.sleep("wait", Millis(1100)));
+
+                // Send a goodbye message (TTL=0) - now outside protection window
+                await serverSocket.send(
+                    {
+                        messageType: DnsMessageType.Response,
+                        answers: [
+                            {
+                                name: "0000000000000018-0000000000000001._matter._tcp.local",
+                                recordType: DnsRecordType.TXT,
+                                recordClass: 1,
+                                ttl: Instant, // TTL=0
+                                value: [],
+                                flushCache: false,
+                            },
+                        ],
+                    },
+                    "fake0",
+                );
+
+                // Wait for message to be processed
+                await MockTime.resolve(Time.sleep("process", Millis(50)));
+
+                // Device should be removed - goodbye was accepted
+                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)).deep.equal(undefined);
+
+                await closeAll();
+            });
+
+            it("ignores goodbye (TTL=0) for commissionable device discovered within 1 second", async () => {
+                // Wait for initial announcement to be received
+                const messages = waitForMessages({ count: 2 });
+                advertise(COMMISSIONABLE_SERVICE);
+                await messages;
+
+                // Verify device is discovered
+                const devices = client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 });
+                expect(devices.length).equals(1);
+                expect(devices[0].deviceIdentifier).equals("8080808080808080");
+
+                // Send a goodbye message (TTL=0) immediately - simulating out-of-order packet
+                await serverSocket.send(
+                    {
+                        messageType: DnsMessageType.Response,
+                        answers: [
+                            {
+                                name: "8080808080808080._matterc._udp.local",
+                                recordType: DnsRecordType.TXT,
+                                recordClass: 1,
+                                ttl: Instant, // TTL=0
+                                value: [],
+                                flushCache: false,
+                            },
+                        ],
+                    },
+                    "fake0",
+                );
+
+                // Wait for message to be processed
+                await MockTime.resolve(Time.sleep("process", Millis(50)));
+
+                // Device should still be there - goodbye was ignored due to protection window
+                const devicesAfter = client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 });
+                expect(devicesAfter.length).equals(1);
+
+                await closeAll();
+            });
+
+            it("accepts goodbye (TTL=0) for commissionable device discovered more than 1 second ago", async () => {
+                // Wait for initial announcement to be received
+                const messages = waitForMessages({ count: 2 });
+                advertise(COMMISSIONABLE_SERVICE);
+                await messages;
+
+                // Verify device is discovered
+                const devices = client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 });
+                expect(devices.length).equals(1);
+
+                // Wait more than 1 second (protection window)
+                await MockTime.resolve(Time.sleep("wait", Millis(1100)));
+
+                // Send a goodbye message (TTL=0) - now outside protection window
+                await serverSocket.send(
+                    {
+                        messageType: DnsMessageType.Response,
+                        answers: [
+                            {
+                                name: "8080808080808080._matterc._udp.local",
+                                recordType: DnsRecordType.TXT,
+                                recordClass: 1,
+                                ttl: Instant, // TTL=0
+                                value: [],
+                                flushCache: false,
+                            },
+                        ],
+                    },
+                    "fake0",
+                );
+
+                // Wait for message to be processed
+                await MockTime.resolve(Time.sleep("process", Millis(50)));
+
+                // Device should be removed - goodbye was accepted
+                const devicesAfter = client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 });
+                expect(devicesAfter.length).equals(0);
+
+                await closeAll();
+            });
+
+            it("ignores goodbye (TTL=0) for IP address discovered within 1 second", async () => {
+                // Wait for initial announcement to be received
+                const messages = waitForMessages({ count: 2 });
+                advertise(OPERATIONAL_SERVICE);
+                await messages;
+
+                // Verify device is discovered with addresses
+                const device = client.getDiscoveredOperationalDevice(FABRIC, NODE_ID);
+                expect(device?.addresses.length).greaterThan(0);
+                const initialAddressCount = device?.addresses.length ?? 0;
+
+                // Send a goodbye for a specific IP address immediately
+                await serverSocket.send(
+                    {
+                        messageType: DnsMessageType.Response,
+                        answers: [
+                            {
+                                name: "00B0D063C2260000.local",
+                                recordType: DnsRecordType.AAAA,
+                                recordClass: 1,
+                                ttl: Instant, // TTL=0
+                                value: SERVER_IPv6,
+                                flushCache: false,
+                            },
+                        ],
+                    },
+                    "fake0",
+                );
+
+                // Wait for message to be processed
+                await MockTime.resolve(Time.sleep("process", Millis(50)));
+
+                // IP address should still be there - goodbye was ignored due to protection window
+                const deviceAfter = client.getDiscoveredOperationalDevice(FABRIC, NODE_ID);
+                expect(deviceAfter?.addresses.length).equals(initialAddressCount);
+
+                await closeAll();
+            });
+        });
     });
 });
 

@@ -73,6 +73,9 @@ export class BridgeTestInstance extends NodeTestInstance {
                 administratorCommissioning: {
                     windowStatus: AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen,
                 },
+                groupKeyManagement: {
+                    maxGroupsPerFabric: 50,
+                },
                 networkCommissioning: {
                     maxNetworks: 1,
                     interfaceEnabled: true,
@@ -84,9 +87,32 @@ export class BridgeTestInstance extends NodeTestInstance {
             },
         );
 
-        const bridgedLight = new Endpoint(DimmableLightDevice.with(BridgedDeviceBasicInformationServer), {
-            id: "onoff-3",
-            number: 3,
+        const aggregator = new Endpoint(AggregatorEndpoint, { id: "aggregator", number: 1 });
+
+        await serverNode.add(aggregator);
+
+        await aggregator.add(this.createBridgedLight(3));
+
+        // For RR 1.1
+        await aggregator.add(this.createBridgedLight(4));
+        await aggregator.add(this.createBridgedLight(5));
+        await aggregator.add(this.createBridgedLight(6));
+        await aggregator.add(this.createBridgedLight(7));
+        await aggregator.add(this.createBridgedLight(8));
+        await aggregator.add(this.createBridgedLight(9));
+        await aggregator.add(this.createBridgedLight(10));
+        await aggregator.add(this.createBridgedLight(11));
+        await aggregator.add(this.createBridgedLight(12));
+        await aggregator.add(this.createBridgedLight(13));
+        await aggregator.add(this.createBridgedLight(14));
+
+        return serverNode;
+    }
+
+    createBridgedLight(id: number) {
+        return new Endpoint(DimmableLightDevice.with(BridgedDeviceBasicInformationServer), {
+            id: `onoff-${id}`,
+            number: id,
             bridgedDeviceBasicInformation: {
                 vendorName: "Vendorname",
                 vendorId: VendorId(0xfff1),
@@ -109,13 +135,5 @@ export class BridgeTestInstance extends NodeTestInstance {
                 },
             },
         });
-
-        const aggregator = new Endpoint(AggregatorEndpoint, { id: "aggregator", number: 1 });
-
-        await serverNode.add(aggregator);
-
-        await aggregator.add(bridgedLight);
-
-        return serverNode;
     }
 }

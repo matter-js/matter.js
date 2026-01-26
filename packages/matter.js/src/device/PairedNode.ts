@@ -784,6 +784,11 @@ export class PairedNode {
         const endpointId = endpoint.number;
         const clusterId = behavior.cluster.id;
 
+        if (!endpoint.behaviors.supported[behavior.id]) {
+            logger.info(`Ignoring attribute changes for ${endpointId}.${behavior.cluster.name} for fields`, properties);
+            return;
+        }
+
         const state = endpoint.stateOf(behavior);
         const attributes = behavior.cluster.attributes;
         for (const attribute of properties ?? Object.keys(attributes)) {
@@ -1048,11 +1053,14 @@ export class PairedNode {
             }
         };
 
-        // First, read.  This allows us to retrieve attributes that do not support subscription and gives us
-        // physical device information required to optimize subscription parameters
-        for await (const chunk of this.#clientNode.interaction.read(read)) {
-            for (const entry of chunk) {
-                convert(entry);
+        // When we were already connected and just in the reconnection state, skip the read
+        if (!this.remoteInitializationDone || this.#connectionState !== NodeStates.Reconnecting) {
+            // First, read.  This allows us to retrieve attributes that do not support subscription and gives us
+            // physical device information required to optimize subscription parameters
+            for await (const chunk of this.#clientNode.interaction.read(read)) {
+                for (const entry of chunk) {
+                    convert(entry);
+                }
             }
         }
 
@@ -1628,9 +1636,13 @@ export class PairedNode {
         }
         this.#decommissioned = true;
 
+        this.#options.stateInformationCallback?.(this.nodeId, NodeStateInformation.Decommissioned);
+
         this.#setConnectionState(NodeStates.Disconnected);
 
         await this.#commissioningController.removeNode(this.nodeId, false);
+
+        this.events.decommissioned.emit();
     }
 
     /**

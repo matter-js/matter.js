@@ -672,7 +672,6 @@ export class InteractionClient {
             }
         }
 
-        // TODO Add multi message write handling with streamed encoding
         const writeRequests = attributes.flatMap(
             ({ endpointId, clusterId, attribute: { id, schema }, value, dataVersion }) => {
                 if (

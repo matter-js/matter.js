@@ -3,6 +3,7 @@ import { NotImplementedError } from "#general";
 import {
     Interactable,
     Invoke,
+    InvokeResult,
     NodeProtocol,
     Read,
     ReadResult,
@@ -35,12 +36,21 @@ export class OnlineServerInteraction implements Interactable<RemoteActorContext.
         throw new NotImplementedError("subscribe not implemented");
     }
 
+    /**
+     * Process write requests and return results.
+     * The caller is responsible for messaging/chunking and list state tracking.
+     */
     async write<T extends Write>(request: T, context: RemoteActorContext.Options): WriteResult<T> {
         return RemoteActorContext(context).act(session => this.#interaction.write(request, session));
     }
 
-    async *invoke(request: Invoke, context: RemoteActorContext.Options) {
+    /**
+     * Process invoke requests and yield results.
+     * The caller is responsible for messaging/chunking.
+     */
+    async *invoke(request: Invoke, context: RemoteActorContext.Options): InvokeResult {
         const session = RemoteActorContext({ ...context, command: true }).open();
+
         try {
             for await (const chunk of this.#interaction.invoke(request, session)) {
                 yield chunk;
@@ -48,6 +58,7 @@ export class OnlineServerInteraction implements Interactable<RemoteActorContext.
         } catch (error) {
             await session.reject(error);
         }
-        return session.resolve(undefined);
+
+        await session.resolve(undefined);
     }
 }
