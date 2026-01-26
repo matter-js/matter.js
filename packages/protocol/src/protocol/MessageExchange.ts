@@ -312,7 +312,7 @@ export class MessageExchange {
                     // Ignore if this is a standalone ack, probably this was a retransmission.
                 } else {
                     throw new MatterFlowError(
-                        `Incorrect ack received. Expected ${sentMessageIdToAck}, received: ${ackedMessageId}`,
+                        `Incorrect ack received. Expected ${hex.fixed(sentMessageIdToAck, 8)}, received: ${hex.fixed(ackedMessageId, 8)}`,
                     );
                 }
             } else {

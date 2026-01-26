@@ -4,9 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Construction, MaybePromise } from "#general";
-import { DecodedAttributeReportValue } from "#interaction/AttributeDataDecoder.js";
-import { AttributeId, ClusterId, EndpointNumber, EventNumber } from "#types";
+import { MaybePromise } from "#general";
 import { PeerAddress } from "./PeerAddress.js";
 import { PeerDescriptor } from "./PeerDescriptor.js";
 import type { PeerSet } from "./PeerSet.js";
@@ -18,20 +16,4 @@ export abstract class PeerAddressStore {
     abstract loadPeers(): MaybePromise<Iterable<PeerDescriptor>>;
     abstract updatePeer(peer: PeerDescriptor): MaybePromise<void>;
     abstract deletePeer(address: PeerAddress): MaybePromise<void>;
-    abstract createNodeStore(address: PeerAddress): MaybePromise<PeerDataStore | undefined>;
-}
-
-export abstract class PeerDataStore {
-    abstract construction: Construction<PeerDataStore>;
-
-    abstract maxEventNumber: EventNumber;
-    abstract updateLastEventNumber(eventNumber: EventNumber): MaybePromise<void>;
-
-    // TODO: Find a maybe better way to achieve this without functions
-    abstract retrieveAttribute(
-        endpointId: EndpointNumber,
-        clusterId: ClusterId,
-        attributeId: AttributeId,
-    ): DecodedAttributeReportValue<any> | undefined;
-    abstract retrieveAttributes(endpointId: EndpointNumber, clusterId: ClusterId): DecodedAttributeReportValue<any>[];
 }

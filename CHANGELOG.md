@@ -22,6 +22,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: When forcing an MDNS update for an operational device, ensure we also get new IP addresses
     - Fix: Correctly handle multi-message write interactions (server and client) according to Matter specification
     - Fix: Correctly handle multi-message invoke responses (server and client) according to Matter specification
+    - Fix: Ensures to correctly stores and updates the "last known address" from the current session
+    - Fix: Reuse sessions that are pushed by devices themselves, even when we are in a reconnection cycle
+    - Fix: Handle new sessions that devices pushed during a reconnection cycle as successful reconnections in more places
 
 - @project-chip/matter.js
   - Adjustment: Skip the full read before the subscription in the first two reconnection tries
