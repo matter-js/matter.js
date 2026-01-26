@@ -86,7 +86,7 @@ export class UdpConnection implements IpNetworkChannel<Bytes> {
     }
 
     get name() {
-        return `${this.type}://[${this.#peerAddress}]:${this.#peerPort}`;
+        return `${this.type}://${this.#peerAddress.includes(":") ? `[${this.#peerAddress}]` : this.#peerAddress}:${this.#peerPort}`;
     }
 
     get networkAddress(): ServerAddressUdp {

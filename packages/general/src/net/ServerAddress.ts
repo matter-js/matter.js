@@ -78,7 +78,8 @@ export namespace ServerAddress {
         switch (address.type) {
             case "udp":
             case "tcp":
-                return `${address.type}://${address.ip}:${address.port}`;
+                const ip = address.ip;
+                return `${address.type}://${ip.includes(":") ? `[${ip}]` : ip}:${address.port}`;
 
             case "ble":
                 return `ble://${address.peripheralAddress}`;

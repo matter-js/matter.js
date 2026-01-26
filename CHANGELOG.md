@@ -27,6 +27,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Handle new sessions that devices pushed during a reconnection cycle as successful reconnections in more places
 
 - @project-chip/matter.js
+  - Adjustment: Skip the full read before the subscription in the first two reconnection tries
   - Fix: Ensures to fire decommissioning events for all situations where a node is decommissioned
 
 ## 0.16.7 (2026-01-22)
