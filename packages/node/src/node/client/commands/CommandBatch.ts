@@ -32,7 +32,7 @@ interface PendingCommand {
  *
  * Extends {@link CommandInvoker} to add batching capability on top of single command invocation.
  */
-export class CommandBatcher extends CommandInvoker {
+export class CommandBatch extends CommandInvoker {
     readonly #pendingCommands = new Map<number, PendingCommand>();
     readonly #mutex: Mutex;
     readonly #flushTimer: Timer;

@@ -28,7 +28,7 @@ import {
 } from "#protocol";
 import { EndpointNumber } from "#types";
 import { ClientEndpointInitializer } from "./ClientEndpointInitializer.js";
-import { CommandBatcher } from "./commands/CommandBatcher.js";
+import { CommandBatch } from "./commands/CommandBatch.js";
 
 /**
  * A {@link ClientInteraction} that brings the node online before attempting interaction.
@@ -52,7 +52,7 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
     /**
      * Command invoker for this interaction.
      *
-     * For regular client nodes, returns a {@link CommandBatcher} that collects commands
+     * For regular client nodes, returns a {@link CommandBatch} that collects commands
      * invoked within the same timer tick and sends them as a single batched invoke-request.
      *
      * Override in subclasses to provide different invoker behavior (e.g., groups use plain
@@ -70,7 +70,7 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
      * Override in subclasses to provide different invoker types.
      */
     protected createInvoker(): CommandInvoker {
-        return new CommandBatcher(this.#node);
+        return new CommandBatch(this.#node);
     }
 
     /**
