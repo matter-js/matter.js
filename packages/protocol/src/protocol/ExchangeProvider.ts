@@ -6,7 +6,6 @@
 import { Diagnostic, Duration, Observable, Timestamp } from "#general";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
-import { DEFAULT_EXPECTED_PROCESSING_TIME } from "#protocol/MessageChannel.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { ProtocolHandler } from "#protocol/ProtocolHandler.js";
 import { SecureSession } from "#session/SecureSession.js";
@@ -14,6 +13,7 @@ import { Session } from "#session/Session.js";
 import { SessionManager } from "#session/SessionManager.js";
 import { INTERACTION_PROTOCOL_ID } from "#types";
 import { SessionClosedError } from "./errors.js";
+import { MRP } from "./MRP.js";
 
 /**
  * Interface for obtaining an exchange with a specific peer.
@@ -69,7 +69,7 @@ export class DedicatedChannelExchangeProvider extends ExchangeProvider {
         return this.#session;
     }
 
-    maximumPeerResponseTime(expectedProcessingTime = DEFAULT_EXPECTED_PROCESSING_TIME) {
+    maximumPeerResponseTime(expectedProcessingTime = MRP.DEFAULT_EXPECTED_PROCESSING_TIME) {
         return this.exchangeManager.calculateMaximumPeerResponseTimeMsFor(this.#session, expectedProcessingTime);
     }
 }
@@ -130,7 +130,7 @@ export class ReconnectableExchangeProvider extends ExchangeProvider {
         return this.sessions.sessionFor(this.#address);
     }
 
-    maximumPeerResponseTime(expectedProcessingTimeMs = DEFAULT_EXPECTED_PROCESSING_TIME) {
+    maximumPeerResponseTime(expectedProcessingTimeMs = MRP.DEFAULT_EXPECTED_PROCESSING_TIME) {
         return this.exchangeManager.calculateMaximumPeerResponseTimeMsFor(
             this.sessions.sessionFor(this.#address),
             expectedProcessingTimeMs,

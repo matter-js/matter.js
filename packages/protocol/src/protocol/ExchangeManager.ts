@@ -27,7 +27,6 @@ import {
     UnexpectedDataError,
 } from "#general";
 import { PeerAddress } from "#peer/PeerAddress.js";
-import { DEFAULT_EXPECTED_PROCESSING_TIME } from "#protocol/MessageChannel.js";
 import { SecureChannelMessenger } from "#securechannel/SecureChannelMessenger.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { Session } from "#session/Session.js";
@@ -36,6 +35,7 @@ import { UNICAST_UNSECURE_SESSION_ID } from "#session/UnsecuredSession.js";
 import { NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "#types";
 import { MessageExchange, MessageExchangeContext } from "./MessageExchange.js";
 import { DuplicateMessageError } from "./MessageReceptionState.js";
+import { MRP } from "./MRP.js";
 import { ProtocolHandler } from "./ProtocolHandler.js";
 
 const logger = Logger.get("ExchangeManager");
@@ -404,7 +404,10 @@ export class ExchangeManager {
         this.#workers.add(exchangeToClose.close());
     }
 
-    calculateMaximumPeerResponseTimeMsFor(session: Session, expectedProcessingTime = DEFAULT_EXPECTED_PROCESSING_TIME) {
+    calculateMaximumPeerResponseTimeMsFor(
+        session: Session,
+        expectedProcessingTime = MRP.DEFAULT_EXPECTED_PROCESSING_TIME,
+    ) {
         return session.channel.calculateMaximumPeerResponseTime(
             session.parameters,
             this.#sessions.sessionParameters,
