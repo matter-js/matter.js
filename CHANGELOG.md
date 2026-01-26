@@ -22,6 +22,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: When forcing an MDNS update for an operational device, ensure we also get new IP addresses
     - Fix: Correctly handle multi-message write interactions (server and client) according to Matter specification
     - Fix: Correctly handle multi-message invoke responses (server and client) according to Matter specification
+    - Fix: Sort out matching local OTA versions that are not applicable considering the current device version
     - Fix: Ensures to correctly stores and updates the "last known address" from the current session
     - Fix: Reuse sessions that are pushed by devices themselves, even when we are in a reconnection cycle
     - Fix: Handle new sessions that devices pushed during a reconnection cycle as successful reconnections in more places
@@ -36,7 +37,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Allow querying for updates even when we do not announce us as a default provider
 
 - @project-chip/matter.js
-  - Fix: Prevent error when receiving attribute changes for behaviors that are not yet supported by an endpoint
+    - Fix: Prevent error when receiving attribute changes for behaviors that are not yet supported by an endpoint
 
 ## 0.16.6 (2026-01-22)
 

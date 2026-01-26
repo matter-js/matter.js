@@ -227,11 +227,17 @@ export class DclOtaUpdateService {
                         localUpdates[0].maxApplicableSoftwareVersion ?? localUpdates[0].softwareVersion - 1,
                     source: localUpdates[0].mode === "prod" ? "dcl-prod" : "local",
                 };
-                logger.debug(`Found local update`, Diagnostic.dict(localUpdate));
-                if (targetSoftwareVersion !== undefined && localUpdate.softwareVersion === targetSoftwareVersion) {
-                    return localUpdate;
+                if (
+                    localUpdate.softwareVersion > currentSoftwareVersion &&
+                    currentSoftwareVersion >= localUpdate.minApplicableSoftwareVersion &&
+                    currentSoftwareVersion <= localUpdate.maxApplicableSoftwareVersion
+                ) {
+                    logger.debug(`Found applicable local update`, Diagnostic.dict(localUpdate));
+                    if (targetSoftwareVersion !== undefined && localUpdate.softwareVersion === targetSoftwareVersion) {
+                        return localUpdate;
+                    }
+                    foundUpdates.push(localUpdate);
                 }
-                foundUpdates.push(localUpdate);
             }
         }
 
@@ -508,7 +514,7 @@ export class DclOtaUpdateService {
             return false;
         }
 
-        // Current version must be within the applicable range if specified
+        // The current version must be within the applicable range if specified
         if (
             versionInfo.minApplicableSoftwareVersion !== undefined &&
             currentVersion < versionInfo.minApplicableSoftwareVersion
