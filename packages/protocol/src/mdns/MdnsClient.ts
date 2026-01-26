@@ -550,12 +550,19 @@ export class MdnsClient implements Scanner {
         }
         const deviceMatterQname = getOperationalDeviceQname(fabric.globalId, nodeId);
 
-        let storedDevice = ignoreExistingRecords ? undefined : this.#getOperationalDeviceRecords(deviceMatterQname);
-        if (storedDevice === undefined) {
+        let storedDevice = this.#getOperationalDeviceRecords(deviceMatterQname);
+        if (storedDevice === undefined || ignoreExistingRecords) {
             using _finding = this.#lifetime.join(
                 "finding peer",
                 PeerAddress({ fabricIndex: fabric.fabricIndex, nodeId }),
             );
+
+            if (storedDevice) {
+                // We know the device including IPs but want to query anew, so forget the addresses to ensure they get updated
+                const device = this.#operationalDeviceRecords.get(deviceMatterQname);
+                device?.addresses.clear();
+            }
+
             const promise = this.#registerWaiterPromise(deviceMatterQname, false, timeout, () =>
                 this.#getOperationalDeviceRecords(deviceMatterQname),
             );
