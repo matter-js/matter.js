@@ -176,7 +176,7 @@ export function expectAddresses(addresses?: Iterable<ServerAddressUdp>) {
 }
 
 export function expectKvs(service: IpService) {
-    expect([...service.kvs]).deep.equals([
+    expect([...service.parameters]).deep.equals([
         ["foo", "bar"],
         ["flag", ""],
     ]);

@@ -30,7 +30,7 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
     #changes?: Map<string, { kind: "update" | "delete"; record: DnssdName.Record }>;
     #notified?: Promise<void>;
     #maybeDeleting?: Promise<void>;
-    #kvs?: Map<string, string>;
+    #parameters?: Map<string, string>;
 
     constructor(
         readonly qname: string,
@@ -58,11 +58,11 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
         return this.#records.values();
     }
 
-    get kvs() {
-        if (this.#kvs === undefined) {
-            this.#kvs = new Map();
+    get parameters() {
+        if (this.#parameters === undefined) {
+            this.#parameters = new Map();
         }
-        return this.#kvs;
+        return this.#parameters;
     }
 
     get isDiscovered() {
@@ -76,9 +76,9 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
             for (const entry of entries) {
                 const pos = entry.indexOf("=");
                 if (pos === -1) {
-                    this.kvs.set(entry, "");
+                    this.parameters.set(entry, "");
                 } else {
-                    this.kvs.set(entry.slice(0, pos), entry.slice(pos + 1));
+                    this.parameters.set(entry.slice(0, pos), entry.slice(pos + 1));
                 }
             }
         }

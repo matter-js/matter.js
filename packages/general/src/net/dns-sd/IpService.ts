@@ -95,8 +95,8 @@ export class IpService {
     /**
      * Values from TXT records.
      */
-    get kvs() {
-        return this.#name.kvs;
+    get parameters() {
+        return this.#name.parameters;
     }
 
     /**
