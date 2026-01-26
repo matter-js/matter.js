@@ -1636,9 +1636,13 @@ export class PairedNode {
         }
         this.#decommissioned = true;
 
+        this.#options.stateInformationCallback?.(this.nodeId, NodeStateInformation.Decommissioned);
+
         this.#setConnectionState(NodeStates.Disconnected);
 
         await this.#commissioningController.removeNode(this.nodeId, false);
+
+        this.events.decommissioned.emit();
     }
 
     /**
