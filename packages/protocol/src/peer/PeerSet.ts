@@ -857,7 +857,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             peer = new Peer({ address }, this.#peerContext);
             this.#peers.add(peer);
         }
-        if (session !== undefined) {
+        if (session !== undefined && !session.isClosed) {
             const channel = session.channel;
             if (isIpNetworkChannel(channel)) {
                 peer.descriptor.operationalAddress = channel.networkAddress;

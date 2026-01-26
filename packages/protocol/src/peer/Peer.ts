@@ -64,9 +64,11 @@ export class Peer {
             });
 
             // Ensure the operational address is always set to the most recent IP
-            const { channel } = session.channel;
-            if (isIpNetworkChannel(channel)) {
-                this.#descriptor.operationalAddress = channel.networkAddress;
+            if (!session.isClosed) {
+                const { channel } = session.channel;
+                if (isIpNetworkChannel(channel)) {
+                    this.#descriptor.operationalAddress = channel.networkAddress;
+                }
             }
 
             // Cancel any active discovery since we have a secure session now

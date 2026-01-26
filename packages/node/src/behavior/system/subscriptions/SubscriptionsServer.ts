@@ -4,19 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { deepCopy, isIpNetworkChannel, Logger, MatterError, MaybePromise, Seconds, ServerAddressUdp } from "#general";
+import { deepCopy, isIpNetworkChannel, Logger, MatterError, MaybePromise, Seconds } from "#general";
 import { DatatypeModel, FieldElement } from "#model";
 import { InteractionServer, PeerSubscription } from "#node/server/InteractionServer.js";
 import { ServerSubscription } from "#node/server/ServerSubscription.js";
-import {
-    NodeDiscoveryType,
-    PeerAddress,
-    PeerAddressSet,
-    PeerSet,
-    SessionClosedError,
-    SessionManager,
-    Subscription,
-} from "#protocol";
+import { NodeDiscoveryType, PeerAddress, PeerAddressSet, PeerSet, SessionManager, Subscription } from "#protocol";
 import { StatusCode, StatusResponseError } from "#types";
 import { Behavior } from "../../Behavior.js";
 import { SessionsBehavior } from "../sessions/SessionsBehavior.js";
@@ -150,13 +142,8 @@ export class SubscriptionsBehavior extends Behavior {
         const { fabricIndex, nodeId } = peerAddress;
 
         // TODO Remove when we store peer addresses also for operational nodes
-        let operationalAddress: ServerAddressUdp | undefined;
-        try {
-            operationalAddress = isIpNetworkChannel(session.channel) ? session.channel.networkAddress : undefined;
-        } catch (error) {
-            // Can happen in edge cases, so better catch it and proceed without operational address
-            SessionClosedError.accept(error);
-        }
+        let operationalAddress =
+            !session.isClosed && isIpNetworkChannel(session.channel) ? session.channel.networkAddress : undefined;
         const peerSubscription: PeerSubscription = {
             subscriptionId: id,
             peerAddress: { fabricIndex, nodeId },
