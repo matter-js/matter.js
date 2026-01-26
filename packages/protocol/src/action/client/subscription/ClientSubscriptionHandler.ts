@@ -44,7 +44,7 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
         // Ensure there is a subscription ID present
         const { subscriptionId } = initialReport;
         if (subscriptionId === undefined) {
-            logger.debug("Ignoring unsolicited data report with no subscription ID");
+            logger.debug(exchange.via, "Ignoring unsolicited data report with no subscription ID");
             await sendInvalid(messenger, undefined);
             return;
         }
@@ -55,6 +55,7 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
         const subscription = this.#subscriptions.getPeer(session.peerAddress, subscriptionId);
         if (subscription === undefined) {
             logger.info(
+                exchange.via,
                 "Ignoring data report for unknown subscription ID",
                 Diagnostic.strong(Subscription.idStrOf(subscriptionId)),
             );
@@ -72,6 +73,7 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
                 const ending = await reports.next();
                 if (!ending.done) {
                     logger.warn(
+                        exchange.via,
                         "Unexpected data reports after empty report",
                         Diagnostic.strong(Subscription.idStrOf(subscriptionId)),
                     );
@@ -125,13 +127,14 @@ async function* processReports(
     for await (const report of otherReports) {
         const { subscriptionId: reportSubscriptionId } = report;
         if (reportSubscriptionId === undefined) {
-            logger.debug("Ignoring data report with missing subscription id");
+            logger.debug(messenger.exchange.via, "Ignoring data report with missing subscription id");
             await sendInvalid(messenger, reportSubscriptionId);
             continue;
         }
 
         if (reportSubscriptionId !== subscriptionId) {
             logger.debug(
+                messenger.exchange.via,
                 "Ignoring data report for incorrect subscription id",
                 Diagnostic.strong(Subscription.idStrOf(reportSubscriptionId)),
                 "expected",

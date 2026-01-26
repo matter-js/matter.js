@@ -335,7 +335,9 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
 
             // TODO Add support for correct Time handling, leave disabled for now
             if (this.state.setpointHoldExpiryTimestamp === undefined) {
-                //this.state.setpointHoldExpiryTimestamp = null;
+                //this.agent.asLocalActor(() => {
+                //    this.state.setpointHoldExpiryTimestamp = null;
+                //});
             } else {
                 logger.warn(
                     "Handling for setpointHoldExpiryTimestamp is not yet implemented. To use this attribute you need to install the needed logic yourself",
@@ -405,7 +407,9 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                 }
                 break;
         }
-        this.state.thermostatRunningMode = newState;
+        this.agent.asLocalActor(() => {
+            this.state.thermostatRunningMode = newState;
+        });
     }
 
     /**
@@ -1000,13 +1004,15 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
 
     #handleSystemModeChange(newMode: Thermostat.SystemMode) {
         if (this.state.thermostatRunningMode !== undefined && newMode !== Thermostat.SystemMode.Auto) {
-            if (newMode === Thermostat.SystemMode.Off) {
-                this.state.thermostatRunningMode = Thermostat.ThermostatRunningMode.Off;
-            } else if (newMode === Thermostat.SystemMode.Heat) {
-                this.state.thermostatRunningMode = Thermostat.ThermostatRunningMode.Heat;
-            } else if (newMode === Thermostat.SystemMode.Cool) {
-                this.state.thermostatRunningMode = Thermostat.ThermostatRunningMode.Cool;
-            }
+            this.agent.asLocalActor(() => {
+                if (newMode === Thermostat.SystemMode.Off) {
+                    this.state.thermostatRunningMode = Thermostat.ThermostatRunningMode.Off;
+                } else if (newMode === Thermostat.SystemMode.Heat) {
+                    this.state.thermostatRunningMode = Thermostat.ThermostatRunningMode.Heat;
+                } else if (newMode === Thermostat.SystemMode.Cool) {
+                    this.state.thermostatRunningMode = Thermostat.ThermostatRunningMode.Cool;
+                }
+            });
         }
     }
 

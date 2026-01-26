@@ -144,7 +144,8 @@ export class SoftwareUpdateManager extends Behavior {
             await this.#nodeOnline();
         }
 
-        this.reactTo(this.events.announceAsDefaultProvider$Changed, this.#announceAsDefaultProviderChanged);
+        this.reactTo(this.events.announceAsDefaultProvider$Changed, this.#updateAnnouncementSettings);
+        this.reactTo(this.events.announcementInterval$Changed, this.#updateAnnouncementSettings);
     }
 
     async #nodeOnline() {
@@ -153,7 +154,19 @@ export class SoftwareUpdateManager extends Behavior {
             this.internal.announcements = undefined;
         }
 
-        this.#announceAsDefaultProviderChanged(this.state.announceAsDefaultProvider);
+        // For now let's just provide update functionality when we are the fabric owner
+        // In theory we could also claim that for any other fabric but could conflict with the main controller of
+        // the fabric that then also claims being "the one provider".
+        const fabricAuthority = this.env.get(FabricAuthority);
+        const ownFabric = fabricAuthority.fabrics[0];
+        if (!ownFabric) {
+            // Can only happen if the SoftwareUpdateManager is used without any commissioned nodes
+            logger.info(`No commissioned peers yet, cannot check for OTA updates. Wait for Fabric being added.`);
+            fabricAuthority.fabricAdded.once(this.callback(this.#nodeOnline));
+            return;
+        }
+        this.internal.announcements = new OtaAnnouncements(this.endpoint, ownFabric);
+        this.#updateAnnouncementSettings();
 
         // Randomly force the first update check 5-10 minutes after startup
         const delay = Millis(Seconds(Math.floor(Math.random() * 300)) + Minutes(5));
@@ -166,33 +179,14 @@ export class SoftwareUpdateManager extends Behavior {
         ).start();
     }
 
-    #announceAsDefaultProviderChanged(enabled: boolean) {
-        if (!!this.internal.announcements === enabled) {
+    #updateAnnouncementSettings() {
+        if (this.internal.announcements === undefined) {
             return;
         }
-
-        if (enabled) {
-            // For now let's just provide update functionality when we are the fabric owner
-            // In theory we could also claim that for any other fabric but could conflict with the main controller of
-            // the fabric that then also claims being "the one provider".
-            const fabricAuthority = this.env.get(FabricAuthority);
-            const ownFabric = fabricAuthority.fabrics[0];
-            if (!ownFabric) {
-                // Can only happen if the SoftwareUpdateManager is used without any commissioned nodes
-                logger.info(`No commissioned peers yet, cannot check for OTA updates. Wait for Fabric being added.`);
-                fabricAuthority.fabricAdded.once(this.callback(this.#nodeOnline));
-                return;
-            }
-
-            this.internal.announcements = new OtaAnnouncements(
-                this.endpoint,
-                ownFabric,
-                this.state.announcementInterval,
-            );
+        if (this.state.announceAsDefaultProvider) {
+            this.internal.announcements.interval = this.state.announcementInterval;
         } else {
-            const announcements = this.internal.announcements!;
-            this.internal.announcements = undefined;
-            this.env.runtime.add(announcements.close());
+            this.internal.announcements.interval = undefined;
         }
     }
 
@@ -851,10 +845,7 @@ export namespace SoftwareUpdateManager {
         /** Default Update check Interval */
         updateCheckInterval = Hours(24);
 
-        /**
-         * Announce this controller as Update provider to all nodes
-         * Defaults to false because we saw strange effects in the field
-         */
+        /** Announce this controller as Update provider to all nodes */
         announceAsDefaultProvider = false;
 
         /** Interval to Announces this controller as Update provider. Must not be lower than 24h! */
@@ -890,5 +881,7 @@ export namespace SoftwareUpdateManager {
         updateDone = Observable<[peer: PeerAddress]>();
 
         announceAsDefaultProvider$Changed = Observable<[announceAsDefaultProvider: boolean]>();
+
+        announcementInterval$Changed = Observable<[announcementInterval: Duration]>();
     }
 }

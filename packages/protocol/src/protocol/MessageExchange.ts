@@ -37,7 +37,8 @@ import {
     StatusResponseError,
 } from "#types";
 import { RetransmissionLimitReachedError, SessionClosedError, UnexpectedMessageError } from "./errors.js";
-import { DEFAULT_EXPECTED_PROCESSING_TIME, MessageChannel, MRP } from "./MessageChannel.js";
+import { MessageChannel } from "./MessageChannel.js";
+import { MRP } from "./MRP.js";
 
 const logger = Logger.get("MessageExchange");
 
@@ -349,7 +350,7 @@ export class MessageExchange {
         const {
             expectAckOnly = false,
             disableMrpLogic,
-            expectedProcessingTime = DEFAULT_EXPECTED_PROCESSING_TIME,
+            expectedProcessingTime = MRP.DEFAULT_EXPECTED_PROCESSING_TIME,
             includeAcknowledgeMessageId,
             logContext,
             protocolId = this.#protocolId,
@@ -493,7 +494,7 @@ export class MessageExchange {
                 options?.expectedProcessingTime,
             );
         }
-        return this.#messagesQueue.read(timeout);
+        return this.#messagesQueue.read({ timeout });
     }
 
     async #sendStandaloneAckForMessage(message: Message) {

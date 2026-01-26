@@ -9,5 +9,5 @@
 import { MatterDefinition } from "../MatterDefinition.js";
 import { DatatypeElement as Datatype } from "../../elements/index.js";
 
-export const ipv6Pre = Datatype({ name: "ipv6pre", type: "octstr", isSeed: true });
+export const ipv6Pre = Datatype({ name: "ipv6pre", type: "octstr", constraint: "1 to 17", isSeed: true });
 MatterDefinition.children.push(ipv6Pre);

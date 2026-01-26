@@ -69,11 +69,11 @@ export class ServerInteraction<
         // TODO - validate request
 
         const writer = new AttributeWriteResponse(this.#node, session);
-        return await writer.process(request);
+        return (await writer.process(request)) as Awaited<WriteResult<T>>;
     }
 
     async *invoke(request: Invoke, session: SessionT): InvokeResult {
-        // TODO -  validate request
+        // TODO - validate request
 
         const invoker = new CommandInvokeResponse(this.#node, session);
         yield* invoker.process(request);

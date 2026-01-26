@@ -169,7 +169,10 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
 
     /**
      * Invoke a command remotely on the node.
-     * The returned command response is returned as response chunks
+     * The returned command response is returned as response chunks (attr-status).
+     *
+     * When the number of commands exceeds the peer's MaxPathsPerInvoke limit (or 1 for older nodes),
+     * commands are split across multiple parallel exchanges automatically by ClientInteraction.
      */
     async *invoke(request: ClientInvoke, context?: ActionContext): DecodedInvokeResult {
         // For commands, we always ignore the queue because the user is responsible for managing that themselves

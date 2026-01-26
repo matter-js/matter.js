@@ -717,14 +717,14 @@ tests:
 
   # This list should be expanded as we expand the TH to support more specification revisions
   - label:
-      "Step 62: SpecificationVersion value should be set to a valid Major,
+      "Step 62: SpecificationVersion value should be set to a valid Major, 
           Minor, and Dot version with the lower 8 bits set to zero."
     command: "readAttribute"
     attribute: "SpecificationVersion"
     response:
       saveAs: SpecificationVersionValue
       constraints:
-        anyOf: [0x01040000, 0x01040100, 0x01040200, 0x01050000]
+        anyOf: [0x01040000, 0x01040100, 0x01040200, 0x01050000, 0x01050100]
         hasMasksClear: [0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80]
 
   - label:
