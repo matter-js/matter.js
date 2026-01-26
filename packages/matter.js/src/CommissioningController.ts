@@ -697,7 +697,7 @@ export class CommissioningController {
                 return;
             }
             const { peerNodeId } = session;
-            logger.info(`Session for peer node ${peerNodeId} disconnected ...`);
+            logger.info(`Session for peer node ${this.fabric.addressOf(peerNodeId).toString()} disconnected ...`);
             const handler = this.#sessionDisconnectedHandler.get(peerNodeId);
             if (handler !== undefined) {
                 handler().catch(error => logger.warn(`Error while handling session disconnect: ${error}`));
