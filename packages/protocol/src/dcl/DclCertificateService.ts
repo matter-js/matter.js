@@ -218,6 +218,9 @@ export class DclCertificateService {
     async close() {
         this.#closed = true;
         this.#updateTimer?.stop();
+        if (this.#fetchPromise !== undefined) {
+            await this.#fetchPromise;
+        }
         await this.#storageManager?.close();
     }
 
