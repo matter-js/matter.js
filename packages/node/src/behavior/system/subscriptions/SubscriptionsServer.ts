@@ -142,7 +142,7 @@ export class SubscriptionsBehavior extends Behavior {
         const { fabricIndex, nodeId } = peerAddress;
 
         // TODO Remove when we store peer addresses also for operational nodes
-        let operationalAddress =
+        const operationalAddress =
             !session.isClosed && isIpNetworkChannel(session.channel) ? session.channel.networkAddress : undefined;
         const peerSubscription: PeerSubscription = {
             subscriptionId: id,
