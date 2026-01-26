@@ -84,6 +84,15 @@ describe("ClientNode", () => {
         const peer1 = controller.peers.get("peer1")!;
         expect(peer1).not.undefined;
 
+        // Verify commissioning addresses were stored correctly
+        const addresses = peer1.state.commissioning.addresses;
+        expect(addresses).not.undefined;
+        const udpAddresses = addresses!.filter(a => a.type === "udp");
+        expect(udpAddresses.length).equals(2); // IPv6 and IPv4
+        // Device is index 2, so should have 10.10.10.2 and ...8802
+        expect(udpAddresses.some(a => a.ip === "10.10.10.2")).true;
+        expect(udpAddresses.some(a => a.ip === "1111:2222:3333:4444:5555:6666:7777:8802")).true;
+
         // Validate the root endpoint
         expect(Object.keys(peer1.state).sort()).deep.equals(Object.keys(PEER1_STATE).sort());
         for (const key in peer1.state) {

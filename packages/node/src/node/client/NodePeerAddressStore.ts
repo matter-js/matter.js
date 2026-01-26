@@ -94,6 +94,4 @@ export class NodePeerAddressStore extends PeerAddressStore {
     deletePeer(address: PeerAddress) {
         this.#assignedAddresses.delete(address);
     }
-
-    createNodeStore(): undefined {}
 }
