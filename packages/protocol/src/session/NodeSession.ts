@@ -125,14 +125,14 @@ export class NodeSession extends SecureSession {
         this.#caseAuthenticatedTags = caseAuthenticatedTags ?? [];
         this.#isInitiator = isInitiator;
 
-        manager?.sessions.add(this);
-        fabric?.addSession(this);
-
         logger.debug(
             `Created secure ${this.isPase ? "PASE" : "CASE"} session for fabric index ${fabric?.fabricIndex}`,
             this.via,
             this.parameterDiagnostics,
         );
+
+        manager?.sessions.add(this);
+        fabric?.addSession(this);
     }
 
     get parameterDiagnostics() {

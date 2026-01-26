@@ -153,6 +153,7 @@ export class CaseServer implements ProtocolHandler {
             isResumption: true,
             peerSessionParameters: cx.peerSessionParams,
             caseAuthenticatedTags,
+            delayManagerRegistration: true, // Session establishment could still fail, so add session ourselves to the manager
         });
 
         // Generate sigma 2 resume
@@ -173,7 +174,10 @@ export class CaseServer implements ProtocolHandler {
             throw error;
         }
 
+        // Now we are sure, add the session to the manager
         NodeSession.logNew(logger, "Resumed", secureSession, cx.messenger, fabric, peerNodeId);
+
+        this.#sessions.sessions.add(secureSession);
 
         cx.resumptionRecord.resumptionId = cx.localResumptionId; /* Update the ID */
 
