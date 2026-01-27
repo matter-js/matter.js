@@ -41,7 +41,7 @@ export class MessageChannel implements Channel<Message> {
     ) {
         this.#channel = channel;
         if (isIpNetworkChannel(channel)) {
-            this.#isIpNetworkChannel = false;
+            this.#isIpNetworkChannel = true;
             this.#networkAddress.emit(channel.networkAddress);
         }
         this.#onClose = onClose;
