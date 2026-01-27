@@ -192,7 +192,7 @@ export class ExchangeManager {
                 // known addresses
                 // TODO Refactor this and move address to peer
                 if (session !== undefined && !session.isClosed) {
-                    session.channel.syncNetworkAddress(channel);
+                    session.channel.socket = channel;
                 }
             }
 

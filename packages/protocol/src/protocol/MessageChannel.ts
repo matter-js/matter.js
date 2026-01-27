@@ -47,10 +47,6 @@ export class MessageChannel implements Channel<Message> {
         this.#onClose = onClose;
     }
 
-    get channel() {
-        return this.#channel;
-    }
-
     set onClose(callback: () => MaybePromise<void>) {
         this.#onClose = callback;
     }
@@ -105,12 +101,17 @@ export class MessageChannel implements Channel<Message> {
         return this.#networkAddress;
     }
 
+    get channel() {
+        return this.#channel;
+    }
+
     /**
      * Sync the addresses for IP network channels and replace channel if the IPs change
      * If the channel is on a non ip network then the call is basically ignored
+     * We already use a new naming here whcih will be more used in future, so yes inconsistency in naming is ok for now
      * TODO refactor this out again and remove the address from the channel
      */
-    syncNetworkAddress(channel: Channel<Bytes>) {
+    set socket(channel: Channel<Bytes>) {
         if (
             this.closed ||
             !this.#isIpNetworkChannel ||
