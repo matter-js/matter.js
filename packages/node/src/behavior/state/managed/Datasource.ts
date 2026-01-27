@@ -52,6 +52,11 @@ export interface Datasource<T extends StateType = StateType> extends Transaction
     validate(session: ValueSupervisor.Session, values?: Val.Struct): void;
 
     /**
+     * Release resources.
+     */
+    close(): void;
+
+    /**
      * Obtain a read-only view of values.
      */
     readonly view: InstanceType<T>;
@@ -88,6 +93,17 @@ export function Datasource<const T extends StateType = StateType>(options: Datas
                 ref = createReference(this, internals, session);
             }
             return ref.managed as InstanceType<T>;
+        },
+
+        close() {
+            if (!internals.externalChangeListener || !internals.store) {
+                return;
+            }
+
+            const store = internals.store as Datasource.ExternallyMutableStore;
+            if (store.externalChangeListener === internals.externalChangeListener) {
+                delete store.externalChangeListener;
+            }
         },
 
         get version() {
@@ -273,6 +289,7 @@ interface Internals extends Datasource.Options {
     events: Datasource.Events;
     changedEventFor(key: string): undefined | Datasource.Events[any];
     persistentFields: Set<string>;
+    externalChangeListener?: (changes: Val.Struct) => Promise<void>;
 }
 
 /**
@@ -415,7 +432,7 @@ function configureExternalChanges(internals: Internals) {
     internals.version = store.version;
     internals.manageVersion = false;
 
-    store.externalChangeListener = async (potentialChanges: Val.Struct) => {
+    internals.externalChangeListener = store.externalChangeListener = async (potentialChanges: Val.Struct) => {
         const { values } = internals;
 
         let changes: undefined | Val.Struct;
