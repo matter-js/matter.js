@@ -352,7 +352,7 @@ export abstract class Session {
     /**
      * Invoked by the manager when the session is "live".
      *
-     * This is separated from construction because we sometimes discard sessions without installing in a manager or
+     * This is separate from construction because we sometimes discard sessions without installing in a manager or
      * closing.
      */
     activate(): Lifetime {
