@@ -155,6 +155,9 @@ export abstract class BehaviorBacking {
                 result = MaybePromise.then(result, () => this.#invokeClose(agent));
             }
 
+            this.#datasource?.close();
+            this.#datasource = undefined;
+
             return result;
         });
     }
