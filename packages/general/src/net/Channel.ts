@@ -48,5 +48,5 @@ export function isIpNetworkChannel<T>(channel?: Channel<T>): channel is IpNetwor
 export function sameIpNetworkChannel<T>(channel1: IpNetworkChannel<T>, channel2: IpNetworkChannel<T>) {
     const { networkAddress: addr1 } = channel1;
     const { networkAddress: addr2 } = channel2;
-    return addr1.type === addr2.type && addr1.ip === addr2.ip && addr1.port == addr2.port;
+    return addr1.type === addr2.type && addr1.ip === addr2.ip && addr1.port === addr2.port;
 }
