@@ -6,7 +6,19 @@
 
 import { Message, MessageCodec } from "#codec/MessageCodec.js";
 import { Mark } from "#common/Mark.js";
-import { Bytes, Channel, Diagnostic, Duration, IpNetworkChannel, Logger, MaybePromise } from "#general";
+import {
+    Bytes,
+    Channel,
+    Diagnostic,
+    Duration,
+    IpNetworkChannel,
+    isIpNetworkChannel,
+    Logger,
+    MaybePromise,
+    ObservableValue,
+    sameIpNetworkChannel,
+    ServerAddressUdp,
+} from "#general";
 import type { ExchangeLogContext } from "#protocol/MessageExchange.js";
 import type { Session } from "#session/Session.js";
 import type { SessionParameters } from "#session/SessionParameters.js";
@@ -15,16 +27,28 @@ import { MRP } from "./MRP.js";
 const logger = new Logger("MessageChannel");
 
 export class MessageChannel implements Channel<Message> {
+    #channel: Channel<Bytes>;
+    #networkAddress = ObservableValue<[ServerAddressUdp]>();
+    #isIpNetworkChannel = false;
     public closed = false;
     #onClose?: () => MaybePromise<void>;
     // When the session is supporting MRP and the channel is not reliable, use MRP handling
 
     constructor(
-        readonly channel: Channel<Bytes>,
+        channel: Channel<Bytes>,
         readonly session: Session,
         onClose?: () => MaybePromise<void>,
     ) {
+        this.#channel = channel;
+        if (isIpNetworkChannel(channel)) {
+            this.#isIpNetworkChannel = false;
+            this.#networkAddress.emit(channel.networkAddress);
+        }
         this.#onClose = onClose;
+    }
+
+    get channel() {
+        return this.#channel;
     }
 
     set onClose(callback: () => MaybePromise<void>) {
@@ -33,7 +57,7 @@ export class MessageChannel implements Channel<Message> {
 
     /** Is the underlying transport reliable? */
     get isReliable() {
-        return this.channel.isReliable;
+        return this.#channel.isReliable;
     }
 
     /**
@@ -45,7 +69,7 @@ export class MessageChannel implements Channel<Message> {
     }
 
     get type() {
-        return this.channel.type;
+        return this.#channel.type;
     }
 
     /**
@@ -53,7 +77,7 @@ export class MessageChannel implements Channel<Message> {
      * message payload sent here can be as huge as allowed by the channel.
      */
     get maxPayloadSize() {
-        return this.channel.maxPayloadSize;
+        return this.#channel.maxPayloadSize;
     }
 
     async send(message: Message, logContext?: ExchangeLogContext) {
@@ -66,21 +90,47 @@ export class MessageChannel implements Channel<Message> {
             );
         }
 
-        return await this.channel.send(bytes);
+        return await this.#channel.send(bytes);
     }
 
     get name() {
-        return Diagnostic.via(`${this.session.via}@${this.channel.name}`);
+        return Diagnostic.via(`${this.session.via}@${this.#channel.name}`);
     }
 
     get networkAddress() {
-        return (this.channel as IpNetworkChannel<Bytes> | undefined)?.networkAddress;
+        return this.#networkAddress.value;
+    }
+
+    get networkAddressChanged() {
+        return this.#networkAddress;
+    }
+
+    /**
+     * Sync the addresses for IP network channels and replace channel if the IPs change
+     * If the channel is on a non ip network then the call is basically ignored
+     * TODO refactor this out again and remove the address from the channel
+     */
+    syncNetworkAddress(channel: Channel<Bytes>) {
+        if (
+            this.closed ||
+            !this.#isIpNetworkChannel ||
+            !isIpNetworkChannel(channel) ||
+            channel.type !== "udp" ||
+            this.#channel.type !== "udp"
+        ) {
+            return;
+        }
+        if (!sameIpNetworkChannel(channel, this.#channel as IpNetworkChannel<Bytes>)) {
+            logger.info(`Updated channel for session`, this.name);
+            this.#channel = channel;
+            this.#networkAddress.emit(channel.networkAddress);
+        }
     }
 
     async close() {
         const wasAlreadyClosed = this.closed;
         this.closed = true;
-        await this.channel.close();
+        await this.#channel.close();
         if (!wasAlreadyClosed) {
             await this.#onClose?.();
         }
@@ -94,7 +144,7 @@ export class MessageChannel implements Channel<Message> {
         return MRP.maxPeerResponseTimeOf({
             peerSessionParameters,
             localSessionParameters,
-            channelType: this.channel.type,
+            channelType: this.#channel.type,
             isPeerActive: this.session.isPeerActive,
             usesMrp: this.session.usesMrp,
             expectedProcessingTime,

@@ -338,9 +338,6 @@ export abstract class Session {
         return this.#manager;
     }
 
-    /**
-     * This is primarily intended for testing.
-     */
     protected set channel(channel: MessageChannel) {
         if (this.#channel !== undefined) {
             throw new ImplementationError("Cannot replace active channel");
@@ -353,9 +350,9 @@ export abstract class Session {
     }
 
     /**
-     * Invoked by manager when the session is "live".
+     * Invoked by the manager when the session is "live".
      *
-     * This is separate from construction because we sometimes discard sessions without installing in a manager or
+     * This is separated from construction because we sometimes discard sessions without installing in a manager or
      * closing.
      */
     activate(): Lifetime {

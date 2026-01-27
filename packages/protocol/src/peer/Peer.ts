@@ -68,6 +68,9 @@ export class Peer {
                 const { channel } = session.channel;
                 if (isIpNetworkChannel(channel)) {
                     this.#descriptor.operationalAddress = channel.networkAddress;
+                    channel.networkAddressChanged.on(networkAddress => {
+                        this.#descriptor.operationalAddress = networkAddress;
+                    });
                 }
             }
 

@@ -187,6 +187,11 @@ export class ExchangeManager {
                     });
             } else {
                 session = this.#sessions.getSession(packet.header.sessionId);
+
+                // Ensure we have the latest address in the channel, the new message wins over potential other
+                // known addresses
+                // TODO Refactor this and move address to peer
+                session?.channel.syncNetworkAddress(channel);
             }
 
             if (session === undefined) {
