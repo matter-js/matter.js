@@ -116,7 +116,7 @@ export class ReactNativeBleClient {
         );
 
         if (!peripheral.isConnectable) {
-            logger.info(`Peripheral ${peripheral.id} is not connectable ... ignoring`);
+            logger.debug(`Peripheral ${peripheral.id} is not connectable ... ignoring`);
             return;
         }
         const matterServiceDataBase64 = peripheral.serviceData?.[BLE_MATTER_SERVICE_UUID.toLowerCase()];

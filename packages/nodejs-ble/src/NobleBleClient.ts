@@ -124,7 +124,7 @@ export class NobleBleClient {
         );
 
         if (!peripheral.connectable) {
-            logger.info(`Peripheral ${address} is not connectable ... ignoring`);
+            logger.debug(`Peripheral ${address} is not connectable ... ignoring`);
             return;
         }
         const matterServiceData = peripheral.advertisement.serviceData.find(
