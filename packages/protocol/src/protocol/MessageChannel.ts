@@ -108,7 +108,7 @@ export class MessageChannel implements Channel<Message> {
     /**
      * Sync the addresses for IP network channels and replace channel if the IPs change
      * If the channel is on a non ip network then the call is basically ignored
-     * We already use a new naming here whcih will be more used in future, so yes inconsistency in naming is ok for now
+     * We already use a new naming here which will be more used in future, so yes inconsistency in naming is ok for now
      * TODO refactor this out again and remove the address from the channel
      */
     set socket(channel: Channel<Bytes>) {
@@ -122,7 +122,7 @@ export class MessageChannel implements Channel<Message> {
             return;
         }
         if (!sameIpNetworkChannel(channel, this.#channel as IpNetworkChannel<Bytes>)) {
-            logger.info(`Updated channel for session`, this.name);
+            logger.debug(`Updated address to`, this.name);
             this.#channel = channel;
             this.#networkAddress.emit(channel.networkAddress);
         }
