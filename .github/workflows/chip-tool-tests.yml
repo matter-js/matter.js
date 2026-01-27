@@ -315,7 +315,7 @@ jobs:
               --app-path bridge:../support/chip-testing/dist/esm/BridgeTestApp.js \
               --app-path tv:../support/chip-testing/dist/esm/TvTestApp.js \
               --app-path energy-gateway:../support/chip-testing/dist/esm/AllClustersTestApp.js \
-              --app-path energy-management:../support/chip-testing/dist/esm/AllClustersTestApp.js \
+              --app-path evse:../support/chip-testing/dist/esm/AllClustersTestApp.js \
             '
 
   # Execute the slower (because simulated) application cluster tests

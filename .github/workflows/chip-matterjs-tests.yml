@@ -118,7 +118,7 @@ jobs:
               --app-path rvc:../bin/chip-rvc-app \
               --app-path network-manager:../bin/matter-network-manager-app \
               --app-path energy-gateway:../bin/chip-energy-gateway-app \
-              --app-path energy-management:../bin/chip-energy-management-app \
+              --app-path evse:../bin/chip-evse-app \
             '
       - name: Verify that Matter.js controller was used
         shell: bash
