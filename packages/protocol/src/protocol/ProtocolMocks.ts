@@ -162,6 +162,7 @@ export namespace ProtocolMocks {
         name = "mock-byte-channel";
         type = ChannelType.UDP;
         networkAddress: ServerAddressUdp;
+        networkAddressChanged = new Observable<[ServerAddressUdp]>();
 
         constructor(config: MockNetworkConfig) {
             const index = config.index ?? 1;

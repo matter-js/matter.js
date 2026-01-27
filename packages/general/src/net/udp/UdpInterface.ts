@@ -8,6 +8,7 @@ import { Channel, ChannelType, IpNetworkChannel } from "#net/Channel.js";
 import { ConnectionlessTransport } from "#net/ConnectionlessTransport.js";
 import { Network, NetworkError } from "#net/Network.js";
 import { Bytes } from "#util/Bytes.js";
+import { Observable } from "#util/index.js";
 import { ServerAddress, ServerAddressUdp } from "../ServerAddress.js";
 import { UdpChannel } from "./UdpChannel.js";
 
@@ -70,6 +71,7 @@ export class UdpConnection implements IpNetworkChannel<Bytes> {
     readonly #server: UdpChannel;
     readonly #peerAddress: string;
     readonly #peerPort: number;
+    readonly networkAddressChanged = Observable<[ServerAddressUdp]>(); // no change so will basically never emit
 
     constructor(server: UdpChannel, peerAddress: string, peerPort: number) {
         this.#server = server;

@@ -14,6 +14,7 @@ import {
     Lifetime,
     Logger,
     MaybePromise,
+    ServerAddressUdp,
 } from "#general";
 import type { MdnsClient } from "#mdns/MdnsClient.js";
 import type { NodeSession } from "#session/NodeSession.js";
@@ -58,16 +59,24 @@ export class Peer {
         this.#context = context;
 
         this.#sessions.added.on(session => {
+            const updateNetworkAddress = (networkAddress: ServerAddressUdp) => {
+                this.#descriptor.operationalAddress = networkAddress;
+            };
+
             // Remove channel when destroyed
             session.closing.on(() => {
                 this.#sessions.delete(session);
+                if (!session.isClosed) {
+                    session.channel.networkAddressChanged.on(updateNetworkAddress);
+                }
             });
 
             // Ensure the operational address is always set to the most recent IP
             if (!session.isClosed) {
                 const { channel } = session.channel;
                 if (isIpNetworkChannel(channel)) {
-                    this.#descriptor.operationalAddress = channel.networkAddress;
+                    updateNetworkAddress(channel.networkAddress);
+                    channel.networkAddressChanged.on(updateNetworkAddress);
                 }
             }
 
