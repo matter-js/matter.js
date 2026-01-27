@@ -110,7 +110,7 @@ runs:
             --target linux-x64-rvc-${BUILD_VARIANT} \
             --target linux-x64-network-manager-${BUILD_VARIANT} \
             --target linux-x64-energy-gateway-${BUILD_VARIANT} \
-            --target linux-x64-energy-management-${BUILD_VARIANT} \
+            --target linux-x64-evse-${BUILD_VARIANT} \
             build
           "
         cp out/linux-x64-chip-tool-${BUILD_VARIANT}/chip-tool ../bin/
@@ -123,7 +123,7 @@ runs:
         cp out/linux-x64-rvc-${BUILD_VARIANT}/chip-rvc-app ../bin/
         cp out/linux-x64-network-manager-${BUILD_VARIANT}/matter-network-manager-app ../bin/
         cp out/linux-x64-energy-gateway-${BUILD_VARIANT}/chip-energy-gateway-app ../bin/
-        cp out/linux-x64-energy-management-${BUILD_VARIANT}/chip-energy-management-app ../bin/
+        cp out/linux-x64-evse-${BUILD_VARIANT}/chip-evse-app ../bin/
 
     - name: Display used binaries
       shell: bash

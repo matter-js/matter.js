@@ -119,9 +119,9 @@ target "app" {
             },
 
             {
-                name: "energy-management",
-                target: "energy-management",
-                bin: "chip-energy-management-app",
+                name: "evse",
+                target: "evse",
+                bin: "chip-evse-app",
             },
         ]
     }
