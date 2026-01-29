@@ -672,8 +672,6 @@ export class PairedNode {
         try {
             await this.#initialize();
         } catch (error) {
-            MatterError.accept(error);
-
             if (error instanceof UnknownNodeError) {
                 logger.info(this.#peerAddress, `Node is unknown by controller, we can not connect.`);
                 this.#setConnectionState(NodeStates.Disconnected);

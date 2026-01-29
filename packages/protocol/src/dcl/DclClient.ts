@@ -28,8 +28,11 @@ export class MatterDclError extends MatterError {}
 
 /** Error thrown when fetching data from DCL fails */
 export class MatterDclResponseError extends MatterDclError {
+    readonly response: DclApiErrorResponse;
+
     constructor(path: string, error: DclApiErrorResponse, options?: ErrorOptions) {
         super(`Error fetching ${path} from DCL: ${error.code} - ${error.message}`, options);
+        this.response = error;
     }
 }
 
