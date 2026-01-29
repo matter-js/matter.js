@@ -15,7 +15,7 @@ import {
     isIpNetworkChannel,
     Logger,
     MaybePromise,
-    ObservableValue,
+    Observable,
     sameIpNetworkChannel,
     ServerAddressUdp,
 } from "#general";
@@ -28,7 +28,7 @@ const logger = new Logger("MessageChannel");
 
 export class MessageChannel implements Channel<Message> {
     #channel: Channel<Bytes>;
-    #networkAddress = ObservableValue<[ServerAddressUdp]>();
+    #networkAddressChanged = Observable<[ServerAddressUdp]>();
     #isIpNetworkChannel = false;
     public closed = false;
     #onClose?: () => MaybePromise<void>;
@@ -42,7 +42,8 @@ export class MessageChannel implements Channel<Message> {
         this.#channel = channel;
         if (isIpNetworkChannel(channel)) {
             this.#isIpNetworkChannel = true;
-            this.#networkAddress.emit(channel.networkAddress);
+            this.#networkAddressChanged.emit(channel.networkAddress);
+            channel.networkAddressChanged.on(networkAddress => this.#networkAddressChanged.emit(networkAddress));
         }
         this.#onClose = onClose;
     }
@@ -93,12 +94,20 @@ export class MessageChannel implements Channel<Message> {
         return Diagnostic.via(`${this.session.via}@${this.#channel.name}`);
     }
 
-    get networkAddress() {
-        return this.#networkAddress.value;
+    get networkAddress(): ServerAddressUdp | undefined {
+        if (this.#isIpNetworkChannel) {
+            return (this.#channel as IpNetworkChannel<Bytes>).networkAddress;
+        }
+    }
+
+    set networkAddress(networkAddress: ServerAddressUdp) {
+        if (this.#isIpNetworkChannel) {
+            (this.#channel as IpNetworkChannel<Bytes>).networkAddress = networkAddress;
+        }
     }
 
     get networkAddressChanged() {
-        return this.#networkAddress;
+        return this.#networkAddressChanged;
     }
 
     get channel() {
@@ -124,7 +133,7 @@ export class MessageChannel implements Channel<Message> {
         if (!sameIpNetworkChannel(channel, this.#channel as IpNetworkChannel<Bytes>)) {
             logger.debug(`Updated address to`, this.name);
             this.#channel = channel;
-            this.#networkAddress.emit(channel.networkAddress);
+            this.#networkAddressChanged.emit(channel.networkAddress);
         }
     }
 
