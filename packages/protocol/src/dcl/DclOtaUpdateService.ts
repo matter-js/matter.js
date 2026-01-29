@@ -6,6 +6,7 @@
 
 import { PersistedFileDesignator } from "#bdx/PersistedFileDesignator.js";
 import { ScopedStorage } from "#bdx/ScopedStorage.js";
+import { DclErrorCodes } from "#dcl/DclRestApiTypes.js";
 import {
     Construction,
     Crypto,
@@ -24,7 +25,7 @@ import {
 } from "#general";
 import { DeviceSoftwareVersionModelDclSchema, VendorId } from "#types";
 import { OtaImageReader } from "../ota/OtaImageReader.js";
-import { DclClient, MatterDclError } from "./DclClient.js";
+import { DclClient, MatterDclError, MatterDclResponseError } from "./DclClient.js";
 
 const logger = Logger.get("DclOtaUpdateService");
 
@@ -176,7 +177,11 @@ export class DclOtaUpdateService {
             logger.debug(`No applicable updates found in ${dclLogStr}`, Diagnostic.dict(diagnosticInfo));
         } catch (error) {
             MatterDclError.accept(error);
-            logger.info(`Failed to check for updates for VID: ${vendorId}, PID: ${productId}: ${error.message}`);
+            if (error instanceof MatterDclResponseError && error.response.code === DclErrorCodes.NotFound) {
+                logger.debug(`No applicable updates found in ${dclLogStr}`, Diagnostic.dict(diagnosticInfo));
+            } else {
+                logger.info(`Failed to check for updates for VID: ${vendorId}, PID: ${productId}: ${error.message}`);
+            }
         }
     }
 

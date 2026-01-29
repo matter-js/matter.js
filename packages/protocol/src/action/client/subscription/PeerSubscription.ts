@@ -5,6 +5,7 @@
  */
 
 import { Diagnostic, Duration, Millis, Seconds, Timestamp } from "#general";
+import { Subscription } from "#interaction/Subscription.js";
 import type { SubscribeResponse } from "#types";
 import { ClientSubscription } from "./ClientSubscription.js";
 
@@ -40,7 +41,7 @@ export class PeerSubscription extends ClientSubscription {
     timedOut() {
         this.logger.info(
             "Subscription",
-            Diagnostic.strong(this.subscriptionId),
+            Diagnostic.strong(Subscription.idStrOf(this.subscriptionId)),
             "timed out after",
             Diagnostic.strong(Duration.format(this.timeout)),
         );

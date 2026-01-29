@@ -6,6 +6,13 @@
 
 import { DeviceModelDclSchema, DeviceSoftwareVersionModelDclSchema, ProductAttestationDclSchema } from "#types";
 
+/**
+ * Currently incomplete List of DCL Error codes
+ */
+export enum DclErrorCodes {
+    NotFound = 5,
+}
+
 export interface DclApiErrorResponse {
     code: number;
     message: string;
