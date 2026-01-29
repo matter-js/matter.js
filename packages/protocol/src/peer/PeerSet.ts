@@ -921,8 +921,8 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                     return;
                 }
                 const { addresses } = device;
-                if (addresses.length && addresses.some(found => ServerAddress.isEqual(lastKnownAddress, found))) {
-                    // The last know address is still part of the result
+                if (!addresses.length || addresses.some(found => ServerAddress.isEqual(lastKnownAddress, found))) {
+                    // The last known address is still part of the result
                     return;
                 }
                 // Ok, just use the first address for the next request already
