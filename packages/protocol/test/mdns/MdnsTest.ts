@@ -996,6 +996,73 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
 
                 expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 })).deep.equal([]);
             });
+
+            describe("Multiple concurrent waiters for the same commissionable query", () => {
+                it("two timed commissionable discoveries with different timeouts reject in the correct order", async () => {
+                    // Start two findCommissionableDevices calls with different timeouts
+                    // Neither will find a device (not advertised), so they should timeout
+                    const shortTimeout = Millis(500);
+                    const longTimeout = Millis(1000);
+
+                    const identifier = { longDiscriminator: 1234 };
+                    const shortPromise = client.findCommissionableDevices(identifier, shortTimeout);
+                    const longPromise = client.findCommissionableDevices(identifier, longTimeout);
+
+                    const results: Array<{
+                        which: string;
+                        result: typeof shortPromise extends Promise<infer T> ? T : never;
+                    }> = [];
+
+                    // Track which promise resolves first
+                    shortPromise.then(result => results.push({ which: "short", result }));
+                    longPromise.then(result => results.push({ which: "long", result }));
+
+                    // Advance past the short timeout
+                    await MockTime.advance(600);
+                    await MockTime.yield3();
+
+                    // Short timeout should have resolved first with empty array
+                    expect(results.length).equals(1);
+                    expect(results[0].which).equals("short");
+                    expect(results[0].result).deep.equals([]);
+
+                    // Advance past the long timeout
+                    await MockTime.advance(500);
+                    await MockTime.yield3();
+
+                    // Long timeout should now also have resolved with empty array
+                    expect(results.length).equals(2);
+                    expect(results[1].which).equals("long");
+                    expect(results[1].result).deep.equals([]);
+                });
+
+                it("two concurrent commissionable queries both resolve when a matching record is found", async () => {
+                    // Start two findCommissionableDevices calls for the same identifier
+                    const timeout = Seconds(10);
+                    const identifier = { longDiscriminator: 1234 };
+
+                    const promise1 = client.findCommissionableDevices(identifier, timeout);
+                    const promise2 = client.findCommissionableDevices(identifier, timeout);
+
+                    // Now advertise the device - both waiters should be notified
+                    advertise(COMMISSIONABLE_SERVICE);
+
+                    // Wait for the broadcast to be processed
+                    const [result1, result2] = await MockTime.resolve(Promise.all([promise1, promise2]));
+
+                    // Both should have found the device
+                    expect(result1.length).equals(1);
+                    expect(result1[0].deviceIdentifier).equals("8080808080808080");
+                    expect(result1[0].addresses).deep.equal(IPIntegrationResultsPort1);
+
+                    expect(result2.length).equals(1);
+                    expect(result2[0].deviceIdentifier).equals("8080808080808080");
+                    expect(result2[0].addresses).deep.equal(IPIntegrationResultsPort1);
+
+                    // Cleanup
+                    await closeAll();
+                });
+            });
         });
 
         describe("Operational discovery", () => {
@@ -1031,6 +1098,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
 
                 // And expire the announcement
                 await close();
+                await MockTime.yield3();
 
                 // And empty result after expiry
                 expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)).deep.equal(undefined);
@@ -1235,6 +1303,66 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
 
                 // And empty result after expiry
                 expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)).deep.equal(undefined);
+            });
+
+            describe("Multiple concurrent waiters for the same query", () => {
+                it("two timed discoveries with different timeouts reject in the correct order", async () => {
+                    // Start two findOperationalDevice calls with different timeouts
+                    // Neither will find a device (not advertised), so they should timeout
+                    const shortTimeout = Millis(500);
+                    const longTimeout = Millis(1000);
+
+                    const shortPromise = client.findOperationalDevice(FABRIC, NODE_ID, shortTimeout);
+                    const longPromise = client.findOperationalDevice(FABRIC, NODE_ID, longTimeout);
+
+                    const results: Array<{
+                        which: string;
+                        result: typeof shortPromise extends Promise<infer T> ? T : never;
+                    }> = [];
+
+                    // Track which promise resolves first
+                    shortPromise.then(result => results.push({ which: "short", result }));
+                    longPromise.then(result => results.push({ which: "long", result }));
+
+                    // Advance past the short timeout
+                    await MockTime.advance(600);
+                    await MockTime.yield3();
+
+                    // Short timeout should have resolved first with undefined
+                    expect(results.length).equals(1);
+                    expect(results[0].which).equals("short");
+                    expect(results[0].result).equals(undefined);
+
+                    // Advance past the long timeout
+                    await MockTime.advance(500);
+                    await MockTime.yield3();
+
+                    // Long timeout should now also have resolved with undefined
+                    expect(results.length).equals(2);
+                    expect(results[1].which).equals("long");
+                    expect(results[1].result).equals(undefined);
+                });
+
+                it("two concurrent queries both resolve when a matching record is found", async () => {
+                    // Start two findOperationalDevice calls for the same device
+                    const timeout = Seconds(10);
+
+                    const promise1 = client.findOperationalDevice(FABRIC, NODE_ID, timeout);
+                    const promise2 = client.findOperationalDevice(FABRIC, NODE_ID, timeout);
+
+                    // Now advertise the device - both waiters should be notified
+                    advertise(OPERATIONAL_SERVICE);
+
+                    // Wait for the broadcast to be processed
+                    const [result1, result2] = await MockTime.resolve(Promise.all([promise1, promise2]));
+
+                    // Both should have found the device
+                    expect(result1?.addresses).deep.equal(IPIntegrationResultsPort1);
+                    expect(result2?.addresses).deep.equal(IPIntegrationResultsPort1);
+
+                    // Cleanup
+                    await close();
+                });
             });
         });
 
@@ -1601,7 +1729,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
             });
 
             it("accepts goodbye (TTL=0) for operational device discovered more than 1 second ago", async () => {
-                // Wait for initial announcement to be received
+                // Wait for an initial announcement to be received
                 const messages = waitForMessages({ count: 2 });
                 advertise(OPERATIONAL_SERVICE);
                 await messages;
@@ -1632,8 +1760,9 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                     "fake0",
                 );
 
-                // Wait for message to be processed
+                // Wait for the message to be processed
                 await MockTime.resolve(Time.sleep("process", Millis(50)));
+                await MockTime.yield3();
 
                 // Device should be removed - goodbye was accepted
                 expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)).deep.equal(undefined);

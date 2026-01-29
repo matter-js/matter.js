@@ -28,6 +28,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensures to correctly stores and updates the "last known address" from the current session
     - Fix: Reuse sessions that are pushed by devices themselves, even when we are in a reconnection cycle
     - Fix: Handle new sessions that devices pushed during a reconnection cycle as successful reconnections in more places
+    - Fix: Allows correctly handling multiple parallel mDNS queries for the same device
 
 - @project-chip/matter.js
   - Adjustment: Skip the full read before the subscription in the first two reconnection tries
