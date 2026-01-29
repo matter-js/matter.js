@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Crypto, Diagnostic, Environment } from "#general";
+import { Bytes, Crypto, Diagnostic, Environment } from "#general";
 import { OtaImageReader, PersistedFileDesignator } from "#protocol";
 import { createReadStream, createWriteStream, statSync, WriteStream } from "node:fs";
 import { basename, dirname, extname, join } from "node:path";
@@ -124,7 +124,7 @@ export default function commands(theNode: MatterNode) {
                         // Get crypto from the environment
                         const crypto = Environment.default.get(Crypto);
 
-                        // Generate output filename by adding "-payload" before the extension
+                        // Generate the output filename by adding "-payload" before the extension
                         const dir = dirname(file);
                         const ext = extname(file);
                         const base = basename(file, ext);
@@ -187,7 +187,7 @@ export default function commands(theNode: MatterNode) {
 
                         if (fileArg.startsWith("file://")) {
                             // Absolute file path outside storage
-                            const filePath = fileArg.slice(7); // Remove "file://" prefix
+                            const filePath = fileArg.slice(7); // Remove the "file://" prefix
                             source = filePath;
 
                             // Create a Node.js readable stream and convert to Web ReadableStream
@@ -216,7 +216,7 @@ export default function commands(theNode: MatterNode) {
                         console.log(`Software Version String: ${header.softwareVersionString}`);
                         console.log(`Payload Size: ${header.payloadSize} bytes`);
                         console.log(`Digest Algorithm: ${header.imageDigestType}`);
-                        console.log(`Digest: ${header.imageDigest}`);
+                        console.log(`Digest: ${Bytes.toHex(header.imageDigest)}`);
                         if (header.minApplicableSoftwareVersion !== undefined) {
                             console.log(`Min Applicable Version: ${header.minApplicableSoftwareVersion}`);
                         }
@@ -320,7 +320,7 @@ export default function commands(theNode: MatterNode) {
                         let filePath = file;
 
                         if (filePath.startsWith("file://")) {
-                            filePath = filePath.slice(7); // Remove "file://" prefix
+                            filePath = filePath.slice(7); // Remove the "file://" prefix
                         } else if (!filePath.startsWith("/")) {
                             console.error("Error: File path must be absolute or start with file://");
                             return;
