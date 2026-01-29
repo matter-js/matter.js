@@ -433,21 +433,28 @@ export class DclOtaUpdateService {
 
         logger.info(`Downloading OTA image from ${otaUrl}`, Diagnostic.dict(diagnosticInfo));
 
-        // Download or load the OTA image
-        const response = await fetch(otaUrl, {
-            method: "GET",
-            signal: AbortSignal.timeout(timeout),
-        });
+        try {
+            // Download or load the OTA image
+            const response = await fetch(otaUrl, {
+                method: "GET",
+                signal: AbortSignal.timeout(timeout),
+            });
 
-        if (!response.ok) {
-            throw new OtaUpdateError(`Failed to download OTA image: ${response.status} ${response.statusText}`);
+            if (!response.ok) {
+                throw new OtaUpdateError(`Failed to download OTA image: ${response.status} ${response.statusText}`);
+            }
+
+            if (!response.body) {
+                throw new OtaUpdateError("No response body received");
+            }
+
+            return await this.store(response.body, updateInfo, isProduction);
+        } catch (error) {
+            MatterError.reject(error);
+            const otaError = new OtaUpdateError(`Failed to download OTA image from ${otaUrl}`);
+            otaError.cause = error;
+            throw otaError;
         }
-
-        if (!response.body) {
-            throw new OtaUpdateError("No response body received");
-        }
-
-        return await this.store(response.body, updateInfo, isProduction);
     }
 
     /**
@@ -662,19 +669,26 @@ export class DclOtaUpdateService {
             );
         }
 
-        // Fetch and read the OTA image
-        const response = await fetch(fileUrl, { method: "GET" });
+        try {
+            // Fetch and read the OTA image
+            const response = await fetch(fileUrl, { method: "GET" });
 
-        if (!response.ok) {
-            throw new OtaUpdateError(`Failed to fetch OTA image: ${response.status} ${response.statusText}`);
+            if (!response.ok) {
+                throw new OtaUpdateError(`Failed to fetch OTA image: ${response.status} ${response.statusText}`);
+            }
+
+            if (!response.body) {
+                throw new OtaUpdateError("No response body received");
+            }
+
+            // Use the stream-based method
+            return await this.updateInfoFromStream(response.body, fileUrl, options);
+        } catch (error) {
+            MatterError.reject(error);
+            const otaError = new OtaUpdateError(`Failed to read OTA image from ${fileUrl}`);
+            otaError.cause = error;
+            throw otaError;
         }
-
-        if (!response.body) {
-            throw new OtaUpdateError("No response body received");
-        }
-
-        // Use the stream-based method
-        return await this.updateInfoFromStream(response.body, fileUrl, options);
     }
 
     /**
