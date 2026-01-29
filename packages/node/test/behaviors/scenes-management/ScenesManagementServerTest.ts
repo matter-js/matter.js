@@ -34,44 +34,48 @@ describe("ScenesManagementServer", () => {
         expect(peer1).not.undefined;
 
         const onoff = peer1.endpoints.for(EndpointNumber(1));
-        // Ensure off
-        await onoff.commandsOf(OnOffClient).off();
+        // Ensure off - commands are batched via a timer, so we need MockTime.resolve() to advance time
+        await MockTime.resolve(onoff.commandsOf(OnOffClient).off());
 
         const cmds = onoff.commandsOf(ScenesManagementClient);
 
         expect(
-            await cmds.addScene({
-                groupId: GroupId(0),
-                sceneId: 1,
-                transitionTime: 1000,
-                sceneName: "Scene1",
-                extensionFieldSetStructs: [
-                    {
-                        clusterId: ClusterId(6),
-                        attributeValueList: [{ attributeId: AttributeId(0), valueUnsigned8: 1 }],
-                    },
-                ],
-            }),
+            await MockTime.resolve(
+                cmds.addScene({
+                    groupId: GroupId(0),
+                    sceneId: 1,
+                    transitionTime: 1000,
+                    sceneName: "Scene1",
+                    extensionFieldSetStructs: [
+                        {
+                            clusterId: ClusterId(6),
+                            attributeValueList: [{ attributeId: AttributeId(0), valueUnsigned8: 1 }],
+                        },
+                    ],
+                }),
+            ),
         ).deep.equals({ status: 0, groupId: GroupId(0), sceneId: 1 });
 
         expect(
-            await cmds.addScene({
-                groupId: GroupId(0),
-                sceneId: 2,
-                transitionTime: 60000000,
-                sceneName: "Scene2",
-                extensionFieldSetStructs: [
-                    {
-                        clusterId: ClusterId(6),
-                        attributeValueList: [{ attributeId: AttributeId(0), valueUnsigned8: 1 }],
-                    },
-                ],
-            }),
+            await MockTime.resolve(
+                cmds.addScene({
+                    groupId: GroupId(0),
+                    sceneId: 2,
+                    transitionTime: 60000000,
+                    sceneName: "Scene2",
+                    extensionFieldSetStructs: [
+                        {
+                            clusterId: ClusterId(6),
+                            attributeValueList: [{ attributeId: AttributeId(0), valueUnsigned8: 1 }],
+                        },
+                    ],
+                }),
+            ),
         ).deep.equals({ status: 0, groupId: GroupId(0), sceneId: 2 });
 
         const waiter = MockTime.resolve(device.endpoints.for(1).eventsOf(OnOffServer).onOff$Changed);
 
-        await cmds.recallScene({ groupId: GroupId(0), sceneId: 1 });
+        await MockTime.resolve(cmds.recallScene({ groupId: GroupId(0), sceneId: 1 }));
 
         await MockTime.advance(1500);
 

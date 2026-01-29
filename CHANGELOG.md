@@ -12,6 +12,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/node
+    - Enhancement: Added automatic Command batching for non-root-endpoint commands when a node supports it and commands come in within the same macro-tick
     - Fix: Prevent error when writing Thermostat systemMode attribute
 
 - @matter/protocol

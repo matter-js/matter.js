@@ -6,6 +6,7 @@
 
 import type { ActionContext } from "#behavior/context/ActionContext.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
+import type { CommandInvoker } from "#node/client/commands/CommandInvoker.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { NodePhysicalProperties } from "#node/NodePhysicalProperties.js";
 import {
@@ -27,16 +28,56 @@ import {
 } from "#protocol";
 import { EndpointNumber } from "#types";
 import { ClientEndpointInitializer } from "./ClientEndpointInitializer.js";
+import { CommandBatcher } from "./commands/CommandBatcher.js";
 
 /**
  * A {@link ClientInteraction} that brings the node online before attempting interaction.
  */
 export class ClientNodeInteraction implements Interactable<ActionContext> {
-    #node: ClientNode;
+    readonly #node: ClientNode;
     #physicalProps?: PhysicalDeviceProperties;
+    #invoker?: CommandInvoker;
 
     constructor(node: ClientNode) {
         this.#node = node;
+    }
+
+    /**
+     * The node this interaction is associated with.
+     */
+    protected get node(): ClientNode {
+        return this.#node;
+    }
+
+    /**
+     * Command invoker for this interaction.
+     *
+     * For regular client nodes, returns a {@link CommandBatcher} that collects commands
+     * invoked within the same timer tick and sends them as a single batched invoke-request.
+     *
+     * Override in subclasses to provide different invoker behavior (e.g., groups use plain
+     * {@link CommandInvoker} without batching).
+     */
+    get invoker() {
+        if (this.#invoker === undefined) {
+            this.#invoker = this.createInvoker();
+        }
+        return this.#invoker;
+    }
+
+    /**
+     * Create the command invoker for this interaction.
+     * Override in subclasses to provide different invoker types.
+     */
+    protected createInvoker(): CommandInvoker {
+        return new CommandBatcher(this.#node);
+    }
+
+    /**
+     * Close the interaction and release resources.
+     */
+    async close() {
+        await this.#invoker?.close();
     }
 
     /**

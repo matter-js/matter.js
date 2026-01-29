@@ -35,6 +35,7 @@ describe("GroupKeyManagementServer", () => {
 
         const cmds = peer1.commandsOf(GroupKeyManagementClient);
 
+        // Commands to endpoint 0 (root) bypass batching, so no MockTime.resolve() needed
         await cmds.keySetWrite({
             groupKeySet: {
                 groupKeySetId: 1,

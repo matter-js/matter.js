@@ -17,10 +17,20 @@ import {
     WriteResult,
 } from "#protocol";
 import { ClientNodeInteraction } from "./ClientNodeInteraction.js";
+import { CommandInvoker } from "./commands/CommandInvoker.js";
 
 export class InvalidGroupOperationError extends ImplementationError {}
 
 export class ClientGroupInteraction extends ClientNodeInteraction {
+    /**
+     * Groups use a plain {@link CommandInvoker} without batching.
+     * Group invokes always use suppressResponse and don't have device details
+     * like maxPathsPerInvoke, so batching is not applicable.
+     */
+    protected override createInvoker() {
+        return new CommandInvoker(this.node);
+    }
+
     /** Groups do not support reading or subscribing to attributes */
     override read(_request: Read, _context?: ActionContext): ReadResult {
         throw new InvalidGroupOperationError("Groups do not support reading attributes");
