@@ -915,6 +915,19 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         this.#scanners
             .scannerFor(ChannelType.UDP)
             ?.findOperationalDevice(fabric, nodeId, RETRANSMISSION_DISCOVERY_TIMEOUT, true)
+            .then(device => {
+                const lastKnownAddress = this.#getLastOperationalAddress(address);
+                if (device === undefined || lastKnownAddress === undefined || session.isClosed) {
+                    return;
+                }
+                const { addresses } = device;
+                if (addresses.length && addresses.some(found => ServerAddress.isEqual(lastKnownAddress, found))) {
+                    // The last know address is still part of the result
+                    return;
+                }
+                // Ok, just use the first address for the next request already
+                session.channel.networkAddress = addresses[0];
+            })
             .catch(error => {
                 logger.error(`Failed to discover ${address} after resubmission started.`, error);
             })

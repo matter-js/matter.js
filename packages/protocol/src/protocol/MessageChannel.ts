@@ -93,8 +93,12 @@ export class MessageChannel implements Channel<Message> {
         return Diagnostic.via(`${this.session.via}@${this.#channel.name}`);
     }
 
-    get networkAddress() {
+    get networkAddress(): ServerAddressUdp | undefined {
         return this.#networkAddress.value;
+    }
+
+    set networkAddress(networkAddress: ServerAddressUdp) {
+        this.networkAddressChanged.emit(networkAddress);
     }
 
     get networkAddressChanged() {
