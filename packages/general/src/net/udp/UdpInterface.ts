@@ -71,7 +71,7 @@ export class UdpConnection implements IpNetworkChannel<Bytes> {
     readonly #server: UdpChannel;
     #peerAddress: string;
     #peerPort: number;
-    readonly networkAddressChanged = Observable<[ServerAddressUdp]>(); // no change so will basically never emit
+    readonly networkAddressChanged = Observable<[ServerAddressUdp]>();
 
     constructor(server: UdpChannel, peerAddress: string, peerPort: number) {
         this.#server = server;
