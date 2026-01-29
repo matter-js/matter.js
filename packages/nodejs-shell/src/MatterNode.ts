@@ -109,6 +109,9 @@ export class MatterNode {
                 autoConnect: false,
                 adminFabricLabel: "matter.js Shell",
                 enableOtaProvider: true,
+                basicInformation: {
+                    productName: "matter.js Shell",
+                },
             });
 
             const storageService = this.commissioningController.env.get(StorageService);

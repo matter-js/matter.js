@@ -13,7 +13,7 @@
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { ClusterClient } from "#cluster/client/ClusterClient.js";
 import { InteractionClientProvider } from "#cluster/client/InteractionClient.js";
-import { GeneralCommissioning } from "#clusters";
+import { BasicInformation, GeneralCommissioning } from "#clusters";
 import type { NodeCommissioningOptions } from "#CommissioningController.js";
 import { ControllerStore, ControllerStoreInterface } from "#ControllerStore.js";
 import { DeviceInformationData } from "#device/DeviceInformation.js";
@@ -47,6 +47,7 @@ import {
 import type { ClientNodeInteraction } from "#node";
 import {
     ClientNode,
+    ClusterState,
     CommissioningClient,
     ControllerBehavior,
     Endpoint,
@@ -136,6 +137,7 @@ export class MatterController {
         localPort?: number;
         environment: Environment;
         enableOtaProvider?: boolean;
+        basicInformation?: Partial<Omit<ClusterState.PropertiesOf<typeof BasicInformation.Complete>, "vendorId">>;
     }): Promise<MatterController> {
         const {
             rootFabric,
@@ -289,6 +291,7 @@ export class MatterController {
         localPort?: number;
         environment: Environment;
         enableOtaProvider?: boolean;
+        basicInformation?: Partial<Omit<ClusterState.PropertiesOf<typeof BasicInformation.Complete>, "vendorId">>;
     }) {
         const crypto = options.environment.get(Crypto);
         const {
@@ -306,6 +309,7 @@ export class MatterController {
             id,
             fabric,
             enableOtaProvider = false,
+            basicInformation = {},
         } = options;
 
         this.#construction = Construction(this, async () => {
@@ -321,6 +325,7 @@ export class MatterController {
                     port: localPort,
                 },
                 basicInformation: {
+                    ...basicInformation,
                     vendorId: adminVendorId,
                 },
                 controller: {

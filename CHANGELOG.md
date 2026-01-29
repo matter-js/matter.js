@@ -32,8 +32,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Allows correctly handling multiple parallel mDNS queries for the same device
 
 - @project-chip/matter.js
-  - Adjustment: Skip the full read before the subscription in the first two reconnection tries
-  - Fix: Ensures to fire decommissioning events for all situations where a node is decommissioned
+    - Enhancement: Allows specifying the BasicInformation attributes for the started Server node for a Controller
+    - Adjustment: Skip the full read before the subscription in the first two reconnection tries
+    - Fix: Ensures to fire decommissioning events for all situations where a node is decommissioned
 
 ## 0.16.7 (2026-01-22)
 
