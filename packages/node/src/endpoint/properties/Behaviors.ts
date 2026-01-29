@@ -510,7 +510,7 @@ export class Behaviors {
         let promise: undefined | MaybePromise<void>;
         const backing = this.#backings[id];
         if (backing) {
-            logger.warn(`Removing ${backing} from active endpoint`);
+            logger.info(`Removing ${backing} from active endpoint`);
             promise = backing.close();
             delete this.#backings[id];
         }
