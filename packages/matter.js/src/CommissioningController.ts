@@ -6,6 +6,7 @@
 
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { InteractionClient } from "#cluster/client/InteractionClient.js";
+import { BasicInformation } from "#clusters";
 import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import {
     ClassExtends,
@@ -59,7 +60,6 @@ import {
     TypeFromPartialBitSchema,
     VendorId,
 } from "#types";
-import { BasicInformation } from "@matter/types/clusters";
 import { CommissioningControllerNodeOptions, NodeStates, PairedNode } from "./device/PairedNode.js";
 import { MatterController, PairedNodeDetails } from "./MatterController.js";
 
