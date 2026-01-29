@@ -1014,10 +1014,9 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                     }> = [];
 
                     // Track which promise resolves first
-                    await Promise.allSettled([
-                        shortPromise.then(result => results.push({ which: "short", result })),
-                        longPromise.then(result => results.push({ which: "long", result })),
-                    ]);
+
+                    shortPromise.then(result => results.push({ which: "short", result })).catch(() => {});
+                    longPromise.then(result => results.push({ which: "long", result })).catch(() => {});
 
                     // Advance past the short timeout
                     await MockTime.advance(600);
@@ -1323,10 +1322,9 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                     }> = [];
 
                     // Track which promise resolves first
-                    await Promise.allSettled([
-                        shortPromise.then(result => results.push({ which: "short", result })),
-                        longPromise.then(result => results.push({ which: "long", result })),
-                    ]);
+
+                    shortPromise.then(result => results.push({ which: "short", result })).catch(() => {});
+                    longPromise.then(result => results.push({ which: "long", result })).catch(() => {});
 
                     // Advance past the short timeout
                     await MockTime.advance(600);
