@@ -69,9 +69,9 @@ export class UdpConnection implements IpNetworkChannel<Bytes> {
     readonly supportsLargeMessages = false;
     readonly type = ChannelType.UDP;
     readonly #server: UdpChannel;
-    readonly #peerAddress: string;
-    readonly #peerPort: number;
-    readonly networkAddressChanged = Observable<[ServerAddressUdp]>(); // no change so will basically never emit
+    #peerAddress: string;
+    #peerPort: number;
+    readonly networkAddressChanged = Observable<[ServerAddressUdp]>();
 
     constructor(server: UdpChannel, peerAddress: string, peerPort: number) {
         this.#server = server;
@@ -93,6 +93,15 @@ export class UdpConnection implements IpNetworkChannel<Bytes> {
 
     get networkAddress(): ServerAddressUdp {
         return { type: "udp", ip: this.#peerAddress, port: this.#peerPort };
+    }
+
+    set networkAddress(address: ServerAddressUdp) {
+        if (address.type !== "udp" || (address.ip === this.#peerAddress && address.port === this.#peerPort)) {
+            return;
+        }
+        this.#peerAddress = address.ip;
+        this.#peerPort = address.port;
+        this.networkAddressChanged.emit(this.networkAddress);
     }
 
     async close() {
