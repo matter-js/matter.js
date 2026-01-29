@@ -66,9 +66,6 @@ export class Peer {
             // Remove channel when destroyed
             session.closing.on(() => {
                 this.#sessions.delete(session);
-                if (!session.isClosed) {
-                    session.channel.networkAddressChanged.on(updateNetworkAddress);
-                }
             });
 
             // Ensure the operational address is always set to the most recent IP
