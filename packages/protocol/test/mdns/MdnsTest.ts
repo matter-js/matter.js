@@ -998,7 +998,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
             });
 
             describe("Multiple concurrent waiters for the same commissionable query", () => {
-                it("two timed commissionable discoveries with different timeouts reject in the correct order", async () => {
+                it("two timed commissionable discoveries with different timeouts resolve in the correct order", async () => {
                     // Start two findCommissionableDevices calls with different timeouts
                     // Neither will find a device (not advertised), so they should timeout
                     const shortTimeout = Millis(500);
@@ -1014,8 +1014,10 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                     }> = [];
 
                     // Track which promise resolves first
-                    shortPromise.then(result => results.push({ which: "short", result }));
-                    longPromise.then(result => results.push({ which: "long", result }));
+                    await Promise.allSettled([
+                        shortPromise.then(result => results.push({ which: "short", result })),
+                        longPromise.then(result => results.push({ which: "long", result })),
+                    ]);
 
                     // Advance past the short timeout
                     await MockTime.advance(600);
@@ -1306,9 +1308,9 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
             });
 
             describe("Multiple concurrent waiters for the same query", () => {
-                it("two timed discoveries with different timeouts reject in the correct order", async () => {
+                it("two timed discoveries with different timeouts resolve in the correct order", async () => {
                     // Start two findOperationalDevice calls with different timeouts
-                    // Neither will find a device (not advertised), so they should timeout
+                    // Neither will find a device (not advertised), so they should timeout and return undefined
                     const shortTimeout = Millis(500);
                     const longTimeout = Millis(1000);
 
@@ -1321,8 +1323,10 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                     }> = [];
 
                     // Track which promise resolves first
-                    shortPromise.then(result => results.push({ which: "short", result }));
-                    longPromise.then(result => results.push({ which: "long", result }));
+                    await Promise.allSettled([
+                        shortPromise.then(result => results.push({ which: "short", result })),
+                        longPromise.then(result => results.push({ which: "long", result })),
+                    ]);
 
                     // Advance past the short timeout
                     await MockTime.advance(600);

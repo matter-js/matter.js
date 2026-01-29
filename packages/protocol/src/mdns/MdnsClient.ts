@@ -133,7 +133,7 @@ export interface MdnsScannerTargetCriteria {
     }[];
 }
 
-export interface WaiterRecord {
+interface WaiterRecord {
     id: number;
     resolver: (value: any) => void;
     responder?: () => any;
@@ -169,7 +169,7 @@ export class MdnsClient implements Scanner {
     readonly #recordWaiters = new Map<string, WaiterRecord[]>();
 
     #queryTimer?: Timer;
-    #querycounter = 0;
+    #queryCounter = 0;
     #nextAnnounceInterval = START_ANNOUNCE_INTERVAL;
     readonly #periodicTimer: Timer;
     #closing = false;
@@ -270,11 +270,6 @@ export class MdnsClient implements Scanner {
                 }),
             );
         }
-    }
-
-    get nextQueryCount() {
-        this.#querycounter = (this.#querycounter + 1) % 0xffff;
-        return this.#querycounter;
     }
 
     /** Update the status if we care about MDNS messages or not */
@@ -463,7 +458,7 @@ export class MdnsClient implements Scanner {
         resolveOnUpdatedRecords = true,
         cancelResolver?: (value: void) => void,
     ): Promise<T> {
-        const id = this.nextQueryCount;
+        const id = (this.#queryCounter = (this.#queryCounter + 1) % 0xffff_ffff);
         const { promise, resolver } = createPromise<T>();
         const timer =
             timeout !== undefined
