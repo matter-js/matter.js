@@ -916,12 +916,12 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             .scannerFor(ChannelType.UDP)
             ?.findOperationalDevice(fabric, nodeId, RETRANSMISSION_DISCOVERY_TIMEOUT, true)
             .then(device => {
-                const lastKnownAddress = this.#getLastOperationalAddress(address);
-                if (device === undefined || lastKnownAddress === undefined || session.isClosed) {
+                if (device === undefined || session.isClosed || !isIpNetworkChannel(session.channel)) {
                     return;
                 }
+                const currentAddress = session.channel.networkAddress;
                 const { addresses } = device;
-                if (!addresses.length || addresses.some(found => ServerAddress.isEqual(lastKnownAddress, found))) {
+                if (!addresses.length || addresses.some(found => ServerAddress.isEqual(currentAddress, found))) {
                     // The last known address is still part of the result
                     return;
                 }
