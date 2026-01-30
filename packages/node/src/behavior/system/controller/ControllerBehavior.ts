@@ -144,6 +144,7 @@ export class ControllerBehavior extends Behavior {
                 scanner.targetCriteriaProviders.delete(this.internal.mdnsTargetCriteria);
             }
         }
+
         // Clear operational targets
         this.internal.mdnsTargetCriteria.operationalTargets.length = 0;
 

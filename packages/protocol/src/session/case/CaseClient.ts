@@ -8,8 +8,9 @@ import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Fabric } from "#fabric/Fabric.js";
 import {
-    AbortedError,
+    Abort,
     Bytes,
+    causedBy,
     Duration,
     EcdsaSignature,
     Logger,
@@ -18,9 +19,9 @@ import {
     PublicKey,
     UnexpectedDataError,
 } from "#general";
-import { MessageExchange } from "#protocol/MessageExchange.js";
+import { PeerCommunicationError } from "#peer/PeerCommunicationError.js";
+import { ExchangeSendOptions, MessageExchange } from "#protocol/MessageExchange.js";
 import { RetransmissionLimitReachedError } from "#protocol/errors.js";
-import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { SessionManager } from "#session/SessionManager.js";
 import { CaseAuthenticatedTag, NodeId, SecureChannelStatusCode } from "#types";
@@ -49,23 +50,26 @@ export class CaseClient {
     }
 
     async pair(exchange: MessageExchange, fabric: Fabric, peerNodeId: NodeId, options?: CaseClient.PairOptions) {
-        const { expectedProcessingTime, caseAuthenticatedTags } = options ?? {};
+        const { expectedProcessingTime, caseAuthenticatedTags, abort } = options ?? {};
         const messenger = new CaseClientMessenger(exchange, expectedProcessingTime);
 
+        const localAbort = new Abort({ abort });
+
         try {
-            return await this.#doPair(messenger, exchange, fabric, peerNodeId, caseAuthenticatedTags);
+            return await this.#doPair(messenger, exchange, fabric, peerNodeId, localAbort, caseAuthenticatedTags, {
+                maxRetransmissions: options?.maxInitialRetransmissions,
+                maxRetransmissionTime: options?.maxInitialRetransmissionTime,
+            });
         } catch (error) {
             if (
-                !(
-                    error instanceof ChannelStatusResponseError ||
-                    error instanceof RetransmissionLimitReachedError ||
-                    error instanceof AbortedError ||
-                    error instanceof NetworkError
-                )
+                !localAbort.aborted &&
+                !causedBy(error, NetworkError, PeerCommunicationError, RetransmissionLimitReachedError)
             ) {
                 await messenger.sendError(SecureChannelStatusCode.InvalidParam);
             }
             throw error;
+        } finally {
+            await messenger.close();
         }
     }
 
@@ -74,15 +78,17 @@ export class CaseClient {
         exchange: MessageExchange,
         fabric: Fabric,
         peerNodeId: NodeId,
-        caseAuthenticatedTags?: CaseAuthenticatedTag[],
+        abort: Abort,
+        caseAuthenticatedTags?: readonly CaseAuthenticatedTag[],
+        initialSendOptions?: ExchangeSendOptions,
     ) {
         const { crypto } = fabric;
 
         // Generate pairing info
         const initiatorRandom = crypto.randomBytes(32);
-        const initiatorSessionId = await this.#sessions.getNextAvailableSessionId(); // Initiator Session Id
+        const initiatorSessionId = await abort.attempt(this.#sessions.getNextAvailableSessionId()); // Initiator Session Id
         const { operationalIdentityProtectionKey, operationalCert: localNoc, intermediateCACert: localIcac } = fabric;
-        const localKey = await crypto.createKeyPair();
+        const localKey = await abort.attempt(crypto.createKeyPair());
 
         // Send sigma1
         let sigma1Bytes;
@@ -90,36 +96,49 @@ export class CaseClient {
         let resumptionRecord = this.#sessions.findResumptionRecordByAddress(fabric.addressOf(peerNodeId));
         if (resumptionRecord !== undefined) {
             const { sharedSecret, resumptionId } = resumptionRecord;
-            const resumeKey = await crypto.createHkdfKey(
-                sharedSecret,
-                Bytes.concat(initiatorRandom, resumptionId),
-                KDFSR1_KEY_INFO,
+            const resumeKey = await abort.attempt(
+                crypto.createHkdfKey(sharedSecret, Bytes.concat(initiatorRandom, resumptionId), KDFSR1_KEY_INFO),
             );
             const initiatorResumeMic = crypto.encrypt(resumeKey, new Uint8Array(0), RESUME1_MIC_NONCE);
-            sigma1Bytes = await messenger.sendSigma1({
-                initiatorSessionId,
-                destinationId: await fabric.currentDestinationIdFor(peerNodeId, initiatorRandom),
-                initiatorEcdhPublicKey: localKey.publicBits,
-                initiatorRandom,
-                resumptionId,
-                initiatorResumeMic,
-                initiatorSessionParams: this.#sessions.sessionParameters,
-            });
+            sigma1Bytes = await abort.attempt(
+                messenger.sendSigma1(
+                    {
+                        initiatorSessionId,
+                        destinationId: await abort.attempt(fabric.currentDestinationIdFor(peerNodeId, initiatorRandom)),
+                        initiatorEcdhPublicKey: localKey.publicBits,
+                        initiatorRandom,
+                        resumptionId,
+                        initiatorResumeMic,
+                        initiatorSessionParams: this.#sessions.sessionParameters,
+                    },
+                    initialSendOptions,
+                ),
+            );
         } else {
-            sigma1Bytes = await messenger.sendSigma1({
-                initiatorSessionId,
-                destinationId: await fabric.currentDestinationIdFor(peerNodeId, initiatorRandom),
-                initiatorEcdhPublicKey: localKey.publicBits,
-                initiatorRandom,
-                initiatorSessionParams: this.#sessions.sessionParameters,
-            });
+            sigma1Bytes = await abort.attempt(
+                messenger.sendSigma1(
+                    {
+                        initiatorSessionId,
+                        destinationId: await abort.attempt(fabric.currentDestinationIdFor(peerNodeId, initiatorRandom)),
+                        initiatorEcdhPublicKey: localKey.publicBits,
+                        initiatorRandom,
+                        initiatorSessionParams: this.#sessions.sessionParameters,
+                    },
+                    {
+                        abort,
+                        ...initialSendOptions,
+                    },
+                ),
+            );
         }
 
-        let secureSession;
-        const { sigma2Bytes, sigma2, sigma2Resume } = await messenger.readSigma2();
+        let secureSession: NodeSession;
+        const { sigma2Bytes, sigma2, sigma2Resume } = await messenger.readSigma2(abort);
         if (sigma2Resume !== undefined) {
             // Process sigma2 resume
-            if (resumptionRecord === undefined) throw new UnexpectedDataError("Received an unexpected sigma2Resume.");
+            if (resumptionRecord === undefined) {
+                throw new UnexpectedDataError("Received an unexpected sigma2Resume.");
+            }
             const {
                 sharedSecret,
                 fabric,
@@ -135,23 +154,27 @@ export class CaseClient {
             };
 
             const resumeSalt = Bytes.concat(initiatorRandom, resumptionId);
-            const resumeKey = await crypto.createHkdfKey(sharedSecret, resumeSalt, KDFSR2_KEY_INFO);
+            const resumeKey = await abort.attempt(crypto.createHkdfKey(sharedSecret, resumeSalt, KDFSR2_KEY_INFO));
             crypto.decrypt(resumeKey, resumeMic, RESUME2_MIC_NONCE);
 
+            await messenger.sendSuccess(abort);
+
             const secureSessionSalt = Bytes.concat(initiatorRandom, resumptionRecord.resumptionId);
-            secureSession = await this.#sessions.createSecureSession({
-                channel: exchange.channel.channel,
-                id: initiatorSessionId,
-                fabric,
-                peerNodeId,
-                peerSessionId,
-                sharedSecret,
-                salt: secureSessionSalt,
-                isInitiator: true,
-                isResumption: true,
-                peerSessionParameters: sessionParameters,
-                caseAuthenticatedTags,
-            });
+            secureSession = await abort.attempt(
+                this.#sessions.createSecureSession({
+                    channel: exchange.channel.channel,
+                    id: initiatorSessionId,
+                    fabric,
+                    peerNodeId,
+                    peerSessionId,
+                    sharedSecret,
+                    salt: secureSessionSalt,
+                    isInitiator: true,
+                    isResumption: true,
+                    peerSessionParameters: sessionParameters,
+                    caseAuthenticatedTags,
+                }),
+            );
             NodeSession.logNew(logger, "Resumed", secureSession, messenger, fabric, peerNodeId);
 
             resumptionRecord.resumptionId = resumptionId; /* update resumptionId */
@@ -189,14 +212,14 @@ export class CaseClient {
                 ...(responderSessionParams ?? {}),
             };
 
-            const sharedSecret = await crypto.generateDhSecret(localKey, PublicKey(peerKey));
+            const sharedSecret = await abort.attempt(crypto.generateDhSecret(localKey, PublicKey(peerKey)));
             const sigma2Salt = Bytes.concat(
                 operationalIdentityProtectionKey,
                 responderRandom,
                 peerKey,
-                await crypto.computeHash(sigma1Bytes),
+                await abort.attempt(crypto.computeHash(sigma1Bytes)),
             );
-            const sigma2Key = await crypto.createHkdfKey(sharedSecret, sigma2Salt, KDFSR2_INFO);
+            const sigma2Key = await abort.attempt(crypto.createHkdfKey(sharedSecret, sigma2Salt, KDFSR2_INFO));
             const peerEncryptedData = crypto.decrypt(sigma2Key, peerEncrypted, TBE_DATA2_NONCE);
             const {
                 responderNoc: peerNoc,
@@ -215,7 +238,9 @@ export class CaseClient {
                 subject: { fabricId: peerFabricIdNOCert, nodeId: peerNodeIdNOCert },
             } = Noc.fromTlv(peerNoc).cert;
 
-            await crypto.verifyEcdsa(PublicKey(peerPublicKey), peerSignatureData, new EcdsaSignature(peerSignature));
+            await abort.attempt(
+                crypto.verifyEcdsa(PublicKey(peerPublicKey), peerSignatureData, new EcdsaSignature(peerSignature)),
+            );
 
             if (peerNodeIdNOCert !== peerNodeId) {
                 throw new UnexpectedDataError(
@@ -238,49 +263,51 @@ export class CaseClient {
                     );
                 }
             }
-            await fabric.verifyCredentials(peerNoc, peerIcac);
+            await abort.attempt(fabric.verifyCredentials(peerNoc, peerIcac));
 
             // Generate and send sigma3
             const sigma3Salt = Bytes.concat(
                 operationalIdentityProtectionKey,
-                await crypto.computeHash([sigma1Bytes, sigma2Bytes]),
+                await abort.attempt(crypto.computeHash([sigma1Bytes, sigma2Bytes])),
             );
-            const sigma3Key = await crypto.createHkdfKey(sharedSecret, sigma3Salt, KDFSR3_INFO);
+            const sigma3Key = await abort.attempt(crypto.createHkdfKey(sharedSecret, sigma3Salt, KDFSR3_INFO));
             const signatureData = TlvSignedData.encode({
                 responderNoc: localNoc,
                 responderIcac: localIcac,
                 responderPublicKey: localKey.publicBits,
                 initiatorPublicKey: peerKey,
             });
-            const signature = await fabric.sign(signatureData);
+            const signature = await abort.attempt(fabric.sign(signatureData));
             const encryptedData = TlvEncryptedDataSigma3.encode({
                 responderNoc: localNoc,
                 responderIcac: localIcac,
                 signature: signature.bytes,
             });
             const encrypted = crypto.encrypt(sigma3Key, encryptedData, TBE_DATA3_NONCE);
-            const sigma3Bytes = await messenger.sendSigma3({ encrypted });
-            await messenger.waitForSuccess("Sigma3-Success");
+            const sigma3Bytes = await messenger.sendSigma3({ encrypted }, { abort });
+            await abort.attempt(messenger.waitForSuccess({ description: "Sigma3-Success" }));
 
             // Create a secure session. Configured CATs take precedence over resumption record ones
             const sessionCaseAuthenticatedTags = caseAuthenticatedTags ?? resumptionRecord?.caseAuthenticatedTags;
             const secureSessionSalt = Bytes.concat(
                 operationalIdentityProtectionKey,
-                await crypto.computeHash([sigma1Bytes, sigma2Bytes, sigma3Bytes]),
+                await abort.attempt(crypto.computeHash([sigma1Bytes, sigma2Bytes, sigma3Bytes])),
             );
-            secureSession = await this.#sessions.createSecureSession({
-                channel: exchange.channel.channel,
-                id: initiatorSessionId,
-                fabric,
-                peerNodeId,
-                peerSessionId,
-                sharedSecret,
-                salt: secureSessionSalt,
-                isInitiator: true,
-                isResumption: false,
-                peerSessionParameters,
-                caseAuthenticatedTags: sessionCaseAuthenticatedTags,
-            });
+            secureSession = await abort.attempt(
+                this.#sessions.createSecureSession({
+                    channel: exchange.channel.channel,
+                    id: initiatorSessionId,
+                    fabric,
+                    peerNodeId,
+                    peerSessionId,
+                    sharedSecret,
+                    salt: secureSessionSalt,
+                    isInitiator: true,
+                    isResumption: false,
+                    peerSessionParameters,
+                    caseAuthenticatedTags: sessionCaseAuthenticatedTags,
+                }),
+            );
             NodeSession.logNew(logger, "New", secureSession, messenger, fabric, peerNodeId);
             resumptionRecord = {
                 fabric,
@@ -292,7 +319,12 @@ export class CaseClient {
             };
         }
 
-        await messenger.close();
+        // These are not abortable
+        try {
+            await messenger.close();
+        } catch (e) {
+            logger.error("Unhandled error closing CASE messenger:", e);
+        }
         await this.#sessions.saveResumptionRecord(resumptionRecord);
 
         return { session: secureSession, resumed };
@@ -302,6 +334,9 @@ export class CaseClient {
 export namespace CaseClient {
     export interface PairOptions {
         expectedProcessingTime?: Duration;
-        caseAuthenticatedTags?: CaseAuthenticatedTag[];
+        caseAuthenticatedTags?: readonly CaseAuthenticatedTag[];
+        abort?: AbortSignal;
+        maxInitialRetransmissions?: number;
+        maxInitialRetransmissionTime?: Duration;
     }
 }

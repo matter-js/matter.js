@@ -66,7 +66,7 @@ export class NodePeerAddressStore extends PeerAddressStore {
     loadPeers(): PeerDescriptor[] {
         this.#assignedAddresses = new PeerAddressMap();
         return [...this.#owner.peers]
-            .map(node => {
+            .map((node): PeerDescriptor | undefined => {
                 const commissioning = node.state.commissioning;
                 if (!commissioning.peerAddress) {
                     return;
@@ -80,6 +80,7 @@ export class NodePeerAddressStore extends PeerAddressStore {
                     address: commissioning.peerAddress,
                     operationalAddress: addr && (ServerAddress(addr) as ServerAddressUdp),
                     discoveryData: RemoteDescriptor.fromLongForm(commissioning),
+                    caseAuthenticatedTags: commissioning.caseAuthenticatedTags,
                 };
             })
             .filter(addr => addr !== undefined);
@@ -95,11 +96,15 @@ export class NodePeerAddressStore extends PeerAddressStore {
             await agent.context.transaction.addResources(agent.commissioning);
             await agent.context.transaction.begin();
             const state = agent.commissioning.state;
+            if (peer.sessionParameters) {
+                state.sessionParameters = peer.sessionParameters;
+            }
             RemoteDescriptor.toLongForm(peer.discoveryData, state);
             if (peer.operationalAddress) {
                 // TODO - modify lower tiers to pass along full set of operational addresses
                 state.addresses = [peer.operationalAddress];
             }
+            state.caseAuthenticatedTags = peer.caseAuthenticatedTags;
             await agent.context.transaction.commit();
         });
     }

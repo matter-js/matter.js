@@ -334,6 +334,10 @@ export abstract class Session {
         }
     }
 
+    async [Symbol.asyncDispose]() {
+        await this.close();
+    }
+
     protected get manager() {
         return this.#manager;
     }

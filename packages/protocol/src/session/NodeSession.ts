@@ -48,7 +48,7 @@ export class NodeSession extends SecureSession {
     readonly #decryptKey: Bytes;
     readonly #encryptKey: Bytes;
     readonly #attestationKey: Bytes;
-    #caseAuthenticatedTags: CaseAuthenticatedTag[];
+    #caseAuthenticatedTags: readonly CaseAuthenticatedTag[];
     readonly supportsMRP = true;
     readonly type = SessionType.Unicast;
     readonly #closedByPeer = AsyncObservableValue();
@@ -409,7 +409,7 @@ export namespace NodeSession {
         fabric?: Fabric;
         peerNodeId: NodeId;
         peerSessionId: number;
-        caseAuthenticatedTags?: CaseAuthenticatedTag[];
+        caseAuthenticatedTags?: readonly CaseAuthenticatedTag[];
     }
 
     export interface Config extends CommonConfig {

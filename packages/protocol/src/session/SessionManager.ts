@@ -11,7 +11,7 @@ import {
     BasicSet,
     Bytes,
     Channel,
-    ConnectionlessTransportSet,
+    ConnectionlessTransport,
     Construction,
     Crypto,
     Duration,
@@ -55,7 +55,7 @@ interface InternalResumptionRecord {
     fabricIndex: FabricIndex;
     peerNodeId: NodeId;
     sessionParameters: SessionParameters;
-    caseAuthenticatedTags?: CaseAuthenticatedTag[];
+    caseAuthenticatedTags?: readonly CaseAuthenticatedTag[];
 }
 
 /** Resumption record with Fabric reference. */
@@ -81,7 +81,7 @@ type ResumptionStorageRecord = {
         supportedTransports?: number;
         maxTcpMessageSize?: number;
     };
-    caseAuthenticatedTags?: CaseAuthenticatedTag[];
+    caseAuthenticatedTags?: readonly CaseAuthenticatedTag[];
 };
 
 export interface ActiveSessionInformation {
@@ -271,9 +271,11 @@ export class SessionManager {
         const { channel, initiatorNodeId, sessionParameters, isInitiator } = options;
         if (initiatorNodeId !== undefined) {
             if (this.#unsecuredSessions.has(initiatorNodeId)) {
-                throw new MatterFlowError(`UnsecuredSession with NodeId ${initiatorNodeId} already exists.`);
+                throw new MatterFlowError(`UnsecuredSession with NodeId ${initiatorNodeId} already exists`);
             }
         }
+
+        let tries = 0;
         while (true) {
             const session = new UnsecuredSession({
                 crypto: this.#context.fabrics.crypto,
@@ -286,7 +288,13 @@ export class SessionManager {
             });
 
             const ephemeralNodeId = session.nodeId;
-            if (this.#unsecuredSessions.has(ephemeralNodeId)) continue;
+            if (this.#unsecuredSessions.has(ephemeralNodeId)) {
+                if (++tries > 4) {
+                    throw new InternalError("Unable to allocate unique ephemeral node ID; entropy source is broken");
+                }
+
+                continue;
+            }
 
             this.#unsecuredSessions.set(ephemeralNodeId, session);
             session.activate();
@@ -444,8 +452,8 @@ export class SessionManager {
     /**
      * Removes all Peer sessions and closes subscriptions.
      */
-    handlePeerLoss(address: PeerAddress, asOf?: Timestamp) {
-        return this.#handlePeerLoss({ address, asOf: asOf ?? Time.nowMs });
+    async handlePeerLoss(address: PeerAddress, asOf?: Timestamp) {
+        return await this.#handlePeerLoss({ address, asOf: asOf ?? Time.nowMs });
     }
 
     async #handlePeerLoss(options: { address: PeerAddress; asOf?: Timestamp; keepSubscriptions?: boolean }) {
@@ -479,7 +487,7 @@ export class SessionManager {
      *
      * Returns the session for the current group epoch key.  The source is this node and the peer is the group.
      */
-    async groupSessionForAddress(address: PeerAddress, transports: ConnectionlessTransportSet) {
+    async groupSessionForAddress(address: PeerAddress, transports: ConnectionlessTransport.Provider) {
         const groupId = GroupId.fromNodeId(address.nodeId);
         GroupId.assertGroupId(groupId);
 
