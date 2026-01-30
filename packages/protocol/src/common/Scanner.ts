@@ -11,6 +11,7 @@ import {
     Duration,
     Environment,
     Environmental,
+    Millis,
     ServerAddress,
     ServerAddressUdp,
 } from "#general";
@@ -18,8 +19,9 @@ import { DiscoveryCapabilitiesBitmap, NodeId, TypeFromPartialBitSchema, VendorId
 import { Fabric } from "../fabric/Fabric.js";
 
 /**
- * All information exposed by a commissionable device via announcements.
- * The properties are named identical as in the Matter specification.
+ * All information exposed by a device via announcements.
+ *
+ * Names are from the Matter specification.
  */
 export type DiscoveryData = {
     /** VendorId + ProductId */
@@ -56,6 +58,44 @@ export type DiscoveryData = {
     ICD?: number;
 };
 
+export function DiscoveryData(kvs: Map<string, string>) {
+    const dd: DiscoveryData = {};
+
+    for (const key in kvs.keys()) {
+        switch (key) {
+            case "VP":
+            case "DN":
+            case "RI":
+            case "PI":
+                dd[key] = `${kvs.get(key)}`;
+                break;
+
+            case "DT":
+            case "PH":
+            case "T":
+            case "ICD": {
+                const num = Number(kvs.get(key));
+                if (isFinite(num)) {
+                    dd[key] = num;
+                }
+                break;
+            }
+
+            case "SII":
+            case "SAI":
+            case "SAT": {
+                const num = Number(kvs.get(key));
+                if (isFinite(num)) {
+                    dd[key] = Millis(num);
+                }
+                break;
+            }
+        }
+    }
+
+    return dd;
+}
+
 export type DiscoverableDevice<SA extends ServerAddress> = DiscoveryData &
     Partial<AddressLifespan> & {
         /** The device's addresses IP/port pairs */
@@ -81,7 +121,8 @@ export type CommissionableDevice = DiscoverableDevice<ServerAddress> & {
 
 /**
  * Identifier to use to discover a commissionable device.
- * Please decide for the best matching identifier that you have.
+ *
+ * Use the most specific identifier available.
  */
 export type CommissionableDeviceIdentifiers =
     | {

@@ -103,17 +103,17 @@ export class ServerBehaviorBacking extends BehaviorBacking {
 
         // Update attribute list
         const attributeDefs = behavior.cluster.attributes as ClusterType.ElementSet<ClusterType.Attribute>;
-        globals.attributeList = [...validation.attributes].map(name => attributeDefs[name].id);
+        globals.attributeList = [...validation.attributes].map(name => attributeDefs[name].id).sort((a, b) => a - b);
 
         // Update accepted & generated command lists
         const commandDefs = behavior.cluster.commands as ClusterType.ElementSet<ClusterType.Command>;
         const commands = [...validation.commands].map(name => commandDefs[name]);
-        globals.acceptedCommandList = commands.map(command => command.requestId);
+        globals.acceptedCommandList = commands.map(command => command.requestId).sort((a, b) => a - b);
         globals.generatedCommandList = [
             ...new Set(
                 commands.filter(command => command.responseSchema !== TlvNoResponse).map(command => command.responseId),
             ),
-        ];
+        ].sort((a, b) => a - b);
 
         // Validate the feature map
         const schema = Schema(behavior.type) as ClusterModel;

@@ -18,6 +18,8 @@ export class AddressInUseError extends BindError {}
 
 export class AddressUnreachableError extends NetworkError {}
 
+export class NetworkUnreachableError extends NetworkError {}
+
 export const STANDARD_MATTER_PORT = 5540;
 
 /**

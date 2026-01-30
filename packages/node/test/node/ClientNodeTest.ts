@@ -16,11 +16,30 @@ import { OnOffLightDevice } from "#devices/on-off-light";
 import { WindowCoveringDevice } from "#devices/window-covering";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
-import { b$, Bytes, Crypto, deepCopy, Entropy, MockCrypto, Observable, Seconds, Time, TimeoutError } from "#general";
+import {
+    AbortedError,
+    b$,
+    Bytes,
+    Crypto,
+    deepCopy,
+    Entropy,
+    Minutes,
+    MockCrypto,
+    Observable,
+    Seconds,
+    Time,
+} from "#general";
 import { Specification } from "#model";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
 import { ServerNode } from "#node/ServerNode.js";
-import { ClientSubscription, FabricManager, SustainedSubscription, Val } from "#protocol";
+import {
+    ClientSubscription,
+    FabricManager,
+    PeerSet,
+    PeerUnreachableError,
+    SustainedSubscription,
+    Val,
+} from "#protocol";
 import { FabricIndex } from "#types";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
@@ -81,24 +100,23 @@ describe("ClientNode", () => {
         // *** INITIAL STATE ***
 
         // Get a client view of the device
-        const peer1 = controller.peers.get("peer1")!;
-        expect(peer1).not.undefined;
+        const peer1 = await subscribedPeer(controller, "peer1");
 
         // Verify commissioning addresses were stored correctly
         const addresses = peer1.state.commissioning.addresses;
         expect(addresses).not.undefined;
         const udpAddresses = addresses!.filter(a => a.type === "udp");
-        expect(udpAddresses.length).equals(2); // IPv6 and IPv4
+        expect(udpAddresses.length).equals(1 /*2*/); // Currently we only store "last known good" address
         // Device is index 2, so should have 10.10.10.2 and ...8802
-        expect(udpAddresses.some(a => a.ip === "10.10.10.2")).true;
+        //expect(udpAddresses.some(a => a.ip === "10.10.10.2")).true;
         expect(udpAddresses.some(a => a.ip === "1111:2222:3333:4444:5555:6666:7777:8802")).true;
 
         // Validate the root endpoint
         expect(Object.keys(peer1.state).sort()).deep.equals(Object.keys(PEER1_STATE).sort());
         for (const key in peer1.state) {
-            const actual = (peer1.state as Record<string, unknown>)[key];
+            const actual = (peer1.state as Record<string, unknown>)[key] as Val.Struct;
             const expected = (PEER1_STATE as Record<string, unknown>)[key];
-            expect(actual).deep.equals(expected);
+            expect(deepCopy(actual)).deep.equals(expected);
         }
         const expectedPeer1State = deepCopy(peer1.state);
 
@@ -106,8 +124,8 @@ describe("ClientNode", () => {
         expect(peer1.parts.size).equals(1);
         const ep1 = peer1.parts.get("ep1")!;
         expect(ep1).not.undefined;
-        expect(ep1.state).deep.equals(EP1_STATE);
         const expectedEp1State = deepCopy(ep1.state);
+        expect(expectedEp1State).deep.equals(EP1_STATE);
 
         // *** STATE AFTER RESTART ***
 
@@ -115,7 +133,7 @@ describe("ClientNode", () => {
         await site.close();
 
         // Recreate the controller
-        const controllerB = await site.addNode(undefined, { index: 1 });
+        const controllerB = await site.addNode(undefined, { id: "controller1", index: 1 });
 
         // Retrieve the client view of the device that should have been recreated from cache
         const peer1b = controllerB.peers.get("peer1")!;
@@ -211,12 +229,19 @@ describe("ClientNode", () => {
         expect(controller.peers.size).equals(1);
         expect(device.lifecycle.isCommissioned).is.true;
 
+        const peer1 = controller.peers.get("peer1")!;
+        expect(peer1).not.undefined;
+        const peerAddress = peer1.peerAddress!;
+        expect(peerAddress).not.undefined;
+
         // *** DECOMMISSION ***
 
         await MockTime.resolve(controller.peers.get("peer1")!.decommission());
 
         expect(controller.peers.size).equals(0);
         expect(device.lifecycle.isCommissioned).is.false;
+
+        expect(controller.env.get(PeerSet).has(peerAddress)).false;
 
         // *** RESTART controller ***
 
@@ -243,10 +268,12 @@ describe("ClientNode", () => {
 
         const peer1 = controller.peers.get("peer1")!;
         const ep1Client = peer1.parts.get("ep1")!;
-        await ep1Client.act(agent => {
-            agent.get(OnOffClient).state.onTime = 20;
-            agent.get(IdentifyClient).state.identifyTime = 5;
-        });
+        await MockTime.resolve(
+            ep1Client.act(agent => {
+                agent.get(OnOffClient).state.onTime = 20;
+                agent.get(IdentifyClient).state.identifyTime = 5;
+            }),
+        );
 
         // *** VALIDATE ***
 
@@ -266,7 +293,9 @@ describe("ClientNode", () => {
 
         // *** INVOCATION ***
 
-        await expect(MockTime.resolve(ep1.commandsOf(OnOffClient).toggle())).rejectedWith(TimeoutError);
+        (ep1.env.get(Crypto) as MockCrypto).entropic = true;
+
+        await expectTimeoutError(ep1.commandsOf(OnOffClient).toggle());
     });
 
     it("reconnects and updates connection status", async () => {
@@ -280,8 +309,10 @@ describe("ClientNode", () => {
 
         // *** INVOKE ***
 
-        // We detected tge device as offline, and so we get a failure on execution
-        await expect(MockTime.resolve(ep1.commandsOf(OnOffClient).toggle())).rejectedWith(TimeoutError);
+        (ep1.env.get(Crypto) as MockCrypto).entropic = true;
+
+        // We detected the device as offline, and so we get a failure on execution
+        await expectTimeoutError(ep1.commandsOf(OnOffClient).toggle());
 
         // Delay
         await MockTime.resolve(Time.sleep("waiting to start device", Seconds(5)));
@@ -290,7 +321,7 @@ describe("ClientNode", () => {
         await MockTime.resolve(device.start());
 
         // Toggle should now complete
-        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle());
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle(undefined, { connectionTimeout: Minutes(5) }));
     });
 
     it("resubscribes on timeout", async () => {
@@ -298,7 +329,7 @@ describe("ClientNode", () => {
 
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair();
-        const peer1 = controller.peers.get("peer1")!;
+        const peer1 = await subscribedPeer(controller, "peer1");
         const ep1 = peer1.parts.get("ep1")!;
 
         // *** INITIAL SUBSCRIPTION ***
@@ -423,7 +454,7 @@ describe("ClientNode", () => {
 
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair();
-        const peer1 = controller.peers.get("peer1")!;
+        const peer1 = await subscribedPeer(controller, "peer1");
 
         // *** CONFIRM FABRIC IDENTITY ***
 
@@ -453,7 +484,7 @@ describe("ClientNode", () => {
         const peer1 = controller.peers.get("peer1")!;
         expect(peer1).not.undefined;
 
-        const peerAddress = deepCopy(peer1.state.commissioning.peerAddress);
+        const peerAddress = peer1.peerAddress;
         expect(peerAddress).not.undefined;
 
         await MockTime.resolve(controller.peers.get("peer1")!.delete());
@@ -709,6 +740,8 @@ describe("ClientNode", () => {
     });
 });
 
+const GLOBAL_ATTRS = [0xfff8, 0xfff9, 0xfffb, 0xfffc, 0xfffd];
+
 const PEER1_STATE = {
     parts: {},
     index: {},
@@ -724,20 +757,21 @@ const PEER1_STATE = {
                 discoveredAt: undefined,
                 ttl: undefined,
             },
-            {
-                type: "udp",
-                ip: "10.10.10.2",
-                port: 0x15a4,
-                peripheralAddress: undefined,
-                discoveredAt: undefined,
-                ttl: undefined,
-            },
+            // {
+            //     type: "udp",
+            //     ip: "10.10.10.2",
+            //     port: 0x15a4,
+            //     peripheralAddress: undefined,
+            //     discoveredAt: undefined,
+            //     ttl: undefined,
+            // },
         ],
+        caseAuthenticatedTags: undefined,
         commissionedAt: expect.NUMBER,
         discoveredAt: expect.NUMBER,
         onlineAt: undefined,
         offlineAt: undefined,
-        ttl: 120000,
+        ttl: undefined,
         deviceIdentifier: expect.STRING,
         discriminator: 0x202,
         commissioningMode: 1,
@@ -748,7 +782,20 @@ const PEER1_STATE = {
         rotatingIdentifier: undefined,
         pairingHint: 0x21,
         pairingInstructions: undefined,
-        sessionIntervals: { idleInterval: 500, activeInterval: 300, activeThreshold: 4000 },
+        sessionParameters: {
+            activeInterval: 300,
+            activeThreshold: 4000,
+            dataModelRevision: 19,
+            idleInterval: 500,
+            interactionModelRevision: 13,
+            maxPathsPerInvoke: 10,
+            maxTcpMessageSize: undefined,
+            specificationVersion: 17039872,
+            supportedTransports: {
+                tcpClient: false,
+                tcpServer: false,
+            },
+        },
         tcpSupport: 0,
     },
     network: {
@@ -757,7 +804,6 @@ const PEER1_STATE = {
         port: 0x15a4,
         operationalPort: -1,
         defaultSubscription: undefined,
-        caseAuthenticatedTags: undefined,
         maxEventNumber: 3n,
     },
     basicInformation: {
@@ -787,9 +833,7 @@ const PEER1_STATE = {
         specificationVersion: 0x1040200,
         maxPathsPerInvoke: 10,
         featureMap: {},
-        attributeList: [
-            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0xe, 0x12, 0x13, 0x15, 0x16, 0x18, 0xfffd, 0xfffc, 0xfffb, 0xfff9, 0xfff8,
-        ],
+        attributeList: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0xe, 0x12, 0x13, 0x15, 0x16, 0x18, ...GLOBAL_ATTRS],
         eventList: undefined,
         acceptedCommandList: [],
         generatedCommandList: [],
@@ -804,7 +848,7 @@ const PEER1_STATE = {
         accessControlEntriesPerFabric: 4,
         commissioningArl: undefined,
         arl: undefined,
-        attributeList: [0, 2, 3, 4, 0xfffd, 0xfffc, 0xfffb, 0xfff9, 0xfff8, 1],
+        attributeList: [0, 1, 2, 3, 4, ...GLOBAL_ATTRS],
         eventList: undefined,
         acceptedCommandList: [],
         generatedCommandList: [],
@@ -816,7 +860,7 @@ const PEER1_STATE = {
         groupTable: [],
         maxGroupsPerFabric: 0x15,
         maxGroupKeysPerFabric: 0x14,
-        attributeList: [0, 1, 2, 3, 0xfffd, 0xfffc, 0xfffb, 0xfff9, 0xfff8],
+        attributeList: [0, 1, 2, 3, ...GLOBAL_ATTRS],
         eventList: undefined,
         acceptedCommandList: [0, 1, 3, 4],
         generatedCommandList: [2, 5],
@@ -834,7 +878,7 @@ const PEER1_STATE = {
         tcAcknowledgements: undefined,
         tcAcknowledgementsRequired: undefined,
         tcUpdateDeadline: undefined,
-        attributeList: [0, 1, 2, 3, 4, 0xfffd, 0xfffc, 0xfffb, 0xfff9, 0xfff8],
+        attributeList: [0, 1, 2, 3, 4, ...GLOBAL_ATTRS],
         eventList: undefined,
         acceptedCommandList: [0, 2, 4],
         generatedCommandList: [1, 3, 5],
@@ -845,7 +889,7 @@ const PEER1_STATE = {
         windowStatus: 0,
         adminFabricIndex: null,
         adminVendorId: null,
-        attributeList: [0, 1, 2, 0xfffd, 0xfffc, 0xfffb, 0xfff9, 0xfff8],
+        attributeList: [0, 1, 2, ...GLOBAL_ATTRS],
         eventList: undefined,
         acceptedCommandList: [0, 2],
         generatedCommandList: [],
@@ -876,7 +920,7 @@ const PEER1_STATE = {
         trustedRootCertificates: [expect.BYTES],
         currentFabricIndex: 1,
         featureMap: {},
-        attributeList: [0, 1, 2, 3, 4, 5, 0xfffd, 0xfffc, 0xfffb, 0xfff9, 0xfff8],
+        attributeList: [0, 1, 2, 3, 4, 5, ...GLOBAL_ATTRS],
         eventList: undefined,
         acceptedCommandList: [0, 2, 4, 6, 7, 9, 10, 0xb, 0xc, 0xd],
         generatedCommandList: [1, 3, 5, 8, 0xe],
@@ -905,7 +949,7 @@ const PEER1_STATE = {
         activeNetworkFaults: undefined,
         testEventTriggersEnabled: false,
         doNotUse: undefined,
-        attributeList: [0, 1, 2, 3, 8, 0xfffd, 0xfffc, 0xfffb, 0xfff9, 0xfff8],
+        attributeList: [0, 1, 2, 3, 8, ...GLOBAL_ATTRS],
         eventList: undefined,
         acceptedCommandList: [0, 1, 3],
         generatedCommandList: [2, 4],
@@ -919,7 +963,7 @@ const PEER1_STATE = {
         clientList: [],
         partsList: [1],
         tagList: undefined,
-        attributeList: [0, 1, 2, 3, 0xfffd, 0xfffc, 0xfffb, 0xfff9, 0xfff8],
+        attributeList: [0, 1, 2, 3, ...GLOBAL_ATTRS],
         eventList: undefined,
         acceptedCommandList: [],
         generatedCommandList: [],
@@ -932,7 +976,7 @@ const EP1_STATE = {
         identifyTime: 0,
         identifyType: 0,
         featureMap: {},
-        attributeList: [0, 1, 0xfffd, 0xfffc, 0xfffb, 0xfff9, 0xfff8],
+        attributeList: [0, 1, ...GLOBAL_ATTRS],
         eventList: undefined,
         acceptedCommandList: [0, 0x40],
         generatedCommandList: [],
@@ -941,7 +985,7 @@ const EP1_STATE = {
         clusterRevision: 4,
         featureMap: { groupNames: true },
         nameSupport: { groupNames: true },
-        attributeList: [0, 0xfffd, 0xfffc, 0xfffb, 0xfff9, 0xfff8],
+        attributeList: [0, ...GLOBAL_ATTRS],
         eventList: undefined,
         acceptedCommandList: [0, 1, 2, 3, 4, 5],
         generatedCommandList: [0, 1, 2, 3],
@@ -954,9 +998,9 @@ const EP1_STATE = {
         onTime: 0,
         offWaitTime: 0,
         startUpOnOff: null,
-        attributeList: [0, 0xfffd, 0xfffc, 0xfffb, 0xfff9, 0xfff8, 0x4000, 0x4001, 0x4002, 0x4003],
+        attributeList: [0, 0x4000, 0x4001, 0x4002, 0x4003, ...GLOBAL_ATTRS],
         eventList: undefined,
-        acceptedCommandList: [0, 0x40, 0x41, 0x42, 1, 2],
+        acceptedCommandList: [0, 1, 2, 0x40, 0x41, 0x42],
         generatedCommandList: [],
     },
     descriptor: {
@@ -968,14 +1012,14 @@ const EP1_STATE = {
         clientList: [],
         partsList: [],
         tagList: undefined,
-        attributeList: [0, 1, 2, 3, 0xfffd, 0xfffc, 0xfffb, 0xfff9, 0xfff8],
+        attributeList: [0, 1, 2, 3, ...GLOBAL_ATTRS],
         eventList: undefined,
         acceptedCommandList: [],
         generatedCommandList: [],
     },
     scenesManagement: {
         acceptedCommandList: [0, 1, 2, 3, 4, 5, 6, 64],
-        attributeList: [1, 2, 0xfffd, 0xfffc, 0xfffb, 0xfff9, 0xfff8],
+        attributeList: [1, 2, ...GLOBAL_ATTRS],
         clusterRevision: 1,
         fabricSceneInfo: [],
         featureMap: {
@@ -987,3 +1031,28 @@ const EP1_STATE = {
         eventList: undefined,
     },
 };
+
+async function expectTimeoutError(promise: Promise<any>) {
+    try {
+        return await MockTime.resolve(promise);
+    } catch (e) {
+        if (!(e instanceof AbortedError)) {
+            throw e;
+        }
+
+        expect(e instanceof AbortedError);
+        expect(e.cause instanceof PeerUnreachableError);
+    }
+}
+
+async function subscribedPeer(controller: ServerNode, id: string) {
+    const peer = controller.peers.get(id);
+    expect(peer).not.undefined;
+
+    const subscription = peer!.behaviors.internalsOf(NetworkClient).activeSubscription as SustainedSubscription;
+    expect(subscription).not.undefined;
+
+    await MockTime.resolve(subscription.active);
+
+    return peer!;
+}

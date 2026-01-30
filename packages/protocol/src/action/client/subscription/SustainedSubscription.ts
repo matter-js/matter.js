@@ -40,7 +40,7 @@ export class SustainedSubscription extends ClientSubscription {
     #request: ClientSubscribe;
     #subscription?: ActiveSubscription;
     #retries: RetrySchedule;
-    #subscribe: (request: Subscribe) => Promise<PeerSubscription>;
+    #subscribe: (request: Subscribe, abort?: AbortSignal) => Promise<PeerSubscription>;
     #active = AsyncObservableValue(false);
     #inactive = AsyncObservableValue(true);
 
@@ -89,7 +89,7 @@ export class SustainedSubscription extends ClientSubscription {
             // Subscribe
             for (const retry of this.#retries) {
                 try {
-                    this.#subscription = await this.#subscribe(request);
+                    this.#subscription = await this.#subscribe(request, this.abort);
                     this.subscriptionId = this.#subscription.subscriptionId;
                     break;
                 } catch (e) {
@@ -155,7 +155,7 @@ export namespace SustainedSubscription {
         /**
          * Function to establish underlying subscription.
          */
-        subscribe: (request: Subscribe) => Promise<PeerSubscription>;
+        subscribe: (request: Subscribe, abort?: AbortSignal) => Promise<PeerSubscription>;
 
         /**
          * The schedule we use for retrying subscription connections.

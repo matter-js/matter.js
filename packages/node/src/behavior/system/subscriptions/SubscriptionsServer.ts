@@ -8,7 +8,7 @@ import { deepCopy, isIpNetworkChannel, Logger, MatterError, MaybePromise, Second
 import { DatatypeModel, FieldElement } from "#model";
 import { InteractionServer, PeerSubscription } from "#node/server/InteractionServer.js";
 import { ServerSubscription } from "#node/server/ServerSubscription.js";
-import { NodeDiscoveryType, PeerAddress, PeerAddressSet, PeerSet, SessionManager, Subscription } from "#protocol";
+import { PeerAddress, PeerAddressSet, PeerSet, Subscription } from "#protocol";
 import { StatusCode, StatusResponseError } from "#types";
 import { Behavior } from "../../Behavior.js";
 import { SessionsBehavior } from "../sessions/SessionsBehavior.js";
@@ -24,11 +24,11 @@ const REESTABLISH_SUBSCRIPTIONS_TIMEOUT = Seconds(2);
  * speed up the controller reconnection process. This can mean a bit more memory usage on start of the device. To
  * disable this feature set `persistenceEnabled` as state of the `subscription` behavior to `false`.
  */
-export class SubscriptionsBehavior extends Behavior {
+export class SubscriptionsServer extends Behavior {
     static override readonly id = "subscriptions";
 
-    declare state: SubscriptionsBehavior.State;
-    declare internal: SubscriptionsBehavior.Internal;
+    declare state: SubscriptionsServer.State;
+    declare internal: SubscriptionsServer.Internal;
 
     override initialize() {
         if (this.state.subscriptions !== undefined && this.state.persistenceEnabled !== false) {
@@ -198,7 +198,6 @@ export class SubscriptionsBehavior extends Behavior {
             await this.context.transaction.commit();
         }
         const peers = this.env.get(PeerSet);
-        const sessions = this.env.get(SessionManager);
         const interactionServer = this.env.get(InteractionServer);
 
         const peerStopList = new PeerAddressSet();
@@ -218,38 +217,26 @@ export class SubscriptionsBehavior extends Behavior {
             logger.debug(
                 `Try to reestablish former subscription ${Subscription.idStrOf(subscription)} to ${peerAddress}`,
             );
-            if (sessions.maybeSessionFor(peerAddress) !== undefined) {
-                logger.debug(`We already have and existing session for peer ${peerAddress}`);
-            } else {
-                try {
-                    await peers.connect(peerAddress, {
-                        discoveryOptions: {
-                            discoveryType: NodeDiscoveryType.TimedDiscovery,
-                            timeout: REESTABLISH_SUBSCRIPTIONS_TIMEOUT,
-                        },
-                        operationalAddress,
-                    });
-                } catch (error) {
-                    peerStopList.add(peerAddress);
-                    logger.debug(
-                        `Failed to connect to ${peerAddress}`,
-                        error instanceof MatterError ? error.message : error,
-                    );
-                    continue;
-                }
+
+            const peer = peers.addKnownPeer({ address: peerAddress, operationalAddress });
+            let session;
+            try {
+                session = await peer.connect({ connectionTimeout: REESTABLISH_SUBSCRIPTIONS_TIMEOUT });
+            } catch (error) {
+                peerStopList.add(peerAddress);
+                logger.debug(
+                    `Failed to connect to ${peerAddress}`,
+                    error instanceof MatterError ? error.message : error,
+                );
+                continue;
             }
+
             try {
                 if (peerStopList.has(peerAddress)) {
                     // To prevent concurrency issues, check again if there is a stop reason for this fabric
                     logger.debug(
                         `Skip re-establishing former subscription ${Subscription.idStrOf(subscriptionId)} to ${peerAddress}`,
                     );
-                    continue;
-                }
-                const session = sessions.maybeSessionFor(peerAddress);
-                if (session === undefined) {
-                    peerStopList.add(peerAddress);
-                    logger.debug(`Could not connect to peer ${peerAddress}`);
                     continue;
                 }
                 await interactionServer.establishFormerSubscription(subscription, session);
@@ -274,7 +261,7 @@ export class SubscriptionsBehavior extends Behavior {
     }
 }
 
-export namespace SubscriptionsBehavior {
+export namespace SubscriptionsServer {
     export class State {
         /** Set to false if persistence of subscriptions should be disabled */
         persistenceEnabled = true;

@@ -276,7 +276,7 @@ export function RemoteActorContext(options: RemoteActorContext.Options) {
 }
 
 export namespace RemoteActorContext {
-    export type Options = {
+    export interface Options {
         node: Node;
         exchange: MessageExchange;
         activity?: NodeActivity.Activity;
@@ -284,5 +284,5 @@ export namespace RemoteActorContext {
         timed?: boolean;
         fabricFiltered?: boolean;
         message?: Message;
-    };
+    }
 }

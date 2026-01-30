@@ -146,6 +146,8 @@ interface WaiterRecord {
 /**
  * This class implements the Scanner interface for a MDNS scanner via UDP messages in a IP based network. It sends out
  * queries to discover various types of Matter device types and listens for announcements.
+ *
+ * TODO - convert commissioning logic to use MdnsNames and remove this class
  */
 export class MdnsClient implements Scanner {
     readonly #lifetime: Lifetime;

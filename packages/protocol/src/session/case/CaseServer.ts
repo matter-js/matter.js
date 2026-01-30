@@ -182,7 +182,7 @@ export class CaseServer implements ProtocolHandler {
         cx.resumptionRecord.resumptionId = cx.localResumptionId; /* Update the ID */
 
         // Wait for success on the peer side
-        await cx.messenger.waitForSuccess("Sigma2Resume-Success");
+        await cx.messenger.waitForSuccess({ description: "Sigma2Resume-Success" });
 
         await cx.messenger.close();
         await this.#sessions.saveResumptionRecord(cx.resumptionRecord);

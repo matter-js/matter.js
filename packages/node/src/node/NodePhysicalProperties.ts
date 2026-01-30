@@ -24,9 +24,9 @@ export function NodePhysicalProperties(node: Node) {
     const rootEndpointServerList = [...(node.maybeStateOf(DescriptorClient)?.serverList ?? [])];
 
     const properties: PhysicalDeviceProperties = {
-        threadConnected: false,
-        wifiConnected: false,
-        ethernetConnected: false,
+        supportsThread: false,
+        supportsWifi: false,
+        supportsEthernet: false,
         rootEndpointServerList,
         isMainsPowered: false,
         isBatteryPowered: false,
@@ -45,13 +45,13 @@ function inspectEndpoint(endpoint: Endpoint, properties: PhysicalDevicePropertie
     if (network) {
         const features = network.schema.supportedFeatures;
         if (features.has("WI")) {
-            properties.wifiConnected = true;
+            properties.supportsWifi = true;
         }
         if (features.has("TH")) {
-            properties.threadConnected = true;
+            properties.supportsThread = true;
         }
         if (features.has("ET")) {
-            properties.ethernetConnected = true;
+            properties.supportsEthernet = true;
         }
     }
 
@@ -84,11 +84,18 @@ function inspectEndpoint(endpoint: Endpoint, properties: PhysicalDevicePropertie
 
     // Sleepy thread device
     const threadNetworkDiagnostics = endpoint.behaviors.typeFor(ThreadNetworkDiagnosticsClient);
-    if (
-        threadNetworkDiagnostics &&
-        endpoint.stateOf(threadNetworkDiagnostics).routingRole === ThreadNetworkDiagnostics.RoutingRole.SleepyEndDevice
-    ) {
-        properties.isThreadSleepyEndDevice = true;
+    if (threadNetworkDiagnostics) {
+        const tnd = endpoint.stateOf(threadNetworkDiagnostics);
+        if (tnd.routingRole === ThreadNetworkDiagnostics.RoutingRole.SleepyEndDevice) {
+            properties.isThreadSleepyEndDevice = true;
+        }
+        if (tnd.extendedPanId !== undefined && tnd.extendedPanId !== null) {
+            properties.threadActive = true;
+            properties.threadPan = tnd.extendedPanId === undefined ? undefined : BigInt(tnd.extendedPanId);
+            properties.threadChannel = tnd.channel ?? undefined;
+        } else {
+            properties.threadActive = false;
+        }
     }
 
     // Recurse into children

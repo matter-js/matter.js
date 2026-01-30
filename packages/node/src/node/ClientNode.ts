@@ -15,9 +15,9 @@ import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
-import { Diagnostic, Identity, InternalError, Lifecycle, Logger, MaybePromise } from "#general";
+import { Construction, Diagnostic, Identity, InternalError, Lifecycle, Logger, MaybePromise } from "#general";
 import { Matter, MatterModel } from "#model";
-import { Interactable, OccurrenceManager, PeerAddress } from "#protocol";
+import { Interactable, OccurrenceManager, PeerAddress, PeerSet } from "#protocol";
 import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
 import { RemoteWriter } from "#storage/client/RemoteWriter.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
@@ -104,8 +104,12 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         return promise;
     }
 
-    override get owner(): ServerNode | undefined {
-        return super.owner as ServerNode | undefined;
+    override get owner(): ServerNode {
+        const owner = super.owner;
+        if (owner === undefined) {
+            throw new InternalError("Client node is missing owner");
+        }
+        return super.owner as ServerNode;
     }
 
     override set owner(owner: ServerNode) {
@@ -140,15 +144,18 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
      * Force-remove the node without first decommissioning.
      *
      * If the node is still available, you should use {@link decommission} to remove it properly from the fabric and only use
-     * this method as fallback.  You should also tell the user that he needs to manually factory-reset the device.
+     * this method as fallback.  You should inform the user that manual factory-reset may be necessary.
      */
     override async delete() {
-        // TODO If we know a peer address, get the Peer for it to delete it as well
-        //const peerAddress = this.behaviors.maybeStateOf("commissioning")?.peerAddress as PeerAddress | undefined;
-        //const peer = peerAddress !== undefined ? this.owner?.env.get(PeerSet).for(peerAddress) : undefined;
+        const address = this.peerAddress;
 
         await super.delete();
-        //await peer?.delete();
+
+        // Ensure there is no remaining @matter/protocol Peer installed.  This may occur if deleted while still
+        // commissioned
+        if (address) {
+            await this.env.maybeGet(PeerSet)?.get(address)?.delete();
+        }
     }
 
     override async erase() {
@@ -236,18 +243,24 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         return this.#interaction;
     }
 
-    override get identity() {
+    get peerAddress(): PeerAddress | undefined {
         // If commissioned, use the peer address for logging purposes
-        let address = this.behaviors.maybeStateOf("commissioning")?.peerAddress as PeerAddress | undefined;
+        let address = PeerAddress(this.behaviors.maybeStateOf("commissioning")?.peerAddress as PeerAddress | undefined);
 
         // During early initialization commissioning state may not be loaded, so check directly in storage too
         if (!address) {
-            address = this.store.storeForEndpoint(this).peerAddress as PeerAddress | undefined;
+            address = PeerAddress(this.store.storeForEndpoint(this).peerAddress as PeerAddress | undefined);
         }
 
+        return address;
+    }
+
+    override get identity() {
+        const peerAddress = this.peerAddress;
+
         // Use the peer address as a log identifier if present
-        if (address) {
-            return PeerAddress(address).toString();
+        if (peerAddress) {
+            return PeerAddress(peerAddress).toString();
         }
 
         // Fall back to persistence ID
@@ -258,6 +271,11 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         // Log client node status updates as info rather than notice and change the log facility to make clear it's a
         // client
         logger.info(Diagnostic.strong(this.toString()), message);
+    }
+
+    override async [Construction.destruct]() {
+        await this.#interaction?.close();
+        await super[Construction.destruct]();
     }
 }
 

@@ -25,11 +25,13 @@ import {
 } from "#general";
 import {
     bool,
+    datatype,
     duration,
     fabricIdx,
     field,
     listOf,
     mandatory,
+    map16,
     nodeId,
     nonvolatile,
     string,
@@ -42,6 +44,7 @@ import {
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import { IdentityService } from "#node/server/IdentityService.js";
+import type { ClientInteraction, PeerDescriptor, SupportedTransportsBitmap } from "#protocol";
 import {
     CommissioningMode,
     ControllerCommissioner,
@@ -51,10 +54,11 @@ import {
     FabricAuthority,
     FabricManager,
     LocatedNodeCommissioningOptions,
+    Peer,
     PeerAddress,
     PeerSet,
     PeerAddress as ProtocolPeerAddress,
-    SessionIntervals as ProtocolSessionIntervals,
+    SessionParameters as ProtocolSessionParameters,
     Subscribe,
 } from "#protocol";
 import {
@@ -97,20 +101,20 @@ export class CommissioningClient extends Behavior {
         }
 
         if (this.state.peerAddress !== undefined) {
-            // If restored from the storage, ensure we have the proper logging sugar, else it is "just" an object
-            this.state.peerAddress = PeerAddress(this.state.peerAddress);
+            // And ensure we are coupled to the Peer instance
+            this.#bindPeer(this.state.peerAddress);
         }
 
         const node = this.endpoint as ClientNode;
         this.reactTo(node.lifecycle.partsReady, this.#initializeNode);
-        this.reactTo(node.lifecycle.online, this.#nodeOnline);
         this.reactTo(this.events.peerAddress$Changed, this.#peerAddressChanged);
         this.reactTo(this.events.addresses$Changed, this.#operationalAddressesChanged);
+        this.reactTo(this.events.caseAuthenticatedTags$Changed, this.#catsChanged);
     }
 
-    #nodeOnline() {
-        if (this.state.peerAddress !== undefined) {
-            this.#updateAddresses(this.state.peerAddress);
+    override [Symbol.asyncDispose]() {
+        if (this.endpoint.env.has(PeerSet) && this.state.peerAddress) {
+            this.#unbindPeer(this.state.peerAddress);
         }
     }
 
@@ -222,13 +226,16 @@ export class CommissioningClient extends Behavior {
             throw e;
         }
 
-        await this.context.transaction.commit();
+        if (opts.caseAuthenticatedTags !== undefined) {
+            this.state.caseAuthenticatedTags = opts.caseAuthenticatedTags;
+        }
 
         const network = this.agent.get(NetworkClient);
         network.state.defaultSubscription = opts.defaultSubscription;
         // Nodes we commission are auto-subscribed by default, unless disabled explicitly
         network.state.autoSubscribe = opts.autoSubscribe !== false;
-        network.state.caseAuthenticatedTags = opts.caseAuthenticatedTags;
+
+        await this.context.transaction.commit();
 
         logger.notice(
             "Commissioned",
@@ -291,7 +298,7 @@ export class CommissioningClient extends Behavior {
      * Override to implement CASE commissioning yourself.
      *
      * If you override, matter.js commissions to the point where commissioning over PASE is complete.  You must then
-     * complete commissioning yourself by connecting to the device and invokeint the "CommissioningComplete" command.
+     * complete commissioning yourself by connecting to the device and invoking the "CommissioningComplete" command.
      */
     protected async finalizeCommissioning(_address: ProtocolPeerAddress, _discoveryData?: DiscoveryData) {
         throw new NotImplementedError();
@@ -341,30 +348,84 @@ export class CommissioningClient extends Behavior {
         }
     }
 
-    #updateAddresses(addr: ProtocolPeerAddress) {
+    #peerAddressChanged(addr?: ProtocolPeerAddress, oldAddr?: ProtocolPeerAddress) {
+        const node = this.endpoint as ClientNode;
+        if (addr) {
+            this.#bindPeer(addr);
+            node.lifecycle.commissioned.emit(this.context);
+        } else if (oldAddr) {
+            this.#unbindPeer(oldAddr, true);
+            node.lifecycle.decommissioned.emit(this.context);
+        }
+    }
+
+    #catsChanged(cats?: CaseAuthenticatedTag[]) {
+        if (!this.state.peerAddress) {
+            return;
+        }
+
         const node = this.endpoint as ClientNode;
         if (!node.env.has(PeerSet)) {
             return;
         }
 
-        const peer = node.env.get(PeerSet).for(addr);
-        if (peer) {
-            if (peer.descriptor.operationalAddress) {
-                this.state.addresses = [peer.descriptor.operationalAddress];
-            }
-            this.descriptor = peer.descriptor.discoveryData;
+        const peer = node.env.get(PeerSet).for(this.state.peerAddress);
+        if (!peer) {
+            return;
         }
+
+        peer.descriptor.caseAuthenticatedTags = cats;
     }
 
-    #peerAddressChanged(addr?: ProtocolPeerAddress) {
+    /**
+     * Couple my {@link ClientNode} with the equivalent {@link Peer}.
+     */
+    #bindPeer(addr: PeerAddress) {
         const node = this.endpoint as ClientNode;
+        let peer = node.env.maybeGet(Peer);
+        if (peer) {
+            if (peer.address === addr) {
+                // Already bound
+                return;
+            }
 
-        if (addr) {
-            this.#updateAddresses(addr);
+            // Peer address changed; this probably shouldn't happen but handle just in case
+            this.#unbindPeer(peer.address);
+        }
 
-            node.lifecycle.commissioned.emit(this.context);
-        } else {
-            node.lifecycle.decommissioned.emit(this.context);
+        const peers = node.env.get(PeerSet);
+        peer = peers.addKnownPeer({
+            address: addr,
+            operationalAddress: this.state.addresses?.filter(a => a.type === "udp")?.[0],
+            discoveryData: RemoteDescriptor.fromLongForm(this.state),
+        });
+
+        peer.interaction = node.interaction as ClientInteraction;
+        peer.protocol = node.protocol;
+
+        this.env.set(Peer, peer);
+    }
+
+    /**
+     * Uncouple my {@link ClientNode} from a {@link Peer}.
+     */
+    #unbindPeer(addr: PeerAddress, remove = false) {
+        const node = this.endpoint as ClientNode;
+        const peer = node.env.maybeGet(Peer);
+        if (!peer || peer.address !== addr) {
+            return;
+        }
+        node.env.delete(Peer, peer);
+
+        if (peer.interaction === node.interaction) {
+            peer.interaction = undefined;
+        }
+        if (peer.protocol === node.protocol) {
+            peer.protocol = undefined;
+        }
+
+        if (remove) {
+            node.env.get(PeerSet).peers.delete(peer);
         }
     }
 }
@@ -387,23 +448,47 @@ export namespace CommissioningClient {
     }
 
     /**
-     * Concrete version of {@link SessionIntervals}.
+     * Supported transport flags.
      */
-    export class SessionIntervals implements Partial<ProtocolSessionIntervals> {
-        @field(duration.extend({ constraint: "max 3600000" }))
+    @datatype(map16)
+    export class SupportedTransports implements Partial<SupportedTransportsBitmap> {
+        @field(uint16.extend({ constraint: "1" }))
+        tcpClient?: boolean;
+
+        @field(uint16.extend({ constraint: "2" }))
+        tcpServer?: boolean;
+    }
+
+    /**
+     * Concrete version of {@link ProtocolSessionParameters}.
+     */
+    export class SessionParameters implements Partial<ProtocolSessionParameters> {
+        @field(1, duration.extend({ constraint: "max 3600000" }))
         idleInterval?: Duration;
 
-        @field(duration.extend({ constraint: "max 3600000" }))
+        @field(2, duration.extend({ constraint: "max 3600000" }))
         activeInterval?: Duration;
 
-        @field(duration.extend({ constraint: "max 65535" }))
+        @field(3, duration.extend({ constraint: "max 65535" }))
         activeThreshold?: Duration;
 
-        constructor(intervals: SessionIntervals) {
-            this.idleInterval = intervals.idleInterval;
-            this.activeInterval = intervals.activeInterval;
-            this.activeThreshold = intervals.activeThreshold;
-        }
+        @field(4, uint32)
+        dataModelRevision?: number;
+
+        @field(5, uint16)
+        interactionModelRevision?: number;
+
+        @field(6, uint32)
+        specificationVersion?: number;
+
+        @field(7, uint16)
+        maxPathsPerInvoke?: number;
+
+        @field(8, SupportedTransports)
+        supportedTransports?: SupportedTransports;
+
+        @field(9, uint32)
+        maxTcpMessageSize?: number;
     }
 
     /**
@@ -444,6 +529,14 @@ export namespace CommissioningClient {
          */
         @field(PeerAddress, nonvolatile)
         peerAddress?: PeerAddress;
+
+        /**
+         * Case Authenticated Tags (CATs)
+         *
+         * See {@link PeerDescriptor}
+         */
+        @field(listOf(uint32), nonvolatile)
+        caseAuthenticatedTags?: readonly CaseAuthenticatedTag[];
 
         /**
          * Known network addresses for the device.  If this is undefined, the node has not been located on any network
@@ -545,8 +638,8 @@ export namespace CommissioningClient {
         /**
          * The remote node's session intervals.
          */
-        @field(SessionIntervals, nonvolatile)
-        sessionIntervals?: SessionIntervals;
+        @field(SessionParameters, nonvolatile)
+        sessionParameters?: SessionParameters;
 
         /**
          * TCP support bitmap.
@@ -565,8 +658,13 @@ export namespace CommissioningClient {
         peerAddress$Changed = new Observable<
             [value: ProtocolPeerAddress | undefined, oldValue: ProtocolPeerAddress | undefined]
         >();
+
         addresses$Changed = new Observable<
             [value: ServerAddress[] | undefined, oldValue: ServerAddress[] | undefined]
+        >();
+
+        caseAuthenticatedTags$Changed = new Observable<
+            [value: CaseAuthenticatedTag[] | undefined, oldValue: CaseAuthenticatedTag[] | undefined]
         >();
     }
 
@@ -635,14 +733,7 @@ export namespace CommissioningClient {
         autoSubscribe?: boolean;
 
         /**
-         * Case Authenticated Tags (CATs) to use for operational CASE sessions with this node.
-         *
-         * CATs provide additional authentication context for Matter operational sessions. They are only used
-         * for operational CASE connections after commissioning is complete, not during the initial PASE
-         * commissioning process.
-         *
-         * Note: CATs only make sense when additional ACLs (Access Control Lists) are also configured on
-         * the target device to grant specific permissions based on these tags.
+         * Case Authenticated Tags (CATs)
          */
         caseAuthenticatedTags?: CaseAuthenticatedTag[];
     }

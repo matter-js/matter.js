@@ -17,7 +17,7 @@ describe("GroupKeyManagementServer", () => {
         MockTime.macrotasks = true;
     });
 
-    it("tries to add too many group keys", async () => {
+    it("prevents too many group keys", async () => {
         await using site = new MockSite();
         // Device is automatically configured with vendorId 0xfff1 and productId 0x8000
         const { controller } = await site.addCommissionedPair({

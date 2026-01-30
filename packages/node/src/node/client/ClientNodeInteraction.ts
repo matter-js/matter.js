@@ -6,8 +6,8 @@
 
 import type { ActionContext } from "#behavior/context/ActionContext.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
+import { ImplementationError, Lifecycle, Logger, MatterAggregateError, ObserverGroup } from "#general";
 import type { ClientNode } from "#node/ClientNode.js";
-import { NodePhysicalProperties } from "#node/NodePhysicalProperties.js";
 import {
     ClientBdxRequest,
     ClientBdxResponse,
@@ -19,44 +19,39 @@ import {
     ClientWrite,
     DecodedInvokeResult,
     Interactable,
+    PeerSet,
     PhysicalDeviceProperties,
-    QueuedClientInteraction,
     ReadResult,
     Val,
     WriteResult,
 } from "#protocol";
 import { EndpointNumber } from "#types";
 import { ClientEndpointInitializer } from "./ClientEndpointInitializer.js";
+import { ClientNodePhysicalProperties } from "./ClientNodePhysicalProperties.js";
+
+const logger = Logger.get("ClientNodeInteraction");
 
 /**
  * A {@link ClientInteraction} that brings the node online before attempting interaction.
  */
 export class ClientNodeInteraction implements Interactable<ActionContext> {
     readonly #node: ClientNode;
-    #physicalProps?: PhysicalDeviceProperties;
+    #observers = new ObserverGroup();
+    #interactable?: ClientInteraction;
+    #interactableClosed?: Promise<unknown>;
 
     constructor(node: ClientNode) {
         this.#node = node;
+
+        const closeInteraction = this.#closeInteraction.bind(this);
+        this.#observers.on(this.#node.events.commissioning.peerAddress$Changed, closeInteraction);
+        this.#observers.on(this.#node.owner?.lifecycle.goingOffline, closeInteraction);
     }
 
-    /**
-     * The current session used for interaction with the node if any session is established, otherwise undefined.
-     */
-    get session() {
-        if (this.#node.env.has(ClientInteraction)) {
-            return this.#node.env.get(ClientInteraction).session;
-        }
-    }
-
-    get physicalProperties() {
-        if (this.#physicalProps === undefined) {
-            this.#physicalProps = NodePhysicalProperties(this.#node);
-            this.structure?.changed.on(() => {
-                // When structure changes, physical properties may change, so clear cached value to recompute on the next access
-                this.#physicalProps = undefined;
-            });
-        }
-        return this.#physicalProps;
+    async close() {
+        this.#observers.close();
+        this.#closeInteraction();
+        await this.#interactableClosed;
     }
 
     /**
@@ -67,12 +62,11 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
      */
     async *read(request: ClientRead, context?: ActionContext): ReadResult {
         if (!request.includeKnownVersions) {
-            request = this.structure.injectVersionFilters(request);
+            request = this.#structure.injectVersionFilters(request);
         }
-        const interaction = await this.#connect();
 
-        const response = interaction.read(request, context);
-        yield* this.structure.mutate(request, response);
+        const response = this.#interaction.read(request, context);
+        yield* this.#structure.mutate(request, response);
     }
 
     /**
@@ -90,17 +84,17 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
      */
     async subscribe(request: ClientSubscribe, context?: ActionContext): Promise<ClientSubscription> {
         const intermediateRequest: ClientSubscribe = {
-            ...this.structure.injectVersionFilters(request),
+            ...this.#structure.injectVersionFilters(request),
             ...PhysicalDeviceProperties.subscriptionIntervalBoundsFor({
                 description: this.#node.toString(),
-                properties: this.physicalProperties,
+                properties: ClientNodePhysicalProperties(this.#node),
                 request,
             }),
 
             sustain: !!request.sustain,
 
             updated: async data => {
-                const result = this.structure.mutate(request, data);
+                const result = this.#structure.mutate(request, data);
                 if (request.updated) {
                     await request.updated(result);
                 } else {
@@ -111,9 +105,7 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
             closed: request.closed?.bind(request),
         };
 
-        const client = await this.#connect();
-
-        return client.subscribe(intermediateRequest, context);
+        return this.#interaction.subscribe(intermediateRequest, context);
     }
 
     /**
@@ -121,9 +113,7 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
      * The returned attribute write status information is returned.
      */
     async write<T extends ClientWrite>(request: T, context?: ActionContext): WriteResult<T> {
-        const client = await this.#connect();
-
-        return client.write(request, context);
+        return this.#interaction.write(request, context);
     }
 
     /**
@@ -136,40 +126,77 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
      * Single commands may be automatically batched with other commands invoked in the same timer tick.
      */
     async *invoke(request: ClientInvoke, context?: ActionContext): DecodedInvokeResult {
-        // For commands, we always ignore the queue because the user is responsible for managing that themselves
-        const client = await this.#connect(false);
+        // For commands, by default ignore the queue because the user is responsible for managing that themselves
+        if (request.network === undefined) {
+            request.network = "unlimited";
+        }
 
-        yield* client.invoke(request, context);
+        yield* this.#interaction.invoke(request, context);
     }
 
     /**
      * Initiate a BDX Message Exchange with the node.
+     *
      * The provided function is called with the established context to perform BDX operations.
-     * Request options can be omitted if defaults are used.
+     *
+     * Request options may be omitted to use defaults.
      */
     async initBdx(request: ClientBdxRequest = {}, context?: ActionContext): Promise<ClientBdxResponse> {
-        const client = await this.#connect();
+        return this.#interaction.initBdx(request, context);
+    }
 
-        return client.initBdx(request, context);
+    get #interaction() {
+        if (this.#node.construction.status !== Lifecycle.Status.Active) {
+            throw new ImplementationError(
+                `Cannot interact with ${this.#node} because it is ${this.#node.construction.status}`,
+            );
+        }
+
+        if (!this.#node.owner?.lifecycle.isOnline) {
+            throw new ImplementationError(`Cannot interact with ${this.#node} because the local node is not online`);
+        }
+
+        if (this.#interactable) {
+            return this.#interactable;
+        }
+
+        const address = this.#node.state.commissioning.peerAddress;
+        if (address === undefined) {
+            throw new ImplementationError(`Cannot interact with ${this.#node} because it is uncommissioned`);
+        }
+
+        const peer = this.#node.env.get(PeerSet).for(address);
+        this.#interactable = new ClientInteraction({
+            environment: this.#node.env,
+            exchangeProvider: peer.exchangeProvider,
+        });
+
+        return this.#interactable;
     }
 
     /**
-     * Ensure the node is online and return the ClientInteraction.
-     * When respectQueue is set to false, then the queued interaction is not used even if it is relevant for the device.
+     * Close currently open interaction.
      */
-    async #connect(respectQueue = true): Promise<ClientInteraction> {
-        if (!this.#node.lifecycle.isOnline) {
-            await this.#node.start();
+    #closeInteraction() {
+        if (!this.#interactable) {
+            return;
         }
-        const props = this.physicalProperties;
-        // When we have a thread device, then we use the queue, or when we do not know anything
-        // (usually before the initial subscription) unless the queue is ignored by the method parameter
-        return respectQueue && (props.threadConnected || !props.rootEndpointServerList.length)
-            ? this.#node.env.get(QueuedClientInteraction)
-            : this.#node.env.get(ClientInteraction);
+
+        const closed = this.#interactable.close().catch(e => {
+            logger.error(`Unhandled error closing client interaction`, e);
+        });
+
+        this.#interactable = undefined;
+
+        if (this.#interactableClosed) {
+            // Unlikely to have two active closes but if we do, handle it
+            this.#interactableClosed = MatterAggregateError.allSettled([this.#interactableClosed, closed]);
+        } else {
+            this.#interactableClosed = closed;
+        }
     }
 
-    get structure() {
+    get #structure() {
         return (this.#node.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
     }
 

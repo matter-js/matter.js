@@ -380,11 +380,17 @@ describe("EventReadResponse", () => {
             );
 
             let asExpected = false;
-            for await (const chunks of read) {
-                expect(chunks).deep.equals([]);
-                expect(asExpected).equals(false);
-                asExpected = true;
-            }
+
+            await MockTime.resolve(
+                (async () => {
+                    for await (const chunks of read) {
+                        expect(chunks).deep.equals([]);
+                        expect(asExpected).equals(false);
+                        asExpected = true;
+                    }
+                })(),
+            );
+
             expect(asExpected).equals(true);
         });
     });

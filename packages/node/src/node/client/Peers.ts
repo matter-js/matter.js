@@ -34,15 +34,7 @@ import {
 } from "#general";
 import { ClientGroup } from "#node/ClientGroup.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
-import {
-    ClientSubscriptionHandler,
-    ClientSubscriptions,
-    FabricManager,
-    InteractionQueue,
-    PeerAddress,
-    PeerSet,
-    SessionManager,
-} from "#protocol";
+import { ClientSubscriptionHandler, ClientSubscriptions, FabricManager, PeerAddress, SessionManager } from "#protocol";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { FabricIndex } from "@matter/types";
 import { ClientNode } from "../ClientNode.js";
@@ -65,7 +57,6 @@ export class Peers extends EndpointContainer<ClientNode> {
     #installedSubscriptionHandler?: ClientSubscriptionHandler;
     #mutex = new Mutex(this);
     #closed = false;
-    #queue: InteractionQueue;
 
     constructor(owner: ServerNode) {
         super(owner);
@@ -75,8 +66,6 @@ export class Peers extends EndpointContainer<ClientNode> {
         }
 
         owner.env.applyTo(InteractionServer, this.#configureInteractionServer.bind(this));
-
-        this.#queue = this.owner.env.get(InteractionQueue); // Queue is Node wide
 
         this.added.on(this.#handlePeerAdded.bind(this));
         this.deleted.on(this.#manageExpiration.bind(this));
@@ -242,7 +231,6 @@ export class Peers extends EndpointContainer<ClientNode> {
 
     override async close() {
         this.#closed = true;
-        this.#queue.close();
         await this.#installedSubscriptionHandler?.close();
         this.#cancelExpiration();
         await this.#mutex;
@@ -386,22 +374,8 @@ export class Peers extends EndpointContainer<ClientNode> {
             return;
         }
 
-        setPeerLimits();
-
         node.eventsOf(type).leave?.on(({ fabricIndex }) => this.#onLeave(node, fabricIndex));
         node.eventsOf(type).shutDown?.on(() => this.#onShutdown(node));
-        node.eventsOf(type).capabilityMinima$Changed.on(setPeerLimits);
-
-        function setPeerLimits() {
-            if (!node.env.has(PeerSet)) {
-                // Node is not yet online, delay setting limits
-                return;
-            }
-            const peerAddress = node.maybeStateOf(CommissioningClient)?.peerAddress;
-            if (peerAddress) {
-                node.env.get(PeerSet).for(peerAddress).limits = node.stateOf(type).capabilityMinima;
-            }
-        }
     }
 
     #onLeave(node: ClientNode, fabricIndex: FabricIndex) {

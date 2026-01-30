@@ -1,0 +1,463 @@
+/**
+ * @license
+ * Copyright 2022-2026 Matter.js Authors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import type { Message } from "#codec/MessageCodec.js";
+import {
+    Abort,
+    AbortedError,
+    asError,
+    BasicMultiplex,
+    Bytes,
+    causedBy,
+    Channel,
+    Diagnostic,
+    Duration,
+    Heap,
+    Lifetime,
+    Logger,
+    Millis,
+    NetworkError,
+    Observable,
+    ServerAddress,
+    ServerAddressSet,
+    ServerAddressUdp,
+    Time,
+    Timestamp,
+} from "#general";
+import type { ExchangeManager } from "#protocol/ExchangeManager.js";
+import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
+import { CaseClient } from "#session/case/CaseClient.js";
+import type { NodeSession } from "#session/NodeSession.js";
+import type { Session } from "#session/Session.js";
+import type { SessionManager } from "#session/SessionManager.js";
+import { SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "#types";
+import { NetworkProfiles } from "./NetworkProfile.js";
+import type { Peer } from "./Peer.js";
+import { PeerCommunicationError } from "./PeerCommunicationError.js";
+import { PeerTimingParameters } from "./PeerTimingParameters.js";
+
+const logger = Logger.get("PeerConnection");
+
+/**
+ * Establishes a CASE session with a peer.
+ *
+ * Returns a session or undefined if aborted.
+ *
+ * Logic is as follows:
+ *
+ * - The last address we connected to is considered a "fallback" address
+ *
+ * - Other "discovered" addresses may be known via DNS-SD discovery
+ *
+ * - Discovery occurs via {@link Peer#service}; this is active if there are no discovered or connectable addresses and
+ *   passive if there are discovered addresses
+ *
+ * - If there is a fallback address but no discovered addresses, either because discovery has not completed or because
+ *   all discovered addresses have expired, we attempt to connect to the fallback address
+ *
+ * - If there are no discovered addresses, we trigger active solicitation of new addresses
+ *
+ * - If there are discovered addresses, attempts to connect to each discovered address in order of priority as defined
+ *   by {@link ServerAddressSet.compareDesirability}, with a configurable delay between attempts
+ *
+ * - The connection to the fallback address aborts if the fallback address is not discovered
+ *
+ * - Attempts continue until the address expires or connects successfully
+ *
+ * - We configure MRP to run indefinitely for each attempt with a configurable max delay between messages
+ *
+ * - Starting a new attempt does not cancel previously running attempts; we thus rely on the MRP retransmission window
+ *   to ensure we are sending a reasonable number of packets
+ *
+ * - Once a session is established, any outstanding attempts abort and the function returns
+ *
+ * - We use various hardcoded timeouts (see above) in response to exceptions during connection attempts.  The idea is to
+ *   recover from transient errors without being too aggressive
+ */
+export async function PeerConnection(
+    peer: Peer,
+    context: PeerConnection.Context,
+    options?: PeerConnection.Options,
+): Promise<NodeSession | undefined> {
+    const via = Diagnostic.via(peer.address.toString());
+
+    using overallAbort = new Abort(options);
+    using lifetime = (peer.lifetime ?? Lifetime.process).join("connecting");
+
+    // Reserve network communication slot
+    const network = context.networks.select(peer, options?.network);
+    using _slot = await network.semaphore.obtainSlot(overallAbort);
+    if (overallAbort.aborted) {
+        return;
+    }
+
+    // Update peer status
+    peer.service.status.connecting(overallAbort.then(() => !!peer.sessions.size));
+
+    // DNS-SD name of peer service
+    const service = peer.service;
+
+    // Active connection attempts, keyed by address
+    const attempts = new Map<ServerAddressUdp, Attempt>();
+
+    // The result
+    let outputSession: NodeSession | undefined;
+
+    // Outstanding promises
+    const workers = new BasicMultiplex();
+
+    // Address set used for interning
+    const addresses = ServerAddressSet<ServerAddressUdp>();
+
+    // Addresses we will attempt to connect to in priority order
+    const pendingAddresses = new Heap<ServerAddressUdp>(
+        ServerAddressSet.compareDesirability,
+        addresses.add.bind(addresses),
+    );
+
+    // When the service is undiscovered, we attempt to connect to the last-known good address and store it here
+    let attemptingFallback: ServerAddressUdp | undefined;
+
+    // Time of last attempt initiation, used to delay next initiation
+    let lastAttemptAt: undefined | Timestamp;
+
+    // Exchange "kick" driver
+    const kicker = options?.kicker;
+
+    // Start the attempt scheduler
+    workers.add(scheduleAttempts());
+
+    // Enqueue "fallback" address if service is undiscovered
+    maybeAttemptFallback();
+
+    // Manage connection attempts until connected or aborted
+    for await (const { kind, address } of service.addressChanges({ abort: overallAbort })) {
+        switch (kind) {
+            case "add":
+                addAddress(address);
+                break;
+
+            case "delete":
+                deleteAddress(address);
+                break;
+        }
+    }
+
+    // Ensure peer is marked as reachable if we've established a connection
+    if (outputSession) {
+        peer.service.status.isReachable = true;
+    }
+
+    overallAbort();
+
+    await workers;
+
+    return outputSession;
+
+    /**
+     * Initiate connection attempts as we discover new addresses until aborted.
+     */
+    async function scheduleAttempts() {
+        using scheduling = lifetime.join("scheduling");
+
+        while (true) {
+            // Wait for an address if none are available
+            if (!pendingAddresses.size) {
+                using _waiting = scheduling.join("waiting for address");
+                await overallAbort.race(pendingAddresses.added);
+            }
+            if (overallAbort.aborted) {
+                return;
+            }
+
+            // Delay if within the delay window of last initiation attempt
+            if (lastAttemptAt !== undefined) {
+                const timeSinceLastAttempt = Timestamp.delta(lastAttemptAt);
+                const delayInterval = Millis(context.timing.delayBeforeNextAddress - timeSinceLastAttempt);
+                if (delayInterval > 0) {
+                    using _delaying = scheduling.join("delaying");
+
+                    const changed = await overallAbort.race<ServerAddressUdp | void>(
+                        Time.sleep("connection delay", delayInterval),
+                        pendingAddresses.added,
+                        pendingAddresses.deleted,
+                    );
+                    if (overallAbort.aborted) {
+                        return;
+                    }
+
+                    // If there was an address change then restart the loop
+                    if (changed !== undefined) {
+                        continue;
+                    }
+                }
+            }
+
+            // Start next address
+            const address = pendingAddresses.shift();
+            if (address) {
+                initiateAttempt(address);
+            }
+        }
+    }
+
+    /**
+     * Enqueue an address if not already attempting.
+     */
+    function addAddress(address: ServerAddressUdp) {
+        address = addresses.add(address);
+
+        // Skip if we're already attempting connection to this address
+        if (attempts.has(address)) {
+            if (attemptingFallback && ServerAddress.isEqual(attemptingFallback, address)) {
+                // The "fallback" is now a "real" address
+                attemptingFallback = undefined;
+            }
+
+            return;
+        }
+
+        pendingAddresses.add(address);
+    }
+
+    /**
+     * Attempt connection to fallback address if no other attempts are active
+     */
+    function maybeAttemptFallback() {
+        if (attempts.size || pendingAddresses.size || service.addresses.size) {
+            return;
+        }
+
+        attemptingFallback = peer.descriptor.operationalAddress;
+        if (attemptingFallback) {
+            pendingAddresses.add(attemptingFallback);
+        }
+    }
+
+    /**
+     * Begin connection attempt to specific address.  Continues until aborted.
+     */
+    function initiateAttempt(address: ServerAddressUdp) {
+        address = addresses.add(address);
+
+        // Skip if we're already attempting connection to this address
+        if (attempts.has(address)) {
+            return;
+        }
+
+        const addressAbort = new Abort({ abort: overallAbort });
+
+        lastAttemptAt = Time.nowMs;
+
+        const finished = connect(address, addressAbort).finally(() => {
+            try {
+                if (attempts.get(address)?.finished === finished) {
+                    attempts.delete(address);
+                    maybeAttemptFallback();
+                }
+            } finally {
+                addressAbort.close();
+            }
+        });
+
+        attempts.set(address, { abort: addressAbort, finished });
+
+        workers.add(finished);
+    }
+
+    /**
+     * End connection attempt.
+     */
+    function deleteAddress(address: ServerAddressUdp) {
+        address = addresses.add(address);
+        const attempt = attempts.get(address);
+
+        if (attempt) {
+            attempt.abort();
+            attempts.delete(address);
+        }
+
+        pendingAddresses.delete(address);
+    }
+
+    /**
+     * Perform connection to specific address until successful.
+     */
+    async function connect(address: ServerAddressUdp, addressAbort: Abort) {
+        using connecting = lifetime.join("attempt");
+        connecting.details.address = ServerAddress.urlFor(address);
+
+        // If this is not the fallback address but we're still attempting to connect to the fallback, it means that
+        // we've discovered addresses that do not include the fallback; terminate the fallback attempt
+        if (attemptingFallback && address !== attemptingFallback) {
+            deleteAddress(attemptingFallback);
+            attemptingFallback = undefined;
+        }
+
+        while (!addressAbort.aborted) {
+            try {
+                await attemptOnce(address, addressAbort, connecting);
+            } catch (e) {
+                await handleConnectionError(asError(e), addressAbort, connecting);
+            }
+        }
+    }
+
+    /**
+     * Make a single attempt to connect to a specific address.
+     */
+    async function attemptOnce(address: ServerAddressUdp, addressAbort: Abort, lifetime: Lifetime) {
+        let socket;
+
+        {
+            using _opening = lifetime.join("opening socket");
+            socket = await context.openSocket(address, addressAbort);
+            if (socket === undefined) {
+                return;
+            }
+        }
+
+        await using unsecuredSession = context.sessions.createUnsecuredSession({
+            channel: socket,
+            sessionParameters: peer.sessionParameters,
+            isInitiator: true,
+        });
+
+        await using exchange = PeerConnection.createExchange(peer, context.exchanges, unsecuredSession);
+
+        const caseClient = new CaseClient(context.sessions);
+
+        const fabric = context.sessions.fabricFor(peer.address);
+
+        let kick: Disposable | undefined;
+
+        try {
+            using _pairing = lifetime.join("pairing");
+
+            kick = kicker?.use(() => exchange.kick());
+
+            const { session } = await caseClient.pair(exchange, fabric, peer.address.nodeId, {
+                ...options,
+                abort: addressAbort,
+                caseAuthenticatedTags: peer.descriptor.caseAuthenticatedTags,
+                maxInitialRetransmissions: Infinity,
+                maxInitialRetransmissionTime: context.timing.maxDelayBetweenInitialContactRetries,
+            });
+
+            // Success
+            outputSession = session;
+            overallAbort();
+        } catch (e) {
+            if (AbortedError.is(e)) {
+                return;
+            }
+
+            throw e;
+        } finally {
+            kick?.[Symbol.dispose]();
+        }
+    }
+
+    /**
+     * Log error information and pause before next retry.
+     */
+    async function handleConnectionError(e: Error, addressAbort: Abort, lifetime: Lifetime) {
+        using _handling = lifetime.join("handling error");
+
+        let delay: undefined | Duration;
+        if (causedBy(e, NetworkError, PeerCommunicationError)) {
+            logger.error(
+                via,
+                `Connection error (retry in ${Duration.format(context.timing.delayAfterNetworkError)}):`,
+                Diagnostic.errorMessage(e),
+            );
+            delay = context.timing.delayAfterNetworkError;
+        } else if (e instanceof ChannelStatusResponseError) {
+            if (
+                e.protocolStatusCode === SecureChannelStatusCode.NoSharedTrustRoots &&
+                (await context.sessions.deleteResumptionRecord(peer.address))
+            ) {
+                logger.error(
+                    via,
+                    "Authorization rejected by peer on session resumption; clearing resumption data and retrying",
+                );
+            } else {
+                logger.error(
+                    via,
+                    `Peer error (retry in ${Duration.format(context.timing.delayAfterPeerError)}):`,
+                    Diagnostic.errorMessage(e),
+                );
+                delay = context.timing.delayAfterPeerError;
+            }
+        } else {
+            logger.error(
+                via,
+                `Unhandled connection error (retry in ${Duration.format(context.timing.delayAfterUnhandledError)}):`,
+                e,
+            );
+            delay = context.timing.delayAfterUnhandledError;
+        }
+
+        if (addressAbort.aborted) {
+            return;
+        }
+
+        if (delay) {
+            await Abort.sleep("peer connection retry", addressAbort, delay);
+            if (addressAbort.aborted) {
+                return;
+            }
+        }
+    }
+}
+
+export namespace PeerConnection {
+    export interface Context extends Lifetime.Owner {
+        sessions: SessionManager;
+        exchanges: ExchangeManager;
+        networks: NetworkProfiles;
+
+        /**
+         * Open byte channel to a specific address.
+         */
+        openSocket(address: ServerAddressUdp, abort: AbortSignal): Promise<Channel<Bytes> | void>;
+
+        timing: PeerTimingParameters;
+    }
+
+    export interface Options {
+        abort?: AbortSignal;
+        network?: string;
+        kicker?: Observable<[]>;
+    }
+
+    export function createExchange(
+        peer: Peer,
+        exchanges: ExchangeManager,
+        session: Session,
+        protocol = SECURE_CHANNEL_PROTOCOL_ID,
+    ) {
+        return exchanges.initiateExchangeForSession(session, protocol, { onSend, onReceive });
+
+        function onSend(_message: Message, retransmission: number) {
+            if (retransmission) {
+                // Trigger discovery when we begin retransmitting
+                // TODO - spec specifies this SHOULD happen unequivocally on first retry, but seems like it may be
+                // beneficial to *not* do so when the network is congested
+                peer.service.status.isReachable = false;
+            }
+        }
+
+        function onReceive() {
+            peer.service.status.lastReceiptAt = Time.nowMs;
+        }
+    }
+}
+
+interface Attempt {
+    abort: Abort;
+    finished: Promise<void>;
+}

@@ -26,11 +26,9 @@ export function MockRouter(manipulator?: MockRouter.PacketManipulator): MockRout
             packet = manipulatedPacket;
         }
         for (const route of routes) {
-            try {
-                route(packet);
-            } catch (e) {
-                logger.error("Unhandled error in network listener", e);
-            }
+            Promise.resolve()
+                .then(() => route(packet))
+                .catch(e => logger.error("Unhandled error in network listener", e));
         }
     };
 
