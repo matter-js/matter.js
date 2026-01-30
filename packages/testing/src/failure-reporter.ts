@@ -34,7 +34,7 @@ function dumpCause(out: Printer, failure: FailureDetail) {
 
 function dumpDetails(
     out: Printer,
-    { message, id, actual, expected, stack, cause, errors, secondary, logs }: FailureDetail,
+    { message, id, actual, expected, stack, cause, errors, secondary, logs, diagnostics }: FailureDetail,
 ) {
     out("\n", ansi.bright.red(id ? `[${ansi.bold(id)}] ${message}` : message), "\n");
 
@@ -70,5 +70,9 @@ function dumpDetails(
 
     if (logs) {
         out("\n", logs, "\n");
+    }
+
+    if (diagnostics) {
+        out("\n", ansi.bold("Process state at timeout:"), "\n", diagnostics, "\n");
     }
 }

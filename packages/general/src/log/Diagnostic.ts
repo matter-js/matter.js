@@ -9,6 +9,7 @@ import { Time } from "#time/Time.js";
 import { Timestamp } from "#time/Timestamp.js";
 import { Millis } from "#time/TimeUnit.js";
 import { Bytes } from "#util/Bytes.js";
+import { asError } from "#util/Error.js";
 import type { Lifecycle } from "../util/Lifecycle.js";
 import { DiagnosticPresentation } from "./DiagnosticPresentation.js";
 import { LogLevel } from "./LogLevel.js";
@@ -253,29 +254,45 @@ export namespace Diagnostic {
         return formatError(error);
     }
 
+    export interface ErrorMessageDetails {
+        id?: string;
+        message: string;
+        path?: unknown;
+        cause?: unknown;
+    }
+
     /**
      * Create a diagnostic for error messages that may have a code.
      *
      * Useful for errors when we don't want to present the stack trace.
+     *
+     * Includes singular causes but not components of aggregate errors.
      */
-    export function errorMessage({ id, message, path }: { id?: string; message: string; path?: unknown }): unknown {
-        if (id === undefined && path === undefined) {
-            return Diagnostic("error", message);
-        }
-
+    export function errorMessage(details: ErrorMessageDetails): unknown {
         const diagnostic = Array<unknown>();
 
-        if (id) {
-            diagnostic.push(Diagnostic.squash("[", Diagnostic.strong(id), "]"));
-        }
-
-        if (path) {
-            diagnostic.push(Diagnostic.squash(path, ":"));
-        }
-
-        diagnostic.push(message);
+        format(details);
 
         return Diagnostic("error", diagnostic);
+
+        function format({ id, message, path, cause }: ErrorMessageDetails) {
+            if (id) {
+                diagnostic.push(Diagnostic.squash("[", Diagnostic.strong(id), "]"));
+            }
+
+            if (path) {
+                diagnostic.push(Diagnostic.squash(path, ":"));
+            }
+
+            const hasCause = cause !== undefined;
+
+            if (hasCause) {
+                diagnostic.push(Diagnostic.squash(message, ":"));
+                format(asError(cause));
+            } else {
+                diagnostic.push(message);
+            }
+        }
     }
 
     /**
@@ -544,7 +561,7 @@ function formatError(error: unknown, options: { messagePrefix?: string; parentSt
     if (messagePrefix) {
         messageDiagnostic.push(messagePrefix);
     }
-    messageDiagnostic.push(Diagnostic.errorMessage(messageAndStack));
+    messageDiagnostic.push(Diagnostic.errorMessage({ ...messageAndStack, cause: undefined }));
 
     message = Diagnostic.upgrade(message, messageDiagnostic);
 
