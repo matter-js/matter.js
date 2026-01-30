@@ -10,6 +10,7 @@ import { Test } from "mocha";
 import { FailureDetail } from "./failure-detail.js";
 import { Boot } from "./mocks/boot.js";
 import { LoggerHooks } from "./mocks/logging.js";
+import { TestTimeoutError } from "./mocks/time.js";
 import { TestOptions } from "./options.js";
 import { Reporter } from "./reporter.js";
 import type { TestDescriptor } from "./test-descriptor.js";
@@ -89,6 +90,20 @@ export function generalSetup(mocha: Mocha) {
 }
 
 export function extendApi(Mocha: typeof MochaType) {
+    (Mocha.Runnable.prototype as any)._timeoutError = function (timeoutMs: number) {
+        // We use our error class so we get diagnostics and message isn't so verbose
+        const error = new TestTimeoutError(`Timeout of ${timeoutMs}ms exceeded`);
+
+        // But we configure properties like Mocha does
+        error.code = "ERR_MOCHA_TIMEOUT";
+        error.timeout = timeoutMs;
+        if (this.file) {
+            error.file = this.file;
+        }
+
+        return error;
+    };
+
     (Mocha.reporters.Base as any).maxDiffSize = 0xffff;
 
     const descriptors = new WeakMap<Mocha.Suite | Mocha.Test, TestDescriptor>();
@@ -164,6 +179,7 @@ export function extendApi(Mocha: typeof MochaType) {
 function instrumentSuites(mocha: Mocha) {
     for (const suite of mocha.suite.suites) {
         suite.beforeAll(beforeEachFile);
+        suite.beforeEach(beforeEach);
 
         // Move our beforeAll hook so it runs before the suite's beforeAll hooks
         const hooks = (suite as any)._beforeAll as unknown[];
@@ -198,6 +214,11 @@ export async function runMocha(mocha: Mocha) {
 // need a reset the suite needs to handle itself.
 function beforeEachFile() {
     Boot.reboot();
+}
+
+// Reset state before each test.
+function beforeEach() {
+    Boot.reset();
 }
 
 export function adaptReporter(
@@ -248,12 +269,16 @@ export function adaptReporter(
             }
 
             runner.on(RUNNER.EVENT_TEST_FAIL, (test, error) => {
+                let diagnostics: undefined | string;
+                if (error instanceof TestTimeoutError) {
+                    diagnostics = error.diagnostics;
+                }
                 if (updateStats && test.descriptor) {
                     test.descriptor.durationMs = test.duration;
                     test.descriptor.passed = false;
                 }
                 const logs = (test as any).logs as string[];
-                reporter.failTest(test.title, FailureDetail(error, undefined, logs));
+                reporter.failTest(test.title, FailureDetail(error, undefined, logs, undefined, diagnostics));
                 wtf.dump();
             });
 

@@ -6,6 +6,18 @@
 
 import { Boot } from "./boot.js";
 
+export class TestTimeoutError extends Error {
+    diagnostics = MatterHooks?.generateDiagnostics?.();
+
+    constructor(message: string) {
+        super(`Test timeout: ${message}`);
+    }
+
+    code?: number | string;
+    timeout?: number;
+    file?: string;
+}
+
 type TimerCallback = () => any;
 
 type MockTimeLike = typeof MockTime;
@@ -190,10 +202,22 @@ export const MockTime = {
      *
      * Moves time forward until the promise resolves.
      */
-    async resolve<T>(promise: PromiseLike<T>, { stepMs, macrotasks }: { stepMs?: number; macrotasks?: boolean } = {}) {
+    async resolve<T>(
+        promise: PromiseLike<T> | T,
+        { stepMs, macrotasks }: { stepMs?: number; macrotasks?: boolean } = {},
+    ) {
         let resolved = false;
         let result: T | undefined;
         let error: any;
+
+        if (
+            typeof promise !== "object" ||
+            promise === null ||
+            !("then" in promise) ||
+            typeof promise.then !== "function"
+        ) {
+            return promise;
+        }
 
         promise.then(
             r => {
@@ -224,8 +248,8 @@ export const MockTime = {
 
             // If we've advanced more than one hour, assume we've hung
             if (timeAdvanced > 60 * 60 * 1000) {
-                throw new Error(
-                    "Mock timeout: Promise did not resolve within one (virtual) hour, probably not going to happen",
+                throw new TestTimeoutError(
+                    "Promise did not resolve within one (virtual) hour, probably not going to happen",
                 );
             }
 
@@ -402,7 +426,11 @@ export function timeSetup(Time: {
 
 Object.assign(globalThis, { MockTime });
 
-Boot.init(() => {
+Boot.init(kind => {
+    if (kind === "state") {
+        return;
+    }
+
     MockTime.reset();
     MockTime.disable();
 });
