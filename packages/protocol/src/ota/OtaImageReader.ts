@@ -12,9 +12,12 @@ import {
     HashAlgorithm,
     HashFipsAlgorithmId,
     InternalError,
+    Logger,
     MatterError,
 } from "#general";
 import { OtaImageHeader, TlvOtaImageHeader } from "./OtaImageHeader.js";
+
+const logger = Logger.get("OtaImageReader");
 
 export class OtaImageError extends MatterError {
     constructor(message: string, options?: ErrorOptions) {
@@ -29,7 +32,6 @@ export class OtaImageError extends MatterError {
 export class OtaImageReader {
     #crypto?: Crypto;
     #streamReader: ReadableStreamDefaultReader<Bytes>;
-    #expectedTotalSize?: bigint;
     #totalSize?: bigint;
     #headerSize?: number;
     #headerData?: OtaImageHeader;
@@ -60,7 +62,7 @@ export class OtaImageReader {
             expectedChecksum?: string;
         },
     ) {
-        const reader = new OtaImageReader(streamReader, crypto, expectedTotalSize);
+        const reader = new OtaImageReader(streamReader, crypto);
         if (options?.checksumType !== undefined) {
             reader.#fullFileChecksumType = options.checksumType;
         }
@@ -76,6 +78,20 @@ export class OtaImageReader {
                 `OTA full file checksum mismatch: expected "${options.expectedChecksum}", got "${reader.#fullFileChecksum}"`,
             );
         }
+        if (expectedTotalSize !== undefined) {
+            expectedTotalSize = BigInt(expectedTotalSize);
+            if (reader.totalSize !== expectedTotalSize) {
+                if (options?.expectedChecksum) {
+                    logger.warn(
+                        `OTA file size mismatch, but checksum matched: expected ${expectedTotalSize}, got ${reader.totalSize}`,
+                    );
+                } else {
+                    throw new OtaImageError(
+                        `OTA file size mismatch: expected ${expectedTotalSize}, got ${reader.totalSize}`,
+                    );
+                }
+            }
+        }
 
         return reader.#headerData;
     }
@@ -90,23 +106,30 @@ export class OtaImageReader {
         crypto: Crypto,
         expectedTotalSize?: number | bigint,
     ) {
-        const reader = new OtaImageReader(streamReader, crypto, expectedTotalSize);
+        const reader = new OtaImageReader(streamReader, crypto);
         const { remainingData } = await reader.#processHeader(false);
         if (reader.#headerData === undefined) {
             throw new InternalError("OTA header not read");
         }
         await reader.#extractAndValidatePayload(remainingData, payloadWriter);
+        if (expectedTotalSize !== undefined) {
+            expectedTotalSize = BigInt(expectedTotalSize);
+            if (reader.totalSize !== expectedTotalSize) {
+                throw new OtaImageError(
+                    `OTA file size mismatch: expected ${expectedTotalSize}, got ${reader.totalSize}`,
+                );
+            }
+        }
         return reader.#headerData;
     }
 
-    constructor(
-        streamReader: ReadableStreamDefaultReader<Bytes>,
-        crypto?: Crypto,
-        expectedTotalSize?: number | bigint,
-    ) {
+    constructor(streamReader: ReadableStreamDefaultReader<Bytes>, crypto?: Crypto) {
         this.#streamReader = streamReader;
         this.#crypto = crypto;
-        this.#expectedTotalSize = expectedTotalSize ? BigInt(expectedTotalSize) : undefined;
+    }
+
+    get totalSize() {
+        return this.#totalSize;
     }
 
     /** Process and read the OTA image header from the stream. */
@@ -143,11 +166,6 @@ export class OtaImageReader {
                     throw new OtaImageError("Invalid OTA file identifier");
                 }
                 this.#totalSize = headerReader.readUInt64();
-                if (this.#expectedTotalSize !== undefined && this.#totalSize !== this.#expectedTotalSize) {
-                    throw new OtaImageError(
-                        `OTA file size mismatch: expected ${this.#expectedTotalSize}, got ${this.#totalSize}`,
-                    );
-                }
                 this.#headerSize = headerReader.readUInt32();
             }
 
