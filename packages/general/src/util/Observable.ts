@@ -1168,11 +1168,13 @@ export class QuietObservable<T extends any[] = any[], R extends MaybePromise<voi
         if (shouldEmit === false) {
             return;
         }
+
         const immediate = shouldEmit === "now";
         if (!immediate && !this.#emitAutomatically) {
             this.#deferredPayload = payload;
             return;
         }
+
         const now = Time.nowMs;
         if (
             immediate ||
@@ -1182,6 +1184,11 @@ export class QuietObservable<T extends any[] = any[], R extends MaybePromise<voi
         ) {
             return this.#emit(payload, now);
         }
+
+        if (this.config.skipSuppressedEmits) {
+            return;
+        }
+
         this.#deferredPayload = payload;
         this.#start(now);
     }
@@ -1292,6 +1299,11 @@ export namespace QuietObservable {
          * Handler for promises returned by observers.
          */
         handlePromise?: ObserverPromiseHandler;
+
+        /**
+         * If true, skips emission when rate limited rather than delaying.
+         */
+        skipSuppressedEmits?: boolean;
     }
 
     /**
