@@ -483,6 +483,8 @@ describe("MdnsSocket", () => {
             const query1 = completeDnsMessage(createQuery("_first._tcp.local"));
             await sendFromPeer(env, query1);
 
+            await Promise.resolve();
+
             expect(receivedMessages).to.have.length(1);
 
             // Close the socket
