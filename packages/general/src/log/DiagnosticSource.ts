@@ -5,10 +5,11 @@
  */
 
 // Note we cannot import diagnostic directly as it causes circular reference
+import { Boot } from "#util/Boot.js";
 import type { Diagnostic } from "./Diagnostic.js";
 import { DiagnosticPresentation } from "./DiagnosticPresentation.js";
 
-const sources = new Set<Diagnostic>();
+let sources = new Set<Diagnostic>();
 
 /**
  * Registry of diagnostic sources.
@@ -34,3 +35,7 @@ export const DiagnosticSource = {
         return diagnostic;
     },
 };
+
+Boot.init(() => {
+    sources = new Set();
+}, "state");
