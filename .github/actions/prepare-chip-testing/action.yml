@@ -102,6 +102,7 @@ runs:
           "./scripts/build/build_examples.py \
             --target linux-x64-chip-tool-${BUILD_VARIANT} \
             --target linux-x64-all-clusters-${BUILD_VARIANT} \
+            --target linux-x64-all-devices-${BUILD_VARIANT} \
             --target linux-x64-lock-${BUILD_VARIANT} \
             --target linux-x64-tv-app-${BUILD_VARIANT} \
             --target linux-x64-bridge-${BUILD_VARIANT} \
@@ -115,6 +116,7 @@ runs:
           "
         cp out/linux-x64-chip-tool-${BUILD_VARIANT}/chip-tool ../bin/
         cp out/linux-x64-all-clusters-${BUILD_VARIANT}/chip-all-clusters-app ../bin/
+        cp out/linux-x64-all-devies-${BUILD_VARIANT}/chip-all-devices-app ../bin/
         cp out/linux-x64-bridge-${BUILD_VARIANT}/chip-bridge-app ../bin/
         cp out/linux-x64-lock-${BUILD_VARIANT}/chip-lock-app ../bin/
         cp out/linux-x64-tv-app-${BUILD_VARIANT}/chip-tv-app ../bin/
