@@ -571,8 +571,8 @@ export default function commands(theNode: MatterNode) {
                     async argv => {
                         const { vendorId: vendorIdStr, productId: productIdStr, softwareVersion, mode, local } = argv;
 
-                        const vendorId = parseHexId(vendorIdStr as string, "vendor");
-                        const productId = parseHexId(productIdStr as string, "product");
+                        const vendorId = parseHexId(vendorIdStr, "vendor");
+                        const productId = parseHexId(productIdStr, "product");
                         const isProduction = mode === "prod" ? true : mode === "test" ? false : undefined;
 
                         console.log(`Checking DCL for OTA updates...`);
