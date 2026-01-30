@@ -31,6 +31,8 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
     #notified?: Promise<void>;
     #maybeDeleting?: Promise<void>;
     #parameters?: Map<string, string>;
+    #dependencies?: Map<string, DnssdName>;
+    #nullObserver?: () => void;
 
     constructor(
         readonly qname: string,
@@ -102,6 +104,17 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
 
         this.#context.registerForExpiration(recordWithExpire);
 
+        // For PTR records, add a dependency
+        if (record.recordType === DnsRecordType.SRV && !this.#dependencies?.has(key)) {
+            const dependency = this.#context.get((record.value as SrvRecordValue).target);
+
+            // We use the "null observer" to mark the name as observed; we don't actually react to changes because we
+            // want to observe so long as its a dependency
+            dependency.on((this.#nullObserver ??= () => undefined));
+
+            (this.#dependencies ??= new Map()).set(key, dependency);
+        }
+
         this.#notify("update", key, recordWithExpire);
     }
 
@@ -124,6 +137,12 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
 
         this.#records.delete(key);
         this.#recordCount--;
+
+        const dependency = this.#dependencies?.get(key);
+        if (dependency) {
+            this.#dependencies!.delete(key);
+            dependency.off(this.#nullObserver!);
+        }
 
         this.#context.unregisterForExpiration(recordWithExpire);
 
@@ -216,6 +235,12 @@ function keyOf(record: DnsRecord): string | undefined {
                 return `${record.recordType} ${srv.target}:${srv.port}`;
             }
             break;
+
+        case DnsRecordType.TXT:
+            if (Array.isArray(record.value)) {
+                return `${record.recordType} ${record.value.sort().join(" ")}`;
+            }
+            break;
     }
 }
 
@@ -224,6 +249,7 @@ export namespace DnssdName {
         delete(name: DnssdName): void;
         registerForExpiration(record: Record): void;
         unregisterForExpiration(record: Record): void;
+        get(qname: string): DnssdName;
     }
 
     export interface Expiration {

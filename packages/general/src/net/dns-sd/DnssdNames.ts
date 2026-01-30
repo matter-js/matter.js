@@ -44,7 +44,7 @@ export class DnssdNames {
         minTtl: minTtl,
     }: DnssdNames.Context) {
         this.#socket = socket;
-        this.#lifetime = lifetime.join("mdns client");
+        this.#lifetime = lifetime.join("mdns names");
         this.#entropy = entropy;
         this.#filter = filter;
         this.#solicitor = new QueryMulticaster(this);
@@ -59,7 +59,7 @@ export class DnssdNames {
                 return a.expiresAt;
             },
             run: record => {
-                const discoveryName = this.#names.get(record.name);
+                const discoveryName = this.maybeGet(record.name);
                 if (discoveryName) {
                     discoveryName.deleteRecord(record);
                 }
@@ -68,12 +68,15 @@ export class DnssdNames {
     }
 
     #handleMessage(message: MdnsSocket.Message) {
+        const records = [...message.answers, ...message.additionalRecords];
+        const filtered = new Set(records);
         let goodbyesBefore: undefined | Timestamp;
-        for (let record of [...message.answers, ...message.additionalRecords]) {
-            if (this.#filter && !this.#filter(record)) {
-                continue;
-            }
 
+        /**
+         * Handles a record we've decided we're interested in.
+         */
+        const handleRecord = (record: DnsRecord) => {
+            filtered.delete(record);
             const name = this.get(record.name);
             if (record.ttl) {
                 if (record.ttl < this.#minTtl) {
@@ -90,6 +93,29 @@ export class DnssdNames {
                 }
                 name.deleteRecord(record, goodbyesBefore);
             }
+        };
+
+        // Process all records explicitly accepted by the filter
+        for (const record of records) {
+            if (this.#filter && !this.#filter(record)) {
+                continue;
+            }
+
+            handleRecord(record);
+        }
+
+        // Filtered records may be relevant to us if they are referenced by services, e.g. SRV targets become relevant.
+        // So iteratively process until the set of filtered records does not change
+        let filteredBeforePass = records.length;
+        while (filteredBeforePass > filtered.size) {
+            filteredBeforePass = filtered.size;
+            for (const record of filtered) {
+                if (!this.has(record.name)) {
+                    continue;
+                }
+
+                handleRecord(record);
+            }
         }
     }
 
@@ -97,8 +123,7 @@ export class DnssdNames {
      * Test for existence of name.
      */
     has(name: string) {
-        name = name.toLowerCase();
-        return this.#names.has(name);
+        return this.#names.has(name.toLowerCase());
     }
 
     /**
@@ -111,7 +136,7 @@ export class DnssdNames {
         let name = this.maybeGet(qname);
         if (name === undefined) {
             name = new DnssdName(qname, this.#nameContext);
-            this.#names.set(qname, name);
+            this.#names.set(qname.toLowerCase(), name);
         }
         return name;
     }
@@ -120,8 +145,11 @@ export class DnssdNames {
      * Retrieve the {@link DnssdName} if known.
      */
     maybeGet(name: string) {
-        name = name.toLowerCase();
-        return this.#names.get(name);
+        return this.#names.get(name.toLowerCase());
+    }
+
+    #delete(name: DnssdName) {
+        this.#names.delete(name.qname.toLowerCase());
     }
 
     /**
@@ -133,7 +161,7 @@ export class DnssdNames {
         await this.#expiration.close();
         for (const name of this.#names.values()) {
             await name.close();
-            this.#names.delete(name.qname);
+            this.#delete(name);
         }
         await this.#solicitor.close();
     }
@@ -164,9 +192,9 @@ export class DnssdNames {
 
     #nameContext: DnssdName.Context = {
         delete: name => {
-            const known = this.#names.get(name.qname);
+            const known = this.maybeGet(name.qname);
             if (known === name) {
-                this.#names.delete(name.qname);
+                this.#delete(name);
             }
         },
 
@@ -177,6 +205,10 @@ export class DnssdNames {
         unregisterForExpiration: record => {
             this.#expiration.delete(record);
         },
+
+        get: qname => {
+            return this.get(qname);
+        },
     };
 }
 
@@ -185,6 +217,12 @@ export namespace DnssdNames {
         socket: MdnsSocket;
         lifetime?: Lifetime.Owner;
         entropy: Entropy;
+
+        /**
+         * Identify relevant records coming in on the wire for inclusion in the name set.
+         *
+         * Observed names are considered relevant even if filtered here.
+         */
         filter?: (record: DnsRecord) => boolean;
 
         /**
