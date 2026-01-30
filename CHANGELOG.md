@@ -22,7 +22,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: When forcing an MDNS update for an operational device, ensure we also get new IP addresses
     - Enhancement: Updates the session network address based on the address from the last opened exchange
     - Enhancement: Ensures to update the persisted last known network address when addresses change on new sessions or exchanges
-    - Enhancement: When getting new IP addresses for a device while in resubmissions directly use them for the next message 
+    - Enhancement: When getting new IP addresses for a device while in resubmissions directly use them for the next message
+    - Enhancement: Ignores OTA update-file size issues when checksum matches and downloaded from DCL
     - Fix: Correctly handle multi-message write interactions (server and client) according to Matter specification
     - Fix: Correctly handle multi-message invoke responses (server and client) according to Matter specification
     - Fix: Sort out matching local OTA versions that are not applicable considering the current device version
