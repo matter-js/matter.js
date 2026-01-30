@@ -566,6 +566,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                 const { promise, resolver, rejecter } = createPromise<SecureSession>();
 
                 logger.debug(
+                    address,
                     `Starting reconnection polling for ${ServerAddress.urlFor(lastOperationalAddress)} (interval ${Duration.format(RECONNECTION_POLLING_INTERVAL)})`,
                 );
                 reconnectionPollingTimer = Time.getPeriodicTimer(
@@ -574,7 +575,10 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                     async () => {
                         const queueSlot = await queue?.obtainSlot();
                         try {
-                            logger.debug(`Polling for device at ${ServerAddress.urlFor(lastOperationalAddress)} ...`);
+                            logger.debug(
+                                address,
+                                `Polling for device at ${ServerAddress.urlFor(lastOperationalAddress)} ...`,
+                            );
                             const result = await this.#reconnectKnownAddress(
                                 address,
                                 lastOperationalAddress,
@@ -609,7 +613,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                 stopTimerFunc = () => {
                     reconnectionPollingTimer?.stop();
                     reconnectionPollingTimer = undefined;
-                    rejecter(new NoResponseTimeoutError("Reconnection polling cancelled"));
+                    rejecter(new NoResponseTimeoutError(`${address} Reconnection polling cancelled`));
                 };
                 discoveryPromises.push(() => promise);
             }
@@ -629,7 +633,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                 if (session !== undefined) {
                     return session;
                 }
-                throw new NoResponseTimeoutError("Discovery was cancelled but we have no session, retry");
+                throw new NoResponseTimeoutError(`${address} Discovery was cancelled but we have no session, retry`);
             }
             const { stopTimerFunc } = peer.activeDiscovery;
             stopTimerFunc?.();
@@ -697,7 +701,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         const startTime = Time.nowMs;
         try {
             logger.debug(
-                `Resuming connection to ${PeerAddress(address)} at ${ip}:${port}${
+                `Resuming connection to ${address} at ${ip}:${port}${
                     expectedProcessingTime !== undefined
                         ? ` with expected processing time of ${Duration.format(expectedProcessingTime)}`
                         : ""
