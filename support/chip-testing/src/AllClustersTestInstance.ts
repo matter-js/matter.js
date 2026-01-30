@@ -317,7 +317,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                     productLabel: "MorePowerPro 6100",
                     productId: 0x8001,
                     serialNumber: `9999-9999-9999`,
-                    manufacturingDate: "20210101",
+                    manufacturingDate: "20200101",
                     partNumber: "123456",
                     productUrl: "https://test.com",
                     uniqueId: `node-matter-unique`,
