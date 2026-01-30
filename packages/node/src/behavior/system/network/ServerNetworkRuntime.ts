@@ -15,7 +15,6 @@ import {
     NetworkInterfaceDetailed,
     NoAddressAvailableError,
     ObserverGroup,
-    SharedEnvironmentServices,
     UdpInterface,
 } from "#general";
 import type { ServerNode } from "#node/ServerNode.js";
@@ -61,11 +60,9 @@ export class ServerNetworkRuntime extends NetworkRuntime {
     #ipv6UdpInterface?: UdpInterface;
     #observers = new ObserverGroup(this);
     #groupNetworking?: ServerGroupNetworking;
-    #services: SharedEnvironmentServices;
 
     constructor(owner: ServerNode) {
         super(owner);
-        this.#services = owner.env.asDependent();
     }
 
     override get owner() {
@@ -83,7 +80,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
                 ...this.owner.state.commissioning.mdns,
             };
             const crypto = this.owner.env.get(Crypto);
-            const { server } = this.#services.get(MdnsService);
+            const { server } = this.owner.env.get(MdnsService);
             this.#mdnsAdvertiser = new MdnsAdvertiser(crypto, server, { ...options, port });
         }
         return this.#mdnsAdvertiser;
@@ -265,9 +262,6 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         const interfaces = env.get(ConnectionlessTransportSet);
         await this.addTransports(interfaces);
 
-        // Initialize MDNS
-        const mdns = await this.#services.load(MdnsService);
-
         const advertiser = env.get(DeviceAdvertiser);
 
         await this.addBroadcasters(advertiser);
@@ -284,7 +278,8 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         // Install our interaction server
         const interactionServer = new InteractionServer(this.owner, env.get(SessionManager));
         env.set(InteractionServer, interactionServer);
-        env.get(ExchangeManager).addProtocolHandler(interactionServer);
+        const exchanges = env.get(ExchangeManager);
+        exchanges.addProtocolHandler(interactionServer);
 
         // Ensure SecureChannelProtocol is installed
         env.get(SecureChannelProtocol);
@@ -300,9 +295,9 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         }
 
         // Initialize ScannerSet
-        this.owner.env.get(ScannerSet).add(mdns.client);
+        this.owner.env.get(ScannerSet).add(env.get(MdnsService).client);
 
-        await env.load(PeerSet);
+        (await env.load(PeerSet)).exchanges = exchanges;
 
         // Prevent new connections when aborted
         this.abortSignal.addEventListener("abort", () =>
@@ -344,8 +339,8 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         }
 
         {
-            using _lifetime = this.construction.join("services");
-            await this.#services.close();
+            using _lifetime = this.construction.join("peers");
+            await env.maybeGet(PeerSet)?.disconnect();
         }
 
         {
@@ -360,17 +355,14 @@ export class ServerNetworkRuntime extends NetworkRuntime {
 
         {
             using _lifetime = this.construction.join("transports");
-            await env.close(ConnectionlessTransportSet);
+
+            // Close transports but leave the set in place as it is shared and will be reused
+            await env.maybeGet(ConnectionlessTransportSet)?.close();
         }
 
         {
             using _lifetime = this.construction.join("interactions");
             await env.close(InteractionServer);
-        }
-
-        {
-            using _lifetime = this.construction.join("peers");
-            await env.close(PeerSet);
         }
 
         env.delete(ScannerSet);

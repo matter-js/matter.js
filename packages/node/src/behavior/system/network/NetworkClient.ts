@@ -5,14 +5,14 @@
  */
 
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
-import { BasicInformationClient } from "#behaviors/basic-information";
 import { Observable, ServerAddress, ServerAddressUdp } from "#general";
 import { DatatypeModel, FieldElement } from "#model";
 import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
+import { ClientNodePhysicalProperties } from "#node/client/ClientNodePhysicalProperties.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
 import { ClientSubscription, PeerSet, Subscribe, SustainedSubscription } from "#protocol";
-import { CaseAuthenticatedTag, EventNumber } from "#types";
+import { EventNumber } from "#types";
 import { ClientNetworkRuntime } from "./ClientNetworkRuntime.js";
 import { NetworkBehavior } from "./NetworkBehavior.js";
 
@@ -27,7 +27,7 @@ export class NetworkClient extends NetworkBehavior {
             this.state.autoSubscribe = false;
             this.state.defaultSubscription = undefined;
         } else {
-            this.reactTo(this.events.autoSubscribe$Changed, this.#handleAutoSubscribeChanged, { offline: true });
+            this.reactTo(this.events.autoSubscribe$Changed, this.#syncAutoSubscribe, { offline: true });
             this.reactTo(this.events.defaultSubscription$Changed, this.#handleDefaultSubscriptionChange);
         }
     }
@@ -39,36 +39,42 @@ export class NetworkClient extends NetworkBehavior {
             if (!peerSet.has(peerAddress)) {
                 const udpAddresses = this.#node.state.commissioning.addresses?.filter(a => a.type === "udp") ?? [];
                 if (udpAddresses.length) {
-                    const latestUdpAddress = ServerAddress(udpAddresses[udpAddresses.length - 1]) as ServerAddressUdp;
+                    const operationalAddress = ServerAddress(udpAddresses[0]) as ServerAddressUdp;
                     // Make sure the PeerSet knows about this peer now too
-                    await peerSet.addKnownPeer(
-                        peerAddress,
-                        latestUdpAddress,
-                        RemoteDescriptor.fromLongForm(this.#node.state.commissioning),
-                    );
+                    peerSet.addKnownPeer({
+                        address: peerAddress,
+                        operationalAddress,
+                        discoveryData: RemoteDescriptor.fromLongForm(this.#node.state.commissioning),
+                    });
                 }
             }
-            if (!this.#node.lifecycle.isCommissioned) {
-                const capabilityMinima = this.#node.maybeStateOf(BasicInformationClient)?.capabilityMinima;
-                if (capabilityMinima !== undefined) {
-                    peerSet.for(peerAddress).limits = capabilityMinima;
-                }
+
+            const peer = peerSet.get(peerAddress);
+            if (peer) {
+                peer.protocol = this.#node.protocol;
+                peer.physicalProperties = ClientNodePhysicalProperties(this.#node);
             }
         }
 
-        await this.#handleAutoSubscribeChanged();
+        await this.#syncAutoSubscribe();
+
+        this.internal.isReady = true;
     }
 
     async #handleDefaultSubscriptionChange() {
         // Terminate any existing subscription
-        await this.#handleAutoSubscribeChanged(false);
+        await this.#syncAutoSubscribe(false);
 
         if (this.state.autoSubscribe && !this.state.isDisabled) {
-            await this.#handleAutoSubscribeChanged(true);
+            await this.#syncAutoSubscribe(true);
         }
     }
 
-    async #handleAutoSubscribeChanged(desiredState = this.state.autoSubscribe) {
+    async #syncAutoSubscribe(desiredState = this.state.autoSubscribe) {
+        if (!this.internal.runtime) {
+            return;
+        }
+
         const { isDisabled } = this.state;
         const subscriptionDesired = desiredState && !isDisabled;
 
@@ -86,12 +92,12 @@ export class NetworkClient extends NetworkBehavior {
             });
 
             // First, read.  This allows us to retrieve attributes that do not support subscription and gives us
-            // physical device information required to optimize subscription parameters
-            for await (const _chunk of this.#node.interaction.read({
-                ...subscribe,
-                eventFilters: undefined,
-                eventRequests: undefined,
-            }));
+            // physical device information required to optimize subscription parameters.
+            //
+            // We also load events here so we are fully synced before reporting as online.
+            //
+            // Must read all chunks for the async iterator to complete.
+            for await (const _chunk of this.#node.interaction.read(subscribe));
 
             // Now subscribe for subsequent updates
             this.internal.activeSubscription = await (this.#node.interaction as ClientNodeInteraction).subscribe({
@@ -181,19 +187,6 @@ export class NetworkClient extends NetworkBehavior {
                 quality: "N",
                 default: EventNumber(0),
             }),
-
-            FieldElement({
-                name: "caseAuthenticatedTags",
-                type: "list",
-                quality: "N",
-                conformance: "O",
-                children: [
-                    FieldElement({
-                        name: "entry",
-                        type: "uint32",
-                    }),
-                ],
-            }),
         ],
     });
 }
@@ -201,6 +194,7 @@ export class NetworkClient extends NetworkBehavior {
 export namespace NetworkClient {
     export class Internal extends NetworkBehavior.Internal {
         declare runtime?: ClientNetworkRuntime;
+        isReady?: boolean;
 
         /**
          * The active default subscription.
@@ -238,15 +232,6 @@ export namespace NetworkClient {
          * Newly commissioned nodes default to true.
          */
         autoSubscribe = false;
-
-        /**
-         * Case Authenticated Tags (CATs) to use for operational CASE sessions with this node.
-         *
-         * CATs provide additional authentication context for Matter operational sessions. They are only used
-         * for operational CASE connections after commissioning is complete, not during the initial PASE
-         * commissioning process.
-         */
-        caseAuthenticatedTags?: CaseAuthenticatedTag[];
 
         /**
          * The highest event number seen from this node for the default read/subscription.

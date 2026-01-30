@@ -19,9 +19,8 @@ import {
     PublicKey,
     UnexpectedDataError,
 } from "#general";
-import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
 import type { ClientNode } from "#node/ClientNode.js";
-import { Icac, Noc, NodeSession, Rcac, Vvsc } from "#protocol";
+import { Icac, Noc, PeerSet, Rcac, Vvsc } from "#protocol";
 import { FabricId, FabricIndex, ReceivedStatusResponseError, StatusResponse, VendorId } from "#types";
 import { OperationalCredentialsClient } from "../operational-credentials/OperationalCredentialsClient.js";
 
@@ -128,22 +127,37 @@ export namespace VendorIdVerification {
             return undefined;
         }
 
-        const session = (node.interaction as ClientNodeInteraction).session;
-        if (session === undefined || !NodeSession.is(session)) {
+        const peerAddress = node.peerAddress;
+        if (!peerAddress) {
             // Should not happen when above command was successful
-            logger.error("Could not verify VendorId: no session established");
+            logger.error("Could not verify VendorId: Node is not a commissioned peer");
+            return undefined;
+        }
+
+        const sessions = node.env.maybeGet(PeerSet)?.get(peerAddress)?.sessions;
+        if (!sessions?.size) {
+            // Should not happen when above command was successful
+            logger.error("Could not verify VendorId: Node has no session established");
             return undefined;
         }
 
         const { noc, rcac, fabric } = options;
-        return await verifyData(crypto, {
-            clientChallenge,
-            attChallenge: session.attestationChallengeKey,
-            signVerificationResponse,
-            noc,
-            rcac,
-            fabric,
-        });
+        for (const session of sessions) {
+            if (
+                await verifyData(crypto, {
+                    clientChallenge,
+                    attChallenge: session.attestationChallengeKey,
+                    signVerificationResponse,
+                    noc,
+                    rcac,
+                    fabric,
+                })
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
