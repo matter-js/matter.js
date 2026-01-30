@@ -95,7 +95,7 @@ export class PaseServer implements ProtocolHandler {
             } catch (error) {
                 this.#pairingErrors++;
                 logger.error(
-                    `An error occurred during the PASE commissioning (${this.#pairingErrors}/${PASE_COMMISSIONING_MAX_ERRORS}):`,
+                    `An error occurred during PASE commissioning (${this.#pairingErrors}/${PASE_COMMISSIONING_MAX_ERRORS}):`,
                     this.#pairingMessenger?.exchange.diagnostics,
                     error,
                 );

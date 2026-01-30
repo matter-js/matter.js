@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Immutable, Seconds, ServerAddress } from "#general";
-import { CommissionableDevice, OperationalDevice, PeerAddress, SessionParameters } from "#protocol";
+import { Immutable, ServerAddress } from "#general";
+import { CommissionableDevice, OperationalDevice, PeerAddress } from "#protocol";
 import { DeviceTypeId, VendorId } from "#types";
 import type { CommissioningClient } from "./CommissioningClient.js";
 
@@ -57,7 +57,7 @@ export namespace RemoteDescriptor {
             rotatingIdentifier,
             pairingHint,
             pairingInstructions,
-            sessionIntervals,
+            sessionParameters,
             tcpSupport,
             longIdleTimeOperatingMode,
         } = long;
@@ -67,7 +67,7 @@ export namespace RemoteDescriptor {
         }
 
         if (ttl !== undefined) {
-            result.ttl = Seconds(ttl);
+            result.ttl = ttl;
         }
 
         if (deviceIdentifier !== undefined) {
@@ -102,8 +102,8 @@ export namespace RemoteDescriptor {
             }
         }
 
-        if (sessionIntervals !== undefined) {
-            const { idleInterval, activeInterval, activeThreshold } = sessionIntervals;
+        if (sessionParameters !== undefined) {
+            const { idleInterval, activeInterval, activeThreshold } = sessionParameters;
 
             if (idleInterval !== undefined) {
                 result.SII = idleInterval;
@@ -123,7 +123,7 @@ export namespace RemoteDescriptor {
         }
 
         if (longIdleTimeOperatingMode !== undefined) {
-            result.ICD = 1;
+            result.ICD = longIdleTimeOperatingMode ? 1 : 0;
         }
 
         const isOperational = long.peerAddress !== undefined;
@@ -179,17 +179,15 @@ export namespace RemoteDescriptor {
             long.productId = Number.isFinite(product) ? product : undefined;
         }
 
-        let sessionParameters: Partial<SessionParameters> | undefined;
         if (SII !== undefined) {
-            (sessionParameters ??= {}).idleInterval = SII;
+            (long.sessionParameters ??= {}).idleInterval = SII;
         }
         if (SAI !== undefined) {
-            (sessionParameters ??= {}).activeInterval = SAI;
+            (long.sessionParameters ??= {}).activeInterval = SAI;
         }
         if (SAT !== undefined) {
-            (sessionParameters ??= {}).activeThreshold = SAT;
+            (long.sessionParameters ??= {}).activeThreshold = SAT;
         }
-        long.sessionIntervals = sessionParameters;
 
         long.deviceType = DT === undefined ? undefined : DeviceTypeId(DT, false);
         long.deviceName = DN;

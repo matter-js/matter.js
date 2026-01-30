@@ -7,6 +7,7 @@
 import type { Behavior } from "#behavior/Behavior.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
+import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import type { BehaviorBacking } from "#behavior/internal/BehaviorBacking.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
@@ -316,7 +317,11 @@ class ClusterState implements ClusterProtocol {
     }
 
     readState(session: InteractionSession): Val.ProtocolStruct {
-        return this.#datasource.reference(session as ValueSupervisor.Session);
+        const supervisorSession: ValueSupervisor.Session = {
+            ...LocalActorContext.ReadOnly,
+            ...session,
+        };
+        return this.#datasource.reference(supervisorSession);
     }
 
     async openForWrite(session: InteractionSession): Promise<Val.ProtocolStruct> {

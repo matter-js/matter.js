@@ -43,8 +43,6 @@ import { InteractionClientMessenger, MessageType } from "#interaction/Interactio
 import { Subscription } from "#interaction/Subscription.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { ExchangeProvider } from "#protocol/ExchangeProvider.js";
-import { SessionClosedError } from "#protocol/index.js";
-import { SecureSession } from "#session/SecureSession.js";
 import { Status, TlvAttributeReport, TlvNoResponse, TlvSubscribeResponse, TypeFromSchema } from "#types";
 import { ClientWrite } from "./ClientWrite.js";
 import { InputChunk } from "./InputChunk.js";
@@ -75,6 +73,7 @@ export interface ClientInteractionContext {
     sustainRetries?: RetrySchedule.Configuration;
     exchangeProvider?: ExchangeProvider;
     address?: PeerAddress;
+    network?: string;
 }
 
 export const DEFAULT_MIN_INTERVAL_FLOOR = Seconds(1);
@@ -98,12 +97,13 @@ export class ClientInteraction<
 > implements Interactable<SessionT> {
     protected readonly environment: Environment;
     readonly #lifetime: Lifetime;
-    readonly #exchanges: ExchangeProvider;
+    readonly #exchangeProvider: ExchangeProvider;
     readonly #interactions = new BasicSet<Read | Write | Invoke | Subscribe | ClientBdxRequest>();
     #subscriptions?: ClientSubscriptions;
     readonly #abort: Abort;
     readonly #sustainRetries: RetrySchedule;
     readonly #address?: PeerAddress;
+    readonly #network?: string;
 
     // Command batching state
     readonly #pendingCommands = new Map<number, PendingCommand>();
@@ -111,9 +111,9 @@ export class ClientInteraction<
     #batchTimer?: Timer;
     #nextCommandRef = 1;
 
-    constructor({ environment, abort, sustainRetries, exchangeProvider, address }: ClientInteractionContext) {
+    constructor({ environment, abort, sustainRetries, exchangeProvider, address, network }: ClientInteractionContext) {
         this.environment = environment;
-        this.#exchanges = exchangeProvider ?? environment.get(ExchangeProvider);
+        this.#exchangeProvider = exchangeProvider ?? environment.get(ExchangeProvider);
         if (environment.has(ClientSubscriptions)) {
             this.#subscriptions = environment.get(ClientSubscriptions);
         }
@@ -124,6 +124,7 @@ export class ClientInteraction<
         );
         this.#address = address;
         this.#batchMutex = new Mutex(this);
+        this.#network = network;
 
         this.#lifetime = environment.join("interactions");
         Object.defineProperties(this.#lifetime.details, {
@@ -135,14 +136,6 @@ export class ClientInteraction<
                 enumerable: true,
             },
         });
-    }
-
-    get exchanges() {
-        return this.#exchanges;
-    }
-
-    get session() {
-        return this.#exchanges.session;
     }
 
     async close() {
@@ -161,6 +154,10 @@ export class ClientInteraction<
         while (this.#interactions.size) {
             await this.#interactions.deleted;
         }
+    }
+
+    async [Symbol.asyncDispose]() {
+        await this.close();
     }
 
     get subscriptions() {
@@ -418,16 +415,6 @@ export class ClientInteraction<
         yield* AsyncIterator.merge(iterators, "One or more invoke batches failed");
     }
 
-    /** Get the effective MaxPathsPerInvoke parameter from the session, or 1 as a fallback as defined by spec. */
-    get #maxPathsPerInvoke(): number {
-        try {
-            return this.session.parameters.maxPathsPerInvoke;
-        } catch (error) {
-            SessionClosedError.accept(error);
-            return 1;
-        }
-    }
-
     /**
      * Invoke one or more commands.
      *
@@ -438,8 +425,10 @@ export class ClientInteraction<
      * when the device supports multiple invokes per exchange and the target is not endpoint 0.
      */
     async *invoke(request: ClientInvoke, session?: SessionT): DecodedInvokeResult {
+        const maxPathsPerInvoke = this.#exchangeProvider.maxPathsPerInvoke ?? 1;
+
         // Single command with batching support — auto-batch
-        if (request.invokeRequests.length === 1 && request.batchDuration !== false && this.#maxPathsPerInvoke > 1) {
+        if (request.invokeRequests.length === 1 && request.batchDuration !== false && maxPathsPerInvoke) {
             const endpointId = request.invokeRequests[0].commandPath.endpointId;
             if (endpointId !== undefined && endpointId !== 0) {
                 yield* this.#invokeWithBatching(request);
@@ -447,7 +436,6 @@ export class ClientInteraction<
             }
         }
 
-        const maxPathsPerInvoke = this.#maxPathsPerInvoke;
         const commandCount = request.commands.size;
 
         if (commandCount > maxPathsPerInvoke) {
@@ -551,7 +539,7 @@ export class ClientInteraction<
 
             // Use #invokeSingle directly to avoid re-entering the batching path in invoke()
             const batchRequest = Invoke({ commands: invokeRequests }) as ClientInvoke;
-            const maxPathsPerInvoke = this.#maxPathsPerInvoke;
+            const maxPathsPerInvoke = this.#exchangeProvider.maxPathsPerInvoke ?? 1;
             const chunks =
                 invokeRequests.length > maxPathsPerInvoke
                     ? this.#invokeWithSplitting(batchRequest, maxPathsPerInvoke)
@@ -600,8 +588,10 @@ export class ClientInteraction<
             logger.info("Subscribe interactions with more than 3 paths might be not allowed by the device.");
         }
 
-        SecureSession.assert(this.#exchanges.session);
-        const peer = this.#exchanges.session.peerAddress;
+        const peer = this.#exchangeProvider.peerAddress;
+        if (peer === undefined) {
+            throw new ImplementationError("Subscription unavailable because not interacting with a commissioned peer");
+        }
 
         if (!request.keepSubscriptions) {
             for (const subscription of this.subscriptions) {
@@ -630,7 +620,7 @@ export class ClientInteraction<
             );
         }
 
-        const subscribe = async (request: ClientSubscribe) => {
+        const subscribe = async (request: ClientSubscribe, abort?: AbortSignal) => {
             await using context = await this.#begin("subscribing", request, session);
             const { checkAbort, messenger } = context;
 
@@ -665,8 +655,8 @@ export class ClientInteraction<
                 peer,
                 closed: () => this.subscriptions.delete(subscription),
                 response,
-                abort: session?.abort,
-                maxPeerResponseTime: this.#exchanges.maximumPeerResponseTime(),
+                abort,
+                maxPeerResponseTime: this.maximumPeerResponseTime(),
             });
             this.subscriptions.addPeer(subscription);
 
@@ -697,7 +687,7 @@ export class ClientInteraction<
                 retries: this.#sustainRetries,
             });
         } else {
-            subscription = await subscribe(request);
+            subscription = await subscribe(request, session?.abort);
         }
 
         this.subscriptions.addActive(subscription);
@@ -726,7 +716,7 @@ export class ClientInteraction<
 
         const checkAbort = Abort.checkerFor(session);
 
-        const messenger = await BdxMessenger.create(this.#exchanges, request.messageTimeout);
+        const messenger = await BdxMessenger.create(this.#exchangeProvider, request.messageTimeout);
 
         const context: RequestContext<BdxMessenger> = {
             checkAbort,
@@ -746,11 +736,17 @@ export class ClientInteraction<
         return { context };
     }
 
-    async #begin(what: string, request: Read | Write | Invoke | Subscribe, session: SessionT | undefined) {
+    async #begin(
+        what: string,
+        request: ClientRead | ClientWrite | ClientInvoke | ClientSubscribe,
+        session: SessionT | undefined,
+    ) {
         using lifetime = this.#lifetime.join(what);
 
         if (this.#abort.aborted) {
-            throw new ImplementationError("Client interaction unavailable after close");
+            throw new ImplementationError(
+                `Cannot ${what} ${this.#address ?? "uncommissioned node"} because interactable is closed`,
+            );
         }
 
         const checkAbort = Abort.checkerFor(session);
@@ -758,7 +754,11 @@ export class ClientInteraction<
         const now = Time.nowMs;
         let messenger: InteractionClientMessenger;
         try {
-            messenger = await InteractionClientMessenger.create(this.#exchanges);
+            messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
+                network: request.network ?? this.#network,
+                abort: session?.abort,
+                connectionTimeout: session?.connectionTimeout,
+            });
         } catch (error) {
             TimeoutError.accept(error);
 
@@ -767,8 +767,8 @@ export class ClientInteraction<
             // either try the last addresses again (if existing), or do a short-timed re-discovery. This would block
             // the execution max 10s. What's missing is that one layer (like Sustained Subscription) would trigger a
             // FullDiscovery instead of just a timed one, but for the tests and currently this should be enough.
-            await this.exchanges.reconnectChannel({ asOf: now, resetInitialState: true });
-            messenger = await InteractionClientMessenger.create(this.#exchanges);
+            await this.#exchangeProvider.reconnectChannel({ asOf: now, resetInitialState: true });
+            messenger = await InteractionClientMessenger.create(this.#exchangeProvider);
         }
 
         this.#interactions.add(request);
@@ -800,17 +800,17 @@ export class ClientInteraction<
     }
 
     get channelType() {
-        return this.#exchanges.channelType;
+        return this.#exchangeProvider.channelType;
     }
 
     /** Calculates the current maximum response time for a message use in additional logic like timers. */
     maximumPeerResponseTime(expectedProcessingTime?: Duration) {
-        return this.#exchanges.maximumPeerResponseTime(expectedProcessingTime);
+        return this.#exchangeProvider.maximumPeerResponseTime(expectedProcessingTime);
     }
 
     get address() {
         if (this.#address === undefined) {
-            throw new ImplementationError("This InteractionClient is not bound to a specific peer.");
+            throw new ImplementationError("Uncommissioned node has no peer address");
         }
         return this.#address;
     }

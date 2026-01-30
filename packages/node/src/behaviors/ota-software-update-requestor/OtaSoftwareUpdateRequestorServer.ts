@@ -44,7 +44,6 @@ import {
     OtaImageReader,
     PeerAddress,
     PersistedFileDesignator,
-    RetransmissionLimitReachedError,
 } from "#protocol";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { FabricIndex, NodeId, StatusResponse } from "#types";
@@ -576,11 +575,8 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
             // Connect to the provider and query for updates
             await this.#queryOtaProvider(await this.#connectOtaProviderFor(provider), provider);
         } catch (error) {
-            if (error instanceof RetransmissionLimitReachedError) {
-                logger.debug(`Failed to connect to`, Diagnostic.dict(provider), error);
-            } else {
-                logger.warn(`OTA Provider communication failed to`, Diagnostic.dict(provider), error);
-            }
+            logger.warn(`OTA provider communication failed to`, Diagnostic.dict(provider), error);
+
             // Handle same as Update unavailable
             this.#markActiveOtaProviderNoUpdate(provider);
         }

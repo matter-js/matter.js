@@ -12,7 +12,7 @@ import { MatterError, NoResponseTimeoutError } from "@matter/general";
 /**
  * Indicates MRP retries were exhausted without a response from the client.
  *
- * TODO - we use this error far too broadly and throw in places that do not involve MRP
+ * @deprecated
  */
 export class RetransmissionLimitReachedError extends NoResponseTimeoutError {}
 
