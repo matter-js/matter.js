@@ -57,7 +57,7 @@ describe("Ota", () => {
         fetchMock.uninstall();
     });
 
-    it("Successfully process a software update", async () => {
+    it("Successfully processes a software update", async () => {
         // *** COMMISSIONING ***
 
         // Shared variable to hold expected OTA image for verification

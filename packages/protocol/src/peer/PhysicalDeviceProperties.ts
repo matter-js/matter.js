@@ -17,14 +17,17 @@ const DEFAULT_SUBSCRIPTION_CEILING_BATTERY_POWERED = Minutes(10);
 const THREAD_SUBSCRIPTION_CEILING_JITTER = 0.05; // 5% +/- Jitter for the Subscription ceiling time
 
 export interface PhysicalDeviceProperties {
-    threadConnected: boolean;
-    wifiConnected: boolean;
-    ethernetConnected: boolean;
+    supportsThread: boolean;
+    supportsWifi: boolean;
+    supportsEthernet: boolean;
     rootEndpointServerList: number[];
     isMainsPowered: boolean;
     isBatteryPowered: boolean;
     isIntermittentlyConnected: boolean;
     isThreadSleepyEndDevice: boolean;
+    threadActive?: boolean;
+    threadPan?: bigint;
+    threadChannel?: number;
 }
 
 export namespace PhysicalDeviceProperties {
@@ -46,13 +49,8 @@ export namespace PhysicalDeviceProperties {
             description = "Node";
         }
 
-        const {
-            isMainsPowered,
-            isBatteryPowered,
-            isIntermittentlyConnected,
-            threadConnected,
-            isThreadSleepyEndDevice,
-        } = properties ?? {};
+        const { isMainsPowered, isBatteryPowered, isIntermittentlyConnected, supportsThread, isThreadSleepyEndDevice } =
+            properties ?? {};
 
         if (isIntermittentlyConnected) {
             if (minIntervalFloor !== undefined && minIntervalFloor !== DEFAULT_SUBSCRIPTION_FLOOR_ICD) {
@@ -71,7 +69,7 @@ export namespace PhysicalDeviceProperties {
                 ? DEFAULT_SUBSCRIPTION_CEILING_BATTERY_POWERED
                 : isThreadSleepyEndDevice
                   ? DEFAULT_SUBSCRIPTION_CEILING_THREAD_SLEEPY
-                  : threadConnected
+                  : supportsThread
                     ? DEFAULT_SUBSCRIPTION_CEILING_THREAD
                     : DEFAULT_SUBSCRIPTION_CEILING_WIFI;
         if (maxIntervalCeiling === undefined) {

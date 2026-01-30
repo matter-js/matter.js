@@ -82,16 +82,18 @@ export class AttributeClient<T = any> {
                 existingFieldIndex => existingFieldIndex === FabricIndex.OMIT_FABRIC,
             );
 
-            try {
-                const sessionFabric = this.#interactionClient.session.associatedFabric;
-                // also remove fabric index if it is the same as the session fabric
-                value = this.schema.removeField(
-                    value,
-                    <number>FabricIndexElement.id,
-                    existingFieldIndex => existingFieldIndex.index === sessionFabric.fabricIndex,
-                );
-            } catch (e) {
-                NoAssociatedFabricError.accept(e);
+            if (this.#interactionClient.maybeAddress) {
+                const fabricIndex = this.#interactionClient.maybeAddress.fabricIndex;
+                try {
+                    // also remove fabric index if it is the same as the session fabric
+                    value = this.schema.removeField(
+                        value,
+                        <number>FabricIndexElement.id,
+                        existingFieldIndex => existingFieldIndex.index === fabricIndex,
+                    );
+                } catch (e) {
+                    NoAssociatedFabricError.accept(e);
+                }
             }
         }
 

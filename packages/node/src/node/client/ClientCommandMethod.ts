@@ -5,6 +5,7 @@
  */
 
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
+import { ActionContext } from "#behavior/context/ActionContext.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
 import { ClientInteraction, Invoke } from "#protocol";
@@ -17,7 +18,7 @@ export function ClientCommandMethod(name: string) {
     // This is our usual hack to give a function a proper name in stack traces
     const temp = {
         // The actual implementation
-        async [name](this: ClusterBehavior, fields?: {}) {
+        async [name](this: ClusterBehavior, fields?: {}, context?: ActionContext) {
             const node = this.env.get(Node) as ClientNode;
 
             // TODO when implementing TCP add needed logic for Large messages
@@ -32,6 +33,7 @@ export function ClientCommandMethod(name: string) {
                         }),
                     ],
                 }),
+                context,
             );
 
             for await (const chunk of chunks) {

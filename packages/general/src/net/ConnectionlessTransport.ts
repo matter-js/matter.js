@@ -25,14 +25,27 @@ export namespace ConnectionlessTransport {
     export interface Listener {
         close(): Promise<void>;
     }
+
+    export interface Provider<T extends ConnectionlessTransport = ConnectionlessTransport> {
+        /**
+         * Obtain an interface capable of routing an address.
+         */
+        interfaceFor(type: ChannelType, address?: string): T | undefined;
+
+        /**
+         * Obtain an interface of specific type.
+         */
+        hasInterfaceFor(type: ChannelType, address?: string): boolean;
+    }
 }
 
 /**
  * A collection of {@link ConnectionlessTransport}s managed as a unit.
  */
-export class ConnectionlessTransportSet<
-    T extends ConnectionlessTransport = ConnectionlessTransport,
-> extends BasicSet<T> {
+export class ConnectionlessTransportSet<T extends ConnectionlessTransport = ConnectionlessTransport>
+    extends BasicSet<T>
+    implements ConnectionlessTransport.Provider<T>
+{
     constructor(...initialInterfaces: T[]) {
         super(...initialInterfaces);
     }

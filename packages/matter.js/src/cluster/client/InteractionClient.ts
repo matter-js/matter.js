@@ -19,7 +19,7 @@ import {
 } from "#general";
 import { Specification } from "#model";
 import type { ServerNode } from "#node";
-import { ClientNodeInteraction } from "#node";
+import { ClientNodeInteraction, ClientNodePhysicalProperties } from "#node";
 import {
     ClientInteraction,
     DecodedAttributeReportStatus,
@@ -143,8 +143,8 @@ export class InteractionClientProvider {
     #queue(address: PeerAddress) {
         const node = this.#owner.peers.get(address);
         if (node !== undefined) {
-            const properties = (node.interaction as ClientNodeInteraction).physicalProperties;
-            if (properties.threadConnected || !properties.rootEndpointServerList?.length) {
+            const properties = ClientNodePhysicalProperties(node);
+            if (properties.supportsThread || !properties.rootEndpointServerList?.length) {
                 return this.#caseQueue;
             }
         }
@@ -232,6 +232,10 @@ export class InteractionClient {
         return this.#address;
     }
 
+    get maybeAddress() {
+        return this.#address;
+    }
+
     get isReconnectable() {
         return this.#exchanges instanceof ReconnectableExchangeProvider;
     }
@@ -241,11 +245,6 @@ export class InteractionClient {
             return this.#exchanges.channelUpdated;
         }
         throw new ImplementationError("ExchangeProvider does not support channelUpdated");
-    }
-
-    /** Calculates the current maximum response time for a message use in additional logic like timers. */
-    maximumPeerResponseTime(expectedProcessingTime?: Duration) {
-        return this.#exchanges.maximumPeerResponseTime(expectedProcessingTime);
     }
 
     async getAllAttributes(
@@ -1113,10 +1112,6 @@ export class InteractionClient {
         skipValidation?: boolean;
     }): Promise<void> {
         return this.#invoke<C>({ ...options, suppressResponse: true });
-    }
-
-    get session() {
-        return this.#exchanges.session;
     }
 
     get channelType() {

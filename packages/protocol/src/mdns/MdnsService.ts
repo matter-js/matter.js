@@ -7,6 +7,8 @@
 import {
     Construction,
     Diagnostic,
+    DnssdNames,
+    Entropy,
     Environment,
     Environmental,
     Logger,
@@ -22,18 +24,22 @@ import { MdnsClient } from "./MdnsClient.js";
 const logger = Logger.get("MDNS");
 
 export class MdnsService {
-    #socket?: MdnsSocket;
-    #server?: MdnsServer;
-    #client?: MdnsClient;
+    readonly #entropy: Entropy;
     readonly #construction: Construction<MdnsService>;
     readonly #enableIpv4: boolean;
     readonly limitedToNetInterface?: string;
+
+    #socket?: MdnsSocket;
+    #server?: MdnsServer;
+    #client?: MdnsClient;
+    #names?: DnssdNames;
 
     get enableIpv4() {
         return this.#enableIpv4;
     }
 
     constructor(environment: Environment, options?: MdnsService.Options) {
+        this.#entropy = environment.get(Entropy);
         const network = environment.get(Network);
         const rootEnvironment = environment.root;
         rootEnvironment.set(MdnsService, this);
@@ -65,6 +71,25 @@ export class MdnsService {
 
     get client() {
         return this.#construction.assert("MDNS service", this.#client);
+    }
+
+    get names() {
+        if (this.#names === undefined) {
+            this.#names = new DnssdNames({
+                socket: this.#construction.assert("MDNS socket", this.#socket),
+                lifetime: this.#construction,
+                entropy: this.#entropy,
+                filter: ({ name }) => {
+                    // TODO - only accepting operational records here; add commissionable when we remove MdnsClient
+                    if (name.toLowerCase().match(/_matter(?:[cd]\._udp|\._tcp)\.local$/i)) {
+                        return true;
+                    }
+
+                    return false;
+                },
+            });
+        }
+        return this.#names;
     }
 
     get [Diagnostic.value]() {

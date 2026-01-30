@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Diagnostic, Logger, LogLevel, Millis } from "@matter/general";
+import { Bytes, causedBy, Diagnostic, Logger, LogLevel, Millis } from "@matter/general";
 import {
     AttributeId,
     camelize,
@@ -40,7 +40,11 @@ import {
     MatterModel,
     ValueModel,
 } from "@matter/model";
-import { CommissionableDeviceIdentifiers, RetransmissionLimitReachedError } from "@matter/protocol";
+import {
+    CommissionableDeviceIdentifiers,
+    PeerCommunicationError,
+    RetransmissionLimitReachedError,
+} from "@matter/protocol";
 import { NodeNotConnectedError } from "@project-chip/matter.js/device";
 import { WebSocketServer } from "ws";
 import { log } from "./GenericTestApp.js";
@@ -1278,7 +1282,7 @@ export class ChipToolWebSocketHandler {
                 ],
             };
         }
-        if (error instanceof RetransmissionLimitReachedError || error instanceof NodeNotConnectedError) {
+        if (causedBy(error, PeerCommunicationError, NodeNotConnectedError, RetransmissionLimitReachedError)) {
             // Needed because Chip tests expect a failure and not an automatic reconnection
             await (await this.#commandHandlerFor(commissionerName)).disconnectNode(NodeId(parseNumber(destinationId)));
         }

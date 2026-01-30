@@ -254,6 +254,10 @@ export class ControllerCommissioningFlow {
         this.#initializeCommissioningSteps();
     }
 
+    async [Symbol.asyncDispose]() {
+        await this.interaction.close();
+    }
+
     /**
      * Execute the commissioning process in the defined order. The steps are sorted before execution based on the step
      * number and sub step number.
@@ -1614,7 +1618,9 @@ export class ControllerCommissioningFlow {
             };
         }
 
+        await this.interaction.close();
         this.interaction = transitionResult;
+
         this.#clusterClients.clear();
 
         logger.debug("Successfully reconnected with device ...");

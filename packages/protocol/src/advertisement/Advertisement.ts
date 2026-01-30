@@ -10,6 +10,7 @@ import {
     CanceledError,
     Diagnostic,
     Duration,
+    Lifetime,
     Logger,
     MatterAggregateError,
     Time,
@@ -50,6 +51,7 @@ export abstract class Advertisement<T extends ServiceDescription = ServiceDescri
     #isBroadcasting = false;
     #closed?: Promise<void>;
     #startedAt = Time.nowMs;
+    #lifetime: Lifetime;
 
     /**
      * Current activity.  This is a promise with helpers for base implementations.
@@ -61,6 +63,8 @@ export abstract class Advertisement<T extends ServiceDescription = ServiceDescri
         this.service = service;
         this.advertiser = advertiser;
         this.description = description;
+
+        this.#lifetime = advertiser.join(service);
 
         advertiser.advertisements.add(this);
 
@@ -132,11 +136,17 @@ export abstract class Advertisement<T extends ServiceDescription = ServiceDescri
     }
 
     async #close() {
+        using closing = this.#lifetime.closing();
+
         try {
-            this.#activity?.cancel();
-            await this.#activity;
+            if (this.#activity) {
+                using _activity = closing.join("activity");
+                this.#activity.cancel();
+                await this.#activity;
+            }
 
             try {
+                using _cleanup = closing.join("cleanup");
                 await this.onClose();
             } catch (e) {
                 logger.error("Unhandled error closing advertisement for", Diagnostic.strong(this.service), e);
@@ -154,6 +164,7 @@ export abstract class Advertisement<T extends ServiceDescription = ServiceDescri
         // single operational advertisement per advertiser+service
         const duplicates = [...this.advertiser.advertisements].filter(this.isDuplicate.bind(this));
         if (duplicates.length) {
+            using _deduplicating = this.#lifetime.join("deduplicating");
             await Advertisement.closeAll(duplicates);
         }
     }

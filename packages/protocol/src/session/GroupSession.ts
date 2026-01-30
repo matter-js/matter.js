@@ -11,7 +11,7 @@ import type { FabricManager } from "#fabric/FabricManager.js";
 import {
     Bytes,
     ChannelType,
-    ConnectionlessTransportSet,
+    ConnectionlessTransport,
     CryptoDecryptError,
     Diagnostic,
     hex,
@@ -66,7 +66,7 @@ export class GroupSession extends SecureSession {
      */
     static async create(options: {
         manager?: SessionManager;
-        transports: ConnectionlessTransportSet;
+        transports: ConnectionlessTransport.Provider;
         id: number;
         fabric: Fabric;
         keySetId: number;
