@@ -9,7 +9,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
-## __WORK IN PROGRESS__
+## 0.16.8 (2026-01-30)
 
 - @matter/node
     - Fix: Prevent error when writing Thermostat systemMode attribute
