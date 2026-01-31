@@ -73,6 +73,6 @@ function dumpDetails(
     }
 
     if (diagnostics) {
-        out("\n", ansi.bold("Process state at timeout:"), "\n", diagnostics, "\n");
+        out("\n", ansi.bold("Process state at timeout:"), diagnostics, "\n");
     }
 }
