@@ -152,7 +152,7 @@ export class ClientInteraction<
         }
         if (readPathsCount > 9) {
             logger.info(
-                "Read interactions with more then 9 paths might be not allowed by the device. Consider splitting then into several read requests.",
+                "Read interactions with more than 9 paths might be not allowed by the device. Consider splitting them into several read requests.",
             );
         }
 
