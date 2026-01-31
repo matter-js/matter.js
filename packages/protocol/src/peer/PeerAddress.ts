@@ -71,8 +71,8 @@ Object.defineProperties(InternedAddressPrototoype, {
 
 function InternedAddress(address: PeerAddress): PeerAddress {
     const interned = Object.create(InternedAddressPrototoype, {
-        fabricIndex: { value: address.fabricIndex },
-        nodeId: { value: address.nodeId },
+        fabricIndex: { value: address.fabricIndex, enumerable: true },
+        nodeId: { value: address.nodeId, enumerable: true },
     });
 
     Object.freeze(interned);
