@@ -62,7 +62,7 @@ export class IdentityService {
     /**
      * Assign a peer address.
      */
-    assignNodeAddress(_node: ClientNode, _fabricIndex: FabricIndex, _nodeId?: NodeId): PeerAddress {
+    async assignNodeAddress(_node: ClientNode, _fabricIndex: FabricIndex, _nodeId?: NodeId): Promise<PeerAddress> {
         throw new InternalError("Client node ID assignment is not initialized");
     }
 

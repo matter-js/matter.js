@@ -390,7 +390,7 @@ export class ControllerCommissioner {
     /** Validate if a Peer Address is already known and commissioned */
     #assertPeerAddress(address: PeerAddress) {
         if (this.#context.peers.has(address)) {
-            throw new NodeIdConflictError(`Node ID ${address.nodeId} is already commissioned and can not be reused.`);
+            throw new NodeIdConflictError(`Node ID ${address.nodeId} is already commissioned and can not be reused`);
         }
     }
 
