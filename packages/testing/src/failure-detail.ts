@@ -9,6 +9,7 @@ export interface FailureDetail {
     id?: string;
     stack?: string;
     stackLines?: string[];
+    diagnostics?: string;
     actual?: string;
     expected?: string;
     logs?: string;
@@ -20,7 +21,7 @@ export interface FailureDetail {
 /**
  * Captures all pertinent information about a failed test.
  */
-export function FailureDetail(error: any, id?: string, logs?: string[], parentStack?: string[]) {
+export function FailureDetail(error: any, id?: string, logs?: string[], parentStack?: string[], diagnostics?: string) {
     const { message, stack, stackLines, cause, errors, secondary } = parseError(error, parentStack);
     const result = { message } as FailureDetail;
 
@@ -32,6 +33,9 @@ export function FailureDetail(error: any, id?: string, logs?: string[], parentSt
     }
     if (logs?.length) {
         result.logs = logs.join("\n");
+    }
+    if (diagnostics?.length) {
+        result.diagnostics = diagnostics;
     }
     if (cause) {
         result.cause = cause;

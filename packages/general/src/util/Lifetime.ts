@@ -12,6 +12,7 @@ import { Duration } from "#time/Duration.js";
 import "#time/StandardTime.js";
 import { Time } from "#time/Time.js";
 import { Timestamp } from "#time/Timestamp.js";
+import { Boot } from "./Boot.js";
 
 /**
  * A "lifetime" represents the existence of an entity or ongoing task.
@@ -90,7 +91,7 @@ class LifetimeImplementation implements Lifetime, Lifetime.Owner {
     #closing?: Lifetime;
     #isClosed = false;
 
-    declare [Diagnostic.presentation]: unknown;
+    declare [Diagnostic.presentation]?: unknown;
 
     constructor(name: unknown[], owner?: Lifetime) {
         this.#name = name.length > 1 ? name : name[0];
@@ -180,7 +181,7 @@ class LifetimeImplementation implements Lifetime, Lifetime.Owner {
     get [DiagnosticPresentation.value]() {
         // Special case for process lifetime
         if (!this.#owner) {
-            return Diagnostic.node("🛠", "Lifetimes", {
+            return Diagnostic.node("🌱", "Lifetimes", {
                 children: this.spans,
             });
         }
@@ -224,6 +225,9 @@ class LifetimeImplementation implements Lifetime, Lifetime.Owner {
     }
 }
 
+let process = new LifetimeImplementation(["process"]);
+DiagnosticSource.add(process);
+
 function removeSpan(owner: Lifetime | undefined, span: Lifetime) {
     if (!owner) {
         return;
@@ -241,7 +245,7 @@ export namespace Lifetime {
      *
      * This is effectively a "global" lifetime.  It parents all other lifetimes.
      */
-    export const process: Lifetime.Owner = new LifetimeImplementation(["process"]);
+    export declare const process: Lifetime.Owner;
 
     /**
      * Obtain a lifetime not attached to {@link process} for testing purposes.
@@ -275,10 +279,21 @@ export namespace Lifetime {
     export const owner = Symbol("owner");
 }
 
-Object.defineProperty(Lifetime, "mock", {
-    get() {
-        return new LifetimeImplementation(["mock"]);
+Object.defineProperties(Lifetime, {
+    process: {
+        get() {
+            return process;
+        },
+    },
+
+    mock: {
+        get() {
+            return new LifetimeImplementation(["mock"]);
+        },
     },
 });
 
-DiagnosticSource.add(Lifetime.process as Lifetime);
+Boot.init(() => {
+    process = new LifetimeImplementation(["process"]);
+    DiagnosticSource.add(process);
+}, "state");
