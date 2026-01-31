@@ -13,7 +13,6 @@ import {
     Environmental,
     Logger,
     MatterAggregateError,
-    MaybePromise,
     MdnsSocket,
     Network,
     VariableService,
@@ -102,24 +101,20 @@ export class MdnsService {
 
     async close() {
         await this.#construction.close(async () => {
-            const broadcasterDisposal = MaybePromise.then(this.#server?.close(), undefined, e =>
-                logger.error("Error disposing of MDNS server", e),
-            );
-
-            const scannerDisposal = MaybePromise.then(this.#client?.close(), undefined, e =>
-                logger.error("Error disposing of MDNS client", e),
-            );
-
-            await MatterAggregateError.allSettled(
-                [broadcasterDisposal, scannerDisposal],
-                "Error disposing MDNS services",
-            ).catch(error => logger.error(error));
+            try {
+                await MatterAggregateError.allSettled(
+                    [this.#server, this.#client, this.#names].map(svc => svc?.close()),
+                    "Error disposing MDNS services",
+                );
+            } catch (e) {
+                logger.error(e);
+            }
 
             if (this.#socket) {
                 await this.#socket?.close();
             }
 
-            this.#server = this.#client = undefined;
+            this.#server = this.#client = this.#names = undefined;
         });
     }
 }
