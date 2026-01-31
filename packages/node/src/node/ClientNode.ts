@@ -200,7 +200,9 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         return new ClientNetworkRuntime(this);
     }
 
-    async prepareRuntimeShutdown() {}
+    async prepareRuntimeShutdown() {
+        await this.#interaction?.close();
+    }
 
     protected override get container() {
         return this.owner?.peers;
