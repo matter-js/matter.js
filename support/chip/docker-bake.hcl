@@ -71,6 +71,12 @@ target "app" {
             },
 
             {
+                name: "all-devices",
+                target: "all-devices",
+                bin: "all-devices-app",
+            },
+
+            {
                 name: "lock",
                 target: "lock",
                 bin: "chip-lock-app",

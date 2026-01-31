@@ -110,7 +110,7 @@ jobs:
               run \
               --tool-path chip-tool:../support/chip-testing/dist/esm/ControllerWebSocketTestApp.js \
               --app-path all-clusters:../bin/chip-all-clusters-app \
-              --app-path all-devices:../bin/chip-all-devices-app \
+              --app-path all-devices:../bin/all-devices-app \
               --app-path lock:../bin/chip-lock-app \
               --app-path bridge:../bin/chip-bridge-app \
               --app-path tv:../bin/chip-tv-app \
