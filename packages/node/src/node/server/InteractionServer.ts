@@ -646,6 +646,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                     Diagnostic.strong(`${Status[error.code]}(${error.code})`),
                     Mark.OUTBOUND,
                     exchange.via,
+                    exchange.diagnostics,
                     "Error:",
                     Diagnostic.errorMessage(error),
                 );
@@ -723,6 +724,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             "Subscribe successful",
             Mark.OUTBOUND,
             exchange.via,
+            exchange.diagnostics,
             Diagnostic.dict({
                 ...Subscription.diagnosticOf(subscription),
                 timing: `${Duration.format(subscription.minIntervalFloor)} - ${Duration.format(subscription.maxIntervalCeiling)} => ${Duration.format(subscription.maxInterval)}`,
@@ -796,6 +798,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 `Subscription successfully reestablished`,
                 Mark.OUTBOUND,
                 exchange.via,
+                exchange.diagnostics,
                 Diagnostic.dict({
                     ...Subscription.diagnosticOf(subscriptionId),
                     timing: `${Duration.format(minIntervalFloor)} - ${Duration.format(maxIntervalCeiling)} => ${Duration.format(subscription.maxInterval)}`,
