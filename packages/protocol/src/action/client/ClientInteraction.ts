@@ -151,7 +151,7 @@ export class ClientInteraction<
             throw new ImplementationError("When reading attributes and events, at least one must be specified.");
         }
         if (readPathsCount > 9) {
-            logger.debug(
+            logger.info(
                 "Read interactions with more then 9 paths might be not allowed by the device. Consider splitting then into several read requests.",
             );
         }
@@ -159,7 +159,7 @@ export class ClientInteraction<
         await using context = await this.#begin("reading", request, session);
         const { checkAbort, messenger } = context;
 
-        logger.debug("Read", Mark.OUTBOUND, messenger.exchange.via, request);
+        logger.info("Read", Mark.OUTBOUND, messenger.exchange.via, request);
         await messenger.sendReadRequest(request);
         checkAbort();
 
@@ -175,10 +175,11 @@ export class ClientInteraction<
             checkAbort();
         }
 
-        logger.debug(
+        logger.info(
             "Read",
             Mark.INBOUND,
             messenger.exchange.via,
+            messenger.exchange.diagnostics,
             Diagnostic.weak(
                 attributeReportCount + eventReportCount === 0
                     ? "(empty)"
@@ -241,6 +242,7 @@ export class ClientInteraction<
             "Write",
             Mark.INBOUND,
             messenger.exchange.via,
+            messenger.exchange.diagnostics,
             Diagnostic.weak(
                 successCount + failureCount === 0
                     ? "(empty)"
@@ -310,6 +312,7 @@ export class ClientInteraction<
                                 "Invoke",
                                 Mark.INBOUND,
                                 messenger.exchange.via,
+                                messenger.exchange.diagnostics,
                                 Diagnostic.strong(resolvePathForSpecifier(cmd)),
                                 isObject(data) ? Diagnostic.dict(data) : Diagnostic.weak("(no payload)"),
                             );
@@ -423,7 +426,7 @@ export class ClientInteraction<
             throw new ImplementationError("When subscribing to attributes and events, at least one must be specified.");
         }
         if (subscriptionPathsCount > 3) {
-            logger.debug("Subscribe interactions with more then 3 paths might be not allowed by the device.");
+            logger.info("Subscribe interactions with more then 3 paths might be not allowed by the device.");
         }
 
         SecureSession.assert(this.#exchanges.session);
@@ -461,7 +464,8 @@ export class ClientInteraction<
             const { checkAbort, messenger } = context;
 
             logger.info(
-                "Subscribe »",
+                "Subscribe",
+                Mark.OUTBOUND,
                 messenger.exchange.via,
                 Diagnostic.asFlags({ keepSubscriptions: request.keepSubscriptions }),
                 Diagnostic.dict({
@@ -499,6 +503,7 @@ export class ClientInteraction<
                 "Subscription successful",
                 Mark.INBOUND,
                 messenger.exchange.via,
+                messenger.exchange.diagnostics,
                 Diagnostic.dict({
                     id: Subscription.idStrOf(response.subscriptionId),
                     interval: Duration.format(Seconds(response.maxInterval)),

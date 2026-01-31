@@ -152,6 +152,9 @@ export class MessageExchange {
     #sentMessageAckFailure: ((error?: Error) => void) | undefined;
     #retransmissionTimer: Timer | undefined;
     #retransmissionCounter = 0;
+    #totalRetransmissionCounter = 0; // counter for all messages within this exchange
+    #messageSendCounter = 0;
+    #messageReceivedCounter = 0;
     #closeTimer: Timer | undefined;
     #isDestroyed = false;
     #timedInteractionTimer: Timer | undefined;
@@ -266,6 +269,7 @@ export class MessageExchange {
 
     async onMessageReceived(message: Message, duplicate = false) {
         logger.debug("Message", Mark.INBOUND, Message.diagnosticsOf(this, message, { duplicate }));
+        this.#messageReceivedCounter++;
 
         // Adjust the incoming message when ack was required, but this exchange does not use it to skip all relevant logic
         if (message.payloadHeader.requiresAck && !this.session.usesMrp) {
@@ -298,6 +302,7 @@ export class MessageExchange {
             // Received a message retransmission. This means that the other side didn't get our ack
             // Resending the previous reply message which contains the ack
             using _acking = this.join("resending ack");
+            this.#messageSendCounter++;
             await this.channel.send(this.#sentMessageToAck);
             return;
         }
@@ -381,6 +386,7 @@ export class MessageExchange {
         }
 
         this.#used = true;
+        this.#messageSendCounter++;
         this.session.notifyActivity(false);
 
         let ackedMessageId = includeAcknowledgeMessageId;
@@ -512,6 +518,7 @@ export class MessageExchange {
 
     #retransmitMessage(message: Message, expectedProcessingTime?: Duration) {
         this.#retransmissionCounter++;
+        this.#totalRetransmissionCounter++;
         if (this.considerClosed || this.#retransmissionCounter >= MRP.MAX_TRANSMISSIONS) {
             // Ok all 4 resubmissions are done, but we need to wait a bit longer because of processing time and
             // the resubmissions from the other side
@@ -526,6 +533,7 @@ export class MessageExchange {
                 );
                 if (finalWaitTime > 0) {
                     this.#retransmissionCounter--; // We will not resubmit the message again
+                    this.#totalRetransmissionCounter--;
                     logger.debug(
                         `Message ${Message.via(this, message)}: Wait additional ${Duration.format(finalWaitTime)} for processing time and peer resubmissions after all our resubmissions`,
                     );
@@ -553,6 +561,7 @@ export class MessageExchange {
             return;
         }
 
+        this.#messageSendCounter++;
         this.session.notifyActivity(false);
 
         this.context.retry(this.#retransmissionCounter);
@@ -729,6 +738,21 @@ export class MessageExchange {
         }
 
         return Diagnostic.via(`${this.session.via}${Mark.EXCHANGE}${this.idStr}`);
+    }
+
+    /**
+     * Expose some diagnostics for logging.
+     * For simply one message exchanges without retransmissions nothing will be exposed
+     */
+    get diagnostics() {
+        if (
+            this.#totalRetransmissionCounter === 0 &&
+            this.#messageSendCounter === 1 &&
+            this.#messageReceivedCounter === 1
+        ) {
+            return undefined;
+        }
+        return `${this.#messageReceivedCounter}${Mark.RECEIVED}|${Mark.SEND}${this.#messageSendCounter}${this.#totalRetransmissionCounter > 0 ? `+${this.#totalRetransmissionCounter}` : ""}`;
     }
 }
 

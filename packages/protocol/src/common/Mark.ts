@@ -14,4 +14,6 @@ export namespace Mark {
     export const LOCAL_SESSION = "◦";
     export const EXCHANGE = "⇵";
     export const MESSAGE = "✉";
+    export const RECEIVED = "←";
+    export const SEND = "→";
 }

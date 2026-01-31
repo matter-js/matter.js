@@ -118,7 +118,7 @@ export class PaseClient {
             peerSessionParameters,
         });
         await messenger.close();
-        logger.info("Paired successfully", Mark.OUTBOUND, messenger.channelName);
+        logger.info("Paired successfully", Mark.OUTBOUND, messenger.channelName, exchange.diagnostics);
 
         return secureSession;
     }

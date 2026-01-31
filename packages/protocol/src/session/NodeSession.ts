@@ -389,6 +389,7 @@ export namespace NodeSession {
             session.via,
             `${operation} session with`,
             Diagnostic.strong(PeerAddress({ fabricIndex: fabric.fabricIndex, nodeId: peerNodeId }).toString()),
+            messenger.exchange.diagnostics,
             Diagnostic.dict({
                 address: messenger.channelName,
                 fabric: `${GlobalFabricId.strOf(fabric.globalId)} (#${fabric.fabricIndex})`,

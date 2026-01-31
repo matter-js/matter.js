@@ -96,6 +96,7 @@ export class PaseServer implements ProtocolHandler {
                 this.#pairingErrors++;
                 logger.error(
                     `An error occurred during the PASE commissioning (${this.#pairingErrors}/${PASE_COMMISSIONING_MAX_ERRORS}):`,
+                    this.#pairingMessenger?.exchange.diagnostics,
                     error,
                 );
 
@@ -189,7 +190,12 @@ export class PaseServer implements ProtocolHandler {
             isResumption: false,
             peerSessionParameters: initiatorSessionParams,
         });
-        logger.info(session.via, "New session with", Diagnostic.strong(messenger.channelName));
+        logger.info(
+            session.via,
+            "New session with",
+            Diagnostic.strong(messenger.channelName),
+            messenger.exchange.diagnostics,
+        );
 
         await messenger.sendSuccess();
         await messenger.close();

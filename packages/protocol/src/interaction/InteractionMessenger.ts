@@ -318,23 +318,24 @@ export class InteractionServerMessenger extends InteractionMessenger {
             }
         } catch (error) {
             if (error instanceof NoResponseTimeoutError) {
-                logger.info(this.exchange.via, error);
+                logger.info(this.exchange.via, this.exchange.diagnostics, error);
                 return;
             }
 
             let errorStatusCode = Status.Failure;
             if (error instanceof StatusResponseError) {
                 logger.info(
-                    this.exchange.via,
                     "Status response",
                     Mark.OUTBOUND,
+                    this.exchange.via,
+                    this.exchange.diagnostics,
                     Diagnostic.strong(`${Status[error.code]}#${error.code}`),
                     "due to error:",
                     Diagnostic.errorMessage(error),
                 );
                 errorStatusCode = error.code;
             } else {
-                logger.warn(this.exchange.via, error);
+                logger.warn(this.exchange.via, this.exchange.diagnostics, error);
             }
 
             if (!isGroupSession) {
