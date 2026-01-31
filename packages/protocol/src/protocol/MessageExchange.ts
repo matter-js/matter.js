@@ -752,7 +752,7 @@ export class MessageExchange {
         ) {
             return undefined;
         }
-        return `${this.#messageReceivedCounter}${Mark.RECEIVED}|${Mark.SEND}${this.#messageSendCounter}${this.#totalRetransmissionCounter > 0 ? `+${this.#totalRetransmissionCounter}` : ""}`;
+        return `${this.#messageReceivedCounter}${Mark.TRANSFERRED}${this.#messageSendCounter}${this.#totalRetransmissionCounter > 0 ? `+${this.#totalRetransmissionCounter}` : ""}`;
     }
 }
 
