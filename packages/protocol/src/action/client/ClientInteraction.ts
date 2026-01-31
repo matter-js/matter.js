@@ -426,7 +426,7 @@ export class ClientInteraction<
             throw new ImplementationError("When subscribing to attributes and events, at least one must be specified.");
         }
         if (subscriptionPathsCount > 3) {
-            logger.info("Subscribe interactions with more then 3 paths might be not allowed by the device.");
+            logger.info("Subscribe interactions with more than 3 paths might be not allowed by the device.");
         }
 
         SecureSession.assert(this.#exchanges.session);
