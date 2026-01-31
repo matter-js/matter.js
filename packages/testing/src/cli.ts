@@ -225,6 +225,10 @@ export async function main(argv = process.argv) {
     // non-zero status code
     const timeout = setTimeout(() => {
         console.error(`Error: Tests passed but process did not exit cleanly after ${SHUTDOWN_TIMEOUT_MS / 1000}s.`);
+        const diagnostics = MatterHooks?.generateDiagnostics?.();
+        if (diagnostics) {
+            console.log("\nPROCESS STATE:\n", diagnostics, "\n");
+        }
         process.exit(101);
     }, SHUTDOWN_TIMEOUT_MS);
     timeout.unref();

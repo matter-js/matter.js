@@ -608,7 +608,7 @@ export class MessageExchange {
 
         if (options?.timeout !== undefined) {
             timeout = options.timeout;
-        } else if (!options?.abort || options?.expectedProcessingTime !== undefined) {
+        } else if (!this.session.isClosed && (!options?.abort || options?.expectedProcessingTime !== undefined)) {
             timeout = this.channel.calculateMaximumPeerResponseTime(
                 this.session.parameters,
                 this.context.localSessionParameters,
