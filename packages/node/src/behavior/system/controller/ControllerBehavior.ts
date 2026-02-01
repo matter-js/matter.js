@@ -194,6 +194,21 @@ export namespace ControllerBehavior {
         ip?: boolean = undefined;
 
         /**
+         * Node ID assignment strategy.
+         */
+        nodeIdAssignment: "sequential" | "random" = "sequential";
+
+        /**
+         * Next assigned ID when {@link nodeIdAssignment} is "sequential".
+         *
+         * matter.js increments this value automatically after allocating a new node ID.  This means that the
+         * "sequential" strategy does not reuse IDs from decommissioned nodes.
+         *
+         * If there is a conflict with an existing ID, matter.js increments this value until it identifies a free ID.
+         */
+        nextNodeId?: NodeId;
+
+        /**
          * Contains the label of the admin fabric which is set for all commissioned devices
          */
         adminFabricLabel = "matter.js";
