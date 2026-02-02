@@ -89,7 +89,7 @@
         "embedme": "^1.22.1",
         "eslint-plugin-node-import": "^1.0.5",
         "eslint-plugin-regexp": "^3.0.0",
-        "globals": "^17.0.0",
+        "globals": "^17.3.0",
         "prettier": "^3.8.0",
         "prettier-plugin-organize-imports": "^4.3.0",
         "semver": "^7.7.3",
