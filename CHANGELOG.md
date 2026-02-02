@@ -15,7 +15,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: We now allocate node IDs as sequential numbers; the old behavior of randomized node behavior is available if you set `ControllerBehavior` state property `nodeIdAssignment` to `"random"`
 
 - @matter/nodejs
-  - Fix: Also handle EHOSTUNREACH as a non-critical network error that triggers the retry logic and MDNS lookup
+  - Fix: Also handle ENETUNREACH as a non-critical network error that triggers the retry logic and MDNS lookup
 
 ## 0.16.8 (2026-01-30)
 
