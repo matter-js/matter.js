@@ -696,12 +696,11 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     ): Promise<SecureSession | undefined> {
         address = PeerAddress(address);
 
-        const { ip, port } = operationalAddress;
         const { expectedProcessingTime } = options ?? {};
         const startTime = Time.nowMs;
         try {
             logger.debug(
-                `Resuming connection to ${address} at ${ip}:${port}${
+                `Resuming connection to ${address} at ${ServerAddress.urlFor(operationalAddress)}${
                     expectedProcessingTime !== undefined
                         ? ` with expected processing time of ${Duration.format(expectedProcessingTime)}`
                         : ""
@@ -717,7 +716,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                 error instanceof AbortedError
             ) {
                 logger.debug(
-                    `Failed to resume connection to ${address} connection with ${ip}:${port}, discovering the node now:`,
+                    `Failed to resume connection to ${address} with ${ServerAddress.urlFor(operationalAddress)}, discovering the node now:`,
                     error.message ? error.message : error,
                 );
                 // We remove all sessions that were created before we started the try, this also informs the PairedNode class
