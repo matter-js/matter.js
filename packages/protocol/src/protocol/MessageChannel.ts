@@ -17,6 +17,7 @@ import {
     MaybePromise,
     Observable,
     sameIpNetworkChannel,
+    ServerAddress,
     ServerAddressUdp,
 } from "#general";
 import type { ExchangeLogContext } from "#protocol/MessageExchange.js";
@@ -42,8 +43,10 @@ export class MessageChannel implements Channel<Message> {
         this.#channel = channel;
         if (isIpNetworkChannel(channel)) {
             this.#isIpNetworkChannel = true;
-            this.#networkAddressChanged.emit(channel.networkAddress);
-            channel.networkAddressChanged.on(networkAddress => this.#networkAddressChanged.emit(networkAddress));
+            channel.networkAddressChanged.on(networkAddress => {
+                logger.debug(`Network address of UDP Channel changed to ${ServerAddress.urlFor(networkAddress)}`);
+                this.#networkAddressChanged.emit(networkAddress);
+            });
         }
         this.#onClose = onClose;
     }
@@ -131,7 +134,7 @@ export class MessageChannel implements Channel<Message> {
             return;
         }
         if (!sameIpNetworkChannel(channel, this.#channel as IpNetworkChannel<Bytes>)) {
-            logger.debug(`Updated address to`, this.name);
+            logger.debug(`Updated address of channel to`, this.name);
             this.#channel = channel;
             this.#networkAddressChanged.emit(channel.networkAddress);
         }
