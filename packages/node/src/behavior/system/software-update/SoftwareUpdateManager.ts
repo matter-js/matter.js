@@ -368,13 +368,21 @@ export class SoftwareUpdateManager extends Behavior {
 
         const peersWithUpdates = new Array<{ peerAddress: PeerAddress; info: SoftwareUpdateInfo }>();
         for (const infos of updateDetails.values()) {
-            const peers = await this.#checkProductForUpdates(infos, includeStoredUpdates);
-            for (const peer of peers) {
-                const info = this.internal.knownUpdates.get(peer.toString());
-                if (info === undefined) {
-                    continue; // Race condition should normally not happen
+            try {
+                const peers = await this.#checkProductForUpdates(infos, includeStoredUpdates);
+                for (const peer of peers) {
+                    const info = this.internal.knownUpdates.get(peer.toString());
+                    if (info === undefined) {
+                        continue; // Race condition should normally not happen
+                    }
+                    peersWithUpdates.push({ peerAddress: peer, info });
                 }
-                peersWithUpdates.push({ peerAddress: peer, info });
+            } catch (error) {
+                // We simply ignore all potential errors happened, but log them
+                logger.warn(
+                    `Error while checking for updates for product ${infos.vendorId}-${infos.productId}:`,
+                    error,
+                );
             }
         }
 
