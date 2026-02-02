@@ -716,7 +716,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                 error instanceof AbortedError
             ) {
                 logger.debug(
-                    `Failed to resume connection to ${address} connection with ${ServerAddress.urlFor(operationalAddress)}, discovering the node now:`,
+                    `Failed to resume connection to ${address} with ${ServerAddress.urlFor(operationalAddress)}, discovering the node now:`,
                     error.message ? error.message : error,
                 );
                 // We remove all sessions that were created before we started the try, this also informs the PairedNode class
