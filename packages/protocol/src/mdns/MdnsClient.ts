@@ -483,8 +483,8 @@ export class MdnsClient implements Scanner {
         if (!commissionable) {
             this.#registerOperationalQuery(queryId);
         }
-        logger.debug(
-            `Registered waiter for query ${queryId} with ${
+        logger.info(
+            `Registered waiter for query ${queryId} (${id}) with ${
                 timeout !== undefined ? `timeout ${timeout}` : "no timeout"
             }${resolveOnUpdatedRecords ? "" : " (not resolving on updated records)"}`,
         );
@@ -513,7 +513,7 @@ export class MdnsClient implements Scanner {
                 waitersLeft.push(waiter);
                 continue;
             }
-            logger.debug(`Finishing waiter for query ${queryId}, resolving: ${resolvePromise}`);
+            logger.info(`Finishing waiter for query ${queryId} (${waiter.id}), resolving: ${resolvePromise}`);
             commissionableRecordFinished = commissionableRecordFinished || commissionable;
             timer?.stop();
             if (resolvePromise) {
@@ -863,12 +863,12 @@ export class MdnsClient implements Scanner {
             () => {
                 canceled = true;
                 if (queryResolver === undefined) {
-                    // Always finish when cancelSignal parameter was used, else cancelling is done separately
+                    // Always finish when the cancelSignal parameter was used, else cancelling is done separately
                     this.#finishWaiter(queryId, true);
                 }
             },
             cause => {
-                logger.error("Unexpected error canceling commissioning", cause);
+                logger.warn("Unexpected error canceling commissioning", cause);
             },
         );
 
