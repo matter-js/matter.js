@@ -11,7 +11,7 @@ import {
     ChannelType,
     Diagnostic,
     DnsMessageType,
-    DnsQuery,
+    type DnsQuery,
     DnsRecord,
     DnsRecordClass,
     DnsRecordType,
@@ -266,6 +266,7 @@ export class MdnsClient implements Scanner {
                         name: target,
                         recordClass: DnsRecordClass.IN,
                         recordType: DnsRecordType.PTR,
+                        uniCastResponse: true,
                     })),
                 }),
             );
@@ -600,6 +601,7 @@ export class MdnsClient implements Scanner {
                     name: deviceMatterQname,
                     recordClass: DnsRecordClass.IN,
                     recordType: DnsRecordType.SRV,
+                    uniCastResponse: true,
                 },
             ]);
 
@@ -800,7 +802,12 @@ export class MdnsClient implements Scanner {
             names.push(getCommissioningModeQname());
         }
 
-        return names.map(name => ({ name, recordClass: DnsRecordClass.IN, recordType: DnsRecordType.PTR }));
+        return names.map(name => ({
+            name,
+            recordClass: DnsRecordClass.IN,
+            recordType: DnsRecordType.PTR,
+            uniCastResponse: true,
+        }));
     }
 
     /**
@@ -1431,9 +1438,16 @@ export class MdnsClient implements Scanner {
 
         if (addresses.size === 0 && this.#hasWaiter(matterName)) {
             // We have no or no more (because expired) IPs, and we are interested in this particular service name, request them
-            const queries = [{ name: target, recordClass: DnsRecordClass.IN, recordType: DnsRecordType.AAAA }];
+            const queries = [
+                { name: target, recordClass: DnsRecordClass.IN, recordType: DnsRecordType.AAAA, uniCastResponse: true },
+            ];
             if (this.#socket.supportsIpv4) {
-                queries.push({ name: target, recordClass: DnsRecordClass.IN, recordType: DnsRecordType.A });
+                queries.push({
+                    name: target,
+                    recordClass: DnsRecordClass.IN,
+                    recordType: DnsRecordType.A,
+                    uniCastResponse: true,
+                });
             }
             if (this.#setQueryRecords(matterName, queries, answers)) {
                 // Only log when we are not already searching for them
@@ -1571,9 +1585,21 @@ export class MdnsClient implements Scanner {
                 const queryId = this.#findCommissionableQueryIdentifier("", storedRecord);
                 if (queryId === undefined) continue;
                 // We have no or no more (because expired) IPs and we are interested in such a service name, request them
-                const queries = [{ name: target, recordClass: DnsRecordClass.IN, recordType: DnsRecordType.AAAA }];
+                const queries = [
+                    {
+                        name: target,
+                        recordClass: DnsRecordClass.IN,
+                        recordType: DnsRecordType.AAAA,
+                        uniCastResponse: true,
+                    },
+                ];
                 if (this.#socket.supportsIpv4) {
-                    queries.push({ name: target, recordClass: DnsRecordClass.IN, recordType: DnsRecordType.A });
+                    queries.push({
+                        name: target,
+                        recordClass: DnsRecordClass.IN,
+                        recordType: DnsRecordType.A,
+                        uniCastResponse: true,
+                    });
                 }
                 logger.debug(
                     `Requesting IP addresses for commissionable device ${record.name} (interface ${netInterface}).`,
@@ -1601,7 +1627,7 @@ export class MdnsClient implements Scanner {
                 logger.debug(`Requesting more records for commissionable device ${name} (interface ${netInterface}).`);
                 this.#setQueryRecords(
                     queryId,
-                    [{ name, recordClass: DnsRecordClass.IN, recordType: DnsRecordType.ANY }],
+                    [{ name, recordClass: DnsRecordClass.IN, recordType: DnsRecordType.ANY, uniCastResponse: true }],
                     answers,
                 );
             }

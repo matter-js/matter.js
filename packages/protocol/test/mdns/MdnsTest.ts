@@ -1133,7 +1133,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                             name: "0000000000000018-0000000000000001._matter._tcp.local",
                             recordClass: 1,
                             recordType: 33,
-                            uniCastResponse: false,
+                            uniCastResponse: true,
                         },
                     ],
                     transactionId: 0,
@@ -1188,7 +1188,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                             name: "0000000000000018-0000000000000001._matter._tcp.local",
                             recordClass: 1,
                             recordType: 33,
-                            uniCastResponse: false,
+                            uniCastResponse: true,
                         },
                     ],
                     transactionId: 0,
@@ -1283,7 +1283,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                             name: "0000000000000018-0000000000000001._matter._tcp.local",
                             recordClass: 1,
                             recordType: 33,
-                            uniCastResponse: false,
+                            uniCastResponse: true,
                         },
                     ],
                     transactionId: 0,
@@ -1408,7 +1408,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                     name: "0000000000000018-0000000000000001._matter._tcp.local",
                     recordClass: 1,
                     recordType: 33,
-                    uniCastResponse: false,
+                    uniCastResponse: true,
                 },
             ]);
             expect(initialQuery?.answers.length).equal(48);
@@ -1460,7 +1460,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                     name: "0000000000000018-0000000000000001._matter._tcp.local",
                     recordClass: 1,
                     recordType: DnsRecordType.PTR,
-                    uniCastResponse: false,
+                    uniCastResponse: true,
                 });
 
                 client.targetCriteriaProviders.delete(criteria);
@@ -1484,7 +1484,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                     name: "_I0000000000000018._sub._matter._tcp.local",
                     recordClass: 1,
                     recordType: DnsRecordType.PTR,
-                    uniCastResponse: false,
+                    uniCastResponse: true,
                 });
 
                 client.targetCriteriaProviders.delete(criteria);
@@ -1554,13 +1554,13 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                     name: "0000000000000018-0000000000000001._matter._tcp.local",
                     recordClass: 1,
                     recordType: DnsRecordType.PTR,
-                    uniCastResponse: false,
+                    uniCastResponse: true,
                 });
                 expect(query.queries).deep.includes({
                     name: "0000000000000019-0000000000000002._matter._tcp.local",
                     recordClass: 1,
                     recordType: DnsRecordType.PTR,
-                    uniCastResponse: false,
+                    uniCastResponse: true,
                 });
 
                 client.targetCriteriaProviders.delete(criteria);
