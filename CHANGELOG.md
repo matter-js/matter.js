@@ -15,7 +15,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: We now allocate node IDs as sequential numbers; the old behavior of randomized node behavior is available if you set `ControllerBehavior` state property `nodeIdAssignment` to `"random"`
 
 - @project-chip/matter.js
-  - Fix: Prevent PairedNode from updating it's structure when node is already decommissioned
+  - Fix: Prevent PairedNode from updating its structure when node is already decommissioned
 
 ## 0.16.8 (2026-01-30)
 
