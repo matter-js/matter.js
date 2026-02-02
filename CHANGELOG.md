@@ -14,7 +14,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/node
     - Feature: We now allocate node IDs as sequential numbers; the old behavior of randomized node behavior is available if you set `ControllerBehavior` state property `nodeIdAssignment` to `"random"`
 
-- @matter/node
+- @matter/protocol
   - Adjustment: When sending MDNS queries, request Unicast responses rather than Multicast
 
 - @project-chip/matter.js
