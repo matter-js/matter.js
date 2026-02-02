@@ -378,7 +378,7 @@ export class SoftwareUpdateManager extends Behavior {
                     peersWithUpdates.push({ peerAddress: peer, info });
                 }
             } catch (error) {
-                // We simply ignore all potential errors happened, but log them
+                // We ignore any errors that occur, but log them
                 logger.warn(
                     `Error while checking for updates for product ${infos.vendorId}-${infos.productId}:`,
                     error,
