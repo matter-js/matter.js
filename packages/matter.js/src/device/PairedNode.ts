@@ -329,6 +329,7 @@ export class PairedNode {
     #pendingNodeChangeEvents = new Map<EndpointNumber, keyof PairedNode.NodeStructureEvents>();
     #decommissioned = false;
     #peerAddress: PeerAddress;
+    #closing = false;
 
     /**
      * Endpoint structure change information that are checked when updating structure
@@ -992,8 +993,10 @@ export class PairedNode {
                     (this.#registeredEndpointStructureChanges.size > 0 || this.#pendingNodeChangeEvents.size > 0) &&
                     !this.#updateEndpointStructureTimer.isRunning
                 ) {
-                    logger.info(this.#peerAddress, `Endpoint structure needs to be updated ...`);
-                    this.#updateEndpointStructureTimer.stop().start();
+                    if (!this.#closing && !this.#decommissioned) {
+                        logger.info(this.#peerAddress, `Endpoint structure needs to be updated ...`);
+                        this.#updateEndpointStructureTimer.stop().start();
+                    }
                 } else if (this.#deviceInformationUpdateNeeded) {
                     this.events.deviceInformationChanged.emit(this.#nodeDetails.details);
                 }
@@ -1195,6 +1198,9 @@ export class PairedNode {
     }
 
     #updateEndpointStructure() {
+        if (this.#decommissioned || this.#closing) {
+            return;
+        }
         if (this.#endpoints === undefined) {
             // Combine triggers from attribute changes with the collected node details
             for (const endpointId of this.#registeredEndpointStructureChanges.keys()) {
@@ -1634,6 +1640,8 @@ export class PairedNode {
         }
         this.#decommissioned = true;
 
+        this.#updateEndpointStructureTimer?.stop();
+
         this.#options.stateInformationCallback?.(this.nodeId, NodeStateInformation.Decommissioned);
 
         this.#setConnectionState(NodeStates.Disconnected);
@@ -1749,6 +1757,7 @@ export class PairedNode {
 
     /** Closes the current subscription and ends all timers for reconnects or such used by this PairedNode instance. */
     close(sendDecommissionedStatus = false) {
+        this.#closing = true;
         this.#observers.close();
         this.#newChannelReconnectDelayTimer.stop();
         this.#reconnectDelayTimer?.stop();
