@@ -261,7 +261,7 @@ export class NodeJsUdpChannel implements UdpChannel {
                 resolver();
             } else {
                 const netError =
-                    "code" in error && error.code === "EHOSTUNREACH"
+                    "code" in error && (error.code === "EHOSTUNREACH" || error.code === "ENETUNREACH")
                         ? repackErrorAs(
                               error,
                               // TODO - this is a routing error; current error indicates timeout and is defined

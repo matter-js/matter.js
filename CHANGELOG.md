@@ -14,6 +14,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/node
     - Feature: We now allocate node IDs as sequential numbers; the old behavior of randomized node behavior is available if you set `ControllerBehavior` state property `nodeIdAssignment` to `"random"`
 
+- @matter/nodejs
+  - Fix: Also handle ENETUNREACH as a non-critical network error that triggers the retry logic and MDNS lookup
+
 - @project-chip/matter.js
   - Fix: Prevent PairedNode from updating its structure when node is already decommissioned
 
