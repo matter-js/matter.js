@@ -7,7 +7,16 @@
 import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Fabric } from "#fabric/Fabric.js";
-import { AbortedError, Bytes, Duration, EcdsaSignature, Logger, PublicKey, UnexpectedDataError } from "#general";
+import {
+    AbortedError,
+    Bytes,
+    Duration,
+    EcdsaSignature,
+    Logger,
+    NetworkError,
+    PublicKey,
+    UnexpectedDataError,
+} from "#general";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { RetransmissionLimitReachedError } from "#protocol/errors.js";
 import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
@@ -49,7 +58,8 @@ export class CaseClient {
                 !(
                     error instanceof ChannelStatusResponseError ||
                     error instanceof RetransmissionLimitReachedError ||
-                    error instanceof AbortedError
+                    error instanceof AbortedError ||
+                    error instanceof NetworkError
                 )
             ) {
                 await messenger.sendError(SecureChannelStatusCode.InvalidParam);
