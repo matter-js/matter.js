@@ -380,7 +380,7 @@ export async function PeerConnection(
                 e.protocolStatusCode === SecureChannelStatusCode.NoSharedTrustRoots &&
                 (await context.sessions.deleteResumptionRecord(peer.address))
             ) {
-                logger.error(
+                logger.warn(
                     via,
                     "Authorization rejected by peer on session resumption; clearing resumption data and retrying",
                 );
