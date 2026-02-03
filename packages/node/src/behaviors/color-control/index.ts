@@ -8,3 +8,4 @@ export * from "./ColorControlBehavior.js";
 export * from "./ColorControlInterface.js";
 export * from "./ColorControlServer.js";
 export * from "./ColorConversionUtils.js";
+export * from "./ColorControlClient.js";
