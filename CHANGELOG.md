@@ -17,6 +17,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/nodejs
   - Fix: Also handle ENETUNREACH as a non-critical network error that triggers the retry logic and MDNS lookup
 
+- @project-chip/matter.js
+  - Fix: Prevent PairedNode from updating its structure when node is already decommissioned
+
 ## 0.16.8 (2026-01-30)
 
 - @matter/node

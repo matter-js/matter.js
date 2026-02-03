@@ -331,7 +331,7 @@ export class MdnsClient implements Scanner {
 
     /**
      * Set new DnsQuery records to the list of active queries to discover devices in the network and start sending them
-     * out. When entry already exists the query is overwritten and answers are always added.
+     * out. When an entry already exists, the query is overwritten and answers are always added.
      */
     #setQueryRecords(queryId: string, queries: DnsQuery[], answers: StructuredDnsAnswers = {}) {
         const activeExistingQuery = this.#activeAnnounceQueries.get(queryId);
@@ -348,7 +348,7 @@ export class MdnsClient implements Scanner {
             );
             if (newQueries.length === 0) {
                 // All queries already sent out, will be re-queried automatically
-                return;
+                return false;
             }
             queries = [...newQueries, ...existingQueries];
             answers = this.#combineStructuredAnswers(activeExistingQuery.answers, answers);
@@ -358,6 +358,7 @@ export class MdnsClient implements Scanner {
         this.#queryTimer?.stop();
         this.#nextAnnounceInterval = START_ANNOUNCE_INTERVAL; // Reset query interval
         this.#queryTimer = Time.getTimer("MDNS discovery", Instant, () => this.#sendQueries()).start();
+        return true;
     }
 
     /**
@@ -483,8 +484,8 @@ export class MdnsClient implements Scanner {
         if (!commissionable) {
             this.#registerOperationalQuery(queryId);
         }
-        logger.debug(
-            `Registered waiter for query ${queryId} with ${
+        logger.info(
+            `Registered waiter for query ${queryId} (${id}) with ${
                 timeout !== undefined ? `timeout ${timeout}` : "no timeout"
             }${resolveOnUpdatedRecords ? "" : " (not resolving on updated records)"}`,
         );
@@ -513,7 +514,7 @@ export class MdnsClient implements Scanner {
                 waitersLeft.push(waiter);
                 continue;
             }
-            logger.debug(`Finishing waiter for query ${queryId}, resolving: ${resolvePromise}`);
+            logger.info(`Finishing waiter for query ${queryId} (${waiter.id}), resolving: ${resolvePromise}`);
             commissionableRecordFinished = commissionableRecordFinished || commissionable;
             timer?.stop();
             if (resolvePromise) {
@@ -863,12 +864,12 @@ export class MdnsClient implements Scanner {
             () => {
                 canceled = true;
                 if (queryResolver === undefined) {
-                    // Always finish when cancelSignal parameter was used, else cancelling is done separately
+                    // Always finish when the cancelSignal parameter was used, else cancelling is done separately
                     this.#finishWaiter(queryId, true);
                 }
             },
             cause => {
-                logger.error("Unexpected error canceling commissioning", cause);
+                logger.warn("Unexpected error canceling commissioning", cause);
             },
         );
 
@@ -1434,12 +1435,15 @@ export class MdnsClient implements Scanner {
             if (this.#socket.supportsIpv4) {
                 queries.push({ name: target, recordClass: DnsRecordClass.IN, recordType: DnsRecordType.A });
             }
-            logger.debug(`Requesting IP addresses for operational device ${matterName} (interface ${netInterface}).`);
-            this.#setQueryRecords(matterName, queries, answers);
+            if (this.#setQueryRecords(matterName, queries, answers)) {
+                // Only log when we are not already searching for them
+                logger.debug(
+                    `Requesting IP addresses for operational device ${matterName} (interface ${netInterface}).`,
+                );
+            }
         } else if (addresses.size > 0) {
             this.#finishWaiter(matterName, true, deviceExisted);
         }
-        return;
     }
 
     /**
