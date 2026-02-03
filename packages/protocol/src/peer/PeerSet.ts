@@ -43,6 +43,7 @@ import { DedicatedChannelExchangeProvider, ReconnectableExchangeProvider } from 
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
 import { CaseClient } from "#session/case/CaseClient.js";
+import { NodeSession } from "#session/index.js";
 import { SecureSession } from "#session/SecureSession.js";
 import { Session } from "#session/Session.js";
 import { SessionManager } from "#session/SessionManager.js";
@@ -860,11 +861,8 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             peer = new Peer({ address }, this.#peerContext);
             this.#peers.add(peer);
         }
-        if (session !== undefined && !session.isClosed) {
-            const channel = session.channel;
-            if (isIpNetworkChannel(channel)) {
-                peer.descriptor.operationalAddress = channel.networkAddress;
-            }
+        if (session !== undefined && !session.isClosed && NodeSession.is(session)) {
+            peer.sessions.add(session);
         }
         if (discoveryData !== undefined) {
             peer.descriptor.discoveryData = {
@@ -873,7 +871,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             };
         }
 
-        // If we got a new channel and have a running discovery we can end it
+        // If we got a new channel and have a running discovery, we can end it
         if (peer.descriptor.operationalAddress !== undefined && peer.activeDiscovery) {
             logger.info(`Found ${address} during discovery, cancel discovery.`);
             // We are currently discovering this node, so we need to update the discovery data
