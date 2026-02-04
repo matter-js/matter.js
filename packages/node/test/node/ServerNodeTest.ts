@@ -202,7 +202,7 @@ describe("ServerNode", () => {
         expect(answer("_T")).equals("256");
         expect(answer("_CM")).equals("");
 
-        expect(additional(DnsRecordType.AAAA)).equals("1111:2222:3333:4444:5555:6666:7777:8880");
+        expect(additional(DnsRecordType.AAAA)).equals("abcd::80");
         expect(additional(DnsRecordType.A)).equals("10.10.10.128");
         expect(additional(DnsRecordType.SRV)?.port).equals(operationalPort);
 

@@ -94,7 +94,7 @@ describe("IpService", () => {
         const iter = service.addressChanges({ abort });
 
         // Should generate two preexisting addresses
-        await expectAdd("1111:2222:3333:4444:5555:6666:7777:8891");
+        await expectAdd("abcd::91");
         await expectAdd("10.10.10.145");
 
         // Should generate no addresses
@@ -107,7 +107,7 @@ describe("IpService", () => {
         // Should expire all addresses
         await server.broadcast(1, 0);
         await expectDelete("fd00::1");
-        await expectDelete("1111:2222:3333:4444:5555:6666:7777:8891");
+        await expectDelete("abcd::91");
         await expectDelete("10.10.10.145");
 
         // Should stop iteration

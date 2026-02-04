@@ -44,6 +44,10 @@ export class SecureChannelMessenger {
         return this.exchange.channel;
     }
 
+    get via() {
+        return this.exchange.via;
+    }
+
     /**
      * Waits for the next message and returns it.
      *

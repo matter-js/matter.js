@@ -172,8 +172,8 @@ export async function addTestOtaImage(device: ServerNode, controller: ServerNode
     const { vendorId, productId, softwareVersion } = device.state.basicInformation;
     const targetSoftwareVersion = softwareVersion + 1;
 
-    // Generate 500KB of test payload data
-    const payload = generateTestPayload(500 * 1024);
+    // Generate 50KB of test payload data
+    const payload = generateTestPayload(50 * 1024);
 
     // Create OTA image for next version, applicable to the current version range
     const otaImage = await createTestOtaImage(new StandardCrypto(), {

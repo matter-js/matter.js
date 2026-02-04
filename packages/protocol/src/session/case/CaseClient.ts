@@ -323,7 +323,7 @@ export class CaseClient {
         try {
             await messenger.close();
         } catch (e) {
-            logger.error("Unhandled error closing CASE messenger:", e);
+            logger.error(messenger.via, "Unhandled error closing CASE messenger:", e);
         }
         await this.#sessions.saveResumptionRecord(resumptionRecord);
 

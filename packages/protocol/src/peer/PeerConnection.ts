@@ -124,6 +124,9 @@ export async function PeerConnection(
     // Time of last attempt initiation, used to delay next initiation
     let lastAttemptAt: undefined | Timestamp;
 
+    // Count of addresses we've tried
+    let addrsAttempted = 0;
+
     // Exchange "kick" driver
     const kicker = options?.kicker;
 
@@ -141,7 +144,7 @@ export async function PeerConnection(
                 break;
 
             case "delete":
-                deleteAddress(address);
+                deleteAddress(address, "Aborting attempt because address is expired");
                 break;
         }
     }
@@ -271,11 +274,12 @@ export async function PeerConnection(
     /**
      * End connection attempt.
      */
-    function deleteAddress(address: ServerAddressUdp) {
+    function deleteAddress(address: ServerAddressUdp, why: string) {
         address = addresses.add(address);
         const attempt = attempts.get(address);
 
         if (attempt) {
+            debug(via, address, why);
             attempt.abort();
             attempts.delete(address);
         }
@@ -283,25 +287,47 @@ export async function PeerConnection(
         pendingAddresses.delete(address);
     }
 
+    function error(address: ServerAddressUdp, ...message: unknown[]) {
+        logger.error(logHeaderFor(address), ...message);
+    }
+
+    function warn(address: ServerAddressUdp, ...message: unknown[]) {
+        logger.warn(logHeaderFor(address), ...message);
+    }
+
+    function debug(via: string, address: ServerAddressUdp, ...message: unknown[]) {
+        logger.debug(logHeaderFor(address, via), ...message);
+    }
+
+    function logHeaderFor(address: ServerAddressUdp, localVia = via) {
+        return [localVia, Diagnostic.strong(ServerAddress.urlFor(address))];
+    }
+
     /**
      * Perform connection to specific address until successful.
      */
     async function connect(address: ServerAddressUdp, addressAbort: Abort) {
+        const addrNo = ++addrsAttempted;
+        let attemptNo = 1;
+
         using connecting = lifetime.join("attempt");
         connecting.details.address = ServerAddress.urlFor(address);
 
         // If this is not the fallback address but we're still attempting to connect to the fallback, it means that
         // we've discovered addresses that do not include the fallback; terminate the fallback attempt
         if (attemptingFallback && address !== attemptingFallback) {
-            deleteAddress(attemptingFallback);
+            deleteAddress(
+                attemptingFallback,
+                "Aborting attempt to last known address because device reports address change",
+            );
             attemptingFallback = undefined;
         }
 
         while (!addressAbort.aborted) {
             try {
-                await attemptOnce(address, addressAbort, connecting);
+                await attemptOnce(address, addressAbort, connecting, addrNo, attemptNo++);
             } catch (e) {
-                await handleConnectionError(asError(e), addressAbort, connecting);
+                await handleConnectionError(asError(e), address, addressAbort, connecting);
             }
         }
     }
@@ -309,11 +335,16 @@ export async function PeerConnection(
     /**
      * Make a single attempt to connect to a specific address.
      */
-    async function attemptOnce(address: ServerAddressUdp, addressAbort: Abort, lifetime: Lifetime) {
+    async function attemptOnce(
+        address: ServerAddressUdp,
+        addressAbort: Abort,
+        attemptLifetime: Lifetime,
+        addrNo: number,
+        attemptNo: number,
+    ) {
         let socket;
-
         {
-            using _opening = lifetime.join("opening socket");
+            using _opening = attemptLifetime.join("opening socket");
             socket = await context.openSocket(address, addressAbort);
             if (socket === undefined) {
                 return;
@@ -328,6 +359,21 @@ export async function PeerConnection(
 
         await using exchange = PeerConnection.createExchange(peer, context.exchanges, unsecuredSession);
 
+        debug(
+            exchange.via,
+            address,
+            "Connecting",
+            Diagnostic.dict({
+                "addr #": addrNo,
+                "attempt #": attemptNo,
+                "connect time": Duration.format(Timestamp.delta(lifetime.startedAt)),
+                "addr time": Duration.format(Timestamp.delta(attemptLifetime.startedAt)),
+            }),
+            Diagnostic.asFlags({
+                fallback: address === attemptingFallback,
+            }),
+        );
+
         const caseClient = new CaseClient(context.sessions);
 
         const fabric = context.sessions.fabricFor(peer.address);
@@ -335,7 +381,7 @@ export async function PeerConnection(
         let kick: Disposable | undefined;
 
         try {
-            using _pairing = lifetime.join("pairing");
+            using _pairing = attemptLifetime.join("pairing");
 
             kick = kicker?.use(() => exchange.kick());
 
@@ -364,13 +410,13 @@ export async function PeerConnection(
     /**
      * Log error information and pause before next retry.
      */
-    async function handleConnectionError(e: Error, addressAbort: Abort, lifetime: Lifetime) {
+    async function handleConnectionError(e: Error, address: ServerAddressUdp, addressAbort: Abort, lifetime: Lifetime) {
         using _handling = lifetime.join("handling error");
 
         let delay: undefined | Duration;
         if (causedBy(e, NetworkError, PeerCommunicationError)) {
-            logger.error(
-                via,
+            error(
+                address,
                 `Connection error (retry in ${Duration.format(context.timing.delayAfterNetworkError)}):`,
                 Diagnostic.errorMessage(e),
             );
@@ -380,21 +426,21 @@ export async function PeerConnection(
                 e.protocolStatusCode === SecureChannelStatusCode.NoSharedTrustRoots &&
                 (await context.sessions.deleteResumptionRecord(peer.address))
             ) {
-                logger.warn(
-                    via,
+                warn(
+                    address,
                     "Authorization rejected by peer on session resumption; clearing resumption data and retrying",
                 );
             } else {
-                logger.error(
-                    via,
+                error(
+                    address,
                     `Peer error (retry in ${Duration.format(context.timing.delayAfterPeerError)}):`,
                     Diagnostic.errorMessage(e),
                 );
                 delay = context.timing.delayAfterPeerError;
             }
         } else {
-            logger.error(
-                via,
+            error(
+                address,
                 `Unhandled connection error (retry in ${Duration.format(context.timing.delayAfterUnhandledError)}):`,
                 e,
             );
