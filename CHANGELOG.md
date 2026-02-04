@@ -17,6 +17,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/nodejs
   - Fix: Also handle ENETUNREACH as a non-critical network error that triggers the retry logic and MDNS lookup
 
+- @matter/protocol
+  - Enhancement: Added some jitter to the subscription max ceiling to spread out subscription responses from devices
+
 - @project-chip/matter.js
   - Fix: Prevent PairedNode from updating its structure when node is already decommissioned
 

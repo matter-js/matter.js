@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Instant, Logger, Minutes, Seconds } from "#general";
+import { Duration, Instant, Logger, Millis, Minutes, Seconds } from "#general";
 
 const logger = Logger.get("PhysicalDeviceProperties");
 
@@ -14,6 +14,7 @@ const DEFAULT_SUBSCRIPTION_CEILING_WIFI = Minutes(1);
 const DEFAULT_SUBSCRIPTION_CEILING_THREAD = Minutes(1);
 const DEFAULT_SUBSCRIPTION_CEILING_THREAD_SLEEPY = Minutes(3);
 const DEFAULT_SUBSCRIPTION_CEILING_BATTERY_POWERED = Minutes(10);
+const THREAD_SUBSCRIPTION_CEILING_JITTER = 0.05; // 5% +/- Jitter for the Subscription ceiling time
 
 export interface PhysicalDeviceProperties {
     threadConnected: boolean;
@@ -80,6 +81,12 @@ export namespace PhysicalDeviceProperties {
             logger.debug(
                 `${description}: maxIntervalCeilingSeconds ideally is ${Duration.format(defaultCeiling)} instead of ${Duration.format(maxIntervalCeiling)} due to device type`,
             );
+        }
+
+        if (threadConnected) {
+            const maxJitter = maxIntervalCeiling * THREAD_SUBSCRIPTION_CEILING_JITTER;
+            const jitter = Math.round(maxJitter * Math.random() * 2 - maxJitter);
+            maxIntervalCeiling = Seconds(Seconds.of(Millis(maxIntervalCeiling + jitter)));
         }
 
         return {
