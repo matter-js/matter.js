@@ -4,17 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, DerBitString, DerCodec, Logger, Time, X962 } from "#general";
+import { Bytes, CertificateError, DerBitString, DerCodec, Logger, Time, X962 } from "#general";
 import { Certificate } from "./Certificate.js";
-import { assertCertificateDerSize, CertificateError, Unsigned } from "./common.js";
-import { X509Certificate } from "./definitions/base.js";
+import { assertCertificateDerSize, Unsigned } from "./common.js";
+import { MatterCertificate } from "./definitions/base.js";
 
 const logger = Logger.get("OperationalBaseCertificate");
 
 /**
  * Base class for all operational certificates (RCAC, ICAC, NOC)
  */
-export abstract class OperationalBase<CT extends X509Certificate> extends Certificate<CT> {
+export abstract class OperationalBase<CT extends MatterCertificate> extends Certificate<CT> {
     constructor(cert: CT | Unsigned<CT>) {
         super(cert);
         this.validateFields();

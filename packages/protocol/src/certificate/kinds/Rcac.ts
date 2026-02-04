@@ -4,10 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto, Diagnostic, PublicKey } from "#general";
+import { Bytes, CertificateError, Crypto, Diagnostic, PublicKey } from "#general";
 import { FabricId } from "#types";
 import { Certificate } from "./Certificate.js";
-import { CertificateError } from "./common.js";
 import { ExtensionKeyUsageSchema } from "./definitions/base.js";
 import { OperationalCertificate } from "./definitions/operational.js";
 import { OperationalBase } from "./OperationalBase.js";

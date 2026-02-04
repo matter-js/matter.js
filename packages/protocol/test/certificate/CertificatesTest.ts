@@ -11,14 +11,13 @@ import {
 } from "#certificate/ChipPAAuthorities.js";
 import { Paa } from "#certificate/kinds/AttestationCertificates.js";
 import { Certificate } from "#certificate/kinds/Certificate.js";
-import { CertificateError } from "#certificate/kinds/common.js";
 import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Rcac } from "#certificate/kinds/Rcac.js";
 import {
     Bytes,
+    CertificateError,
     DerCodec,
-    DerKey,
     DerNode,
     EcdsaSignature,
     PrivateKey,
@@ -476,15 +475,15 @@ describe("Certificates", () => {
             );
 
             const derNode = DerCodec.decode(result);
-            expect(derNode[DerKey.Elements]?.length).equal(3);
-            const [requestNode, signatureAlgorithmNode, signatureNode] = derNode[DerKey.Elements] as DerNode[];
+            expect(derNode._elements?.length).equal(3);
+            const [requestNode, signatureAlgorithmNode, signatureNode] = derNode._elements as DerNode[];
             expect(DerCodec.encode(signatureAlgorithmNode)).deep.equal(DerCodec.encode(X962.EcdsaWithSHA256));
             const requestBytes = DerCodec.encode(requestNode);
             expect(requestBytes).deep.equal(TEST_CSR_REQUEST_ASN1);
             await crypto.verifyEcdsa(
                 PublicKey(TEST_PUBLIC_KEY),
                 DerCodec.encode(requestNode),
-                new EcdsaSignature(signatureNode[DerKey.Bytes], "der"),
+                new EcdsaSignature(signatureNode._bytes, "der"),
             );
         });
     });
