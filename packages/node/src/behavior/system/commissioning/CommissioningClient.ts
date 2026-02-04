@@ -113,8 +113,9 @@ export class CommissioningClient extends Behavior {
     }
 
     override [Symbol.asyncDispose]() {
-        if (this.endpoint.env.has(PeerSet) && this.state.peerAddress) {
-            this.#unbindPeer(this.state.peerAddress);
+        const peer = this.endpoint.env.maybeGet(Peer);
+        if (peer) {
+            this.#unbindPeer(peer.address);
         }
     }
 
