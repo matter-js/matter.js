@@ -728,7 +728,6 @@ export class SessionManager {
         }
 
         this.#observers.close();
-        await this.#storeResumptionRecords();
 
         await this.closeAllSessions();
     }

@@ -199,8 +199,13 @@ export class Abort
         onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
     ): Promise<TResult1 | TResult2> {
         if (!this.#aborted) {
+            if (this.#controller.signal.aborted) {
+                return Promise.resolve(asError(this.#controller.signal.reason)).then(onfulfilled, onrejected);
+            }
             this.#aborted = new Promise(resolve => (this.#resolve = resolve));
-            this.addEventListener("abort", () => this.#resolve!(asError(this.signal.reason)));
+            this.addEventListener("abort", () => {
+                this.#resolve!(asError(this.signal.reason));
+            });
         }
         return await this.#aborted.then(onfulfilled, onrejected);
     }

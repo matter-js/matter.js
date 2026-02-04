@@ -22,10 +22,10 @@ import {
 
 /** Default test network configuration */
 export const DEFAULT_IPV4 = "10.10.10.1";
-export const DEFAULT_IPV6 = "1111:2222:3333:4444:5555:6666:7777:8801";
+export const DEFAULT_IPV6 = "abcd::1";
 export const DEFAULT_MAC = "00:11:22:33:44:01";
 export const PEER_IPV4 = "10.10.10.2";
-export const PEER_IPV6 = "1111:2222:3333:4444:5555:6666:7777:8802";
+export const PEER_IPV6 = "abcd::2";
 export const PEER_MAC = "00:11:22:33:44:02";
 
 /** Test environment with network simulator and socket */
