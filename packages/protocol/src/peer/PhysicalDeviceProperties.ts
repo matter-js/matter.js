@@ -84,6 +84,10 @@ export namespace PhysicalDeviceProperties {
         }
 
         if (threadConnected) {
+            // Add some Jitter to the Subscription ceiling time to ensure the device responses are spread a bit when
+            // devices are longer idle
+            // Logic does not validate if the resulting value gets too small because our defaults are high enough
+            // for this to never happen.
             const maxJitter = maxIntervalCeiling * THREAD_SUBSCRIPTION_CEILING_JITTER;
             const jitter = Math.round(maxJitter * Math.random() * 2 - maxJitter);
             maxIntervalCeiling = Seconds(Seconds.of(Millis(maxIntervalCeiling + jitter)));
