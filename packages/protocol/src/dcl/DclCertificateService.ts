@@ -23,15 +23,10 @@ import {
 } from "#general";
 import { Paa } from "../certificate/kinds/AttestationCertificates.js";
 import { DclClient, MatterDclError } from "./DclClient.js";
+import { DclConfig } from "./DclConfig.js";
 import { DclPkiRootCertificateSubjectReference } from "./DclRestApiTypes.js";
 
 const logger = Logger.get("DclCertificateService");
-
-// GitHub repository for development/test certificates
-const GITHUB_OWNER = "project-chip";
-const GITHUB_REPO = "connectedhomeip";
-const GITHUB_BRANCH = "master";
-const GITHUB_CERT_PATH = "credentials/development/paa-root-certs";
 
 /**
  * Implements a service to manage DCL root certificates as a singleton in the environment and so will be shared by
@@ -439,8 +434,9 @@ export class DclCertificateService {
             logger.debug("Fetching development certificates from GitHub");
 
             // Create GitHub repo client with timeout option
-            const repo = new Repo(GITHUB_OWNER, GITHUB_REPO, GITHUB_BRANCH, this.#options);
-            const certDir = await repo.cd(GITHUB_CERT_PATH);
+            const { owner, repo, branch, certPath } = DclConfig.github;
+            const repoClient = new Repo(owner, repo, branch, this.#options);
+            const certDir = await repoClient.cd(certPath);
 
             // List files in the certificate directory
             const files = await certDir.ls();
