@@ -49,8 +49,14 @@ export namespace PhysicalDeviceProperties {
             description = "Node";
         }
 
-        const { isMainsPowered, isBatteryPowered, isIntermittentlyConnected, supportsThread, isThreadSleepyEndDevice } =
-            properties ?? {};
+        const {
+            isMainsPowered,
+            isBatteryPowered,
+            isIntermittentlyConnected,
+            supportsThread,
+            isThreadSleepyEndDevice,
+            threadActive,
+        } = properties ?? {};
 
         if (isIntermittentlyConnected) {
             if (minIntervalFloor !== undefined && minIntervalFloor !== DEFAULT_SUBSCRIPTION_FLOOR_ICD) {
@@ -81,7 +87,7 @@ export namespace PhysicalDeviceProperties {
             );
         }
 
-        if (threadConnected) {
+        if (threadActive) {
             // Add some Jitter to the Subscription ceiling time to ensure the device responses are spread a bit when
             // devices are longer idle
             // Logic does not validate if the resulting value gets too small because our defaults are high enough
