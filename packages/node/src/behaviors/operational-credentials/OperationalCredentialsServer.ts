@@ -10,12 +10,19 @@ import { ProductDescriptionServer } from "#behavior/system/product-description/P
 import { AccessControlServer } from "#behaviors/access-control";
 import { OperationalCredentials } from "#clusters/operational-credentials";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import { Crypto, CryptoVerifyError, Logger, MatterFlowError, MaybePromise, UnexpectedDataError } from "#general";
+import {
+    CertificateError,
+    Crypto,
+    CryptoVerifyError,
+    Logger,
+    MatterFlowError,
+    MaybePromise,
+    UnexpectedDataError,
+} from "#general";
 import { AccessLevel } from "#model";
 import type { Node } from "#node/Node.js";
 import {
     assertRemoteActor,
-    CertificateError,
     DeviceCertification,
     DeviceCommissioner,
     Fabric,
