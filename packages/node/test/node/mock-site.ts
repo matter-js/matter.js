@@ -124,15 +124,13 @@ export class MockSite {
         const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
         const deviceCrypto = device.env.get(Crypto) as MockCrypto;
 
-        // We end up with session collisions without entropy so enable during pairing
+        // We end up with session collisions when pairing so enable entropy by default
         controllerCrypto.entropic = deviceCrypto.entropic = true;
 
         const { passcode, discriminator } = device.state.commissioning;
         await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
             macrotasks: true,
         });
-
-        controllerCrypto.entropic = deviceCrypto.entropic = false;
 
         return { controller, device };
     }
