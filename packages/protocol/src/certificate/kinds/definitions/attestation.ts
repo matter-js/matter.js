@@ -5,11 +5,11 @@
  */
 
 import { VendorId } from "#types";
-import { X509Certificate } from "./base.js";
+import { MatterCertificate } from "./base.js";
 
 /** Definitions for Matter Attestation certificates (PAA, PAI, DAC) */
 export namespace AttestationCertificate {
-    export interface Dac extends X509Certificate {
+    export interface Dac extends MatterCertificate {
         issuer: {
             commonName: string;
             productId?: number;
@@ -22,7 +22,7 @@ export namespace AttestationCertificate {
         };
     }
 
-    export interface Pai extends X509Certificate {
+    export interface Pai extends MatterCertificate {
         issuer: {
             commonName: string;
             vendorId?: VendorId;
@@ -34,7 +34,7 @@ export namespace AttestationCertificate {
         };
     }
 
-    export interface Paa extends X509Certificate {
+    export interface Paa extends MatterCertificate {
         issuer: {
             commonName: string;
             vendorId?: VendorId;

@@ -19,7 +19,7 @@ export const ExtensionKeyUsageBitmap = {
 };
 export const ExtensionKeyUsageSchema = BitmapSchema(ExtensionKeyUsageBitmap);
 
-export interface X509Certificate {
+export interface MatterCertificate {
     serialNumber: Bytes;
     signatureAlgorithm: number;
     issuer: {};

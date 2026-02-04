@@ -8,12 +8,12 @@ import { Bytes, Crypto, DerBitString, DerCodec, X962 } from "#general";
 import { Certificate } from "./Certificate.js";
 import { assertCertificateDerSize } from "./common.js";
 import { AttestationCertificate } from "./definitions/attestation.js";
-import { X509Certificate } from "./definitions/base.js";
+import { MatterCertificate } from "./definitions/base.js";
 
 /**
  * Base class for Attestation Certificates (PAA, PAI, DAC).
  */
-export abstract class AttestationBaseCertificate<CT extends X509Certificate> extends Certificate<CT> {
+export abstract class AttestationBaseCertificate<CT extends MatterCertificate> extends Certificate<CT> {
     /**
      * Sign the certificate using the provided crypto and key.
      * If the certificate is already signed, it throws a CertificateError.
