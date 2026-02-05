@@ -142,7 +142,7 @@ describe("Duration", () => {
 
             for (const original of durations) {
                 const formatted = Duration.format(original);
-                const parsed = Duration.parse(formatted!);
+                const parsed = Duration.parse(formatted);
                 expect(parsed).equal(original, `roundtrip failed for ${formatted}`);
             }
         });
