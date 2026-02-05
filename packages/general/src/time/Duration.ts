@@ -94,11 +94,11 @@ export namespace Duration {
         const negative = ms < 0 ? "-" : "";
         let absMs = Math.abs(ms);
         if (absMs < 1) {
-            return `${negative}${toPrecision(ms * 1000, 3)}μs`;
+            return `${negative}${toPrecision(absMs * 1000, 3)}μs`;
         } else if (absMs < 1000) {
-            return `${negative}${toPrecision(ms, 3)}ms`;
+            return `${negative}${toPrecision(absMs, 3)}ms`;
         } else if (absMs < 60000) {
-            return `${negative}${toPrecision(ms / 1000, 3)}s`;
+            return `${negative}${toPrecision(absMs / 1000, 3)}s`;
         }
 
         const parts = Array<string>();
@@ -136,14 +136,18 @@ export namespace Duration {
 
         let interval = 0;
         for (const part of parts) {
-            const suffix = text.match(/[a-zμ]+/i)?.[1];
+            const suffix = part.match(/[a-zμ]+$/i)?.[0];
             if (suffix === undefined) {
-                throw new DurationFormatError(`Interval component "${part}" is missing an time suffix`);
+                throw new DurationFormatError(`Interval component "${part}" is missing a time suffix`);
             }
 
-            const value = Number(text.slice(text.length - suffix.length));
-            if (!Number.isFinite(value)) {
+            const numericPart = part.slice(0, part.length - suffix.length);
+            if (numericPart === "") {
                 throw new DurationFormatError(`Interval component "${part}" contains no numeric component`);
+            }
+            const value = Number(numericPart);
+            if (!Number.isFinite(value)) {
+                throw new DurationFormatError(`Interval component "${part}" contains an invalid numeric value`);
             }
 
             switch (suffix.toLowerCase()) {
