@@ -11,7 +11,6 @@ import {
     Certificate,
     CertificateAuthority,
     IPK_DEFAULT_EPOCH_START_TIME,
-    NodeDiscoveryType,
     SecureSession,
     SupportedTransportsSchema,
     TlvCertSigningRequest,
@@ -36,7 +35,7 @@ import {
     VendorId,
 } from "@matter/main/types";
 import { CommissioningController, NodeCommissioningOptions } from "@project-chip/matter.js";
-import { InteractionClient } from "@project-chip/matter.js/cluster";
+import { InteractionClient, NodeDiscoveryType } from "@project-chip/matter.js/cluster";
 import { CustomCommissioningFlow } from "../CustomCommissioningFlow.js";
 import {
     CommandHandler,

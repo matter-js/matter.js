@@ -5,7 +5,7 @@
  */
 
 import { ClusterClient } from "#cluster/client/ClusterClient.js";
-import { InteractionClient } from "#cluster/client/InteractionClient.js";
+import { InteractionClient, NodeDiscoveryType, UnknownNodeError } from "#cluster/client/InteractionClient.js";
 import { AdministratorCommissioning, BasicInformation, Descriptor, OtaSoftwareUpdateRequestor } from "#clusters";
 import {
     AsyncObservable,
@@ -48,13 +48,11 @@ import {
     ClusterClientObj,
     DecodedAttributeReportValue,
     DecodedEventReportValue,
-    NodeDiscoveryType,
     PaseClient,
     PeerAddress,
     Read,
     SessionManager,
     Subscribe,
-    UnknownNodeError,
     Val,
 } from "#protocol";
 import {

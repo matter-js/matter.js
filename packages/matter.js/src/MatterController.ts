@@ -12,7 +12,11 @@
 
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { ClusterClient } from "#cluster/client/ClusterClient.js";
-import { InteractionClientProvider } from "#cluster/client/InteractionClient.js";
+import {
+    InteractionClientProvider,
+    NodeDiscoveryType,
+    PeerConnectionOptions,
+} from "#cluster/client/InteractionClient.js";
 import { BasicInformation, GeneralCommissioning } from "#clusters";
 import type { NodeCommissioningOptions } from "#CommissioningController.js";
 import { ControllerStore, ControllerStoreInterface } from "#ControllerStore.js";
@@ -68,10 +72,8 @@ import {
     Fabric,
     FabricAuthority,
     FabricManager,
-    NodeDiscoveryType,
     PeerAddress,
     PeerAddressStore,
-    PeerConnectionOptions,
     PeerDescriptor,
     PeerSet,
     PhysicalDeviceProperties,
