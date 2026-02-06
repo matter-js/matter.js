@@ -30,11 +30,9 @@ import {
     Time,
     Timestamp,
 } from "#general";
-import type { MdnsClient } from "#mdns/MdnsClient.js";
 import { getOperationalDeviceQname } from "#mdns/MdnsConsts.js";
 import type { ExchangeProvider } from "#protocol/ExchangeProvider.js";
 import type { NodeSession } from "#session/NodeSession.js";
-import type { SecureSession } from "#session/SecureSession.js";
 import { SessionParameters } from "#session/SessionParameters.js";
 import type { GlobalAttributes, TypeFromSchema } from "#types";
 import type { NetworkProfiles } from "./NetworkProfile.js";
@@ -42,7 +40,6 @@ import { PeerUnreachableError } from "./PeerCommunicationError.js";
 import { PeerConnection } from "./PeerConnection.js";
 import { ObservablePeerDescriptor, PeerDescriptor } from "./PeerDescriptor.js";
 import { PeerExchangeProvider } from "./PeerExchangeProvider.js";
-import type { NodeDiscoveryType } from "./PeerSet.js";
 import type { PhysicalDeviceProperties } from "./PhysicalDeviceProperties.js";
 
 const logger = Logger.get("Peer");
@@ -65,12 +62,6 @@ export class Peer {
     #service: IpService;
     #observers = new ObserverGroup();
     #exchangeProvider?: ExchangeProvider;
-
-    /** @deprecated */
-    activeDiscovery?: Peer.ActiveDiscovery;
-
-    /** @deprecated */
-    activeReconnection?: Peer.ActiveReconnection;
 
     constructor(descriptor: PeerDescriptor, context: Peer.Context) {
         this.#lifetime = context.join(descriptor.address.toString());
@@ -128,26 +119,6 @@ export class Peer {
                     updateNetworkAddress(channel.networkAddress);
                     channel.networkAddressChanged.on(updateNetworkAddress);
                 }
-            }
-
-            // Cancel any active discovery since we have a secure session now
-            if (this.activeDiscovery) {
-                logger.debug(`Cancelling discovery for ${this.address.toString()} - secure session established`);
-                const { mdnsClient, stopTimerFunc } = this.activeDiscovery;
-                stopTimerFunc?.();
-                mdnsClient?.cancelOperationalDeviceDiscovery(this.fabric, this.address.nodeId, true);
-                this.activeDiscovery = undefined;
-            }
-
-            // Resolve any pending reconnection since we have a session now
-            if (this.activeReconnection) {
-                logger.debug(
-                    `Resolving reconnection for ${this.address.toString()} - session established via alternate path`,
-                );
-                const { resolver } = this.activeReconnection;
-                // TODO When we have the pairing process abortable then abort it
-                this.activeReconnection = undefined;
-                resolver(session as SecureSession);
             }
 
             // Ensure session parameters reflect those most recently reported by peer
@@ -348,21 +319,6 @@ export class Peer {
 
         this.#abort(new ClosedError("Peer closed"));
 
-        if (this.activeDiscovery) {
-            this.activeDiscovery.stopTimerFunc?.();
-
-            // This ends discovery without triggering promises
-            this.activeDiscovery.mdnsClient?.cancelOperationalDeviceDiscovery(this.fabric, this.address.nodeId, false);
-
-            this.activeDiscovery = undefined;
-        }
-
-        if (this.activeReconnection) {
-            const rejecter = this.activeReconnection.rejecter;
-            this.activeReconnection = undefined;
-            rejecter(new ClosedError("Peer closed"));
-        }
-
         for (const session of this.#context.sessions.sessionsFor(this.address)) {
             await session.initiateClose();
         }
@@ -484,21 +440,6 @@ export namespace Peer {
          * If true, {@link connectionTimeout} is not reduced if already connecting.
          */
         kick?: boolean;
-    }
-
-    // TODO - factor away
-    export interface ActiveDiscovery {
-        type: NodeDiscoveryType;
-        promises?: (() => Promise<SecureSession>)[];
-        stopTimerFunc?: (() => void) | undefined;
-        mdnsClient?: MdnsClient;
-    }
-
-    // TODO - factor away
-    export interface ActiveReconnection {
-        promise: Promise<SecureSession | undefined>;
-        resolver: (session: SecureSession | undefined) => void;
-        rejecter: (reason?: any) => void;
     }
 }
 

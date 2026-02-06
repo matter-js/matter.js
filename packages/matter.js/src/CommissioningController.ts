@@ -5,7 +5,7 @@
  */
 
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
-import { InteractionClient } from "#cluster/client/InteractionClient.js";
+import { InteractionClient, NodeDiscoveryType } from "#cluster/client/InteractionClient.js";
 import { BasicInformation } from "#clusters";
 import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import {
@@ -44,7 +44,6 @@ import {
     DiscoveryData,
     Fabric,
     FabricGroups,
-    NodeDiscoveryType,
     NodeSession,
     PeerSet,
     SecureSession,
