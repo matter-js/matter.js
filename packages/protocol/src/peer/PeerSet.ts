@@ -68,6 +68,8 @@ const RETRANSMISSION_DISCOVERY_TIMEOUT = Seconds(5);
 
 /**
  * Types of discovery that may be performed when connecting operationally.
+ *
+ * @deprecated
  */
 export enum NodeDiscoveryType {
     /** No discovery is done, in calls means that only known addresses are tried. */
@@ -83,11 +85,17 @@ export enum NodeDiscoveryType {
     FullDiscovery = 3,
 }
 
-/** Error when an unknown node is tried to be connected or any other action done with it. */
+/**
+ * Error when an unknown node is tried to be connected or any other action done with it.
+ *
+ * @deprecated
+ */
 export class UnknownNodeError extends MatterError {}
 
 /**
  * Configuration for discovering when establishing a peer connection.
+ *
+ * @deprecated
  */
 export interface DiscoveryOptions {
     discoveryType?: NodeDiscoveryType;
@@ -97,6 +105,8 @@ export interface DiscoveryOptions {
 
 /**
  * Extended discovery options that include case authenticated tags for peer connections.
+ *
+ * @deprecated
  */
 export interface PeerConnectionOptions {
     discoveryOptions?: DiscoveryOptions;
