@@ -10,6 +10,7 @@ import {
     Diagnostic,
     Duration,
     ImplementationError,
+    MatterError,
     MatterFlowError,
     Millis,
     Seconds,
@@ -19,7 +20,7 @@ import {
 } from "#general";
 import { Specification } from "#model";
 import type { ServerNode } from "#node";
-import { ClientNodeInteraction, ClientNodePhysicalProperties } from "#node";
+import { ClientNodeInteraction } from "#node";
 import {
     ClientInteraction,
     DecodedAttributeReportStatus,
@@ -28,12 +29,14 @@ import {
     DecodedEventData,
     DecodedEventReportStatus,
     DecodedEventReportValue,
+    DedicatedChannelExchangeProvider,
+    DiscoveryData,
+    ExchangeManager,
     ExchangeProvider,
     Interactable,
     Invoke,
     PeerAddress,
     PeerAddressMap,
-    PeerConnectionOptions,
     PeerSet,
     Read,
     ReadResult,
@@ -47,6 +50,7 @@ import {
     Attribute,
     AttributeId,
     AttributeJsType,
+    CaseAuthenticatedTag,
     ClusterId,
     Command,
     EndpointNumber,
@@ -71,11 +75,63 @@ const REQUEST_ALL = [{}];
 const DEFAULT_TIMED_REQUEST_TIMEOUT = Seconds(10);
 const DEFAULT_MINIMUM_RESPONSE_TIMEOUT_WITH_FAILSAFE = Seconds(30);
 
-const CASE_QUEUE_CONCURRENCY = 4;
-
 const AclClusterId = AccessControl.Complete.id;
 const AclAttributeId = AccessControl.Complete.attributes.acl.id;
 const AclExtensionAttributeId = AccessControl.Complete.attributes.extension.id;
+
+/**
+ * Types of discovery that may be performed when connecting operationally.
+ *
+ * @deprecated node discovery is now continuous with MDNS queries sent as needed
+ */
+export enum NodeDiscoveryType {
+    /** No discovery is done, in calls means that only known addresses are tried. */
+    None = 0,
+
+    /** Retransmission discovery means that we ignore known addresses and start a query for 5s. */
+    RetransmissionDiscovery = 1,
+
+    /** Timed discovery means that the device is discovered for a defined timeframe, including known addresses. */
+    TimedDiscovery = 2,
+
+    /** Full discovery means that the device is discovered until it is found, excluding known addresses. */
+    FullDiscovery = 3,
+}
+
+/**
+ * Error when an unknown node is tried to be connected or any other action done with it.
+ */
+export class UnknownNodeError extends MatterError {}
+
+/**
+ * Configuration for discovering when establishing a peer connection.
+ *
+ * @deprecated discovery occurs automatically based on node state
+ */
+export interface DiscoveryOptions {
+    discoveryType?: NodeDiscoveryType;
+    timeout?: Duration;
+    discoveryData?: DiscoveryData;
+}
+
+/**
+ * Extended discovery options that include case authenticated tags for peer connections.
+ *
+ * @deprecated these options are ignored
+ */
+export interface PeerConnectionOptions {
+    discoveryOptions?: DiscoveryOptions;
+
+    /**
+     * @deprecated set CATs on CommissioningBehavior#state
+     */
+    caseAuthenticatedTags?: CaseAuthenticatedTag[];
+
+    /**
+     * @deprected configure queuing using the NetworkProfiles environmental service
+     */
+    queue?: Semaphore;
+}
 
 function isAclOrExtensionPath(path: { clusterId: ClusterId; attributeId: AttributeId }) {
     const { clusterId, attributeId } = path;
@@ -126,40 +182,34 @@ export class InteractionClientProvider {
     readonly #owner: ServerNode;
     readonly #peers: PeerSet;
     readonly #clients = new PeerAddressMap<InteractionClient>();
-    readonly #caseQueue: Semaphore;
 
     constructor(owner: ServerNode) {
         this.#owner = owner;
         this.#peers = owner.env.get(PeerSet);
         this.#peers.deleted.on(peer => this.#onPeerLoss(peer.address));
         this.#peers.disconnected.on(peer => this.#onPeerLoss(peer.address));
-        this.#caseQueue = new Semaphore(`case-${owner.id}`, CASE_QUEUE_CONCURRENCY);
     }
 
     get peers() {
         return this.#peers;
     }
 
-    #queue(address: PeerAddress) {
-        const node = this.#owner.peers.get(address);
-        if (node !== undefined) {
-            const properties = ClientNodePhysicalProperties(node);
-            if (properties.supportsThread || !properties.rootEndpointServerList?.length) {
-                return this.#caseQueue;
-            }
-        }
-    }
-
     async connect(
         address: PeerAddress,
-        options: PeerConnectionOptions & {
+        _options: PeerConnectionOptions & {
             allowUnknownPeer?: boolean;
             operationalAddress?: ServerAddressUdp;
         },
     ): Promise<InteractionClient> {
-        await this.#peers.connect(address, { ...options, queue: this.#queue(address) });
-
         return this.getNodeInteractionClient(address);
+    }
+
+    #exchangeProviderFor(sessionOrAddress: SecureSession | PeerAddress) {
+        if (sessionOrAddress instanceof SecureSession) {
+            return new DedicatedChannelExchangeProvider(this.#owner.env.get(ExchangeManager), sessionOrAddress);
+        }
+
+        return this.#peers.for(sessionOrAddress).exchangeProvider;
     }
 
     /**
@@ -167,7 +217,7 @@ export class InteractionClientProvider {
      * This should only be used for special cases.
      */
     async interactionClientFor(sessionOrAddress: SecureSession | PeerAddress): Promise<InteractionClient> {
-        const exchangeProvider = await this.#peers.exchangeProviderFor(sessionOrAddress);
+        const exchangeProvider = this.#exchangeProviderFor(sessionOrAddress);
         return new InteractionClient(
             new ClientInteraction({
                 environment: this.#owner.env,
@@ -180,7 +230,7 @@ export class InteractionClientProvider {
     /**
      * Returns an InteractionClient for a specific peer address and ensures that also a peer node exists.
      */
-    async getNodeInteractionClient(address: PeerAddress, options: PeerConnectionOptions = {}) {
+    async getNodeInteractionClient(address: PeerAddress, _options: PeerConnectionOptions = {}) {
         let client = this.#clients.get(address);
         if (client !== undefined) {
             return client;
@@ -189,7 +239,7 @@ export class InteractionClientProvider {
         const peerNode = await this.#owner.peers.forAddress(address);
 
         // We potentially override the ExchangeManager
-        const exchangeProvider = await this.#peers.exchangeProviderFor(address, options);
+        const exchangeProvider = this.#exchangeProviderFor(address);
         peerNode.env.set(ExchangeProvider, exchangeProvider);
 
         const interaction = peerNode.interaction as ClientNodeInteraction;
