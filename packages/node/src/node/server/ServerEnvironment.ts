@@ -48,6 +48,9 @@ export namespace ServerEnvironment {
 
         await env.load(SessionManager);
 
+        // Synchronous initialization
+        env.get(PeerSet);
+
         env.get(Crypto).reportUsage(node.id);
     }
 
