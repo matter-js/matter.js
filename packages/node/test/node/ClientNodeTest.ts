@@ -475,7 +475,7 @@ describe("ClientNode", () => {
         expect(controller.peers.size).equals(0);
     });
 
-    it.only("invokes command on an undiscovered peer", async () => {
+    it("invokes command on an undiscovered peer", async () => {
         // *** SETUP ***
 
         await using site = new MockSite();
@@ -500,7 +500,7 @@ describe("ClientNode", () => {
         await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle(), { stepMs: 250 });
 
         await MockTime.resolve(ep1.commandsOf(OnOffClient).offWithEffect({ effectIdentifier: 0, effectVariant: 0 }));
-    }).timeout(1e9);
+    });
 
     it("properly supports unknown clusters", async () => {
         // *** SETUP ***
