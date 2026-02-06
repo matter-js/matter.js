@@ -904,14 +904,21 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      * Hierarchical diagnostics of endpoint and children.
      */
     get [Diagnostic.value](): unknown {
-        return [
-            Diagnostic.strong(this.id),
+        const diagnostics: unknown[] = [
+            Diagnostic.strong(this.#id === undefined ? "(no id)" : this.id),
             Diagnostic.dict({
                 ...this.#diagnosticProps,
                 class: this.constructor.name,
             }),
-            Diagnostic.list([...this.behaviors.detailedDiagnostic, ...this.parts]),
         ];
+
+        if (this.#construction.status === Lifecycle.Status.Active) {
+            diagnostics.push(Diagnostic.list([...this.behaviors.detailedDiagnostic, ...this.parts]));
+        } else {
+            diagnostics.push(Diagnostic.weak(`(${this.#construction.status})`));
+        }
+
+        return diagnostics;
     }
 
     get [Lifetime.owner](): Lifetime.Owner | undefined {
@@ -931,7 +938,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     get #diagnosticProps() {
         const type = this.type;
         return {
-            "endpoint#": this.number,
+            "endpoint#": this.#number ? this.number : "(unassigned)",
             type: `${type.name} (${
                 type.deviceType === EndpointType.UNKNOWN_DEVICE_TYPE
                     ? "unknown"
