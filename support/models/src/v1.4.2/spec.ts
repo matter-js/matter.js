@@ -4444,7 +4444,8 @@ export const SpecMatter = Matter(
         },
 
         Field({
-            name: "RangeMin", id: 0x0, type: "int64", conformance: "M", xref: "cluster§2.1.3.2.1",
+            name: "RangeMin", id: 0x0, type: "int64", conformance: "M", constraint: "-2^62 to 2^62",
+            xref: "cluster§2.1.3.2.1",
 
             details: "This field shall indicate the minimum measurement value for the specified level of accuracy." +
                 "\n" +
@@ -4456,7 +4457,8 @@ export const SpecMatter = Matter(
         }),
 
         Field({
-            name: "RangeMax", id: 0x1, type: "int64", conformance: "M", xref: "cluster§2.1.3.2.2",
+            name: "RangeMax", id: 0x1, type: "int64", conformance: "M", constraint: "-2^62 to 2^62",
+            xref: "cluster§2.1.3.2.2",
 
             details: "This field shall indicate the maximum measurement value for the specified level of accuracy." +
                 "\n" +
@@ -4483,8 +4485,10 @@ export const SpecMatter = Matter(
             constraint: "percentMin to percentMax", xref: "cluster§2.1.3.2.5",
             details: "This field shall indicate the typical +/- percentage accuracy for the associated measurement."
         }),
+
         Field({
-            name: "FixedMax", id: 0x5, type: "uint64", conformance: "O.a+", xref: "cluster§2.1.3.2.6",
+            name: "FixedMax", id: 0x5, type: "uint64", conformance: "O.a+", constraint: "max (2^62) - 1",
+            xref: "cluster§2.1.3.2.6",
             details: "This field shall indicate the maximum +/- fixed accuracy for the associated measurement, in the unit " +
                 "indicated by MeasurementType."
         }),
@@ -4522,8 +4526,8 @@ export const SpecMatter = Matter(
             details: "This field shall indicate whether the associated measurement was directly measured. If this field is " +
                 "not set to true, then the associated measurement was estimated."
         }),
-        Field({ name: "MinMeasuredValue", id: 0x2, type: "int64", conformance: "M" }),
-        Field({ name: "MaxMeasuredValue", id: 0x3, type: "int64", conformance: "M" }),
+        Field({ name: "MinMeasuredValue", id: 0x2, type: "int64", conformance: "M", constraint: "-2^62 to 2^62" }),
+        Field({ name: "MaxMeasuredValue", id: 0x3, type: "int64", conformance: "M", constraint: "-2^62 to 2^62" }),
 
         Field(
             {
@@ -6131,7 +6135,7 @@ export const SpecMatter = Matter(
             },
 
             Field({
-                name: "Energy", id: 0x0, type: "energy-mWh", conformance: "M", constraint: "min 0",
+                name: "Energy", id: 0x0, type: "energy-mWh", conformance: "M", constraint: "0 to 2^62",
                 xref: "cluster§2.12.5.2.1",
 
                 details: "This field shall be the reported energy." +
@@ -6376,8 +6380,8 @@ export const SpecMatter = Matter(
         ),
 
         Attribute({
-            name: "Voltage", id: 0x4, type: "voltage-mV", access: "R V", conformance: "O", default: null,
-            quality: "X Q", xref: "cluster§2.13.6.5",
+            name: "Voltage", id: 0x4, type: "voltage-mV", access: "R V", conformance: "O",
+            constraint: "-2^62 to 2^62", default: null, quality: "X Q", xref: "cluster§2.13.6.5",
 
             details: "This shall indicate the most recent Voltage reading in millivolts (mV)." +
                 "\n" +
@@ -6394,8 +6398,8 @@ export const SpecMatter = Matter(
         }),
 
         Attribute({
-            name: "ActiveCurrent", id: 0x5, type: "amperage-mA", access: "R V", conformance: "O", default: null,
-            quality: "X Q", xref: "cluster§2.13.6.6",
+            name: "ActiveCurrent", id: 0x5, type: "amperage-mA", access: "R V", conformance: "O",
+            constraint: "-2^62 to 2^62", default: null, quality: "X Q", xref: "cluster§2.13.6.6",
 
             details: "This shall indicate the most recent ActiveCurrent reading in milliamps (mA)." +
                 "\n" +
@@ -6416,7 +6420,7 @@ export const SpecMatter = Matter(
 
         Attribute({
             name: "ReactiveCurrent", id: 0x6, type: "amperage-mA", access: "R V", conformance: "[ALTC]",
-            default: null, quality: "X Q", xref: "cluster§2.13.6.7",
+            constraint: "-2^62 to 2^62", default: null, quality: "X Q", xref: "cluster§2.13.6.7",
 
             details: "This shall indicate the most recent ReactiveCurrent reading in milliamps (mA)." +
                 "\n" +
@@ -6437,7 +6441,7 @@ export const SpecMatter = Matter(
 
         Attribute({
             name: "ApparentCurrent", id: 0x7, type: "amperage-mA", access: "R V", conformance: "[ALTC]",
-            default: null, quality: "X Q", xref: "cluster§2.13.6.8",
+            constraint: "-2^62 to 2^62", default: null, quality: "X Q", xref: "cluster§2.13.6.8",
 
             details: "This shall indicate the most recent ApparentCurrent (square root sum of the squares of active and " +
                 "reactive currents) reading in milliamps (mA)." +
@@ -6458,8 +6462,8 @@ export const SpecMatter = Matter(
         }),
 
         Attribute({
-            name: "ActivePower", id: 0x8, type: "power-mW", access: "R V", conformance: "M", quality: "X Q",
-            xref: "cluster§2.13.6.9",
+            name: "ActivePower", id: 0x8, type: "power-mW", access: "R V", conformance: "M",
+            constraint: "-2^62 to 2^62", quality: "X Q", xref: "cluster§2.13.6.9",
 
             details: "This shall indicate the most recent ActivePower reading in milliwatts (mW). If the power cannot be " +
                 "measured, a value of null shall be returned." +
@@ -6481,7 +6485,7 @@ export const SpecMatter = Matter(
 
         Attribute({
             name: "ReactivePower", id: 0x9, type: "power-mVAR", access: "R V", conformance: "[ALTC]",
-            default: null, quality: "X Q", xref: "cluster§2.13.6.10",
+            constraint: "-2^62 to 2^62", default: null, quality: "X Q", xref: "cluster§2.13.6.10",
 
             details: "This shall indicate the most recent ReactivePower reading in millivolt-amps reactive (mVAR)." +
                 "\n" +
@@ -6504,7 +6508,7 @@ export const SpecMatter = Matter(
 
         Attribute({
             name: "ApparentPower", id: 0xa, type: "power-mVA", access: "R V", conformance: "[ALTC]",
-            default: null, quality: "X Q", xref: "cluster§2.13.6.11",
+            constraint: "-2^62 to 2^62", default: null, quality: "X Q", xref: "cluster§2.13.6.11",
 
             details: "This shall indicate the most recent ApparentPower reading in millivolt-amps (mVA)." +
                 "\n" +
@@ -6524,7 +6528,7 @@ export const SpecMatter = Matter(
 
         Attribute({
             name: "RmsVoltage", id: 0xb, type: "voltage-mV", access: "R V", conformance: "[ALTC]",
-            default: null, quality: "X Q", xref: "cluster§2.13.6.12",
+            constraint: "-2^62 to 2^62", default: null, quality: "X Q", xref: "cluster§2.13.6.12",
 
             details: "This shall indicate the most recent RMSVoltage reading in millivolts (mV)." +
                 "\n" +
@@ -6542,7 +6546,7 @@ export const SpecMatter = Matter(
 
         Attribute({
             name: "RmsCurrent", id: 0xc, type: "amperage-mA", access: "R V", conformance: "[ALTC]",
-            default: null, quality: "X Q", xref: "cluster§2.13.6.13",
+            constraint: "-2^62 to 2^62", default: null, quality: "X Q", xref: "cluster§2.13.6.13",
 
             details: "This shall indicate the most recent RMSCurrent reading in milliamps (mA)." +
                 "\n" +
@@ -6562,8 +6566,8 @@ export const SpecMatter = Matter(
         }),
 
         Attribute({
-            name: "RmsPower", id: 0xd, type: "power-mW", access: "R V", conformance: "[ALTC]", default: null,
-            quality: "X Q", xref: "cluster§2.13.6.14",
+            name: "RmsPower", id: 0xd, type: "power-mW", access: "R V", conformance: "[ALTC]",
+            constraint: "-2^62 to 2^62", default: null, quality: "X Q", xref: "cluster§2.13.6.14",
 
             details: "This shall indicate the most recent RMSPower reading in milliwatts (mW)." +
                 "\n" +
@@ -6660,7 +6664,7 @@ export const SpecMatter = Matter(
 
         Attribute({
             name: "NeutralCurrent", id: 0x12, type: "amperage-mA", access: "R V", conformance: "[POLY]",
-            default: null, quality: "X Q", xref: "cluster§2.13.6.19",
+            constraint: "-2^62 to 2^62", default: null, quality: "X Q", xref: "cluster§2.13.6.19",
 
             details: "This shall indicate the most recent NeutralCurrent reading in milliamps (mA). Typically this is a " +
                 "derived value, taking the magnitude of the vector sum of phase currents." +
@@ -6775,14 +6779,16 @@ export const SpecMatter = Matter(
             }),
 
             Field({
-                name: "Min", id: 0x1, type: "int64", conformance: "M", xref: "cluster§2.13.5.3.2",
+                name: "Min", id: 0x1, type: "int64", conformance: "M", constraint: "-2^62 to 2^62",
+                xref: "cluster§2.13.5.3.2",
                 details: "This field shall be the smallest measured value for the associated measurement over either the " +
                     "period between StartTimestamp and EndTimestamp, or the period between StartSystime and EndSystime, " +
                     "or both."
             }),
 
             Field({
-                name: "Max", id: 0x2, type: "int64", conformance: "M", xref: "cluster§2.13.5.3.3",
+                name: "Max", id: 0x2, type: "int64", conformance: "M", constraint: "-2^62 to 2^62",
+                xref: "cluster§2.13.5.3.3",
                 details: "This field shall be the largest measured value for the associated measurement over the period " +
                     "between either StartTimestamp and EndTimestamp or the period between StartSystime and EndSystime, or " +
                     "both."
@@ -6876,8 +6882,8 @@ export const SpecMatter = Matter(
             }),
 
             Field({
-                name: "Measurement", id: 0x1, type: "int64", conformance: "M", quality: "X",
-                xref: "cluster§2.13.5.4.2",
+                name: "Measurement", id: 0x1, type: "int64", conformance: "M", constraint: "-2^62 to 2^62",
+                quality: "X", xref: "cluster§2.13.5.4.2",
 
                 details: "This field shall be the measured value for the given harmonic order." +
                     "\n" +

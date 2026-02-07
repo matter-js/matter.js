@@ -91,37 +91,13 @@ export const StrWithSuperscripts = (el: HTMLElement) => {
 };
 
 /**
- * String with special logic to handle common constraint bound 2^62 which is written with superscript.  This
- * effectively means "unbounded" so we strip it.  Handles both old format (superscript rendered as "262" via
- * textContent) and new format (superscript converted to "2^62" via convertSuperscripts).
+ * Constraint string with superscript conversion.  The constraint parser supports `^` as an exponentiation operator,
+ * so 2^62 is passed through as a valid expression rather than being stripped.
  */
 export const ConstraintStr = (el: HTMLElement) => {
     // Convert superscripts so 2<sup>62</sup> becomes "2^62" rather than "262"
     convertSuperscripts(el);
     const str = Code(el);
-
-    // Strip 2^62 bounds (effectively unbounded)
-    switch (str) {
-        case "-2^62 to 2^62":
-        case "-262 to 262":
-            return "";
-
-        case "0 to 2^62":
-        case "0 to 262":
-            return "min 0";
-
-        case "max 2^62 - 1":
-        case "max 262 - 1":
-            return "";
-
-        case "max (2^62 - 1)":
-        case "max (262 - 1)":
-            return "";
-    }
-
-    if (str.match(/2\^62|(?<!\d)262(?!\d)/)) {
-        throw new Error(`Unrecognized constraint definition "${str}" apparently referencing 2^62`);
-    }
 
     // As of 1.4.1 the constraint column is so badly butchered we must resolve to concatenating any two words that are
     // side-by-side in a fashion that is illegal syntactically
