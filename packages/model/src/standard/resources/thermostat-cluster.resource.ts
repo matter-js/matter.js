@@ -405,10 +405,7 @@ Resource.add(
                     "> [!NOTE]" +
                     "\n" +
                     "> Modifying the ScheduleActive bit does not clear or delete previous weekly schedule programming " +
-                    "  configurations." +
-                    "\n" +
-                    "Modifying the ScheduleActive bit does not clear or delete previous weekly schedule programming " +
-                    "configurations."
+                    "  configurations."
             },
 
             {
@@ -1313,16 +1310,11 @@ Resource.add(
                     "> A thermostat indicating it supports CoolingAndHeating (or CoolingAndHeatingWithReheat) SHOULD be " +
                     "  able to request heating or cooling on demand and will usually support the Auto SystemMode." +
                     "\n" +
-                    "Systems which support cooling or heating, requiring external intervention to change modes or where " +
-                    "the whole building must be in the same mode, SHOULD report CoolingOnly or HeatingOnly based on the " +
-                    "current capability." +
+                    "> [!NOTE]" +
                     "\n" +
-                    "A thermostat indicating it supports CoolingAndHeating (or CoolingAndHeatingWithReheat) SHOULD be " +
-                    "able to request heating or cooling on demand and will usually support the Auto SystemMode." +
-                    "\n" +
-                    "Systems which support cooling or heating, requiring external intervention to change modes or where " +
-                    "the whole building must be in the same mode, SHOULD report CoolingOnly or HeatingOnly based on the " +
-                    "current capability.",
+                    "> Systems which support cooling or heating, requiring external intervention to change modes or where " +
+                    "  the whole building must be in the same mode, SHOULD report CoolingOnly or HeatingOnly based on the " +
+                    "  current capability.",
 
                 children: [
                     { tag: "field", name: "CoolingOnly", description: "Heat and Emergency are not possible" },

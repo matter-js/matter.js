@@ -1066,14 +1066,10 @@ export namespace Thermostat {
      * > A thermostat indicating it supports CoolingAndHeating (or CoolingAndHeatingWithReheat) SHOULD be able to
      *   request heating or cooling on demand and will usually support the Auto SystemMode.
      *
-     * Systems which support cooling or heating, requiring external intervention to change modes or where the whole
-     * building must be in the same mode, SHOULD report CoolingOnly or HeatingOnly based on the current capability.
+     * > [!NOTE]
      *
-     * A thermostat indicating it supports CoolingAndHeating (or CoolingAndHeatingWithReheat) SHOULD be able to request
-     * heating or cooling on demand and will usually support the Auto SystemMode.
-     *
-     * Systems which support cooling or heating, requiring external intervention to change modes or where the whole
-     * building must be in the same mode, SHOULD report CoolingOnly or HeatingOnly based on the current capability.
+     * > Systems which support cooling or heating, requiring external intervention to change modes or where the whole
+     *   building must be in the same mode, SHOULD report CoolingOnly or HeatingOnly based on the current capability.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.20
      */
@@ -2468,9 +2464,6 @@ export namespace Thermostat {
              *
              * > Modifying the ScheduleActive bit does not clear or delete previous weekly schedule programming
              *   configurations.
-             *
-             * Modifying the ScheduleActive bit does not clear or delete previous weekly schedule programming
-             * configurations.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.31
              */

@@ -8,7 +8,15 @@ import { Diagnostic, Logger } from "#general";
 import { DeviceClassification, DeviceTypeElement, FieldElement, RequirementElement } from "#model";
 import { camelize } from "../../util/string.js";
 import { addDocumentation } from "./add-documentation.js";
-import { ConformanceCode, ConstraintStr, Identifier, Integer, LowerIdentifier, Str, StrWithSuperscripts } from "./html-translators.js";
+import {
+    ConformanceCode,
+    ConstraintStr,
+    Identifier,
+    Integer,
+    LowerIdentifier,
+    Str,
+    StrWithSuperscripts,
+} from "./html-translators.js";
 import { DeviceReference } from "./spec-types.js";
 import { Alias, Constant, Optional, translateRecordsToMatter, translateTable } from "./translate-table.js";
 

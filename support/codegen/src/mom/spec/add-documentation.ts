@@ -144,8 +144,6 @@ export function addDocumentation(target: { details?: string }, definition: HtmlR
 
     let paragraphs = Array<string>();
 
-    let collectNote: string | false = false;
-
     let listIndent = 0;
     let listSpacing = 0;
 
@@ -226,18 +224,11 @@ export function addDocumentation(target: { details?: string }, definition: HtmlR
             continue;
         }
 
-        // Next paragraph is a note/warning if text matches
-        if (text === "NOTE" || text === "WARNING") {
+        // Admonition blocks (NOTE/WARNING) are marked with data-admonition attribute by the scanner
+        const admonition = p.getAttribute?.("data-admonition");
+        if (admonition) {
             listIndent = 0;
-            collectNote = text;
-            continue;
-        }
-
-        // Create note if we saw "NOTE"/"WARNING" previously
-        if (collectNote) {
-            listIndent = 0;
-            paragraphs.push(`> [!${collectNote}]\n> ${extractUsefulDocumentation(text)}`);
-            collectNote = false;
+            paragraphs.push(`> [!${admonition}]\n> ${extractUsefulDocumentation(text)}`);
             continue;
         }
 
