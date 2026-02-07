@@ -15,7 +15,7 @@ MATTER_SPECIFICATION_PATH environment variable or --path= command line
 argument.
 
 The script is optimized to work with the HTML version of the specification
-generated from the same sources as the published PDFs. 
+generated from the same sources as the published PDFs.
 
 If you have access to the spec PDFs, reach out in Matter Integrators Discord
 server if you would like access to a GitHub repository with the HTML version of

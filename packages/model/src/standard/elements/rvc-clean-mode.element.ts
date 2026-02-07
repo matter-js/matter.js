@@ -25,14 +25,7 @@ export const RvcCleanMode = Cluster(
     Attribute({ name: "CurrentMode", id: 0x1 }),
     Attribute({ name: "StartUpMode", id: 0x2, conformance: "X" }),
     Attribute({ name: "OnMode", id: 0x3, conformance: "X" }),
-
-    Datatype(
-        { name: "ModeOptionStruct", type: "struct" },
-        Field({ name: "Label", id: 0x0, conformance: "M" }),
-        Field({ name: "Mode", id: 0x1, conformance: "M" }),
-        Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
-    ),
-
+    Datatype({ name: "ModeOptionStruct", type: "ModeOptionStruct" }),
     Datatype({ name: "ModeChangeStatus", type: "enum8" }, Field({ name: "CleaningInProgress", id: 0x40 })),
 
     Datatype(

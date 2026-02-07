@@ -18781,17 +18781,11 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, xref: "cluster§7.2.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§7.2.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§7.2.6" }),
-
-        Datatype(
-            {
-                name: "ModeOptionStruct", type: "struct", xref: "cluster§7.2.5.1",
-                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                    "ModeOptionStruct type. A blank field indicates no change."
-            },
-            Field({ name: "Label", id: 0x0, conformance: "M" }),
-            Field({ name: "Mode", id: 0x1, conformance: "M" }),
-            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
-        ),
+        Datatype({
+            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§7.2.5.1",
+            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                "ModeOptionStruct type. A blank field indicates no change."
+        }),
 
         Datatype(
             { name: "ModeChangeStatus", type: "enum8" },
@@ -18876,18 +18870,11 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, xref: "cluster§7.3.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§7.3.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§7.3.6" }),
-
-        Datatype(
-            {
-                name: "ModeOptionStruct", type: "struct", xref: "cluster§7.3.5.1",
-                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                    "ModeOptionStruct type. A blank field indicates no change."
-            },
-            Field({ name: "Label", id: 0x0, conformance: "M" }),
-            Field({ name: "Mode", id: 0x1, conformance: "M" }),
-            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
-        ),
-
+        Datatype({
+            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§7.3.5.1",
+            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                "ModeOptionStruct type. A blank field indicates no change."
+        }),
         Datatype(
             { name: "ModeChangeStatus", type: "enum8" },
             Field({ name: "CleaningInProgress", id: 0x40, xref: "cluster§7.3.7.1" })
@@ -19247,17 +19234,11 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, conformance: "M", xref: "cluster§8.3.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§8.3.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§8.3.6" }),
-
-        Datatype(
-            {
-                name: "ModeOptionStruct", type: "struct", xref: "cluster§8.3.5.1",
-                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                    "ModeOptionStruct type. A blank field indicates no change."
-            },
-            Field({ name: "Label", id: 0x0, conformance: "M" }),
-            Field({ name: "Mode", id: 0x1, conformance: "M" }),
-            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
-        ),
+        Datatype({
+            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§8.3.5.1",
+            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                "ModeOptionStruct type. A blank field indicates no change."
+        }),
 
         Datatype(
             { name: "ModeTag", type: "enum16" },
@@ -19327,17 +19308,11 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, conformance: "M", xref: "cluster§8.5.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§8.5.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§8.5.6" }),
-
-        Datatype(
-            {
-                name: "ModeOptionStruct", type: "struct", xref: "cluster§8.5.5.1",
-                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                    "ModeOptionStruct type. A blank field indicates no change."
-            },
-            Field({ name: "Label", id: 0x0, conformance: "M" }),
-            Field({ name: "Mode", id: 0x1, conformance: "M" }),
-            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
-        ),
+        Datatype({
+            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§8.5.5.1",
+            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                "ModeOptionStruct type. A blank field indicates no change."
+        }),
 
         Datatype(
             { name: "ModeTag", type: "enum16" },
@@ -19492,17 +19467,11 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, conformance: "M", xref: "cluster§8.7.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§8.7.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§8.7.6" }),
-
-        Datatype(
-            {
-                name: "ModeOptionStruct", type: "struct", xref: "cluster§8.7.5.1",
-                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                    "ModeOptionStruct type. A blank field indicates no change."
-            },
-            Field({ name: "Label", id: 0x0, conformance: "M" }),
-            Field({ name: "Mode", id: 0x1, conformance: "M" }),
-            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
-        ),
+        Datatype({
+            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§8.7.5.1",
+            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                "ModeOptionStruct type. A blank field indicates no change."
+        }),
 
         Datatype(
             { name: "ModeTag", type: "enum16" },
@@ -19664,17 +19633,11 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, xref: "cluster§8.11.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§8.11.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§8.11.6" }),
-
-        Datatype(
-            {
-                name: "ModeOptionStruct", type: "struct", xref: "cluster§8.11.5.1",
-                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                    "ModeOptionStruct type. A blank field indicates no change."
-            },
-            Field({ name: "Label", id: 0x0, conformance: "M" }),
-            Field({ name: "Mode", id: 0x1, conformance: "M" }),
-            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
-        ),
+        Datatype({
+            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§8.11.5.1",
+            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                "ModeOptionStruct type. A blank field indicates no change."
+        }),
 
         Datatype(
             { name: "ModeTag", type: "enum16" },
@@ -22285,17 +22248,11 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, xref: "cluster§9.4.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§9.4.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§9.4.6" }),
-
-        Datatype(
-            {
-                name: "ModeOptionStruct", type: "struct", xref: "cluster§9.4.5.1",
-                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                    "ModeOptionStruct type. A blank field indicates no change."
-            },
-            Field({ name: "Label", id: 0x0, conformance: "M" }),
-            Field({ name: "Mode", id: 0x1, conformance: "M" }),
-            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
-        ),
+        Datatype({
+            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§9.4.5.1",
+            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                "ModeOptionStruct type. A blank field indicates no change."
+        }),
 
         Datatype(
             { name: "ModeTag", type: "enum16" },
@@ -22623,17 +22580,11 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, xref: "cluster§9.6.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§9.6.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§9.6.6" }),
-
-        Datatype(
-            {
-                name: "ModeOptionStruct", type: "struct", xref: "cluster§9.6.5.1",
-                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                    "ModeOptionStruct type. A blank field indicates no change."
-            },
-            Field({ name: "Label", id: 0x0, conformance: "M" }),
-            Field({ name: "Mode", id: 0x1, conformance: "M" }),
-            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
-        ),
+        Datatype({
+            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§9.6.5.1",
+            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                "ModeOptionStruct type. A blank field indicates no change."
+        }),
 
         Datatype(
             { name: "ModeTag", type: "enum16" },
@@ -22873,17 +22824,11 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, xref: "cluster§9.8.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§9.8.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§9.8.6" }),
-
-        Datatype(
-            {
-                name: "ModeOptionStruct", type: "struct", xref: "cluster§9.8.5.1",
-                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                    "ModeOptionStruct type. A blank field indicates no change."
-            },
-            Field({ name: "Label", id: 0x0, conformance: "M" }),
-            Field({ name: "Mode", id: 0x1, conformance: "M" }),
-            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
-        ),
+        Datatype({
+            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§9.8.5.1",
+            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                "ModeOptionStruct type. A blank field indicates no change."
+        }),
 
         Datatype(
             { name: "ModeTag", type: "enum16" },

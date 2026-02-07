@@ -50,13 +50,11 @@ export function translateDatatype(definition: HtmlReference): DatatypeElement | 
         match = text?.match(/data type shall be a ([\w-]+)/i);
     }
 
-    // Applies to a handful of overrides of ModeOptionStruct.  The type captured is the struct name, not a base type,
-    // so we track it separately and force type to "struct" below
-    let isModeStructOverride = false;
+    // Applies to a handful of overrides of ModeOptionStruct in derived clusters.  The captured name is the base
+    // struct type being referenced (e.g. "ModeOptionStruct"), not a primitive type — this makes the derived cluster
+    // reference the base type rather than re-defining it with all fields
     if (!match) {
-        if (text?.match(/lists the changes relative to the [\w\- ]+ cluster for the fields of the ([\w-]+) type/i)) {
-            isModeStructOverride = true;
-        }
+        match = text?.match(/lists the changes relative to the [\w\- ]+ cluster for the fields of the ([\w-]+) type/i);
     }
 
     // And 1.3 throws in this beaut
@@ -66,7 +64,7 @@ export function translateDatatype(definition: HtmlReference): DatatypeElement | 
         constraint = match?.[2];
     }
 
-    let type = isModeStructOverride ? "struct" : match?.[1];
+    let type = match?.[1];
 
     let description: string | undefined;
 
