@@ -197,9 +197,7 @@ Resource.add({
                 "  - The OperationalState attribute shall be set to Paused." +
                 "\n" +
                 "  - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of " +
-                "    NoError." +
-                "\n" +
-                "The following table defines the compatibility of this cluster’s states with the Pause command."
+                "    NoError."
         },
 
         {
@@ -280,8 +278,6 @@ Resource.add({
                 "\n" +
                 "  - For manufacturer-specific states, by the manufacturer." +
                 "\n" +
-                "The following table defines the compatibility of this cluster’s states with the Resume command." +
-                "\n" +
                 "A device that is unable to honor the Resume command for any other reason shall respond with an " +
                 "OperationalCommandResponse command with an ErrorStateID of UnableToStartOrResume but take no further " +
                 "action." +
@@ -330,9 +326,7 @@ Resource.add({
                 "derived cluster state definitions. That is, a manufacturer-defined state defined for this cluster or " +
                 "a derived cluster thereof cannot define a state with the same semantics as the general states " +
                 "defined below or states defined in a derived cluster. Such manufacturer-specific state definitions " +
-                "shall be scoped in the context of the Vendor ID present in the Basic Information cluster." +
-                "\n" +
-                "The following table defines the generally applicable states.",
+                "shall be scoped in the context of the Vendor ID present in the Basic Information cluster.",
 
             children: [
                 { tag: "field", name: "Stopped", description: "The device is stopped" },

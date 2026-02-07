@@ -36,8 +36,6 @@ export namespace OperationalState {
      * cluster. Such manufacturer-specific state definitions shall be scoped in the context of the Vendor ID present in
      * the Basic Information cluster.
      *
-     * The following table defines the generally applicable states.
-     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.1
      */
     export enum OperationalStateEnum {
@@ -389,8 +387,6 @@ export namespace OperationalState {
              *
              *   - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
              *
-             * The following table defines the compatibility of this cluster’s states with the Pause command.
-             *
              * @see {@link MatterSpecification.v142.Cluster} § 1.14.6.1
              */
             pause: OptionalCommand(0x0, TlvNoArguments, 0x4, TlvOperationalCommandResponse),
@@ -469,8 +465,6 @@ export namespace OperationalState {
              *   - For states defined by derived cluster specifications, in the corresponding specifications.
              *
              *   - For manufacturer-specific states, by the manufacturer.
-             *
-             * The following table defines the compatibility of this cluster’s states with the Resume command.
              *
              * A device that is unable to honor the Resume command for any other reason shall respond with an
              * OperationalCommandResponse command with an ErrorStateID of UnableToStartOrResume but take no further

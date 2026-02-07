@@ -549,7 +549,6 @@ Resource.add({
 
         {
             tag: "datatype", name: "OperationalStatusEnum", xref: "cluster§1.17.5.6",
-            details: "The following table defines the status values.",
 
             children: [
                 {

@@ -82,8 +82,6 @@ export namespace ServiceArea {
     export interface Map extends TypeFromSchema<typeof TlvMap> {}
 
     /**
-     * The following table defines the status values.
-     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.6
      */
     export enum OperationalStatus {
