@@ -601,9 +601,9 @@ export namespace PumpConfigurationAndControl {
              * The value of the EffectiveOperationMode attribute is the same as the OperationMode attribute, unless one
              * of the following points are true:
              *
-             *   • The pump is physically set to run with the local settings
+             *   - The pump is physically set to run with the local settings
              *
-             *   • The LocalOverride bit in the PumpStatus attribute is set,
+             *   - The LocalOverride bit in the PumpStatus attribute is set,
              *
              * See OperationMode Attribute and ControlMode Attribute for a detailed description of the operation and
              * control of the pump.
@@ -618,10 +618,10 @@ export namespace PumpConfigurationAndControl {
              * This attribute contains the control mode that currently applies to the pump. It will have the value of
              * the ControlMode attribute, unless one of the following points are true:
              *
-             *   • The ControlMode attribute is set to Automatic. In this case, the value of the EffectiveControlMode
+             *   - The ControlMode attribute is set to Automatic. In this case, the value of the EffectiveControlMode
              *     shall match the behavior of the pump.
              *
-             *   • A remote sensor is used as the sensor for regulation of the pump. In this case, EffectiveControlMode
+             *   - A remote sensor is used as the sensor for regulation of the pump. In this case, EffectiveControlMode
              *     will display ConstantPressure, ConstantFlow or ConstantTemperature if the remote sensor is a pressure
              *     sensor, a flow sensor or a temperature sensor respectively, regardless of the value of the
              *     ControlMode attribute.

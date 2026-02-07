@@ -298,18 +298,18 @@ export namespace OperationalState {
              *
              * Changes to this attribute shall only be marked as reportable in the following cases:
              *
-             *   • If it has changed due to a change in the CurrentPhase or OperationalState attributes, or
+             *   - If it has changed due to a change in the CurrentPhase or OperationalState attributes, or
              *
-             *   • When it changes from 0 to any other value and vice versa, or
+             *   - When it changes from 0 to any other value and vice versa, or
              *
-             *   • When it changes from null to any other value and vice versa, or
+             *   - When it changes from null to any other value and vice versa, or
              *
-             *   • When it increases, or
+             *   - When it increases, or
              *
-             *   • When there is any increase or decrease in the estimated time remaining that was due to progressing
+             *   - When there is any increase or decrease in the estimated time remaining that was due to progressing
              *     insight of the server’s control logic, or
              *
-             *   • When it changes at a rate significantly different from one unit per second.
+             *   - When it changes at a rate significantly different from one unit per second.
              *
              * Changes to this attribute merely due to the normal passage of time with no other dynamic change of device
              * state shall NOT be reported.
@@ -373,11 +373,11 @@ export namespace OperationalState {
              *
              * States are defined as Pause-compatible as follows:
              *
-             *   • For states defined in this cluster specification, in Table 3, “Pause Compatibility”.
+             *   - For states defined in this cluster specification, in Table 3, “Pause Compatibility”.
              *
-             *   • For states defined by derived cluster specifications, in the corresponding specifications.
+             *   - For states defined by derived cluster specifications, in the corresponding specifications.
              *
-             *   • For manufacturer-specific states, by the manufacturer.
+             *   - For manufacturer-specific states, by the manufacturer.
              *
              * A device that is unable to honor the Pause command for whatever reason shall respond with an
              * OperationalCommandResponse command with an ErrorStateID of CommandInvalidInState but take no further
@@ -385,9 +385,9 @@ export namespace OperationalState {
              *
              * Otherwise, on success:
              *
-             *   • The OperationalState attribute shall be set to Paused.
+             *   - The OperationalState attribute shall be set to Paused.
              *
-             *   • The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
+             *   - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
              *
              * The following table defines the compatibility of this cluster’s states with the Pause command.
              *
@@ -412,9 +412,9 @@ export namespace OperationalState {
              *
              * Otherwise, on success:
              *
-             *   • The OperationalState attribute shall be set to Stopped.
+             *   - The OperationalState attribute shall be set to Stopped.
              *
-             *   • The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
+             *   - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.14.6.2
              */
@@ -439,9 +439,9 @@ export namespace OperationalState {
              *
              * Otherwise, on success:
              *
-             *   • The OperationalState attribute shall be set to Running.
+             *   - The OperationalState attribute shall be set to Running.
              *
-             *   • The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
+             *   - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.14.6.3
              */
@@ -464,11 +464,11 @@ export namespace OperationalState {
              *
              * States are defined as Resume-compatible as follows:
              *
-             *   • For states defined in this cluster specification, in Table 4, “Resume Compatibility”.
+             *   - For states defined in this cluster specification, in Table 4, “Resume Compatibility”.
              *
-             *   • For states defined by derived cluster specifications, in the corresponding specifications.
+             *   - For states defined by derived cluster specifications, in the corresponding specifications.
              *
-             *   • For manufacturer-specific states, by the manufacturer.
+             *   - For manufacturer-specific states, by the manufacturer.
              *
              * The following table defines the compatibility of this cluster’s states with the Resume command.
              *
@@ -478,10 +478,10 @@ export namespace OperationalState {
              *
              * Otherwise, on success:
              *
-             *   • The OperationalState attribute shall be set to the most recent non-Error operational state prior to
+             *   - The OperationalState attribute shall be set to the most recent non-Error operational state prior to
              *     entering the Paused state.
              *
-             *   • The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
+             *   - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.14.6.4
              */

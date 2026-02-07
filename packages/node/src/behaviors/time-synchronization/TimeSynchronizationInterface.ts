@@ -41,10 +41,10 @@ export namespace TimeSynchronizationInterface {
          *
          * Upon receipt of this command:
          *
-         *   • If the TrustedTimeSource field in the command is null, the node shall set the TrustedTimeSource attribute
+         *   - If the TrustedTimeSource field in the command is null, the node shall set the TrustedTimeSource attribute
          *     to null and shall generate a MissingTrustedTimeSource event.
          *
-         *   • Otherwise, the node shall set the TrustedTimeSource attribute to a struct which has NodeID and Endpoint
+         *   - Otherwise, the node shall set the TrustedTimeSource attribute to a struct which has NodeID and Endpoint
          *     fields matching those in the TrustedTimeSource field and has its FabricIndex field set to the command’s
          *     accessing fabric index.
          *
@@ -93,10 +93,10 @@ export namespace TimeSynchronizationInterface {
         /**
          * This command is used to set the DST offsets for a node.
          *
-         *   • If the length of DSTOffset is larger than DSTOffsetListMaxSize, the node shall respond with
+         *   - If the length of DSTOffset is larger than DSTOffsetListMaxSize, the node shall respond with
          *     RESOURCE_EXHAUSTED.
          *
-         *   • Else if the list entries do not conform to the list requirements for DSTOffset attribute, the node shall
+         *   - Else if the list entries do not conform to the list requirements for DSTOffset attribute, the node shall
          *     respond with CONSTRAINT_ERROR.
          *
          * If there are no errors in the list, the DSTOffset field shall be copied to the DSTOffset attribute.

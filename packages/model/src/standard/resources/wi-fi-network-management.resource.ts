@@ -78,9 +78,9 @@ Resource.add({
                 details: "This field shall indicate the current WPA-Personal passphrase or PSK associated with the primary " +
                     "Wi-Fi network provided by this device, in one of the following formats:" +
                     "\n" +
-                    "  • 8..63 bytes: WPA/WPA2/WPA3 passphrase." +
+                    "  - 8..63 bytes: WPA/WPA2/WPA3 passphrase." +
                     "\n" +
-                    "  • 64 bytes: WPA/WPA2/WPA3 raw hex PSK. Each byte shall be a ASCII hexadecimal digit." +
+                    "  - 64 bytes: WPA/WPA2/WPA3 raw hex PSK. Each byte shall be a ASCII hexadecimal digit." +
                     "\n" +
                     "This matches the formats defined for WPA networks by the Credentials field in the Network " +
                     "Commissioning cluster (see [MatterCore])." +

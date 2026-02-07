@@ -84,15 +84,15 @@ Resource.add({
                 "updated whenever a change in either the playback speed or the playback position is triggered outside " +
                 "the normal playback of the media. The events which may cause this to happen include:" +
                 "\n" +
-                "  • Starting or resumption of playback" +
+                "  - Starting or resumption of playback" +
                 "\n" +
-                "  • Seeking" +
+                "  - Seeking" +
                 "\n" +
-                "  • Skipping forward or backward" +
+                "  - Skipping forward or backward" +
                 "\n" +
-                "  • Fast-forwarding or rewinding" +
+                "  - Fast-forwarding or rewinding" +
                 "\n" +
-                "  • Updating of playback speed as a result of explicit request, or as a result of buffering events"
+                "  - Updating of playback speed as a result of explicit request, or as a result of buffering events"
         },
 
         {
@@ -101,28 +101,28 @@ Resource.add({
             details: "Indicates the speed at which the current media is being played. The new PlaybackSpeed shall be " +
                 "reflected in this attribute whenever any of the following occurs:" +
                 "\n" +
-                "  • Starting of playback" +
+                "  - Starting of playback" +
                 "\n" +
-                "  • Resuming of playback" +
+                "  - Resuming of playback" +
                 "\n" +
-                "  • Fast-forwarding" +
+                "  - Fast-forwarding" +
                 "\n" +
-                "  • Rewinding" +
+                "  - Rewinding" +
                 "\n" +
                 "The PlaybackSpeed shall reflect the ratio of time elapsed in the media to the actual time taken for " +
                 "the playback assuming no changes to media playback (for example buffering events or requests to " +
                 "pause/rewind/forward)." +
                 "\n" +
-                "  • A value for PlaybackSpeed of 1 shall indicate normal playback where, for example, playback for 1 " +
+                "  - A value for PlaybackSpeed of 1 shall indicate normal playback where, for example, playback for 1 " +
                 "    second causes the media to advance by 1 second within the duration of the media." +
                 "\n" +
-                "  • A value for PlaybackSpeed which is greater than 0 shall indicate that as playback is happening " +
+                "  - A value for PlaybackSpeed which is greater than 0 shall indicate that as playback is happening " +
                 "    the media is currently advancing in time within the duration of the media." +
                 "\n" +
-                "  • A value for PlaybackSpeed which is less than 0 shall indicate that as playback is happening the " +
+                "  - A value for PlaybackSpeed which is less than 0 shall indicate that as playback is happening the " +
                 "    media is currently going back in time within the duration of the media." +
                 "\n" +
-                "  • A value for PlaybackSpeed of 0 shall indicate that the media is currently not playing back. When " +
+                "  - A value for PlaybackSpeed of 0 shall indicate that the media is currently not playing back. When " +
                 "    the CurrentState attribute has the value of PAUSED, NOT_PLAYING or BUFFERING, the PlaybackSpeed " +
                 "    shall be set to 0 to reflect that the media is not playing." +
                 "\n" +

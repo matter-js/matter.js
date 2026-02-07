@@ -109,9 +109,9 @@ export namespace IcdManagement {
          * different CheckInNodeID from the MonitoredSubject. A subscription shall count as an active subscription for
          * this entry if:
          *
-         *   • It is on the associated fabric of this entry, and
+         *   - It is on the associated fabric of this entry, and
          *
-         *   • The subject of this entry matches the ISD of the SubscriptionRequest message that created the
+         *   - The subject of this entry matches the ISD of the SubscriptionRequest message that created the
          *     subscription. Matching shall be determined using the subject_matches function defined in the Access
          *     Control Privilege Granting Algorithm.
          *
@@ -506,13 +506,13 @@ export namespace IcdManagement {
          *
          * Example scenarios:
          *
-         *   • A Client requests an ICD to stay awake for 20000 milliseconds in its StayActiveDuration field. The ICD
+         *   - A Client requests an ICD to stay awake for 20000 milliseconds in its StayActiveDuration field. The ICD
          *     responds with 20000 in its PromisedActiveDuration if it can stay active for that duration.
          *
-         *   • A Client requests an ICD to stay awake for 35000 milliseconds in its StayActiveDuration field. The ICD
+         *   - A Client requests an ICD to stay awake for 35000 milliseconds in its StayActiveDuration field. The ICD
          *     responds with 30000 in its PromisedActiveDuration since it can only stay active for that minimal amount.
          *
-         *   • A Client requests an ICD to stay awake for 10000 milliseconds in its StayActiveDuration field, but the
+         *   - A Client requests an ICD to stay awake for 10000 milliseconds in its StayActiveDuration field, but the
          *     ICD’s remaining active time is 20000 milliseconds. The ICD responds with 20000 milliseconds in its
          *     PromisedActiveDuration field since it intends to stay active that long.
          *
@@ -651,9 +651,9 @@ export namespace IcdManagement {
             /**
              * Indicates the operating mode of the ICD as specified in the OperatingModeEnum.
              *
-             *   • If the ICD is operating as a LIT ICD, OperatingMode shall be LIT.
+             *   - If the ICD is operating as a LIT ICD, OperatingMode shall be LIT.
              *
-             *   • If the ICD is operating as a SIT ICD, OperatingMode shall be SIT.
+             *   - If the ICD is operating as a SIT ICD, OperatingMode shall be SIT.
              *
              * @see {@link MatterSpecification.v142.Core} § 9.16.6.9
              */
@@ -675,9 +675,9 @@ export namespace IcdManagement {
              * When receiving a StayActiveRequest command, the server shall calculate the maximum PromisedActiveDuration
              * it can remain active as the greater of the following two values:
              *
-             *   • StayActiveDuration: Specified in the received command by the client.
+             *   - StayActiveDuration: Specified in the received command by the client.
              *
-             *   • Remaining Active Time: The server’s planned remaining active time based on the ActiveModeThreshold
+             *   - Remaining Active Time: The server’s planned remaining active time based on the ActiveModeThreshold
              *     and its internal resources and power budget.
              *
              * A server may replace StayActiveDuration with Minimum Active Duration in the above calculation.
@@ -804,9 +804,9 @@ export namespace IcdManagement {
              * When receiving a StayActiveRequest command, the server shall calculate the maximum PromisedActiveDuration
              * it can remain active as the greater of the following two values:
              *
-             *   • StayActiveDuration: Specified in the received command by the client.
+             *   - StayActiveDuration: Specified in the received command by the client.
              *
-             *   • Remaining Active Time: The server’s planned remaining active time based on the ActiveModeThreshold
+             *   - Remaining Active Time: The server’s planned remaining active time based on the ActiveModeThreshold
              *     and its internal resources and power budget.
              *
              * A server may replace StayActiveDuration with Minimum Active Duration in the above calculation.

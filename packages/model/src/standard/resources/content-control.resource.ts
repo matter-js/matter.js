@@ -260,9 +260,9 @@ Resource.add({
                 "A server that does not support the PM feature shall respond with InvalidPINCode to clients that only " +
                 "have Operate privilege unless:" +
                 "\n" +
-                "  • It has been provided with the PIN value to expect via an out of band mechanism, and" +
+                "  - It has been provided with the PIN value to expect via an out of band mechanism, and" +
                 "\n" +
-                "  • The client has provided a PINCode that matches the expected PIN value.",
+                "  - The client has provided a PINCode that matches the expected PIN value.",
 
             children: [
                 {

@@ -30,10 +30,10 @@ Resource.add(
                             "has become aware that the sensor is triggered, but it is no longer desired to have the alarm modes " +
                             "active on the device, e.g.:" +
                             "\n" +
-                            "  • The triggering cause have been resolved by the user, but the sensor has not yet stopped " +
+                            "  - The triggering cause have been resolved by the user, but the sensor has not yet stopped " +
                             "    detecting the triggering cause." +
                             "\n" +
-                            "  • The user is not able to address the triggering cause, but is aware of the alarm and " +
+                            "  - The user is not able to address the triggering cause, but is aware of the alarm and " +
                             "    suppress/acknowledge it be addressed at a later point." +
                             "\n" +
                             "Acknowledge of alarms will for the remainder of this cluster be referred to as suppress." +
@@ -83,9 +83,9 @@ Resource.add(
                     "\n" +
                     "A bit shall indicate whether the alarm mode inactive or not:" +
                     "\n" +
-                    "  • 0 = Inactive" +
+                    "  - 0 = Inactive" +
                     "\n" +
-                    "  • 1 = Active"
+                    "  - 1 = Active"
             },
 
             {
@@ -99,9 +99,9 @@ Resource.add(
                     "\n" +
                     "A bit shall indicate whether the alarm mode is suppressed or not:" +
                     "\n" +
-                    "  • 0 = Not suppressed" +
+                    "  - 0 = Not suppressed" +
                     "\n" +
-                    "  • 1 = Suppressed"
+                    "  - 1 = Suppressed"
             },
 
             {
@@ -113,9 +113,9 @@ Resource.add(
                     "\n" +
                     "A bit shall indicate whether the alarm mode is enabled or disabled:" +
                     "\n" +
-                    "  • 0 = Disabled" +
+                    "  - 0 = Disabled" +
                     "\n" +
-                    "  • 1 = Enabled"
+                    "  - 1 = Enabled"
             },
 
             {
@@ -125,9 +125,9 @@ Resource.add(
                     "\n" +
                     "A bit shall indicate whether the alarm mode is supported:" +
                     "\n" +
-                    "  • 0 = Not supported" +
+                    "  - 0 = Not supported" +
                     "\n" +
-                    "  • 1 = Supported"
+                    "  - 1 = Supported"
             },
 
             {

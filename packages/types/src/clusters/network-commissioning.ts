@@ -303,17 +303,17 @@ export namespace NetworkCommissioning {
         /**
          * The NetworkingStatus field shall indicate the status of the last scan operation, taking one of these values:
          *
-         *   • Success: Scanning succeeded.
+         *   - Success: Scanning succeeded.
          *
-         *   • NetworkNotFound: No instance of an explicitly-provided network identifier was found during the scan. This
+         *   - NetworkNotFound: No instance of an explicitly-provided network identifier was found during the scan. This
          *     error cannot occur if no network identifier was provided, such as when scanning for all available
          *     networks.
          *
-         *   • OutOfRange: Network identifier was invalid (e.g. empty, too long, etc).
+         *   - OutOfRange: Network identifier was invalid (e.g. empty, too long, etc).
          *
-         *   • RegulatoryError: Could not scan on any bands due to lack of regulatory configuration.
+         *   - RegulatoryError: Could not scan on any bands due to lack of regulatory configuration.
          *
-         *   • UnknownError: An internal error occurred during scanning.
+         *   - UnknownError: An internal error occurred during scanning.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.9.7.2.1
          */
@@ -426,16 +426,16 @@ export namespace NetworkCommissioning {
          * The NetworkingStatus field shall indicate the status of the last operation attempting to modify the Networks
          * attribute configuration, taking one of these values:
          *
-         *   • Success: Operation succeeded.
+         *   - Success: Operation succeeded.
          *
-         *   • OutOfRange: Network identifier was invalid (e.g. empty, too long, etc).
+         *   - OutOfRange: Network identifier was invalid (e.g. empty, too long, etc).
          *
-         *   • BoundsExceeded: Adding this network configuration would exceed the limit defined by MaxNetworks.
+         *   - BoundsExceeded: Adding this network configuration would exceed the limit defined by MaxNetworks.
          *
-         *   • NetworkIdNotFound: The network identifier was expected to be found, but was not found among the added
+         *   - NetworkIdNotFound: The network identifier was expected to be found, but was not found among the added
          *     network configurations in Networks attribute.
          *
-         *   • UnknownError: An internal error occurred during the operation.
+         *   - UnknownError: An internal error occurred during the operation.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.9.7.7.1
          */
@@ -509,12 +509,12 @@ export namespace NetworkCommissioning {
      *
      * Before generating a ConnectNetworkResponse, the server shall:
      *
-     *   • Set the LastNetworkingStatus attribute value to the NetworkingStatus matching the response.
+     *   - Set the LastNetworkingStatus attribute value to the NetworkingStatus matching the response.
      *
-     *   • Set the LastNetworkID attribute value to the NetworkID that was used in the ConnectNetwork command which
+     *   - Set the LastNetworkID attribute value to the NetworkID that was used in the ConnectNetwork command which
      *     caused the response to be generated.
      *
-     *   • Set the LastConnectErrorValue attribute value to the ErrorValue matching the response, including setting it
+     *   - Set the LastConnectErrorValue attribute value to the ErrorValue matching the response, including setting it
      *     to null if the ErrorValue is not applicable.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.9.7.9
@@ -524,21 +524,21 @@ export namespace NetworkCommissioning {
          * The NetworkingStatus field shall indicate the status of the last connection attempt, taking one of these
          * values:
          *
-         *   • Success: Connection succeeded.
+         *   - Success: Connection succeeded.
          *
-         *   • NetworkNotFound: No instance of an explicitly-provided network identifier was found during the attempt to
+         *   - NetworkNotFound: No instance of an explicitly-provided network identifier was found during the attempt to
          *     join the network.
          *
-         *   • OutOfRange: Network identifier was invalid (e.g. empty, too long, etc).
+         *   - OutOfRange: Network identifier was invalid (e.g. empty, too long, etc).
          *
-         *   • NetworkIdNotFound: The network identifier was not found among the added network configurations in
+         *   - NetworkIdNotFound: The network identifier was not found among the added network configurations in
          *     Networks attribute.
          *
-         *   • RegulatoryError: Could not connect to a network due to lack of regulatory configuration.
+         *   - RegulatoryError: Could not connect to a network due to lack of regulatory configuration.
          *
-         *   • UnknownError: An internal error occurred during the operation.
+         *   - UnknownError: An internal error occurred during the operation.
          *
-         *   • Association errors (see also description of errors in NetworkCommissioningStatusEnum): AuthFailure,
+         *   - Association errors (see also description of errors in NetworkCommissioningStatusEnum): AuthFailure,
          *     UnsupportedSecurity, OtherConnectionFailure, IPV6Failed, IPBindFailed
          *
          * @see {@link MatterSpecification.v142.Core} § 11.9.7.9.1
@@ -553,23 +553,23 @@ export namespace NetworkCommissioning {
         debugText: TlvOptionalField(1, TlvString),
 
         /**
-         *   • ErrorValue interpretation for Wi-Fi association errors:
+         *   - ErrorValue interpretation for Wi-Fi association errors:
          *
-         *     ◦ On any association failure during enabling of a network, the ErrorValue field shall be set to the
+         *     - On any association failure during enabling of a network, the ErrorValue field shall be set to the
          *       Status Code value that was present in the last frame related to association where Status Code was not
          *       equal to zero and which caused the failure of a final retry attempt, if this final failure was due to
          *       one of the following Management frames:
          *
-         *       ▪ Association Response (Type 0, Subtype 1)
+         *       - Association Response (Type 0, Subtype 1)
          *
-         *       ▪ Reassociation Response (Type 0, Subtype 3)
+         *       - Reassociation Response (Type 0, Subtype 3)
          *
-         *       ▪ Authentication (Type 0, Subtype 11)
+         *       - Authentication (Type 0, Subtype 11)
          *
-         *     ◦ Table 9-50 "Status Codes" in IEEE 802.11-2020 contains a description of all values possible, which can
+         *     - Table 9-50 "Status Codes" in IEEE 802.11-2020 contains a description of all values possible, which can
          *       unambiguously be used to determine the cause, such as an invalid security type, unsupported rate, etc.
          *
-         *   • Otherwise, the ErrorValue field shall contain an implementation-dependent value which may be used by a
+         *   - Otherwise, the ErrorValue field shall contain an implementation-dependent value which may be used by a
          *     reader of the structure to record, report or diagnose the failure.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.9.7.9.3
@@ -582,12 +582,12 @@ export namespace NetworkCommissioning {
      *
      * Before generating a ConnectNetworkResponse, the server shall:
      *
-     *   • Set the LastNetworkingStatus attribute value to the NetworkingStatus matching the response.
+     *   - Set the LastNetworkingStatus attribute value to the NetworkingStatus matching the response.
      *
-     *   • Set the LastNetworkID attribute value to the NetworkID that was used in the ConnectNetwork command which
+     *   - Set the LastNetworkID attribute value to the NetworkID that was used in the ConnectNetwork command which
      *     caused the response to be generated.
      *
-     *   • Set the LastConnectErrorValue attribute value to the ErrorValue matching the response, including setting it
+     *   - Set the LastConnectErrorValue attribute value to the ErrorValue matching the response, including setting it
      *     to null if the ErrorValue is not applicable.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.9.7.9
@@ -644,9 +644,9 @@ export namespace NetworkCommissioning {
          *
          * On receiving ReorderNetwork with:
          *
-         *   • NetworkID = Home-Guest
+         *   - NetworkID = Home-Guest
          *
-         *   • NetworkIndex = 0
+         *   - NetworkIndex = 0
          *
          * The outcome, after applying to the initial state would be:
          *
@@ -655,9 +655,9 @@ export namespace NetworkCommissioning {
          *
          * On receiving ReorderNetwork with:
          *
-         *   • NetworkID = FancyCat
+         *   - NetworkID = FancyCat
          *
-         *   • NetworkIndex = 3
+         *   - NetworkIndex = 3
          *
          * The outcome, after applying to the initial state would be:
          *
@@ -701,19 +701,19 @@ export namespace NetworkCommissioning {
          *
          * Valid Credentials length are:
          *
-         *   • 0 bytes: Unsecured (open) connection
+         *   - 0 bytes: Unsecured (open) connection
          *
-         *   • 5 bytes: WEP-64 passphrase
+         *   - 5 bytes: WEP-64 passphrase
          *
-         *   • 10 hexadecimal ASCII characters: WEP-64 40-bit hex raw PSK
+         *   - 10 hexadecimal ASCII characters: WEP-64 40-bit hex raw PSK
          *
-         *   • 13 bytes: WEP-128 passphrase
+         *   - 13 bytes: WEP-128 passphrase
          *
-         *   • 26 hexadecimal ASCII characters: WEP-128 104-bit hex raw PSK
+         *   - 26 hexadecimal ASCII characters: WEP-128 104-bit hex raw PSK
          *
-         *   • 8..63 bytes: WPA/WPA2/WPA3 passphrase
+         *   - 8..63 bytes: WPA/WPA2/WPA3 passphrase
          *
-         *   • 64 bytes: WPA/WPA2/WPA3 raw hex PSK These lengths shall be contextually interpreted based on the security
+         *   - 64 bytes: WPA/WPA2/WPA3 raw hex PSK These lengths shall be contextually interpreted based on the security
          *     type of the BSSID where connection will occur.
          *
          * When the length of Credentials and available set of BSSID admits more than one option, such as the presence
@@ -822,11 +822,11 @@ export namespace NetworkCommissioning {
          * Every network is uniquely identified (for purposes of commissioning) by a NetworkID mapping to the following
          * technology-specific properties:
          *
-         *   • SSID for Wi-Fi
+         *   - SSID for Wi-Fi
          *
-         *   • Extended PAN ID for Thread
+         *   - Extended PAN ID for Thread
          *
-         *   • Network interface instance name at operating system (or equivalent unique name) for Ethernet.
+         *   - Network interface instance name at operating system (or equivalent unique name) for Ethernet.
          *
          * The semantics of the NetworkID field therefore varies between network types accordingly. It contains SSID for
          * Wi-Fi networks, Extended PAN ID (XPAN ID) for Thread networks and netif name for Ethernet networks.
@@ -897,9 +897,9 @@ export namespace NetworkCommissioning {
              *
              * This command shall scan on the Cluster instance’s associated network interface for either of:
              *
-             *   • All available networks (non-directed scanning)
+             *   - All available networks (non-directed scanning)
              *
-             *   • Specific networks (directed scanning)
+             *   - Specific networks (directed scanning)
              *
              * Scanning for available networks detects all networks of the type corresponding to the cluster server
              * instance’s associated network interface that are possible to join, such as all visible Wi-Fi access
@@ -1360,11 +1360,11 @@ export namespace NetworkCommissioning {
      * is to associate a Node with or manage a Node’s one or more network interfaces. These network interfaces can
      * include the following types.
      *
-     *   • Wi-Fi (IEEE 802.11-2020)
+     *   - Wi-Fi (IEEE 802.11-2020)
      *
-     *   • Ethernet (802.3)
+     *   - Ethernet (802.3)
      *
-     *   • Thread (802.15.4)
+     *   - Thread (802.15.4)
      *
      * An instance of the Network Commissioning Cluster only applies to a single network interface instance present. An
      * interface, in this context, is a unique entity that can have an IPv6 address assigned to it and ingress and

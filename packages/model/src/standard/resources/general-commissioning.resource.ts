@@ -165,21 +165,21 @@ Resource.add({
                 "Otherwise, the command shall arm or re-arm the \"fail-safe timer\" with an expiry time set for a " +
                 "duration of ExpiryLengthSeconds, or disarm it, depending on the situation:" +
                 "\n" +
-                "  • If ExpiryLengthSeconds is 0 and the fail-safe timer was already armed and the accessing fabric " +
+                "  - If ExpiryLengthSeconds is 0 and the fail-safe timer was already armed and the accessing fabric " +
                 "    matches the Fabric currently associated with the fail-safe context, then the fail-safe timer " +
                 "    shall be immediately expired (see further below for side-effects of expiration)." +
                 "\n" +
-                "  • If ExpiryLengthSeconds is 0 and the fail-safe timer was not armed, then this command invocation " +
+                "  - If ExpiryLengthSeconds is 0 and the fail-safe timer was not armed, then this command invocation " +
                 "    shall lead to a success response with no side-effects against the fail-safe context." +
                 "\n" +
-                "  • If ExpiryLengthSeconds is non-zero and the fail-safe timer was not currently armed, then the " +
+                "  - If ExpiryLengthSeconds is non-zero and the fail-safe timer was not currently armed, then the " +
                 "    fail-safe timer shall be armed for that duration." +
                 "\n" +
-                "  • If ExpiryLengthSeconds is non-zero and the fail-safe timer was currently armed, and the " +
+                "  - If ExpiryLengthSeconds is non-zero and the fail-safe timer was currently armed, and the " +
                 "    accessing Fabric matches the fail-safe context’s associated Fabric, then the fail-safe timer " +
                 "    shall be re-armed to expire in ExpiryLengthSeconds." +
                 "\n" +
-                "  • Otherwise, the command shall leave the current fail-safe state unchanged and immediately respond " +
+                "  - Otherwise, the command shall leave the current fail-safe state unchanged and immediately respond " +
                 "    with ArmFailSafeResponse containing an ErrorCode value of BusyWithOtherAdmin, indicating a " +
                 "    likely conflict between commissioners." +
                 "\n" +
@@ -198,31 +198,31 @@ Resource.add({
                 "When first arming the fail-safe timer, a 'Fail Safe Context' shall be created on the receiver, to " +
                 "track the following state information while the fail-safe is armed:" +
                 "\n" +
-                "  • The fail-safe timer duration." +
+                "  - The fail-safe timer duration." +
                 "\n" +
-                "  • The state of all Network Commissioning Networks attribute configurations, to allow recovery of " +
+                "  - The state of all Network Commissioning Networks attribute configurations, to allow recovery of " +
                 "    connectivity after Fail-Safe expiry." +
                 "\n" +
-                "  • Whether an AddNOC command or UpdateNOC command has taken place." +
+                "  - Whether an AddNOC command or UpdateNOC command has taken place." +
                 "\n" +
-                "  • A fabric-index for the fabric-scoping of the context, starting at the accessing fabric index for " +
+                "  - A fabric-index for the fabric-scoping of the context, starting at the accessing fabric index for " +
                 "    the ArmFailSafe command, and updated with the Fabric Index associated with an AddNOC or an " +
                 "    UpdateNOC command being invoked successfully during the ongoing Fail-Safe timer period." +
                 "\n" +
-                "  • The operational credentials associated with any Fabric whose configuration is affected by the " +
+                "  - The operational credentials associated with any Fabric whose configuration is affected by the " +
                 "    UpdateNOC command." +
                 "\n" +
-                "  • Optionally: the previous state of non-fabric-scoped data that is mutated during the fail-safe " +
+                "  - Optionally: the previous state of non-fabric-scoped data that is mutated during the fail-safe " +
                 "    period." +
                 "\n" +
                 "Note the following to assist in understanding the above state-keeping, which summarizes other " +
                 "normative requirements in the respective sections:" +
                 "\n" +
-                "  • The AddNOC command can only be invoked once per contiguous non-expiring fail-safe timer period, " +
+                "  - The AddNOC command can only be invoked once per contiguous non-expiring fail-safe timer period, " +
                 "    and only if no UpdateNOC command was previously processed within the same fail-safe timer " +
                 "    period." +
                 "\n" +
-                "  • The UpdateNOC command can only be invoked once per contiguous non-expiring fail-safe timer " +
+                "  - The UpdateNOC command can only be invoked once per contiguous non-expiring fail-safe timer " +
                 "    period, can only be invoked over a CASE session, and only if no AddNOC command was previously " +
                 "    processed in the same fail-safe timer period." +
                 "\n" +
@@ -387,10 +387,10 @@ Resource.add({
                 "CommissioningCompleteResponse if received over a CASE session and the accessing fabric index matches " +
                 "the Fabric Index associated with the current Fail-Safe context. In other words:" +
                 "\n" +
-                "  • If no AddNOC command had been successfully invoked, the CommissioningComplete command must " +
+                "  - If no AddNOC command had been successfully invoked, the CommissioningComplete command must " +
                 "    originate from the Fabric that initiated the Fail-Safe context." +
                 "\n" +
-                "  • After an AddNOC command has been successfully invoked, the CommissioningComplete command must " +
+                "  - After an AddNOC command has been successfully invoked, the CommissioningComplete command must " +
                 "    originate from the Fabric which was joined through the execution of that command, which updated " +
                 "    the Fail-Safe context’s Fabric Index." +
                 "\n" +

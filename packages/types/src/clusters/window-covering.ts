@@ -221,9 +221,9 @@ export namespace WindowCovering {
          *
          * This bit shall indicate whether the window covering is operational for regular use:
          *
-         *   • 0 = Not Operational
+         *   - 0 = Not Operational
          *
-         *   • 1 = Operational
+         *   - 1 = Operational
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.1.1
          */
@@ -236,9 +236,9 @@ export namespace WindowCovering {
          *
          * This bit shall indicate whether the lift movement is reversed:
          *
-         *   • 0 = Lift movement is normal
+         *   - 0 = Lift movement is normal
          *
-         *   • 1 = Lift movement is reversed
+         *   - 1 = Lift movement is reversed
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.1.2
          */
@@ -249,9 +249,9 @@ export namespace WindowCovering {
          *
          * This bit shall indicate whether the window covering supports the PositionAwareLift feature:
          *
-         *   • 0 = Lift control is not position aware
+         *   - 0 = Lift control is not position aware
          *
-         *   • 1 = Lift control is position aware (PA_LF)
+         *   - 1 = Lift control is position aware (PA_LF)
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.1.3
          */
@@ -262,9 +262,9 @@ export namespace WindowCovering {
          *
          * This bit shall indicate whether the window covering supports the PositionAwareTilt feature:
          *
-         *   • 0 = Tilt control is not position aware
+         *   - 0 = Tilt control is not position aware
          *
-         *   • 1 = Tilt control is position aware (PA_TL)
+         *   - 1 = Tilt control is position aware (PA_TL)
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.1.4
          */
@@ -276,9 +276,9 @@ export namespace WindowCovering {
          * This bit shall indicate whether a position aware controlled window covering is employing an encoder for
          * positioning the height of the window covering:
          *
-         *   • 0 = Timer Controlled
+         *   - 0 = Timer Controlled
          *
-         *   • 1 = Encoder Controlled
+         *   - 1 = Encoder Controlled
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.1.5
          */
@@ -290,9 +290,9 @@ export namespace WindowCovering {
          * This bit shall indicate whether a position aware controlled window covering is employing an encoder for
          * tilting the window covering:
          *
-         *   • 0 = Timer Controlled
+         *   - 0 = Timer Controlled
          *
-         *   • 1 = Encoder Controlled
+         *   - 1 = Encoder Controlled
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.1.6
          */
@@ -303,13 +303,13 @@ export namespace WindowCovering {
      * The OperationalStatusBitmap is using several internal operational state fields (composed of 2 bits) following
      * this definition:
      *
-     *   • 00b = Currently not moving
+     *   - 00b = Currently not moving
      *
-     *   • 01b = Currently opening (e.g. moving from closed to open).
+     *   - 01b = Currently opening (e.g. moving from closed to open).
      *
-     *   • 10b = Currently closing (e.g. moving from open to closed).
+     *   - 10b = Currently closing (e.g. moving from open to closed).
      *
-     *   • 11b = Reserved
+     *   - 11b = Reserved
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.3
      */
@@ -502,9 +502,9 @@ export namespace WindowCovering {
          *
          * This bit shall control the motor direction:
          *
-         *   • 0 = Lift movement is normal
+         *   - 0 = Lift movement is normal
          *
-         *   • 1 = Lift movement is reversed
+         *   - 1 = Lift movement is reversed
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.2.1
          */
@@ -515,9 +515,9 @@ export namespace WindowCovering {
          *
          * This bit shall set the window covering into calibration mode:
          *
-         *   • 0 = Normal mode
+         *   - 0 = Normal mode
          *
-         *   • 1 = Calibration mode
+         *   - 1 = Calibration mode
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.2.2
          */
@@ -528,9 +528,9 @@ export namespace WindowCovering {
          *
          * This bit shall set the window covering into maintenance mode:
          *
-         *   • 0 = Normal mode
+         *   - 0 = Normal mode
          *
-         *   • 1 = Maintenance mode
+         *   - 1 = Maintenance mode
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.2.3
          */
@@ -541,9 +541,9 @@ export namespace WindowCovering {
          *
          * This bit shall control feedback LEDs:
          *
-         *   • 0 = LEDs are off
+         *   - 0 = LEDs are off
          *
-         *   • 1 = LEDs will display feedback
+         *   - 1 = LEDs will display feedback
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.2.4
          */
@@ -1080,28 +1080,28 @@ export namespace WindowCovering {
              *
              * if the PositionAware feature is supported:
              *
-             *   • TargetPositionLiftPercent100ths attribute shall be set to 0.00%.
+             *   - TargetPositionLiftPercent100ths attribute shall be set to 0.00%.
              *
-             *   • TargetPositionTiltPercent100ths attribute shall be set to 0.00%.
+             *   - TargetPositionTiltPercent100ths attribute shall be set to 0.00%.
              *
              * The server positioning attributes will follow the movements, once the movement has successfully finished,
              * the server attributes shall be updated as follows:
              *
              * if the PositionAware feature is supported:
              *
-             *   • CurrentPositionLiftPercent100ths attribute shall be 0.00%.
+             *   - CurrentPositionLiftPercent100ths attribute shall be 0.00%.
              *
-             *   • CurrentPositionLiftPercentage attribute shall be 0%.
+             *   - CurrentPositionLiftPercentage attribute shall be 0%.
              *
-             *   • CurrentPositionTiltPercent100ths attribute shall be 0.00%.
+             *   - CurrentPositionTiltPercent100ths attribute shall be 0.00%.
              *
-             *   • CurrentPositionTiltPercentage attribute shall be 0%.
+             *   - CurrentPositionTiltPercentage attribute shall be 0%.
              *
              * if the AbsolutePosition feature is supported:
              *
-             *   • CurrentPositionLift attribute shall be equal to the InstalledOpenLimitLift attribute.
+             *   - CurrentPositionLift attribute shall be equal to the InstalledOpenLimitLift attribute.
              *
-             *   • CurrentPositionTilt attribute shall be equal to the InstalledOpenLimitTilt attribute.
+             *   - CurrentPositionTilt attribute shall be equal to the InstalledOpenLimitTilt attribute.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.1
              */
@@ -1114,28 +1114,28 @@ export namespace WindowCovering {
              *
              * if the PositionAware feature is supported:
              *
-             *   • TargetPositionLiftPercent100ths attribute shall be set to 100.00%.
+             *   - TargetPositionLiftPercent100ths attribute shall be set to 100.00%.
              *
-             *   • TargetPositionTiltPercent100ths attribute shall be set to 100.00%.
+             *   - TargetPositionTiltPercent100ths attribute shall be set to 100.00%.
              *
              * The server positioning attributes will follow the movements, once the movement has successfully finished,
              * the server attributes shall be updated as follows:
              *
              * if the PositionAware feature is supported:
              *
-             *   • CurrentPositionLiftPercent100ths attribute shall be 100.00%.
+             *   - CurrentPositionLiftPercent100ths attribute shall be 100.00%.
              *
-             *   • CurrentPositionLiftPercentage attribute shall be 100%.
+             *   - CurrentPositionLiftPercentage attribute shall be 100%.
              *
-             *   • CurrentPositionTiltPercent100ths attribute shall be 100.00%.
+             *   - CurrentPositionTiltPercent100ths attribute shall be 100.00%.
              *
-             *   • CurrentPositionTiltPercentage attribute shall be 100%.
+             *   - CurrentPositionTiltPercentage attribute shall be 100%.
              *
              * if the AbsolutePosition feature is supported:
              *
-             *   • CurrentPositionLift attribute shall be equal to the InstalledClosedLimitLift attribute.
+             *   - CurrentPositionLift attribute shall be equal to the InstalledClosedLimitLift attribute.
              *
-             *   • CurrentPositionTilt attribute shall be equal to the InstalledClosedLimitTilt attribute.
+             *   - CurrentPositionTilt attribute shall be equal to the InstalledClosedLimitTilt attribute.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.2
              */
@@ -1145,10 +1145,10 @@ export namespace WindowCovering {
              * Upon receipt of this command, the window covering will stop any adjusting to the physical tilt and
              * lift/slide that is currently occurring. The server attributes supported shall be updated as follows:
              *
-             *   • TargetPositionLiftPercent100ths attribute will be set to CurrentPositionLiftPercent100ths attribute
+             *   - TargetPositionLiftPercent100ths attribute will be set to CurrentPositionLiftPercent100ths attribute
              *     value.
              *
-             *   • TargetPositionTiltPercent100ths attribute will be set to CurrentPositionTiltPercent100ths attribute
+             *   - TargetPositionTiltPercent100ths attribute will be set to CurrentPositionTiltPercent100ths attribute
              *     value.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.3

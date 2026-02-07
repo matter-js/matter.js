@@ -278,13 +278,13 @@ Resource.add({
                     details: "This field shall contain the remaining capacity of the Scene Table of the server (for all groups for " +
                         "the accessing fabric). The following values apply:" +
                         "\n" +
-                        "  • 0 - No further scenes may be added." +
+                        "  - 0 - No further scenes may be added." +
                         "\n" +
-                        "  • 0 < Capacity < 0xFE - Capacity holds the number of scenes that may be added." +
+                        "  - 0 < Capacity < 0xFE - Capacity holds the number of scenes that may be added." +
                         "\n" +
-                        "  • 0xFE - At least 1 further scene may be added (exact number is unknown)." +
+                        "  - 0xFE - At least 1 further scene may be added (exact number is unknown)." +
                         "\n" +
-                        "  • null - It is unknown if any further scenes may be added."
+                        "  - null - It is unknown if any further scenes may be added."
                 },
 
                 {

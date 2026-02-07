@@ -50,23 +50,23 @@ export namespace DoorLockInterface {
          *
          * Fields used for different use cases:
          *
-         *   • OperationType shall be set to Add.
+         *   - OperationType shall be set to Add.
          *
-         *   • UserIndex value shall be set to a user record with UserType set to Available.
+         *   - UserIndex value shall be set to a user record with UserType set to Available.
          *
-         *   • UserName may be null causing new user record to use empty string for UserName otherwise UserName shall be
+         *   - UserName may be null causing new user record to use empty string for UserName otherwise UserName shall be
          *     set to the value provided in the new user record.
          *
-         *   • UserUniqueID may be null causing new user record to use 0xFFFFFFFF for UserUniqueID otherwise
+         *   - UserUniqueID may be null causing new user record to use 0xFFFFFFFF for UserUniqueID otherwise
          *     UserUniqueID shall be set to the value provided in the new user record.
          *
-         *   • UserStatus may be null causing new user record to use OccupiedEnabled for UserStatus otherwise UserStatus
+         *   - UserStatus may be null causing new user record to use OccupiedEnabled for UserStatus otherwise UserStatus
          *     shall be set to the value provided in the new user record.
          *
-         *   • UserType may be null causing new user record to use UnrestrictedUser for UserType otherwise UserType
+         *   - UserType may be null causing new user record to use UnrestrictedUser for UserType otherwise UserType
          *     shall be set to the value provided in the new user record.
          *
-         *   • CredentialRule may be null causing new user record to use Single for CredentialRule otherwise
+         *   - CredentialRule may be null causing new user record to use Single for CredentialRule otherwise
          *     CredentialRule shall be set to the value provided in the new user record.
          *
          * CreatorFabricIndex and LastModifiedFabricIndex in the new user record shall be set to the accessing fabric
@@ -74,29 +74,29 @@ export namespace DoorLockInterface {
          *
          * A LockUserChange event shall be generated after successfully creating a new user.
          *
-         *   • OperationType shall be set to Modify.
+         *   - OperationType shall be set to Modify.
          *
-         *   • UserIndex value shall be set for a user record with UserType NOT set to Available.
+         *   - UserIndex value shall be set for a user record with UserType NOT set to Available.
          *
-         *   • UserName shall be null if modifying a user record that was not created by the accessing fabric.
+         *   - UserName shall be null if modifying a user record that was not created by the accessing fabric.
          *
-         *   • INVALID_COMMAND shall be returned if UserName is not null and the accessing fabric index doesn’t match
+         *   - INVALID_COMMAND shall be returned if UserName is not null and the accessing fabric index doesn’t match
          *     the CreatorFabricIndex in the user record otherwise UserName shall be set to the value provided in the
          *     user record.
          *
-         *   • UserUniqueID shall be null if modifying the user record that was not created by the accessing fabric.
+         *   - UserUniqueID shall be null if modifying the user record that was not created by the accessing fabric.
          *
-         *   • INVALID_COMMAND shall be returned if UserUniqueID is not null and the accessing fabric index doesn’t
+         *   - INVALID_COMMAND shall be returned if UserUniqueID is not null and the accessing fabric index doesn’t
          *     match the CreatorFabricIndex in the user record otherwise UserUniqueID shall be set to the value provided
          *     in the user record.
          *
-         *   • UserStatus may be null causing no change to UserStatus in user record otherwise UserStatus shall be set
+         *   - UserStatus may be null causing no change to UserStatus in user record otherwise UserStatus shall be set
          *     to the value provided in the user record.
          *
-         *   • UserType may be null causing no change to UserType in user record otherwise UserType shall be set to the
+         *   - UserType may be null causing no change to UserType in user record otherwise UserType shall be set to the
          *     value provided in the user record.
          *
-         *   • CredentialRule may be null causing no change to CredentialRule in user record otherwise CredentialRule
+         *   - CredentialRule may be null causing no change to CredentialRule in user record otherwise CredentialRule
          *     shall be set to the value provided in the user record.
          *
          * CreatorFabricIndex shall NOT be changed in the user record. LastModifiedFabricIndex in the new user record
@@ -107,13 +107,13 @@ export namespace DoorLockInterface {
          * Return status is a global status code or a cluster-specific status code from the Status Codes table and shall
          * be one of the following values:
          *
-         *   • SUCCESS, if setting User was successful.
+         *   - SUCCESS, if setting User was successful.
          *
-         *   • FAILURE, if some unexpected internal error occurred setting User.
+         *   - FAILURE, if some unexpected internal error occurred setting User.
          *
-         *   • OCCUPIED, if OperationType is Add and UserIndex points to an occupied slot.
+         *   - OCCUPIED, if OperationType is Add and UserIndex points to an occupied slot.
          *
-         *   • INVALID_COMMAND, if one or more fields violate constraints or are invalid or if OperationType is Modify
+         *   - INVALID_COMMAND, if one or more fields violate constraints or are invalid or if OperationType is Modify
          *     and UserIndex points to an available slot.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.32
@@ -149,20 +149,20 @@ export namespace DoorLockInterface {
          *
          * Fields used for different use cases:
          *
-         *   • OperationType shall be set to Add.
+         *   - OperationType shall be set to Add.
          *
-         *   • UserIndex shall be set to null and the lock will find a user record with a UserStatus value of Available
+         *   - UserIndex shall be set to null and the lock will find a user record with a UserStatus value of Available
          *     and associate its UserIndex with the CredentialIndex in CredentialStruct provided.
          *
-         *   • CredentialIndex in CredentialStruct shall be for an unoccupied credential slot.
+         *   - CredentialIndex in CredentialStruct shall be for an unoccupied credential slot.
          *
-         *   • UserStatus may be null. If it is null, the new user record shall have UserStatus set to OccupiedEnabled.
+         *   - UserStatus may be null. If it is null, the new user record shall have UserStatus set to OccupiedEnabled.
          *     Otherwise the new user record shall have UserStatus set to the provided value.
          *
-         *   • UserType may be null. If it is null, the new user record shall have UserType set to UnrestrictedUser.
+         *   - UserType may be null. If it is null, the new user record shall have UserType set to UnrestrictedUser.
          *     Otherwise the new user record shall have UserType set to the provided value.
          *
-         *   • UserType shall NOT be set to ProgrammingUser for this use case.
+         *   - UserType shall NOT be set to ProgrammingUser for this use case.
          *
          * CreatorFabricIndex and LastModifiedFabricIndex in new user and credential records shall be set to the
          * accessing fabric index.
@@ -171,19 +171,19 @@ export namespace DoorLockInterface {
          * UserIndex of this LockUserChange event shall be the UserIndex that was used to create the user. The DataIndex
          * of this LockUserChange event shall be the CredentialIndex that was used to create the credential.
          *
-         *   • OperationType shall be set to Add.
+         *   - OperationType shall be set to Add.
          *
-         *   • UserIndex shall NOT be null and shall NOT already be associated with the CredentialIndex in
+         *   - UserIndex shall NOT be null and shall NOT already be associated with the CredentialIndex in
          *     CredentialStruct provided otherwise INVALID_COMMAND status response shall be returned.
          *
-         *   • INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex in
+         *   - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex in
          *     the user record pointed to by UserIndex.
          *
-         *   • CredentialIndex in CredentialStruct provided shall be for an available credential slot.
+         *   - CredentialIndex in CredentialStruct provided shall be for an available credential slot.
          *
-         *   • UserStatus shall be null.
+         *   - UserStatus shall be null.
          *
-         *   • UserType shall be null.
+         *   - UserType shall be null.
          *
          * CreatorFabricIndex shall NOT be changed in the user record. LastModifiedFabricIndex in the user record shall
          * be set to the accessing fabric index.
@@ -193,42 +193,42 @@ export namespace DoorLockInterface {
          *
          * A LockUserChange event shall be generated after successfully adding a new credential.
          *
-         *   • OperationType shall be set to Modify.
+         *   - OperationType shall be set to Modify.
          *
-         *   • UserIndex value shall already be associated with the CredentialIndex in CredentialStruct provided
+         *   - UserIndex value shall already be associated with the CredentialIndex in CredentialStruct provided
          *     otherwise INVALID_COMMAND status response shall be returned.
          *
-         *   • INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex in
+         *   - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex in
          *     the user record pointed to by UserIndex.
          *
-         *   • INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex in
+         *   - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex in
          *     the credential record pointed to by the CredentialIndex field value of the Credential parameter.
          *
-         *   • CredentialIndex in CredentialStruct provided shall be for an occupied credential slot
+         *   - CredentialIndex in CredentialStruct provided shall be for an occupied credential slot
          *
-         *   • UserStatus shall be null.
+         *   - UserStatus shall be null.
          *
-         *   • UserType shall be null.
+         *   - UserType shall be null.
          *
          * CreatorFabricIndex shall NOT be changed in user and credential records. LastModifiedFabricIndex in user and
          * credential records shall be set to the accessing fabric index.
          *
          * A LockUserChange event shall be generated after successfully modifying a credential.
          *
-         *   • OperationType shall be set to Modify.
+         *   - OperationType shall be set to Modify.
          *
-         *   • UserIndex shall be null.
+         *   - UserIndex shall be null.
          *
-         *   • INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex in
+         *   - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex in
          *     the credential record pointed to by the CredentialIndex field value of the Credential parameter.
          *
-         *   • CredentialType in CredentialStruct shall be set to ProgrammingPIN.
+         *   - CredentialType in CredentialStruct shall be set to ProgrammingPIN.
          *
-         *   • CredentialIndex in CredentialStruct shall be 0.
+         *   - CredentialIndex in CredentialStruct shall be 0.
          *
-         *   • UserStatus shall be null.
+         *   - UserStatus shall be null.
          *
-         *   • UserType shall be set to ProgrammingUser.
+         *   - UserType shall be set to ProgrammingUser.
          *
          * CreatorFabricIndex shall NOT be changed in the credential record. LastModifiedFabricIndex in the credential
          * record shall be set to the accessing fabric index.
@@ -254,25 +254,25 @@ export namespace DoorLockInterface {
          *
          * Fields used for different use cases:
          *
-         *   • CredentialType in Credential structure shall be set to the credential type to be cleared.
+         *   - CredentialType in Credential structure shall be set to the credential type to be cleared.
          *
-         *   • CredentialType in Credential structure shall NOT be set to ProgrammingPIN.
+         *   - CredentialType in Credential structure shall NOT be set to ProgrammingPIN.
          *
-         *   • CredentialIndex in Credential structure shall be set to the credential index to be cleared.
+         *   - CredentialIndex in Credential structure shall be set to the credential index to be cleared.
          *
          * A LockUserChange event shall be generated after successfully clearing a credential.
          *
-         *   • CredentialType in Credential structure shall be set to the credential type to be cleared.
+         *   - CredentialType in Credential structure shall be set to the credential type to be cleared.
          *
-         *   • CredentialType in Credential structure shall NOT be set to ProgrammingPIN.
+         *   - CredentialType in Credential structure shall NOT be set to ProgrammingPIN.
          *
-         *   • CredentialIndex in Credential structure shall be set to 0xFFFE to indicate all credentials of that type
+         *   - CredentialIndex in Credential structure shall be set to 0xFFFE to indicate all credentials of that type
          *     shall be cleared.
          *
          * A single LockUserChange event shall be generated after successfully clearing credentials. This event shall
          * have DataIndex set to the CredentialIndex in the Credential structure.
          *
-         *   • Credential field shall be null.
+         *   - Credential field shall be null.
          *
          * The ProgrammingPIN credential shall NOT be cleared.
          *

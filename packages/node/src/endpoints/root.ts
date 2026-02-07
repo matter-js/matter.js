@@ -68,11 +68,11 @@ import { Identity } from "#general";
  * This defines conformance for a root node endpoint (see System Model specification). This endpoint is akin to a "read
  * me first" endpoint that describes itself and the other endpoints that make up the node.
  *
- *   • Device types with Endpoint scope shall NOT be supported on the same endpoint as this device type.
+ *   - Device types with Endpoint scope shall NOT be supported on the same endpoint as this device type.
  *
- *   • Clusters with an Application role shall NOT be supported on the same endpoint as this device type.
+ *   - Clusters with an Application role shall NOT be supported on the same endpoint as this device type.
  *
- *   • Other device types with Node scope may be supported on the same endpoint as this device type.
+ *   - Other device types with Node scope may be supported on the same endpoint as this device type.
  *
  * @see {@link MatterSpecification.v142.Device} § 2.1
  */

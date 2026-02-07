@@ -16,10 +16,10 @@ Resource.add({
         "This cluster is derived from the Basic Information cluster and serves two purposes towards a Node " +
         "communicating with a Bridge:" +
         "\n" +
-        "  • Indicate that the functionality on the Endpoint where it is placed (and its Parts) is bridged, " +
+        "  - Indicate that the functionality on the Endpoint where it is placed (and its Parts) is bridged, " +
         "    and" +
         "\n" +
-        "  • Provide a centralized collection of attributes that the Node may collect to aid in conveying " +
+        "  - Provide a centralized collection of attributes that the Node may collect to aid in conveying " +
         "    information regarding the Bridged Device to a user, such as the vendor name, the model name, or " +
         "    user-assigned name." +
         "\n" +
@@ -161,7 +161,7 @@ Resource.add({
                 "The implementation of this is best-effort since it may interact with non-native protocols. However, " +
                 "several specific protocol requirements are:" +
                 "\n" +
-                "  • If the bridged device is a Matter Intermittently Connected Device, then the server shall send a " +
+                "  - If the bridged device is a Matter Intermittently Connected Device, then the server shall send a " +
                 "    StayActiveRequest command with the StayActiveDuration field set to value of the " +
                 "    StayActiveDuration field in the received command to the bridged device when the bridged device " +
                 "    next sends a checks-in message or subscription report. See Intermittently Connected Devices " +
@@ -172,7 +172,7 @@ Resource.add({
                 "\n" +
                 "In order to avoid unnecessary power consumption in the bridged device:" +
                 "\n" +
-                "  • The server shall enter a \"pending active\" state for the associated device when the KeepActive " +
+                "  - The server shall enter a \"pending active\" state for the associated device when the KeepActive " +
                 "    command is received. The server \"pending active\" state shall expire after the amount of time " +
                 "    defined by the TimeoutMs field, in milliseconds, if no subsequent KeepActive command is " +
                 "    received. When a KeepActive command is received, the \"pending active\" state is set, the " +
@@ -180,7 +180,7 @@ Resource.add({
                 "    and the TimeoutMs is updated to the greater of the new value and the remaining time until the " +
                 "    prior \"pending active\" state expires." +
                 "\n" +
-                "  • The server shall only keep the bridged device active once for a request. (The server shall only " +
+                "  - The server shall only keep the bridged device active once for a request. (The server shall only " +
                 "    consider the operation performed if an associated ActiveChanged event was generated.)",
 
             children: [

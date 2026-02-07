@@ -167,11 +167,11 @@ export namespace WiFiNetworkDiagnostics {
          * association where Status Code was not equal to zero and which caused the failure of a last trial attempt, if
          * this last failure was due to one of the following Management frames:
          *
-         *   • Association Response (Type 0, Subtype 1)
+         *   - Association Response (Type 0, Subtype 1)
          *
-         *   • Reassociation Response (Type 0, Subtype 3)
+         *   - Reassociation Response (Type 0, Subtype 3)
          *
-         *   • Authentication (Type 0, Subtype 11)
+         *   - Authentication (Type 0, Subtype 11)
          *
          * Table 9-50 "Status codes" of IEEE 802.11-2020 contains a description of all values possible.
          *
@@ -244,17 +244,17 @@ export namespace WiFiNetworkDiagnostics {
              *
              * Reception of this command shall reset the following attributes to 0:
              *
-             *   • BeaconLostCount
+             *   - BeaconLostCount
              *
-             *   • BeaconRxCount
+             *   - BeaconRxCount
              *
-             *   • PacketMulticastRxCount
+             *   - PacketMulticastRxCount
              *
-             *   • PacketMulticastTxCount
+             *   - PacketMulticastTxCount
              *
-             *   • PacketUnicastRxCount
+             *   - PacketUnicastRxCount
              *
-             *   • PacketUnicastTxCount
+             *   - PacketUnicastTxCount
              *
              * @see {@link MatterSpecification.v142.Core} § 11.15.7.1
              */

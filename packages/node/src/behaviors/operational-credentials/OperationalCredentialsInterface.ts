@@ -112,10 +112,10 @@ export namespace OperationalCredentialsInterface {
          * If any of the following conditions arise, the Node shall process an error by responding with an NOCResponse
          * with a StatusCode of InvalidNOC as described in Section 11.18.6.7.2, “Handling Errors”:
          *
-         *   • The NOC provided in the NOCValue does not refer in its subject to the FabricID associated with the
+         *   - The NOC provided in the NOCValue does not refer in its subject to the FabricID associated with the
          *     accessing fabric.
          *
-         *   • The ICAC provided in the ICACValue (if present) has a FabricID in its subject that does not match the
+         *   - The ICAC provided in the ICACValue (if present) has a FabricID in its subject that does not match the
          *     FabricID associated with the accessing fabric.
          *
          * Otherwise, the command is considered an update of existing credentials for a given Fabric, and the following
@@ -151,9 +151,9 @@ export namespace OperationalCredentialsInterface {
          * string (possibly selected by the user themselves) that the user can recognize and relate to this
          * Administrator
          *
-         *   • during the commissioning process, and
+         *   - during the commissioning process, and
          *
-         *   • whenever the user chooses to update this string.
+         *   - whenever the user chooses to update this string.
          *
          * The Label field, along with the VendorID field in the same entry of the Fabrics attribute, SHOULD be used by
          * Administrators to provide additional per-fabric context when operations such as RemoveFabric are considered
@@ -224,11 +224,11 @@ export namespace OperationalCredentialsInterface {
          *
          * This command shall be used to one or more of the following:
          *
-         *   • Update the VendorID associated with an entry in the Fabrics attribute.
+         *   - Update the VendorID associated with an entry in the Fabrics attribute.
          *
-         *   • Associate or remove a VIDVerificationStatement associated with an entry in the Fabrics attribute.
+         *   - Associate or remove a VIDVerificationStatement associated with an entry in the Fabrics attribute.
          *
-         *   • Associate or remove a VendorVerificationSigningCertificate (VVSC) associated with an entry in the NOCs
+         *   - Associate or remove a VendorVerificationSigningCertificate (VVSC) associated with an entry in the NOCs
          *     attribute.
          *
          * This command shall only operate against the Fabrics and NOCs attribute entries associated with the accessing
@@ -244,24 +244,24 @@ export namespace OperationalCredentialsInterface {
          *
          * If the VIDVerificationStatement field is present:
          *
-         *   • If the length of the field’s value is neither exactly 0 nor exactly 85, then the command shall fail with
+         *   - If the length of the field’s value is neither exactly 0 nor exactly 85, then the command shall fail with
          *     a status code of CONSTRAINT_ERROR.
          *
-         *   • If the length of the field’s value is exactly 0, then the VIDVerificationStatement field in the Fabrics
+         *   - If the length of the field’s value is exactly 0, then the VIDVerificationStatement field in the Fabrics
          *     attribute entry associated with the accessing fabric index shall be erased and the field shall disappear
          *     from the Fabrics entry.
          *
-         *   • If the length of the field’s value is exactly 85, then the VIDVerificationStatement field in the Fabrics
+         *   - If the length of the field’s value is exactly 85, then the VIDVerificationStatement field in the Fabrics
          *     attribute entry associated with the accessing fabric index shall have its value replaced with the value
          *     from the command field.
          *
          * If the VVSC field is present:
          *
-         *   • If the length of the field’s value is exactly 0, then the VVSC field in the NOCs attribute entry
+         *   - If the length of the field’s value is exactly 0, then the VVSC field in the NOCs attribute entry
          *     associated with the accessing fabric index shall be erased and the field shall disappear from the NOCs
          *     entry.
          *
-         *   • If the length of the field’s value is not 0, then the VVSC field in the NOCs attribute entry associated
+         *   - If the length of the field’s value is not 0, then the VVSC field in the NOCs attribute entry associated
          *     with the accessing fabric index shall have its value replaced with the value from the command field. The
          *     contents of the certificate need not be validated by the server. Clients shall validate the contents at
          *     time of use.

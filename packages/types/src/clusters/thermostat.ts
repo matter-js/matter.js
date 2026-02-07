@@ -718,38 +718,38 @@ export namespace Thermostat {
      *
      * If a CoolingSetpoint was used to determine the cooling setpoint:
      *
-     *   • If the server supports the OCC feature, and the Occupied bit is not set on the Occupancy attribute, then the
+     *   - If the server supports the OCC feature, and the Occupied bit is not set on the Occupancy attribute, then the
      *     UnoccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint
      *
-     *   • Otherwise, the OccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint
+     *   - Otherwise, the OccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint
      *
      * If a HeatingSetpoint was used to determine the heating setpoint:
      *
-     *   • If the server supports the OCC feature, and the Occupied bit is not set on the Occupancy attribute, then the
+     *   - If the server supports the OCC feature, and the Occupied bit is not set on the Occupancy attribute, then the
      *     UnoccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint
      *
-     *   • Otherwise, the OccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint
+     *   - Otherwise, the OccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint
      *
      * The ScheduleTransitionStruct shall be invalid if all the following are true:
      *
-     *   • The HeatingSetpoint field is not provided
+     *   - The HeatingSetpoint field is not provided
      *
-     *   • The PresetHandle field is not provided
+     *   - The PresetHandle field is not provided
      *
-     *   • The PresetHandle field on the encompassing ScheduleStruct is not provided
+     *   - The PresetHandle field on the encompassing ScheduleStruct is not provided
      *
-     *   • The SystemMode field is provided and has the value Heat or Auto, or the SystemMode field on the parent
+     *   - The SystemMode field is provided and has the value Heat or Auto, or the SystemMode field on the parent
      *     ScheduleStruct has the value Heat or Auto
      *
      * The ScheduleTransitionStruct shall be invalid if all the following are true:
      *
-     *   • The CoolingSetpoint field is not provided
+     *   - The CoolingSetpoint field is not provided
      *
-     *   • The PresetHandle field is not provided
+     *   - The PresetHandle field is not provided
      *
-     *   • The PresetHandle field on the encompassing ScheduleStruct is not provided
+     *   - The PresetHandle field on the encompassing ScheduleStruct is not provided
      *
-     *   • The SystemMode field is provided and has the value Cool or Auto, or the SystemMode field on the parent
+     *   - The SystemMode field is provided and has the value Cool or Auto, or the SystemMode field on the parent
      *     ScheduleStruct has the value Cool or Auto
      *
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.31
@@ -833,38 +833,38 @@ export namespace Thermostat {
      *
      * If a CoolingSetpoint was used to determine the cooling setpoint:
      *
-     *   • If the server supports the OCC feature, and the Occupied bit is not set on the Occupancy attribute, then the
+     *   - If the server supports the OCC feature, and the Occupied bit is not set on the Occupancy attribute, then the
      *     UnoccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint
      *
-     *   • Otherwise, the OccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint
+     *   - Otherwise, the OccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint
      *
      * If a HeatingSetpoint was used to determine the heating setpoint:
      *
-     *   • If the server supports the OCC feature, and the Occupied bit is not set on the Occupancy attribute, then the
+     *   - If the server supports the OCC feature, and the Occupied bit is not set on the Occupancy attribute, then the
      *     UnoccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint
      *
-     *   • Otherwise, the OccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint
+     *   - Otherwise, the OccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint
      *
      * The ScheduleTransitionStruct shall be invalid if all the following are true:
      *
-     *   • The HeatingSetpoint field is not provided
+     *   - The HeatingSetpoint field is not provided
      *
-     *   • The PresetHandle field is not provided
+     *   - The PresetHandle field is not provided
      *
-     *   • The PresetHandle field on the encompassing ScheduleStruct is not provided
+     *   - The PresetHandle field on the encompassing ScheduleStruct is not provided
      *
-     *   • The SystemMode field is provided and has the value Heat or Auto, or the SystemMode field on the parent
+     *   - The SystemMode field is provided and has the value Heat or Auto, or the SystemMode field on the parent
      *     ScheduleStruct has the value Heat or Auto
      *
      * The ScheduleTransitionStruct shall be invalid if all the following are true:
      *
-     *   • The CoolingSetpoint field is not provided
+     *   - The CoolingSetpoint field is not provided
      *
-     *   • The PresetHandle field is not provided
+     *   - The PresetHandle field is not provided
      *
-     *   • The PresetHandle field on the encompassing ScheduleStruct is not provided
+     *   - The PresetHandle field on the encompassing ScheduleStruct is not provided
      *
-     *   • The SystemMode field is provided and has the value Cool or Auto, or the SystemMode field on the parent
+     *   - The SystemMode field is provided and has the value Cool or Auto, or the SystemMode field on the parent
      *     ScheduleStruct has the value Cool or Auto
      *
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.31
@@ -984,13 +984,13 @@ export namespace Thermostat {
          *
          * These bits shall indicate what stage of cooling the HVAC system is using.
          *
-         *   • 00 = Cool Stage 1
+         *   - 00 = Cool Stage 1
          *
-         *   • 01 = Cool Stage 2
+         *   - 01 = Cool Stage 2
          *
-         *   • 10 = Cool Stage 3
+         *   - 10 = Cool Stage 3
          *
-         *   • 11 = Reserved
+         *   - 11 = Reserved
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.5.1
          */
@@ -1001,13 +1001,13 @@ export namespace Thermostat {
          *
          * These bits shall indicate what stage of heating the HVAC system is using.
          *
-         *   • 00 = Heat Stage 1
+         *   - 00 = Heat Stage 1
          *
-         *   • 01 = Heat Stage 2
+         *   - 01 = Heat Stage 2
          *
-         *   • 10 = Heat Stage 3
+         *   - 10 = Heat Stage 3
          *
-         *   • 11 = Reserved
+         *   - 11 = Reserved
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.5.2
          */
@@ -1018,9 +1018,9 @@ export namespace Thermostat {
          *
          * This bit shall indicate whether the HVAC system is conventional or a heat pump.
          *
-         *   • 0 = Conventional
+         *   - 0 = Conventional
          *
-         *   • 1 = Heat Pump
+         *   - 1 = Heat Pump
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.5.3
          */
@@ -1031,9 +1031,9 @@ export namespace Thermostat {
          *
          * This bit shall indicate whether the HVAC system uses fuel.
          *
-         *   • 0 = Does not use fuel
+         *   - 0 = Does not use fuel
          *
-         *   • 1 = Uses fuel
+         *   - 1 = Uses fuel
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.5.4
          */
@@ -2323,14 +2323,14 @@ export namespace Thermostat {
             /**
              * Indicates the current Calculated Local Temperature, when available.
              *
-             *   • If the LTNE feature is not supported:
+             *   - If the LTNE feature is not supported:
              *
-             *     ◦ If the LocalTemperatureCalibration is invalid or currently unavailable, the attribute shall report
+             *     - If the LocalTemperatureCalibration is invalid or currently unavailable, the attribute shall report
              *       null.
              *
-             *     ◦ If the LocalTemperatureCalibration is valid, the attribute shall report that value.
+             *     - If the LocalTemperatureCalibration is valid, the attribute shall report that value.
              *
-             *   • Otherwise, if the LTNE feature is supported, there is no feedback externally available for the
+             *   - Otherwise, if the LTNE feature is supported, there is no feedback externally available for the
              *     LocalTemperatureCalibration. In that case, the LocalTemperature attribute shall always report null.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.2
@@ -2534,11 +2534,11 @@ export namespace Thermostat {
              * the SystemMode attribute value that provides the highest stage of heating (e.g., emergency heat) and
              * continue operating in that running state until the OccupiedHeatingSetpoint value is reached. For example:
              *
-             *   • Calculated Local Temperature = 10.0°C
+             *   - Calculated Local Temperature = 10.0°C
              *
-             *   • OccupiedHeatingSetpoint = 16.0°C
+             *   - OccupiedHeatingSetpoint = 16.0°C
              *
-             *   • EmergencyHeatDelta = 2.0°C
+             *   - EmergencyHeatDelta = 2.0°C
              *
              * ⇒ OccupiedHeatingSetpoint - Calculated Local Temperature ≥? EmergencyHeatDelta
              *

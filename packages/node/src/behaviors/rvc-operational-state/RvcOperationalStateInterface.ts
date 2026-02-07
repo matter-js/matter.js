@@ -35,9 +35,9 @@ export namespace RvcOperationalStateInterface {
          *
          * Otherwise, on success:
          *
-         *   • The OperationalState attribute shall be set to SeekingCharger.
+         *   - The OperationalState attribute shall be set to SeekingCharger.
          *
-         *   • The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
+         *   - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 7.4.5.1
          */

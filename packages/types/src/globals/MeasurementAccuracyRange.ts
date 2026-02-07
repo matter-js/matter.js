@@ -14,27 +14,27 @@ import { TypeFromSchema } from "../tlv/TlvSchema.js";
  * This struct represents the accuracy of a measurement for a range of measurement values. Accuracy shall be expressed
  * as a maximum +/- percentage of the true value, a maximum +/- fixed value of the true value, or both.
  *
- *   • If both PercentMax and FixedMax are indicated, then for a given true value in the range between RangeMin and
+ *   - If both PercentMax and FixedMax are indicated, then for a given true value in the range between RangeMin and
  *     RangeMax,
  *
- *     ◦ the reported value shall be less than or equal to the sum of the true value, FixedMax and PercentMax percent of
+ *     - the reported value shall be less than or equal to the sum of the true value, FixedMax and PercentMax percent of
  *       the true value.
  *
- *     ◦ the reported value shall be greater than or equal to the true value minus the sum of FixedMax and PercentMax
+ *     - the reported value shall be greater than or equal to the true value minus the sum of FixedMax and PercentMax
  *       percent of the true value.
  *
- *   • If only PercentMax is indicated, then for a given true value in the range between RangeMin and RangeMax,
+ *   - If only PercentMax is indicated, then for a given true value in the range between RangeMin and RangeMax,
  *
- *     ◦ the reported value shall be less than or equal to the sum of the true value and PercentMax percent of the true
+ *     - the reported value shall be less than or equal to the sum of the true value and PercentMax percent of the true
  *       value.
  *
- *     ◦ the reported value shall be greater than or equal to the true value minus PercentMax percent of the true value.
+ *     - the reported value shall be greater than or equal to the true value minus PercentMax percent of the true value.
  *
- *   • If only FixedMax is indicated, then for a given true value in the range between RangeMin and RangeMax,
+ *   - If only FixedMax is indicated, then for a given true value in the range between RangeMin and RangeMax,
  *
- *     ◦ the reported value shall be less than or equal to the sum of the true value and FixedMax.
+ *     - the reported value shall be less than or equal to the sum of the true value and FixedMax.
  *
- *     ◦ the reported value shall be greater than or equal to the true value minus FixedMax.
+ *     - the reported value shall be greater than or equal to the true value minus FixedMax.
  *
  * @see {@link MatterSpecification.v142.Cluster} § 2.1.3.2
  */
@@ -117,27 +117,27 @@ export const TlvMeasurementAccuracyRange = TlvObject({
  * This struct represents the accuracy of a measurement for a range of measurement values. Accuracy shall be expressed
  * as a maximum +/- percentage of the true value, a maximum +/- fixed value of the true value, or both.
  *
- *   • If both PercentMax and FixedMax are indicated, then for a given true value in the range between RangeMin and
+ *   - If both PercentMax and FixedMax are indicated, then for a given true value in the range between RangeMin and
  *     RangeMax,
  *
- *     ◦ the reported value shall be less than or equal to the sum of the true value, FixedMax and PercentMax percent of
+ *     - the reported value shall be less than or equal to the sum of the true value, FixedMax and PercentMax percent of
  *       the true value.
  *
- *     ◦ the reported value shall be greater than or equal to the true value minus the sum of FixedMax and PercentMax
+ *     - the reported value shall be greater than or equal to the true value minus the sum of FixedMax and PercentMax
  *       percent of the true value.
  *
- *   • If only PercentMax is indicated, then for a given true value in the range between RangeMin and RangeMax,
+ *   - If only PercentMax is indicated, then for a given true value in the range between RangeMin and RangeMax,
  *
- *     ◦ the reported value shall be less than or equal to the sum of the true value and PercentMax percent of the true
+ *     - the reported value shall be less than or equal to the sum of the true value and PercentMax percent of the true
  *       value.
  *
- *     ◦ the reported value shall be greater than or equal to the true value minus PercentMax percent of the true value.
+ *     - the reported value shall be greater than or equal to the true value minus PercentMax percent of the true value.
  *
- *   • If only FixedMax is indicated, then for a given true value in the range between RangeMin and RangeMax,
+ *   - If only FixedMax is indicated, then for a given true value in the range between RangeMin and RangeMax,
  *
- *     ◦ the reported value shall be less than or equal to the sum of the true value and FixedMax.
+ *     - the reported value shall be less than or equal to the sum of the true value and FixedMax.
  *
- *     ◦ the reported value shall be greater than or equal to the true value minus FixedMax.
+ *     - the reported value shall be greater than or equal to the true value minus FixedMax.
  *
  * @see {@link MatterSpecification.v142.Cluster} § 2.1.3.2
  */

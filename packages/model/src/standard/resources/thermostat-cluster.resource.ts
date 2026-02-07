@@ -50,14 +50,14 @@ Resource.add(
 
                 details: "Indicates the current Calculated Local Temperature, when available." +
                     "\n" +
-                    "  • If the LTNE feature is not supported:" +
+                    "  - If the LTNE feature is not supported:" +
                     "\n" +
-                    "    ◦ If the LocalTemperatureCalibration is invalid or currently unavailable, the attribute shall " +
+                    "    - If the LocalTemperatureCalibration is invalid or currently unavailable, the attribute shall " +
                     "      report null." +
                     "\n" +
-                    "    ◦ If the LocalTemperatureCalibration is valid, the attribute shall report that value." +
+                    "    - If the LocalTemperatureCalibration is valid, the attribute shall report that value." +
                     "\n" +
-                    "  • Otherwise, if the LTNE feature is supported, there is no feedback externally available for the " +
+                    "  - Otherwise, if the LTNE feature is supported, there is no feedback externally available for the " +
                     "    LocalTemperatureCalibration. In that case, the LocalTemperature attribute shall always report " +
                     "    null."
             },
@@ -541,11 +541,11 @@ Resource.add(
                     "(e.g., emergency heat) and continue operating in that running state until the " +
                     "OccupiedHeatingSetpoint value is reached. For example:" +
                     "\n" +
-                    "  • Calculated Local Temperature = 10.0°C" +
+                    "  - Calculated Local Temperature = 10.0°C" +
                     "\n" +
-                    "  • OccupiedHeatingSetpoint = 16.0°C" +
+                    "  - OccupiedHeatingSetpoint = 16.0°C" +
                     "\n" +
-                    "  • EmergencyHeatDelta = 2.0°C" +
+                    "  - EmergencyHeatDelta = 2.0°C" +
                     "\n" +
                     "⇒ OccupiedHeatingSetpoint - Calculated Local Temperature ≥? EmergencyHeatDelta" +
                     "\n" +
@@ -1010,11 +1010,11 @@ Resource.add(
                 details: "This data type is derived from int16 and represents a temperature difference with a resolution of " +
                     "0.01°C." +
                     "\n" +
-                    "  • value = (temperature in °C) x 100" +
+                    "  - value = (temperature in °C) x 100" +
                     "\n" +
-                    "  • -4°C ⇒ -400" +
+                    "  - -4°C ⇒ -400" +
                     "\n" +
-                    "  • 123.45°C ⇒ 12345" +
+                    "  - 123.45°C ⇒ 12345" +
                     "\n" +
                     "The full (non-null) range of -327.67°C to 327.67°C may be used."
             },
@@ -1025,11 +1025,11 @@ Resource.add(
                 details: "This data type is derived from int8 and represents a temperature from -12.7°C to 12.7°C with a " +
                     "resolution of 0.1°C." +
                     "\n" +
-                    "  • value = (temperature in °C) x 10" +
+                    "  - value = (temperature in °C) x 10" +
                     "\n" +
-                    "  • -4°C ⇒ -40" +
+                    "  - -4°C ⇒ -40" +
                     "\n" +
-                    "  • 12.3°C ⇒ 123" +
+                    "  - 12.3°C ⇒ 123" +
                     "\n" +
                     "This type is employed where compactness of representation is important and where the resolution and " +
                     "range are still satisfactory."
@@ -1041,11 +1041,11 @@ Resource.add(
                 details: "This data type is derived from uint8 and represents a temperature from 0°C to 25.5°C with a " +
                     "resolution of 0.1°C." +
                     "\n" +
-                    "  • value = (temperature in °C) x 10" +
+                    "  - value = (temperature in °C) x 10" +
                     "\n" +
-                    "  • 4°C ⇒ 40" +
+                    "  - 4°C ⇒ 40" +
                     "\n" +
-                    "  • 12.3°C ⇒ 123" +
+                    "  - 12.3°C ⇒ 123" +
                     "\n" +
                     "This type is employed where compactness of representation is important and where the resolution and " +
                     "range are still satisfactory."
@@ -1073,13 +1073,13 @@ Resource.add(
 
                         details: "These bits shall indicate what stage of cooling the HVAC system is using." +
                             "\n" +
-                            "  • 00 = Cool Stage 1" +
+                            "  - 00 = Cool Stage 1" +
                             "\n" +
-                            "  • 01 = Cool Stage 2" +
+                            "  - 01 = Cool Stage 2" +
                             "\n" +
-                            "  • 10 = Cool Stage 3" +
+                            "  - 10 = Cool Stage 3" +
                             "\n" +
-                            "  • 11 = Reserved"
+                            "  - 11 = Reserved"
                     },
 
                     {
@@ -1088,13 +1088,13 @@ Resource.add(
 
                         details: "These bits shall indicate what stage of heating the HVAC system is using." +
                             "\n" +
-                            "  • 00 = Heat Stage 1" +
+                            "  - 00 = Heat Stage 1" +
                             "\n" +
-                            "  • 01 = Heat Stage 2" +
+                            "  - 01 = Heat Stage 2" +
                             "\n" +
-                            "  • 10 = Heat Stage 3" +
+                            "  - 10 = Heat Stage 3" +
                             "\n" +
-                            "  • 11 = Reserved"
+                            "  - 11 = Reserved"
                     },
 
                     {
@@ -1102,9 +1102,9 @@ Resource.add(
                         xref: "cluster§4.3.8.5.3",
                         details: "This bit shall indicate whether the HVAC system is conventional or a heat pump." +
                             "\n" +
-                            "  • 0 = Conventional" +
+                            "  - 0 = Conventional" +
                             "\n" +
-                            "  • 1 = Heat Pump"
+                            "  - 1 = Heat Pump"
                     },
 
                     {
@@ -1112,9 +1112,9 @@ Resource.add(
                         xref: "cluster§4.3.8.5.4",
                         details: "This bit shall indicate whether the HVAC system uses fuel." +
                             "\n" +
-                            "  • 0 = Does not use fuel" +
+                            "  - 0 = Does not use fuel" +
                             "\n" +
-                            "  • 1 = Uses fuel"
+                            "  - 1 = Uses fuel"
                     }
                 ]
             },
@@ -1634,38 +1634,38 @@ Resource.add(
                     "\n" +
                     "If a CoolingSetpoint was used to determine the cooling setpoint:" +
                     "\n" +
-                    "  • If the server supports the OCC feature, and the Occupied bit is not set on the Occupancy " +
+                    "  - If the server supports the OCC feature, and the Occupied bit is not set on the Occupancy " +
                     "    attribute, then the UnoccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint" +
                     "\n" +
-                    "  • Otherwise, the OccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint" +
+                    "  - Otherwise, the OccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint" +
                     "\n" +
                     "If a HeatingSetpoint was used to determine the heating setpoint:" +
                     "\n" +
-                    "  • If the server supports the OCC feature, and the Occupied bit is not set on the Occupancy " +
+                    "  - If the server supports the OCC feature, and the Occupied bit is not set on the Occupancy " +
                     "    attribute, then the UnoccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint" +
                     "\n" +
-                    "  • Otherwise, the OccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint" +
+                    "  - Otherwise, the OccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint" +
                     "\n" +
                     "The ScheduleTransitionStruct shall be invalid if all the following are true:" +
                     "\n" +
-                    "  • The HeatingSetpoint field is not provided" +
+                    "  - The HeatingSetpoint field is not provided" +
                     "\n" +
-                    "  • The PresetHandle field is not provided" +
+                    "  - The PresetHandle field is not provided" +
                     "\n" +
-                    "  • The PresetHandle field on the encompassing ScheduleStruct is not provided" +
+                    "  - The PresetHandle field on the encompassing ScheduleStruct is not provided" +
                     "\n" +
-                    "  • The SystemMode field is provided and has the value Heat or Auto, or the SystemMode field on the " +
+                    "  - The SystemMode field is provided and has the value Heat or Auto, or the SystemMode field on the " +
                     "    parent ScheduleStruct has the value Heat or Auto" +
                     "\n" +
                     "The ScheduleTransitionStruct shall be invalid if all the following are true:" +
                     "\n" +
-                    "  • The CoolingSetpoint field is not provided" +
+                    "  - The CoolingSetpoint field is not provided" +
                     "\n" +
-                    "  • The PresetHandle field is not provided" +
+                    "  - The PresetHandle field is not provided" +
                     "\n" +
-                    "  • The PresetHandle field on the encompassing ScheduleStruct is not provided" +
+                    "  - The PresetHandle field on the encompassing ScheduleStruct is not provided" +
                     "\n" +
-                    "  • The SystemMode field is provided and has the value Cool or Auto, or the SystemMode field on the " +
+                    "  - The SystemMode field is provided and has the value Cool or Auto, or the SystemMode field on the " +
                     "    parent ScheduleStruct has the value Cool or Auto",
 
                 children: [

@@ -53,9 +53,9 @@ Resource.add({
             details: "Indicates the number of Fabrics to which the device is currently commissioned. This attribute shall " +
                 "be equal to the following:" +
                 "\n" +
-                "  • The number of entries in the NOCs attribute." +
+                "  - The number of entries in the NOCs attribute." +
                 "\n" +
-                "  • The number of entries in the Fabrics attribute." +
+                "  - The number of entries in the Fabrics attribute." +
                 "\n" +
                 "Upon Factory Data Reset, this attribute shall be set to a default value of 0."
         },
@@ -390,10 +390,10 @@ Resource.add({
                 "If any of the following conditions arise, the Node shall process an error by responding with an " +
                 "NOCResponse with a StatusCode of InvalidNOC as described in Section 11.18.6.7.2, “Handling Errors”:" +
                 "\n" +
-                "  • The NOC provided in the NOCValue does not refer in its subject to the FabricID associated with " +
+                "  - The NOC provided in the NOCValue does not refer in its subject to the FabricID associated with " +
                 "    the accessing fabric." +
                 "\n" +
-                "  • The ICAC provided in the ICACValue (if present) has a FabricID in its subject that does not " +
+                "  - The ICAC provided in the ICACValue (if present) has a FabricID in its subject that does not " +
                 "    match the FabricID associated with the accessing fabric." +
                 "\n" +
                 "Otherwise, the command is considered an update of existing credentials for a given Fabric, and the " +
@@ -428,13 +428,13 @@ Resource.add({
                 "\n" +
                 "This command shall be generated in response to the following commands:" +
                 "\n" +
-                "  • AddNOC" +
+                "  - AddNOC" +
                 "\n" +
-                "  • UpdateNOC" +
+                "  - UpdateNOC" +
                 "\n" +
-                "  • UpdateFabricLabel" +
+                "  - UpdateFabricLabel" +
                 "\n" +
-                "  • RemoveFabric" +
+                "  - RemoveFabric" +
                 "\n" +
                 "It provides status information about the success or failure of those commands.",
 
@@ -467,9 +467,9 @@ Resource.add({
                 "set the Label to a string (possibly selected by the user themselves) that the user can recognize and " +
                 "relate to this Administrator" +
                 "\n" +
-                "  • during the commissioning process, and" +
+                "  - during the commissioning process, and" +
                 "\n" +
-                "  • whenever the user chooses to update this string." +
+                "  - whenever the user chooses to update this string." +
                 "\n" +
                 "The Label field, along with the VendorID field in the same entry of the Fabrics attribute, SHOULD be " +
                 "used by Administrators to provide additional per-fabric context when operations such as RemoveFabric " +
@@ -610,12 +610,12 @@ Resource.add({
                 "\n" +
                 "This command shall be used to one or more of the following:" +
                 "\n" +
-                "  • Update the VendorID associated with an entry in the Fabrics attribute." +
+                "  - Update the VendorID associated with an entry in the Fabrics attribute." +
                 "\n" +
-                "  • Associate or remove a VIDVerificationStatement associated with an entry in the Fabrics " +
+                "  - Associate or remove a VIDVerificationStatement associated with an entry in the Fabrics " +
                 "    attribute." +
                 "\n" +
-                "  • Associate or remove a VendorVerificationSigningCertificate (VVSC) associated with an entry in " +
+                "  - Associate or remove a VendorVerificationSigningCertificate (VVSC) associated with an entry in " +
                 "    the NOCs attribute." +
                 "\n" +
                 "This command shall only operate against the Fabrics and NOCs attribute entries associated with the " +
@@ -633,24 +633,24 @@ Resource.add({
                 "\n" +
                 "If the VIDVerificationStatement field is present:" +
                 "\n" +
-                "  • If the length of the field’s value is neither exactly 0 nor exactly 85, then the command shall " +
+                "  - If the length of the field’s value is neither exactly 0 nor exactly 85, then the command shall " +
                 "    fail with a status code of CONSTRAINT_ERROR." +
                 "\n" +
-                "  • If the length of the field’s value is exactly 0, then the VIDVerificationStatement field in the " +
+                "  - If the length of the field’s value is exactly 0, then the VIDVerificationStatement field in the " +
                 "    Fabrics attribute entry associated with the accessing fabric index shall be erased and the field " +
                 "    shall disappear from the Fabrics entry." +
                 "\n" +
-                "  • If the length of the field’s value is exactly 85, then the VIDVerificationStatement field in the " +
+                "  - If the length of the field’s value is exactly 85, then the VIDVerificationStatement field in the " +
                 "    Fabrics attribute entry associated with the accessing fabric index shall have its value replaced " +
                 "    with the value from the command field." +
                 "\n" +
                 "If the VVSC field is present:" +
                 "\n" +
-                "  • If the length of the field’s value is exactly 0, then the VVSC field in the NOCs attribute entry " +
+                "  - If the length of the field’s value is exactly 0, then the VVSC field in the NOCs attribute entry " +
                 "    associated with the accessing fabric index shall be erased and the field shall disappear from " +
                 "    the NOCs entry." +
                 "\n" +
-                "  • If the length of the field’s value is not 0, then the VVSC field in the NOCs attribute entry " +
+                "  - If the length of the field’s value is not 0, then the VVSC field in the NOCs attribute entry " +
                 "    associated with the accessing fabric index shall have its value replaced with the value from the " +
                 "    command field. The contents of the certificate need not be validated by the server. Clients " +
                 "    shall validate the contents at time of use." +
@@ -700,28 +700,28 @@ Resource.add({
                 "The Signature field shall contain the octet string result of CryptoSign(noc_private_key, " +
                 "vendor_id_verification_tbs):" +
                 "\n" +
-                "  • noc_private_key is the operational private key associated with the Node Operational Key Pair for " +
+                "  - noc_private_key is the operational private key associated with the Node Operational Key Pair for " +
                 "    the FabricIndex requested in the associated SignVIDVerificationRequest." +
                 "\n" +
-                "  • vendor_id_verification_tbs := fabric_binding_version || client_challenge || " +
+                "  - vendor_id_verification_tbs := fabric_binding_version || client_challenge || " +
                 "    attestation_challenge || fabric_index || vendor_fabric_binding_message || " +
                 "    <vid_verification_statement>" +
                 "\n" +
-                "    ◦ fabric_binding_version is the value from the FabricBindingVersion field of this " +
+                "    - fabric_binding_version is the value from the FabricBindingVersion field of this " +
                 "      SignVIDVerificationResponse." +
                 "\n" +
-                "    ◦ client_challenge is the 32-octet ClientChallenge from the SignVIDVerificationRequest." +
+                "    - client_challenge is the 32-octet ClientChallenge from the SignVIDVerificationRequest." +
                 "\n" +
-                "    ◦ attestation_challenge is the AttestationChallenge from a CASE session, resumed CASE session, " +
+                "    - attestation_challenge is the AttestationChallenge from a CASE session, resumed CASE session, " +
                 "      or PASE session depending on the method used to establish the current secure session context " +
                 "      over which the response will be sent." +
                 "\n" +
-                "    ◦ fabric_index is the 1-octet value of FabricIndex from the SignVIDVerificationRequest." +
+                "    - fabric_index is the 1-octet value of FabricIndex from the SignVIDVerificationRequest." +
                 "\n" +
-                "    ◦ vendor_fabric_binding_message is the octet string of the vendor_fabric_binding_message defined " +
+                "    - vendor_fabric_binding_message is the octet string of the vendor_fabric_binding_message defined " +
                 "      in Section 6.4.10.1, “Algorithm”." +
                 "\n" +
-                "    ◦ vid_verification_statement is the 85-octet (for cryptographic primitives mapping 1.0) value " +
+                "    - vid_verification_statement is the 85-octet (for cryptographic primitives mapping 1.0) value " +
                 "      from the VIDVerificationStatement field of the entry in the Fabrics attribute associated with " +
                 "      the fabric_index, if present. If there is no such field in the Fabrics attribute for the " +
                 "      fabric_index specified, this field shall be omitted from the vendor_id_verification_tbs " +

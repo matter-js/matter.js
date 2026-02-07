@@ -151,19 +151,19 @@ export namespace MicrowaveOvenControl {
              *
              * If the MinPower, MaxPower, and PowerStep attributes are not supported:
              *
-             *   • The minimum value of this attribute shall be 10,
+             *   - The minimum value of this attribute shall be 10,
              *
-             *   • The maximum value of this attribute shall be 100,
+             *   - The maximum value of this attribute shall be 100,
              *
-             *   • The value shall be in even multiples of 10,
+             *   - The value shall be in even multiples of 10,
              *
-             *   • The default value shall be 100.
+             *   - The default value shall be 100.
              *
              * If the MinPower, MaxPower, and PowerStep attributes are supported:
              *
-             *   • The value of this attribute shall be between MinPower and MaxPower inclusive.
+             *   - The value of this attribute shall be between MinPower and MaxPower inclusive.
              *
-             *   • The value of this attribute shall be such that (PowerSetting - MinPower) % PowerStep == 0
+             *   - The value of this attribute shall be such that (PowerSetting - MinPower) % PowerStep == 0
              *
              * @see {@link MatterSpecification.v142.Cluster} § 8.13.5.3
              */

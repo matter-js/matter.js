@@ -126,9 +126,9 @@ Resource.add({
                 "\n" +
                 "Changes to this attribute shall only be marked as reportable in the following cases:" +
                 "\n" +
-                "  • At most once every 10 seconds, or" +
+                "  - At most once every 10 seconds, or" +
                 "\n" +
-                "  • When it changes from null to any other value and vice versa." +
+                "  - When it changes from null to any other value and vice versa." +
                 "\n" +
                 "Since reporting consumes power, devices SHOULD be careful not to over-report."
         },
@@ -141,9 +141,9 @@ Resource.add({
                 "\n" +
                 "Changes to this attribute shall only be marked as reportable in the following cases:" +
                 "\n" +
-                "  • At most once every 10 seconds, or" +
+                "  - At most once every 10 seconds, or" +
                 "\n" +
-                "  • When it changes from null to any other value and vice versa." +
+                "  - When it changes from null to any other value and vice versa." +
                 "\n" +
                 "Since reporting consumes power, devices SHOULD be careful not to over-report."
         },
@@ -232,9 +232,9 @@ Resource.add({
                 "\n" +
                 "Changes to this attribute shall only be marked as reportable in the following cases:" +
                 "\n" +
-                "  • At most once every 10 seconds, or" +
+                "  - At most once every 10 seconds, or" +
                 "\n" +
-                "  • When it changes from null to any other value and vice versa." +
+                "  - When it changes from null to any other value and vice versa." +
                 "\n" +
                 "Since reporting consumes power, devices SHOULD be careful not to over-report."
         },

@@ -214,13 +214,13 @@ Resource.add(
                     "\n" +
                     "This attribute value shall be the minimum of:" +
                     "\n" +
-                    "  • CircuitCapacity - Electrician’s installation setting" +
+                    "  - CircuitCapacity - Electrician’s installation setting" +
                     "\n" +
-                    "  • CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)" +
+                    "  - CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)" +
                     "\n" +
-                    "  • MaximumChargeCurrent field in the EnableCharging command" +
+                    "  - MaximumChargeCurrent field in the EnableCharging command" +
                     "\n" +
-                    "  • UserMaximumChargeCurrent attribute"
+                    "  - UserMaximumChargeCurrent attribute"
             },
 
             {
@@ -232,11 +232,11 @@ Resource.add(
                     "\n" +
                     "This attribute value shall be the minimum of:" +
                     "\n" +
-                    "  • CircuitCapacity - Electrician’s installation setting" +
+                    "  - CircuitCapacity - Electrician’s installation setting" +
                     "\n" +
-                    "  • CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)" +
+                    "  - CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)" +
                     "\n" +
-                    "  • MaximumDischargeCurrent field in the EnableDischarging command"
+                    "  - MaximumDischargeCurrent field in the EnableDischarging command"
             },
 
             {
@@ -830,20 +830,20 @@ Resource.add(
                             "\n" +
                             "If the EVSE supports the SOC feature and can obtain the SoC of the vehicle:" +
                             "\n" +
-                            "  • the TargetSoC field shall take precedence over the AddedEnergy field." +
+                            "  - the TargetSoC field shall take precedence over the AddedEnergy field." +
                             "\n" +
-                            "  • the EVSE SHOULD charge to the TargetSoC and then stop the charging automatically when it reaches " +
+                            "  - the EVSE SHOULD charge to the TargetSoC and then stop the charging automatically when it reaches " +
                             "    that point." +
                             "\n" +
-                            "  • if the TargetSoC value is set to 100% then the EVSE SHOULD continue to charge the vehicle until " +
+                            "  - if the TargetSoC value is set to 100% then the EVSE SHOULD continue to charge the vehicle until " +
                             "    the vehicle decides to stop charging." +
                             "\n" +
                             "If the EVSE does not support the SOC feature or cannot obtain the SoC of the vehicle:" +
                             "\n" +
-                            "  • the AddedEnergy field shall take precedence over the TargetSoC field, and if the EVSE does not " +
+                            "  - the AddedEnergy field shall take precedence over the TargetSoC field, and if the EVSE does not " +
                             "    support the SOC feature then the TargetSoC field may only take the values null or 100%." +
                             "\n" +
-                            "  • if the AddedEnergy field has not been provided, the EVSE SHOULD assume the vehicle is empty and " +
+                            "  - if the AddedEnergy field has not been provided, the EVSE SHOULD assume the vehicle is empty and " +
                             "    charge until the vehicle stops demanding a charge."
                     },
 

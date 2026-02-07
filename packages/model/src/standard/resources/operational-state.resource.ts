@@ -68,18 +68,18 @@ Resource.add({
                 "\n" +
                 "Changes to this attribute shall only be marked as reportable in the following cases:" +
                 "\n" +
-                "  • If it has changed due to a change in the CurrentPhase or OperationalState attributes, or" +
+                "  - If it has changed due to a change in the CurrentPhase or OperationalState attributes, or" +
                 "\n" +
-                "  • When it changes from 0 to any other value and vice versa, or" +
+                "  - When it changes from 0 to any other value and vice versa, or" +
                 "\n" +
-                "  • When it changes from null to any other value and vice versa, or" +
+                "  - When it changes from null to any other value and vice versa, or" +
                 "\n" +
-                "  • When it increases, or" +
+                "  - When it increases, or" +
                 "\n" +
-                "  • When there is any increase or decrease in the estimated time remaining that was due to " +
+                "  - When there is any increase or decrease in the estimated time remaining that was due to " +
                 "    progressing insight of the server’s control logic, or" +
                 "\n" +
-                "  • When it changes at a rate significantly different from one unit per second." +
+                "  - When it changes at a rate significantly different from one unit per second." +
                 "\n" +
                 "Changes to this attribute merely due to the normal passage of time with no other dynamic change of " +
                 "device state shall NOT be reported." +
@@ -182,11 +182,11 @@ Resource.add({
                 "\n" +
                 "States are defined as Pause-compatible as follows:" +
                 "\n" +
-                "  • For states defined in this cluster specification, in Table 3, “Pause Compatibility”." +
+                "  - For states defined in this cluster specification, in Table 3, “Pause Compatibility”." +
                 "\n" +
-                "  • For states defined by derived cluster specifications, in the corresponding specifications." +
+                "  - For states defined by derived cluster specifications, in the corresponding specifications." +
                 "\n" +
-                "  • For manufacturer-specific states, by the manufacturer." +
+                "  - For manufacturer-specific states, by the manufacturer." +
                 "\n" +
                 "A device that is unable to honor the Pause command for whatever reason shall respond with an " +
                 "OperationalCommandResponse command with an ErrorStateID of CommandInvalidInState but take no further " +
@@ -194,9 +194,9 @@ Resource.add({
                 "\n" +
                 "Otherwise, on success:" +
                 "\n" +
-                "  • The OperationalState attribute shall be set to Paused." +
+                "  - The OperationalState attribute shall be set to Paused." +
                 "\n" +
-                "  • The device shall respond with an OperationalCommandResponse command with an ErrorStateID of " +
+                "  - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of " +
                 "    NoError." +
                 "\n" +
                 "The following table defines the compatibility of this cluster’s states with the Pause command."
@@ -221,9 +221,9 @@ Resource.add({
                 "\n" +
                 "Otherwise, on success:" +
                 "\n" +
-                "  • The OperationalState attribute shall be set to Stopped." +
+                "  - The OperationalState attribute shall be set to Stopped." +
                 "\n" +
-                "  • The device shall respond with an OperationalCommandResponse command with an ErrorStateID of " +
+                "  - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of " +
                 "    NoError."
         },
 
@@ -249,9 +249,9 @@ Resource.add({
                 "\n" +
                 "Otherwise, on success:" +
                 "\n" +
-                "  • The OperationalState attribute shall be set to Running." +
+                "  - The OperationalState attribute shall be set to Running." +
                 "\n" +
-                "  • The device shall respond with an OperationalCommandResponse command with an ErrorStateID of " +
+                "  - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of " +
                 "    NoError."
         },
 
@@ -274,11 +274,11 @@ Resource.add({
                 "\n" +
                 "States are defined as Resume-compatible as follows:" +
                 "\n" +
-                "  • For states defined in this cluster specification, in Table 4, “Resume Compatibility”." +
+                "  - For states defined in this cluster specification, in Table 4, “Resume Compatibility”." +
                 "\n" +
-                "  • For states defined by derived cluster specifications, in the corresponding specifications." +
+                "  - For states defined by derived cluster specifications, in the corresponding specifications." +
                 "\n" +
-                "  • For manufacturer-specific states, by the manufacturer." +
+                "  - For manufacturer-specific states, by the manufacturer." +
                 "\n" +
                 "The following table defines the compatibility of this cluster’s states with the Resume command." +
                 "\n" +
@@ -288,10 +288,10 @@ Resource.add({
                 "\n" +
                 "Otherwise, on success:" +
                 "\n" +
-                "  • The OperationalState attribute shall be set to the most recent non-Error operational state prior " +
+                "  - The OperationalState attribute shall be set to the most recent non-Error operational state prior " +
                 "    to entering the Paused state." +
                 "\n" +
-                "  • The device shall respond with an OperationalCommandResponse command with an ErrorStateID of " +
+                "  - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of " +
                 "    NoError."
         },
 

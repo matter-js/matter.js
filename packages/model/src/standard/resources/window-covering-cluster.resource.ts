@@ -210,28 +210,28 @@ Resource.add(
                     "\n" +
                     "if the PositionAware feature is supported:" +
                     "\n" +
-                    "  • TargetPositionLiftPercent100ths attribute shall be set to 0.00%." +
+                    "  - TargetPositionLiftPercent100ths attribute shall be set to 0.00%." +
                     "\n" +
-                    "  • TargetPositionTiltPercent100ths attribute shall be set to 0.00%." +
+                    "  - TargetPositionTiltPercent100ths attribute shall be set to 0.00%." +
                     "\n" +
                     "The server positioning attributes will follow the movements, once the movement has successfully " +
                     "finished, the server attributes shall be updated as follows:" +
                     "\n" +
                     "if the PositionAware feature is supported:" +
                     "\n" +
-                    "  • CurrentPositionLiftPercent100ths attribute shall be 0.00%." +
+                    "  - CurrentPositionLiftPercent100ths attribute shall be 0.00%." +
                     "\n" +
-                    "  • CurrentPositionLiftPercentage attribute shall be 0%." +
+                    "  - CurrentPositionLiftPercentage attribute shall be 0%." +
                     "\n" +
-                    "  • CurrentPositionTiltPercent100ths attribute shall be 0.00%." +
+                    "  - CurrentPositionTiltPercent100ths attribute shall be 0.00%." +
                     "\n" +
-                    "  • CurrentPositionTiltPercentage attribute shall be 0%." +
+                    "  - CurrentPositionTiltPercentage attribute shall be 0%." +
                     "\n" +
                     "if the AbsolutePosition feature is supported:" +
                     "\n" +
-                    "  • CurrentPositionLift attribute shall be equal to the InstalledOpenLimitLift attribute." +
+                    "  - CurrentPositionLift attribute shall be equal to the InstalledOpenLimitLift attribute." +
                     "\n" +
-                    "  • CurrentPositionTilt attribute shall be equal to the InstalledOpenLimitTilt attribute."
+                    "  - CurrentPositionTilt attribute shall be equal to the InstalledOpenLimitTilt attribute."
             },
 
             {
@@ -243,28 +243,28 @@ Resource.add(
                     "\n" +
                     "if the PositionAware feature is supported:" +
                     "\n" +
-                    "  • TargetPositionLiftPercent100ths attribute shall be set to 100.00%." +
+                    "  - TargetPositionLiftPercent100ths attribute shall be set to 100.00%." +
                     "\n" +
-                    "  • TargetPositionTiltPercent100ths attribute shall be set to 100.00%." +
+                    "  - TargetPositionTiltPercent100ths attribute shall be set to 100.00%." +
                     "\n" +
                     "The server positioning attributes will follow the movements, once the movement has successfully " +
                     "finished, the server attributes shall be updated as follows:" +
                     "\n" +
                     "if the PositionAware feature is supported:" +
                     "\n" +
-                    "  • CurrentPositionLiftPercent100ths attribute shall be 100.00%." +
+                    "  - CurrentPositionLiftPercent100ths attribute shall be 100.00%." +
                     "\n" +
-                    "  • CurrentPositionLiftPercentage attribute shall be 100%." +
+                    "  - CurrentPositionLiftPercentage attribute shall be 100%." +
                     "\n" +
-                    "  • CurrentPositionTiltPercent100ths attribute shall be 100.00%." +
+                    "  - CurrentPositionTiltPercent100ths attribute shall be 100.00%." +
                     "\n" +
-                    "  • CurrentPositionTiltPercentage attribute shall be 100%." +
+                    "  - CurrentPositionTiltPercentage attribute shall be 100%." +
                     "\n" +
                     "if the AbsolutePosition feature is supported:" +
                     "\n" +
-                    "  • CurrentPositionLift attribute shall be equal to the InstalledClosedLimitLift attribute." +
+                    "  - CurrentPositionLift attribute shall be equal to the InstalledClosedLimitLift attribute." +
                     "\n" +
-                    "  • CurrentPositionTilt attribute shall be equal to the InstalledClosedLimitTilt attribute."
+                    "  - CurrentPositionTilt attribute shall be equal to the InstalledClosedLimitTilt attribute."
             },
 
             {
@@ -273,10 +273,10 @@ Resource.add(
                 details: "Upon receipt of this command, the window covering will stop any adjusting to the physical tilt and " +
                     "lift/slide that is currently occurring. The server attributes supported shall be updated as follows:" +
                     "\n" +
-                    "  • TargetPositionLiftPercent100ths attribute will be set to CurrentPositionLiftPercent100ths " +
+                    "  - TargetPositionLiftPercent100ths attribute will be set to CurrentPositionLiftPercent100ths " +
                     "    attribute value." +
                     "\n" +
-                    "  • TargetPositionTiltPercent100ths attribute will be set to CurrentPositionTiltPercent100ths " +
+                    "  - TargetPositionTiltPercent100ths attribute will be set to CurrentPositionTiltPercent100ths " +
                     "    attribute value."
             },
 
@@ -354,9 +354,9 @@ Resource.add(
                         tag: "field", name: "Operational", description: "Device is operational.", xref: "cluster§5.3.5.1.1",
                         details: "This bit shall indicate whether the window covering is operational for regular use:" +
                             "\n" +
-                            "  • 0 = Not Operational" +
+                            "  - 0 = Not Operational" +
                             "\n" +
-                            "  • 1 = Operational"
+                            "  - 1 = Operational"
                     },
 
                     {
@@ -364,9 +364,9 @@ Resource.add(
                         xref: "cluster§5.3.5.1.2",
                         details: "This bit shall indicate whether the lift movement is reversed:" +
                             "\n" +
-                            "  • 0 = Lift movement is normal" +
+                            "  - 0 = Lift movement is normal" +
                             "\n" +
-                            "  • 1 = Lift movement is reversed"
+                            "  - 1 = Lift movement is reversed"
                     },
 
                     {
@@ -374,9 +374,9 @@ Resource.add(
                         description: "Supports the PositionAwareLift feature (PA_LF).", xref: "cluster§5.3.5.1.3",
                         details: "This bit shall indicate whether the window covering supports the PositionAwareLift feature:" +
                             "\n" +
-                            "  • 0 = Lift control is not position aware" +
+                            "  - 0 = Lift control is not position aware" +
                             "\n" +
-                            "  • 1 = Lift control is position aware (PA_LF)"
+                            "  - 1 = Lift control is position aware (PA_LF)"
                     },
 
                     {
@@ -384,9 +384,9 @@ Resource.add(
                         description: "Supports the PositionAwareTilt feature (PA_TL).", xref: "cluster§5.3.5.1.4",
                         details: "This bit shall indicate whether the window covering supports the PositionAwareTilt feature:" +
                             "\n" +
-                            "  • 0 = Tilt control is not position aware" +
+                            "  - 0 = Tilt control is not position aware" +
                             "\n" +
-                            "  • 1 = Tilt control is position aware (PA_TL)"
+                            "  - 1 = Tilt control is position aware (PA_TL)"
                     },
 
                     {
@@ -396,9 +396,9 @@ Resource.add(
                         details: "This bit shall indicate whether a position aware controlled window covering is employing an encoder " +
                             "for positioning the height of the window covering:" +
                             "\n" +
-                            "  • 0 = Timer Controlled" +
+                            "  - 0 = Timer Controlled" +
                             "\n" +
-                            "  • 1 = Encoder Controlled"
+                            "  - 1 = Encoder Controlled"
                     },
 
                     {
@@ -408,9 +408,9 @@ Resource.add(
                         details: "This bit shall indicate whether a position aware controlled window covering is employing an encoder " +
                             "for tilting the window covering:" +
                             "\n" +
-                            "  • 0 = Timer Controlled" +
+                            "  - 0 = Timer Controlled" +
                             "\n" +
-                            "  • 1 = Encoder Controlled"
+                            "  - 1 = Encoder Controlled"
                     }
                 ]
             },
@@ -424,9 +424,9 @@ Resource.add(
                         xref: "cluster§5.3.5.2.1",
                         details: "This bit shall control the motor direction:" +
                             "\n" +
-                            "  • 0 = Lift movement is normal" +
+                            "  - 0 = Lift movement is normal" +
                             "\n" +
-                            "  • 1 = Lift movement is reversed"
+                            "  - 1 = Lift movement is reversed"
                     },
 
                     {
@@ -434,9 +434,9 @@ Resource.add(
                         xref: "cluster§5.3.5.2.2",
                         details: "This bit shall set the window covering into calibration mode:" +
                             "\n" +
-                            "  • 0 = Normal mode" +
+                            "  - 0 = Normal mode" +
                             "\n" +
-                            "  • 1 = Calibration mode"
+                            "  - 1 = Calibration mode"
                     },
 
                     {
@@ -444,9 +444,9 @@ Resource.add(
                         xref: "cluster§5.3.5.2.3",
                         details: "This bit shall set the window covering into maintenance mode:" +
                             "\n" +
-                            "  • 0 = Normal mode" +
+                            "  - 0 = Normal mode" +
                             "\n" +
-                            "  • 1 = Maintenance mode"
+                            "  - 1 = Maintenance mode"
                     },
 
                     {
@@ -454,9 +454,9 @@ Resource.add(
                         xref: "cluster§5.3.5.2.4",
                         details: "This bit shall control feedback LEDs:" +
                             "\n" +
-                            "  • 0 = LEDs are off" +
+                            "  - 0 = LEDs are off" +
                             "\n" +
-                            "  • 1 = LEDs will display feedback"
+                            "  - 1 = LEDs will display feedback"
                     }
                 ]
             },
@@ -467,13 +467,13 @@ Resource.add(
                 details: "The OperationalStatusBitmap is using several internal operational state fields (composed of 2 bits) " +
                     "following this definition:" +
                     "\n" +
-                    "  • 00b = Currently not moving" +
+                    "  - 00b = Currently not moving" +
                     "\n" +
-                    "  • 01b = Currently opening (e.g. moving from closed to open)." +
+                    "  - 01b = Currently opening (e.g. moving from closed to open)." +
                     "\n" +
-                    "  • 10b = Currently closing (e.g. moving from open to closed)." +
+                    "  - 10b = Currently closing (e.g. moving from open to closed)." +
                     "\n" +
-                    "  • 11b = Reserved",
+                    "  - 11b = Reserved",
 
                 children: [
                     {

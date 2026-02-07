@@ -180,13 +180,13 @@ export namespace Groups {
         /**
          * This field shall contain the remaining capacity of the Group Table of the node. The following values apply:
          *
-         *   • 0 - No further groups may be added.
+         *   - 0 - No further groups may be added.
          *
-         *   • 0 < Capacity < 0xFE - Capacity holds the number of groups that may be added.
+         *   - 0 < Capacity < 0xFE - Capacity holds the number of groups that may be added.
          *
-         *   • 0xFE - At least 1 further group may be added (exact number is unknown).
+         *   - 0xFE - At least 1 further group may be added (exact number is unknown).
          *
-         *   • null - It is unknown if any further groups may be added.
+         *   - null - It is unknown if any further groups may be added.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.9.1
          */

@@ -706,20 +706,20 @@ export namespace Actions {
              * specified in RFC 1738, max. 512 ASCII characters and shall use the https scheme. The location referenced
              * by this URL shall provide additional information for the actions provided:
              *
-             *   • When used without suffix, it shall provide information about the various actions which the cluster
+             *   - When used without suffix, it shall provide information about the various actions which the cluster
              *     provides.
              *
-             *     ◦ Example: SetupURL could take the value of example://Actions or
+             *     - Example: SetupURL could take the value of example://Actions or
              *       https://domain.example/Matter/bridgev1/Actions for this generic case (access generic info how to
              *       use actions provided by this cluster).
              *
-             *   • When used with a suffix of "/?a=" and the decimal value of ActionID for one of the actions, it may
+             *   - When used with a suffix of "/?a=" and the decimal value of ActionID for one of the actions, it may
              *     provide information about that particular action. This could be a deeplink to
              *     manufacturer-app/website (associated somehow to the server node) with the information/edit-screen for
              *     this action so that the user can view and update details of the action, e.g. edit the scene, or
              *     change the wake-up experience time period.
              *
-             *     ◦ Example of SetupURL with suffix added: example://Actions/?a=12345 or
+             *     - Example of SetupURL with suffix added: example://Actions/?a=12345 or
              *       https://domain.example/Matter/bridgev1/Actions/?a=12345 for linking to specific info/editing of the
              *       action with ActionID 0x3039.
              *
@@ -916,9 +916,9 @@ export namespace Actions {
              * Example: When InstantActionWithTransition is invoked (with an InvokeID data field), two StateChanged
              * events will be generated:
              *
-             *   • one when the transition starts (NewState=Active)
+             *   - one when the transition starts (NewState=Active)
              *
-             *   • one when the transition completed (NewState=Inactive)
+             *   - one when the transition completed (NewState=Inactive)
              *
              * @see {@link MatterSpecification.v142.Core} § 9.14.7.1
              */
@@ -934,20 +934,20 @@ export namespace Actions {
              * controller changes the state of one or more of the involved endpoints during the transition, thus
              * interrupting the transition triggered by the action, two events would be generated:
              *
-             *   • StateChanged when the transition starts (NewState=Active)
+             *   - StateChanged when the transition starts (NewState=Active)
              *
-             *   • ActionFailed when the interrupting command occurs (NewState=Inactive, Error=interrupted)
+             *   - ActionFailed when the interrupting command occurs (NewState=Inactive, Error=interrupted)
              *
              * Example: When InstantActionWithTransition is invoked (with an InvokeID data field = 1), and the same
              * client invokes an InstantAction with (the same or another ActionId and) InvokeID = 2, and this second
              * command interrupts the transition triggered by the first command, these events would be generated:
              *
-             *   • StateChanged (InvokeID=1, NewState=Active) when the transition starts
+             *   - StateChanged (InvokeID=1, NewState=Active) when the transition starts
              *
-             *   • ActionFailed (InvokeID=2, NewState=Inactive, Error=interrupted) when the second command interrupts
+             *   - ActionFailed (InvokeID=2, NewState=Inactive, Error=interrupted) when the second command interrupts
              *     the transition
              *
-             *   • StateChanged (InvokeID=2, NewState=Inactive) upon the execution of the action for the second command
+             *   - StateChanged (InvokeID=2, NewState=Inactive) upon the execution of the action for the second command
              *
              * @see {@link MatterSpecification.v142.Core} § 9.14.7.2
              */
@@ -961,14 +961,14 @@ export namespace Actions {
      *
      * Specifically this cluster provides:
      *
-     *   • Information about logical grouping of endpoints on the Node (example: lights in a room)
+     *   - Information about logical grouping of endpoints on the Node (example: lights in a room)
      *
-     *   • Information about named actions that can be performed on such a group of endpoints (example: recall a scene
+     *   - Information about named actions that can be performed on such a group of endpoints (example: recall a scene
      *     for a group of lights by its name)
      *
-     *   • Commands to trigger such actions
+     *   - Commands to trigger such actions
      *
-     *   • Events to receive feedback on the state of such actions.
+     *   - Events to receive feedback on the state of such actions.
      *
      * The information on grouping and available actions is typically provided by the user or Bridge manufacturer via
      * some means not defined in Matter, and therefore provided as read-only to Nodes. For example: a

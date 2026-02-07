@@ -580,13 +580,13 @@ export namespace ScenesManagement {
          * This field shall contain the remaining capacity of the Scene Table of the server (for all groups for the
          * accessing fabric). The following values apply:
          *
-         *   • 0 - No further scenes may be added.
+         *   - 0 - No further scenes may be added.
          *
-         *   • 0 < Capacity < 0xFE - Capacity holds the number of scenes that may be added.
+         *   - 0 < Capacity < 0xFE - Capacity holds the number of scenes that may be added.
          *
-         *   • 0xFE - At least 1 further scene may be added (exact number is unknown).
+         *   - 0xFE - At least 1 further scene may be added (exact number is unknown).
          *
-         *   • null - It is unknown if any further scenes may be added.
+         *   - null - It is unknown if any further scenes may be added.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.14.2
          */

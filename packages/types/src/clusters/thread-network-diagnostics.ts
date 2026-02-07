@@ -544,7 +544,7 @@ export namespace ThreadNetworkDiagnostics {
              *
              * Reception of this command shall reset the following attributes to 0:
              *
-             *   • OverrunCount
+             *   - OverrunCount
              *
              * Upon completion, this command shall send a status code of SUCCESS back to the initiator.
              *

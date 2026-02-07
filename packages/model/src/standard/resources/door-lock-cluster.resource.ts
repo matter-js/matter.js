@@ -504,28 +504,28 @@ Resource.add(
                 details: "The door lock server sends out a LockOperation event when the event is triggered by the various lock " +
                     "operation sources." +
                     "\n" +
-                    "  • If the door lock server supports the Unbolt Door command, it shall generate a LockOperation " +
+                    "  - If the door lock server supports the Unbolt Door command, it shall generate a LockOperation " +
                     "    event with LockOperationType set to Unlock after an Unbolt Door command succeeds." +
                     "\n" +
-                    "  • If the door lock server supports the Unbolting feature and an Unlock Door command is performed, " +
+                    "  - If the door lock server supports the Unbolting feature and an Unlock Door command is performed, " +
                     "    it shall generate a LockOperation event with LockOperationType set to Unlatch when the unlatched " +
                     "    state is reached and a LockOperation event with LockOperationType set to Unlock when the lock " +
                     "    successfully completes the unlock → hold latch → release latch and return to unlock state " +
                     "    operation." +
                     "\n" +
-                    "  • If the command fails during holding or releasing the latch but after passing the unlocked state, " +
+                    "  - If the command fails during holding or releasing the latch but after passing the unlocked state, " +
                     "    the door lock server shall generate a LockOperationError event with LockOperationType set to " +
                     "    Unlatch and a LockOperation event with LockOperationType set to Unlock." +
                     "\n" +
-                    "    ◦ If it fails before reaching the unlocked state, the door lock server shall generate only a " +
+                    "    - If it fails before reaching the unlocked state, the door lock server shall generate only a " +
                     "      LockOperationError event with LockOperationType set to Unlock." +
                     "\n" +
-                    "  • Upon manual actuation, a door lock server that supports the Unbolting feature:" +
+                    "  - Upon manual actuation, a door lock server that supports the Unbolting feature:" +
                     "\n" +
-                    "    ◦ shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
+                    "    - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
                     "      outside." +
                     "\n" +
-                    "    ◦ may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
+                    "    - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
                     "      inside.",
 
                 children: [
@@ -922,14 +922,14 @@ Resource.add(
 
                         details: "Status shall be one of the following values:" +
                             "\n" +
-                            "  • SUCCESS if both WeekDayIndex and UserIndex are valid and there is a corresponding schedule " +
+                            "  - SUCCESS if both WeekDayIndex and UserIndex are valid and there is a corresponding schedule " +
                             "    entry." +
                             "\n" +
-                            "  • INVALID_COMMAND if either WeekDayIndex and/or UserIndex values are not within valid range" +
+                            "  - INVALID_COMMAND if either WeekDayIndex and/or UserIndex values are not within valid range" +
                             "\n" +
-                            "  • NOT_FOUND if no corresponding schedule entry found for WeekDayIndex." +
+                            "  - NOT_FOUND if no corresponding schedule entry found for WeekDayIndex." +
                             "\n" +
-                            "  • NOT_FOUND if no corresponding user entry found for UserIndex." +
+                            "  - NOT_FOUND if no corresponding user entry found for UserIndex." +
                             "\n" +
                             "If this field is SUCCESS, the optional fields for this command shall be present. For other (error) " +
                             "status values, only the fields up to the status field shall be present."
@@ -1033,14 +1033,14 @@ Resource.add(
 
                         details: "Status shall be one of the following values:" +
                             "\n" +
-                            "  • SUCCESS if both YearDayIndex and UserIndex are valid and there is a corresponding schedule " +
+                            "  - SUCCESS if both YearDayIndex and UserIndex are valid and there is a corresponding schedule " +
                             "    entry." +
                             "\n" +
-                            "  • INVALID_COMMAND if either YearDayIndex and/or UserIndex values are not within valid range" +
+                            "  - INVALID_COMMAND if either YearDayIndex and/or UserIndex values are not within valid range" +
                             "\n" +
-                            "  • NOT_FOUND if no corresponding schedule entry found for YearDayIndex." +
+                            "  - NOT_FOUND if no corresponding schedule entry found for YearDayIndex." +
                             "\n" +
-                            "  • NOT_FOUND if no corresponding user entry found for UserIndex." +
+                            "  - NOT_FOUND if no corresponding user entry found for UserIndex." +
                             "\n" +
                             "If this field is SUCCESS, the optional fields for this command shall be present. For other (error) " +
                             "status values, only the fields up to the status field shall be present."
@@ -1136,13 +1136,13 @@ Resource.add(
 
                         details: "Status shall be one of the following values:" +
                             "\n" +
-                            "  • FAILURE if the attribute NumberOfHolidaySchedulesSupported is zero." +
+                            "  - FAILURE if the attribute NumberOfHolidaySchedulesSupported is zero." +
                             "\n" +
-                            "  • SUCCESS if the HolidayIndex is valid and there is a corresponding schedule entry." +
+                            "  - SUCCESS if the HolidayIndex is valid and there is a corresponding schedule entry." +
                             "\n" +
-                            "  • INVALID_COMMAND if the HolidayIndex is not within valid range" +
+                            "  - INVALID_COMMAND if the HolidayIndex is not within valid range" +
                             "\n" +
-                            "  • NOT_FOUND if the HolidayIndex is within the valid range, however, there is not corresponding " +
+                            "  - NOT_FOUND if the HolidayIndex is within the valid range, however, there is not corresponding " +
                             "    schedule entry found." +
                             "\n" +
                             "If this field is SUCCESS, the optional fields for this command shall be present. For other (error) " +
@@ -1309,23 +1309,23 @@ Resource.add(
                     "\n" +
                     "Fields used for different use cases:" +
                     "\n" +
-                    "  • OperationType shall be set to Add." +
+                    "  - OperationType shall be set to Add." +
                     "\n" +
-                    "  • UserIndex value shall be set to a user record with UserType set to Available." +
+                    "  - UserIndex value shall be set to a user record with UserType set to Available." +
                     "\n" +
-                    "  • UserName may be null causing new user record to use empty string for UserName otherwise UserName " +
+                    "  - UserName may be null causing new user record to use empty string for UserName otherwise UserName " +
                     "    shall be set to the value provided in the new user record." +
                     "\n" +
-                    "  • UserUniqueID may be null causing new user record to use 0xFFFFFFFF for UserUniqueID otherwise " +
+                    "  - UserUniqueID may be null causing new user record to use 0xFFFFFFFF for UserUniqueID otherwise " +
                     "    UserUniqueID shall be set to the value provided in the new user record." +
                     "\n" +
-                    "  • UserStatus may be null causing new user record to use OccupiedEnabled for UserStatus otherwise " +
+                    "  - UserStatus may be null causing new user record to use OccupiedEnabled for UserStatus otherwise " +
                     "    UserStatus shall be set to the value provided in the new user record." +
                     "\n" +
-                    "  • UserType may be null causing new user record to use UnrestrictedUser for UserType otherwise " +
+                    "  - UserType may be null causing new user record to use UnrestrictedUser for UserType otherwise " +
                     "    UserType shall be set to the value provided in the new user record." +
                     "\n" +
-                    "  • CredentialRule may be null causing new user record to use Single for CredentialRule otherwise " +
+                    "  - CredentialRule may be null causing new user record to use Single for CredentialRule otherwise " +
                     "    CredentialRule shall be set to the value provided in the new user record." +
                     "\n" +
                     "CreatorFabricIndex and LastModifiedFabricIndex in the new user record shall be set to the accessing " +
@@ -1333,30 +1333,30 @@ Resource.add(
                     "\n" +
                     "A LockUserChange event shall be generated after successfully creating a new user." +
                     "\n" +
-                    "  • OperationType shall be set to Modify." +
+                    "  - OperationType shall be set to Modify." +
                     "\n" +
-                    "  • UserIndex value shall be set for a user record with UserType NOT set to Available." +
+                    "  - UserIndex value shall be set for a user record with UserType NOT set to Available." +
                     "\n" +
-                    "  • UserName shall be null if modifying a user record that was not created by the accessing fabric." +
+                    "  - UserName shall be null if modifying a user record that was not created by the accessing fabric." +
                     "\n" +
-                    "  • INVALID_COMMAND shall be returned if UserName is not null and the accessing fabric index doesn’t " +
+                    "  - INVALID_COMMAND shall be returned if UserName is not null and the accessing fabric index doesn’t " +
                     "    match the CreatorFabricIndex in the user record otherwise UserName shall be set to the value " +
                     "    provided in the user record." +
                     "\n" +
-                    "  • UserUniqueID shall be null if modifying the user record that was not created by the accessing " +
+                    "  - UserUniqueID shall be null if modifying the user record that was not created by the accessing " +
                     "    fabric." +
                     "\n" +
-                    "  • INVALID_COMMAND shall be returned if UserUniqueID is not null and the accessing fabric index " +
+                    "  - INVALID_COMMAND shall be returned if UserUniqueID is not null and the accessing fabric index " +
                     "    doesn’t match the CreatorFabricIndex in the user record otherwise UserUniqueID shall be set to " +
                     "    the value provided in the user record." +
                     "\n" +
-                    "  • UserStatus may be null causing no change to UserStatus in user record otherwise UserStatus shall " +
+                    "  - UserStatus may be null causing no change to UserStatus in user record otherwise UserStatus shall " +
                     "    be set to the value provided in the user record." +
                     "\n" +
-                    "  • UserType may be null causing no change to UserType in user record otherwise UserType shall be " +
+                    "  - UserType may be null causing no change to UserType in user record otherwise UserType shall be " +
                     "    set to the value provided in the user record." +
                     "\n" +
-                    "  • CredentialRule may be null causing no change to CredentialRule in user record otherwise " +
+                    "  - CredentialRule may be null causing no change to CredentialRule in user record otherwise " +
                     "    CredentialRule shall be set to the value provided in the user record." +
                     "\n" +
                     "CreatorFabricIndex shall NOT be changed in the user record. LastModifiedFabricIndex in the new user " +
@@ -1367,13 +1367,13 @@ Resource.add(
                     "Return status is a global status code or a cluster-specific status code from the Status Codes table " +
                     "and shall be one of the following values:" +
                     "\n" +
-                    "  • SUCCESS, if setting User was successful." +
+                    "  - SUCCESS, if setting User was successful." +
                     "\n" +
-                    "  • FAILURE, if some unexpected internal error occurred setting User." +
+                    "  - FAILURE, if some unexpected internal error occurred setting User." +
                     "\n" +
-                    "  • OCCUPIED, if OperationType is Add and UserIndex points to an occupied slot." +
+                    "  - OCCUPIED, if OperationType is Add and UserIndex points to an occupied slot." +
                     "\n" +
-                    "  • INVALID_COMMAND, if one or more fields violate constraints or are invalid or if OperationType is " +
+                    "  - INVALID_COMMAND, if one or more fields violate constraints or are invalid or if OperationType is " +
                     "    Modify and UserIndex points to an available slot.",
 
                 children: [
@@ -1393,10 +1393,10 @@ Resource.add(
                             "\n" +
                             "If UserName is null then:" +
                             "\n" +
-                            "  • If the OperationType is Add, the UserName in the resulting user record shall be set to an empty " +
+                            "  - If the OperationType is Add, the UserName in the resulting user record shall be set to an empty " +
                             "    string." +
                             "\n" +
-                            "  • If the OperationType is Modify, the UserName in the user record shall NOT be changed from the " +
+                            "  - If the OperationType is Modify, the UserName in the user record shall NOT be changed from the " +
                             "    current value." +
                             "\n" +
                             "If UserName is not null, the UserName in the user record shall be set to the provided value."
@@ -1410,10 +1410,10 @@ Resource.add(
                             "\n" +
                             "If UserUniqueID is null then:" +
                             "\n" +
-                            "  • If the OperationType is Add, the UserUniqueID in the resulting user record shall be set to " +
+                            "  - If the OperationType is Add, the UserUniqueID in the resulting user record shall be set to " +
                             "    default value specified above." +
                             "\n" +
-                            "  • If the OperationType is Modify, the UserUniqueID in the user record shall NOT be changed from " +
+                            "  - If the OperationType is Modify, the UserUniqueID in the user record shall NOT be changed from " +
                             "    the current value." +
                             "\n" +
                             "If UserUniqueID is not null, the UserUniqueID in the user record shall be set to the provided value."
@@ -1426,10 +1426,10 @@ Resource.add(
                             "\n" +
                             "If UserStatus is null then:" +
                             "\n" +
-                            "  • If the OperationType is Add, the UserStatus in the resulting user record shall be set to default " +
+                            "  - If the OperationType is Add, the UserStatus in the resulting user record shall be set to default " +
                             "    value specified above." +
                             "\n" +
-                            "  • If the OperationType is Modify, the UserStatus in the user record shall NOT be changed from the " +
+                            "  - If the OperationType is Modify, the UserStatus in the user record shall NOT be changed from the " +
                             "    current value." +
                             "\n" +
                             "If UserStatus is not null, the UserStatus in the user record shall be set to the provided value."
@@ -1442,10 +1442,10 @@ Resource.add(
                             "\n" +
                             "If UserType is null then:" +
                             "\n" +
-                            "  • If the OperationType is Add, the UserType in the resulting user record shall be set to default " +
+                            "  - If the OperationType is Add, the UserType in the resulting user record shall be set to default " +
                             "    value specified above." +
                             "\n" +
-                            "  • If the OperationType is Modify, the UserType in the user record shall NOT be changed from the " +
+                            "  - If the OperationType is Modify, the UserType in the user record shall NOT be changed from the " +
                             "    current value." +
                             "\n" +
                             "If UserType is not null, the UserType in the user record shall be set to the provided value."
@@ -1461,10 +1461,10 @@ Resource.add(
                             "\n" +
                             "If CredentialRule is null then:" +
                             "\n" +
-                            "  • If the OperationType is Add, the CredentialRule in the resulting user record shall be set to " +
+                            "  - If the OperationType is Add, the CredentialRule in the resulting user record shall be set to " +
                             "    default value specified above." +
                             "\n" +
-                            "  • If the OperationType is Modify, the CredentialRule in the user record shall NOT be changed from " +
+                            "  - If the OperationType is Modify, the CredentialRule in the user record shall NOT be changed from " +
                             "    the current value." +
                             "\n" +
                             "If CredentialRule is not null, the CredentialRule in the user record shall be set to the provided " +
@@ -1568,20 +1568,20 @@ Resource.add(
                     "\n" +
                     "Fields used for different use cases:" +
                     "\n" +
-                    "  • OperationType shall be set to Add." +
+                    "  - OperationType shall be set to Add." +
                     "\n" +
-                    "  • UserIndex shall be set to null and the lock will find a user record with a UserStatus value of " +
+                    "  - UserIndex shall be set to null and the lock will find a user record with a UserStatus value of " +
                     "    Available and associate its UserIndex with the CredentialIndex in CredentialStruct provided." +
                     "\n" +
-                    "  • CredentialIndex in CredentialStruct shall be for an unoccupied credential slot." +
+                    "  - CredentialIndex in CredentialStruct shall be for an unoccupied credential slot." +
                     "\n" +
-                    "  • UserStatus may be null. If it is null, the new user record shall have UserStatus set to " +
+                    "  - UserStatus may be null. If it is null, the new user record shall have UserStatus set to " +
                     "    OccupiedEnabled. Otherwise the new user record shall have UserStatus set to the provided value." +
                     "\n" +
-                    "  • UserType may be null. If it is null, the new user record shall have UserType set to " +
+                    "  - UserType may be null. If it is null, the new user record shall have UserType set to " +
                     "    UnrestrictedUser. Otherwise the new user record shall have UserType set to the provided value." +
                     "\n" +
-                    "  • UserType shall NOT be set to ProgrammingUser for this use case." +
+                    "  - UserType shall NOT be set to ProgrammingUser for this use case." +
                     "\n" +
                     "CreatorFabricIndex and LastModifiedFabricIndex in new user and credential records shall be set to " +
                     "the accessing fabric index." +
@@ -1591,19 +1591,19 @@ Resource.add(
                     "user. The DataIndex of this LockUserChange event shall be the CredentialIndex that was used to " +
                     "create the credential." +
                     "\n" +
-                    "  • OperationType shall be set to Add." +
+                    "  - OperationType shall be set to Add." +
                     "\n" +
-                    "  • UserIndex shall NOT be null and shall NOT already be associated with the CredentialIndex in " +
+                    "  - UserIndex shall NOT be null and shall NOT already be associated with the CredentialIndex in " +
                     "    CredentialStruct provided otherwise INVALID_COMMAND status response shall be returned." +
                     "\n" +
-                    "  • INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the " +
+                    "  - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the " +
                     "    CreatorFabricIndex in the user record pointed to by UserIndex." +
                     "\n" +
-                    "  • CredentialIndex in CredentialStruct provided shall be for an available credential slot." +
+                    "  - CredentialIndex in CredentialStruct provided shall be for an available credential slot." +
                     "\n" +
-                    "  • UserStatus shall be null." +
+                    "  - UserStatus shall be null." +
                     "\n" +
-                    "  • UserType shall be null." +
+                    "  - UserType shall be null." +
                     "\n" +
                     "CreatorFabricIndex shall NOT be changed in the user record. LastModifiedFabricIndex in the user " +
                     "record shall be set to the accessing fabric index." +
@@ -1613,44 +1613,44 @@ Resource.add(
                     "\n" +
                     "A LockUserChange event shall be generated after successfully adding a new credential." +
                     "\n" +
-                    "  • OperationType shall be set to Modify." +
+                    "  - OperationType shall be set to Modify." +
                     "\n" +
-                    "  • UserIndex value shall already be associated with the CredentialIndex in CredentialStruct " +
+                    "  - UserIndex value shall already be associated with the CredentialIndex in CredentialStruct " +
                     "    provided otherwise INVALID_COMMAND status response shall be returned." +
                     "\n" +
-                    "  • INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the " +
+                    "  - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the " +
                     "    CreatorFabricIndex in the user record pointed to by UserIndex." +
                     "\n" +
-                    "  • INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the " +
+                    "  - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the " +
                     "    CreatorFabricIndex in the credential record pointed to by the CredentialIndex field value of the " +
                     "    Credential parameter." +
                     "\n" +
-                    "  • CredentialIndex in CredentialStruct provided shall be for an occupied credential slot" +
+                    "  - CredentialIndex in CredentialStruct provided shall be for an occupied credential slot" +
                     "\n" +
-                    "  • UserStatus shall be null." +
+                    "  - UserStatus shall be null." +
                     "\n" +
-                    "  • UserType shall be null." +
+                    "  - UserType shall be null." +
                     "\n" +
                     "CreatorFabricIndex shall NOT be changed in user and credential records. LastModifiedFabricIndex in " +
                     "user and credential records shall be set to the accessing fabric index." +
                     "\n" +
                     "A LockUserChange event shall be generated after successfully modifying a credential." +
                     "\n" +
-                    "  • OperationType shall be set to Modify." +
+                    "  - OperationType shall be set to Modify." +
                     "\n" +
-                    "  • UserIndex shall be null." +
+                    "  - UserIndex shall be null." +
                     "\n" +
-                    "  • INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the " +
+                    "  - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the " +
                     "    CreatorFabricIndex in the credential record pointed to by the CredentialIndex field value of the " +
                     "    Credential parameter." +
                     "\n" +
-                    "  • CredentialType in CredentialStruct shall be set to ProgrammingPIN." +
+                    "  - CredentialType in CredentialStruct shall be set to ProgrammingPIN." +
                     "\n" +
-                    "  • CredentialIndex in CredentialStruct shall be 0." +
+                    "  - CredentialIndex in CredentialStruct shall be 0." +
                     "\n" +
-                    "  • UserStatus shall be null." +
+                    "  - UserStatus shall be null." +
                     "\n" +
-                    "  • UserType shall be set to ProgrammingUser." +
+                    "  - UserType shall be set to ProgrammingUser." +
                     "\n" +
                     "CreatorFabricIndex shall NOT be changed in the credential record. LastModifiedFabricIndex in the " +
                     "credential record shall be set to the accessing fabric index." +
@@ -1709,35 +1709,35 @@ Resource.add(
 
                         details: "Status comes from the Status Codes table and shall be one of the following values:" +
                             "\n" +
-                            "  • SUCCESS, if setting user credential was successful." +
+                            "  - SUCCESS, if setting user credential was successful." +
                             "\n" +
-                            "  • FAILURE, if some unexpected internal error occurred setting user credential." +
+                            "  - FAILURE, if some unexpected internal error occurred setting user credential." +
                             "\n" +
-                            "  • OCCUPIED, if OperationType is Add and CredentialIndex in Credential structure points to an " +
+                            "  - OCCUPIED, if OperationType is Add and CredentialIndex in Credential structure points to an " +
                             "    occupied slot." +
                             "\n" +
-                            "  • OCCUPIED, if OperationType is Modify and CredentialIndex in Credential structure does not match " +
+                            "  - OCCUPIED, if OperationType is Modify and CredentialIndex in Credential structure does not match " +
                             "    the CredentialIndex that is already associated with the provided UserIndex." +
                             "\n" +
-                            "  • DUPLICATE, if CredentialData provided is a duplicate of another credential with the same " +
+                            "  - DUPLICATE, if CredentialData provided is a duplicate of another credential with the same " +
                             "    CredentialType (e.g. duplicate PIN code)." +
                             "\n" +
-                            "  • RESOURCE_EXHAUSTED, if OperationType is Add and the new credential cannot be added due to " +
+                            "  - RESOURCE_EXHAUSTED, if OperationType is Add and the new credential cannot be added due to " +
                             "    resource constraints such as:" +
                             "\n" +
-                            "    ◦ The user referred to by UserIndex already has NumberOfCredentialsSupportedPerUser credentials " +
+                            "    - The user referred to by UserIndex already has NumberOfCredentialsSupportedPerUser credentials " +
                             "      associated." +
                             "\n" +
-                            "    ◦ The credential is of type AliroEvictableEndpointKey or AliroNonEvictableEndpointKey, and " +
+                            "    - The credential is of type AliroEvictableEndpointKey or AliroNonEvictableEndpointKey, and " +
                             "      adding it would cause the total number of credentials of those two types to exceed " +
                             "      NumberOfAliroEndpointKeysSupported." +
                             "\n" +
-                            "  • INVALID_COMMAND, if one or more fields violate constraints or are invalid." +
+                            "  - INVALID_COMMAND, if one or more fields violate constraints or are invalid." +
                             "\n" +
-                            "  • INVALID_COMMAND, if the CredentialIndex in the Credential provided exceeds the number of " +
+                            "  - INVALID_COMMAND, if the CredentialIndex in the Credential provided exceeds the number of " +
                             "    credentials of the provided CredentialType supported by the lock." +
                             "\n" +
-                            "  • INVALID_COMMAND, if OperationType is Modify and UserIndex points to an available slot."
+                            "  - INVALID_COMMAND, if OperationType is Modify and UserIndex points to an available slot."
                     },
 
                     {
@@ -1850,25 +1850,25 @@ Resource.add(
                     "\n" +
                     "Fields used for different use cases:" +
                     "\n" +
-                    "  • CredentialType in Credential structure shall be set to the credential type to be cleared." +
+                    "  - CredentialType in Credential structure shall be set to the credential type to be cleared." +
                     "\n" +
-                    "  • CredentialType in Credential structure shall NOT be set to ProgrammingPIN." +
+                    "  - CredentialType in Credential structure shall NOT be set to ProgrammingPIN." +
                     "\n" +
-                    "  • CredentialIndex in Credential structure shall be set to the credential index to be cleared." +
+                    "  - CredentialIndex in Credential structure shall be set to the credential index to be cleared." +
                     "\n" +
                     "A LockUserChange event shall be generated after successfully clearing a credential." +
                     "\n" +
-                    "  • CredentialType in Credential structure shall be set to the credential type to be cleared." +
+                    "  - CredentialType in Credential structure shall be set to the credential type to be cleared." +
                     "\n" +
-                    "  • CredentialType in Credential structure shall NOT be set to ProgrammingPIN." +
+                    "  - CredentialType in Credential structure shall NOT be set to ProgrammingPIN." +
                     "\n" +
-                    "  • CredentialIndex in Credential structure shall be set to 0xFFFE to indicate all credentials of " +
+                    "  - CredentialIndex in Credential structure shall be set to 0xFFFE to indicate all credentials of " +
                     "    that type shall be cleared." +
                     "\n" +
                     "A single LockUserChange event shall be generated after successfully clearing credentials. This event " +
                     "shall have DataIndex set to the CredentialIndex in the Credential structure." +
                     "\n" +
-                    "  • Credential field shall be null." +
+                    "  - Credential field shall be null." +
                     "\n" +
                     "The ProgrammingPIN credential shall NOT be cleared." +
                     "\n" +
@@ -2008,9 +2008,9 @@ Resource.add(
                         xref: "cluster§5.2.6.4.1",
                         details: "This bit shall indicate the state related to local programming:" +
                             "\n" +
-                            "  • 0 = Local programming is disabled" +
+                            "  - 0 = Local programming is disabled" +
                             "\n" +
-                            "  • 1 = Local programming is enabled"
+                            "  - 1 = Local programming is enabled"
                     },
 
                     {
@@ -2018,9 +2018,9 @@ Resource.add(
                         xref: "cluster§5.2.6.4.2",
                         details: "This bit shall indicate the state related to keypad interface:" +
                             "\n" +
-                            "  • 0 = Keypad interface is disabled" +
+                            "  - 0 = Keypad interface is disabled" +
                             "\n" +
-                            "  • 1 = Keypad interface is enabled"
+                            "  - 1 = Keypad interface is enabled"
                     },
 
                     {
@@ -2028,9 +2028,9 @@ Resource.add(
                         xref: "cluster§5.2.6.4.3",
                         details: "This bit shall indicate the state related to remote interface:" +
                             "\n" +
-                            "  • 0 = Remote interface is disabled" +
+                            "  - 0 = Remote interface is disabled" +
                             "\n" +
-                            "  • 1 = Remote interface is enabled"
+                            "  - 1 = Remote interface is enabled"
                     },
 
                     {
@@ -2038,9 +2038,9 @@ Resource.add(
                         xref: "cluster§5.2.6.4.4",
                         details: "This bit shall indicate the state related to sound volume:" +
                             "\n" +
-                            "  • 0 = Sound volume value is 0 (Silent)" +
+                            "  - 0 = Sound volume value is 0 (Silent)" +
                             "\n" +
-                            "  • 1 = Sound volume value is equal to something other than 0"
+                            "  - 1 = Sound volume value is equal to something other than 0"
                     },
 
                     {
@@ -2048,18 +2048,18 @@ Resource.add(
                         xref: "cluster§5.2.6.4.5",
                         details: "This bit shall indicate the state related to auto relock time:" +
                             "\n" +
-                            "  • 0 = Auto relock time value is 0" +
+                            "  - 0 = Auto relock time value is 0" +
                             "\n" +
-                            "  • 1 = Auto relock time value is equal to something other than 0"
+                            "  - 1 = Auto relock time value is equal to something other than 0"
                     },
 
                     {
                         tag: "field", name: "LedSettings", description: "LEDs is disabled", xref: "cluster§5.2.6.4.6",
                         details: "This bit shall indicate the state related to LED settings:" +
                             "\n" +
-                            "  • 0 = LED settings value is 0 (NoLEDSignal)" +
+                            "  - 0 = LED settings value is 0 (NoLEDSignal)" +
                             "\n" +
-                            "  • 1 = LED settings value is equal to something other than 0"
+                            "  - 1 = LED settings value is equal to something other than 0"
                     }
                 ]
             },
@@ -2074,9 +2074,9 @@ Resource.add(
                         xref: "cluster§5.2.6.5.1",
                         details: "This bit shall indicate whether the door lock is able to add Users/Credentials/Schedules locally:" +
                             "\n" +
-                            "  • 0 = This ability is disabled" +
+                            "  - 0 = This ability is disabled" +
                             "\n" +
-                            "  • 1 = This ability is enabled"
+                            "  - 1 = This ability is enabled"
                     },
 
                     {
@@ -2085,9 +2085,9 @@ Resource.add(
                         xref: "cluster§5.2.6.5.2",
                         details: "This bit shall indicate whether the door lock is able to modify Users/Credentials/Schedules locally:" +
                             "\n" +
-                            "  • 0 = This ability is disabled" +
+                            "  - 0 = This ability is disabled" +
                             "\n" +
-                            "  • 1 = This ability is enabled"
+                            "  - 1 = This ability is enabled"
                     },
 
                     {
@@ -2096,9 +2096,9 @@ Resource.add(
                         xref: "cluster§5.2.6.5.3",
                         details: "This bit shall indicate whether the door lock is able to clear Users/Credentials/Schedules locally:" +
                             "\n" +
-                            "  • 0 = This ability is disabled" +
+                            "  - 0 = This ability is disabled" +
                             "\n" +
-                            "  • 1 = This ability is enabled"
+                            "  - 1 = This ability is enabled"
                     },
 
                     {
@@ -2106,9 +2106,9 @@ Resource.add(
                         description: "The state of the ability to adjust settings on the device", xref: "cluster§5.2.6.5.4",
                         details: "This bit shall indicate whether the door lock is able to adjust lock settings locally:" +
                             "\n" +
-                            "  • 0 = This ability is disabled" +
+                            "  - 0 = This ability is disabled" +
                             "\n" +
-                            "  • 1 = This ability is enabled"
+                            "  - 1 = This ability is enabled"
                     }
                 ]
             },
@@ -2478,9 +2478,9 @@ Resource.add(
                             "\n" +
                             "When UserType is set to YearDayScheduleUser, user access shall be restricted as follows:" +
                             "\n" +
-                            "  • If no YearDaySchedules are set for the user, then access shall be denied" +
+                            "  - If no YearDaySchedules are set for the user, then access shall be denied" +
                             "\n" +
-                            "  • If one or more YearDaySchedules are set, user access shall be granted if and only if the current " +
+                            "  - If one or more YearDaySchedules are set, user access shall be granted if and only if the current " +
                             "    time falls within at least one of the YearDaySchedules. If current time is not known, user " +
                             "    access shall NOT be granted."
                     },
@@ -2494,9 +2494,9 @@ Resource.add(
                             "\n" +
                             "When UserType is set to WeekDayScheduleUser, user access shall be restricted as follows:" +
                             "\n" +
-                            "  • If no WeekDaySchedules are set for the user, then access shall be denied" +
+                            "  - If no WeekDaySchedules are set for the user, then access shall be denied" +
                             "\n" +
-                            "  • If one or more WeekDaySchedules are set, user access shall be granted if and only if the current " +
+                            "  - If one or more WeekDaySchedules are set, user access shall be granted if and only if the current " +
                             "    time falls within at least one of the WeekDaySchedules. If current time is not known, user " +
                             "    access shall NOT be granted."
                     },
@@ -2551,15 +2551,15 @@ Resource.add(
                             "\n" +
                             "When UserType is set to ScheduleRestrictedUser, user access shall be restricted as follows:" +
                             "\n" +
-                            "  • If no WeekDaySchedules and no YearDaySchedules are set for the user, then access shall be denied" +
+                            "  - If no WeekDaySchedules and no YearDaySchedules are set for the user, then access shall be denied" +
                             "\n" +
-                            "  • If one or more WeekDaySchedules are set, but no YearDaySchedules are set for the user, then user " +
+                            "  - If one or more WeekDaySchedules are set, but no YearDaySchedules are set for the user, then user " +
                             "    access shall be equivalent to the WeekDayScheduleUser UserType" +
                             "\n" +
-                            "  • If one or more YearDaySchedules are set, but no WeekDaySchedules are set for the user, then user " +
+                            "  - If one or more YearDaySchedules are set, but no WeekDaySchedules are set for the user, then user " +
                             "    access shall be equivalent to the YearDayScheduleUser UserType" +
                             "\n" +
-                            "  • If one or WeekDaySchedules are set AND one or more YearDaySchedules are set, then user access " +
+                            "  - If one or WeekDaySchedules are set AND one or more YearDaySchedules are set, then user access " +
                             "    shall be granted if and only if the current time falls within at least one of the " +
                             "    WeekDaySchedules AND the current time falls within at least one of the YearDaySchedules."
                     },

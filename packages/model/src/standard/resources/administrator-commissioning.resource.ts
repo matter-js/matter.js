@@ -24,17 +24,17 @@ Resource.add({
         "If the Administrator Commissioning Cluster server instance is present on an endpoint with the Root " +
         "Node device type in the Descriptor cluster DeviceTypeList, then:" +
         "\n" +
-        "  • The Commissioning Window shall be opened or closed on the node that the Root Node endpoint is " +
+        "  - The Commissioning Window shall be opened or closed on the node that the Root Node endpoint is " +
         "    on." +
         "\n" +
-        "  • The attributes shall indicate the state of the node that the Root Node endpoint is on." +
+        "  - The attributes shall indicate the state of the node that the Root Node endpoint is on." +
         "\n" +
         "If the Administrator Commissioning Cluster server instance is present on an endpoint with the " +
         "Bridged Node device type in the Descriptor cluster DeviceTypeList, then:" +
         "\n" +
-        "  • The Commissioning Window shall be opened or closed on the node represented by the Bridged Node." +
+        "  - The Commissioning Window shall be opened or closed on the node represented by the Bridged Node." +
         "\n" +
-        "  • The attributes shall indicate the state of the node that is represented by the Bridged Node.",
+        "  - The attributes shall indicate the state of the node that is represented by the Bridged Node.",
 
     children: [
         {
@@ -172,9 +172,9 @@ Resource.add({
                         "When the command is received by a ICD, it shall enter into active mode. The ICD shall remain in " +
                         "Active Mode as long as one of these conditions is met:" +
                         "\n" +
-                        "  • A commissioning window is open." +
+                        "  - A commissioning window is open." +
                         "\n" +
-                        "  • There is an armed fail-safe timer."
+                        "  - There is an armed fail-safe timer."
                 }
             ]
         },
@@ -213,9 +213,9 @@ Resource.add({
                     "CommissioningTimeout. When the command is received by a ICD, it shall enter into active mode. The " +
                     "ICD shall remain in Active Mode as long as one of these conditions is met:" +
                     "\n" +
-                    "  • A commissioning window is open." +
+                    "  - A commissioning window is open." +
                     "\n" +
-                    "  • There is an armed fail-safe timer."
+                    "  - There is an armed fail-safe timer."
             }]
         },
 

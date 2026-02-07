@@ -464,7 +464,7 @@ Resource.add({
                 "\n" +
                 "Reception of this command shall reset the following attributes to 0:" +
                 "\n" +
-                "  • OverrunCount" +
+                "  - OverrunCount" +
                 "\n" +
                 "Upon completion, this command shall send a status code of SUCCESS back to the initiator."
         },

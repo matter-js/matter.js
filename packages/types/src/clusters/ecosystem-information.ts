@@ -237,22 +237,22 @@ export namespace EcosystemInformation {
      *
      * This augments the Bridged Device Basic Information Cluster in the following ways:
      *
-     *   • The Ecosystem Information Cluster adds support for providing a name and location for individual endpoints.
+     *   - The Ecosystem Information Cluster adds support for providing a name and location for individual endpoints.
      *     (The endpoints do not need to be present on the Bridge for their name and location information to be
      *     present.)
      *
-     *   • The Ecosystem Information Cluster adds metadata to support conflict resolution between multiple sources of
+     *   - The Ecosystem Information Cluster adds metadata to support conflict resolution between multiple sources of
      *     the name and location data.
      *
-     *   • The Ecosystem Information Cluster supports user control for the presence of the name and location information
+     *   - The Ecosystem Information Cluster supports user control for the presence of the name and location information
      *     by specifying more restricted access.
      *
      * A client SHOULD use the information provided by the Ecosystem Information Cluster to help the user organize and
      * interact with their devices. Some examples may include:
      *
-     *   • Directly organizing and labeling the devices in a client’s user interface.
+     *   - Directly organizing and labeling the devices in a client’s user interface.
      *
-     *   • Providing hints in the user interface, which can assist the user in organizing and labeling their devices.
+     *   - Providing hints in the user interface, which can assist the user in organizing and labeling their devices.
      *
      * For the purposes of the Ecosystem Information Cluster section, an instance of the Ecosystem Information Cluster
      * will be referred to as an "instance".

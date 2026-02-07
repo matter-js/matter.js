@@ -6,7 +6,6 @@
 
 import { Constraint } from "#model";
 import { camelize } from "../../util/string.js";
-import { Words } from "../../util/words.js";
 import { repairConformanceRule } from "./repairs/aspect-repairs.js";
 
 /** String, trimmed with whitespace collapsed */
@@ -196,10 +195,7 @@ export const Bit = (el: HTMLElement) => {
     return Number.parseInt(text);
 };
 
-/**
- * DSL or identifier.  Note we replace "Fo o" with "Foo" because space errors are very common in the PDFs, especially in
- * narrow columns and we don't want to end up with FoO
- */
+/** DSL or identifier */
 export const Code = (el: HTMLElement) => {
     // Ensure textContent will produce space for P
     let shouldBeSpaced = false;
@@ -218,43 +214,7 @@ export const Code = (el: HTMLElement) => {
         }
     }
 
-    let str = Str(el);
-
-    // Use the english dictionary to heuristically repair whitespace errors
-    const parts = str.split(/\s+/);
-    for (let i = 0; i < parts.length - 1; i++) {
-        // If the current word is all uppercase, assume it's a standalone identifier
-        if (parts[i].match(/^[A-Z_]+$/)) {
-            continue;
-        }
-
-        // For all subsequent words that start with lowercase, see if they form an actual word when concatenated with
-        // the previous word
-        let beginning = parts[i].replace(/^.*([A-Z])/, "$1");
-        for (let j = i + 1; j < parts.length; j++) {
-            // Abort if next part does not appear to be a word segment
-            if (!parts[j].match(/^[a-z]/)) {
-                break;
-            }
-
-            // Get ending of word from next part
-            const ending = parts[j].replace(/^([a-z]+).*/, "$1");
-
-            // If the concatenation is a word, assume it should be joined
-            if (Words.has(`${beginning}${ending}`.toLowerCase())) {
-                // Join
-                parts[i] += parts.splice(i + 1, j - i).join("");
-
-                // Redo check from current point
-                i--;
-                break;
-            }
-
-            // Extend beginning for next iteration
-            beginning += parts[j];
-        }
-    }
-    str = parts.join(" ");
+    const str = Str(el);
 
     return str;
 };

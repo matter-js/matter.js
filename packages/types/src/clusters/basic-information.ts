@@ -505,13 +505,13 @@ export namespace BasicInformation {
              * may be constructed using a permanent device identifier (such as device MAC address) as basis. In order to
              * prevent tracking,
              *
-             *   • it SHOULD NOT be identical to (or easily derived from) such permanent device identifier
+             *   - it SHOULD NOT be identical to (or easily derived from) such permanent device identifier
              *
-             *   • it shall be updated when the device is factory reset
+             *   - it shall be updated when the device is factory reset
              *
-             *   • it shall NOT be identical to the SerialNumber attribute
+             *   - it shall NOT be identical to the SerialNumber attribute
              *
-             *   • it shall NOT be printed on the product or delivered with the product
+             *   - it shall NOT be printed on the product or delivered with the product
              *
              * The value does not need to be human readable, since it is intended for machine to machine (M2M)
              * communication.
@@ -575,13 +575,13 @@ export namespace BasicInformation {
              *
              * In the example above:
              *
-             *   • Major version is the most significant byte (0x01).
+             *   - Major version is the most significant byte (0x01).
              *
-             *   • Minor version is the second most significant byte (0x04).
+             *   - Minor version is the second most significant byte (0x04).
              *
-             *   • Dot version is the third most significant byte (0x02).
+             *   - Dot version is the third most significant byte (0x02).
              *
-             *   • Reserved1 value is the least significant byte (0x00).
+             *   - Reserved1 value is the least significant byte (0x00).
              *
              * The initial revision (1.0) of this specification (1.0) was 0x01000000. Matter Spring 2024 release (1.3)
              * was 0x01030000.

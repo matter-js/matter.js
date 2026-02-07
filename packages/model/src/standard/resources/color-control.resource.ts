@@ -51,9 +51,9 @@ Resource.add(
                     "\n" +
                     "Changes to this attribute shall only be marked as reportable in the following cases:" +
                     "\n" +
-                    "  • At most once per second or" +
+                    "  - At most once per second or" +
                     "\n" +
-                    "  • At the end of the movement/transition."
+                    "  - At the end of the movement/transition."
             },
 
             {
@@ -71,9 +71,9 @@ Resource.add(
                     "\n" +
                     "Changes to this attribute shall only be marked as reportable in the following cases:" +
                     "\n" +
-                    "  • At most once per second or" +
+                    "  - At most once per second or" +
                     "\n" +
-                    "  • At the end of the movement/transition."
+                    "  - At the end of the movement/transition."
             },
 
             {
@@ -84,11 +84,11 @@ Resource.add(
                     "\n" +
                     "Changes to this attribute shall only be marked as reportable in the following cases:" +
                     "\n" +
-                    "  • When it changes from 0 to any value higher than 10, or" +
+                    "  - When it changes from 0 to any value higher than 10, or" +
                     "\n" +
-                    "  • When it changes, with a delta larger than 10, caused by the invoke of a command, or" +
+                    "  - When it changes, with a delta larger than 10, caused by the invoke of a command, or" +
                     "\n" +
-                    "  • When it changes to 0." +
+                    "  - When it changes to 0." +
                     "\n" +
                     "For commands with a transition time or changes to the transition time less than 1 second, changes to " +
                     "this attribute shall NOT be reported." +
@@ -111,9 +111,9 @@ Resource.add(
                     "\n" +
                     "Changes to this attribute shall only be marked as reportable in the following cases:" +
                     "\n" +
-                    "  • At most once per second or" +
+                    "  - At most once per second or" +
                     "\n" +
-                    "  • At the end of the movement/transition."
+                    "  - At the end of the movement/transition."
             },
 
             {
@@ -130,9 +130,9 @@ Resource.add(
                     "\n" +
                     "Changes to this attribute shall only be marked as reportable in the following cases:" +
                     "\n" +
-                    "  • At most once per second or" +
+                    "  - At most once per second or" +
                     "\n" +
-                    "  • At the end of the movement/transition."
+                    "  - At the end of the movement/transition."
             },
 
             {
@@ -154,9 +154,9 @@ Resource.add(
                     "\n" +
                     "Changes to this attribute shall only be marked as reportable in the following cases:" +
                     "\n" +
-                    "  • At most once per second or" +
+                    "  - At most once per second or" +
                     "\n" +
-                    "  • At the end of the movement/transition." +
+                    "  - At the end of the movement/transition." +
                     "\n" +
                     "The color temperature value in kelvins shall be related to the ColorTemperatureMireds attribute in " +
                     "mired by the relationship" +
@@ -193,11 +193,11 @@ Resource.add(
                     "Command execution shall NOT continue beyond the Options processing if all of these criteria are " +
                     "true:" +
                     "\n" +
-                    "  • The On/Off cluster exists on the same endpoint as this cluster." +
+                    "  - The On/Off cluster exists on the same endpoint as this cluster." +
                     "\n" +
-                    "  • The OnOff attribute of the On/Off cluster, on this endpoint, is FALSE." +
+                    "  - The OnOff attribute of the On/Off cluster, on this endpoint, is FALSE." +
                     "\n" +
-                    "  • The value of the ExecuteIfOff bit is 0."
+                    "  - The value of the ExecuteIfOff bit is 0."
             },
 
             {
@@ -334,9 +334,9 @@ Resource.add(
                     "\n" +
                     "Changes to this attribute shall only be marked as reportable in the following cases:" +
                     "\n" +
-                    "  • At most once per second or" +
+                    "  - At most once per second or" +
                     "\n" +
-                    "  • At the end of the movement/transition."
+                    "  - At the end of the movement/transition."
             },
 
             {
@@ -825,9 +825,9 @@ Resource.add(
                         details: "This bit shall indicate whether the server adheres to the Action field in order to process the " +
                             "command." +
                             "\n" +
-                            "  • 0 = Device shall ignore the Action field." +
+                            "  - 0 = Device shall ignore the Action field." +
                             "\n" +
-                            "  • 1 = Device shall adhere to the Action field."
+                            "  - 1 = Device shall adhere to the Action field."
                     },
 
                     {
@@ -837,9 +837,9 @@ Resource.add(
                         details: "This bit shall indicate whether the device updates the ColorLoopDirection attribute with the " +
                             "Direction field." +
                             "\n" +
-                            "  • 0 = Device shall ignore the Direction field." +
+                            "  - 0 = Device shall ignore the Direction field." +
                             "\n" +
-                            "  • 1 = Device shall update the ColorLoopDirection attribute with the value of the Direction field."
+                            "  - 1 = Device shall update the ColorLoopDirection attribute with the value of the Direction field."
                     },
 
                     {
@@ -848,9 +848,9 @@ Resource.add(
 
                         details: "This bit shall indicate whether the device updates the ColorLoopTime attribute with the Time field." +
                             "\n" +
-                            "  • 0 = Device shall ignore the Time field." +
+                            "  - 0 = Device shall ignore the Time field." +
                             "\n" +
-                            "  • 1 = Device shall update the value of the ColorLoopTime attribute with the value of the Time " +
+                            "  - 1 = Device shall update the value of the ColorLoopTime attribute with the value of the Time " +
                             "    field."
                     },
 
@@ -861,9 +861,9 @@ Resource.add(
                         details: "This bit shall indicate whether the device updates the ColorLoopStartEnhancedHue attribute with the " +
                             "value of the StartHue field." +
                             "\n" +
-                            "  • 0 = Device shall ignore the StartHue field." +
+                            "  - 0 = Device shall ignore the StartHue field." +
                             "\n" +
-                            "  • 1 = Device shall update the value of the ColorLoopStartEnhancedHue attribute with the value of " +
+                            "  - 1 = Device shall update the value of the ColorLoopStartEnhancedHue attribute with the value of " +
                             "    the StartHue field."
                     }
                 ]

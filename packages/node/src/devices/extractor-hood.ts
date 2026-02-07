@@ -26,17 +26,17 @@ import { Identity } from "#general";
  *
  * Extractor Hoods may also be known by the following names:
  *
- *   • Hoods
+ *   - Hoods
  *
- *   • Extractor Fans
+ *   - Extractor Fans
  *
- *   • Extractors
+ *   - Extractors
  *
- *   • Range Hoods
+ *   - Range Hoods
  *
- *   • Telescoping Hoods
+ *   - Telescoping Hoods
  *
- *   • Telescoping Extractors
+ *   - Telescoping Extractors
  *
  * @see {@link MatterSpecification.v142.Device} § 13.10
  */

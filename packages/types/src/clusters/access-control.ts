@@ -454,33 +454,33 @@ export namespace AccessControl {
          * to manage fabric limitations. The syntax of this field shall follow the syntax as specified in RFC 1738 and
          * shall use the https scheme for internet-hosted URLs.
          *
-         *   • The URL may embed the token, fabric index, fabric vendor, or other information transparently in order to
+         *   - The URL may embed the token, fabric index, fabric vendor, or other information transparently in order to
          *     pass context about the originating ReviewFabricRestrictions command to the service associated with the
          *     URL. The service associated with the device vendor may perform vendor ID verification on the fabric from
          *     which the ReviewFabricRestrictions command originated.
          *
-         *   • If the device grants the request, the ARL attribute in the Access Control Cluster shall be updated to
+         *   - If the device grants the request, the ARL attribute in the Access Control Cluster shall be updated to
          *     reflect the new access rights and a successful response shall be returned to the device making the
          *     request using the MTaer field of the callbackUrl. If the request is denied, the ARL attribute shall
          *     remain unchanged and a failure response shall be returned to the device making the request using the
          *     MTaer field of the callbackUrl.
          *
-         *   • The device using this mechanism shall provide a service at the URL that can accept requests for
+         *   - The device using this mechanism shall provide a service at the URL that can accept requests for
          *     additional access and return responses indicating whether the requests were granted or denied.
          *
-         *   • This URL will typically lead to a server which (e.g. by looking at the User-Agent) redirects the user to
+         *   - This URL will typically lead to a server which (e.g. by looking at the User-Agent) redirects the user to
          *     allow viewing, downloading, installing or using a manufacturer-provided means for guiding the user
          *     through the process to review and approve or deny the request. The device manufacturer may choose to use
          *     a constructed URL which is valid in a HTTP GET request (i.e. dedicated for the product) such as, for
          *     example, https://domain.example/arl-app?vid=FFF1&pid=1234. If a client follows or launches the
          *     ARLRequestFlowUrl, it shall expand it as described in Section 9.10.9.3.4, “ARLRequestFlowUrl format”.
          *
-         *   • A manufacturer contemplating using this flow should realize that
+         *   - A manufacturer contemplating using this flow should realize that
          *
-         *     ◦ This flow typically requires internet access to access the URL, and access extension may fail when
+         *     - This flow typically requires internet access to access the URL, and access extension may fail when
          *       internet connectivity is not available.
          *
-         *     ◦ If the flow prefers to redirect the user to an app which is available on popular platforms, it SHOULD
+         *     - If the flow prefers to redirect the user to an app which is available on popular platforms, it SHOULD
          *       also provide a fallback option such as a web browser interface to ensure users can complete access
          *       extension.
          *
@@ -489,15 +489,15 @@ export namespace AccessControl {
          * The ARLRequestFlowUrl shall contain a query component (see RFC 3986 section 3.4) composed of one or more
          * key-value pairs:
          *
-         *   • The query shall use the & delimiter between key/value pairs.
+         *   - The query shall use the & delimiter between key/value pairs.
          *
-         *   • The key-value pairs shall in the format name=<value> where name is the key name, and <value> is the
+         *   - The key-value pairs shall in the format name=<value> where name is the key name, and <value> is the
          *     contents of the value encoded with proper URL-encoded escaping.
          *
-         *   • If key MTcu is present, it shall have a value of "_" (i.e. MTcu=_). This is the "callback URL
+         *   - If key MTcu is present, it shall have a value of "_" (i.e. MTcu=_). This is the "callback URL
          *     (CallbackUrl) placeholder".
          *
-         *   • Any key whose name begins with MT not mentioned in the previous bullets shall be reserved for future use
+         *   - Any key whose name begins with MT not mentioned in the previous bullets shall be reserved for future use
          *     by this specification. Manufacturers shall NOT include query keys starting with MT in the
          *     ARLRequestFlowUrl unless they are referenced by a version of this specification.
          *
@@ -527,18 +527,18 @@ export namespace AccessControl {
          *
          * If a query is present, it shall be composed of one or more key-value pairs:
          *
-         *   • The query shall use the & delimiter between key/value pairs.
+         *   - The query shall use the & delimiter between key/value pairs.
          *
-         *   • The key-value pairs shall follow the format name=<value> where name is the key name, and <value> is the
+         *   - The key-value pairs shall follow the format name=<value> where name is the key name, and <value> is the
          *     contents of the value encoded with proper URL-encoded escaping.
          *
-         *   • If key MTaer is present, it shall have a value of "_" (i.e. MTaer=_). This is the placeholder for a
+         *   - If key MTaer is present, it shall have a value of "_" (i.e. MTaer=_). This is the placeholder for a
          *     "access extension response" provided by the manufacturer flow to the client. The manufacturer flow shall
          *     replace this placeholder with the final status of the access extension request, which shall be formatted
          *     following Expansion of CallbackUrl by the manufacturer custom flow and encoded with proper URL-encoded
          *     escaping.
          *
-         *   • Any key whose name begins with MT not mentioned in the previous bullets shall be reserved for future use
+         *   - Any key whose name begins with MT not mentioned in the previous bullets shall be reserved for future use
          *     by this specification.
          *
          * Any other element in the CallbackUrl query field not covered by the above rules, as well as the fragment
@@ -549,21 +549,21 @@ export namespace AccessControl {
          * flow, it may be expanded to form a final ExpandedARLRequestCallbackUrl URL to be used by proceeding with the
          * following substitution algorithm on the provided CallbackUrl:
          *
-         *   • If key MTaer is present, the manufacturer custom flow having received the initial query containing the
+         *   - If key MTaer is present, the manufacturer custom flow having received the initial query containing the
          *     CallbackUrl shall substitute the placeholder value "_" (i.e. in MTaer=_) in the CallbackUrl with the
          *     final status of the access extension request flow which shall be one of the following. Any value returned
          *     in the MTaer field not listed above shall be considered an error and shall be treated as GeneralFailure.
          *
-         *     ◦ Success - The flow completed successfully and the ARL attribute was updated. The client may now read
+         *     - Success - The flow completed successfully and the ARL attribute was updated. The client may now read
          *       the ARL attribute to determine the new access restrictions.
          *
-         *     ◦ NoChange - The ARL attribute was already listing minimum restrictions for the requesting fabric.
+         *     - NoChange - The ARL attribute was already listing minimum restrictions for the requesting fabric.
          *
-         *     ◦ GeneralFailure - The flow failed for an unspecified reason.
+         *     - GeneralFailure - The flow failed for an unspecified reason.
          *
-         *     ◦ FlowAuthFailure - The user failed to authenticate to the flow.
+         *     - FlowAuthFailure - The user failed to authenticate to the flow.
          *
-         *     ◦ NotFound - Access extension failed because the target fabric was not found.
+         *     - NotFound - Access extension failed because the target fabric was not found.
          *
          * A manufacturer custom flow having received an ExpandedARLRequestFlowUrl SHOULD attempt to open the
          * ExpandedARLRequestCallbackUrl, on completion of the request, if an ExpandedARLRequestCallbackUrl was computed
@@ -574,31 +574,31 @@ export namespace AccessControl {
          * Below are some examples of valid ExpandedARLRequestFlowUrl for several valid values of ARLRequestFlowUrl, as
          * well as some examples of invalid values of ARLRequestFlowUrl:
          *
-         *   • Invalid URL with no query string: http scheme is not allowed:
+         *   - Invalid URL with no query string: http scheme is not allowed:
          *
-         *     ◦ http://company.domain.example/matter/arl/vFFF1p1234
+         *     - http://company.domain.example/matter/arl/vFFF1p1234
          *
-         *   • Valid URL :
+         *   - Valid URL :
          *
-         *     ◦ https://company.domain.example/matter/arl/vFFF1p1234
+         *     - https://company.domain.example/matter/arl/vFFF1p1234
          *
-         *   • Valid URL, CallbackUrl requested:
+         *   - Valid URL, CallbackUrl requested:
          *
-         *     ◦ Before expansion:
+         *     - Before expansion:
          *
          * https://company.domain.example/matter/arl?vid=FFF1&pid=1234&MTcu=_
          *
-         *   ◦ After expansion:
+         *   - After expansion:
          *
          * https://company.domain.example/matter/arl?vid=FFF1&pid=1234&MTcu=https%3A%2F%2Fclient.domain.example%2Fcb%3Ftoken%3DmAsJ6_vqbr-vjDiG_w%253D%253D%26MTaer%3D_
          *
-         *   ◦ The ExpandedARLRequestFlowUrl URL contains:
+         *   - The ExpandedARLRequestFlowUrl URL contains:
          *
-         *     ▪ A CallbackUrl with a client-provided arbitrary token= key/value pair and the MTaer= key/value pair
+         *     - A CallbackUrl with a client-provided arbitrary token= key/value pair and the MTaer= key/value pair
          *       place-holder to indicate support for a return access extension completion status:
          *       https://client.domain.example/cb?token=mAsJ6_vqbr-vjDiG_w%3D%3D&MTaer=_
          *
-         *     ▪ After expansion of the CallbackUrl (MTcu key) into an ExpandedCallbackUrl, with an example return
+         *     - After expansion of the CallbackUrl (MTcu key) into an ExpandedCallbackUrl, with an example return
          *       access extension completion status of Success, the ExpandedARLRequestCallbackUrl would be:
          *
          * https://client.domain.example/cb?token=mAsJ6_vqbr-vjDiG_w%3D%3D&MTaer=Success
@@ -606,9 +606,9 @@ export namespace AccessControl {
          * Note that the MTcu key/value pair was initially provided URL-encoded within the ExpandedARLRequestFlowUrl URL
          * and the MTaer=_ key/value pair placeholder now contains a substituted returned completion status.
          *
-         *   • Invalid URL, due to MTza=79 key/value pair in reserved MT-prefixed keys reserved for future use:
+         *   - Invalid URL, due to MTza=79 key/value pair in reserved MT-prefixed keys reserved for future use:
          *
-         *     ◦ https://company.domain.example/matter/arl?vid=FFF1&pid=1234&MTop=_&MTza=79
+         *     - https://company.domain.example/matter/arl?vid=FFF1&pid=1234&MTop=_&MTza=79
          *
          * @see {@link MatterSpecification.v142.Core} § 9.10.9.3.3
          */
@@ -775,9 +775,9 @@ export namespace AccessControl {
          * For CASE authentication, the Subject ID is a distinguished name within the Operational Certificate shared
          * during CASE session establishment, the type of which is determined by its range to be one of:
          *
-         *   • a Node ID, which identifies the required source node directly (by ID)
+         *   - a Node ID, which identifies the required source node directly (by ID)
          *
-         *   • a CASE Authenticated Tag, which identifies the required source node indirectly (by tag)
+         *   - a CASE Authenticated Tag, which identifies the required source node indirectly (by tag)
          *
          * E.g. an ACL entry with CASE AuthMode that grants privileges to Subject IDs [ 0x0000_0000_1111_1111,
          * 0x0000_0000_2222_2222, 0x0000_0000_3333_3333 ] (which are Node IDs) will grant access to Nodes with Node ID
@@ -931,11 +931,11 @@ export namespace AccessControl {
              * The cluster shall generate AccessControlExtensionChanged events whenever its extension attribute data is
              * changed by an Administrator.
              *
-             *   • Each added extension shall generate an event with ChangeType Added.
+             *   - Each added extension shall generate an event with ChangeType Added.
              *
-             *   • Each changed extension shall generate an event with ChangeType Changed.
+             *   - Each changed extension shall generate an event with ChangeType Changed.
              *
-             *   • Each removed extension shall generate an event with ChangeType Removed.
+             *   - Each removed extension shall generate an event with ChangeType Removed.
              *
              * @see {@link MatterSpecification.v142.Core} § 9.10.9.2
              */
@@ -1200,11 +1200,11 @@ export namespace AccessControl {
              * The cluster shall generate AccessControlEntryChanged events whenever its ACL attribute data is changed by
              * an Administrator.
              *
-             *   • Each added entry shall generate an event with ChangeType Added.
+             *   - Each added entry shall generate an event with ChangeType Added.
              *
-             *   • Each changed entry shall generate an event with ChangeType Changed.
+             *   - Each changed entry shall generate an event with ChangeType Changed.
              *
-             *   • Each removed entry shall generate an event with ChangeType Removed.
+             *   - Each removed entry shall generate an event with ChangeType Removed.
              *
              * @see {@link MatterSpecification.v142.Core} § 9.10.9.1
              */

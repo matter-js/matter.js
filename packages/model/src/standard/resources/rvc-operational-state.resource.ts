@@ -36,9 +36,9 @@ Resource.add({
                 "\n" +
                 "Otherwise, on success:" +
                 "\n" +
-                "  • The OperationalState attribute shall be set to SeekingCharger." +
+                "  - The OperationalState attribute shall be set to SeekingCharger." +
                 "\n" +
-                "  • The device shall respond with an OperationalCommandResponse command with an ErrorStateID of " +
+                "  - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of " +
                 "    NoError."
         },
 

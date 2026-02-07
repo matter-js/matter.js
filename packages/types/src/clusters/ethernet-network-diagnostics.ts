@@ -160,15 +160,15 @@ export namespace EthernetNetworkDiagnostics {
              *
              * Reception of this command shall reset the following attributes to 0:
              *
-             *   • PacketRxCount
+             *   - PacketRxCount
              *
-             *   • PacketTxCount
+             *   - PacketTxCount
              *
-             *   • TxErrCount
+             *   - TxErrCount
              *
-             *   • CollisionCount
+             *   - CollisionCount
              *
-             *   • OverrunCount
+             *   - OverrunCount
              *
              * @see {@link MatterSpecification.v142.Core} § 11.16.7.1
              */

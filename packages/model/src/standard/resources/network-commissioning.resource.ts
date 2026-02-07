@@ -16,11 +16,11 @@ Resource.add(
             "Commissioning Cluster is to associate a Node with or manage a Node’s one or more network interfaces. " +
             "These network interfaces can include the following types." +
             "\n" +
-            "  • Wi-Fi (IEEE 802.11-2020)" +
+            "  - Wi-Fi (IEEE 802.11-2020)" +
             "\n" +
-            "  • Ethernet (802.3)" +
+            "  - Ethernet (802.3)" +
             "\n" +
-            "  • Thread (802.15.4)" +
+            "  - Thread (802.15.4)" +
             "\n" +
             "An instance of the Network Commissioning Cluster only applies to a single network interface instance " +
             "present. An interface, in this context, is a unique entity that can have an IPv6 address assigned to " +
@@ -177,9 +177,9 @@ Resource.add(
                     "\n" +
                     "This command shall scan on the Cluster instance’s associated network interface for either of:" +
                     "\n" +
-                    "  • All available networks (non-directed scanning)" +
+                    "  - All available networks (non-directed scanning)" +
                     "\n" +
-                    "  • Specific networks (directed scanning)" +
+                    "  - Specific networks (directed scanning)" +
                     "\n" +
                     "Scanning for available networks detects all networks of the type corresponding to the cluster server " +
                     "instance’s associated network interface that are possible to join, such as all visible Wi-Fi access " +
@@ -254,17 +254,17 @@ Resource.add(
                         details: "The NetworkingStatus field shall indicate the status of the last scan operation, taking one of these " +
                             "values:" +
                             "\n" +
-                            "  • Success: Scanning succeeded." +
+                            "  - Success: Scanning succeeded." +
                             "\n" +
-                            "  • NetworkNotFound: No instance of an explicitly-provided network identifier was found during the " +
+                            "  - NetworkNotFound: No instance of an explicitly-provided network identifier was found during the " +
                             "    scan. This error cannot occur if no network identifier was provided, such as when scanning for " +
                             "    all available networks." +
                             "\n" +
-                            "  • OutOfRange: Network identifier was invalid (e.g. empty, too long, etc)." +
+                            "  - OutOfRange: Network identifier was invalid (e.g. empty, too long, etc)." +
                             "\n" +
-                            "  • RegulatoryError: Could not scan on any bands due to lack of regulatory configuration." +
+                            "  - RegulatoryError: Could not scan on any bands due to lack of regulatory configuration." +
                             "\n" +
-                            "  • UnknownError: An internal error occurred during scanning."
+                            "  - UnknownError: An internal error occurred during scanning."
                     },
 
                     {
@@ -350,19 +350,19 @@ Resource.add(
                             "\n" +
                             "Valid Credentials length are:" +
                             "\n" +
-                            "  • 0 bytes: Unsecured (open) connection" +
+                            "  - 0 bytes: Unsecured (open) connection" +
                             "\n" +
-                            "  • 5 bytes: WEP-64 passphrase" +
+                            "  - 5 bytes: WEP-64 passphrase" +
                             "\n" +
-                            "  • 10 hexadecimal ASCII characters: WEP-64 40-bit hex raw PSK" +
+                            "  - 10 hexadecimal ASCII characters: WEP-64 40-bit hex raw PSK" +
                             "\n" +
-                            "  • 13 bytes: WEP-128 passphrase" +
+                            "  - 13 bytes: WEP-128 passphrase" +
                             "\n" +
-                            "  • 26 hexadecimal ASCII characters: WEP-128 104-bit hex raw PSK" +
+                            "  - 26 hexadecimal ASCII characters: WEP-128 104-bit hex raw PSK" +
                             "\n" +
-                            "  • 8..63 bytes: WPA/WPA2/WPA3 passphrase" +
+                            "  - 8..63 bytes: WPA/WPA2/WPA3 passphrase" +
                             "\n" +
-                            "  • 64 bytes: WPA/WPA2/WPA3 raw hex PSK These lengths shall be contextually interpreted based on the " +
+                            "  - 64 bytes: WPA/WPA2/WPA3 raw hex PSK These lengths shall be contextually interpreted based on the " +
                             "    security type of the BSSID where connection will occur." +
                             "\n" +
                             "When the length of Credentials and available set of BSSID admits more than one option, such as the " +
@@ -479,16 +479,16 @@ Resource.add(
                         details: "The NetworkingStatus field shall indicate the status of the last operation attempting to modify the " +
                             "Networks attribute configuration, taking one of these values:" +
                             "\n" +
-                            "  • Success: Operation succeeded." +
+                            "  - Success: Operation succeeded." +
                             "\n" +
-                            "  • OutOfRange: Network identifier was invalid (e.g. empty, too long, etc)." +
+                            "  - OutOfRange: Network identifier was invalid (e.g. empty, too long, etc)." +
                             "\n" +
-                            "  • BoundsExceeded: Adding this network configuration would exceed the limit defined by MaxNetworks." +
+                            "  - BoundsExceeded: Adding this network configuration would exceed the limit defined by MaxNetworks." +
                             "\n" +
-                            "  • NetworkIdNotFound: The network identifier was expected to be found, but was not found among the " +
+                            "  - NetworkIdNotFound: The network identifier was expected to be found, but was not found among the " +
                             "    added network configurations in Networks attribute." +
                             "\n" +
-                            "  • UnknownError: An internal error occurred during the operation."
+                            "  - UnknownError: An internal error occurred during the operation."
                     },
 
                     {
@@ -607,12 +607,12 @@ Resource.add(
                     "\n" +
                     "Before generating a ConnectNetworkResponse, the server shall:" +
                     "\n" +
-                    "  • Set the LastNetworkingStatus attribute value to the NetworkingStatus matching the response." +
+                    "  - Set the LastNetworkingStatus attribute value to the NetworkingStatus matching the response." +
                     "\n" +
-                    "  • Set the LastNetworkID attribute value to the NetworkID that was used in the ConnectNetwork " +
+                    "  - Set the LastNetworkID attribute value to the NetworkID that was used in the ConnectNetwork " +
                     "    command which caused the response to be generated." +
                     "\n" +
-                    "  • Set the LastConnectErrorValue attribute value to the ErrorValue matching the response, including " +
+                    "  - Set the LastConnectErrorValue attribute value to the ErrorValue matching the response, including " +
                     "    setting it to null if the ErrorValue is not applicable.",
 
                 children: [
@@ -622,21 +622,21 @@ Resource.add(
                         details: "The NetworkingStatus field shall indicate the status of the last connection attempt, taking one of " +
                             "these values:" +
                             "\n" +
-                            "  • Success: Connection succeeded." +
+                            "  - Success: Connection succeeded." +
                             "\n" +
-                            "  • NetworkNotFound: No instance of an explicitly-provided network identifier was found during the " +
+                            "  - NetworkNotFound: No instance of an explicitly-provided network identifier was found during the " +
                             "    attempt to join the network." +
                             "\n" +
-                            "  • OutOfRange: Network identifier was invalid (e.g. empty, too long, etc)." +
+                            "  - OutOfRange: Network identifier was invalid (e.g. empty, too long, etc)." +
                             "\n" +
-                            "  • NetworkIdNotFound: The network identifier was not found among the added network configurations " +
+                            "  - NetworkIdNotFound: The network identifier was not found among the added network configurations " +
                             "    in Networks attribute." +
                             "\n" +
-                            "  • RegulatoryError: Could not connect to a network due to lack of regulatory configuration." +
+                            "  - RegulatoryError: Could not connect to a network due to lack of regulatory configuration." +
                             "\n" +
-                            "  • UnknownError: An internal error occurred during the operation." +
+                            "  - UnknownError: An internal error occurred during the operation." +
                             "\n" +
-                            "  • Association errors (see also description of errors in NetworkCommissioningStatusEnum): " +
+                            "  - Association errors (see also description of errors in NetworkCommissioningStatusEnum): " +
                             "    AuthFailure, UnsupportedSecurity, OtherConnectionFailure, IPV6Failed, IPBindFailed"
                     },
 
@@ -648,24 +648,24 @@ Resource.add(
                     {
                         tag: "field", name: "ErrorValue", xref: "core§11.9.7.9.3",
 
-                        details: "  • ErrorValue interpretation for Wi-Fi association errors:" +
+                        details: "  - ErrorValue interpretation for Wi-Fi association errors:" +
                             "\n" +
-                            "    ◦ On any association failure during enabling of a network, the ErrorValue field shall be set to " +
+                            "    - On any association failure during enabling of a network, the ErrorValue field shall be set to " +
                             "      the Status Code value that was present in the last frame related to association where Status " +
                             "      Code was not equal to zero and which caused the failure of a final retry attempt, if this " +
                             "      final failure was due to one of the following Management frames:" +
                             "\n" +
-                            "      ▪ Association Response (Type 0, Subtype 1)" +
+                            "      - Association Response (Type 0, Subtype 1)" +
                             "\n" +
-                            "      ▪ Reassociation Response (Type 0, Subtype 3)" +
+                            "      - Reassociation Response (Type 0, Subtype 3)" +
                             "\n" +
-                            "      ▪ Authentication (Type 0, Subtype 11)" +
+                            "      - Authentication (Type 0, Subtype 11)" +
                             "\n" +
-                            "    ◦ Table 9-50 \"Status Codes\" in IEEE 802.11-2020 contains a description of all values possible, " +
+                            "    - Table 9-50 \"Status Codes\" in IEEE 802.11-2020 contains a description of all values possible, " +
                             "      which can unambiguously be used to determine the cause, such as an invalid security type, " +
                             "      unsupported rate, etc." +
                             "\n" +
-                            "  • Otherwise, the ErrorValue field shall contain an implementation-dependent value which may be " +
+                            "  - Otherwise, the ErrorValue field shall contain an implementation-dependent value which may be " +
                             "    used by a reader of the structure to record, report or diagnose the failure."
                     }
                 ]
@@ -722,9 +722,9 @@ Resource.add(
                             "\n" +
                             "On receiving ReorderNetwork with:" +
                             "\n" +
-                            "  • NetworkID = Home-Guest" +
+                            "  - NetworkID = Home-Guest" +
                             "\n" +
-                            "  • NetworkIndex = 0" +
+                            "  - NetworkIndex = 0" +
                             "\n" +
                             "The outcome, after applying to the initial state would be:" +
                             "\n" +
@@ -733,9 +733,9 @@ Resource.add(
                             "\n" +
                             "On receiving ReorderNetwork with:" +
                             "\n" +
-                            "  • NetworkID = FancyCat" +
+                            "  - NetworkID = FancyCat" +
                             "\n" +
-                            "  • NetworkIndex = 3" +
+                            "  - NetworkIndex = 3" +
                             "\n" +
                             "The outcome, after applying to the initial state would be:" +
                             "\n" +
@@ -849,11 +849,11 @@ Resource.add(
                         details: "Every network is uniquely identified (for purposes of commissioning) by a NetworkID mapping to the " +
                             "following technology-specific properties:" +
                             "\n" +
-                            "  • SSID for Wi-Fi" +
+                            "  - SSID for Wi-Fi" +
                             "\n" +
-                            "  • Extended PAN ID for Thread" +
+                            "  - Extended PAN ID for Thread" +
                             "\n" +
-                            "  • Network interface instance name at operating system (or equivalent unique name) for Ethernet." +
+                            "  - Network interface instance name at operating system (or equivalent unique name) for Ethernet." +
                             "\n" +
                             "The semantics of the NetworkID field therefore varies between network types accordingly. It contains " +
                             "SSID for Wi-Fi networks, Extended PAN ID (XPAN ID) for Thread networks and netif name for Ethernet " +

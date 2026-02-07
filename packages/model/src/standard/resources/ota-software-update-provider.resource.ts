@@ -206,39 +206,39 @@ Resource.add(
                             "\n" +
                             "Example ImageURI values are below, and illustrate some but not all of valid and invalid cases:" +
                             "\n" +
-                            "  • Synchronous or Asynchronous BDX Protocol:" +
+                            "  - Synchronous or Asynchronous BDX Protocol:" +
                             "\n" +
-                            "    ◦ Valid: bdx://8899AABBCCDDEEFF/the_file_designator123" +
+                            "    - Valid: bdx://8899AABBCCDDEEFF/the_file_designator123" +
                             "\n" +
-                            "      ▪ Node ID: 0x8899AABBCCDDEEFF" +
+                            "      - Node ID: 0x8899AABBCCDDEEFF" +
                             "\n" +
-                            "      ▪ File designator: the_file_designator123" +
+                            "      - File designator: the_file_designator123" +
                             "\n" +
-                            "    ◦ Valid: bdx://0099AABBCCDDEE77/the%20file%20designator/some_more" +
+                            "    - Valid: bdx://0099AABBCCDDEE77/the%20file%20designator/some_more" +
                             "\n" +
-                            "      ▪ Node ID: 0x0099AABBCCDDEE77" +
+                            "      - Node ID: 0x0099AABBCCDDEE77" +
                             "\n" +
-                            "      ▪ File designator: the%20file%20designator/some_more. Note that the %20 are retained and not " +
+                            "      - File designator: the%20file%20designator/some_more. Note that the %20 are retained and not " +
                             "        converted to ASCII 0x20 (space). The file designator is the path as received verbatim, after " +
                             "        the first '/' (U+002F / SOLIDUS) following the host." +
                             "\n" +
-                            "    ◦ Invalid: bdx://99AABBCCDDEE77/the_file_designator123" +
+                            "    - Invalid: bdx://99AABBCCDDEE77/the_file_designator123" +
                             "\n" +
-                            "      ▪ Node ID: Invalid since it is not exactly 16 characters long, due to having omitted leading " +
+                            "      - Node ID: Invalid since it is not exactly 16 characters long, due to having omitted leading " +
                             "        zeros." +
                             "\n" +
-                            "    ◦ Invalid: bdx://0099aabbccddee77/the_file_designator123" +
+                            "    - Invalid: bdx://0099aabbccddee77/the_file_designator123" +
                             "\n" +
-                            "      ▪ Node ID: Invalid since lowercase hexadecimal was used." +
+                            "      - Node ID: Invalid since lowercase hexadecimal was used." +
                             "\n" +
-                            "    ◦ Invalid: bdx:8899AABBCCDDEEFF/the_file_designator123" +
+                            "    - Invalid: bdx:8899AABBCCDDEEFF/the_file_designator123" +
                             "\n" +
-                            "      ▪ Invalid since bdx scheme does not contain an authority, that is, it does not have // after " +
+                            "      - Invalid since bdx scheme does not contain an authority, that is, it does not have // after " +
                             "        the first :." +
                             "\n" +
-                            "  • HTTP over TLS:" +
+                            "  - HTTP over TLS:" +
                             "\n" +
-                            "    ◦ Valid: https://example.domain:8466/software/image.bin" +
+                            "    - Valid: https://example.domain:8466/software/image.bin" +
                             "\n" +
                             "See Section 11.20.3.2, “Querying the OTA Provider” for additional details about the flow."
                     },

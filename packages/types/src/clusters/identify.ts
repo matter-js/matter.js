@@ -166,11 +166,11 @@ export namespace Identify {
              *
              * Changes to this attribute shall only be marked as reportable in the following cases:
              *
-             *   • When it changes from 0 to any other value and vice versa, or
+             *   - When it changes from 0 to any other value and vice versa, or
              *
-             *   • When it is written by a client, or
+             *   - When it is written by a client, or
              *
-             *   • When the value is set by an Identify command.
+             *   - When the value is set by an Identify command.
              *
              * Since this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the
              * reporting of this attribute in order to keep track of the remaining duration.

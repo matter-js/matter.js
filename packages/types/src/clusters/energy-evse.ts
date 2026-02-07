@@ -259,20 +259,20 @@ export namespace EnergyEvse {
          *
          * If the EVSE supports the SOC feature and can obtain the SoC of the vehicle:
          *
-         *   • the TargetSoC field shall take precedence over the AddedEnergy field.
+         *   - the TargetSoC field shall take precedence over the AddedEnergy field.
          *
-         *   • the EVSE SHOULD charge to the TargetSoC and then stop the charging automatically when it reaches that
+         *   - the EVSE SHOULD charge to the TargetSoC and then stop the charging automatically when it reaches that
          *     point.
          *
-         *   • if the TargetSoC value is set to 100% then the EVSE SHOULD continue to charge the vehicle until the
+         *   - if the TargetSoC value is set to 100% then the EVSE SHOULD continue to charge the vehicle until the
          *     vehicle decides to stop charging.
          *
          * If the EVSE does not support the SOC feature or cannot obtain the SoC of the vehicle:
          *
-         *   • the AddedEnergy field shall take precedence over the TargetSoC field, and if the EVSE does not support
+         *   - the AddedEnergy field shall take precedence over the TargetSoC field, and if the EVSE does not support
          *     the SOC feature then the TargetSoC field may only take the values null or 100%.
          *
-         *   • if the AddedEnergy field has not been provided, the EVSE SHOULD assume the vehicle is empty and charge
+         *   - if the AddedEnergy field has not been provided, the EVSE SHOULD assume the vehicle is empty and charge
          *     until the vehicle stops demanding a charge.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 9.3.7.6.2
@@ -899,11 +899,11 @@ export namespace EnergyEvse {
              *
              * This attribute value shall be the minimum of:
              *
-             *   • CircuitCapacity - Electrician’s installation setting
+             *   - CircuitCapacity - Electrician’s installation setting
              *
-             *   • CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)
+             *   - CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)
              *
-             *   • MaximumDischargeCurrent field in the EnableDischarging command
+             *   - MaximumDischargeCurrent field in the EnableDischarging command
              *
              * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.9
              */
@@ -1267,13 +1267,13 @@ export namespace EnergyEvse {
              *
              * This attribute value shall be the minimum of:
              *
-             *   • CircuitCapacity - Electrician’s installation setting
+             *   - CircuitCapacity - Electrician’s installation setting
              *
-             *   • CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)
+             *   - CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)
              *
-             *   • MaximumChargeCurrent field in the EnableCharging command
+             *   - MaximumChargeCurrent field in the EnableCharging command
              *
-             *   • UserMaximumChargeCurrent attribute
+             *   - UserMaximumChargeCurrent attribute
              *
              * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.8
              */

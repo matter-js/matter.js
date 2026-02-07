@@ -127,11 +127,11 @@ Resource.add({
                         "association where Status Code was not equal to zero and which caused the failure of a last trial " +
                         "attempt, if this last failure was due to one of the following Management frames:" +
                         "\n" +
-                        "  • Association Response (Type 0, Subtype 1)" +
+                        "  - Association Response (Type 0, Subtype 1)" +
                         "\n" +
-                        "  • Reassociation Response (Type 0, Subtype 3)" +
+                        "  - Reassociation Response (Type 0, Subtype 3)" +
                         "\n" +
-                        "  • Authentication (Type 0, Subtype 11)" +
+                        "  - Authentication (Type 0, Subtype 11)" +
                         "\n" +
                         "Table 9-50 \"Status codes\" of IEEE 802.11-2020 contains a description of all values possible."
                 }
@@ -152,17 +152,17 @@ Resource.add({
                 "\n" +
                 "Reception of this command shall reset the following attributes to 0:" +
                 "\n" +
-                "  • BeaconLostCount" +
+                "  - BeaconLostCount" +
                 "\n" +
-                "  • BeaconRxCount" +
+                "  - BeaconRxCount" +
                 "\n" +
-                "  • PacketMulticastRxCount" +
+                "  - PacketMulticastRxCount" +
                 "\n" +
-                "  • PacketMulticastTxCount" +
+                "  - PacketMulticastTxCount" +
                 "\n" +
-                "  • PacketUnicastRxCount" +
+                "  - PacketUnicastRxCount" +
                 "\n" +
-                "  • PacketUnicastTxCount"
+                "  - PacketUnicastTxCount"
         },
 
         {

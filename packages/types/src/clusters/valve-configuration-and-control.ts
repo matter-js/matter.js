@@ -229,11 +229,11 @@ export namespace ValveConfigurationAndControl {
              *
              * Null:
              *
-             *   • When OpenDuration is null, or
+             *   - When OpenDuration is null, or
              *
-             *   • When the valve does not have a synchronized UTCTime in the Time Synchronization cluster, or
+             *   - When the valve does not have a synchronized UTCTime in the Time Synchronization cluster, or
              *
-             *   • When the valve is closed.
+             *   - When the valve is closed.
              *
              * When the value of this attribute is earlier or equal to the current UTC time, the valve shall
              * automatically transition to its closed position. The behavior of transitioning to the closed position,
@@ -369,19 +369,19 @@ export namespace ValveConfigurationAndControl {
              *
              * Null:
              *
-             *   • When OpenDuration is null, or
+             *   - When OpenDuration is null, or
              *
-             *   • When the valve is closed.
+             *   - When the valve is closed.
              *
              * The value of this attribute shall only be reported in the following cases:
              *
-             *   • When it changes from null to any other value and vice versa, or
+             *   - When it changes from null to any other value and vice versa, or
              *
-             *   • When it changes to 0, or
+             *   - When it changes to 0, or
              *
-             *   • When it increases, or
+             *   - When it increases, or
              *
-             *   • When the closing time changes.
+             *   - When the closing time changes.
              *
              * Meaning that clients SHOULD NOT rely on the reporting of this attribute in order to keep track of the
              * remaining duration, due to this attribute not being reported during regular countdown.

@@ -340,18 +340,18 @@ export namespace RvcOperationalState {
              *
              * Changes to this attribute shall only be marked as reportable in the following cases:
              *
-             *   • If it has changed due to a change in the CurrentPhase or OperationalState attributes, or
+             *   - If it has changed due to a change in the CurrentPhase or OperationalState attributes, or
              *
-             *   • When it changes from 0 to any other value and vice versa, or
+             *   - When it changes from 0 to any other value and vice versa, or
              *
-             *   • When it changes from null to any other value and vice versa, or
+             *   - When it changes from null to any other value and vice versa, or
              *
-             *   • When it increases, or
+             *   - When it increases, or
              *
-             *   • When there is any increase or decrease in the estimated time remaining that was due to progressing
+             *   - When there is any increase or decrease in the estimated time remaining that was due to progressing
              *     insight of the server’s control logic, or
              *
-             *   • When it changes at a rate significantly different from one unit per second.
+             *   - When it changes at a rate significantly different from one unit per second.
              *
              * Changes to this attribute merely due to the normal passage of time with no other dynamic change of device
              * state shall NOT be reported.
@@ -425,9 +425,9 @@ export namespace RvcOperationalState {
              *
              * Otherwise, on success:
              *
-             *   • The OperationalState attribute shall be set to SeekingCharger.
+             *   - The OperationalState attribute shall be set to SeekingCharger.
              *
-             *   • The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
+             *   - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 7.4.5.1
              */

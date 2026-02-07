@@ -25,17 +25,17 @@ Resource.add(
             "It consists of the following areas which shall be supported by all devices implementing this " +
             "cluster:" +
             "\n" +
-            "  • Description of ESA and its capabilities & power limits (sometimes referred to as a nameplate)" +
+            "  - Description of ESA and its capabilities & power limits (sometimes referred to as a nameplate)" +
             "\n" +
-            "  • Current state of operation (including user opt-out, safety limitations / alarms)" +
+            "  - Current state of operation (including user opt-out, safety limitations / alarms)" +
             "\n" +
             "There are some optional capabilities that some ESAs may be able to offer:" +
             "\n" +
-            "  • Ability to control the load or generation" +
+            "  - Ability to control the load or generation" +
             "\n" +
-            "  • Forecast data, including when it can be flexible (i.e. modify the power or time period)" +
+            "  - Forecast data, including when it can be flexible (i.e. modify the power or time period)" +
             "\n" +
-            "  • The ability to have their power profile adjusted by an EMS, and to provide an updated Forecast " +
+            "  - The ability to have their power profile adjusted by an EMS, and to provide an updated Forecast " +
             "    back to the EMS." +
             "\n" +
             "This allows the EMS to manage multiple home loads and where ESAs can be flexible, continuously " +
@@ -336,9 +336,9 @@ Resource.add(
                     "\n" +
                     "Changes to this attribute shall only be marked as reportable in the following cases:" +
                     "\n" +
-                    "  • At most once every 10 seconds on changes, or" +
+                    "  - At most once every 10 seconds on changes, or" +
                     "\n" +
-                    "  • When it changes from null to any other value and vice versa."
+                    "  - When it changes from null to any other value and vice versa."
             },
 
             {
@@ -355,13 +355,13 @@ Resource.add(
                     "\n" +
                     "Changes to this attribute shall only be marked as reportable in the following cases:" +
                     "\n" +
-                    "  • At most once every 10 seconds on changes, or" +
+                    "  - At most once every 10 seconds on changes, or" +
                     "\n" +
-                    "  • When it changes from null to any other value and vice versa, or" +
+                    "  - When it changes from null to any other value and vice versa, or" +
                     "\n" +
-                    "  • As a result of a command which causes the forecast to be updated, or" +
+                    "  - As a result of a command which causes the forecast to be updated, or" +
                     "\n" +
-                    "  • As a result of a change in the opt-out status which in turn may cause the ESA to recalculate its " +
+                    "  - As a result of a change in the opt-out status which in turn may cause the ESA to recalculate its " +
                     "    forecast."
             },
 

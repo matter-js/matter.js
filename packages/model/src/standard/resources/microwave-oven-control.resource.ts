@@ -50,19 +50,19 @@ Resource.add({
                 "\n" +
                 "If the MinPower, MaxPower, and PowerStep attributes are not supported:" +
                 "\n" +
-                "  • The minimum value of this attribute shall be 10," +
+                "  - The minimum value of this attribute shall be 10," +
                 "\n" +
-                "  • The maximum value of this attribute shall be 100," +
+                "  - The maximum value of this attribute shall be 100," +
                 "\n" +
-                "  • The value shall be in even multiples of 10," +
+                "  - The value shall be in even multiples of 10," +
                 "\n" +
-                "  • The default value shall be 100." +
+                "  - The default value shall be 100." +
                 "\n" +
                 "If the MinPower, MaxPower, and PowerStep attributes are supported:" +
                 "\n" +
-                "  • The value of this attribute shall be between MinPower and MaxPower inclusive." +
+                "  - The value of this attribute shall be between MinPower and MaxPower inclusive." +
                 "\n" +
-                "  • The value of this attribute shall be such that (PowerSetting - MinPower) % PowerStep == 0"
+                "  - The value of this attribute shall be such that (PowerSetting - MinPower) % PowerStep == 0"
         },
 
         {

@@ -221,11 +221,11 @@ export namespace ServiceArea {
      *
      * For an area description to be meaningful, it shall have at least one of the following:
      *
-     *   • a non-empty name (LocationInfo’s LocationName field)
+     *   - a non-empty name (LocationInfo’s LocationName field)
      *
      * OR
      *
-     *   • some semantic data (one or more of these: FloorNumber, AreaType or LandmarkTag) The normative text from the
+     *   - some semantic data (one or more of these: FloorNumber, AreaType or LandmarkTag) The normative text from the
      *     remainder of this section describes these constraints.
      *
      * If the LocationInfo field is null, the LandmarkInfo field shall NOT be null.
@@ -235,19 +235,19 @@ export namespace ServiceArea {
      * If LocationInfo is not null, and its LocationName field is an empty string, at least one of the following shall
      * NOT be null:
      *
-     *   • LocationInfo’s FloorNumber field
+     *   - LocationInfo’s FloorNumber field
      *
-     *   • LocationInfo’s AreaType field
+     *   - LocationInfo’s AreaType field
      *
-     *   • LandmarkInfo field
+     *   - LandmarkInfo field
      *
      * If all three of the following are null, LocationInfo’s LocationName field shall NOT be an empty string:
      *
-     *   • LocationInfo’s FloorNumber field
+     *   - LocationInfo’s FloorNumber field
      *
-     *   • LocationInfo’s AreaType field
+     *   - LocationInfo’s AreaType field
      *
-     *   • LandmarkInfo field
+     *   - LandmarkInfo field
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.2
      */
@@ -257,11 +257,11 @@ export namespace ServiceArea {
          *
          * A few examples are provided below.
          *
-         *   • An area can have LocationInfo’s LocationName field set to "blue room", and the AreaType field set to the
+         *   - An area can have LocationInfo’s LocationName field set to "blue room", and the AreaType field set to the
          *     ID of a "Living Room" semantic tag. Clients wishing to direct the device to operate in (or service) the
          *     living room can use this area.
          *
-         *   • An area can have LocationInfo set to null, the LandmarkInfo’s LandmarkTag field set to the ID of the
+         *   - An area can have LocationInfo set to null, the LandmarkInfo’s LandmarkTag field set to the ID of the
          *     "Table" landmark semantic tag, and the RelativePositionTag field set to the ID of the "Under" position
          *     semantic tag. With such an area indication, the client can request the device to operate in (or service)
          *     the area located under the table.
@@ -291,11 +291,11 @@ export namespace ServiceArea {
      *
      * For an area description to be meaningful, it shall have at least one of the following:
      *
-     *   • a non-empty name (LocationInfo’s LocationName field)
+     *   - a non-empty name (LocationInfo’s LocationName field)
      *
      * OR
      *
-     *   • some semantic data (one or more of these: FloorNumber, AreaType or LandmarkTag) The normative text from the
+     *   - some semantic data (one or more of these: FloorNumber, AreaType or LandmarkTag) The normative text from the
      *     remainder of this section describes these constraints.
      *
      * If the LocationInfo field is null, the LandmarkInfo field shall NOT be null.
@@ -305,19 +305,19 @@ export namespace ServiceArea {
      * If LocationInfo is not null, and its LocationName field is an empty string, at least one of the following shall
      * NOT be null:
      *
-     *   • LocationInfo’s FloorNumber field
+     *   - LocationInfo’s FloorNumber field
      *
-     *   • LocationInfo’s AreaType field
+     *   - LocationInfo’s AreaType field
      *
-     *   • LandmarkInfo field
+     *   - LandmarkInfo field
      *
      * If all three of the following are null, LocationInfo’s LocationName field shall NOT be an empty string:
      *
-     *   • LocationInfo’s FloorNumber field
+     *   - LocationInfo’s FloorNumber field
      *
-     *   • LocationInfo’s AreaType field
+     *   - LocationInfo’s AreaType field
      *
-     *   • LandmarkInfo field
+     *   - LandmarkInfo field
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.2
      */
@@ -543,14 +543,14 @@ export namespace ServiceArea {
              *
              * A map is a full or a partial representation of a home, known to the device. For example:
              *
-             *   • a single level home may be represented using a single map
+             *   - a single level home may be represented using a single map
              *
-             *   • a two level home may be represented using two maps, one for each level
+             *   - a two level home may be represented using two maps, one for each level
              *
-             *   • a single level home may be represented using two maps, each including a different set of rooms, such
+             *   - a single level home may be represented using two maps, each including a different set of rooms, such
              *     as "map of living room and kitchen" and "map of bedrooms and hallway"
              *
-             *   • a single level home may be represented using one map for the indoor areas (living room, bedrooms
+             *   - a single level home may be represented using one map for the indoor areas (living room, bedrooms
              *     etc.) and one for the outdoor areas (garden, swimming pool etc.)
              *
              * Each map includes one or more areas - see the SupportedAreas attribute. In the context of this cluster
@@ -611,12 +611,12 @@ export namespace ServiceArea {
              *
              * If the SelectedAreas attribute is not empty, and the device starts operating:
              *
-             *   • the Progress attribute list shall be updated so each entry of SelectedAreas has a matching Progress
+             *   - the Progress attribute list shall be updated so each entry of SelectedAreas has a matching Progress
              *     list entry, based on the AreaID field
              *
-             *   • the length of the Progress and SelectedAreas list shall be the same
+             *   - the length of the Progress and SelectedAreas list shall be the same
              *
-             *   • the entries in the Progress list shall be initialized by the server, by having their status set to
+             *   - the entries in the Progress list shall be initialized by the server, by having their status set to
              *     Pending or Operating, and the TotalOperationalTime field set to null
              *
              * When the device ends operation unexpectedly, such as due to an error, the server shall update all
@@ -708,15 +708,15 @@ export namespace ServiceArea {
              *
              * Valid list of areas:
              *
-             *   • AreaID=0, LocationName="yellow bedroom", MapID=null
+             *   - AreaID=0, LocationName="yellow bedroom", MapID=null
              *
-             *   • AreaID=1, LocationName="orange bedroom", MapID=null
+             *   - AreaID=1, LocationName="orange bedroom", MapID=null
              *
              * Valid list of areas:
              *
-             *   • AreaID=5, LocationName="hallway", MapID=1
+             *   - AreaID=5, LocationName="hallway", MapID=1
              *
-             *   • AreaID=3, LocationName="hallway", MapID=2
+             *   - AreaID=3, LocationName="hallway", MapID=2
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.17.6.1
              */
@@ -733,10 +733,10 @@ export namespace ServiceArea {
              *
              * If this attribute is not empty:
              *
-             *   • each item in this list shall match the AreaID field of an entry in the SupportedAreas attribute’s
+             *   - each item in this list shall match the AreaID field of an entry in the SupportedAreas attribute’s
              *     list
              *
-             *   • each entry in this list shall have a unique value
+             *   - each entry in this list shall have a unique value
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.17.6.3
              */
@@ -789,11 +789,11 @@ export namespace ServiceArea {
              *
              * The value of this attribute shall only be reported in the following cases:
              *
-             *   • when it changes to or from 0
+             *   - when it changes to or from 0
              *
-             *   • when it decreases
+             *   - when it decreases
              *
-             *   • when it changes to or from null
+             *   - when it changes to or from null
              *
              *     > [!NOTE]
              *

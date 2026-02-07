@@ -25,9 +25,9 @@ export namespace IcdManagementInterface {
          * When receiving a StayActiveRequest command, the server shall calculate the maximum PromisedActiveDuration it
          * can remain active as the greater of the following two values:
          *
-         *   • StayActiveDuration: Specified in the received command by the client.
+         *   - StayActiveDuration: Specified in the received command by the client.
          *
-         *   • Remaining Active Time: The server’s planned remaining active time based on the ActiveModeThreshold and
+         *   - Remaining Active Time: The server’s planned remaining active time based on the ActiveModeThreshold and
          *     its internal resources and power budget.
          *
          * A server may replace StayActiveDuration with Minimum Active Duration in the above calculation.
@@ -77,9 +77,9 @@ export namespace IcdManagementInterface {
          * When receiving a StayActiveRequest command, the server shall calculate the maximum PromisedActiveDuration it
          * can remain active as the greater of the following two values:
          *
-         *   • StayActiveDuration: Specified in the received command by the client.
+         *   - StayActiveDuration: Specified in the received command by the client.
          *
-         *   • Remaining Active Time: The server’s planned remaining active time based on the ActiveModeThreshold and
+         *   - Remaining Active Time: The server’s planned remaining active time based on the ActiveModeThreshold and
          *     its internal resources and power budget.
          *
          * A server may replace StayActiveDuration with Minimum Active Duration in the above calculation.

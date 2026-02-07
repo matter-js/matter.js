@@ -1029,9 +1029,9 @@ export namespace PowerSource {
              *
              * Changes to this attribute shall only be marked as reportable in the following cases:
              *
-             *   • At most once every 10 seconds, or
+             *   - At most once every 10 seconds, or
              *
-             *   • When it changes from null to any other value and vice versa.
+             *   - When it changes from null to any other value and vice versa.
              *
              * Since reporting consumes power, devices SHOULD be careful not to over-report.
              *
@@ -1045,9 +1045,9 @@ export namespace PowerSource {
              *
              * Changes to this attribute shall only be marked as reportable in the following cases:
              *
-             *   • At most once every 10 seconds, or
+             *   - At most once every 10 seconds, or
              *
-             *   • When it changes from null to any other value and vice versa.
+             *   - When it changes from null to any other value and vice versa.
              *
              * Since reporting consumes power, devices SHOULD be careful not to over-report.
              *
@@ -1200,9 +1200,9 @@ export namespace PowerSource {
              *
              * Changes to this attribute shall only be marked as reportable in the following cases:
              *
-             *   • At most once every 10 seconds, or
+             *   - At most once every 10 seconds, or
              *
-             *   • When it changes from null to any other value and vice versa.
+             *   - When it changes from null to any other value and vice versa.
              *
              * Since reporting consumes power, devices SHOULD be careful not to over-report.
              *

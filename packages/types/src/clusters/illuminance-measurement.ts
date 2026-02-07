@@ -41,17 +41,17 @@ export namespace IlluminanceMeasurement {
             /**
              * Indicates the illuminance in Lux (symbol lx) as follows:
              *
-             *   • MeasuredValue = 10,000 x log10(illuminance) + 1,
+             *   - MeasuredValue = 10,000 x log10(illuminance) + 1,
              *
              * where 1 lx <= illuminance <= 3.576 Mlx, corresponding to a MeasuredValue in the range 1 to 0xFFFE.
              *
              * The MeasuredValue attribute can take the following values:
              *
-             *   • 0 indicates a value of illuminance that is too low to be measured,
+             *   - 0 indicates a value of illuminance that is too low to be measured,
              *
-             *   • MinMeasuredValue <= MeasuredValue <= MaxMeasuredValue under normal circumstances,
+             *   - MinMeasuredValue <= MeasuredValue <= MaxMeasuredValue under normal circumstances,
              *
-             *   • null indicates that the illuminance measurement is invalid.
+             *   - null indicates that the illuminance measurement is invalid.
              *
              * The MeasuredValue attribute is updated continuously as new measurements are made.
              *

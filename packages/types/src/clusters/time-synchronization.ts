@@ -585,10 +585,10 @@ export namespace TimeSynchronization {
              *
              * Upon receipt of this command:
              *
-             *   • If the TrustedTimeSource field in the command is null, the node shall set the TrustedTimeSource
+             *   - If the TrustedTimeSource field in the command is null, the node shall set the TrustedTimeSource
              *     attribute to null and shall generate a MissingTrustedTimeSource event.
              *
-             *   • Otherwise, the node shall set the TrustedTimeSource attribute to a struct which has NodeID and
+             *   - Otherwise, the node shall set the TrustedTimeSource attribute to a struct which has NodeID and
              *     Endpoint fields matching those in the TrustedTimeSource field and has its FabricIndex field set to
              *     the command’s accessing fabric index.
              *
@@ -695,10 +695,10 @@ export namespace TimeSynchronization {
              * If a node does not support a TimeZoneDatabase, the Name field of the TimeZoneStruct is only applicable
              * for client-side localization. In particular:
              *
-             *   • If the node does not support a TimeZoneDatabase, the Name field shall NOT be used to calculate the
+             *   - If the node does not support a TimeZoneDatabase, the Name field shall NOT be used to calculate the
              *     local time.
              *
-             *   • If the node does not support a TimeZoneDatabase, the Name field shall NOT be used to calculate DST
+             *   - If the node does not support a TimeZoneDatabase, the Name field shall NOT be used to calculate DST
              *     start or end dates.
              *
              * When time passes, the node SHOULD remove any entries which are no longer active and change the ValidAt
@@ -808,10 +808,10 @@ export namespace TimeSynchronization {
             /**
              * This command is used to set the DST offsets for a node.
              *
-             *   • If the length of DSTOffset is larger than DSTOffsetListMaxSize, the node shall respond with
+             *   - If the length of DSTOffset is larger than DSTOffsetListMaxSize, the node shall respond with
              *     RESOURCE_EXHAUSTED.
              *
-             *   • Else if the list entries do not conform to the list requirements for DSTOffset attribute, the node
+             *   - Else if the list entries do not conform to the list requirements for DSTOffset attribute, the node
              *     shall respond with CONSTRAINT_ERROR.
              *
              * If there are no errors in the list, the DSTOffset field shall be copied to the DSTOffset attribute.

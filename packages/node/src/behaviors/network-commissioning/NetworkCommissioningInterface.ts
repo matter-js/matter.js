@@ -17,9 +17,9 @@ export namespace NetworkCommissioningInterface {
          *
          * This command shall scan on the Cluster instance’s associated network interface for either of:
          *
-         *   • All available networks (non-directed scanning)
+         *   - All available networks (non-directed scanning)
          *
-         *   • Specific networks (directed scanning)
+         *   - Specific networks (directed scanning)
          *
          * Scanning for available networks detects all networks of the type corresponding to the cluster server
          * instance’s associated network interface that are possible to join, such as all visible Wi-Fi access points

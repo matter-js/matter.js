@@ -5,7 +5,6 @@
  */
 
 import { looksLikeListItem } from "@matter/general";
-import { Words } from "../../util/words.js";
 import { Str, convertSuperscripts } from "./html-translators.js";
 import { HtmlReference } from "./spec-types.js";
 
@@ -20,11 +19,6 @@ export const EndContentFlags = [
     // Similar issue for thermostat cluster
     /Optional temperature, humidity and occupancy sensors/,
 ];
-
-/**
- * Uncommon english words that are part of known splits.
- */
-export const NotWords = new Set(["cur"]);
 
 /**
  * A light attempt at dropping text to make documentation seem slightly less scavenged.
@@ -78,20 +72,7 @@ function extractUsefulDocumentation(text: string) {
  * Look for obvious split paragraphs and reassemble.
  */
 function mergeSplitParagraphs(paragraphs: string[]) {
-    // First merge by identifying word splits.  These we want to merge without an intervening space
-    for (let i = 0; i < paragraphs.length - 1; i++) {
-        const trailing = paragraphs[i].replace(/^.*\s(\w+)$/, "$1").toLowerCase();
-        const leading = paragraphs[i + 1].replace(/^(\w+)\W.*$/, "$1").toLowerCase();
-        if (Words.has(leading) && !NotWords.has(leading) && Words.has(trailing) && !NotWords.has(trailing)) {
-            continue;
-        }
-        const possibleWord = `${trailing}${leading}`;
-        if (Words.has(possibleWord)) {
-            joinParagraphs(i, "");
-        }
-    }
-
-    // Next merge by identifying sentence splits
+    // Merge by identifying sentence splits
     for (let i = 0; i < paragraphs.length - 1; i++) {
         const paragraph = paragraphs[i];
         if (
@@ -232,9 +213,9 @@ export function addDocumentation(target: { details?: string }, definition: HtmlR
                     text = `${index}. ${text}`;
                 }
             } else {
-                // Unordered list — use depth-appropriate bullet characters matching FormattedText Bullets
-                const bullets = ["\u2022", "\u25E6", "\u25AA"];
-                text = `${bullets[depth] ?? bullets[bullets.length - 1]} ${text}`;
+                // Unordered list — markdown-style dash with indentation for nesting
+                const indent = "  ".repeat(depth);
+                text = `${indent}- ${text}`;
             }
         }
 
@@ -311,7 +292,14 @@ export function addDocumentation(target: { details?: string }, definition: HtmlR
 
     if (paragraphs.length) {
         mergeSplitParagraphs(paragraphs);
-        paragraphs = paragraphs.map(extractUsefulDocumentation).filter(p => p !== "" && p !== "###");
+        paragraphs = paragraphs
+            .map(p => {
+                // Preserve leading indentation for list items through extractUsefulDocumentation
+                const match = p.match(/^(\s+)(-\s|\d+\.\s|[a-z]+\.\s|[ivxlcdm]+\.\s|[A-Z]+\.\s|[IVXLCDM]+\.\s)/i);
+                const cleaned = extractUsefulDocumentation(p);
+                return match ? `${match[1]}${cleaned.trimStart()}` : cleaned;
+            })
+            .filter(p => p !== "" && p !== "###");
         target.details = paragraphs.join("\n");
     }
 }

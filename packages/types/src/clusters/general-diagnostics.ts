@@ -70,9 +70,9 @@ export namespace GeneralDiagnostics {
          *
          * This command shall respond with a response status of CONSTRAINT_ERROR if either:
          *
-         *   • The EnableKey field does not match the a-priori value configured on the device.
+         *   - The EnableKey field does not match the a-priori value configured on the device.
          *
-         *   • The TestEventTriggersEnabled field is currently false.
+         *   - The TestEventTriggersEnabled field is currently false.
          *
          * Otherwise, the server shall respond with a PayloadTestResponse command with a Payload field value containing
          * Count instances of the Value byte. If the response is too large to send, the server shall fail the command
@@ -80,10 +80,10 @@ export namespace GeneralDiagnostics {
          *
          * For example:
          *
-         *   • If Value is 0x55 and the Count is zero, then the PayloadTestResponse would have the Payload field set to
+         *   - If Value is 0x55 and the Count is zero, then the PayloadTestResponse would have the Payload field set to
          *     an empty octet string.
          *
-         *   • If Value is 0xA5 and the Count is 10, the PayloadTestResponse would have the Payload field set to a
+         *   - If Value is 0xA5 and the Count is 10, the PayloadTestResponse would have the Payload field set to a
          *     content whose hexadecimal representation would be A5A5A5A5A5A5A5A5A5A5, and base64 representation would
          *     be paWlpaWlpaWlpQ==.
          *
@@ -484,9 +484,9 @@ export namespace GeneralDiagnostics {
          * that could populate the Timestamp field of events. This value shall only be null when any the following are
          * true:
          *
-         *   • The node doesn’t support the Time Synchronization cluster.
+         *   - The node doesn’t support the Time Synchronization cluster.
          *
-         *   • The node’s Time Synchronization cluster instance’s UTCTime attribute is null.
+         *   - The node’s Time Synchronization cluster instance’s UTCTime attribute is null.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.12.7.3.2
          */

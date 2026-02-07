@@ -1328,9 +1328,9 @@ export namespace DeviceEnergyManagement {
              *
              * Changes to this attribute shall only be marked as reportable in the following cases:
              *
-             *   • At most once every 10 seconds on changes, or
+             *   - At most once every 10 seconds on changes, or
              *
-             *   • When it changes from null to any other value and vice versa.
+             *   - When it changes from null to any other value and vice versa.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.6
              */
@@ -1388,13 +1388,13 @@ export namespace DeviceEnergyManagement {
              *
              * Changes to this attribute shall only be marked as reportable in the following cases:
              *
-             *   • At most once every 10 seconds on changes, or
+             *   - At most once every 10 seconds on changes, or
              *
-             *   • When it changes from null to any other value and vice versa, or
+             *   - When it changes from null to any other value and vice versa, or
              *
-             *   • As a result of a command which causes the forecast to be updated, or
+             *   - As a result of a command which causes the forecast to be updated, or
              *
-             *   • As a result of a change in the opt-out status which in turn may cause the ESA to recalculate its
+             *   - As a result of a change in the opt-out status which in turn may cause the ESA to recalculate its
              *     forecast.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.7
@@ -1898,17 +1898,17 @@ export namespace DeviceEnergyManagement {
      *
      * It consists of the following areas which shall be supported by all devices implementing this cluster:
      *
-     *   • Description of ESA and its capabilities & power limits (sometimes referred to as a nameplate)
+     *   - Description of ESA and its capabilities & power limits (sometimes referred to as a nameplate)
      *
-     *   • Current state of operation (including user opt-out, safety limitations / alarms)
+     *   - Current state of operation (including user opt-out, safety limitations / alarms)
      *
      * There are some optional capabilities that some ESAs may be able to offer:
      *
-     *   • Ability to control the load or generation
+     *   - Ability to control the load or generation
      *
-     *   • Forecast data, including when it can be flexible (i.e. modify the power or time period)
+     *   - Forecast data, including when it can be flexible (i.e. modify the power or time period)
      *
-     *   • The ability to have their power profile adjusted by an EMS, and to provide an updated Forecast back to the
+     *   - The ability to have their power profile adjusted by an EMS, and to provide an updated Forecast back to the
      *     EMS.
      *
      * This allows the EMS to manage multiple home loads and where ESAs can be flexible, continuously optimizing the

@@ -82,15 +82,15 @@ Resource.add({
                 "\n" +
                 "Valid list of areas:" +
                 "\n" +
-                "  • AreaID=0, LocationName=\"yellow bedroom\", MapID=null" +
+                "  - AreaID=0, LocationName=\"yellow bedroom\", MapID=null" +
                 "\n" +
-                "  • AreaID=1, LocationName=\"orange bedroom\", MapID=null" +
+                "  - AreaID=1, LocationName=\"orange bedroom\", MapID=null" +
                 "\n" +
                 "Valid list of areas:" +
                 "\n" +
-                "  • AreaID=5, LocationName=\"hallway\", MapID=1" +
+                "  - AreaID=5, LocationName=\"hallway\", MapID=1" +
                 "\n" +
-                "  • AreaID=3, LocationName=\"hallway\", MapID=2"
+                "  - AreaID=3, LocationName=\"hallway\", MapID=2"
         },
 
         {
@@ -100,14 +100,14 @@ Resource.add({
                 "\n" +
                 "A map is a full or a partial representation of a home, known to the device. For example:" +
                 "\n" +
-                "  • a single level home may be represented using a single map" +
+                "  - a single level home may be represented using a single map" +
                 "\n" +
-                "  • a two level home may be represented using two maps, one for each level" +
+                "  - a two level home may be represented using two maps, one for each level" +
                 "\n" +
-                "  • a single level home may be represented using two maps, each including a different set of rooms, " +
+                "  - a single level home may be represented using two maps, each including a different set of rooms, " +
                 "    such as \"map of living room and kitchen\" and \"map of bedrooms and hallway\"" +
                 "\n" +
-                "  • a single level home may be represented using one map for the indoor areas (living room, bedrooms " +
+                "  - a single level home may be represented using one map for the indoor areas (living room, bedrooms " +
                 "    etc.) and one for the outdoor areas (garden, swimming pool etc.)" +
                 "\n" +
                 "Each map includes one or more areas - see the SupportedAreas attribute. In the context of this " +
@@ -157,10 +157,10 @@ Resource.add({
                 "\n" +
                 "If this attribute is not empty:" +
                 "\n" +
-                "  • each item in this list shall match the AreaID field of an entry in the SupportedAreas " +
+                "  - each item in this list shall match the AreaID field of an entry in the SupportedAreas " +
                 "    attribute’s list" +
                 "\n" +
-                "  • each entry in this list shall have a unique value"
+                "  - each entry in this list shall have a unique value"
         },
 
         {
@@ -212,11 +212,11 @@ Resource.add({
                 "\n" +
                 "The value of this attribute shall only be reported in the following cases:" +
                 "\n" +
-                "  • when it changes to or from 0" +
+                "  - when it changes to or from 0" +
                 "\n" +
-                "  • when it decreases" +
+                "  - when it decreases" +
                 "\n" +
-                "  • when it changes to or from null" +
+                "  - when it changes to or from null" +
                 "\n" +
                 "    > [!NOTE]" +
                 "\n" +
@@ -243,12 +243,12 @@ Resource.add({
                 "\n" +
                 "If the SelectedAreas attribute is not empty, and the device starts operating:" +
                 "\n" +
-                "  • the Progress attribute list shall be updated so each entry of SelectedAreas has a matching " +
+                "  - the Progress attribute list shall be updated so each entry of SelectedAreas has a matching " +
                 "    Progress list entry, based on the AreaID field" +
                 "\n" +
-                "  • the length of the Progress and SelectedAreas list shall be the same" +
+                "  - the length of the Progress and SelectedAreas list shall be the same" +
                 "\n" +
-                "  • the entries in the Progress list shall be initialized by the server, by having their status set " +
+                "  - the entries in the Progress list shall be initialized by the server, by having their status set " +
                 "    to Pending or Operating, and the TotalOperationalTime field set to null" +
                 "\n" +
                 "When the device ends operation unexpectedly, such as due to an error, the server shall update all " +
@@ -380,11 +380,11 @@ Resource.add({
                 "\n" +
                 "For an area description to be meaningful, it shall have at least one of the following:" +
                 "\n" +
-                "  • a non-empty name (LocationInfo’s LocationName field)" +
+                "  - a non-empty name (LocationInfo’s LocationName field)" +
                 "\n" +
                 "OR" +
                 "\n" +
-                "  • some semantic data (one or more of these: FloorNumber, AreaType or LandmarkTag) The normative " +
+                "  - some semantic data (one or more of these: FloorNumber, AreaType or LandmarkTag) The normative " +
                 "    text from the remainder of this section describes these constraints." +
                 "\n" +
                 "If the LocationInfo field is null, the LandmarkInfo field shall NOT be null." +
@@ -394,20 +394,20 @@ Resource.add({
                 "If LocationInfo is not null, and its LocationName field is an empty string, at least one of the " +
                 "following shall NOT be null:" +
                 "\n" +
-                "  • LocationInfo’s FloorNumber field" +
+                "  - LocationInfo’s FloorNumber field" +
                 "\n" +
-                "  • LocationInfo’s AreaType field" +
+                "  - LocationInfo’s AreaType field" +
                 "\n" +
-                "  • LandmarkInfo field" +
+                "  - LandmarkInfo field" +
                 "\n" +
                 "If all three of the following are null, LocationInfo’s LocationName field shall NOT be an empty " +
                 "string:" +
                 "\n" +
-                "  • LocationInfo’s FloorNumber field" +
+                "  - LocationInfo’s FloorNumber field" +
                 "\n" +
-                "  • LocationInfo’s AreaType field" +
+                "  - LocationInfo’s AreaType field" +
                 "\n" +
-                "  • LandmarkInfo field",
+                "  - LandmarkInfo field",
 
             children: [
                 {
@@ -417,11 +417,11 @@ Resource.add({
                         "\n" +
                         "A few examples are provided below." +
                         "\n" +
-                        "  • An area can have LocationInfo’s LocationName field set to \"blue room\", and the AreaType field " +
+                        "  - An area can have LocationInfo’s LocationName field set to \"blue room\", and the AreaType field " +
                         "    set to the ID of a \"Living Room\" semantic tag. Clients wishing to direct the device to operate " +
                         "    in (or service) the living room can use this area." +
                         "\n" +
-                        "  • An area can have LocationInfo set to null, the LandmarkInfo’s LandmarkTag field set to the ID of " +
+                        "  - An area can have LocationInfo set to null, the LandmarkInfo’s LandmarkTag field set to the ID of " +
                         "    the \"Table\" landmark semantic tag, and the RelativePositionTag field set to the ID of the " +
                         "    \"Under\" position semantic tag. With such an area indication, the client can request the device " +
                         "    to operate in (or service) the area located under the table."

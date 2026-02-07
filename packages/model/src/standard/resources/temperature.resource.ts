@@ -14,11 +14,11 @@ Resource.add(
 
         details: "This type represents a temperature on the Celsius scale with a resolution of 0.01°C." +
             "\n" +
-            "  • value = (temperature in °C) x 100" +
+            "  - value = (temperature in °C) x 100" +
             "\n" +
-            "  • -4°C ⇒ -400" +
+            "  - -4°C ⇒ -400" +
             "\n" +
-            "  • 123.45°C ⇒ 12345" +
+            "  - 123.45°C ⇒ 12345" +
             "\n" +
             "The range is constrained by absolute zero: -273.15°C to 327.67°C." +
             "\n" +

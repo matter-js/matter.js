@@ -176,11 +176,11 @@ Resource.add(
                         details: "This field shall indicate whether the boost state shall be automatically canceled once the hot water " +
                             "has reached either:" +
                             "\n" +
-                            "  • the set point temperature (from the thermostat cluster)" +
+                            "  - the set point temperature (from the thermostat cluster)" +
                             "\n" +
-                            "  • the TemporarySetpoint temperature (if specified)" +
+                            "  - the TemporarySetpoint temperature (if specified)" +
                             "\n" +
-                            "  • the TargetPercentage (if specified)."
+                            "  - the TargetPercentage (if specified)."
                     },
 
                     {

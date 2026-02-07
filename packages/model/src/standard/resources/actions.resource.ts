@@ -17,14 +17,14 @@ Resource.add(
             "\n" +
             "Specifically this cluster provides:" +
             "\n" +
-            "  • Information about logical grouping of endpoints on the Node (example: lights in a room)" +
+            "  - Information about logical grouping of endpoints on the Node (example: lights in a room)" +
             "\n" +
-            "  • Information about named actions that can be performed on such a group of endpoints (example: " +
+            "  - Information about named actions that can be performed on such a group of endpoints (example: " +
             "    recall a scene for a group of lights by its name)" +
             "\n" +
-            "  • Commands to trigger such actions" +
+            "  - Commands to trigger such actions" +
             "\n" +
-            "  • Events to receive feedback on the state of such actions." +
+            "  - Events to receive feedback on the state of such actions." +
             "\n" +
             "The information on grouping and available actions is typically provided by the user or Bridge " +
             "manufacturer via some means not defined in Matter, and therefore provided as read-only to Nodes. For " +
@@ -68,20 +68,20 @@ Resource.add(
                     "specified in RFC 1738, max. 512 ASCII characters and shall use the https scheme. The location " +
                     "referenced by this URL shall provide additional information for the actions provided:" +
                     "\n" +
-                    "  • When used without suffix, it shall provide information about the various actions which the " +
+                    "  - When used without suffix, it shall provide information about the various actions which the " +
                     "    cluster provides." +
                     "\n" +
-                    "    ◦ Example: SetupURL could take the value of example://Actions or " +
+                    "    - Example: SetupURL could take the value of example://Actions or " +
                     "      https://domain.example/Matter/bridgev1/Actions for this generic case (access generic info how " +
                     "      to use actions provided by this cluster)." +
                     "\n" +
-                    "  • When used with a suffix of \"/?a=\" and the decimal value of ActionID for one of the actions, it " +
+                    "  - When used with a suffix of \"/?a=\" and the decimal value of ActionID for one of the actions, it " +
                     "    may provide information about that particular action. This could be a deeplink to " +
                     "    manufacturer-app/website (associated somehow to the server node) with the " +
                     "    information/edit-screen for this action so that the user can view and update details of the " +
                     "    action, e.g. edit the scene, or change the wake-up experience time period." +
                     "\n" +
-                    "    ◦ Example of SetupURL with suffix added: example://Actions/?a=12345 or " +
+                    "    - Example of SetupURL with suffix added: example://Actions/?a=12345 or " +
                     "      https://domain.example/Matter/bridgev1/Actions/?a=12345 for linking to specific info/editing " +
                     "      of the action with ActionID 0x3039."
             },
@@ -97,9 +97,9 @@ Resource.add(
                     "Example: When InstantActionWithTransition is invoked (with an InvokeID data field), two StateChanged " +
                     "events will be generated:" +
                     "\n" +
-                    "  • one when the transition starts (NewState=Active)" +
+                    "  - one when the transition starts (NewState=Active)" +
                     "\n" +
-                    "  • one when the transition completed (NewState=Inactive)",
+                    "  - one when the transition completed (NewState=Inactive)",
 
                 children: [
                     {
@@ -130,21 +130,21 @@ Resource.add(
                     "controller changes the state of one or more of the involved endpoints during the transition, thus " +
                     "interrupting the transition triggered by the action, two events would be generated:" +
                     "\n" +
-                    "  • StateChanged when the transition starts (NewState=Active)" +
+                    "  - StateChanged when the transition starts (NewState=Active)" +
                     "\n" +
-                    "  • ActionFailed when the interrupting command occurs (NewState=Inactive, Error=interrupted)" +
+                    "  - ActionFailed when the interrupting command occurs (NewState=Inactive, Error=interrupted)" +
                     "\n" +
                     "Example: When InstantActionWithTransition is invoked (with an InvokeID data field = 1), and the same " +
                     "client invokes an InstantAction with (the same or another ActionId and) InvokeID = 2, and this " +
                     "second command interrupts the transition triggered by the first command, these events would be " +
                     "generated:" +
                     "\n" +
-                    "  • StateChanged (InvokeID=1, NewState=Active) when the transition starts" +
+                    "  - StateChanged (InvokeID=1, NewState=Active) when the transition starts" +
                     "\n" +
-                    "  • ActionFailed (InvokeID=2, NewState=Inactive, Error=interrupted) when the second command " +
+                    "  - ActionFailed (InvokeID=2, NewState=Inactive, Error=interrupted) when the second command " +
                     "    interrupts the transition" +
                     "\n" +
-                    "  • StateChanged (InvokeID=2, NewState=Inactive) upon the execution of the action for the second " +
+                    "  - StateChanged (InvokeID=2, NewState=Inactive) upon the execution of the action for the second " +
                     "    command",
 
                 children: [

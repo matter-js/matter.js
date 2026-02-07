@@ -110,11 +110,11 @@ export namespace WaterHeaterManagement {
          * This field shall indicate whether the boost state shall be automatically canceled once the hot water has
          * reached either:
          *
-         *   • the set point temperature (from the thermostat cluster)
+         *   - the set point temperature (from the thermostat cluster)
          *
-         *   • the TemporarySetpoint temperature (if specified)
+         *   - the TemporarySetpoint temperature (if specified)
          *
-         *   • the TargetPercentage (if specified).
+         *   - the TargetPercentage (if specified).
          *
          * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.3.2
          */

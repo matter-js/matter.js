@@ -770,15 +770,15 @@ export namespace MediaPlayback {
              * whenever a change in either the playback speed or the playback position is triggered outside the normal
              * playback of the media. The events which may cause this to happen include:
              *
-             *   • Starting or resumption of playback
+             *   - Starting or resumption of playback
              *
-             *   • Seeking
+             *   - Seeking
              *
-             *   • Skipping forward or backward
+             *   - Skipping forward or backward
              *
-             *   • Fast-forwarding or rewinding
+             *   - Fast-forwarding or rewinding
              *
-             *   • Updating of playback speed as a result of explicit request, or as a result of buffering events
+             *   - Updating of playback speed as a result of explicit request, or as a result of buffering events
              *
              * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.4
              */
@@ -788,28 +788,28 @@ export namespace MediaPlayback {
              * Indicates the speed at which the current media is being played. The new PlaybackSpeed shall be reflected
              * in this attribute whenever any of the following occurs:
              *
-             *   • Starting of playback
+             *   - Starting of playback
              *
-             *   • Resuming of playback
+             *   - Resuming of playback
              *
-             *   • Fast-forwarding
+             *   - Fast-forwarding
              *
-             *   • Rewinding
+             *   - Rewinding
              *
              * The PlaybackSpeed shall reflect the ratio of time elapsed in the media to the actual time taken for the
              * playback assuming no changes to media playback (for example buffering events or requests to
              * pause/rewind/forward).
              *
-             *   • A value for PlaybackSpeed of 1 shall indicate normal playback where, for example, playback for 1
+             *   - A value for PlaybackSpeed of 1 shall indicate normal playback where, for example, playback for 1
              *     second causes the media to advance by 1 second within the duration of the media.
              *
-             *   • A value for PlaybackSpeed which is greater than 0 shall indicate that as playback is happening the
+             *   - A value for PlaybackSpeed which is greater than 0 shall indicate that as playback is happening the
              *     media is currently advancing in time within the duration of the media.
              *
-             *   • A value for PlaybackSpeed which is less than 0 shall indicate that as playback is happening the media
+             *   - A value for PlaybackSpeed which is less than 0 shall indicate that as playback is happening the media
              *     is currently going back in time within the duration of the media.
              *
-             *   • A value for PlaybackSpeed of 0 shall indicate that the media is currently not playing back. When the
+             *   - A value for PlaybackSpeed of 0 shall indicate that the media is currently not playing back. When the
              *     CurrentState attribute has the value of PAUSED, NOT_PLAYING or BUFFERING, the PlaybackSpeed shall be
              *     set to 0 to reflect that the media is not playing.
              *
