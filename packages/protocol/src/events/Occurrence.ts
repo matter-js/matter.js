@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Timestamp } from "#general";
 import { ClusterId, EndpointNumber, EventId, EventNumber, Priority } from "#types";
 
 /**
@@ -13,7 +14,7 @@ export interface Occurrence {
     endpointId: EndpointNumber;
     clusterId: ClusterId;
     eventId: EventId;
-    epochTimestamp: number;
+    epochTimestamp: Timestamp;
     priority: Priority;
     payload: unknown;
 }

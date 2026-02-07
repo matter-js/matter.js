@@ -24,7 +24,8 @@ import {
     type Observer,
 } from "#general";
 import { ElementTag, EventElement, EventModel, type AttributeElement, type ValueModel } from "#model";
-import { Occurrence, OccurrenceManager } from "#protocol";
+import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
+import { NumberedOccurrence, Occurrence, OccurrenceManager, Val } from "#protocol";
 import { ClusterId, EventId, Priority } from "#types";
 import type { Behavior } from "./Behavior.js";
 import { NodeActivity } from "./context/NodeActivity.js";
@@ -37,10 +38,12 @@ const logger = Logger.get("Events");
 export class Events extends EventEmitter {
     #endpoint?: Endpoint;
     #behavior?: Behavior.Type;
+    #changes?: ChangeNotificationService;
 
     setContext(endpoint: Endpoint, behavior: Behavior.Type) {
         this.#endpoint = endpoint;
         this.#behavior = behavior;
+        this.#changes = endpoint.env.get(ChangeNotificationService);
     }
 
     /**
@@ -64,6 +67,10 @@ export class Events extends EventEmitter {
 
     get behavior() {
         return this.#behavior;
+    }
+
+    get changes() {
+        return this.#changes;
     }
 
     override toString() {
@@ -168,7 +175,8 @@ export class OnlineEvent<T extends any[] = any[], S extends ValueModel = ValueMo
             },
         );
 
-        // If it is a "real" Matter event, then we connect this event instance with the OccurrenceManager
+        // If it is a "real" Matter event, then we connect this event instance with the OccurrenceManager and
+        // ChangeNotificationService
         const eventSchema = this.schema as EventModel;
         if (
             this.schema.tag === ElementTag.Event &&
@@ -199,18 +207,29 @@ export class OnlineEvent<T extends any[] = any[], S extends ValueModel = ValueMo
         }
 
         const trigger = (payload?: any) => {
-            const maybePromise = occurrenceManager.add({
+            const occurrence = occurrenceManager.add({
                 ...this.#baseOccurrence!,
                 epochTimestamp: Time.nowMs,
                 payload,
             });
 
-            if (MaybePromise.is(maybePromise)) {
-                this.owner.endpoint!.env.runtime.add(maybePromise);
+            if (MaybePromise.is(occurrence)) {
+                this.owner.endpoint!.env.runtime.add(occurrence.then(this.#broadcast.bind(this)));
+            } else {
+                this.#broadcast(occurrence);
             }
         };
         this.online.on(trigger as unknown as Observer<T, void>);
         this.#occurrenceTrigger = trigger;
+    }
+
+    #broadcast({ number, epochTimestamp: timestamp, priority, payload }: NumberedOccurrence) {
+        this.owner.changes?.broadcastEvent(this.owner.endpoint!, this.owner.behavior!, this.schema as EventModel, {
+            number,
+            timestamp,
+            priority,
+            payload: payload as Val.Struct | undefined,
+        });
     }
 
     /**

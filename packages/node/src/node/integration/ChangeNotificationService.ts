@@ -5,12 +5,16 @@
  */
 
 import type { Behavior } from "#behavior/Behavior.js";
+import type { Events } from "#behavior/Events.js";
 import type { BehaviorBacking } from "#behavior/internal/BehaviorBacking.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
-import { InternalError, Observable, ObserverGroup } from "#general";
+import { InternalError, Observable, ObserverGroup, Timestamp } from "#general";
+import { EventModel } from "#model";
 import type { Node } from "#node/Node.js";
 import type { ServerNode } from "#node/ServerNode.js";
+import { Val } from "#protocol";
+import { EventNumber, Priority } from "#types";
 
 /**
  * High-level change notification service.
@@ -50,6 +54,24 @@ export class ChangeNotificationService {
             behavior,
             version: backing.datasource.version,
             properties,
+        });
+    }
+
+    /**
+     * Invoked by {@link Events} or {@link ClientEventEmitter} as events occur.
+     */
+    broadcastEvent(
+        endpoint: Endpoint,
+        behavior: Behavior.Type,
+        event: EventModel,
+        occurrence: ChangeNotificationService.OccurrenceProperties,
+    ) {
+        this.#change.emit({
+            kind: "event",
+            endpoint,
+            behavior,
+            event,
+            ...occurrence,
         });
     }
 
@@ -108,6 +130,23 @@ export namespace ChangeNotificationService {
         properties?: string[];
     }
 
+    export interface OccurrenceProperties {
+        number: EventNumber;
+        timestamp: Timestamp;
+        priority: Priority;
+        payload?: Val.Struct;
+    }
+
+    /**
+     * Emits when a Matter event occurs.
+     */
+    export interface EventOccurrence extends OccurrenceProperties {
+        kind: "event";
+        endpoint: Endpoint;
+        behavior: Behavior.Type;
+        event: EventModel;
+    }
+
     /**
      * Emits when endpoints/nodes are deleted.
      *
@@ -118,5 +157,5 @@ export namespace ChangeNotificationService {
         endpoint: Endpoint;
     }
 
-    export type Change = PropertyUpdate | EndpointDelete;
+    export type Change = PropertyUpdate | EventOccurrence | EndpointDelete;
 }
