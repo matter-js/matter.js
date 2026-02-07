@@ -55,8 +55,7 @@ export function addDetails(target: Block, element: { details?: string }) {
                 lines[i + 1] !== "" &&
                 line !== "" &&
                 !lines[i + 1].trimStart().match(listMarkerPattern);
-            const serialized =
-                line === "" ? "\n" : isContinued && !line.endsWith(" ") ? `${line} ` : line;
+            const serialized = line === "" ? "\n" : isContinued && !line.endsWith(" ") ? `${line} ` : line;
 
             const prefix = i ? "    " : "details: ";
             const suffix = i < lines.length - 1 ? " +" : "";
