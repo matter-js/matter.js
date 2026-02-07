@@ -6,10 +6,11 @@
 
 import type { ElementEvent, Events } from "#behavior/Events.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
-import { camelize, Diagnostic, isObject, Logger } from "#general";
+import { camelize, Diagnostic, isObject, Logger, Timestamp } from "#general";
 import { ClusterModel, EventModel, MatterModel } from "#model";
 import type { ClientNode } from "#node/ClientNode.js";
-import type { ReadResult } from "#protocol";
+import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
+import type { ReadResult, Val } from "#protocol";
 import type { ClusterId, EventId } from "#types";
 import type { ClientStructure } from "./ClientStructure.js";
 
@@ -38,6 +39,8 @@ const nameCache = new WeakMap<
 const warnedForUnknown = new Set<ClusterId | `${ClusterId}-${EventId}`>();
 
 export function ClientEventEmitter(node: ClientNode, structure: ClientStructure) {
+    const changes = node.env.get(ChangeNotificationService);
+
     return emitClientEvent;
 
     async function emitClientEvent(occurrence: ReadResult.EventValue) {
@@ -46,32 +49,45 @@ export function ClientEventEmitter(node: ClientNode, structure: ClientStructure)
             return;
         }
 
-        const event = getEvent(node, occurrence, names.cluster, names.event);
-        if (event) {
-            await node.act(async agent => {
-                // Current ActionContext is not writable, could skip act() but meh, see TODO above
-                //agent.context.priority = occurrence.priority;
-                event.emit(occurrence.value, agent.context);
+        const target = getTarget(node, occurrence, names.cluster, names.event);
+        if (!target) {
+            return;
+        }
 
-                const network = agent.get(NetworkClient);
-                if (occurrence.number > network.state.maxEventNumber) {
-                    await agent.context.transaction.addResources(network);
-                    await agent.context.transaction.begin();
-                    network.state.maxEventNumber = occurrence.number;
-                    await agent.context.transaction.commit();
-                }
+        await node.act(async agent => {
+            // Current ActionContext is not writable, could skip act() but meh, see TODO above
+            //agent.context.priority = occurrence.priority;
+            target.event.emit(occurrence.value, agent.context);
+
+            const network = agent.get(NetworkClient);
+            if (occurrence.number > network.state.maxEventNumber) {
+                await agent.context.transaction.addResources(network);
+                await agent.context.transaction.begin();
+                network.state.maxEventNumber = occurrence.number;
+                await agent.context.transaction.commit();
+            }
+        });
+
+        const behavior = target.endpoint.behaviors.supported[names.cluster];
+        if (behavior) {
+            const { number, timestamp, priority, value } = occurrence;
+            changes.broadcastEvent(target.endpoint, behavior, target.event.schema as EventModel, {
+                number,
+                timestamp: timestamp as Timestamp,
+                priority,
+                payload: value as Val.Struct | undefined,
             });
         }
     }
 
-    function getEvent(node: ClientNode, occurrence: ReadResult.EventValue, clusterName: string, eventName: string) {
+    function getTarget(node: ClientNode, occurrence: ReadResult.EventValue, clusterName: string, eventName: string) {
         const {
             value,
             path: { endpointId },
         } = occurrence;
         const endpoint = structure.endpointFor(endpointId);
         if (endpoint === undefined) {
-            logger.warn(`Received event for unsupported endpoint #${endpointId} on ${node}`);
+            logger.warn(`Received event for unknown endpoint #${endpointId} on ${node}`);
             return;
         }
 
@@ -89,7 +105,10 @@ export function ClientEventEmitter(node: ClientNode, structure: ClientStructure)
             Diagnostic.weak(isObject(value) ? Diagnostic.dict(value) : value),
         );
 
-        return events[eventName];
+        const event = events[eventName];
+        if (event) {
+            return { endpoint, event };
+        }
     }
 }
 

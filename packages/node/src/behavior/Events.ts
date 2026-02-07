@@ -25,7 +25,7 @@ import {
 } from "#general";
 import { ElementTag, EventElement, EventModel, type AttributeElement, type ValueModel } from "#model";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
-import { NumberedOccurrence, Occurrence, OccurrenceManager } from "#protocol";
+import { NumberedOccurrence, Occurrence, OccurrenceManager, Val } from "#protocol";
 import { ClusterId, EventId, Priority } from "#types";
 import type { Behavior } from "./Behavior.js";
 import { NodeActivity } from "./context/NodeActivity.js";
@@ -223,13 +223,13 @@ export class OnlineEvent<T extends any[] = any[], S extends ValueModel = ValueMo
         this.#occurrenceTrigger = trigger;
     }
 
-    #broadcast(occurrence: NumberedOccurrence) {
-        this.owner.changes?.broadcastEvent(
-            this.owner.endpoint!,
-            this.owner.behavior!,
-            this.schema as EventModel,
-            occurrence,
-        );
+    #broadcast({ number, epochTimestamp: timestamp, priority, payload }: NumberedOccurrence) {
+        this.owner.changes?.broadcastEvent(this.owner.endpoint!, this.owner.behavior!, this.schema as EventModel, {
+            number,
+            timestamp,
+            priority,
+            payload: payload as Val.Struct | undefined,
+        });
     }
 
     /**

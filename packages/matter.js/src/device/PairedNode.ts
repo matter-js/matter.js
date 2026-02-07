@@ -814,12 +814,11 @@ export class PairedNode {
             }
 
             case "event": {
-                const { endpoint, behavior, event, occurrence } = changes;
+                const { endpoint, behavior, event, number, timestamp: epochTimestamp, priority, payload } = changes;
                 if (!ClusterBehavior.is(behavior)) {
                     return;
                 }
 
-                const { number, epochTimestamp, priority, payload } = occurrence;
                 this.#currentSubscriptionHandler?.eventListener({
                     path: {
                         endpointId: endpoint.number,
