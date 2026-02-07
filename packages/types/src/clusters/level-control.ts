@@ -46,15 +46,15 @@ export namespace LevelControl {
          *
          * For the CurrentLevel attribute:
          *
-         *   • A value of 0x00 shall NOT be used.
+         * A value of 0x00 shall NOT be used.
          *
-         *   • A value of 0x01 shall indicate the minimum level that can be attained on a device.
+         * A value of 0x01 shall indicate the minimum level that can be attained on a device.
          *
-         *   • A value of 0xFE shall indicate the maximum level that can be attained on a device.
+         * A value of 0xFE shall indicate the maximum level that can be attained on a device.
          *
-         *   • A value of null shall represent an undefined value.
+         * A value of null shall represent an undefined value.
          *
-         *   • All other values are application specific gradations from the minimum to the maximum level.
+         * All other values are application specific gradations from the minimum to the maximum level.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.6.4.2
          */
@@ -377,15 +377,15 @@ export namespace LevelControl {
              *
              * For the CurrentLevel attribute:
              *
-             *   • A value of 0x00 shall NOT be used.
+             * A value of 0x00 shall NOT be used.
              *
-             *   • A value of 0x01 shall indicate the minimum level that can be attained on a device.
+             * A value of 0x01 shall indicate the minimum level that can be attained on a device.
              *
-             *   • A value of 0xFE shall indicate the maximum level that can be attained on a device.
+             * A value of 0xFE shall indicate the maximum level that can be attained on a device.
              *
-             *   • A value of null shall represent an undefined value.
+             * A value of null shall represent an undefined value.
              *
-             *   • All other values are application specific gradations from the minimum to the maximum level.
+             * All other values are application specific gradations from the minimum to the maximum level.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.6.4.2
              */

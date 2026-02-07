@@ -549,7 +549,7 @@ Resource.add(
                     "\n" +
                     "⇒ OccupiedHeatingSetpoint - Calculated Local Temperature ≥? EmergencyHeatDelta" +
                     "\n" +
-                    "  • ⇒ 16°C - 10°C ≥? 2°C" +
+                    "⇒ 16°C - 10°C ≥? 2°C" +
                     "\n" +
                     "⇒ TRUE >>> Thermostat server changes its SystemMode to operate in 2nd stage or emergency heat mode" +
                     "\n" +

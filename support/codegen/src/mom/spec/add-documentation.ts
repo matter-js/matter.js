@@ -71,7 +71,7 @@ function extractUsefulDocumentation(text: string) {
         .replace(/\.Command not/, ". Command not")
         .replace(/notback-off/, "not back-off")
         .replace(/-(or|and) /, "- $1 ")
-        .trimEnd();
+        .trim();
 }
 
 /**
@@ -188,6 +188,11 @@ export function addDocumentation(target: { details?: string }, definition: HtmlR
             }
         }
 
+        // Skip code blocks from listingblock/literalblock <pre> elements
+        if (p.tagName === "PRE" && p.textContent?.match(/[{;]|function\s|return\s/)) {
+            continue;
+        }
+
         // Convert numeric superscripts before text extraction (safe for prose, not for constraint columns)
         convertSuperscripts(p);
 
@@ -208,7 +213,10 @@ export function addDocumentation(target: { details?: string }, definition: HtmlR
                 }
             }
 
-            if (list?.tagName === "OL") {
+            // Skip bullet-less lists (Asciidoctor class="none" used for layout/continuation)
+            if ((list as HTMLElement)?.className?.includes("none")) {
+                // no marker
+            } else if (list?.tagName === "OL") {
                 // Ordered list — compute 1-based index and format based on list type
                 const index = Array.from(list.children).indexOf(li) + 1;
                 const type = list.getAttribute("type");

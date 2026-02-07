@@ -471,17 +471,23 @@ Resource.add(
                             "\n" +
                             "    ◦ Before expansion:" +
                             "\n" +
-                            "    ◦ After expansion:" +
+                            "https://company.domain.example/matter/arl?vid=FFF1&pid=1234&MTcu=_" +
                             "\n" +
-                            "    ◦ The ExpandedARLRequestFlowUrl URL contains:" +
+                            "  ◦ After expansion:" +
                             "\n" +
-                            "      ▪ A CallbackUrl with a client-provided arbitrary token= key/value pair and the MTaer= " +
-                            "        key/value pair place-holder to indicate support for a return access extension completion " +
-                            "        status: https://client.domain.example/cb?token=mAsJ6_vqbr-vjDiG_w%3D%3D&MTaer=_" +
+                            "https://company.domain.example/matter/arl?vid=FFF1&pid=1234&MTcu=https%3A%2F%2Fclient.domain.example%2Fcb%3Ftoken%3DmAsJ6_vqbr-vjDiG_w%253D%253D%26MTaer%3D_" +
                             "\n" +
-                            "      ▪ After expansion of the CallbackUrl (MTcu key) into an ExpandedCallbackUrl, with an example " +
-                            "        return access extension completion status of Success, the ExpandedARLRequestCallbackUrl " +
-                            "        would be:" +
+                            "  ◦ The ExpandedARLRequestFlowUrl URL contains:" +
+                            "\n" +
+                            "    ▪ A CallbackUrl with a client-provided arbitrary token= key/value pair and the MTaer= key/value " +
+                            "      pair place-holder to indicate support for a return access extension completion status: " +
+                            "      https://client.domain.example/cb?token=mAsJ6_vqbr-vjDiG_w%3D%3D&MTaer=_" +
+                            "\n" +
+                            "    ▪ After expansion of the CallbackUrl (MTcu key) into an ExpandedCallbackUrl, with an example " +
+                            "      return access extension completion status of Success, the ExpandedARLRequestCallbackUrl would " +
+                            "      be:" +
+                            "\n" +
+                            "https://client.domain.example/cb?token=mAsJ6_vqbr-vjDiG_w%3D%3D&MTaer=Success" +
                             "\n" +
                             "Note that the MTcu key/value pair was initially provided URL-encoded within the " +
                             "ExpandedARLRequestFlowUrl URL and the MTaer=_ key/value pair placeholder now contains a substituted " +

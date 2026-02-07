@@ -2542,7 +2542,7 @@ export namespace Thermostat {
              *
              * ⇒ OccupiedHeatingSetpoint - Calculated Local Temperature ≥? EmergencyHeatDelta
              *
-             *   • ⇒ 16°C - 10°C ≥? 2°C
+             * ⇒ 16°C - 10°C ≥? 2°C
              *
              * ⇒ TRUE >>> Thermostat server changes its SystemMode to operate in 2nd stage or emergency heat mode
              *

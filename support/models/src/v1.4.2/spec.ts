@@ -1274,15 +1274,15 @@ export const SpecMatter = Matter(
                     "\n" +
                     "For the CurrentLevel attribute:" +
                     "\n" +
-                    "  • A value of 0x00 shall NOT be used." +
+                    "A value of 0x00 shall NOT be used." +
                     "\n" +
-                    "  • A value of 0x01 shall indicate the minimum level that can be attained on a device." +
+                    "A value of 0x01 shall indicate the minimum level that can be attained on a device." +
                     "\n" +
-                    "  • A value of 0xFE shall indicate the maximum level that can be attained on a device." +
+                    "A value of 0xFE shall indicate the maximum level that can be attained on a device." +
                     "\n" +
-                    "  • A value of null shall represent an undefined value." +
+                    "A value of null shall represent an undefined value." +
                     "\n" +
-                    "  • All other values are application specific gradations from the minimum to the maximum level."
+                    "All other values are application specific gradations from the minimum to the maximum level."
             }),
 
             Field({
@@ -9232,7 +9232,7 @@ export const SpecMatter = Matter(
                     "\n" +
                     "⇒ OccupiedHeatingSetpoint - Calculated Local Temperature ≥? EmergencyHeatDelta" +
                     "\n" +
-                    "  • ⇒ 16°C - 10°C ≥? 2°C" +
+                    "⇒ 16°C - 10°C ≥? 2°C" +
                     "\n" +
                     "⇒ TRUE >>> Thermostat server changes its SystemMode to operate in 2nd stage or emergency heat mode" +
                     "\n" +
@@ -23517,118 +23517,103 @@ export const SpecMatter = Matter(
     }),
     Datatype({ name: "octstr", description: "Octet string", isSeed: true, metatype: "bytes", xref: "core§7.19.1" }),
 
-    Datatype(
-        {
-            name: "list", description: "List", isSeed: true, metatype: "array", xref: "core§7.19.1.8",
+    Datatype({
+        name: "list", description: "List", isSeed: true, metatype: "array", xref: "core§7.19.1.8",
 
-            details: "A list is defined as a collection of entries of the same data type, with a finite count from 0 to " +
-                "65534. A cluster specification may define further constraints on the maximum possible count. The " +
-                "list entry data type shall be any defined data type, except a list data type, or any data type " +
-                "derived from a list." +
-                "\n" +
-                "The quality columns for a list definition are for the list." +
-                "\n" +
-                "The list entries are indicated with an index that is an unsigned integer starting at 0 (zero). The " +
-                "maintained order of entries, by index, is defined in the cluster specification, or undefined. Data " +
-                "that is defined as a list is indicated with \"list[X]\" where X is the entry type. The data type of " +
-                "the list entry has its own qualities, constraints, and conformance." +
-                "\n" +
-                "To define qualities for the list entry data type, make the list entry data type a defined local " +
-                "derived data type, with a table including the columns required to define and constrain the data " +
-                "type." +
-                "\n" +
-                "For example: Derived data types defined here:" +
-                "\n" +
-                "SummerStruct defined here:" +
-                "\n" +
-                "Used Here:" +
-                "\n" +
-                "There is an inline shortcut to define the list entry data type constraints. See List Constraints." +
-                "\n" +
-                "For example:" +
-                "\n" +
-                "It is recommended to put a maximum constraint on the list and list entry data types." +
-                "\n" +
-                "It is recommended that a list entry data type be a struct, to enable the addition of new fields to " +
-                "the list’s entries in the future." +
-                "\n" +
-                "  • The cluster data version shall be incremented when the list order or entries change." +
-                "\n" +
-                "  • An entry shall NOT be NULL." +
-                "\n" +
-                "  • The list shall support reading and reporting all entries." +
-                "\n" +
-                "  • The list shall support reporting, updates, and/or deletion of one or more entries." +
-                "\n" +
-                "  • If the list is writable, it shall support writing or deleting the entire list." +
-                "\n" +
-                "  • If the list is writable, it shall support updating one or more individual entries by indicating " +
-                "    an index per updated entry." +
-                "\n" +
-                "  • If the list is writable, it shall support deleting one or more individual entries by indicating " +
-                "    an index per deleted entry." +
-                "\n" +
-                "  • If the list is writable, it shall support adding one or more individual entries." +
-                "\n" +
-                "  • A list may define an entry that is a struct that is fabric-scoped (see Section 7.6.4, " +
-                "    “Fabric-Scoped Access”)." +
-                "\n" +
-                "### Fabric-Scoped List" +
-                "\n" +
-                "  • A fabric-scoped list shall define an entry data type that is a struct, which shall also be " +
-                "    fabric-scoped (see Fabric-Scoped Struct)." +
-                "\n" +
-                "Each entry in a fabric-scoped list shall be fabric-scoped to a particular fabric or no fabric." +
-                "\n" +
-                "### Fabric-Filtered List" +
-                "\n" +
-                "A fabric-scoped list supports a fabric-filter that filters the view of the list for read and write " +
-                "interactions. This filter simplifies client side logic that does not want to read or write fabric " +
-                "data that is not associated with the accessing fabric." +
-                "\n" +
-                "  • An interaction upon a list with fabric-filtering shall only indicate and access entries where " +
-                "    the associated fabric matches the accessing fabric, and all other entries shall be ignored." +
-                "\n" +
-                "  • Fabric-filtered list entries shall be in the same order as the full list." +
-                "\n" +
-                "  • Fabric-filtered list entries shall be indexed from 0 with no gaps, as if the other entries did " +
-                "    not exist." +
-                "\n" +
-                "  • For a write interaction, fabric-filtering shall be enabled." +
-                "\n" +
-                "  • When writing to a fabric-scoped list, the write interaction shall be on an accessing fabric, " +
-                "    otherwise, the write interaction shall fail (see Interaction Model Specification)." +
-                "\n" +
-                "  • For a read interaction on a list, fabric-filtering may be enabled." +
-                "\n" +
-                "  • For a read interaction on a list, with fabric-filtering disabled, the list shall be reported as " +
-                "    a full list with all entries." +
-                "\n" +
-                "For example: A fabric-scoped full list with each entry having an associated FabricIndex and Value " +
-                "field:" +
-                "\n" +
-                "list = [ { FabricIndex = A, Value = 20 }, { FabricIndex = B, Value = 30 }, { FabricIndex = A, Value " +
-                "= 40 }, { FabricIndex = B, Value = 50 }, { FabricIndex = B, Value = 60 } ]" +
-                "\n" +
-                "would be a fabric-filtered list when accessed with fabric B:" +
-                "\n" +
-                "list = [ { FabricIndex = B, Value = 30 }, { FabricIndex = B, Value = 50 }, { FabricIndex = B, Value " +
-                "= 60 } ]" +
-                "\n" +
-                "Reading a fabric-filtered list entry index 2 accessed with fabric B reports:" +
-                "\n" +
-                "list[2] = [ { FabricIndex = B, Value = 60 } ]" +
-                "\n" +
-                "Writing fabric-filtered list entry index 1 when accessed with fabric B:" +
-                "\n" +
-                "list[1] = [ { FabricIndex = B, Value = 55 } ]" +
-                "\n" +
-                "changes the full list to:" +
-                "\n" +
-                "list = [ { FabricIndex = A, Value = 20 }, { FabricIndex = B, Value = 30 }, { FabricIndex = A, Value " +
-                "= 40 }, { FabricIndex = B, Value = 55 }, { FabricIndex = B, Value = 60 } ]"
-        }
-    ),
+        details: "A list is defined as a collection of entries of the same data type, with a finite count from 0 to " +
+            "65534. A cluster specification may define further constraints on the maximum possible count. The " +
+            "list entry data type shall be any defined data type, except a list data type, or any data type " +
+            "derived from a list." +
+            "\n" +
+            "The quality columns for a list definition are for the list." +
+            "\n" +
+            "The list entries are indicated with an index that is an unsigned integer starting at 0 (zero). The " +
+            "maintained order of entries, by index, is defined in the cluster specification, or undefined. Data " +
+            "that is defined as a list is indicated with \"list[X]\" where X is the entry type. The data type of " +
+            "the list entry has its own qualities, constraints, and conformance." +
+            "\n" +
+            "To define qualities for the list entry data type, make the list entry data type a defined local " +
+            "derived data type, with a table including the columns required to define and constrain the data " +
+            "type." +
+            "\n" +
+            "For example: Derived data types defined here:" +
+            "\n" +
+            "SummerStruct defined here:" +
+            "\n" +
+            "Used Here:" +
+            "\n" +
+            "There is an inline shortcut to define the list entry data type constraints. See List Constraints." +
+            "\n" +
+            "For example:" +
+            "\n" +
+            "It is recommended to put a maximum constraint on the list and list entry data types." +
+            "\n" +
+            "It is recommended that a list entry data type be a struct, to enable the addition of new fields to " +
+            "the list’s entries in the future." +
+            "\n" +
+            "  • The cluster data version shall be incremented when the list order or entries change." +
+            "\n" +
+            "  • An entry shall NOT be NULL." +
+            "\n" +
+            "  • The list shall support reading and reporting all entries." +
+            "\n" +
+            "  • The list shall support reporting, updates, and/or deletion of one or more entries." +
+            "\n" +
+            "  • If the list is writable, it shall support writing or deleting the entire list." +
+            "\n" +
+            "  • If the list is writable, it shall support updating one or more individual entries by indicating " +
+            "    an index per updated entry." +
+            "\n" +
+            "  • If the list is writable, it shall support deleting one or more individual entries by indicating " +
+            "    an index per deleted entry." +
+            "\n" +
+            "  • If the list is writable, it shall support adding one or more individual entries." +
+            "\n" +
+            "  • A list may define an entry that is a struct that is fabric-scoped (see Section 7.6.4, " +
+            "    “Fabric-Scoped Access”)." +
+            "\n" +
+            "### Fabric-Scoped List" +
+            "\n" +
+            "  • A fabric-scoped list shall define an entry data type that is a struct, which shall also be " +
+            "    fabric-scoped (see Fabric-Scoped Struct)." +
+            "\n" +
+            "Each entry in a fabric-scoped list shall be fabric-scoped to a particular fabric or no fabric." +
+            "\n" +
+            "### Fabric-Filtered List" +
+            "\n" +
+            "A fabric-scoped list supports a fabric-filter that filters the view of the list for read and write " +
+            "interactions. This filter simplifies client side logic that does not want to read or write fabric " +
+            "data that is not associated with the accessing fabric." +
+            "\n" +
+            "  • An interaction upon a list with fabric-filtering shall only indicate and access entries where " +
+            "    the associated fabric matches the accessing fabric, and all other entries shall be ignored." +
+            "\n" +
+            "  • Fabric-filtered list entries shall be in the same order as the full list." +
+            "\n" +
+            "  • Fabric-filtered list entries shall be indexed from 0 with no gaps, as if the other entries did " +
+            "    not exist." +
+            "\n" +
+            "  • For a write interaction, fabric-filtering shall be enabled." +
+            "\n" +
+            "  • When writing to a fabric-scoped list, the write interaction shall be on an accessing fabric, " +
+            "    otherwise, the write interaction shall fail (see Interaction Model Specification)." +
+            "\n" +
+            "  • For a read interaction on a list, fabric-filtering may be enabled." +
+            "\n" +
+            "  • For a read interaction on a list, with fabric-filtering disabled, the list shall be reported as " +
+            "    a full list with all entries." +
+            "\n" +
+            "For example: A fabric-scoped full list with each entry having an associated FabricIndex and Value " +
+            "field:" +
+            "\n" +
+            "would be a fabric-filtered list when accessed with fabric B:" +
+            "\n" +
+            "Reading a fabric-filtered list entry index 2 accessed with fabric B reports:" +
+            "\n" +
+            "Writing fabric-filtered list entry index 1 when accessed with fabric B:" +
+            "\n" +
+            "changes the full list to:"
+    }),
 
     Datatype({
         name: "struct", description: "Struct", isSeed: true, metatype: "object", xref: "core§7.19.1.9",
@@ -25165,17 +25150,23 @@ export const SpecMatter = Matter(
                         "\n" +
                         "    ◦ Before expansion:" +
                         "\n" +
-                        "    ◦ After expansion:" +
+                        "https://company.domain.example/matter/arl?vid=FFF1&pid=1234&MTcu=_" +
                         "\n" +
-                        "    ◦ The ExpandedARLRequestFlowUrl URL contains:" +
+                        "  ◦ After expansion:" +
                         "\n" +
-                        "      ▪ A CallbackUrl with a client-provided arbitrary token= key/value pair and the MTaer= " +
-                        "        key/value pair place-holder to indicate support for a return access extension completion " +
-                        "        status: https://client.domain.example/cb?token=mAsJ6_vqbr-vjDiG_w%3D%3D&MTaer=_" +
+                        "https://company.domain.example/matter/arl?vid=FFF1&pid=1234&MTcu=https%3A%2F%2Fclient.domain.example%2Fcb%3Ftoken%3DmAsJ6_vqbr-vjDiG_w%253D%253D%26MTaer%3D_" +
                         "\n" +
-                        "      ▪ After expansion of the CallbackUrl (MTcu key) into an ExpandedCallbackUrl, with an example " +
-                        "        return access extension completion status of Success, the ExpandedARLRequestCallbackUrl " +
-                        "        would be:" +
+                        "  ◦ The ExpandedARLRequestFlowUrl URL contains:" +
+                        "\n" +
+                        "    ▪ A CallbackUrl with a client-provided arbitrary token= key/value pair and the MTaer= key/value " +
+                        "      pair place-holder to indicate support for a return access extension completion status: " +
+                        "      https://client.domain.example/cb?token=mAsJ6_vqbr-vjDiG_w%3D%3D&MTaer=_" +
+                        "\n" +
+                        "    ▪ After expansion of the CallbackUrl (MTcu key) into an ExpandedCallbackUrl, with an example " +
+                        "      return access extension completion status of Success, the ExpandedARLRequestCallbackUrl would " +
+                        "      be:" +
+                        "\n" +
+                        "https://client.domain.example/cb?token=mAsJ6_vqbr-vjDiG_w%3D%3D&MTaer=Success" +
                         "\n" +
                         "Note that the MTcu key/value pair was initially provided URL-encoded within the " +
                         "ExpandedARLRequestFlowUrl URL and the MTaer=_ key/value pair placeholder now contains a substituted " +

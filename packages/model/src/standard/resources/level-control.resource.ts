@@ -28,15 +28,15 @@ Resource.add({
                         "\n" +
                         "For the CurrentLevel attribute:" +
                         "\n" +
-                        "  • A value of 0x00 shall NOT be used." +
+                        "A value of 0x00 shall NOT be used." +
                         "\n" +
-                        "  • A value of 0x01 shall indicate the minimum level that can be attained on a device." +
+                        "A value of 0x01 shall indicate the minimum level that can be attained on a device." +
                         "\n" +
-                        "  • A value of 0xFE shall indicate the maximum level that can be attained on a device." +
+                        "A value of 0xFE shall indicate the maximum level that can be attained on a device." +
                         "\n" +
-                        "  • A value of null shall represent an undefined value." +
+                        "A value of null shall represent an undefined value." +
                         "\n" +
-                        "  • All other values are application specific gradations from the minimum to the maximum level."
+                        "All other values are application specific gradations from the minimum to the maximum level."
                 },
 
                 {
