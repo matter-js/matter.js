@@ -6,7 +6,7 @@
 
 import { looksLikeListItem } from "@matter/general";
 import { Words } from "../../util/words.js";
-import { Str } from "./html-translators.js";
+import { Str, convertSuperscripts } from "./html-translators.js";
 import { HtmlReference } from "./spec-types.js";
 
 /**
@@ -56,7 +56,7 @@ function extractUsefulDocumentation(text: string) {
         .replace(/ such that:$/, "")
         .replace(/, derived from \w+,/, "")
         .replace(/\([^)]*$/, "")
-        .replace(/\s{2,}/, "  ")
+        .replace(/(\S)\s{2,}/g, "$1 ")
         .replace(/This attribute shall (?:indicate|represent)/, "Indicates")
         .replace(/This attribute shall be null/, "Null")
         .replace(/The following tags are defined in this namespace\./, "")
@@ -71,7 +71,7 @@ function extractUsefulDocumentation(text: string) {
         .replace(/\.Command not/, ". Command not")
         .replace(/notback-off/, "not back-off")
         .replace(/-(or|and) /, "- $1 ")
-        .trim();
+        .trimEnd();
 }
 
 /**
@@ -120,8 +120,13 @@ function mergeSplitParagraphs(paragraphs: string[]) {
 
         const nextParagraph = paragraphs[i + 1];
 
-        // Do not merge list items, paragraphs, or embedded headings
-        if (looksLikeListItem(nextParagraph) || nextParagraph.startsWith("###") || looksLikeEquation(nextParagraph)) {
+        // Do not merge list items (including indented nested ones), paragraphs, or embedded headings
+        if (
+            looksLikeListItem(nextParagraph) ||
+            looksLikeListItem(nextParagraph.trimStart()) ||
+            nextParagraph.startsWith("###") ||
+            looksLikeEquation(nextParagraph)
+        ) {
             continue;
         }
 
@@ -157,7 +162,7 @@ export function addDocumentation(target: { details?: string }, definition: HtmlR
 
     let paragraphs = Array<string>();
 
-    let collectNote = false;
+    let collectNote: string | false = false;
 
     let listIndent = 0;
     let listSpacing = 0;
@@ -183,8 +188,47 @@ export function addDocumentation(target: { details?: string }, definition: HtmlR
             }
         }
 
+        // Convert numeric superscripts before text extraction (safe for prose, not for constraint columns)
+        convertSuperscripts(p);
+
         // Extract text
         let text = Str(p);
+
+        // For Asciidoctor list items, add numbered/bulleted marker.  The FormattedText serializer handles
+        // indentation based on marker type, so we use depth-appropriate markers matching its Bullets array
+        if (p.parentElement?.tagName === "LI") {
+            const li = p.parentElement;
+            const list = li.parentElement;
+
+            // Compute nesting depth by counting ancestor ol/ul elements
+            let depth = 0;
+            for (let ancestor = list?.parentElement; ancestor; ancestor = ancestor.parentElement) {
+                if (ancestor.tagName === "OL" || ancestor.tagName === "UL") {
+                    depth++;
+                }
+            }
+
+            if (list?.tagName === "OL") {
+                // Ordered list — compute 1-based index and format based on list type
+                const index = Array.from(list.children).indexOf(li) + 1;
+                const type = list.getAttribute("type");
+                if (type === "a") {
+                    text = `${String.fromCharCode(96 + index)}. ${text}`;
+                } else if (type === "A") {
+                    text = `${String.fromCharCode(64 + index)}. ${text}`;
+                } else if (type === "i") {
+                    text = `${toRoman(index)}. ${text}`;
+                } else if (type === "I") {
+                    text = `${toRoman(index).toUpperCase()}. ${text}`;
+                } else {
+                    text = `${index}. ${text}`;
+                }
+            } else {
+                // Unordered list — use depth-appropriate bullet characters matching FormattedText Bullets
+                const bullets = ["\u2022", "\u25E6", "\u25AA"];
+                text = `${bullets[depth] ?? bullets[bullets.length - 1]} ${text}`;
+            }
+        }
 
         // Ignore figure annotations
         if (text.match(/^Figure \d+/)) {
@@ -192,17 +236,17 @@ export function addDocumentation(target: { details?: string }, definition: HtmlR
             continue;
         }
 
-        // Next paragraph is a note if text is "NOTE"
-        if (text === "NOTE") {
+        // Next paragraph is a note/warning if text matches
+        if (text === "NOTE" || text === "WARNING") {
             listIndent = 0;
-            collectNote = true;
+            collectNote = text;
             continue;
         }
 
-        // Create note if we we saw "NOTE" previously
+        // Create note if we saw "NOTE"/"WARNING" previously
         if (collectNote) {
             listIndent = 0;
-            paragraphs.push(`> [!NOTE]\n> ${extractUsefulDocumentation(text)}`);
+            paragraphs.push(`> [!${collectNote}]\n> ${extractUsefulDocumentation(text)}`);
             collectNote = false;
             continue;
         }
@@ -220,7 +264,11 @@ export function addDocumentation(target: { details?: string }, definition: HtmlR
             text.match(/^[A-Z]/) &&
             !text.match(/[.?!:]$/) &&
             !looksLikeListItem(text) &&
-            !looksLikeEquation(text)
+            !looksLikeEquation(text) &&
+            !text.includes(" = ") &&
+            !text.match(/^This\s+[a-z]/) &&
+            !(text.length <= 3 && text === text.toUpperCase()) &&
+            !text.match(/^(?:Refer|See|Note|Check)\s/)
         ) {
             looksLikeHeading = true;
         }
@@ -295,6 +343,29 @@ function sumStyles(el: HTMLElement, ...names: string[]) {
     }
 
     return sum;
+}
+
+/** Convert a number to lowercase roman numeral string */
+function toRoman(n: number): string {
+    const numerals = [
+        [100, "c"],
+        [90, "xc"],
+        [50, "l"],
+        [40, "xl"],
+        [10, "x"],
+        [9, "ix"],
+        [5, "v"],
+        [4, "iv"],
+        [1, "i"],
+    ] as const;
+    let result = "";
+    for (const [value, numeral] of numerals) {
+        while (n >= value) {
+            result += numeral;
+            n -= value;
+        }
+    }
+    return result;
 }
 
 /**

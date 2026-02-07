@@ -16,6 +16,7 @@ import {
     LowerIdentifier,
     NoSpace,
     Str,
+    StrWithSuperscripts,
 } from "./html-translators.js";
 import { repairConstraint } from "./repairs/aspect-repairs.js";
 import { repairDefaultValue } from "./repairs/default-value-repairs.js";
@@ -49,9 +50,13 @@ export function translateDatatype(definition: HtmlReference): DatatypeElement | 
         match = text?.match(/data type shall be a ([\w-]+)/i);
     }
 
-    // Applies to a handful of overrides of ModeOptionStruct in cluster 1.2
+    // Applies to a handful of overrides of ModeOptionStruct.  The type captured is the struct name, not a base type,
+    // so we track it separately and force type to "struct" below
+    let isModeStructOverride = false;
     if (!match) {
-        match = text?.match(/lists the changes relative to the [\w\- ]+ cluster for the fields of the ([\w-]+) type/i);
+        if (text?.match(/lists the changes relative to the [\w\- ]+ cluster for the fields of the ([\w-]+) type/i)) {
+            isModeStructOverride = true;
+        }
     }
 
     // And 1.3 throws in this beaut
@@ -61,7 +66,7 @@ export function translateDatatype(definition: HtmlReference): DatatypeElement | 
         constraint = match?.[2];
     }
 
-    let type = match?.[1];
+    let type = isModeStructOverride ? "struct" : match?.[1];
 
     let description: string | undefined;
 
@@ -218,7 +223,7 @@ export function translateValueChildren(
                 id: Alias(Integer, ...ids),
                 name: Alias(Identifier, ...names),
                 conformance: Optional(ConformanceCode),
-                description: Optional(Alias(Str, "summary", "notes")),
+                description: Optional(Alias(StrWithSuperscripts, "summary", "notes")),
                 meaning: Optional(Str),
             });
 
@@ -233,7 +238,7 @@ export function translateValueChildren(
                 // conformance but just leave a placeholder for the name
                 const records = translateTable("bit", definition, {
                     bit: Bits,
-                    description: Str,
+                    description: StrWithSuperscripts,
                     conformance: Optional(Alias(Str, "M")),
                 });
 
@@ -264,7 +269,7 @@ export function translateValueChildren(
             const records = translateTable("bit", definition, {
                 constraint: Alias(Bits, ...ids),
                 name: Alias(Identifier, ...names),
-                description: Optional(Alias(Str, "summary")),
+                description: Optional(Alias(StrWithSuperscripts, "summary")),
             });
 
             return translateRecordsToMatter("bit", records, FieldElement);

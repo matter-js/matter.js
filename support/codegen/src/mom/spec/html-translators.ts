@@ -18,6 +18,15 @@ export const Str = (el: HTMLElement) => {
         }
     }
 
+    // Same for Asciidoctor footnote superscripts inside bold names (e.g. <strong>CurrentPositionLift<sup>1</sup></strong>).
+    // Only remove when inside <strong> to avoid stripping real exponents like m<sup>3</sup>
+    for (const child of el.querySelectorAll("strong > sup")) {
+        const content = child.textContent?.trim();
+        if (content?.match(/^[*0-9]$/)) {
+            child.remove();
+        }
+    }
+
     // Except in some places in 1.2 and 1.3 where the malformatted columns confuse Adobe and it sticks footnotes in the
     // middle of a symbol.  This we have to go through some contortions to detect correctly
     for (const child of el.querySelectorAll("p")) {
@@ -48,15 +57,38 @@ export const Str = (el: HTMLElement) => {
             // Remove soft hyphen and any surrounding whitespace
             .replace(/\s*\u00ad\s*/g, "")
 
-            // Remove zero-width non-joiner
-            .replace(/\u200c/g, "")
+            // Remove zero-width characters (non-joiner, zero-width space)
+            .replace(/[\u200b\u200c]/g, "")
+
+            // Strip Asciidoctor inline stem/math delimiters (\$...\$)
+            .replace(/\\\$/g, "")
 
             // Collapse whitespace
-            .replace(/\s/g, " ")
+            .replace(/\s+/g, " ")
 
             // Convert "foo- bar" to "foo-bar"
             .replace(/([a-z]-) ([a-z])/g, "$1$2")
     );
+};
+
+/**
+ * Convert numeric superscripts to ^N notation in an element (e.g. 10<sup>6</sup> → 10^6, m<sup>3</sup> → m^3).
+ * Skips ordinals (st, nd, rd, th) and footnote markers.  Only use on prose/description elements, not on constraint
+ * or type cells where ^ would break parsing.
+ */
+export function convertSuperscripts(el: HTMLElement) {
+    for (const sup of el.querySelectorAll("sup")) {
+        const content = sup.textContent?.trim();
+        if (content?.match(/^-?\d+$/)) {
+            sup.replaceWith(el.ownerDocument.createTextNode(`^${content}`));
+        }
+    }
+}
+
+/** String with superscript conversion — use for description/summary columns */
+export const StrWithSuperscripts = (el: HTMLElement) => {
+    convertSuperscripts(el);
+    return Str(el);
 };
 
 /**

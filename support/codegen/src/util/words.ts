@@ -27,5 +27,14 @@ Words.add("led");
 Words.add("url");
 Words.add("wifi");
 
+// Networking/technical terms used in Matter specification
+Words.add("unicast");
+Words.add("multicast");
+
+// Technical/compound terms that are single words (not hyphenated)
+Words.add("milliamps");
+Words.add("millihertz");
+Words.add("namespaced");
+
 // Acronym for "micro reciprocal degrees" used by color cluster
 Words.add("mireds");
