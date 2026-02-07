@@ -678,8 +678,8 @@ export namespace ThreadNetworkDiagnostics {
             txAckedCount: OptionalAttribute(0x1a, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * Indicates the total number of unique MAC frame transmission requests without requested acknowledgment.
-             * The attribute shall only be incremented by 1 for each MAC transmission request that is does not request
+             * Indicates the total number of unique MAC frame transmission requests withoutrequestedacknowledgment. The
+             * attribute shall only be incremented by 1 for each MAC transmission request that is does not request
              * acknowledgement regardless of the amount of CCA failures, CSMA-CA attempts, or retransmissions.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.14.6.28
@@ -842,8 +842,8 @@ export namespace ThreadNetworkDiagnostics {
             rxBeaconRequestCount: OptionalAttribute(0x2d, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * Indicates the total number of received unique MAC frame requests that are not counted by any other
-             * attribute. This value shall only be reset upon a Node reboot.
+             * Indicates the total number of received unique MAC frame requests that are not counted by
+             * anyotherattribute. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.14.6.47
              */

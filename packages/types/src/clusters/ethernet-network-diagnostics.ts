@@ -109,8 +109,8 @@ export namespace EthernetNetworkDiagnostics {
             packetRxCount: Attribute(0x2, TlvUInt64, { omitChanges: true, default: 0 }),
 
             /**
-             * Indicates the number of packets that have been successfully transferred on the ethernet network
-             * interface. The attribute shall be reset to 0 upon a reboot of the Node.
+             * Indicates the number of packets that have been successfully transferred on the ethernetnetworkinterface.
+             * The attribute shall be reset to 0 upon a reboot of the Node.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.16.6.4
              */
@@ -124,7 +124,7 @@ export namespace EthernetNetworkDiagnostics {
     export const ErrorCountsComponent = MutableCluster.Component({
         attributes: {
             /**
-             * Indicates the number of failed packet transmissions that have occurred on the ethernet network interface.
+             * Indicates the number of failed packet transmissions that have occurred on the ethernetnetworkinterface.
              * The attribute shall be reset to 0 upon a reboot of the Node.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.16.6.5
@@ -251,9 +251,8 @@ export namespace EthernetNetworkDiagnostics {
 
     /**
      * The Ethernet Network Diagnostics Cluster provides a means to acquire standardized diagnostics metrics that may be
-     * used by a Node to assist a user or Administrator in diagnosing potential problems. The Ethernet Network
-     * Diagnostics Cluster attempts to centralize all metrics that are relevant to a potential Ethernet connection to a
-     * Node.
+     * used by a Node to assist a user or Administrator in diagnosingpotentialproblems. The Ethernet Network Diagnostics
+     * Cluster attempts to centralize all metrics that are relevant to a potential Ethernet connection to a Node.
      *
      * EthernetNetworkDiagnosticsCluster supports optional features that you can enable with the
      * EthernetNetworkDiagnosticsCluster.with() factory method.

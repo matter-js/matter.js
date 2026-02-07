@@ -31,10 +31,10 @@ Resource.add(
                             "active on the device, e.g.:" +
                             "\n" +
                             "  - The triggering cause have been resolved by the user, but the sensor has not yet stopped " +
-                            "    detecting the triggering cause." +
+                            "detecting the triggering cause." +
                             "\n" +
                             "  - The user is not able to address the triggering cause, but is aware of the alarm and " +
-                            "    suppress/acknowledge it be addressed at a later point." +
+                            "suppress/acknowledge it be addressed at a later point." +
                             "\n" +
                             "Acknowledge of alarms will for the remainder of this cluster be referred to as suppress." +
                             "\n" +

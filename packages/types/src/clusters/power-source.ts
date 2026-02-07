@@ -983,9 +983,9 @@ export namespace PowerSource {
              * WiredFaultEnum value shall be added to this list, provided it is not already present. This list shall NOT
              * contain more than one instance of a specific WiredFaultEnum value. When the Node detects all conditions
              * contributing to a fault have been cleared, the corresponding WiredFaultEnum value shall be removed from
-             * this list. An empty list shall indicate there are currently no active faults. The order of this list
-             * SHOULD have no significance. Clients interested in monitoring changes in active faults may subscribe to
-             * this attribute, or they may subscribe to WiredFaultChange.
+             * this list. An empty list shall indicate there are currently noactivefaults. The order of this list SHOULD
+             * have no significance. Clients interested in monitoring changes in active faults may subscribe to this
+             * attribute, or they may subscribe to WiredFaultChange.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.7.7.11
              */
@@ -1023,7 +1023,7 @@ export namespace PowerSource {
 
             /**
              * Indicates the estimated percentage of battery charge remaining until the battery will no longer be able
-             * to provide power to the Node. Values are expressed in half percent units, ranging from 0 to 200. E.g. a
+             * to provide power to the Node. Values are expressed in half percent units, ranging from 0 to200. E.g. a
              * value of 48 is equivalent to 24%. A value of NULL shall indicate the Node is currently unable to assess
              * the value.
              *
@@ -1092,9 +1092,9 @@ export namespace PowerSource {
              * BatFaultEnum value shall be added to this list, provided it is not already present. This list shall NOT
              * contain more than one instance of a specific BatFaultEnum value. When the Node detects all conditions
              * contributing to a fault have been cleared, the corresponding BatFaultEnum value shall be removed from
-             * this list. An empty list shall indicate there are currently no active faults. The order of this list
-             * SHOULD have no significance. Clients interested in monitoring changes in active faults may subscribe to
-             * this attribute, or they may subscribe to BatFaultChange.
+             * this list. An empty list shall indicate there are currently noactivefaults. The order of this list SHOULD
+             * have no significance. Clients interested in monitoring changes in active faults may subscribe to this
+             * attribute, or they may subscribe to BatFaultChange.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.7.7.19
              */
@@ -1228,8 +1228,8 @@ export namespace PowerSource {
             /**
              * Indicates the set of charge faults currently detected by the Node on this power source. This set is
              * represented as a list of BatChargeFaultEnum. When the Node detects a fault has been raised, the
-             * appropriate BatChargeFaultEnum value shall be added to this list, provided it is not already present.
-             * This list shall NOT contain more than one instance of a specific BatChargeFaultEnum value. When the Node
+             * appropriate BatChargeFaultEnum value shall be added to this list, provided it is not alreadypresent. This
+             * list shall NOT contain more than one instance of a specific BatChargeFaultEnum value. When the Node
              * detects all conditions contributing to a fault have been cleared, the corresponding BatChargeFaultEnum
              * value shall be removed from this list. An empty list shall indicate there are currently no active faults.
              * The order of this list SHOULD have no significance. Clients interested in monitoring changes in active

@@ -145,9 +145,9 @@ export namespace OnOff {
 
         /**
          * This field is used to indicate which variant of the effect, indicated in the EffectIdentifier field, SHOULD
-         * be triggered. If the server does not support the given variant, it shall use the default variant. This field
-         * is dependent on the value of the EffectIdentifier field and shall contain one of the non-reserved values
-         * listed in either DelayedAllOffEffectVariantEnum or DyingLightEffectVariantEnum.
+         * be triggered. If the server does not support the given variant, it shall use thedefaultvariant. This field is
+         * dependent on the value of the EffectIdentifier field and shall contain one of the non-reserved values listed
+         * in either DelayedAllOffEffectVariantEnum or DyingLightEffectVariantEnum.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.4.2
          */
@@ -263,8 +263,8 @@ export namespace OnOff {
 
             /**
              * This attribute specifies the length of time (in 1/10ths second) that the On state shall be maintained
-             * before automatically transitioning to the Off state when using the OnWithTimedOff command. This attribute
-             * can be written at any time, but writing a value only has effect when in the Timed On state. See
+             * before automatically transitioning to the Off state when using the OnWithTimedOffcommand. This attribute
+             * can be written at any time, but writing a value only has effect when in the Timed Onstate. See
              * OnWithTimedOff for more details.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.5.6.4

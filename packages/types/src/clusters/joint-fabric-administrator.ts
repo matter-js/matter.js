@@ -331,7 +331,7 @@ export namespace JointFabricAdministrator {
         attributes: {
             /**
              * The AdministratorFabricIndex attribute shall indicate the FabricIndex from the Endpoint 0’s Operational
-             * Cluster Fabrics attribute (i.e. the Fabric Table) which is associated with the JointFabric. This field
+             * Cluster Fabrics attribute (i.e. the Fabric Table) which is associated withtheJointFabric. This field
              * shall have the value of null if there is no fabric associated with the JointFabric.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.25.6.1

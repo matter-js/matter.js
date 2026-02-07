@@ -118,8 +118,8 @@ export namespace PumpConfigurationAndControl {
          * Device control is overridden by hardware, such as an external STOP button or via a local HMI.
          *
          * While this bit is set, the EffectiveOperationMode is adjusted to Local. Any request changing OperationMode
-         * shall generate a FAILURE error status until LocalOverride is cleared on the physical device. When
-         * LocalOverride is cleared, the device shall return to the operation mode set in OperationMode.
+         * shall generate a FAILURE error status until LocalOverride is cleared on thephysicaldevice. When LocalOverride
+         * is cleared, the device shall return to the operation mode set in OperationMode.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.2.6.1.3
          */

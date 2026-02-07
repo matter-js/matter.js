@@ -16,10 +16,10 @@ Resource.add({
         "node." +
         "\n" +
         "  - Device types with Endpoint scope shall NOT be supported on the same endpoint as this device " +
-        "    type." +
+        "type." +
         "\n" +
         "  - Clusters with an Application role shall NOT be supported on the same endpoint as this device " +
-        "    type." +
+        "type." +
         "\n" +
         "  - Other device types with Node scope may be supported on the same endpoint as this device type.",
 

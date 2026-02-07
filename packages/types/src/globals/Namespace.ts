@@ -78,7 +78,7 @@ export enum Namespace {
      *
      * If the Row or Column tags are used, the Label field in the same Semantic Tag structure shall be filled with a
      * number comprised of Arabic numerals encoded as a string to indicate the row/column of the item. Number words
-     * (e.g. "one", "two", etc.) shall NOT be used to describe the position of the item. The first row/column shall use
+     * (e.g. "one", "two", etc.) shall NOT be used to describe the position oftheitem. The first row/column shall use
      * Label "1".
      */
     Position = 8,
@@ -115,7 +115,7 @@ export enum Namespace {
 
     /**
      * The tags contained in this namespace may be used in any domain or context, to indicate an association with a
-     * position relative to some reference, which must be specified by the user of these tags. For example, the position
+     * position relative to some reference, which must be specified by the user ofthesetags. For example, the position
      * may be relative to a household item, such as a dining table, and the user of these tags must indicate that. Note
      * the difference with Chapter 9, Common Position Semantic Tag Namespace, which contains tags indicating the
      * position relative to the device.

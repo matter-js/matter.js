@@ -302,9 +302,9 @@ export namespace ContentLauncher {
      */
     export const TlvPlaybackPreferences = TlvObject({
         /**
-         * This field shall indicate the preferred position (in milliseconds) in the media to launch playback from. In
+         * This field shall indicate the preferred position (in milliseconds) in the media to launchplaybackfrom. In
          * case the position falls in the middle of a frame, the server shall set the position to the beginning of that
-         * frame and set the SampledPosition attribute on the MediaPlayback cluster accordingly. A value of null shall
+         * frame and set the SampledPosition attribute on the MediaPlaybackclusteraccordingly. A value of null shall
          * indicate that playback position is not applicable for the current state of the media playback. (For example :
          * Live media with no known duration and where seek is not supported).
          *
@@ -744,7 +744,7 @@ export namespace ContentLauncher {
          * This field, if present, shall indicate whether to consider the context of current ongoing activity on the
          * receiver to fulfill the request. For example if the request only includes data in ContentSearch that
          * specifies an Episode number, and UseCurrentContent is set to TRUE, if there is a TV series on going, the
-         * request refers to the specific episode of the ongoing season of the TV series. TRUE means current activity
+         * request refers to the specific episode of the ongoing season of theTVseries. TRUE means current activity
          * context may be considered FALSE means current activity context shall NOT be considered
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1.5

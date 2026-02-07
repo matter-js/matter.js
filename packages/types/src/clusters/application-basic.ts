@@ -105,9 +105,9 @@ export namespace ApplicationBasic {
             vendorId: OptionalFixedAttribute(0x1, TlvVendorId),
 
             /**
-             * This attribute shall specify a human readable (displayable) name of the Content App assigned by the
-             * vendor. For example, "NPR On Demand". The maximum length of the ApplicationName attribute is 256 bytes of
-             * UTF-8 characters.
+             * This attribute shall specify a human readable (displayable) name of the Content App assigned bythevendor.
+             * For example, "NPR On Demand". The maximum length of the ApplicationName attribute is 256 bytes of UTF-8
+             * characters.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.3
              */

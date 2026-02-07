@@ -693,7 +693,7 @@ export namespace Thermostat {
     export interface ScheduleType extends TypeFromSchema<typeof TlvScheduleType> {}
 
     /**
-     * This struct provides a time of day and a set of days of the week for a state transition within a schedule. The
+     * This struct provides a time of day and a set of days of the week for a state transition withinaschedule. The
      * thermostat shall use the following order of precedence for determining a new setpoint at the time of transition:
      *
      *   1. If the PresetHandle field is provided, then the setpoint for the PresetStruct in the Presets attribute with
@@ -808,7 +808,7 @@ export namespace Thermostat {
     });
 
     /**
-     * This struct provides a time of day and a set of days of the week for a state transition within a schedule. The
+     * This struct provides a time of day and a set of days of the week for a state transition withinaschedule. The
      * thermostat shall use the following order of precedence for determining a new setpoint at the time of transition:
      *
      *   1. If the PresetHandle field is provided, then the setpoint for the PresetStruct in the Presets attribute with
@@ -2342,7 +2342,7 @@ export namespace Thermostat {
 
             /**
              * Indicates the HVAC system type controlled by the thermostat. If the thermostat uses physical DIP switches
-             * to set these parameters, this information shall be available read-only from the DIP switches. If these
+             * to set these parameters, this information shall be available read-only from theDIPswitches. If these
              * parameters are set via software, there shall be read/write access in order to provide remote programming
              * capability.
              *
@@ -2404,8 +2404,8 @@ export namespace Thermostat {
             /**
              * Indicates the temperature hold status on the thermostat. If hold status is on, the thermostat SHOULD
              * maintain the temperature setpoint for the current mode until a system mode change. If hold status is off,
-             * the thermostat SHOULD follow the setpoint transitions specified by its internal scheduling program. If
-             * the thermostat supports setpoint hold for a specific duration, it SHOULD also implement the
+             * the thermostat SHOULD follow the setpoint transitions specified by its internalschedulingprogram. If the
+             * thermostat supports setpoint hold for a specific duration, it SHOULD also implement the
              * TemperatureSetpointHoldDuration attribute.
              *
              * If the server supports a setpoint hold for a specific duration, it SHOULD also implement the
@@ -2429,8 +2429,8 @@ export namespace Thermostat {
 
             /**
              * Indicates the period in minutes for which a setpoint hold is active. Thermostats that support hold for a
-             * specified duration SHOULD implement this attribute. The null value indicates the field is unused. All
-             * other values are reserved.
+             * specified duration SHOULD implement this attribute. The null value indicates the fieldisunused. All other
+             * values are reserved.
              *
              * If this attribute is updated to a non-null value and the TemperatureSetpointHold is set to SetpointHoldOn
              * and the SetpointHoldExpiryTimestamp is supported, the server shall update SetpointHoldExpiryTimestamp
@@ -2450,9 +2450,9 @@ export namespace Thermostat {
             /**
              * Indicates the operational state of the thermostat’s programming. The thermostat shall modify its
              * programming operation when this attribute is modified by a client and update this attribute when its
-             * programming operation is modified locally by a user. The thermostat may support more than one active
-             * ProgrammingOperationModeBitmap. For example, the thermostat may operate simultaneously in Schedule
-             * Programming Mode and Recovery Mode.
+             * programming operation is modified locally by a user. The thermostat may support more than
+             * oneactiveProgrammingOperationModeBitmap. For example, the thermostat may operate simultaneously in
+             * Schedule Programming Mode and Recovery Mode.
              *
              * Thermostats which contain a schedule may use this attribute to control how that schedule is used, even if
              * they do not support the ScheduleConfiguration feature.

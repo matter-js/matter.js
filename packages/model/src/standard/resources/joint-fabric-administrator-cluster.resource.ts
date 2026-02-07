@@ -91,15 +91,15 @@ Resource.add(
                             "Upon receipt, the ICACValue shall be validated in the following ways:" +
                             "\n" +
                             "  1. Verify the ICAC using Crypto_VerifyChain(certificates = [ICACValue, RootCACertificate]) where " +
-                            "     RootCACertificate is the associated RCAC of the accessing fabric. If this check fails, the " +
-                            "     error status shall be InvalidICAC." +
+                            "RootCACertificate is the associated RCAC of the accessing fabric. If this check fails, the " +
+                            "error status shall be InvalidICAC." +
                             "\n" +
                             "  2. The public key of the ICAC shall match the public key present in the last ICACCSRResponse " +
-                            "     provided to the Administrator that sent the AddICAC command. If this check fails, the error " +
-                            "     status shall be InvalidPublicKey." +
+                            "provided to the Administrator that sent the AddICAC command. If this check fails, the error " +
+                            "status shall be InvalidPublicKey." +
                             "\n" +
                             "  3. The DN Encoding Rules shall be validated for the ICAC. If this check fails, the error status " +
-                            "     shall be InvalidICAC." +
+                            "shall be InvalidICAC." +
                             "\n" +
                             "If any of the above validation checks fail, the server shall immediately respond to the client with " +
                             "an ICACResponse. The StatusCode field of the ICACResponse shall be set to the error status value " +
@@ -128,7 +128,7 @@ Resource.add(
                     "\n" +
                     "> This is an alias onto the OpenCommissioningWindow command within the Joint Fabric Administrator " +
                     "  Cluster. Refer to the OpenCommissioningWindow command for a description of the command behavior " +
-                    "  and parameters." +
+                    "and parameters." +
                     "\n" +
                     "This command shall fail with a InvalidAdministratorFabricIndex status code sent back to the " +
                     "initiator if the AdministratorFabricIndex field has the value of null." +

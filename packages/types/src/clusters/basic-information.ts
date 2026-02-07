@@ -320,7 +320,7 @@ export namespace BasicInformation {
 
         attributes: {
             /**
-             * This attribute shall be set to the revision number of the Data Model against which the Node is certified.
+             * This attribute shall be set to the revision number of the Data Model against which the Nodeiscertified.
              * The value of this attribute shall be one of the valid values listed in Section 7.1.1, “Revision History”.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.1.5.1
@@ -371,7 +371,7 @@ export namespace BasicInformation {
 
             /**
              * This attribute shall be an ISO 3166-1 alpha-2 code to represent the country, dependent territory, or
-             * special area of geographic interest in which the Node is located at the time of the attribute being set.
+             * special area of geographic interest in which the Node is located at the time of the attributebeingset.
              * This attribute shall be set during initial commissioning (unless already set) and may be updated by
              * further reconfigurations. This attribute may affect some regulatory aspects of the Node’s operation, such
              * as radio transmission power levels in given spectrum allocation bands if technologies where this is
@@ -417,8 +417,8 @@ export namespace BasicInformation {
             softwareVersion: FixedAttribute(0x9, TlvUInt32, { default: 0 }),
 
             /**
-             * This attribute shall contain a current human-readable representation for the software running on the
-             * Node. This version information may be conveyed to users. The maximum length of the SoftwareVersionString
+             * This attribute shall contain a current human-readable representation for the software running ontheNode.
+             * This version information may be conveyed to users. The maximum length of the SoftwareVersionString
              * attribute is 64 bytes of UTF-8 characters. The contents SHOULD only use simple 7-bit ASCII alphanumeric
              * and punctuation characters, so as to simplify the conveyance of the value to a variety of cultures.
              *
@@ -501,8 +501,8 @@ export namespace BasicInformation {
             reachable: OptionalAttribute(0x11, TlvBoolean, { default: true }),
 
             /**
-             * Indicates a unique identifier for the device, which is constructed in a manufacturer specific manner. It
-             * may be constructed using a permanent device identifier (such as device MAC address) as basis. In order to
+             * Indicates a unique identifier for the device, which is constructed in a manufacturer specificmanner. It
+             * may be constructed using a permanent device identifier (such as device MAC address) asbasis. In order to
              * prevent tracking,
              *
              *   - it SHOULD NOT be identical to (or easily derived from) such permanent device identifier

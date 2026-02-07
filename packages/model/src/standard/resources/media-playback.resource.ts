@@ -114,17 +114,17 @@ Resource.add({
                 "pause/rewind/forward)." +
                 "\n" +
                 "  - A value for PlaybackSpeed of 1 shall indicate normal playback where, for example, playback for 1 " +
-                "    second causes the media to advance by 1 second within the duration of the media." +
+                "second causes the media to advance by 1 second within the duration of the media." +
                 "\n" +
                 "  - A value for PlaybackSpeed which is greater than 0 shall indicate that as playback is happening " +
-                "    the media is currently advancing in time within the duration of the media." +
+                "the media is currently advancing in time within the duration of the media." +
                 "\n" +
                 "  - A value for PlaybackSpeed which is less than 0 shall indicate that as playback is happening the " +
-                "    media is currently going back in time within the duration of the media." +
+                "media is currently going back in time within the duration of the media." +
                 "\n" +
                 "  - A value for PlaybackSpeed of 0 shall indicate that the media is currently not playing back. When " +
-                "    the CurrentState attribute has the value of PAUSED, NOT_PLAYING or BUFFERING, the PlaybackSpeed " +
-                "    shall be set to 0 to reflect that the media is not playing." +
+                "the CurrentState attribute has the value of PAUSED, NOT_PLAYING or BUFFERING, the PlaybackSpeed " +
+                "shall be set to 0 to reflect that the media is not playing." +
                 "\n" +
                 "Following examples illustrate the PlaybackSpeed attribute values in various conditions."
         },

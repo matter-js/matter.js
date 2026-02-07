@@ -19,10 +19,10 @@ import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js
 import { Identity } from "#general";
 
 /**
- * An Extractor Hood is a device that is generally installed above a cooking surface in residential kitchens. An
- * Extractor Hood’s primary purpose is to reduce odors that arise during the cooking process by either extracting the
- * air above the cooking surface or by recirculating and filtering it. It may also contain a light for illuminating the
- * cooking surface.
+ * An Extractor Hood is a device that is generally installed above a cooking surface inresidentialkitchens. An Extractor
+ * Hood’s primary purpose is to reduce odors that arise during the cooking process by either extracting the air above
+ * the cooking surface or by recirculating and filtering it. It may also contain a light for illuminating the cooking
+ * surface.
  *
  * Extractor Hoods may also be known by the following names:
  *

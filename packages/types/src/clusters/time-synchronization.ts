@@ -163,7 +163,7 @@ export namespace TimeSynchronization {
      */
     export const TlvSetDefaultNtpRequest = TlvObject({
         /**
-         * This field contains the address of an NTP server than can be used as a fallback for time synchronization. The
+         * This field contains the address of an NTP server than can be used as a fallback fortimesynchronization. The
          * format of this field shall follow the requirements in the DefaultNTP attribute description.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.17.9.6.1
@@ -827,8 +827,8 @@ export namespace TimeSynchronization {
         events: {
             /**
              * This event shall be generated when the node stops applying the current DSTOffset and there are no entries
-             * in the list with a larger ValidStarting time, indicating the need to possibly get new DST data. This
-             * event shall also be generated if the DSTOffset list is cleared either by a SetTimeZone command, or by a
+             * in the list with a larger ValidStarting time, indicating the need to possibly get newDSTdata. This event
+             * shall also be generated if the DSTOffset list is cleared either by a SetTimeZone command, or by a
              * SetDSTOffset command with an empty list.
              *
              * The node shall generate this event if the node has not generated a DSTTableEmpty event in the last hour,
@@ -930,7 +930,7 @@ export namespace TimeSynchronization {
             utcTime: Attribute(0x0, TlvNullable(TlvEpochUs), { omitChanges: true, default: null }),
 
             /**
-             * Indicates granularity of the error that the node is willing to guarantee on the time synchronization. It
+             * Indicates granularity of the error that the node is willing to guarantee on the timesynchronization. It
              * is of type GranularityEnum.
              *
              * This value shall be set to NoTimeGranularity if UTCTime is null and shall NOT be set to NoTimeGranularity
@@ -942,8 +942,8 @@ export namespace TimeSynchronization {
 
             /**
              * Indicates the node’s time source. This attribute indicates what method the node is using to sync, whether
-             * the source uses NTS or not and whether the source is internal or external to the Matter network. This
-             * attribute may be used by a client to determine its level of trust in the UTCTime. It is of type
+             * the source uses NTS or not and whether the source is internal or external to theMatternetwork. This
+             * attribute may be used by a client to determine its level of trust in theUTCTime. It is of type
              * TimeSourceEnum.
              *
              * If a node is unsure if the selected NTP server is within the Matter network, it SHOULD select one of the
@@ -972,7 +972,7 @@ export namespace TimeSynchronization {
              * lower than the stated command Granularity. It shall also update its TimeSource attribute to Admin. It
              * shall also update its Last Known Good UTC Time as defined in Section 3.5.6.1, “Last Known Good UTC Time”.
              *
-             * If the node updates its UTCTime attribute, it shall accept the command with a status code of SUCCESS. If
+             * If the node updates its UTCTime attribute, it shall accept the command with a status code ofSUCCESS. If
              * it opts to not update its time, it shall fail the command with a cluster specific Status Code of
              * TimeNotAccepted.
              *

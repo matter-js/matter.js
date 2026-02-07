@@ -1063,9 +1063,9 @@ export namespace WindowCovering {
             ),
 
             /**
-             * The SafetyStatus attribute reflects the state of the safety sensors and the common issues preventing
-             * movements. By default for nominal operation all flags are cleared (0). A device might support none, one
-             * or several bit flags from this attribute (all optional).
+             * The SafetyStatus attribute reflects the state of the safety sensors and the common
+             * issuespreventingmovements. By default for nominal operation all flags are cleared (0). A device might
+             * support none, one or several bit flags from this attribute (all optional).
              *
              * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.22
              */

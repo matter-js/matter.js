@@ -34,7 +34,7 @@ export namespace LowPower {
     /**
      * This cluster provides an interface for managing low power mode on a device.
      *
-     * This cluster would be supported on an endpoint that represents a physical device with a low power mode. This
+     * This cluster would be supported on an endpoint that represents a physical device with a lowpowermode. This
      * cluster provides a sleep() command to allow clients to manually put the device into low power mode. There is no
      * command here to wake up a sleeping device because that operation often involves other protocols such as Wake On
      * LAN. Most devices automatically enter low power mode based upon inactivity.

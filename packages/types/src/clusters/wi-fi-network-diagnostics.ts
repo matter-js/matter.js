@@ -396,7 +396,7 @@ export namespace WiFiNetworkDiagnostics {
             associationFailure: OptionalEvent(0x1, Priority.Info, TlvAssociationFailureEvent),
 
             /**
-             * The ConnectionStatus Event shall indicate that a Node’s connection status to a Wi-Fi network has changed.
+             * The ConnectionStatus Event shall indicate that a Node’s connection status to a Wi-Fi networkhaschanged.
              * Connected, in this context, shall mean that a Node acting as a Wi-Fi station is successfully associated
              * to a Wi-Fi Access Point.
              *

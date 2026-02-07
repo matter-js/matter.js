@@ -258,7 +258,7 @@ Resource.add(
                             "\n" +
                             "  - NetworkNotFound: No instance of an explicitly-provided network identifier was found during the " +
                             "    scan. This error cannot occur if no network identifier was provided, such as when scanning for " +
-                            "    all available networks." +
+                            "all available networks." +
                             "\n" +
                             "  - OutOfRange: Network identifier was invalid (e.g. empty, too long, etc)." +
                             "\n" +
@@ -363,7 +363,7 @@ Resource.add(
                             "  - 8..63 bytes: WPA/WPA2/WPA3 passphrase" +
                             "\n" +
                             "  - 64 bytes: WPA/WPA2/WPA3 raw hex PSK These lengths shall be contextually interpreted based on the " +
-                            "    security type of the BSSID where connection will occur." +
+                            "security type of the BSSID where connection will occur." +
                             "\n" +
                             "When the length of Credentials and available set of BSSID admits more than one option, such as the " +
                             "presence of both WPA2 and WPA security type within the result set, WPA2 shall be considered more " +
@@ -486,7 +486,7 @@ Resource.add(
                             "  - BoundsExceeded: Adding this network configuration would exceed the limit defined by MaxNetworks." +
                             "\n" +
                             "  - NetworkIdNotFound: The network identifier was expected to be found, but was not found among the " +
-                            "    added network configurations in Networks attribute." +
+                            "added network configurations in Networks attribute." +
                             "\n" +
                             "  - UnknownError: An internal error occurred during the operation."
                     },
@@ -567,17 +567,17 @@ Resource.add(
                     "meets the following:" +
                     "\n" +
                     "  1. Sufficient time to meet the minimum required time (see Section 11.9.6.4, “ConnectMaxTimeSeconds " +
-                    "     Attribute”) that may be taken by the server to connect to the desired network." +
+                    "Attribute”) that may be taken by the server to connect to the desired network." +
                     "\n" +
                     "  2. Sufficient time to account for possible message-layer retries when a response is requested." +
                     "\n" +
                     "  3. Sufficient time to allow operational discovery on the new network by a Commissioner or " +
-                    "     Administrator." +
+                    "Administrator." +
                     "\n" +
                     "  4. Sufficient time to establish a CASE session after operational discovery" +
                     "\n" +
                     "  5. Not so long that, in error situations, the delay to reverting back to being discoverable for " +
-                    "     commissioning with a previous configuration would cause significant user-perceived delay." +
+                    "commissioning with a previous configuration would cause significant user-perceived delay." +
                     "\n" +
                     "Note as well that the CommissioningTimeout duration provided in a prior OpenCommissioningWindow or " +
                     "OpenBasicCommissioningWindow command may impact the total time available to proceed with error " +
@@ -610,10 +610,10 @@ Resource.add(
                     "  - Set the LastNetworkingStatus attribute value to the NetworkingStatus matching the response." +
                     "\n" +
                     "  - Set the LastNetworkID attribute value to the NetworkID that was used in the ConnectNetwork " +
-                    "    command which caused the response to be generated." +
+                    "command which caused the response to be generated." +
                     "\n" +
                     "  - Set the LastConnectErrorValue attribute value to the ErrorValue matching the response, including " +
-                    "    setting it to null if the ErrorValue is not applicable.",
+                    "setting it to null if the ErrorValue is not applicable.",
 
                 children: [
                     {
@@ -625,19 +625,19 @@ Resource.add(
                             "  - Success: Connection succeeded." +
                             "\n" +
                             "  - NetworkNotFound: No instance of an explicitly-provided network identifier was found during the " +
-                            "    attempt to join the network." +
+                            "attempt to join the network." +
                             "\n" +
                             "  - OutOfRange: Network identifier was invalid (e.g. empty, too long, etc)." +
                             "\n" +
                             "  - NetworkIdNotFound: The network identifier was not found among the added network configurations " +
-                            "    in Networks attribute." +
+                            "in Networks attribute." +
                             "\n" +
                             "  - RegulatoryError: Could not connect to a network due to lack of regulatory configuration." +
                             "\n" +
                             "  - UnknownError: An internal error occurred during the operation." +
                             "\n" +
                             "  - Association errors (see also description of errors in NetworkCommissioningStatusEnum): " +
-                            "    AuthFailure, UnsupportedSecurity, OtherConnectionFailure, IPV6Failed, IPBindFailed"
+                            "AuthFailure, UnsupportedSecurity, OtherConnectionFailure, IPV6Failed, IPBindFailed"
                     },
 
                     {
@@ -651,9 +651,9 @@ Resource.add(
                         details: "  - ErrorValue interpretation for Wi-Fi association errors:" +
                             "\n" +
                             "    - On any association failure during enabling of a network, the ErrorValue field shall be set to " +
-                            "      the Status Code value that was present in the last frame related to association where Status " +
-                            "      Code was not equal to zero and which caused the failure of a final retry attempt, if this " +
-                            "      final failure was due to one of the following Management frames:" +
+                            "the Status Code value that was present in the last frame related to association where Status " +
+                            "Code was not equal to zero and which caused the failure of a final retry attempt, if this " +
+                            "final failure was due to one of the following Management frames:" +
                             "\n" +
                             "      - Association Response (Type 0, Subtype 1)" +
                             "\n" +
@@ -662,11 +662,11 @@ Resource.add(
                             "      - Authentication (Type 0, Subtype 11)" +
                             "\n" +
                             "    - Table 9-50 \"Status Codes\" in IEEE 802.11-2020 contains a description of all values possible, " +
-                            "      which can unambiguously be used to determine the cause, such as an invalid security type, " +
-                            "      unsupported rate, etc." +
+                            "which can unambiguously be used to determine the cause, such as an invalid security type, " +
+                            "unsupported rate, etc." +
                             "\n" +
                             "  - Otherwise, the ErrorValue field shall contain an implementation-dependent value which may be " +
-                            "    used by a reader of the structure to record, report or diagnose the failure."
+                            "used by a reader of the structure to record, report or diagnose the failure."
                     }
                 ]
             },
@@ -862,11 +862,11 @@ Resource.add(
                             "> [!NOTE]" +
                             "\n" +
                             "> SSID in Wi-Fi is a collection of 1-32 bytes, the text encoding of which is not specified. " +
-                            "  Implementations must be careful to support reporting byte strings without requiring a particular " +
-                            "  encoding for transfer. Only the commissioner should try to potentially decode the bytes. The most " +
-                            "  common encoding is UTF-8, however this is just a convention. Some configurations may use Latin-1 " +
-                            "  or other character sets. A commissioner may decode using UTF-8, replacing encoding errors with \"?\" " +
-                            "  at the application level while retaining the underlying representation." +
+                            "Implementations must be careful to support reporting byte strings without requiring a particular " +
+                            "encoding for transfer. Only the commissioner should try to potentially decode the bytes. The most " +
+                            "common encoding is UTF-8, however this is just a convention. Some configurations may use Latin-1 " +
+                            "or other character sets. A commissioner may decode using UTF-8, replacing encoding errors with \"?\" " +
+                            "at the application level while retaining the underlying representation." +
                             "\n" +
                             "XPAN ID is a big-endian 64-bit unsigned number, represented on the first 8 octets of the octet " +
                             "string."

@@ -26,7 +26,7 @@ export namespace TimeSynchronizationInterface {
          * than the stated command Granularity. It shall also update its TimeSource attribute to Admin. It shall also
          * update its Last Known Good UTC Time as defined in Section 3.5.6.1, “Last Known Good UTC Time”.
          *
-         * If the node updates its UTCTime attribute, it shall accept the command with a status code of SUCCESS. If it
+         * If the node updates its UTCTime attribute, it shall accept the command with a status code ofSUCCESS. If it
          * opts to not update its time, it shall fail the command with a cluster specific Status Code of
          * TimeNotAccepted.
          *

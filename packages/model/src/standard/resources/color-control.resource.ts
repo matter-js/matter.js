@@ -499,7 +499,7 @@ Resource.add(
                             "> [!NOTE]" +
                             "\n" +
                             "> Here the TransitionTime data field is of data type uint8, where uint16 is more common for " +
-                            "  TransitionTime data fields in other clusters / commands."
+                            "TransitionTime data fields in other clusters / commands."
                     }
                 ]
             },
@@ -545,7 +545,7 @@ Resource.add(
                             "> [!NOTE]" +
                             "\n" +
                             "> Here the TransitionTime data field is of data type uint8, where uint16 is more common for " +
-                            "  TransitionTime data fields in other clusters / commands."
+                            "TransitionTime data fields in other clusters / commands."
                     }
                 ]
             },
@@ -645,7 +645,7 @@ Resource.add(
                             "> [!NOTE]" +
                             "\n" +
                             "> Here TransitionTime data field is of data type uint16, while the TransitionTime data field of the " +
-                            "  StepHue command is of data type uint8."
+                            "StepHue command is of data type uint8."
                     }
                 ]
             },
@@ -851,7 +851,7 @@ Resource.add(
                             "  - 0 = Device shall ignore the Time field." +
                             "\n" +
                             "  - 1 = Device shall update the value of the ColorLoopTime attribute with the value of the Time " +
-                            "    field."
+                            "field."
                     },
 
                     {
@@ -864,7 +864,7 @@ Resource.add(
                             "  - 0 = Device shall ignore the StartHue field." +
                             "\n" +
                             "  - 1 = Device shall update the value of the ColorLoopStartEnhancedHue attribute with the value of " +
-                            "    the StartHue field."
+                            "the StartHue field."
                     }
                 ]
             },

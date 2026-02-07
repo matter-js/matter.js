@@ -25,7 +25,7 @@ Resource.add({
         "Node device type in the Descriptor cluster DeviceTypeList, then:" +
         "\n" +
         "  - The Commissioning Window shall be opened or closed on the node that the Root Node endpoint is " +
-        "    on." +
+        "on." +
         "\n" +
         "  - The attributes shall indicate the state of the node that the Root Node endpoint is on." +
         "\n" +
@@ -53,8 +53,8 @@ Resource.add({
                 "> [!NOTE]" +
                 "\n" +
                 "> An initial commissioning window is not opened using either the OpenCommissioningWindow command or " +
-                "  the OpenBasicCommissioningWindow command, and therefore this attribute shall be set to " +
-                "  WindowNotOpen on initial commissioning."
+                "the OpenBasicCommissioningWindow command, and therefore this attribute shall be set to " +
+                "WindowNotOpen on initial commissioning."
         },
 
         {

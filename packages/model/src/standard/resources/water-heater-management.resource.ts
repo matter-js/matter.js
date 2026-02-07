@@ -74,11 +74,11 @@ Resource.add(
                     "\n" +
                     "> The electrical energy required to heat the water depends on the heating system used to heat the " +
                     "  water. For example, a direct electric immersion heating element can be close to 100% efficient, so " +
-                    "  the electrical energy needed to heat the hot water is nearly the same as the " +
+                    "the electrical energy needed to heat the hot water is nearly the same as the " +
                     "  EstimatedHeatEnergyRequired. However some forms of heating, such as an air-source heat pump which " +
-                    "  extracts heat from ambient air, requires much less electrical energy to heat hot water. Heat pumps " +
-                    "  can be produce 3kWh of heat output for 1kWh of electrical energy input. The conversion between " +
-                    "  heat energy and electrical energy is outside the scope of this cluster."
+                    "extracts heat from ambient air, requires much less electrical energy to heat hot water. Heat pumps " +
+                    "can be produce 3kWh of heat output for 1kWh of electrical energy input. The conversion between " +
+                    "heat energy and electrical energy is outside the scope of this cluster."
             },
 
             {

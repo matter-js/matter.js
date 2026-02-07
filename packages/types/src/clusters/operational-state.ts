@@ -74,8 +74,8 @@ export namespace OperationalState {
         operationalStateId: TlvField(0, TlvEnum<OperationalStateEnum>()),
 
         /**
-         * This field is present when the OperationalStateID is from the set reserved for Manufacturer Specific States.
-         * If present, this shall contain a human-readable description of the operational state.
+         * This field is present when the OperationalStateID is from the set reserved for ManufacturerSpecificStates. If
+         * present, this shall contain a human-readable description of the operational state.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.2.2
          */
@@ -144,7 +144,7 @@ export namespace OperationalState {
         errorStateId: TlvField(0, TlvEnum<ErrorState>()),
 
         /**
-         * This field is present when the ErrorStateID is from the set reserved for Manufacturer Specific errors. If
+         * This field is present when the ErrorStateID is from the set reserved for ManufacturerSpecificerrors. If
          * present, this shall contain a human-readable description of the error state.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.4.2

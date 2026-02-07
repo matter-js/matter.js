@@ -14,7 +14,7 @@ Resource.add({
     details: "> [!NOTE]" +
         "\n" +
         "> The Descriptor cluster is meant to replace the support from the Zigbee Device Object (ZDO) for " +
-        "  describing a node, its endpoints and clusters." +
+        "describing a node, its endpoints and clusters." +
         "\n" +
         "This cluster describes an endpoint instance on the node, independently from other endpoints, but " +
         "also allows composition of endpoints to conform to complex device type patterns." +
@@ -81,7 +81,7 @@ Resource.add({
                 "Temperature sensor in a Temperature Controlled Cabinet)." +
                 "\n" +
                 "  - A client SHOULD use these tags to convey disambiguation information and other relevant " +
-                "    information to the user (e.g. showing it in a user interface), as appropriate." +
+                "information to the user (e.g. showing it in a user interface), as appropriate." +
                 "\n" +
                 "  - A client SHOULD use these tags in its logic to make decisions, as appropriate." +
                 "\n" +
@@ -101,10 +101,10 @@ Resource.add({
                 "manner." +
                 "\n" +
                 "  - If a globally unique identifier is used, the same rules as defined for the UniqueID attribute in " +
-                "    the Basic Information cluster apply." +
+                "the Basic Information cluster apply." +
                 "\n" +
                 "  - If the identifier is only unique in the scope of the device, and cannot be used to track the " +
-                "    device, then it may remain unchanged at factory reset." +
+                "device, then it may remain unchanged at factory reset." +
                 "\n" +
                 "The value does not need to be human readable, since it is intended for machine to machine (M2M) " +
                 "communication."

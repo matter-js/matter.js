@@ -669,10 +669,10 @@ export namespace GeneralDiagnostics {
             networkInterfaces: Attribute(0x0, TlvArray(TlvNetworkInterface, { maxLength: 8 }), { default: [] }),
 
             /**
-             * The RebootCount attribute shall indicate a best-effort count of the number of times the Node has
-             * rebooted. The RebootCount attribute SHOULD be incremented each time the Node reboots. The RebootCount
-             * attribute shall NOT be incremented when a Node wakes from a low-power or sleep state. The RebootCount
-             * attribute shall only be reset to 0 upon a factory reset of the Node.
+             * The RebootCount attribute shall indicate a best-effort count of the number of times the Nodehasrebooted.
+             * The RebootCount attribute SHOULD be incremented each time the Node reboots. The RebootCount attribute
+             * shall NOT be incremented when a Node wakes from a low-power or sleep state. The RebootCount attribute
+             * shall only be reset to 0 upon a factory reset of the Node.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.12.6.2
              */
@@ -681,7 +681,7 @@ export namespace GeneralDiagnostics {
             /**
              * The UpTime attribute shall indicate a best-effort assessment of the length of time, in seconds, since the
              * Node’s last reboot. This attribute SHOULD be incremented to account for the periods of time that a Node
-             * is in a low-power or sleep state. This attribute shall only be reset upon a device reboot. This attribute
+             * is in a low-power or sleep state. This attribute shall only be reset upon adevicereboot. This attribute
              * shall be based on the same System Time source as those used to fulfill any usage of the systime-us and
              * systime-ms data types within the server.
              *
@@ -712,7 +712,7 @@ export namespace GeneralDiagnostics {
              * list. This list shall NOT contain more than one instance of a specific HardwareFaultEnum value. When the
              * Node detects that all conditions contributing to a fault has been cleared, the corresponding
              * HardwareFaultEnum value shall be removed from this list. An empty list shall indicate there are currently
-             * no active faults. The order of this list SHOULD have no significance. Clients interested in monitoring
+             * no active faults. The order of this list SHOULD havenosignificance. Clients interested in monitoring
              * changes in active faults may subscribe to this attribute, or they may subscribe to HardwareFaultChange.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.12.6.6
@@ -743,10 +743,10 @@ export namespace GeneralDiagnostics {
             /**
              * The ActiveNetworkFaults attribute shall indicate the set of faults currently detected by the Node. When
              * the Node detects a fault has been raised, the appropriate NetworkFaultEnum value shall be added to this
-             * list. This list shall NOT contain more than one instance of a specific NetworkFaultEnum value. When the
+             * list. This list shall NOT contain more than one instance of a specificNetworkFaultEnumvalue. When the
              * Node detects that all conditions contributing to a fault has been cleared, the corresponding
              * NetworkFaultEnum value shall be removed from this list. An empty list shall indicate there are currently
-             * no active faults. The order of this list SHOULD have no significance. Clients interested in monitoring
+             * no active faults. The order of this list SHOULD have nosignificance. Clients interested in monitoring
              * changes in active faults may subscribe to this attribute, or they may subscribe to NetworkFaultChange.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.12.6.8
@@ -758,12 +758,12 @@ export namespace GeneralDiagnostics {
             ),
 
             /**
-             * The TestEventTriggersEnabled attribute shall indicate whether the Node has any TestEventTrigger
-             * configured. When this attribute is true, the Node has been configured with one or more test event
-             * triggers by virtue of the internally programmed EnableKey value (see Section 11.12.7.1, “TestEventTrigger
-             * Command”) being set to a non-zero value. This attribute can be used by Administrators to detect if a
-             * device was inadvertently commissioned with test event trigger mode enabled, and take appropriate action
-             * (e.g. warn the user and/or offer to remove all fabrics on the Node).
+             * The TestEventTriggersEnabled attribute shall indicate whether the Node has anyTestEventTriggerconfigured.
+             * When this attribute is true, the Node has been configured with one or more test event triggers by virtue
+             * of the internally programmed EnableKey value (see Section 11.12.7.1, “TestEventTrigger Command”) being
+             * set to a non-zero value. This attribute can be used by Administrators to detect if a device was
+             * inadvertently commissioned with test event trigger mode enabled, and take appropriate action (e.g. warn
+             * the user and/or offer to remove all fabrics on the Node).
              *
              * @see {@link MatterSpecification.v142.Core} § 11.12.6.9
              */

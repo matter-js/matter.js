@@ -53,20 +53,20 @@ Resource.add({
         "  - If the list is writable, it shall support writing or deleting the entire list." +
         "\n" +
         "  - If the list is writable, it shall support updating one or more individual entries by indicating " +
-        "    an index per updated entry." +
+        "an index per updated entry." +
         "\n" +
         "  - If the list is writable, it shall support deleting one or more individual entries by indicating " +
-        "    an index per deleted entry." +
+        "an index per deleted entry." +
         "\n" +
         "  - If the list is writable, it shall support adding one or more individual entries." +
         "\n" +
         "  - A list may define an entry that is a struct that is fabric-scoped (see Section 7.6.4, " +
-        "    “Fabric-Scoped Access”)." +
+        "“Fabric-Scoped Access”)." +
         "\n" +
         "### Fabric-Scoped List" +
         "\n" +
         "  - A fabric-scoped list shall define an entry data type that is a struct, which shall also be " +
-        "    fabric-scoped (see Fabric-Scoped Struct)." +
+        "fabric-scoped (see Fabric-Scoped Struct)." +
         "\n" +
         "Each entry in a fabric-scoped list shall be fabric-scoped to a particular fabric or no fabric." +
         "\n" +
@@ -77,22 +77,22 @@ Resource.add({
         "data that is not associated with the accessing fabric." +
         "\n" +
         "  - An interaction upon a list with fabric-filtering shall only indicate and access entries where " +
-        "    the associated fabric matches the accessing fabric, and all other entries shall be ignored." +
+        "the associated fabric matches the accessing fabric, and all other entries shall be ignored." +
         "\n" +
         "  - Fabric-filtered list entries shall be in the same order as the full list." +
         "\n" +
         "  - Fabric-filtered list entries shall be indexed from 0 with no gaps, as if the other entries did " +
-        "    not exist." +
+        "not exist." +
         "\n" +
         "  - For a write interaction, fabric-filtering shall be enabled." +
         "\n" +
         "  - When writing to a fabric-scoped list, the write interaction shall be on an accessing fabric, " +
-        "    otherwise, the write interaction shall fail (see Interaction Model Specification)." +
+        "otherwise, the write interaction shall fail (see Interaction Model Specification)." +
         "\n" +
         "  - For a read interaction on a list, fabric-filtering may be enabled." +
         "\n" +
         "  - For a read interaction on a list, with fabric-filtering disabled, the list shall be reported as " +
-        "    a full list with all entries." +
+        "a full list with all entries." +
         "\n" +
         "For example: A fabric-scoped full list with each entry having an associated FabricIndex and Value " +
         "field:" +

@@ -286,7 +286,7 @@ export namespace OtaSoftwareUpdateProvider {
         delayedActionTime: TlvOptionalField(1, TlvUInt32),
 
         /**
-         * This field, when present, shall contain a URI where the OTA Requestor SHOULD download a Software Image. The
+         * This field, when present, shall contain a URI where the OTA Requestor SHOULD download aSoftwareImage. The
          * syntax of the ImageURI field shall follow the URI syntax as specified in RFC 3986.
          *
          * Beware, this field is conditionally present based on the conformance listed in Section 11.20.6.5.2,
@@ -439,7 +439,7 @@ export namespace OtaSoftwareUpdateProvider {
         /**
          * This optional field, if present, shall consist of a top-level anonymous list; each list element shall have a
          * profile-specific tag encoded in fully-qualified form. Each list element shall contain a manufacturer-specific
-         * payload, which the OTA Provider wants to expose to the receiving OTA Requestor. This payload may be used for
+         * payload, which the OTA Provider wants to expose to the receiving OTARequestor. This payload may be used for
          * any purpose and SHOULD be as small as practical.
          *
          * The presence of this field shall NOT be required for correct operation of any OTA Provider compliant with

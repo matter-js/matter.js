@@ -482,7 +482,7 @@ export namespace FanControl {
              * INVALID_IN_STATE to indicate that the fan is not in a state where this attribute can be changed to the
              * requested value.
              *
-             * The server may have values that this attribute can never be set to or that will be ignored by the server.
+             * The server may have values that this attribute can never be set to or that will be ignored bytheserver.
              * For example, where this cluster appears on the same or another endpoint as other clusters with a system
              * dependency, for example the Thermostat cluster, attempting to set this attribute to Off may not be
              * allowed by the system.

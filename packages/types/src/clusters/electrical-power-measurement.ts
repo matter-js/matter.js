@@ -702,7 +702,7 @@ export namespace ElectricalPowerMeasurement {
             numberOfMeasurementTypes: FixedAttribute(0x1, TlvUInt8.bound({ max: 32 })),
 
             /**
-             * This shall indicate a list of accuracy specifications for the measurement types supported by the server.
+             * This shall indicate a list of accuracy specifications for the measurement types supported bytheserver.
              * There shall be an entry for ActivePower, as well as any other measurement types implemented by this
              * server.
              *

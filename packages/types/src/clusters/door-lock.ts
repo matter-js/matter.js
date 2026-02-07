@@ -92,7 +92,7 @@ export namespace DoorLock {
          *
          * If the User feature is supported then Week Day Schedules are applied to a User and not a credential.
          *
-         * Week Day Schedules are used to restrict access to a specified time window on certain days of the week. The
+         * Week Day Schedules are used to restrict access to a specified time window on certain days oftheweek. The
          * schedule is repeated each week.
          *
          * The lock may automatically adjust the UserType when a schedule is created or cleared.
@@ -462,10 +462,10 @@ export namespace DoorLock {
         /**
          * The user ID type is remote only
          *
-         * This value shall indicate the user access and PIN code is restricted to remote lock/unlock commands only.
-         * This type of user might be useful for regular delivery services or voice assistant unlocking operations to
-         * prevent a PIN code credential created for them from being used at the keypad. The PIN code credential would
-         * only be provided over-the-air for the lock/unlock commands.
+         * This value shall indicate the user access and PIN code is restricted to remote lock/unlockcommandsonly. This
+         * type of user might be useful for regular delivery services or voice assistant unlocking operations to prevent
+         * a PIN code credential created for them from being used at thekeypad. The PIN code credential would only be
+         * provided over-the-air for the lock/unlock commands.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.18.10
          */
@@ -915,7 +915,7 @@ export namespace DoorLock {
         userIndex: TlvField(3, TlvNullable(TlvUInt16.bound({ min: 1 }))),
 
         /**
-         * This field shall indicate the user status to use in the new user record if a new user is being created. This
+         * This field shall indicate the user status to use in the new user record if a new user isbeingcreated. This
          * shall be null if OperationType is Modify. This may be null when adding a new credential and user.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.36.5
@@ -923,7 +923,7 @@ export namespace DoorLock {
         userStatus: TlvField(4, TlvNullable(TlvEnum<UserStatus>())),
 
         /**
-         * This field shall indicate the user type to use in the new user record if a new user is being created. This
+         * This field shall indicate the user type to use in the new user record if a new user is beingcreated. This
          * shall be null if OperationType is Modify. This may be null when adding a new credential and user.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.36.6
@@ -1068,7 +1068,7 @@ export namespace DoorLock {
         /**
          * This field shall indicate the credential’s last modifier fabric index. LastModifiedFabricIndex shall be null
          * if CredentialExists is set to False or when the modifier fabric cannot be determined (for example, when
-         * credential was modified outside the Interaction Model) and shall NOT be null otherwise. This value shall be
+         * credential was modified outside the Interaction Model) and shall NOT be nullotherwise. This value shall be
          * set to 0 if the last modifier fabric was deleted.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.39.4
@@ -3403,8 +3403,8 @@ export namespace DoorLock {
              * CreatorFabricIndex and LastModifiedFabricIndex in new user and credential records shall be set to the
              * accessing fabric index.
              *
-             * A LockUserChange event shall be generated after successfully creating a new credential and a new user.
-             * The UserIndex of this LockUserChange event shall be the UserIndex that was used to create the user. The
+             * A LockUserChange event shall be generated after successfully creating a new credential and anewuser. The
+             * UserIndex of this LockUserChange event shall be the UserIndex that was used to createtheuser. The
              * DataIndex of this LockUserChange event shall be the CredentialIndex that was used to create the
              * credential.
              *
@@ -4324,8 +4324,8 @@ export namespace DoorLock {
             /**
              * If the User feature is supported then Week Day Schedules are applied to a User and not a credential.
              *
-             * Week Day Schedules are used to restrict access to a specified time window on certain days of the week.
-             * The schedule is repeated each week.
+             * Week Day Schedules are used to restrict access to a specified time window on certain days oftheweek. The
+             * schedule is repeated each week.
              *
              * The lock may automatically adjust the UserType when a schedule is created or cleared.
              *
@@ -4430,9 +4430,9 @@ export namespace DoorLock {
 
         attributes: {
             /**
-             * This attribute may be NULL if the lock hardware does not currently know the status of the locking
-             * mechanism. For example, a lock may not know the LockState status after a power cycle until the first lock
-             * actuation is completed.
+             * This attribute may be NULL if the lock hardware does not currently know the status of
+             * thelockingmechanism. For example, a lock may not know the LockState status after a power cycle until the
+             * first lock actuation is completed.
              *
              * The Not Fully Locked value is used by a lock to indicate that the state of the lock is somewhere between
              * Locked and Unlocked so it is only partially secured. For example, a deadbolt could be partially extended
@@ -4617,9 +4617,8 @@ export namespace DoorLock {
 
         commands: {
             /**
-             * This command causes the lock device to lock the door. This command includes an optional code for the
-             * lock. The door lock may require a PIN depending on the value of the RequirePINForRemoteOperation
-             * attribute.
+             * This command causes the lock device to lock the door. This command includes an optional code forthelock.
+             * The door lock may require a PIN depending on the value of the RequirePINForRemoteOperation attribute.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.1
              */

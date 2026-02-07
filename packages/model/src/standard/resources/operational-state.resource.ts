@@ -77,7 +77,7 @@ Resource.add({
                 "  - When it increases, or" +
                 "\n" +
                 "  - When there is any increase or decrease in the estimated time remaining that was due to " +
-                "    progressing insight of the server’s control logic, or" +
+                "progressing insight of the server’s control logic, or" +
                 "\n" +
                 "  - When it changes at a rate significantly different from one unit per second." +
                 "\n" +
@@ -197,7 +197,7 @@ Resource.add({
                 "  - The OperationalState attribute shall be set to Paused." +
                 "\n" +
                 "  - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of " +
-                "    NoError."
+                "NoError."
         },
 
         {
@@ -222,7 +222,7 @@ Resource.add({
                 "  - The OperationalState attribute shall be set to Stopped." +
                 "\n" +
                 "  - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of " +
-                "    NoError."
+                "NoError."
         },
 
         {
@@ -250,7 +250,7 @@ Resource.add({
                 "  - The OperationalState attribute shall be set to Running." +
                 "\n" +
                 "  - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of " +
-                "    NoError."
+                "NoError."
         },
 
         {
@@ -285,10 +285,10 @@ Resource.add({
                 "Otherwise, on success:" +
                 "\n" +
                 "  - The OperationalState attribute shall be set to the most recent non-Error operational state prior " +
-                "    to entering the Paused state." +
+                "to entering the Paused state." +
                 "\n" +
                 "  - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of " +
-                "    NoError."
+                "NoError."
         },
 
         {

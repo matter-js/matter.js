@@ -216,8 +216,8 @@ export namespace ConcentrationMeasurement {
     export const PeakMeasurementComponent = MutableCluster.Component({
         attributes: {
             /**
-             * Indicates the maximum value of MeasuredValue that has been measured during the PeakMeasuredValueWindow.
-             * If this attribute is provided, the PeakMeasuredValueWindow attribute shall also be provided.
+             * Indicates the maximum value of MeasuredValue that has been measured duringthePeakMeasuredValueWindow. If
+             * this attribute is provided, the PeakMeasuredValueWindow attribute shall also be provided.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.4
              */
@@ -238,9 +238,8 @@ export namespace ConcentrationMeasurement {
     export const AverageMeasurementComponent = MutableCluster.Component({
         attributes: {
             /**
-             * Indicates the average value of MeasuredValue that has been measured during the
-             * AverageMeasuredValueWindow. If this attribute is provided, the AverageMeasuredValueWindow attribute shall
-             * also be provided.
+             * Indicates the average value of MeasuredValue that has been measured duringtheAverageMeasuredValueWindow.
+             * If this attribute is provided, the AverageMeasuredValueWindow attribute shall also be provided.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.6
              */

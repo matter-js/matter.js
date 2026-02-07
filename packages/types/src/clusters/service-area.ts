@@ -669,8 +669,8 @@ export namespace ServiceArea {
 
         attributes: {
             /**
-             * This attribute shall contain the list of areas that can be included in the SelectedAreas attribute’s
-             * list. Each item in this list represents a unique area, as indicated by the AreaID field of AreaStruct.
+             * This attribute shall contain the list of areas that can be included in the SelectedAreas attribute’slist.
+             * Each item in this list represents a unique area, as indicated by the AreaID field of AreaStruct.
              *
              * Each entry in this list shall have a unique value for the AreaID field.
              *
@@ -745,7 +745,7 @@ export namespace ServiceArea {
              * regardless of whether it is operating or not, such as while traveling between areas.
              *
              * If the device is not mobile and can operate at multiple areas sequentially, this attribute shall indicate
-             * the area which is currently being serviced, or the area which is currently traversed by the device. For
+             * the area which is currently being serviced, or the area which is currently traversed bythedevice. For
              * example, a camera device may use this attribute to indicate which area it currently takes video of
              * (serviced area) or which area it currently has in view but not taking video of (e.g. an area which is
              * traversed while panning).
@@ -775,9 +775,9 @@ export namespace ServiceArea {
              *
              * A value of 0 means that the operation has completed.
              *
-             * When this attribute is null, that represents that there is no time currently defined until operation
-             * completion. This may happen, for example, because no operation is in progress or because the completion
-             * time is unknown.
+             * When this attribute is null, that represents that there is no time currently defined
+             * untiloperationcompletion. This may happen, for example, because no operation is in progress or because
+             * the completion time is unknown.
              *
              * Null if the CurrentArea attribute is null.
              *

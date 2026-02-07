@@ -328,11 +328,11 @@ Resource.add({
                         "For example:" +
                         "\n" +
                         "  - If Value is 0x55 and the Count is zero, then the PayloadTestResponse would have the Payload " +
-                        "    field set to an empty octet string." +
+                        "field set to an empty octet string." +
                         "\n" +
                         "  - If Value is 0xA5 and the Count is 10, the PayloadTestResponse would have the Payload field set " +
-                        "    to a content whose hexadecimal representation would be A5A5A5A5A5A5A5A5A5A5, and base64 " +
-                        "    representation would be paWlpaWlpaWlpQ==."
+                        "to a content whose hexadecimal representation would be A5A5A5A5A5A5A5A5A5A5, and base64 " +
+                        "representation would be paWlpaWlpaWlpQ==."
                 }
             ]
         },

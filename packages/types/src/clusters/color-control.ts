@@ -1123,8 +1123,8 @@ export namespace ColorControl {
     export const XyComponent = MutableCluster.Component({
         attributes: {
             /**
-             * Indicates the current value of the normalized chromaticity value x, as defined in the CIE xyY Color
-             * Space. It is updated as fast as practical during commands that change the color.
+             * Indicates the current value of the normalized chromaticity value x, as defined in the CIE xyYColorSpace.
+             * It is updated as fast as practical during commands that change the color.
              *
              * The value of x shall be related to the CurrentX attribute by the relationship
              *
@@ -1143,8 +1143,8 @@ export namespace ColorControl {
             currentX: Attribute(0x3, TlvUInt16.bound({ max: 65279 }), { scene: true, persistent: true }),
 
             /**
-             * Indicates the current value of the normalized chromaticity value y, as defined in the CIE xyY Color
-             * Space. It is updated as fast as practical during commands that change the color.
+             * Indicates the current value of the normalized chromaticity value y, as defined in the CIE xyYColorSpace.
+             * It is updated as fast as practical during commands that change the color.
              *
              * The value of y shall be related to the CurrentY attribute by the relationship
              *

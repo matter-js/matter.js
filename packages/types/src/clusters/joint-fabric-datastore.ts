@@ -566,9 +566,9 @@ export namespace JointFabricDatastore {
     export interface DatastoreAclEntry extends TypeFromSchema<typeof TlvDatastoreAclEntry> {}
 
     /**
-     * The DatastoreEndpointEntryStruct represents an Endpoint on a specific Node which is managed by the Datastore.
-     * Only Nodes on the Joint Fabric are managed by the Datastore. As a result, references to NodeID are specific to
-     * the Joint Fabric.
+     * The DatastoreEndpointEntryStruct represents an Endpoint on a specific Node which is managed bytheDatastore. Only
+     * Nodes on the Joint Fabric are managed by the Datastore. As a result, references to NodeID are specific to the
+     * Joint Fabric.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.24.5.9
      */
@@ -605,9 +605,9 @@ export namespace JointFabricDatastore {
     });
 
     /**
-     * The DatastoreEndpointEntryStruct represents an Endpoint on a specific Node which is managed by the Datastore.
-     * Only Nodes on the Joint Fabric are managed by the Datastore. As a result, references to NodeID are specific to
-     * the Joint Fabric.
+     * The DatastoreEndpointEntryStruct represents an Endpoint on a specific Node which is managed bytheDatastore. Only
+     * Nodes on the Joint Fabric are managed by the Datastore. As a result, references to NodeID are specific to the
+     * Joint Fabric.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.24.5.9
      */

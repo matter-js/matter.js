@@ -39,7 +39,7 @@ Resource.add({
                 "  - The OperationalState attribute shall be set to SeekingCharger." +
                 "\n" +
                 "  - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of " +
-                "    NoError."
+                "NoError."
         },
 
         {

@@ -36,7 +36,7 @@ Resource.add(
             "  - Forecast data, including when it can be flexible (i.e. modify the power or time period)" +
             "\n" +
             "  - The ability to have their power profile adjusted by an EMS, and to provide an updated Forecast " +
-            "    back to the EMS." +
+            "back to the EMS." +
             "\n" +
             "This allows the EMS to manage multiple home loads and where ESAs can be flexible, continuously " +
             "optimizing the home energy to minimize cost, reduce CO2 impact, maximize self-consumption of solar " +
@@ -49,12 +49,12 @@ Resource.add(
             "> [!NOTE]" +
             "\n" +
             "> Grid Services are market dependent and will use other protocols ([OpenADR] / [IEEE2030.5]) to " +
-            "  communicate grid events to the EMS. These are outside the scope of Matter." +
+            "communicate grid events to the EMS. These are outside the scope of Matter." +
             "\n" +
             "> [!NOTE]" +
             "\n" +
             "> Different markets may follow different approaches, but the UK [PAS1878] and [EUCodeOfConduct] give " +
-            "  examples of how ESAs may be mandated to support these features in the future.",
+            "examples of how ESAs may be mandated to support these features in the future.",
 
         children: [
             {
@@ -305,8 +305,8 @@ Resource.add(
                     "> [!NOTE]" +
                     "\n" +
                     "> For Generator ESAs that can discharge an internal battery (such as a battery storage inverter) to " +
-                    "  loads in the home, the AbsMinPower will be a negative number representing the maximum power that " +
-                    "  the ESA can discharge its internal battery."
+                    "loads in the home, the AbsMinPower will be a negative number representing the maximum power that " +
+                    "the ESA can discharge its internal battery."
             },
 
             {
@@ -362,7 +362,7 @@ Resource.add(
                     "  - As a result of a command which causes the forecast to be updated, or" +
                     "\n" +
                     "  - As a result of a change in the opt-out status which in turn may cause the ESA to recalculate its " +
-                    "    forecast."
+                    "forecast."
             },
 
             {

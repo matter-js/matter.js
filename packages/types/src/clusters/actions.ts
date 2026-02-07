@@ -34,7 +34,7 @@ export namespace Actions {
          *
          * Can be used to set a static state of the associated endpoints (typically using InstantAction or
          * InstantActionWithTransition), or to bring these endpoints into a more dynamic state (typically using
-         * StartAction), where the endpoints would e.g. gradually cycle through certain colors for a pleasing effect. A
+         * StartAction), where the endpoints would e.g. gradually cycle through certain colors for apleasingeffect. A
          * voice controller could use "set" (to map to InstantAction) or "play" (to map to StartAction) to trigger such
          * actions. Example: see Section 9.14.8.1, “Example 1: Scene recall” and Section 9.14.8.2, “Example 2: Set
          * dynamic light effect”.
@@ -230,7 +230,7 @@ export namespace Actions {
 
         /**
          * This field is a bitmap which shall be used to indicate which of the cluster’s commands are supported for this
-         * particular action, with a bit set to 1 for each supported command according to the table below. Other bits
+         * particular action, with a bit set to 1 for each supported command according to thetablebelow. Other bits
          * shall be set to 0.
          *
          * @see {@link MatterSpecification.v142.Core} § 9.14.4.6.5
@@ -732,7 +732,7 @@ export namespace Actions {
             /**
              * This command is used to trigger an instantaneous action.
              *
-             * This command triggers an action (state change) on the involved endpoints, in a "fire and forget" manner.
+             * This command triggers an action (state change) on the involved endpoints, in a "fire and forget"manner.
              * Afterwards, the action’s state shall be Inactive.
              *
              * Example: recall a scene on a number of lights.
@@ -866,7 +866,7 @@ export namespace Actions {
             /**
              * This command is used to enable an action with a duration.
              *
-             * This command enables a certain action or automation, and shall change the action’s state to be Active.
+             * This command enables a certain action or automation, and shall change the action’s state tobeActive.
              * After the specified Duration, the action or automation will stop, and the action’s state shall change to
              * Disabled.
              *
@@ -892,7 +892,7 @@ export namespace Actions {
             /**
              * This command is used to disable an action with a duration.
              *
-             * This command disables a certain action or automation, and shall change the action’s state to Disabled.
+             * This command disables a certain action or automation, and shall change the action’s statetoDisabled.
              * After the specified Duration, the action or automation will re-start, and the action’s state shall change
              * to either Inactive or Active, depending on the actions (see Section 9.14.8.4, “Example 4: Wake-up
              * routine” and Section 9.14.8.6, “Example 6: Alarm system”).
@@ -982,7 +982,7 @@ export namespace Actions {
      * After defining the attributes, commands and events for this cluster, and the associated data types, several
      * examples are provided to illustrate the capabilities of this cluster.
      *
-     * Actions can be defined in a flexible manner to suit the needs of the various nodes implementing this cluster. For
+     * Actions can be defined in a flexible manner to suit the needs of the various nodes implementingthiscluster. For
      * each action, the commands available for that particular action are defined.
      *
      * This cluster can be used to expose only the grouping of endpoints without any actions defined by populating the

@@ -268,8 +268,8 @@ export namespace GroupKeyManagement {
     export interface KeySetReadRequest extends TypeFromSchema<typeof TlvKeySetReadRequest> {}
 
     /**
-     * This command shall be generated in response to the KeySetRead command, if a valid Group Key Set was found. It
-     * shall contain the configuration of the requested Group Key Set, with the EpochKey0, EpochKey1 and EpochKey2 key
+     * This command shall be generated in response to the KeySetRead command, if a valid Group Key Setwasfound. It shall
+     * contain the configuration of the requested Group Key Set, with the EpochKey0, EpochKey1 and EpochKey2 key
      * contents replaced by null.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.2.7.3
@@ -277,8 +277,8 @@ export namespace GroupKeyManagement {
     export const TlvKeySetReadResponse = TlvObject({ groupKeySet: TlvField(0, TlvGroupKeySet) });
 
     /**
-     * This command shall be generated in response to the KeySetRead command, if a valid Group Key Set was found. It
-     * shall contain the configuration of the requested Group Key Set, with the EpochKey0, EpochKey1 and EpochKey2 key
+     * This command shall be generated in response to the KeySetRead command, if a valid Group Key Setwasfound. It shall
+     * contain the configuration of the requested Group Key Set, with the EpochKey0, EpochKey1 and EpochKey2 key
      * contents replaced by null.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.2.7.3

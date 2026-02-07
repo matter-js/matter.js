@@ -159,7 +159,7 @@ export namespace LevelControl {
         /**
          * This field shall indicate the rate of movement in units per second. The actual rate of movement SHOULD be as
          * close to this rate as the device is able. If the Rate field is null, then the value of the DefaultMoveRate
-         * attribute shall be used if that attribute is supported and its value is not null. If the Rate field is null
+         * attribute shall be used if that attribute is supported and its value is notnull. If the Rate field is null
          * and the DefaultMoveRate attribute is either not supported or set to null, then the device SHOULD move as fast
          * as it is able. If the device is not able to move at a variable rate, this field may be disregarded.
          *
@@ -475,7 +475,7 @@ export namespace LevelControl {
 
             /**
              * Indicates the time taken to move the current level from the minimum level to the maximum level when an On
-             * command is received by an On/Off cluster on the same endpoint. It is specified in 1/10ths of a second. If
+             * command is received by an On/Off cluster on the same endpoint. It is specified in 1/10ths ofasecond. If
              * this attribute is not implemented, or contains a null value, the OnOffTransitionTime shall be used
              * instead.
              *

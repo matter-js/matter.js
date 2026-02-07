@@ -61,8 +61,8 @@ Resource.add({
                 "> [!NOTE]" +
                 "\n" +
                 "> due to the maximum size of this list and to the fact that the entries may include strings (see " +
-                "  LocationName), care must be taken by implementers to avoid creating a data structure that is " +
-                "  overly large, which can result in significant latency in accessing this attribute." +
+                "LocationName), care must be taken by implementers to avoid creating a data structure that is " +
+                "overly large, which can result in significant latency in accessing this attribute." +
                 "\n" +
                 "The value of this attribute may change at any time via an out-of-band interaction outside of the " +
                 "server, such as interactions with a user interface, or due to internal device changes." +
@@ -105,10 +105,10 @@ Resource.add({
                 "  - a two level home may be represented using two maps, one for each level" +
                 "\n" +
                 "  - a single level home may be represented using two maps, each including a different set of rooms, " +
-                "    such as \"map of living room and kitchen\" and \"map of bedrooms and hallway\"" +
+                "such as \"map of living room and kitchen\" and \"map of bedrooms and hallway\"" +
                 "\n" +
                 "  - a single level home may be represented using one map for the indoor areas (living room, bedrooms " +
-                "    etc.) and one for the outdoor areas (garden, swimming pool etc.)" +
+                "etc.) and one for the outdoor areas (garden, swimming pool etc.)" +
                 "\n" +
                 "Each map includes one or more areas - see the SupportedAreas attribute. In the context of this " +
                 "cluster specification, a map is effectively a group label for a set of areas, rather than a " +
@@ -127,9 +127,9 @@ Resource.add({
                 "> [!NOTE]" +
                 "\n" +
                 "> due to the maximum size of this list and to the fact that the entries may include strings (see the " +
-                "  Name field of the MapStruct data type), care must be taken by implementers to avoid creating a " +
-                "  data structure that is overly large, which can result in significant latency in accessing this " +
-                "  attribute." +
+                "Name field of the MapStruct data type), care must be taken by implementers to avoid creating a " +
+                "data structure that is overly large, which can result in significant latency in accessing this " +
+                "attribute." +
                 "\n" +
                 "The value of this attribute may change at any time via an out-of-band interaction outside of the " +
                 "server, such as interactions with a user interface." +
@@ -158,7 +158,7 @@ Resource.add({
                 "If this attribute is not empty:" +
                 "\n" +
                 "  - each item in this list shall match the AreaID field of an entry in the SupportedAreas " +
-                "    attribute’s list" +
+                "attribute’s list" +
                 "\n" +
                 "  - each entry in this list shall have a unique value"
         },
@@ -178,7 +178,7 @@ Resource.add({
                 "> [!NOTE]" +
                 "\n" +
                 "> A device may traverse an area regardless of the status of the area (pending, skipped, or " +
-                "  completed)." +
+                "completed)." +
                 "\n" +
                 "If a device can simultaneously operate at multiple areas, such as in the case of a sensor that can " +
                 "monitor multiple areas at the same time, the CurrentArea attribute shall NOT be implemented, since " +
@@ -221,8 +221,8 @@ Resource.add({
                 "    > [!NOTE]" +
                 "\n" +
                 "    > If the device is capable of pausing its operation, this attribute may be set to null, to " +
-                "      indicate that completion time is unknown, or increment the value while being in the paused " +
-                "      state."
+                "indicate that completion time is unknown, or increment the value while being in the paused " +
+                "state."
         },
 
         {
@@ -244,12 +244,12 @@ Resource.add({
                 "If the SelectedAreas attribute is not empty, and the device starts operating:" +
                 "\n" +
                 "  - the Progress attribute list shall be updated so each entry of SelectedAreas has a matching " +
-                "    Progress list entry, based on the AreaID field" +
+                "Progress list entry, based on the AreaID field" +
                 "\n" +
                 "  - the length of the Progress and SelectedAreas list shall be the same" +
                 "\n" +
                 "  - the entries in the Progress list shall be initialized by the server, by having their status set " +
-                "    to Pending or Operating, and the TotalOperationalTime field set to null" +
+                "to Pending or Operating, and the TotalOperationalTime field set to null" +
                 "\n" +
                 "When the device ends operation unexpectedly, such as due to an error, the server shall update all " +
                 "Progress list entries with the Status field set to Operating or Pending to Skipped." +
@@ -262,11 +262,11 @@ Resource.add({
                 "> [!NOTE]" +
                 "\n" +
                 "> if the device implements the Operational Status cluster, or a derivation of it, in case the device " +
-                "  fails to service any locations in the SelectedAreas list before ending the operation, it SHOULD " +
-                "  use the Operational Status cluster to indicate that the device was unable to complete the " +
-                "  operation (see the UnableToCompleteOperation error from that cluster specification). The clients " +
-                "  SHOULD then read the Progress attribute, and indicate which areas have been successfully serviced " +
-                "  (marked as completed)."
+                "fails to service any locations in the SelectedAreas list before ending the operation, it SHOULD " +
+                "use the Operational Status cluster to indicate that the device was unable to complete the " +
+                "operation (see the UnableToCompleteOperation error from that cluster specification). The clients " +
+                "SHOULD then read the Progress attribute, and indicate which areas have been successfully serviced " +
+                "(marked as completed)."
         },
 
         {
@@ -385,7 +385,7 @@ Resource.add({
                 "OR" +
                 "\n" +
                 "  - some semantic data (one or more of these: FloorNumber, AreaType or LandmarkTag) The normative " +
-                "    text from the remainder of this section describes these constraints." +
+                "text from the remainder of this section describes these constraints." +
                 "\n" +
                 "If the LocationInfo field is null, the LandmarkInfo field shall NOT be null." +
                 "\n" +
@@ -418,13 +418,13 @@ Resource.add({
                         "A few examples are provided below." +
                         "\n" +
                         "  - An area can have LocationInfo’s LocationName field set to \"blue room\", and the AreaType field " +
-                        "    set to the ID of a \"Living Room\" semantic tag. Clients wishing to direct the device to operate " +
-                        "    in (or service) the living room can use this area." +
+                        "set to the ID of a \"Living Room\" semantic tag. Clients wishing to direct the device to operate " +
+                        "in (or service) the living room can use this area." +
                         "\n" +
                         "  - An area can have LocationInfo set to null, the LandmarkInfo’s LandmarkTag field set to the ID of " +
-                        "    the \"Table\" landmark semantic tag, and the RelativePositionTag field set to the ID of the " +
-                        "    \"Under\" position semantic tag. With such an area indication, the client can request the device " +
-                        "    to operate in (or service) the area located under the table."
+                        "the \"Table\" landmark semantic tag, and the RelativePositionTag field set to the ID of the " +
+                        "\"Under\" position semantic tag. With such an area indication, the client can request the device " +
+                        "to operate in (or service) the area located under the table."
                 },
 
                 {
@@ -493,7 +493,7 @@ Resource.add({
                         "> [!NOTE]" +
                         "\n" +
                         "> If any entries on the SupportedAreas attribute’s list have the AreaInfo field missing the semantic " +
-                        "  data, the client may remind the user to assign the respective data."
+                        "data, the client may remind the user to assign the respective data."
                 }
             ]
         },

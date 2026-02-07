@@ -152,8 +152,8 @@ Resource.add({
             details: "> [!NOTE]" +
                 "\n" +
                 "> This enum is as defined in ClusterRevision 4 and its definition shall NOT be extended; the feature " +
-                "  flags provide the sensor modality (or modalities) for later cluster revisions. See Backward " +
-                "  Compatibility section.",
+                "flags provide the sensor modality (or modalities) for later cluster revisions. See Backward " +
+                "Compatibility section.",
             children: [
                 { tag: "field", name: "Pir", description: "Indicates a passive infrared sensor." },
                 { tag: "field", name: "Ultrasonic", description: "Indicates a ultrasonic sensor." },
@@ -166,8 +166,8 @@ Resource.add({
             details: "> [!NOTE]" +
                 "\n" +
                 "> This enum is as defined in ClusterRevision 4 and its definition shall NOT be extended; the feature " +
-                "  flags provide the sensor modality (or modalities) for later cluster revisions. See Backward " +
-                "  Compatibility section.",
+                "flags provide the sensor modality (or modalities) for later cluster revisions. See Backward " +
+                "Compatibility section.",
 
             children: [
                 { tag: "field", name: "Pir", description: "Indicates a passive infrared sensor." },

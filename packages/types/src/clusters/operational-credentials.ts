@@ -890,8 +890,8 @@ export namespace OperationalCredentials {
             ),
 
             /**
-             * Indicates all fabrics to which this Node is commissioned, encoded as a read-only list of
-             * FabricDescriptorStruct. This information may be computed directly from the NOCs attribute.
+             * Indicates all fabrics to which this Node is commissioned, encoded as a read-only
+             * listofFabricDescriptorStruct. This information may be computed directly from the NOCs attribute.
              *
              * The Fabrics attribute is also known as "the fabric table".
              *

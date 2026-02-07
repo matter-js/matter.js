@@ -174,7 +174,7 @@ Resource.add({
                 "> [!NOTE]" +
                 "\n" +
                 "> This UniqueID attribute shall NOT be the same as the Persistent Unique ID which is used in the " +
-                "  Rotating Device Identifier mechanism."
+                "Rotating Device Identifier mechanism."
         },
 
         {

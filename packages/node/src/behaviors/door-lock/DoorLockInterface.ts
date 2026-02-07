@@ -12,8 +12,8 @@ import { DoorLock } from "#clusters/door-lock";
 export namespace DoorLockInterface {
     export interface Base {
         /**
-         * This command causes the lock device to lock the door. This command includes an optional code for the lock.
-         * The door lock may require a PIN depending on the value of the RequirePINForRemoteOperation attribute.
+         * This command causes the lock device to lock the door. This command includes an optional code forthelock. The
+         * door lock may require a PIN depending on the value of the RequirePINForRemoteOperation attribute.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.1
          */
@@ -167,8 +167,8 @@ export namespace DoorLockInterface {
          * CreatorFabricIndex and LastModifiedFabricIndex in new user and credential records shall be set to the
          * accessing fabric index.
          *
-         * A LockUserChange event shall be generated after successfully creating a new credential and a new user. The
-         * UserIndex of this LockUserChange event shall be the UserIndex that was used to create the user. The DataIndex
+         * A LockUserChange event shall be generated after successfully creating a new credential and anewuser. The
+         * UserIndex of this LockUserChange event shall be the UserIndex that was used to createtheuser. The DataIndex
          * of this LockUserChange event shall be the CredentialIndex that was used to create the credential.
          *
          *   - OperationType shall be set to Add.

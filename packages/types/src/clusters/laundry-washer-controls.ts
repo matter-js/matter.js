@@ -109,9 +109,9 @@ export namespace LaundryWasherControls {
     export const RinseComponent = MutableCluster.Component({
         attributes: {
             /**
-             * Indicates how many times a rinse cycle shall be performed on a device for the current mode of operation.
-             * A value of None shall indicate that no rinse cycle will be performed. This value may be set by the client
-             * to adjust the number of rinses that are performed for the current mode of operation. If the device is not
+             * Indicates how many times a rinse cycle shall be performed on a device for the current modeofoperation. A
+             * value of None shall indicate that no rinse cycle will be performed. This value may be set by the client
+             * to adjust the number of rinses that are performed for the current modeofoperation. If the device is not
              * in a compatible state to accept the provided value, an INVALID_IN_STATE error shall be sent as the
              * response.
              *

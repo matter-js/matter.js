@@ -119,8 +119,8 @@ export namespace EnergyPreference {
     export const EnergyBalanceComponent = MutableCluster.Component({
         attributes: {
             /**
-             * Indicates a list of BalanceStructs, each representing a step along a linear scale of relative priorities.
-             * A Step field with a value of zero shall indicate that the device SHOULD entirely favor the priority
+             * Indicates a list of BalanceStructs, each representing a step along a linear scale ofrelativepriorities. A
+             * Step field with a value of zero shall indicate that the device SHOULD entirely favor the priority
              * specified by the first element in EnergyPriorities; whereas a Step field with a value of 100 shall
              * indicate that the device SHOULD entirely favor the priority specified by the second element in
              * EnergyPriorities. The midpoint value of 50 shall indicate an even split between the two priorities.

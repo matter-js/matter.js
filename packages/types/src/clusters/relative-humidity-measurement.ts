@@ -69,7 +69,7 @@ export namespace RelativeHumidityMeasurement {
     });
 
     /**
-     * This is a base cluster. The server cluster provides an interface to water content measurement functionality. The
+     * This is a base cluster. The server cluster provides an interface to water contentmeasurementfunctionality. The
      * measurement is reportable and may be configured for reporting. Water content measurements currently is, but are
      * not limited to relative humidity.
      *

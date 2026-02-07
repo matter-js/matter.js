@@ -126,10 +126,10 @@ Resource.add({
                 "applicable for client-side localization. In particular:" +
                 "\n" +
                 "  - If the node does not support a TimeZoneDatabase, the Name field shall NOT be used to calculate " +
-                "    the local time." +
+                "the local time." +
                 "\n" +
                 "  - If the node does not support a TimeZoneDatabase, the Name field shall NOT be used to calculate " +
-                "    DST start or end dates." +
+                "DST start or end dates." +
                 "\n" +
                 "When time passes, the node SHOULD remove any entries which are no longer active and change the " +
                 "ValidAt time for the currently used TimeZoneStruct list item to zero." +
@@ -314,11 +314,11 @@ Resource.add({
                 "Upon receipt of this command:" +
                 "\n" +
                 "  - If the TrustedTimeSource field in the command is null, the node shall set the TrustedTimeSource " +
-                "    attribute to null and shall generate a MissingTrustedTimeSource event." +
+                "attribute to null and shall generate a MissingTrustedTimeSource event." +
                 "\n" +
                 "  - Otherwise, the node shall set the TrustedTimeSource attribute to a struct which has NodeID and " +
-                "    Endpoint fields matching those in the TrustedTimeSource field and has its FabricIndex field set " +
-                "    to the command’s accessing fabric index.",
+                "Endpoint fields matching those in the TrustedTimeSource field and has its FabricIndex field set " +
+                "to the command’s accessing fabric index.",
 
             children: [{
                 tag: "field", name: "TrustedTimeSource", xref: "core§11.17.9.2.1",
@@ -365,10 +365,10 @@ Resource.add({
             details: "This command is used to set the DST offsets for a node." +
                 "\n" +
                 "  - If the length of DSTOffset is larger than DSTOffsetListMaxSize, the node shall respond with " +
-                "    RESOURCE_EXHAUSTED." +
+                "RESOURCE_EXHAUSTED." +
                 "\n" +
                 "  - Else if the list entries do not conform to the list requirements for DSTOffset attribute, the " +
-                "    node shall respond with CONSTRAINT_ERROR." +
+                "node shall respond with CONSTRAINT_ERROR." +
                 "\n" +
                 "If there are no errors in the list, the DSTOffset field shall be copied to the DSTOffset attribute." +
                 "\n" +

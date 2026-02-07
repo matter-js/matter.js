@@ -137,7 +137,7 @@ Resource.add(
                     "> [!NOTE]" +
                     "\n" +
                     "> SessionEnding is not really a state but a transition. However, the transition period may take a " +
-                    "  few seconds and is useful for some clean up purposes." +
+                    "few seconds and is useful for some clean up purposes." +
                     "\n" +
                     "The Fault state is used to indicate that the FaultState attribute is not NoError." +
                     "\n" +
@@ -833,18 +833,18 @@ Resource.add(
                             "  - the TargetSoC field shall take precedence over the AddedEnergy field." +
                             "\n" +
                             "  - the EVSE SHOULD charge to the TargetSoC and then stop the charging automatically when it reaches " +
-                            "    that point." +
+                            "that point." +
                             "\n" +
                             "  - if the TargetSoC value is set to 100% then the EVSE SHOULD continue to charge the vehicle until " +
-                            "    the vehicle decides to stop charging." +
+                            "the vehicle decides to stop charging." +
                             "\n" +
                             "If the EVSE does not support the SOC feature or cannot obtain the SoC of the vehicle:" +
                             "\n" +
                             "  - the AddedEnergy field shall take precedence over the TargetSoC field, and if the EVSE does not " +
-                            "    support the SOC feature then the TargetSoC field may only take the values null or 100%." +
+                            "support the SOC feature then the TargetSoC field may only take the values null or 100%." +
                             "\n" +
                             "  - if the AddedEnergy field has not been provided, the EVSE SHOULD assume the vehicle is empty and " +
-                            "    charge until the vehicle stops demanding a charge."
+                            "charge until the vehicle stops demanding a charge."
                     },
 
                     {
@@ -866,8 +866,8 @@ Resource.add(
                             "> [!NOTE]" +
                             "\n" +
                             "> If the EVSE can obtain the Battery Capacity of the vehicle, it SHOULD NOT limit this AddedEnergy " +
-                            "  value to the Battery Capacity of the vehicle, since the EV may also require energy for heating and " +
-                            "  cooling of the battery during charging, or for heating or cooling the cabin."
+                            "value to the Battery Capacity of the vehicle, since the EV may also require energy for heating and " +
+                            "cooling of the battery during charging, or for heating or cooling the cabin."
                     }
                 ]
             },

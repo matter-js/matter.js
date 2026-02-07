@@ -76,46 +76,46 @@ Resource.add({
                 "The following validations shall be done against the content of the GroupKeySet field:" +
                 "\n" +
                 "  - If the EpochKey0 field is null or its associated EpochStartTime0 field is null, then this " +
-                "    command shall fail with an INVALID_COMMAND status code responded to the client." +
+                "command shall fail with an INVALID_COMMAND status code responded to the client." +
                 "\n" +
                 "  - If the EpochKey0 field’s length is not exactly 16 bytes, then this command shall fail with a " +
-                "    CONSTRAINT_ERROR status code responded to the client." +
+                "CONSTRAINT_ERROR status code responded to the client." +
                 "\n" +
                 "  - If the EpochStartTime0 is set to 0, then this command shall fail with an INVALID_COMMAND status " +
-                "    code responded to the client. Note that internally, a GroupKeySetStruct’s EpochStartTime0 may be " +
-                "    set to zero, due to the behavior of the AddNOC command which synthesizes a GroupKeySetStruct " +
-                "    (see Section 11.18.6.8.1, “IPKValue Field”). However, the value 0 is illegal in the GroupKeySet " +
-                "    field sent by a client." +
+                "code responded to the client. Note that internally, a GroupKeySetStruct’s EpochStartTime0 may be " +
+                "set to zero, due to the behavior of the AddNOC command which synthesizes a GroupKeySetStruct " +
+                "(see Section 11.18.6.8.1, “IPKValue Field”). However, the value 0 is illegal in the GroupKeySet " +
+                "field sent by a client." +
                 "\n" +
                 "  - If the EpochKey1 field is not null, then the EpochKey0 field shall NOT be null. Otherwise this " +
-                "    command shall fail with an INVALID_COMMAND status code responded to the client." +
+                "command shall fail with an INVALID_COMMAND status code responded to the client." +
                 "\n" +
                 "  - If the EpochKey1 field is not null, and the field’s length is not exactly 16 bytes, then this " +
-                "    command shall fail with a CONSTRAINT_ERROR status code responded to the client." +
+                "command shall fail with a CONSTRAINT_ERROR status code responded to the client." +
                 "\n" +
                 "  - If the EpochKey1 field is not null, its associated EpochStartTime1 field shall NOT be null and " +
-                "    shall contain a later epoch start time than the epoch start time found in the EpochStartTime0 " +
+                "shall contain a later epoch start time than the epoch start time found in the EpochStartTime0 " +
                 "    field. Otherwise this command shall fail with an INVALID_COMMAND status code responded to the " +
-                "    client." +
+                "client." +
                 "\n" +
                 "  - If exactly one of the EpochKey1 or EpochStartTime1 is null, rather than both being null, or " +
-                "    neither being null, then this command shall fail with an INVALID_COMMAND status code responded " +
-                "    to the client." +
+                "neither being null, then this command shall fail with an INVALID_COMMAND status code responded " +
+                "to the client." +
                 "\n" +
                 "  - If the EpochKey2 field is not null, then the EpochKey1 and EpochKey0 fields shall NOT be null. " +
-                "    Otherwise this command shall fail with an INVALID_COMMAND status code responded to the client." +
+                "Otherwise this command shall fail with an INVALID_COMMAND status code responded to the client." +
                 "\n" +
                 "  - If the EpochKey2 field is not null, and the field’s length is not exactly 16 bytes, then this " +
-                "    command shall fail with a CONSTRAINT_ERROR status code responded to the client." +
+                "command shall fail with a CONSTRAINT_ERROR status code responded to the client." +
                 "\n" +
                 "  - If the EpochKey2 field is not null, its associated EpochStartTime2 field shall NOT be null and " +
-                "    shall contain a later epoch start time than the epoch start time found in the EpochStartTime1 " +
+                "shall contain a later epoch start time than the epoch start time found in the EpochStartTime1 " +
                 "    field. Otherwise this command shall fail with an INVALID_COMMAND status code responded to the " +
-                "    client." +
+                "client." +
                 "\n" +
                 "  - If exactly one of the EpochKey2 or EpochStartTime2 is null, rather than both being null, or " +
-                "    neither being null, then this command shall fail with an INVALID_COMMAND status code responded " +
-                "    to the client." +
+                "neither being null, then this command shall fail with an INVALID_COMMAND status code responded " +
+                "to the client." +
                 "\n" +
                 "If there exists a Group Key Set associated with the accessing fabric which has the same " +
                 "GroupKeySetID as that provided in the GroupKeySet field, then the contents of that group key set " +
@@ -128,10 +128,10 @@ Resource.add({
                 "Upon completion, this command shall send a status code back to the initiator:" +
                 "\n" +
                 "  - If the Group Key Set was properly installed or updated on the Node, the status code shall be set " +
-                "    to SUCCESS." +
+                "to SUCCESS." +
                 "\n" +
                 "  - If there are insufficient resources on the receiver to store an additional Group Key Set, the " +
-                "    status code shall be set to RESOURCE_EXHAUSTED (see Section 2.11.1.2, “Group Limits”);" +
+                "status code shall be set to RESOURCE_EXHAUSTED (see Section 2.11.1.2, “Group Limits”);" +
                 "\n" +
                 "  - Otherwise, this status code shall be set to FAILURE."
         },
@@ -331,7 +331,7 @@ Resource.add({
                         "> [!NOTE]" +
                         "\n" +
                         "> Support for GroupKeyMulticastPolicy is provisional. Correct default behavior is that implied by " +
-                        "  value PerGroupID."
+                        "value PerGroupID."
                 }
             ]
         },

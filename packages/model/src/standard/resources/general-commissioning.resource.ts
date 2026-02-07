@@ -166,22 +166,22 @@ Resource.add({
                 "duration of ExpiryLengthSeconds, or disarm it, depending on the situation:" +
                 "\n" +
                 "  - If ExpiryLengthSeconds is 0 and the fail-safe timer was already armed and the accessing fabric " +
-                "    matches the Fabric currently associated with the fail-safe context, then the fail-safe timer " +
-                "    shall be immediately expired (see further below for side-effects of expiration)." +
+                "matches the Fabric currently associated with the fail-safe context, then the fail-safe timer " +
+                "shall be immediately expired (see further below for side-effects of expiration)." +
                 "\n" +
                 "  - If ExpiryLengthSeconds is 0 and the fail-safe timer was not armed, then this command invocation " +
-                "    shall lead to a success response with no side-effects against the fail-safe context." +
+                "shall lead to a success response with no side-effects against the fail-safe context." +
                 "\n" +
                 "  - If ExpiryLengthSeconds is non-zero and the fail-safe timer was not currently armed, then the " +
-                "    fail-safe timer shall be armed for that duration." +
+                "fail-safe timer shall be armed for that duration." +
                 "\n" +
                 "  - If ExpiryLengthSeconds is non-zero and the fail-safe timer was currently armed, and the " +
-                "    accessing Fabric matches the fail-safe context’s associated Fabric, then the fail-safe timer " +
-                "    shall be re-armed to expire in ExpiryLengthSeconds." +
+                "accessing Fabric matches the fail-safe context’s associated Fabric, then the fail-safe timer " +
+                "shall be re-armed to expire in ExpiryLengthSeconds." +
                 "\n" +
                 "  - Otherwise, the command shall leave the current fail-safe state unchanged and immediately respond " +
-                "    with ArmFailSafeResponse containing an ErrorCode value of BusyWithOtherAdmin, indicating a " +
-                "    likely conflict between commissioners." +
+                "with ArmFailSafeResponse containing an ErrorCode value of BusyWithOtherAdmin, indicating a " +
+                "likely conflict between commissioners." +
                 "\n" +
                 "The value of the Breadcrumb field shall be written to the Breadcrumb on successful execution of the " +
                 "command." +
@@ -201,30 +201,30 @@ Resource.add({
                 "  - The fail-safe timer duration." +
                 "\n" +
                 "  - The state of all Network Commissioning Networks attribute configurations, to allow recovery of " +
-                "    connectivity after Fail-Safe expiry." +
+                "connectivity after Fail-Safe expiry." +
                 "\n" +
                 "  - Whether an AddNOC command or UpdateNOC command has taken place." +
                 "\n" +
                 "  - A fabric-index for the fabric-scoping of the context, starting at the accessing fabric index for " +
-                "    the ArmFailSafe command, and updated with the Fabric Index associated with an AddNOC or an " +
-                "    UpdateNOC command being invoked successfully during the ongoing Fail-Safe timer period." +
+                "the ArmFailSafe command, and updated with the Fabric Index associated with an AddNOC or an " +
+                "UpdateNOC command being invoked successfully during the ongoing Fail-Safe timer period." +
                 "\n" +
                 "  - The operational credentials associated with any Fabric whose configuration is affected by the " +
-                "    UpdateNOC command." +
+                "UpdateNOC command." +
                 "\n" +
                 "  - Optionally: the previous state of non-fabric-scoped data that is mutated during the fail-safe " +
-                "    period." +
+                "period." +
                 "\n" +
                 "Note the following to assist in understanding the above state-keeping, which summarizes other " +
                 "normative requirements in the respective sections:" +
                 "\n" +
                 "  - The AddNOC command can only be invoked once per contiguous non-expiring fail-safe timer period, " +
-                "    and only if no UpdateNOC command was previously processed within the same fail-safe timer " +
-                "    period." +
+                "and only if no UpdateNOC command was previously processed within the same fail-safe timer " +
+                "period." +
                 "\n" +
                 "  - The UpdateNOC command can only be invoked once per contiguous non-expiring fail-safe timer " +
-                "    period, can only be invoked over a CASE session, and only if no AddNOC command was previously " +
-                "    processed in the same fail-safe timer period." +
+                "period, can only be invoked over a CASE session, and only if no AddNOC command was previously " +
+                "processed in the same fail-safe timer period." +
                 "\n" +
                 "On creation of the Fail Safe Context a second timer shall be created to expire at " +
                 "MaxCumulativeFailsafeSeconds as specified in BasicCommissioningInfo. This Cumulative Fail Safe " +
@@ -242,42 +242,42 @@ Resource.add({
                 "following sequence of clean-up steps shall be executed, in order, by the receiver:" +
                 "\n" +
                 "  1. Terminate any open PASE secure session by clearing any associated Secure Session Context at the " +
-                "     Server." +
+                "Server." +
                 "\n" +
                 "  2. Revoke the temporary administrative privileges granted to any open PASE session (see Section " +
-                "     6.6.2.9, “Bootstrapping of the Access Control Cluster”) at the Server." +
+                "6.6.2.9, “Bootstrapping of the Access Control Cluster”) at the Server." +
                 "\n" +
                 "  3. If an AddNOC or UpdateNOC command has been successfully invoked, terminate all CASE sessions " +
-                "     associated with the Fabric whose Fabric Index is recorded in the Fail-Safe context (see Section " +
-                "     11.10.7.2, “ArmFailSafe Command”) by clearing any associated Secure Session Context at the " +
-                "     Server." +
+                "associated with the Fabric whose Fabric Index is recorded in the Fail-Safe context (see Section " +
+                "11.10.7.2, “ArmFailSafe Command”) by clearing any associated Secure Session Context at the " +
+                "Server." +
                 "\n" +
                 "  4. Reset the configuration of all Network Commissioning Networks attribute to their state prior to " +
-                "     the Fail-Safe being armed." +
+                "the Fail-Safe being armed." +
                 "\n" +
                 "  5. If an UpdateNOC command had been successfully invoked, revert the state of operational key " +
-                "     pair, NOC and ICAC for that Fabric to the state prior to the Fail-Safe timer being armed, for " +
-                "     the Fabric Index that was the subject of the UpdateNOC command." +
+                "pair, NOC and ICAC for that Fabric to the state prior to the Fail-Safe timer being armed, for " +
+                "the Fabric Index that was the subject of the UpdateNOC command." +
                 "\n" +
                 "  6. If an AddNOC command had been successfully invoked, achieve the equivalent effect of invoking " +
-                "     the RemoveFabric command against the fabric-index stored in the Fail-Safe Context for the " +
-                "     Fabric Index that was the subject of the AddNOC command. This shall remove all associations to " +
-                "     that Fabric including all fabric-scoped data, and may possibly factory-reset the device " +
-                "     depending on current device state. This shall only apply to Fabrics added during the fail-safe " +
-                "     period as the result of the AddNOC command." +
+                "the RemoveFabric command against the fabric-index stored in the Fail-Safe Context for the " +
+                "Fabric Index that was the subject of the AddNOC command. This shall remove all associations to " +
+                "that Fabric including all fabric-scoped data, and may possibly factory-reset the device " +
+                "depending on current device state. This shall only apply to Fabrics added during the fail-safe " +
+                "period as the result of the AddNOC command." +
                 "\n" +
                 "  7. If the CSRRequest command had been successfully invoked, but no AddNOC or UpdateNOC command had " +
-                "     been successfully invoked, then the new operational key pair temporarily generated for the " +
-                "     purposes of NOC addition or update (see Section 6.4.6.1, “Node Operational Certificate Signing " +
-                "     Request (NOCSR) Procedure”) shall be removed as it is no longer needed." +
+                "been successfully invoked, then the new operational key pair temporarily generated for the " +
+                "purposes of NOC addition or update (see Section 6.4.6.1, “Node Operational Certificate Signing " +
+                "Request (NOCSR) Procedure”) shall be removed as it is no longer needed." +
                 "\n" +
                 "  8. Remove any RCACs added by the AddTrustedRootCertificate command that are not currently " +
-                "     referenced by any entry in the Fabrics attribute." +
+                "referenced by any entry in the Fabrics attribute." +
                 "\n" +
                 "  9. Reset the Breadcrumb attribute to zero." +
                 "\n" +
                 "  10. Optionally: if no factory-reset resulted from the previous steps, it is recommended that the " +
-                "      Node rollback the state of all non fabric-scoped data present in the Fail-Safe context."
+                "Node rollback the state of all non fabric-scoped data present in the Fail-Safe context."
         },
 
         {
@@ -388,11 +388,11 @@ Resource.add({
                 "the Fabric Index associated with the current Fail-Safe context. In other words:" +
                 "\n" +
                 "  - If no AddNOC command had been successfully invoked, the CommissioningComplete command must " +
-                "    originate from the Fabric that initiated the Fail-Safe context." +
+                "originate from the Fabric that initiated the Fail-Safe context." +
                 "\n" +
                 "  - After an AddNOC command has been successfully invoked, the CommissioningComplete command must " +
-                "    originate from the Fabric which was joined through the execution of that command, which updated " +
-                "    the Fail-Safe context’s Fabric Index." +
+                "originate from the Fabric which was joined through the execution of that command, which updated " +
+                "the Fail-Safe context’s Fabric Index." +
                 "\n" +
                 "On successful execution of the CommissioningComplete command, where the " +
                 "CommissioningCompleteResponse has an ErrorCode of OK, the following actions shall be undertaken on " +
@@ -403,10 +403,10 @@ Resource.add({
                 "  2. The commissioning window at the Server shall be closed." +
                 "\n" +
                 "  3. Any temporary administrative privileges automatically granted to any open PASE session shall be " +
-                "     revoked (see Section 6.6.2.9, “Bootstrapping of the Access Control Cluster”)." +
+                "revoked (see Section 6.6.2.9, “Bootstrapping of the Access Control Cluster”)." +
                 "\n" +
                 "  4. The Secure Session Context of any PASE session still established at the Server shall be " +
-                "     cleared." +
+                "cleared." +
                 "\n" +
                 "  5. The Breadcrumb attribute shall be reset to zero." +
                 "\n" +

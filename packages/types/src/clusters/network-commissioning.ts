@@ -57,8 +57,8 @@ export namespace NetworkCommissioning {
     export const TlvScanNetworksRequest = TlvObject({
         /**
          * This field, if present, shall contain the SSID for a directed scan of that particular Wi-Fi SSID. Otherwise,
-         * if the field is absent, or if it is null, this shall indicate scanning of all BSSID in range. This field
-         * shall be ignored for ScanNetworks invocations on non-Wi-Fi server instances.
+         * if the field is absent, or if it is null, this shall indicate scanning of all BSSIDinrange. This field shall
+         * be ignored for ScanNetworks invocations on non-Wi-Fi server instances.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.9.7.1.1
          */
@@ -1131,7 +1131,7 @@ export namespace NetworkCommissioning {
              * instance.
              *
              * This attribute is primarily used to determine the most important general capabilities of the Thread
-             * interface associated with the cluster instance, as opposed to the current runtime dynamic configuration.
+             * interface associated with the cluster instance, as opposed to the current runtimedynamicconfiguration.
              * Note that most run-time details of the actual Thread interface are found in the Thread Network
              * Diagnostics cluster, if supported.
              *
@@ -1366,7 +1366,7 @@ export namespace NetworkCommissioning {
      *
      *   - Thread (802.15.4)
      *
-     * An instance of the Network Commissioning Cluster only applies to a single network interface instance present. An
+     * An instance of the Network Commissioning Cluster only applies to a single network interfaceinstancepresent. An
      * interface, in this context, is a unique entity that can have an IPv6 address assigned to it and ingress and
      * egress IP packets.
      *

@@ -592,12 +592,12 @@ export namespace MediaPlayback {
      */
     export const TlvSkipForwardRequest = TlvObject({
         /**
-         * This field shall indicate the duration of the time span to skip forward in the media, in milliseconds. In
-         * case the resulting position falls in the middle of a frame, the server shall set the position to the
-         * beginning of that frame and set the SampledPosition attribute on the cluster accordingly. If the resultant
-         * position falls beyond the furthest valid position in the media the client may seek forward to, the position
-         * should be set to that furthest valid position. If the SampledPosition attribute is supported it shall be
-         * updated on the cluster accordingly.
+         * This field shall indicate the duration of the time span to skip forward in the media,inmilliseconds. In case
+         * the resulting position falls in the middle of a frame, the server shall set the position to the beginning of
+         * that frame and set the SampledPosition attribute on theclusteraccordingly. If the resultant position falls
+         * beyond the furthest valid position in the media the client may seek forward to, the position should be set to
+         * that furthest valid position. If the SampledPosition attribute is supported it shall be updated on the
+         * cluster accordingly.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.9.1
          */
@@ -618,12 +618,12 @@ export namespace MediaPlayback {
      */
     export const TlvSkipBackwardRequest = TlvObject({
         /**
-         * This field shall indicate the duration of the time span to skip backward in the media, in milliseconds. In
-         * case the resulting position falls in the middle of a frame, the server shall set the position to the
-         * beginning of that frame and set the SampledPosition attribute on the cluster accordingly. If the resultant
-         * position falls before the earliest valid position to which a client may seek back to, the position should be
-         * set to that earliest valid position. If the SampledPosition attribute is supported it shall be updated on the
-         * cluster accordingly.
+         * This field shall indicate the duration of the time span to skip backward in the media,inmilliseconds. In case
+         * the resulting position falls in the middle of a frame, the server shall set the position to the beginning of
+         * that frame and set the SampledPosition attribute on theclusteraccordingly. If the resultant position falls
+         * before the earliest valid position to which a client may seek back to, the position should be set to that
+         * earliest valid position. If the SampledPosition attribute is supported it shall be updated on the cluster
+         * accordingly.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.10.1
          */
@@ -763,9 +763,9 @@ export namespace MediaPlayback {
             duration: Attribute(0x2, TlvNullable(TlvUInt64), { default: null }),
 
             /**
-             * Indicates the position of playback (Position field) at the time (UpdateAt field) specified in the
-             * attribute. The client may use the SampledPosition attribute to compute the current position within the
-             * media stream based on the PlaybackSpeed, PlaybackPositionStruct.UpdatedAt and
+             * Indicates the position of playback (Position field) at the time (UpdateAt field) specified
+             * intheattribute. The client may use the SampledPosition attribute to compute the current position within
+             * the media stream based on the PlaybackSpeed, PlaybackPositionStruct.UpdatedAt and
              * PlaybackPositionStruct.Position fields. To enable this, the SampledPosition attribute shall be updated
              * whenever a change in either the playback speed or the playback position is triggered outside the normal
              * playback of the media. The events which may cause this to happen include:
@@ -866,7 +866,7 @@ export namespace MediaPlayback {
             activeAudioTrack: Attribute(0x7, TlvNullable(TlvTrack), { default: null }),
 
             /**
-             * AvailableAudioTracks refers to the list of Audio tracks available for the current title being played. A
+             * AvailableAudioTracks refers to the list of Audio tracks available for the current title beingplayed. A
              * value of null shall indicate that no Audio Tracks corresponding to the current media are selectable by
              * the client.
              *

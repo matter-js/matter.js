@@ -497,8 +497,8 @@ export namespace Switch {
 
         attributes: {
             /**
-             * Indicates the maximum number of positions the switch has. Any kind of switch has a minimum of 2
-             * positions. Also see Section 1.13.10, “Multi Position Details” for the case NumberOfPositions>2.
+             * Indicates the maximum number of positions the switch has. Any kind of switch has a minimum of 2positions.
+             * Also see Section 1.13.10, “Multi Position Details” for the case NumberOfPositions>2.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.13.5.1
              */

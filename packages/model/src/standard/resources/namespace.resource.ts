@@ -22,7 +22,7 @@ Resource.add({
                 "> [!NOTE]" +
                 "\n" +
                 "> This namespace has been deprecated as of Matter 1.4.2. Clients SHOULD still have support for these " +
-                "  tags, since the tags could be used by a server certified on a previous revision of Matter."
+                "tags, since the tags could be used by a server certified on a previous revision of Matter."
         },
 
         {

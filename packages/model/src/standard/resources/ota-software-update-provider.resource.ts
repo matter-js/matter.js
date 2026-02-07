@@ -155,35 +155,35 @@ Resource.add(
                             "  1. The URI’s scheme field shall be exactly bdx in lowercase characters." +
                             "\n" +
                             "  2. The URI’s authority field shall contain only the host portion and shall use string " +
-                            "     representation of the Operational Node ID of the Node where to proceed with the download, on " +
-                            "     the same Fabric on which the OTA Requestor received the QueryImageResponse." +
+                            "representation of the Operational Node ID of the Node where to proceed with the download, on " +
+                            "the same Fabric on which the OTA Requestor received the QueryImageResponse." +
                             "\n" +
                             "  3. The encoding of the Node ID in the host field shall use an uppercase hexadecimal format, using " +
-                            "     exactly 16 characters to encode the network byte order value of the NodeID, in a similar " +
-                            "     fashion as the Node Identifier portion of the Operational Instance Name." +
+                            "exactly 16 characters to encode the network byte order value of the NodeID, in a similar " +
+                            "fashion as the Node Identifier portion of the Operational Instance Name." +
                             "\n" +
                             "    a. The Operational Node ID in the host field shall match the NodeID of the OTA Provider " +
-                            "       responding with the QueryImageResponse. The usage of a different Node ID than that of the " +
-                            "       provider is reserved for future use. This constraint reduces the number of independent CASE " +
-                            "       secure channel sessions that have to be maintained to proceed with OTA software updates, thus " +
-                            "       reducing energy and resource utilization for the software update process." +
+                            "responding with the QueryImageResponse. The usage of a different Node ID than that of the " +
+                            "provider is reserved for future use. This constraint reduces the number of independent CASE " +
+                            "secure channel sessions that have to be maintained to proceed with OTA software updates, thus " +
+                            "reducing energy and resource utilization for the software update process." +
                             "\n" +
                             "  4. The user section of the authority field shall be absent, as there are no \"users\" to be " +
-                            "     considered." +
+                            "considered." +
                             "\n" +
                             "  5. The port section of the authority field shall be absent, as the port for transport shall be " +
-                            "     determined through Operational Discovery of the target Node." +
+                            "determined through Operational Discovery of the target Node." +
                             "\n" +
                             "  6. The URI shall NOT contain a query field." +
                             "\n" +
                             "  7. The URI shall NOT contain a fragment field." +
                             "\n" +
                             "  8. The path field shall employ absolute path representation and shall contain the file designator " +
-                            "     of the software image to download at the BDX server. When used with the BDX server, the leading " +
-                            "     / separating the URI authority from the path shall be omitted. When contacting the BDX server, " +
-                            "     further processing of the file designator shall NOT be done, including handling of URL-encoded " +
-                            "     escape sequences. Rather, the exact octets of the path, as received shall be the values used by " +
-                            "     both client and server in handling the file designator." +
+                            "of the software image to download at the BDX server. When used with the BDX server, the leading " +
+                            "/ separating the URI authority from the path shall be omitted. When contacting the BDX server, " +
+                            "further processing of the file designator shall NOT be done, including handling of URL-encoded " +
+                            "escape sequences. Rather, the exact octets of the path, as received shall be the values used by " +
+                            "both client and server in handling the file designator." +
                             "\n" +
                             "    a. The path shall only contain valid URI characters." +
                             "\n" +
@@ -192,17 +192,17 @@ Resource.add(
                             "necessary data to reach the BDX server for download." +
                             "\n" +
                             "  1. Verify that the URI is 24 characters or longer, which is the minimum length of a valid BDX URI " +
-                            "     with all elements present, for example bdx://00112233AABBCCDD/0." +
+                            "with all elements present, for example bdx://00112233AABBCCDD/0." +
                             "\n" +
                             "  2. Verify the presence of prefix bdx:// indicating a BDX URI." +
                             "\n" +
                             "  3. Extract the next 16 characters and convert from uppercase hexadecimal to a 64-bit scalar value, " +
-                            "     considering network byte order. This is the destination Node ID." +
+                            "considering network byte order. This is the destination Node ID." +
                             "\n" +
                             "  4. Verify the presence of a path separator / and skip it." +
                             "\n" +
                             "  5. Extract the remaining characters of the string as the file designator to employ when initiating " +
-                            "     the BDX transfer." +
+                            "the BDX transfer." +
                             "\n" +
                             "Example ImageURI values are below, and illustrate some but not all of valid and invalid cases:" +
                             "\n" +
@@ -219,13 +219,13 @@ Resource.add(
                             "      - Node ID: 0x0099AABBCCDDEE77" +
                             "\n" +
                             "      - File designator: the%20file%20designator/some_more. Note that the %20 are retained and not " +
-                            "        converted to ASCII 0x20 (space). The file designator is the path as received verbatim, after " +
-                            "        the first '/' (U+002F / SOLIDUS) following the host." +
+                            "converted to ASCII 0x20 (space). The file designator is the path as received verbatim, after " +
+                            "the first '/' (U+002F / SOLIDUS) following the host." +
                             "\n" +
                             "    - Invalid: bdx://99AABBCCDDEE77/the_file_designator123" +
                             "\n" +
                             "      - Node ID: Invalid since it is not exactly 16 characters long, due to having omitted leading " +
-                            "        zeros." +
+                            "zeros." +
                             "\n" +
                             "    - Invalid: bdx://0099aabbccddee77/the_file_designator123" +
                             "\n" +
@@ -234,7 +234,7 @@ Resource.add(
                             "    - Invalid: bdx:8899AABBCCDDEEFF/the_file_designator123" +
                             "\n" +
                             "      - Invalid since bdx scheme does not contain an authority, that is, it does not have // after " +
-                            "        the first :." +
+                            "the first :." +
                             "\n" +
                             "  - HTTP over TLS:" +
                             "\n" +
@@ -393,10 +393,10 @@ Resource.add(
                             "The NotifyUpdateApplied command SHOULD be invoked in the following two circumstances:" +
                             "\n" +
                             "  1. An OTA Requestor has just successfully applied a Software Image it had obtained from a previous " +
-                            "     QueryImageResponse." +
+                            "QueryImageResponse." +
                             "\n" +
                             "  2. An OTA Requestor has just successfully applied a Software Image it had obtained through means " +
-                            "     different than those of this Cluster." +
+                            "different than those of this Cluster." +
                             "\n" +
                             "An OTA Provider may use the state of invocation of this command to help track the progress of update " +
                             "for OTA Requestors it knows require a new OTA Software Image. However, due to the possibility that " +

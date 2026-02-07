@@ -49,9 +49,9 @@ export namespace AdministratorCommissioning {
          * the Node. This timeout shall follow guidance as specified in the initial Announcement Duration.
          *
          * When a Node receives the OpenBasicCommissioningWindow command, it shall begin advertising on DNS-SD as
-         * described in Section 4.3.1, “Commissionable Node Discovery” and for a time period as described in
-         * CommissioningTimeout. When the command is received by a ICD, it shall enter into active mode. The ICD shall
-         * remain in Active Mode as long as one of these conditions is met:
+         * described in Section 4.3.1, “Commissionable Node Discovery” and for a time period as
+         * describedinCommissioningTimeout. When the command is received by a ICD, it shall enter into active mode. The
+         * ICD shall remain in Active Mode as long as one of these conditions is met:
          *
          *   - A commissioning window is open.
          *
@@ -344,9 +344,9 @@ export namespace AdministratorCommissioning {
              *
              * The parameters for OpenCommissioningWindow command are as follows:
              *
-             * A current Administrator may invoke this command to put a node in commissioning mode for the next
-             * Administrator. On completion, the command shall return a cluster specific status code from the Section
-             * 11.19.6, “Status Codes” below reflecting success or reasons for failure of the operation. The new
+             * A current Administrator may invoke this command to put a node in commissioning mode for
+             * thenextAdministrator. On completion, the command shall return a cluster specific status code from the
+             * Section 11.19.6, “Status Codes” below reflecting success or reasons for failure of the operation. The new
              * Administrator shall discover the Node on the IP network using DNS-based Service Discovery (DNS-SD) for
              * commissioning.
              *

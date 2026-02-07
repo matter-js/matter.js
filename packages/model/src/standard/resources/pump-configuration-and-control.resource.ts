@@ -168,12 +168,12 @@ Resource.add({
                 "of the ControlMode attribute, unless one of the following points are true:" +
                 "\n" +
                 "  - The ControlMode attribute is set to Automatic. In this case, the value of the " +
-                "    EffectiveControlMode shall match the behavior of the pump." +
+                "EffectiveControlMode shall match the behavior of the pump." +
                 "\n" +
                 "  - A remote sensor is used as the sensor for regulation of the pump. In this case, " +
-                "    EffectiveControlMode will display ConstantPressure, ConstantFlow or ConstantTemperature if the " +
-                "    remote sensor is a pressure sensor, a flow sensor or a temperature sensor respectively, " +
-                "    regardless of the value of the ControlMode attribute." +
+                "EffectiveControlMode will display ConstantPressure, ConstantFlow or ConstantTemperature if the " +
+                "remote sensor is a pressure sensor, a flow sensor or a temperature sensor respectively, " +
+                "regardless of the value of the ControlMode attribute." +
                 "\n" +
                 "In case the ControlMode attribute is not included on the device and no remote sensors are connected, " +
                 "the value of the EffectiveControlMode shall match the vendor-specific behavior of the pump." +

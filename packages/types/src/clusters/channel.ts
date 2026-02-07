@@ -104,9 +104,9 @@ export namespace Channel {
 
         /**
          * This field shall indicate the channel minor number value (for example, using ATSC format). When the channel
-         * number is expressed as a string, such as "13.1" or "256", the minor number would be 1 or 0, respectively.
-         * This field is required but shall be set to 0 for channels such as over-the-top channels that are not
-         * represented by a major or minor number.
+         * number is expressed as a string, such as "13.1" or "256", the minor number would be 1 or 0,respectively. This
+         * field is required but shall be set to 0 for channels such as over-the-top channels that are not represented
+         * by a major or minor number.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.5.2
          */
@@ -396,7 +396,7 @@ export namespace Channel {
 
         /**
          * This field shall indicate the end of the time window for which program guide entries are to be retrieved, as
-         * a UTC time. Entries with an end time on or before this value will be included in the results. This field can
+         * a UTC time. Entries with an end time on or before this value will be included intheresults. This field can
          * represent a past or future value but shall be greater than the StartTime.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.5.2
@@ -584,15 +584,15 @@ export namespace Channel {
         channel: TlvField(1, TlvChannelInfo),
 
         /**
-         * This field shall indicate an epoch time in seconds indicating the start time of a program, as a UTC time.
-         * This field can represent a past or future value.
+         * This field shall indicate an epoch time in seconds indicating the start time of a program, as aUTCtime. This
+         * field can represent a past or future value.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.7.3
          */
         startTime: TlvField(2, TlvEpochS),
 
         /**
-         * This field shall indicate an epoch time in seconds indicating the end time of a program, as a UTC time. This
+         * This field shall indicate an epoch time in seconds indicating the end time of a program, as aUTCtime. This
          * field can represent a past or future value but shall be greater than the StartTime.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.7.4
@@ -633,7 +633,7 @@ export namespace Channel {
 
         /**
          * This field shall be used for indicating the level of parental guidance recommended for of a particular
-         * program. This can be any rating system used in the country or region where the program is broadcast. For
+         * program. This can be any rating system used in the country or region where the programisbroadcast. For
          * example, in the United States “TV-PG” may contain material that parents can find not suitable for younger
          * children but can be accepted in general for older children. This field is optional but shall be provided if
          * known.
@@ -643,7 +643,7 @@ export namespace Channel {
         ratings: TlvOptionalField(8, TlvArray(TlvString, { maxLength: 255 })),
 
         /**
-         * This field shall represent a URL of a thumbnail that clients can use to render an image for the program. The
+         * This field shall represent a URL of a thumbnail that clients can use to render an image fortheprogram. The
          * syntax of this field shall follow the syntax as specified in RFC 1738 and shall use the https scheme.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.7.10
@@ -668,8 +668,8 @@ export namespace Channel {
         dvbiUrl: TlvOptionalField(11, TlvString.bound({ maxLength: 8192 })),
 
         /**
-         * This field shall be a string, in ISO 8601 format, representing the date on which the program was released.
-         * This field is optional but when provided, the year shall be provided as part of the string.
+         * This field shall be a string, in ISO 8601 format, representing the date on which the programwasreleased. This
+         * field is optional but when provided, the year shall be provided as part of the string.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.7.13
          */
@@ -811,8 +811,8 @@ export namespace Channel {
      */
     export const TlvCancelRecordProgramRequest = TlvObject({
         /**
-         * This field shall indicate the program identifier for the program that should be cancelled from recording.
-         * This value is provided by the identifier field in ProgramStruct.
+         * This field shall indicate the program identifier for the program that should be cancelledfromrecording. This
+         * value is provided by the identifier field in ProgramStruct.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.8.1
          */
@@ -955,9 +955,9 @@ export namespace Channel {
         commands: {
             /**
              * This command retrieves the program guide. It accepts several filter parameters to return specific
-             * schedule and program information from a content app. The command shall receive in response a
-             * ProgramGuideResponse. Standard error codes shall be used when arguments provided are not valid. For
-             * example, if StartTime is greater than EndTime, the status code INVALID_ACTION shall be returned.
+             * schedule and program information from a content app. The command shall receive in
+             * responseaProgramGuideResponse. Standard error codes shall be used when arguments provided are not valid.
+             * For example, if StartTime is greater than EndTime, the status code INVALID_ACTION shall be returned.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.5
              */

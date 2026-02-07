@@ -84,14 +84,14 @@ Resource.add({
                 "When more than MultiPressMax presses are detected within a multi-press sequence:" +
                 "\n" +
                 "  - The server for cluster revision < 2 SHOULD generate a MultiPressComplete event with the " +
-                "    TotalNumberOfPressesCounted field set to the value of the MultiPressMax attribute, and avoid " +
-                "    generating any further InitialPress and MultiPressOngoing events until the switch has become " +
-                "    fully idle (i.e. no longer in the process of counting presses within the multipress)." +
+                "TotalNumberOfPressesCounted field set to the value of the MultiPressMax attribute, and avoid " +
+                "generating any further InitialPress and MultiPressOngoing events until the switch has become " +
+                "fully idle (i.e. no longer in the process of counting presses within the multipress)." +
                 "\n" +
                 "  - The server for cluster revision >= 2 shall generate a MultiPressComplete event with the " +
-                "    TotalNumberOfPressesCounted field set to zero (indicating an aborted sequence), and shall NOT " +
-                "    generate any further InitialPress and MultiPressOngoing events until the switch has become fully " +
-                "    idle (i.e. no longer in the process of counting presses within the multipress)." +
+                "TotalNumberOfPressesCounted field set to zero (indicating an aborted sequence), and shall NOT " +
+                "generate any further InitialPress and MultiPressOngoing events until the switch has become fully " +
+                "idle (i.e. no longer in the process of counting presses within the multipress)." +
                 "\n" +
                 "This approach avoids unintentionally causing intermediate actions where there is a very long " +
                 "sequence of presses beyond MultiPressMax that may be taken in account specially by switches (e.g. to " +
@@ -128,21 +128,21 @@ Resource.add({
                 "  - When the AS feature flag is set, this event:" +
                 "\n" +
                 "    - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle " +
-                "      from any multi-press cycles);" +
+                "from any multi-press cycles);" +
                 "\n" +
                 "    - shall only be generated after the first InitialPress following a MultiPressComplete when a " +
-                "      long press is detected after the idle time." +
+                "long press is detected after the idle time." +
                 "\n" +
                 "  - Else, when the MSM feature flag is set, this event:" +
                 "\n" +
                 "    - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle " +
-                "      from any multi-press cycles);" +
+                "from any multi-press cycles);" +
                 "\n" +
                 "    - shall only be generated after the first InitialPress following a MultiPressComplete when a " +
-                "      long press is detected after the idle time;" +
+                "long press is detected after the idle time;" +
                 "\n" +
                 "    - shall NOT be generated after a MultiPressOngoing event without an intervening " +
-                "      MultiPressComplete event." +
+                "MultiPressComplete event." +
                 "\n" +
                 "The above constraints imply that for a given activity detection cycle of a switch having MSM and/or " +
                 "MSL feature flags set, the entire activity is either a single long press detection cycle of " +
@@ -171,12 +171,12 @@ Resource.add({
                 "This event shall be generated, when the momentary switch has been released (after debouncing)." +
                 "\n" +
                 "  - If the server has the Momentary Switch LongPress (MSL) feature flag set, then this event shall " +
-                "    be generated when the switch is released if no LongPress event had been generated since the " +
-                "    previous InitialPress event." +
+                "be generated when the switch is released if no LongPress event had been generated since the " +
+                "previous InitialPress event." +
                 "\n" +
                 "  - If the server does not have the Momentary Switch LongPress (MSL) feature flag set, this event " +
-                "    shall be generated when the switch is released - even when the switch was pressed for a long " +
-                "    time." +
+                "shall be generated when the switch is released - even when the switch was pressed for a long " +
+                "time." +
                 "\n" +
                 "  - Also see Section 1.13.7, “Sequence of generated events”.",
 
@@ -241,27 +241,27 @@ Resource.add({
                 "The TotalNumberOfPressesCounted field shall contain:" +
                 "\n" +
                 "  - a value of 0 when there was an aborted multi-press sequence, where the number of presses goes " +
-                "    beyond MultiPressMax presses," +
+                "beyond MultiPressMax presses," +
                 "\n" +
                 "  - a value of 1 when there was exactly one press in a multi-press sequence (and the sequence has " +
-                "    ended), i.e. there was no double press (or more)," +
+                "ended), i.e. there was no double press (or more)," +
                 "\n" +
                 "  - a value of 2 when there were exactly two presses in a multi-press sequence (and the sequence has " +
-                "    ended)," +
+                "ended)," +
                 "\n" +
                 "  - a value of 3 when there were exactly three presses in a multi-press sequence (and the sequence " +
-                "    has ended)," +
+                "has ended)," +
                 "\n" +
                 "  - a value of N when there were exactly N presses in a multi-press sequence (and the sequence has " +
-                "    ended)." +
+                "ended)." +
                 "\n" +
                 "    > [!NOTE]" +
                 "\n" +
                 "    > The introduction of TotalNumberOfPressesCounted supporting the value 0 may impact clients of " +
-                "      switches using cluster revision 1 since such servers would not use this value of " +
-                "      TotalNumberOfPressesCounted to indicate an aborted sequence. Clients SHOULD always act using " +
-                "      the TotalNumberOfPressesCounted field taken into account since for values from 1 to " +
-                "      MultiPressMax, the user action that led to the event was different depending on the count."
+                "switches using cluster revision 1 since such servers would not use this value of " +
+                "TotalNumberOfPressesCounted to indicate an aborted sequence. Clients SHOULD always act using " +
+                "the TotalNumberOfPressesCounted field taken into account since for values from 1 to " +
+                "MultiPressMax, the user action that led to the event was different depending on the count."
         }
     ]
 });

@@ -274,10 +274,10 @@ Resource.add(
                     "lift/slide that is currently occurring. The server attributes supported shall be updated as follows:" +
                     "\n" +
                     "  - TargetPositionLiftPercent100ths attribute will be set to CurrentPositionLiftPercent100ths " +
-                    "    attribute value." +
+                    "attribute value." +
                     "\n" +
                     "  - TargetPositionTiltPercent100ths attribute will be set to CurrentPositionTiltPercent100ths " +
-                    "    attribute value."
+                    "attribute value."
             },
 
             {

@@ -301,9 +301,9 @@ export namespace ModeBase {
     export const OnOffComponent = MutableCluster.Component({
         attributes: {
             /**
-             * Indicates whether the value of CurrentMode depends on the state of the On/Off cluster on the same
-             * endpoint. If this attribute is not present or is set to null, there is no dependency, otherwise the
-             * CurrentMode attribute shall depend on the OnOff attribute in the On/Off cluster
+             * Indicates whether the value of CurrentMode depends on the state of the On/Off cluster on thesameendpoint.
+             * If this attribute is not present or is set to null, there is no dependency, otherwise the CurrentMode
+             * attribute shall depend on the OnOff attribute in the On/Off cluster
              *
              * The value of this field shall match the Mode field of one of the entries in the SupportedModes attribute.
              *
@@ -333,19 +333,19 @@ export namespace ModeBase {
 
         attributes: {
             /**
-             * This attribute shall contain the list of supported modes that may be selected for the CurrentMode
-             * attribute. Each item in this list represents a unique mode as indicated by the Mode field of the
-             * ModeOptionStruct.
+             * This attribute shall contain the list of supported modes that may be selected for
+             * theCurrentModeattribute. Each item in this list represents a unique mode as indicated by the Mode field
+             * of the ModeOptionStruct.
              *
              * Each entry in this list shall have a unique value for the Mode field.
              *
              * Each entry in this list shall have a unique value for the Label field.
              *
              * The set of ModeTags listed in each entry in this list shall be distinct from the sets of ModeTags listed
-             * in the other entries. This comparison shall NOT depend on the order of the ModeTags in the lists. Two
-             * sets shall be considered distinct if one of them contains an element that the other one does not. Note
-             * that the two sets could have a non-empty intersection, or one could be a subset of the other, and still
-             * be distinct.
+             * in the other entries. This comparison shall NOT depend on the order of the ModeTags inthelists. Two sets
+             * shall be considered distinct if one of them contains an element that the other one does not. Note that
+             * the two sets could have a non-empty intersection, or one could be a subset of the other, and still be
+             * distinct.
              *
              * Simplified examples of allowed ModeTags lists:
              *
