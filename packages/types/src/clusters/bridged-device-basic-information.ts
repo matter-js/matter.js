@@ -201,9 +201,7 @@ export namespace BridgedDeviceBasicInformation {
         events: {
             /**
              * This event (when supported) shall be generated the next time a bridged device becomes active after a
-             * KeepActive command is received.
-             *
-             * See KeepActive for more details.
+             * KeepActive command is received. See KeepActive for more details.
              *
              * @see {@link MatterSpecification.v142.Core} § 9.13.7.3
              */
@@ -321,7 +319,9 @@ export namespace BridgedDeviceBasicInformation {
              * of bridging Matter devices from an earlier revision which were not required to provide a UniqueID
              * attribute), the bridge shall generate a unique id on behalf of the bridged device.
              *
-             * NOTE The UniqueID attribute was optional in cluster revisions prior to revision 4.
+             * > [!NOTE]
+             *
+             * > The UniqueID attribute was optional in cluster revisions prior to revision 4.
              *
              * @see {@link MatterSpecification.v142.Core} § 9.13.5.3
              */
@@ -374,9 +374,8 @@ export namespace BridgedDeviceBasicInformation {
             /**
              * This event shall be generated when there is a change in the Reachable attribute. Its purpose is to
              * provide an indication towards interested parties that the reachability of a bridged device has changed
-             * over its native connectivity technology, so they may take appropriate action.
-             *
-             * After (re)start of a bridge this event may be generated.
+             * over its native connectivity technology, so they may take appropriate action. After (re)start of a bridge
+             * this event may be generated.
              *
              * @see {@link MatterSpecification.v142.Core} § 9.13.7.2
              */

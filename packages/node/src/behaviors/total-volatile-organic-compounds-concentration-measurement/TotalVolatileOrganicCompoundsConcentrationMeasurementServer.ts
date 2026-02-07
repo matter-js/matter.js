@@ -6,7 +6,9 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-import { TotalVolatileOrganicCompoundsConcentrationMeasurementBehavior } from "./TotalVolatileOrganicCompoundsConcentrationMeasurementBehavior.js";
+import {
+    TotalVolatileOrganicCompoundsConcentrationMeasurementBehavior
+} from "./TotalVolatileOrganicCompoundsConcentrationMeasurementBehavior.js";
 
 /**
  * This is the default server implementation of {@link TotalVolatileOrganicCompoundsConcentrationMeasurementBehavior}.

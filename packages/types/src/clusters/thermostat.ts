@@ -574,8 +574,6 @@ export namespace Thermostat {
     export interface SetActivePresetRequest extends TypeFromSchema<typeof TlvSetActivePresetRequest> {}
 
     /**
-     * Table 9. Interpretation of Heat, Cool and Auto SystemModeEnum Values
-     *
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.24
      */
     export enum SystemMode {
@@ -723,14 +721,16 @@ export namespace Thermostat {
      *   • If the server supports the OCC feature, and the Occupied bit is not set on the Occupancy attribute, then the
      *     UnoccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint
      *
-     *   • Otherwise, the OccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint If a HeatingSetpoint was
-     *     used to determine the heating setpoint:
+     *   • Otherwise, the OccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint
+     *
+     * If a HeatingSetpoint was used to determine the heating setpoint:
      *
      *   • If the server supports the OCC feature, and the Occupied bit is not set on the Occupancy attribute, then the
      *     UnoccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint
      *
-     *   • Otherwise, the OccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint The
-     *     ScheduleTransitionStruct shall be invalid if all the following are true:
+     *   • Otherwise, the OccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint
+     *
+     * The ScheduleTransitionStruct shall be invalid if all the following are true:
      *
      *   • The HeatingSetpoint field is not provided
      *
@@ -739,8 +739,9 @@ export namespace Thermostat {
      *   • The PresetHandle field on the encompassing ScheduleStruct is not provided
      *
      *   • The SystemMode field is provided and has the value Heat or Auto, or the SystemMode field on the parent
-     *     ScheduleStruct has the value Heat or Auto The ScheduleTransitionStruct shall be invalid if all the following
-     *     are true:
+     *     ScheduleStruct has the value Heat or Auto
+     *
+     * The ScheduleTransitionStruct shall be invalid if all the following are true:
      *
      *   • The CoolingSetpoint field is not provided
      *
@@ -835,14 +836,16 @@ export namespace Thermostat {
      *   • If the server supports the OCC feature, and the Occupied bit is not set on the Occupancy attribute, then the
      *     UnoccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint
      *
-     *   • Otherwise, the OccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint If a HeatingSetpoint was
-     *     used to determine the heating setpoint:
+     *   • Otherwise, the OccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint
+     *
+     * If a HeatingSetpoint was used to determine the heating setpoint:
      *
      *   • If the server supports the OCC feature, and the Occupied bit is not set on the Occupancy attribute, then the
      *     UnoccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint
      *
-     *   • Otherwise, the OccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint The
-     *     ScheduleTransitionStruct shall be invalid if all the following are true:
+     *   • Otherwise, the OccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint
+     *
+     * The ScheduleTransitionStruct shall be invalid if all the following are true:
      *
      *   • The HeatingSetpoint field is not provided
      *
@@ -851,8 +854,9 @@ export namespace Thermostat {
      *   • The PresetHandle field on the encompassing ScheduleStruct is not provided
      *
      *   • The SystemMode field is provided and has the value Heat or Auto, or the SystemMode field on the parent
-     *     ScheduleStruct has the value Heat or Auto The ScheduleTransitionStruct shall be invalid if all the following
-     *     are true:
+     *     ScheduleStruct has the value Heat or Auto
+     *
+     * The ScheduleTransitionStruct shall be invalid if all the following are true:
      *
      *   • The CoolingSetpoint field is not provided
      *
@@ -1059,7 +1063,11 @@ export namespace Thermostat {
     /**
      * > [!NOTE]
      *
-     * > CoolingAndHeating
+     * > A thermostat indicating it supports CoolingAndHeating (or CoolingAndHeatingWithReheat) SHOULD be able to
+     *   request heating or cooling on demand and will usually support the Auto SystemMode.
+     *
+     * Systems which support cooling or heating, requiring external intervention to change modes or where the whole
+     * building must be in the same mode, SHOULD report CoolingOnly or HeatingOnly based on the current capability.
      *
      * A thermostat indicating it supports CoolingAndHeating (or CoolingAndHeatingWithReheat) SHOULD be able to request
      * heating or cooling on demand and will usually support the Auto SystemMode.
@@ -1466,7 +1474,7 @@ export namespace Thermostat {
              * Indicates the absolute minimum level that the heating setpoint may be set to. This is a limitation
              * imposed by the manufacturer.
              *
-             * ### Refer to Setpoint Limits for constraints
+             * Refer to Setpoint Limits for constraints
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.5
              */
@@ -1488,7 +1496,9 @@ export namespace Thermostat {
             piHeatingDemand: OptionalAttribute(0x8, TlvUInt8.bound({ max: 100 })),
 
             /**
-             * Indicates the heating mode setpoint when the room is occupied. Refer to Setpoint Limits for constraints.
+             * Indicates the heating mode setpoint when the room is occupied.
+             *
+             * Refer to Setpoint Limits for constraints.
              *
              * If an attempt is made to set this attribute to a value greater than MaxHeatSetpointLimit or less than
              * MinHeatSetpointLimit, a response with the status code CONSTRAINT_ERROR shall be returned.
@@ -1562,7 +1572,7 @@ export namespace Thermostat {
              * Indicates the absolute maximum level that the cooling setpoint may be set to. This is a limitation
              * imposed by the manufacturer.
              *
-             * ### Refer to Setpoint Limits for constraints
+             * Refer to Setpoint Limits for constraints
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.8
              */
@@ -1579,7 +1589,9 @@ export namespace Thermostat {
             piCoolingDemand: OptionalAttribute(0x7, TlvUInt8.bound({ max: 100 })),
 
             /**
-             * Indicates the cooling mode setpoint when the room is occupied. Refer to Setpoint Limits for constraints.
+             * Indicates the cooling mode setpoint when the room is occupied.
+             *
+             * Refer to Setpoint Limits for constraints.
              *
              * If an attempt is made to set this attribute to a value greater than MaxCoolSetpointLimit or less than
              * MinCoolSetpointLimit, a response with the status code CONSTRAINT_ERROR shall be returned.
@@ -1673,8 +1685,9 @@ export namespace Thermostat {
     export const CoolingAndOccupancyComponent = MutableCluster.Component({
         attributes: {
             /**
-             * Indicates the cooling mode setpoint when the room is unoccupied. Refer to Setpoint Limits for
-             * constraints.
+             * Indicates the cooling mode setpoint when the room is unoccupied.
+             *
+             * Refer to Setpoint Limits for constraints.
              *
              * If an attempt is made to set this attribute to a value greater than MaxCoolSetpointLimit or less than
              * MinCoolSetpointLimit, a response with the status code CONSTRAINT_ERROR shall be returned.
@@ -1701,16 +1714,16 @@ export namespace Thermostat {
     export const HeatingAndOccupancyComponent = MutableCluster.Component({
         attributes: {
             /**
-             * Indicates the heating mode setpoint when the room is unoccupied. Refer to Setpoint Limits for
-             * constraints.
+             * Indicates the heating mode setpoint when the room is unoccupied.
+             *
+             * Refer to Setpoint Limits for constraints.
              *
              * If an attempt is made to set this attribute to a value greater than MaxHeatSetpointLimit or less than
              * MinHeatSetpointLimit, a response with the status code CONSTRAINT_ERROR shall be returned.
              *
              * If this attribute is set to a value that is greater than (UnoccupiedCoolingSetpoint -
              * MinSetpointDeadBand), the value of UnoccupiedCoolingSetpoint shall be adjusted to
-             *
-             * + MinSetpointDeadBand).
+             * (UnoccupiedHeatingSetpoint + MinSetpointDeadBand).
              *
              * If the occupancy status of the room is unknown, this attribute shall NOT be used.
              *
@@ -1740,8 +1753,10 @@ export namespace Thermostat {
              * > Prior to revision 8 of this cluster specification the value of this attribute was constrained to a
              *   range of 0°C to 2.5°C.
              *
-             * For backwards compatibility, this attribute is optionally writeable. However any writes to this attribute
-             * shall be silently ignored.
+             * > [!NOTE]
+             *
+             * > For backwards compatibility, this attribute is optionally writeable. However any writes to this
+             *   attribute shall be silently ignored.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.21
              */
@@ -1980,7 +1995,9 @@ export namespace Thermostat {
             ),
 
             /**
-             * This attribute shall contain the current list of configured presets. On receipt of a write request:
+             * This attribute shall contain the current list of configured presets.
+             *
+             * On receipt of a write request:
              *
              *   1. If the PresetHandle field is null, the PresetStruct shall be treated as an added preset, and the
              *      device shall create a new unique value for the PresetHandle field.
@@ -2114,7 +2131,9 @@ export namespace Thermostat {
             ),
 
             /**
-             * This attribute shall contain a list of ScheduleStructs. On receipt of a write request:
+             * This attribute shall contain a list of ScheduleStructs.
+             *
+             * On receipt of a write request:
              *
              *   1. For all schedules in the write request:
              *
@@ -2450,6 +2469,9 @@ export namespace Thermostat {
              * > Modifying the ScheduleActive bit does not clear or delete previous weekly schedule programming
              *   configurations.
              *
+             * Modifying the ScheduleActive bit does not clear or delete previous weekly schedule programming
+             * configurations.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.31
              */
             thermostatProgrammingOperationMode: OptionalWritableAttribute(
@@ -2459,8 +2481,9 @@ export namespace Thermostat {
             ),
 
             /**
-             * Indicates the current relay state of the heat, cool, and fan relays. Unimplemented outputs shall be
-             * treated as if they were Off.
+             * Indicates the current relay state of the heat, cool, and fan relays.
+             *
+             * Unimplemented outputs shall be treated as if they were Off.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.32
              */
@@ -2519,7 +2542,7 @@ export namespace Thermostat {
              *
              * ⇒ OccupiedHeatingSetpoint - Calculated Local Temperature ≥? EmergencyHeatDelta
              *
-             * ⇒ 16°C - 10°C ≥? 2°C
+             *   • ⇒ 16°C - 10°C ≥? 2°C
              *
              * ⇒ TRUE >>> Thermostat server changes its SystemMode to operate in 2nd stage or emergency heat mode
              *

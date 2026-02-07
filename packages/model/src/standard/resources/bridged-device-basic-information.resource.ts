@@ -86,7 +86,9 @@ Resource.add({
                 "provide a UniqueID attribute), the bridge shall generate a unique id on behalf of the bridged " +
                 "device." +
                 "\n" +
-                "NOTE The UniqueID attribute was optional in cluster revisions prior to revision 4."
+                "> [!NOTE]" +
+                "\n" +
+                "> The UniqueID attribute was optional in cluster revisions prior to revision 4."
         },
 
         { tag: "attribute", name: "CapabilityMinima", xref: "core§9.13.5" },
@@ -127,17 +129,14 @@ Resource.add({
             tag: "event", name: "ReachableChanged", xref: "core§9.13.7.2",
             details: "This event shall be generated when there is a change in the Reachable attribute. Its purpose is to " +
                 "provide an indication towards interested parties that the reachability of a bridged device has " +
-                "changed over its native connectivity technology, so they may take appropriate action." +
-                "\n" +
-                "After (re)start of a bridge this event may be generated."
+                "changed over its native connectivity technology, so they may take appropriate action. After " +
+                "(re)start of a bridge this event may be generated."
         },
 
         {
             tag: "event", name: "ActiveChanged", xref: "core§9.13.7.3",
             details: "This event (when supported) shall be generated the next time a bridged device becomes active after a " +
-                "KeepActive command is received." +
-                "\n" +
-                "See KeepActive for more details.",
+                "KeepActive command is received. See KeepActive for more details.",
 
             children: [{
                 tag: "field", name: "PromisedActiveDuration", xref: "core§9.13.7.3.1",

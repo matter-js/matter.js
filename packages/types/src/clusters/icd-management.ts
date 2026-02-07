@@ -504,6 +504,18 @@ export namespace IcdManagement {
          * The minimum value of the PromisedActiveDuration field shall be equal to either 30000 milliseconds or
          * StayActiveDuration (from the received StayActiveRequest command), whichever is smaller.
          *
+         * Example scenarios:
+         *
+         *   • A Client requests an ICD to stay awake for 20000 milliseconds in its StayActiveDuration field. The ICD
+         *     responds with 20000 in its PromisedActiveDuration if it can stay active for that duration.
+         *
+         *   • A Client requests an ICD to stay awake for 35000 milliseconds in its StayActiveDuration field. The ICD
+         *     responds with 30000 in its PromisedActiveDuration since it can only stay active for that minimal amount.
+         *
+         *   • A Client requests an ICD to stay awake for 10000 milliseconds in its StayActiveDuration field, but the
+         *     ICD’s remaining active time is 20000 milliseconds. The ICD responds with 20000 milliseconds in its
+         *     PromisedActiveDuration field since it intends to stay active that long.
+         *
          * @see {@link MatterSpecification.v142.Core} § 9.16.7.5.1
          */
         promisedActiveDuration: TlvField(0, TlvUInt32)
@@ -621,8 +633,8 @@ export namespace IcdManagement {
              * a dependency on the UserActiveModeTriggerInstruction attribute but do not require the attribute to be
              * present.
              *
-             * ### An ICD can indicate multiple ways of being put into Active Mode by setting multiple bits in the
-             * bitmap at the same time. However, a device shall NOT set more than one bit which has a dependency on the
+             * An ICD can indicate multiple ways of being put into Active Mode by setting multiple bits in the bitmap at
+             * the same time. However, a device shall NOT set more than one bit which has a dependency on the
              * UserActiveModeTriggerInstruction attribute.
              *
              * @see {@link MatterSpecification.v142.Core} § 9.16.6.7

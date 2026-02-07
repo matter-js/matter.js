@@ -24,21 +24,26 @@ Resource.add({
                 {
                     tag: "field", name: "LT", xref: "cluster§1.6.4.2",
 
-                    details: "This feature supports an interface for controlling the level of a light source. For the CurrentLevel " +
-                        "attribute:" +
+                    details: "This feature supports an interface for controlling the level of a light source." +
                         "\n" +
-                        "A value of 0x00 shall NOT be used." +
+                        "For the CurrentLevel attribute:" +
                         "\n" +
-                        "A value of 0x01 shall indicate the minimum level that can be attained on a device. A value of 0xFE " +
-                        "shall indicate the maximum level that can be attained on a device. A value of null shall represent " +
-                        "an undefined value." +
+                        "  • A value of 0x00 shall NOT be used." +
                         "\n" +
-                        "All other values are application specific gradations from the minimum to the maximum level."
+                        "  • A value of 0x01 shall indicate the minimum level that can be attained on a device." +
+                        "\n" +
+                        "  • A value of 0xFE shall indicate the maximum level that can be attained on a device." +
+                        "\n" +
+                        "  • A value of null shall represent an undefined value." +
+                        "\n" +
+                        "  • All other values are application specific gradations from the minimum to the maximum level."
                 },
 
                 {
                     tag: "field", name: "FQ", xref: "cluster§1.6.4.3",
-                    details: "NOTE The Frequency feature is provisional."
+                    details: "> [!NOTE]" +
+                        "\n" +
+                        "> The Frequency feature is provisional."
                 }
             ]
         },

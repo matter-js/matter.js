@@ -13,7 +13,9 @@ import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js
 import { Identity } from "#general";
 
 /**
- * This defines conformance to the Speaker device type. This feature controls the speaker volume of the device.
+ * This defines conformance to the Speaker device type.
+ *
+ * This feature controls the speaker volume of the device.
  *
  * To control unmute/mute, the On/Off cluster shall be used. A value of TRUE for the OnOff attribute shall represent the
  * volume on (not muted) state, while a value of FALSE shall represent the volume off (muted) state. For volume level

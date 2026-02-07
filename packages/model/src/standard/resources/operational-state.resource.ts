@@ -199,9 +199,7 @@ Resource.add({
                 "  • The device shall respond with an OperationalCommandResponse command with an ErrorStateID of " +
                 "    NoError." +
                 "\n" +
-                "The following table defines the compatibility of this cluster’s states with the Pause command." +
-                "\n" +
-                "### Table 3. Pause Compatibility"
+                "The following table defines the compatibility of this cluster’s states with the Pause command."
         },
 
         {
@@ -283,8 +281,6 @@ Resource.add({
                 "  • For manufacturer-specific states, by the manufacturer." +
                 "\n" +
                 "The following table defines the compatibility of this cluster’s states with the Resume command." +
-                "\n" +
-                "### Table 4. Resume Compatibility" +
                 "\n" +
                 "A device that is unable to honor the Resume command for any other reason shall respond with an " +
                 "OperationalCommandResponse command with an ErrorStateID of UnableToStartOrResume but take no further " +

@@ -36,7 +36,7 @@ Resource.add(
 
                         details: "This feature is for a device that is managed by a service associated with the device vendor and " +
                             "which imposes default access restrictions upon each new fabric added to it. This could arise, for " +
-                            "example, if the device is managed by a service provider under contract to an end-user, in such away " +
+                            "example, if the device is managed by a service provider under contract to an end-user, in such a way " +
                             "that the manager of the device does not unconditionally grant universal access to all of a device’s " +
                             "functionality, even for fabric administrators. For example, many Home Routers are managed by an " +
                             "Internet Service Provider (a service), and these services often have a policy that requires them to " +
@@ -353,9 +353,10 @@ Resource.add(
                             "    user to allow viewing, downloading, installing or using a manufacturer-provided means for " +
                             "    guiding the user through the process to review and approve or deny the request. The device " +
                             "    manufacturer may choose to use a constructed URL which is valid in a HTTP GET request (i.e. " +
-                            "    dedicated for the product) such as, for example, https://domain.example/arl-app?vid=FFF1& " +
-                            "    pid=1234. If a client follows or launches the ARLRequestFlowUrl, it shall expand it as described " +
-                            "    in Section 9.10.9.3.4, “ARLRequestFlowUrl format”." +
+                            "    dedicated for the product) such as, for example, " +
+                            "    https://domain.example/arl-app?vid=FFF1&pid=1234. If a client follows or launches the " +
+                            "    ARLRequestFlowUrl, it shall expand it as described in Section 9.10.9.3.4, “ARLRequestFlowUrl " +
+                            "    format”." +
                             "\n" +
                             "  • A manufacturer contemplating using this flow should realize that" +
                             "\n" +
@@ -377,7 +378,7 @@ Resource.add(
                             "    the contents of the value encoded with proper URL-encoded escaping." +
                             "\n" +
                             "  • If key MTcu is present, it shall have a value of \"_\" (i.e. MTcu=_). This is the \"callback URL " +
-                            "    (Call backUrl) placeholder\"." +
+                            "    (CallbackUrl) placeholder\"." +
                             "\n" +
                             "  • Any key whose name begins with MT not mentioned in the previous bullets shall be reserved for " +
                             "    future use by this specification. Manufacturers shall NOT include query keys starting with MT in " +
@@ -405,8 +406,9 @@ Resource.add(
                             "client may replace the placeholder value \"_\" in the ExpandedARLRequestFlowUrl with a URL that the " +
                             "manufacturer flow can use to make a smooth return to the client when the ARL flow has terminated." +
                             "\n" +
-                            "This URL field may contain a query component (see RFC 3986 section 3.4). If a query is present, it " +
-                            "shall be composed of one or more key-value pairs:" +
+                            "This URL field may contain a query component (see RFC 3986 section 3.4)." +
+                            "\n" +
+                            "If a query is present, it shall be composed of one or more key-value pairs:" +
                             "\n" +
                             "  • The query shall use the & delimiter between key/value pairs." +
                             "\n" +
@@ -426,11 +428,9 @@ Resource.add(
                             "fragment field (if present), shall remain as provided by the client through embedding within the " +
                             "ExpandedARLRequestFlowUrl, including the order of query key/value pairs present." +
                             "\n" +
-                            "### Expansion of CallbackUrl by the manufacturer custom flow" +
-                            "\n" +
-                            "Once the CallbackUrl is obtained by the manufacturer flow, it may be expanded to form a final " +
-                            "ExpandedARLRequestCallbackUrl URL to be used by proceeding with the following substitution algorithm " +
-                            "on the provided CallbackUrl:" +
+                            "Expansion of CallbackUrl by the manufacturer custom flow Once the CallbackUrl is obtained by the " +
+                            "manufacturer flow, it may be expanded to form a final ExpandedARLRequestCallbackUrl URL to be used " +
+                            "by proceeding with the following substitution algorithm on the provided CallbackUrl:" +
                             "\n" +
                             "  • If key MTaer is present, the manufacturer custom flow having received the initial query " +
                             "    containing the CallbackUrl shall substitute the placeholder value \"_\" (i.e. in MTaer=_) in the " +
@@ -471,23 +471,17 @@ Resource.add(
                             "\n" +
                             "    ◦ Before expansion:" +
                             "\n" +
-                            "https://company.domain.example/matter/arl?vid=FFF1&pid=1234&MTcu=_" +
+                            "    ◦ After expansion:" +
                             "\n" +
-                            "  ◦ After expansion: " +
-                            "    https://company.domain.example/matter/arl?vid=FFF1&pid=1234&MTcu=https%3A%2F%2Fc " +
-                            "    lient.domain.example%2Fcb%3Ftoken%3DmAsJ6_vqbr-vjDiG_w%253D%253D%26MTaer%3D_" +
+                            "    ◦ The ExpandedARLRequestFlowUrl URL contains:" +
                             "\n" +
-                            "  ◦ The ExpandedARLRequestFlowUrl URL contains:" +
+                            "      ▪ A CallbackUrl with a client-provided arbitrary token= key/value pair and the MTaer= " +
+                            "        key/value pair place-holder to indicate support for a return access extension completion " +
+                            "        status: https://client.domain.example/cb?token=mAsJ6_vqbr-vjDiG_w%3D%3D&MTaer=_" +
                             "\n" +
-                            "    ▪ A CallbackUrl with a client-provided arbitrary token= key/value pair and the MTaer= key/value " +
-                            "      pair place-holder to indicate support for a return access extension completion status: " +
-                            "      https://client.domain.example/cb?token=mAsJ6_vqbr-vjDiG_w%3D%3D&MTaer=_" +
-                            "\n" +
-                            "    ▪ After expansion of the CallbackUrl (MTcu key) into an ExpandedCallbackUrl, with an example " +
-                            "      return access extension completion status of Success, the ExpandedARLRequestCallbackUrl would " +
-                            "      be:" +
-                            "\n" +
-                            "https://client.domain.example/cb?token=mAsJ6_vqbr-vjDiG_w%3D%3D&MTaer=Success" +
+                            "      ▪ After expansion of the CallbackUrl (MTcu key) into an ExpandedCallbackUrl, with an example " +
+                            "        return access extension completion status of Success, the ExpandedARLRequestCallbackUrl " +
+                            "        would be:" +
                             "\n" +
                             "Note that the MTcu key/value pair was initially provided URL-encoded within the " +
                             "ExpandedARLRequestFlowUrl URL and the MTaer=_ key/value pair placeholder now contains a substituted " +
@@ -557,7 +551,7 @@ Resource.add(
                         tag: "field", name: "Operate",
                         description: "View privileges, and can perform the primary function of this Node (except Access Control Cluster)",
                         xref: "core§9.10.5.2.1",
-                        details: "### This value implicitly grants View privileges"
+                        details: "This value implicitly grants View privileges"
                     },
 
                     {
@@ -634,7 +628,23 @@ Resource.add(
                             "\n" +
                             "The Access Control Cluster shall require the Administer privilege to observe and modify the Access " +
                             "Control Cluster itself. The Administer privilege shall NOT be used on Access Control Entries which " +
-                            "use the Group auth mode."
+                            "use the Group auth mode." +
+                            "\n" +
+                            "E.g. A Fan Control Cluster may require Operate privilege to write to a level attribute " +
+                            "(low/medium/high), and to configure each level’s RPM setting via a command. The Fan Control Cluster " +
+                            "may also expose a current RPM attribute, which requires only View privilege to read. Clients granted " +
+                            "Operate privilege will be able to both change the level, and configure each level’s RPM. Clients " +
+                            "granted View privilege will be able to read the current RPM, but will not be granted sufficient " +
+                            "privilege to change the level or configure each level’s RPM." +
+                            "\n" +
+                            "E.g. A Fan Control Cluster may be included in a more industrial device type. To ensure proper " +
+                            "operation, this device type may restrict configuration of fan level RPM settings to require Manage " +
+                            "privilege. Clients granted Manage privilege will have sufficient privilege to configure each level’s " +
+                            "RPM; clients granted Operate privilege will not be able to perform such configuration, but will " +
+                            "still be able to change the level. This additional restriction would apply only to the Fan Control " +
+                            "Cluster as included in this particular device type; a client granted Operate privilege may still be " +
+                            "able to perform configuration in Fan Control Clusters included in other device types on the same " +
+                            "Node."
                     },
 
                     {
@@ -654,7 +664,7 @@ Resource.add(
                             "An attempt to create an entry with more subjects than the node can support shall result in a " +
                             "RESOURCE_EXHAUSTED error and the entry shall NOT be created." +
                             "\n" +
-                            "### Subject ID shall be of type uint64 with semantics depending on the entry’s AuthMode as follows:" +
+                            "Subject ID shall be of type uint64 with semantics depending on the entry’s AuthMode as follows:" +
                             "\n" +
                             "### Subject Semantics" +
                             "\n" +
@@ -676,8 +686,25 @@ Resource.add(
                             "\n" +
                             "  • a CASE Authenticated Tag, which identifies the required source node indirectly (by tag)" +
                             "\n" +
+                            "E.g. an ACL entry with CASE AuthMode that grants privileges to Subject IDs [ 0x0000_0000_1111_1111, " +
+                            "0x0000_0000_2222_2222, 0x0000_0000_3333_3333 ] (which are Node IDs) will grant access to Nodes with " +
+                            "Node ID 0x0000_0000_1111_1111, 0x0000_0000_2222_2222, or 0x0000_0000_3333_3333, but will not grant " +
+                            "access to Nodes with Node ID 0x0000_0000_4444_4444 or 0x0000_0000_5555_5555." +
+                            "\n" +
+                            "E.g. an ACL entry with CASE AuthMode that grants privileges to Subject IDs [ 0x0000_0000_6666_6666, " +
+                            "0xFFFF_FFFD_ABCD_0002 ] (which are a Node ID and a CASE Authenticated Tag) will grant access to the " +
+                            "Node with Node ID 0x0000_0000_6666_6666 and any Nodes with CAT identifier value 0xABCD if the CAT’s " +
+                            "version is 0x0002 or higher. It will not grant access to Nodes with other CAT values such as " +
+                            "0x9999_9999. Any node with CAT identifier value of 0xABCD but version less than 0x0002 (for example: " +
+                            "0xFFFF_FFFD_ABCD_0001) will not be granted access." +
+                            "\n" +
                             "For Group authentication, the Group ID identifies the required group, as defined in the Group Key " +
-                            "Management Cluster."
+                            "Management Cluster." +
+                            "\n" +
+                            "E.g. an entry with Group AuthMode that grants privileges to Subject IDs [ 0x0000_0000_1111_1111, " +
+                            "0x0000_0000_2222_2222 ] (which are Group IDs) will grant access to Nodes in Group 0x1111_1111 or " +
+                            "0x2222_2222, but will not grant access to Nodes in Group 0x3333_3333, even if they share Operational " +
+                            "Group Keys."
                     },
 
                     {
@@ -700,7 +727,28 @@ Resource.add(
                             "### Target Semantics" +
                             "\n" +
                             "An empty targets list indicates a wildcard: that is, this entry shall grant access to all cluster " +
-                            "instances on all endpoints on this Node."
+                            "instances on all endpoints on this Node." +
+                            "\n" +
+                            "E.g. an entry that grants privileges to the Color Light Bulb Device Type will grant privileges to " +
+                            "any cluster on any endpoint that contains the Color Light Bulb device type (whether that cluster is " +
+                            "in the Color Light Bulb device type or not), and will not grant privileges to any other cluster on " +
+                            "any other endpoint." +
+                            "\n" +
+                            "E.g. an entry that grants privileges to Endpoint 1 will grant privileges to any cluster on Endpoint " +
+                            "1, and will not grant privileges to any other cluster on any other endpoint." +
+                            "\n" +
+                            "E.g. an entry that grants privileges to the On/Off Cluster on any endpoint will not grant privileges " +
+                            "to any other cluster on any endpoint." +
+                            "\n" +
+                            "E.g. an entry that grants privileges to the On/Off Cluster with Color Light Bulb Device Type will " +
+                            "grant privileges to just the On/Off Cluster on any endpoint that contains the Color Light Bulb " +
+                            "device type, and will not grant privileges to any other cluster on any other endpoint (including " +
+                            "other clusters in the Color Light Bulb device type, or the On/Off cluster on endpoints that do not " +
+                            "contain the Color Light Bulb device type)." +
+                            "\n" +
+                            "E.g. an entry that grants privileges to the On/Off Cluster on Endpoint 1 will not grant privileges " +
+                            "to any other cluster on Endpoint 1, or to any other cluster (including the On/Off cluster) on any " +
+                            "other endpoint."
                     }
                 ]
             },
@@ -719,7 +767,13 @@ Resource.add(
                         "\n" +
                         "Administrators may iterate over this list of elements, and interpret selected elements at their " +
                         "discretion. The content of each element is not specified, but may be coordinated among manufacturers " +
-                        "at their discretion."
+                        "at their discretion." +
+                        "\n" +
+                        "E.g. a manufacturer could use this field to store structured data, including various metadata and " +
+                        "cryptographic signatures. The manufacturer could then verify a fabric’s Access Control List by " +
+                        "generating a canonical bytestream from the Access Control Entries for the fabric, then verifying the " +
+                        "signature against it. Such a canonical bytestream could be generated by encoding specific entry " +
+                        "fields and sub-fields (such as lists) in specific order and specific format (e.g. TLV)."
                 }]
             },
 

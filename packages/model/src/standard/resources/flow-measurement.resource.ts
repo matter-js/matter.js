@@ -18,7 +18,7 @@ Resource.add(
             {
                 tag: "attribute", name: "MeasuredValue", xref: "cluster§2.5.4.1",
 
-                details: "Indicates the flow in m/h as follows:" +
+                details: "Indicates the flow in m^3/h as follows:" +
                     "\n" +
                     "MeasuredValue = 10 x Flow" +
                     "\n" +

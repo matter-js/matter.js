@@ -259,8 +259,9 @@ export namespace DiagnosticLogs {
     }
 
     /**
-     * This shall be generated as a response to the RetrieveLogsRequest. The data for this command is shown in the
-     * following.
+     * This shall be generated as a response to the RetrieveLogsRequest.
+     *
+     * The data for this command is shown in the following.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.11.5.2
      */
@@ -301,8 +302,9 @@ export namespace DiagnosticLogs {
     });
 
     /**
-     * This shall be generated as a response to the RetrieveLogsRequest. The data for this command is shown in the
-     * following.
+     * This shall be generated as a response to the RetrieveLogsRequest.
+     *
+     * The data for this command is shown in the following.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.11.5.2
      */

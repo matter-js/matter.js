@@ -94,7 +94,7 @@ Resource.add({
                 "have a dependency on the UserActiveModeTriggerInstruction attribute but do not require the attribute " +
                 "to be present." +
                 "\n" +
-                "### An ICD can indicate multiple ways of being put into Active Mode by setting multiple bits in the " +
+                "An ICD can indicate multiple ways of being put into Active Mode by setting multiple bits in the " +
                 "bitmap at the same time. However, a device shall NOT set more than one bit which has a dependency on " +
                 "the UserActiveModeTriggerInstruction attribute."
         },
@@ -383,7 +383,21 @@ Resource.add({
                     "### Minimum Value for PromisedActiveDuration" +
                     "\n" +
                     "The minimum value of the PromisedActiveDuration field shall be equal to either 30000 milliseconds or " +
-                    "StayActiveDuration (from the received StayActiveRequest command), whichever is smaller."
+                    "StayActiveDuration (from the received StayActiveRequest command), whichever is smaller." +
+                    "\n" +
+                    "Example scenarios:" +
+                    "\n" +
+                    "  • A Client requests an ICD to stay awake for 20000 milliseconds in its StayActiveDuration field. " +
+                    "    The ICD responds with 20000 in its PromisedActiveDuration if it can stay active for that " +
+                    "    duration." +
+                    "\n" +
+                    "  • A Client requests an ICD to stay awake for 35000 milliseconds in its StayActiveDuration field. " +
+                    "    The ICD responds with 30000 in its PromisedActiveDuration since it can only stay active for that " +
+                    "    minimal amount." +
+                    "\n" +
+                    "  • A Client requests an ICD to stay awake for 10000 milliseconds in its StayActiveDuration field, " +
+                    "    but the ICD’s remaining active time is 20000 milliseconds. The ICD responds with 20000 " +
+                    "    milliseconds in its PromisedActiveDuration field since it intends to stay active that long."
             }]
         },
 

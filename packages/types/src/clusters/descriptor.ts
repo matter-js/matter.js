@@ -198,8 +198,14 @@ export namespace Descriptor {
      * This cluster supports a list of one or more device type identifiers that represent conformance to device type
      * specifications.
      *
+     * For Example: An Extended Color Light device type may support device type IDs for both a Dimmable Light and On/Off
+     * Light, because those are subsets of an Extended Color Light (the superset).
+     *
      * The cluster supports a PartsList attribute that is a list of zero or more endpoints to support compound devices
      * or composed device types.
+     *
+     * For Example: A Refrigerator/Freezer appliance device type may be defined as being composed of multiple
+     * Temperature Sensor endpoints, a Metering endpoint, and two Thermostat endpoints.
      *
      * DescriptorCluster supports optional features that you can enable with the DescriptorCluster.with() factory
      * method.

@@ -10,8 +10,9 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add({
     tag: "cluster", name: "ConcentrationMeasurement", pics: "CONC", xref: "cluster§2.10",
-    details: "The server cluster provides an interface to concentration measurement functionality. This cluster " +
-        "shall to be used via an alias to a specific substance (see Cluster IDs).",
+    details: "The server cluster provides an interface to concentration measurement functionality." +
+        "\n" +
+        "This cluster shall to be used via an alias to a specific substance (see Cluster IDs).",
 
     children: [
         {
@@ -32,10 +33,12 @@ Resource.add({
 
         {
             tag: "attribute", name: "MeasuredValue", xref: "cluster§2.10.6.1",
+
             details: "Indicates the most recent measurement as a single-precision floating-point number. MeasuredValue’s " +
                 "unit is represented by MeasurementUnit." +
                 "\n" +
-                "A value of null indicates that the measurement is unknown or outside the valid range. " +
+                "A value of null indicates that the measurement is unknown or outside the valid range." +
+                "\n" +
                 "MinMeasuredValue and MaxMeasuredValue define the valid range for MeasuredValue."
         },
 
@@ -94,17 +97,17 @@ Resource.add({
 
         {
             tag: "datatype", name: "MeasurementUnitEnum", xref: "cluster§2.10.5.1",
-            details: "Where mentioned, Billion refers to 10, Trillion refers to 1012 (short scale).",
+            details: "Where mentioned, Billion refers to 10^9, Trillion refers to 10^12 (short scale).",
 
             children: [
-                { tag: "field", name: "Ppm", description: "Parts per Million (10)" },
-                { tag: "field", name: "Ppb", description: "Parts per Billion (10)" },
-                { tag: "field", name: "Ppt", description: "Parts per Trillion (1012)" },
-                { tag: "field", name: "Mgm3", description: "Milligram per m" },
-                { tag: "field", name: "Ugm3", description: "Microgram per m" },
-                { tag: "field", name: "Ngm3", description: "Nanogram per m" },
-                { tag: "field", name: "Pm3", description: "Particles per m" },
-                { tag: "field", name: "Bqm3", description: "Becquerel per m" }
+                { tag: "field", name: "Ppm", description: "Parts per Million (10^6)" },
+                { tag: "field", name: "Ppb", description: "Parts per Billion (10^9)" },
+                { tag: "field", name: "Ppt", description: "Parts per Trillion (10^12)" },
+                { tag: "field", name: "Mgm3", description: "Milligram per m^3" },
+                { tag: "field", name: "Ugm3", description: "Microgram per m^3" },
+                { tag: "field", name: "Ngm3", description: "Nanogram per m^3" },
+                { tag: "field", name: "Pm3", description: "Particles per m^3" },
+                { tag: "field", name: "Bqm3", description: "Becquerel per m^3" }
             ]
         },
 

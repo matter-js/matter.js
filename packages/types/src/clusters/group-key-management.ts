@@ -355,10 +355,9 @@ export namespace GroupKeyManagement {
 
             /**
              * This attribute is a list of GroupInfoMapStruct entries. Each entry provides read-only information about
-             * how a given logical Group ID maps to a particular set of endpoints, and a name for the group.
-             *
-             * The content of this attribute reflects data managed via the Groups cluster (see AppClusters), and is in
-             * general terms referred to as the 'node-wide Group Table'.
+             * how a given logical Group ID maps to a particular set of endpoints, and a name for the group. The content
+             * of this attribute reflects data managed via the Groups cluster (see AppClusters), and is in general terms
+             * referred to as the 'node-wide Group Table'.
              *
              * The GroupTable shall NOT contain any entry whose GroupInfoMapStruct has an empty Endpoints list. If a
              * RemoveGroup or RemoveAllGroups command causes the removal of a group mapping from its last mapped

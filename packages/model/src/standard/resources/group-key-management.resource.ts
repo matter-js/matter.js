@@ -40,8 +40,7 @@ Resource.add({
             tag: "attribute", name: "GroupTable", xref: "core§11.2.6.2",
 
             details: "This attribute is a list of GroupInfoMapStruct entries. Each entry provides read-only information " +
-                "about how a given logical Group ID maps to a particular set of endpoints, and a name for the group." +
-                "\n" +
+                "about how a given logical Group ID maps to a particular set of endpoints, and a name for the group. " +
                 "The content of this attribute reflects data managed via the Groups cluster (see AppClusters), and is " +
                 "in general terms referred to as the 'node-wide Group Table'." +
                 "\n" +

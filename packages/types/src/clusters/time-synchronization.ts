@@ -581,7 +581,9 @@ export namespace TimeSynchronization {
 
         commands: {
             /**
-             * This command is used to set the TrustedTimeSource attribute. Upon receipt of this command:
+             * This command is used to set the TrustedTimeSource attribute.
+             *
+             * Upon receipt of this command:
              *
              *   • If the TrustedTimeSource field in the command is null, the node shall set the TrustedTimeSource
              *     attribute to null and shall generate a MissingTrustedTimeSource event.
@@ -677,11 +679,10 @@ export namespace TimeSynchronization {
     export const TimeZoneComponent = MutableCluster.Component({
         attributes: {
             /**
-             * This attribute shall contain a list of time zone offsets from UTC and when they shall take effect.
-             *
-             * This attribute uses a list of time offset configurations to allow Nodes to handle scheduled regulatory
-             * time zone changes. This attribute shall NOT be used to indicate daylight savings time changes (see
-             * Section 11.17.8.7, “DSTOffset Attribute” for daylight savings time).
+             * This attribute shall contain a list of time zone offsets from UTC and when they shall take effect. This
+             * attribute uses a list of time offset configurations to allow Nodes to handle scheduled regulatory time
+             * zone changes. This attribute shall NOT be used to indicate daylight savings time changes (see Section
+             * 11.17.8.7, “DSTOffset Attribute” for daylight savings time).
              *
              * The first entry shall have a ValidAt entry of 0. If there is a second entry, it shall have a non-zero
              * ValidAt time.

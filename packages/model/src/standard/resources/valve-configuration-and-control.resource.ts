@@ -76,7 +76,9 @@ Resource.add({
         {
             tag: "attribute", name: "RemainingDuration", xref: "cluster§4.6.7.4",
 
-            details: "Indicates the remaining duration, in seconds, until the valve closes. Null:" +
+            details: "Indicates the remaining duration, in seconds, until the valve closes." +
+                "\n" +
+                "Null:" +
                 "\n" +
                 "  • When OpenDuration is null, or" +
                 "\n" +
@@ -125,8 +127,9 @@ Resource.add({
                 "During a transition from one level to another level, the valve SHOULD keep this attribute updated to " +
                 "the best of its ability, in order to represent the actual level of the valve during the movement." +
                 "\n" +
-                "A value of 100 percent shall indicate the fully open position. A value of 0 percent shall indicate " +
-                "the fully closed position." +
+                "A value of 100 percent shall indicate the fully open position." +
+                "\n" +
+                "A value of 0 percent shall indicate the fully closed position." +
                 "\n" +
                 "A value of null shall indicate that the current state is not known."
         },

@@ -23,9 +23,6 @@ import { SemanticNamespace } from "../endpoint/type/SemanticNamespace.js";
  * comprised of Arabic numerals encoded as a string to indicate the row/column of the item. Number words (e.g. "one",
  * "two", etc.) shall NOT be used to describe the position of the item. The first row/column shall use Label "1".
  *
- * The following example illustrates a compound device comprised of 9 endpoints arranged in a 3x3 grid. This example
- * uses position tags to indicate position.
- *
  * @see {@link MatterSpecification.v142.Namespace} § 9
  */
 export const PositionTag = SemanticNamespace({

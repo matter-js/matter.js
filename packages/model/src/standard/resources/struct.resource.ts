@@ -62,7 +62,7 @@ Resource.add({
         "  • When the payload of a request command contains a fabric-scoped struct, the server shall " +
         "    implicitly load the accessing fabric-index into the global FabricIndex field of the struct." +
         "\n" +
-        "### • A fabric-scoped struct may be defined with some fields that are fabric-sensitive." +
+        "  • A fabric-scoped struct may be defined with some fields that are fabric-sensitive." +
         "\n" +
         "  • For interactions on a fabric-scoped struct that report back data, fabric-sensitive struct fields " +
         "    shall be omitted when reporting data back to the client, when the struct has an associated " +

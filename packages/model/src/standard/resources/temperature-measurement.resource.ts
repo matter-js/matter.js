@@ -16,7 +16,9 @@ Resource.add({
     children: [
         {
             tag: "attribute", name: "MeasuredValue", xref: "cluster§2.3.4.1",
-            details: "Indicates the measured temperature. The null value indicates that the temperature is unknown."
+            details: "Indicates the measured temperature." +
+                "\n" +
+                "The null value indicates that the temperature is unknown."
         },
 
         {

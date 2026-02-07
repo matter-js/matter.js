@@ -1058,8 +1058,9 @@ export namespace MediaPlayback {
             play: Command(0x0, TlvNoArguments, 0xa, TlvPlaybackResponse),
 
             /**
-             * This command is used to pause playback of the media. Upon receipt, this shall pause playback of the
-             * media.
+             * This command is used to pause playback of the media.
+             *
+             * Upon receipt, this shall pause playback of the media.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.2
              */
@@ -1076,8 +1077,9 @@ export namespace MediaPlayback {
             stop: Command(0x2, TlvNoArguments, 0xa, TlvPlaybackResponse),
 
             /**
-             * This command is used to start playback of the media from the beginning. Upon receipt, this shall Start
-             * Over with the current media playback item.
+             * This command is used to start playback of the media from the beginning.
+             *
+             * Upon receipt, this shall Start Over with the current media playback item.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.4
              */

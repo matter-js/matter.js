@@ -337,8 +337,9 @@ export namespace ModeBase {
              * attribute. Each item in this list represents a unique mode as indicated by the Mode field of the
              * ModeOptionStruct.
              *
-             * Each entry in this list shall have a unique value for the Mode field. Each entry in this list shall have
-             * a unique value for the Label field.
+             * Each entry in this list shall have a unique value for the Mode field.
+             *
+             * Each entry in this list shall have a unique value for the Label field.
              *
              * The set of ModeTags listed in each entry in this list shall be distinct from the sets of ModeTags listed
              * in the other entries. This comparison shall NOT depend on the order of the ModeTags in the lists. Two

@@ -12,17 +12,12 @@ Resource.add({
     tag: "cluster", name: "Switch", pics: "SWTCH", xref: "cluster§1.13",
 
     details: "This cluster exposes interactions with a switch device, for the purpose of using those interactions " +
-        "by other devices." +
-        "\n" +
-        "Two types of switch devices are supported: latching switch (e.g. rocker switch) and momentary switch " +
-        "(e.g. push button), distinguished with their feature flags." +
-        "\n" +
-        "Interactions with the switch device are exposed as attributes (for the latching switch) and as " +
-        "events (for both types of switches)." +
-        "\n" +
-        "An interested client may subscribe to these attributes/events and thus be informed of the " +
-        "interactions, and can perform actions based on this, for example by sending commands to perform an " +
-        "action such as controlling a light or a window shade.",
+        "by other devices. Two types of switch devices are supported: latching switch (e.g. rocker switch) " +
+        "and momentary switch (e.g. push button), distinguished with their feature flags. Interactions with " +
+        "the switch device are exposed as attributes (for the latching switch) and as events (for both types " +
+        "of switches). An interested client may subscribe to these attributes/events and thus be informed of " +
+        "the interactions, and can perform actions based on this, for example by sending commands to perform " +
+        "an action such as controlling a light or a window shade.",
 
     children: [
         {
@@ -68,7 +63,10 @@ Resource.add({
 
         {
             tag: "attribute", name: "CurrentPosition", xref: "cluster§1.13.5.2",
-            details: "Indicates the position of the switch. The valid range is zero to NumberOfPositions - 1." +
+
+            details: "Indicates the position of the switch." +
+                "\n" +
+                "The valid range is zero to NumberOfPositions - 1." +
                 "\n" +
                 "CurrentPosition value 0 shall be assigned to the default position of the switch: for example the " +
                 "\"open\" state of a rocker switch, or the \"idle\" state of a push button switch."

@@ -16,12 +16,18 @@ Resource.add(
             "\n" +
             "  • value = (temperature in °C) x 100" +
             "\n" +
+            "  • -4°C ⇒ -400" +
+            "\n" +
+            "  • 123.45°C ⇒ 12345" +
+            "\n" +
             "The range is constrained by absolute zero: -273.15°C to 327.67°C." +
             "\n" +
             "### Conversion of Temperature Values for Display" +
             "\n" +
             "When converting temperature values for display manufacturers SHOULD ensure that calculations round " +
             "to the nearest representable value. Particular care is needed when using integer arithmetic." +
+            "\n" +
+            "For example, assuming a display resolution of 0.5:" +
             "\n" +
             "### Sample Conversion Code" +
             "\n" +

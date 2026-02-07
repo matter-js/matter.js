@@ -28,7 +28,13 @@ export const RefrigeratorAndTemperatureControlledCabinetMode = Cluster(
     Attribute({ name: "CurrentMode", id: 0x1, conformance: "M" }),
     Attribute({ name: "StartUpMode", id: 0x2, conformance: "X" }),
     Attribute({ name: "OnMode", id: 0x3, conformance: "X" }),
-    Datatype({ name: "ModeOptionStruct", type: "ModeOptionStruct" }),
+
+    Datatype(
+        { name: "ModeOptionStruct", type: "struct" },
+        Field({ name: "Label", id: 0x0, conformance: "M" }),
+        Field({ name: "Mode", id: 0x1, conformance: "M" }),
+        Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
+    ),
 
     Datatype(
         { name: "ModeTag", type: "enum16" },

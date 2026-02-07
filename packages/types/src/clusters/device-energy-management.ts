@@ -650,7 +650,9 @@ export namespace DeviceEnergyManagement {
          * choose to use values between 0-100 as a percentage of compressor modulation, or could use these values as
          * Enum states meaning heating with fan, heating without fan etc.
          *
-         * NOTE An ESA shall always use the same value to represent the same operating state.
+         * > [!NOTE]
+         *
+         * > An ESA shall always use the same value to represent the same operating state.
          *
          * By providing this information a smart EMS may be able to learn the observed power draw when the ESA is put
          * into a specific state. It can potentially then use the ManufacturerESAState field in the Forecast attribute
@@ -847,8 +849,9 @@ export namespace DeviceEnergyManagement {
         endTime: TlvField(3, TlvEpochS),
 
         /**
-         * This field shall indicate the earliest start time, in UTC, that the entire Forecast can be shifted to. A null
-         * value indicates that it can be started immediately.
+         * This field shall indicate the earliest start time, in UTC, that the entire Forecast can be shifted to.
+         *
+         * A null value indicates that it can be started immediately.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.13.5
          */
@@ -1030,8 +1033,9 @@ export namespace DeviceEnergyManagement {
          * This field shall indicate the new requested power that the ESA shall operate at. It MUST be between the
          * AbsMinPower and AbsMaxPower attributes as advertised by the ESA if it supports PFR.
          *
-         * This is a signed value and can be used to indicate charging or discharging. If the ESA does NOT support PFR
-         * this value shall be ignored by the ESA.
+         * This is a signed value and can be used to indicate charging or discharging.
+         *
+         * If the ESA does NOT support PFR this value shall be ignored by the ESA.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.15.2
          */
@@ -1176,7 +1180,7 @@ export namespace DeviceEnergyManagement {
          * If this ESA supports PFR this would have 2 entries in the list as follows:
          *
          * If this ESA supports SFR where it does not know the actual power, but has an understanding of the functions
-         * that use more energy, it could be requested to use more or less energy using the LoadCon trol field as
+         * that use more energy, it could be requested to use more or less energy using the LoadControl field as
          * follows:
          *
          * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.7.1
@@ -1464,7 +1468,9 @@ export namespace DeviceEnergyManagement {
 
         events: {
             /**
-             * This event shall be generated when the ESA enters the Paused state. There is no data for this event.
+             * This event shall be generated when the ESA enters the Paused state.
+             *
+             * There is no data for this event.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.3
              */
@@ -1894,8 +1900,9 @@ export namespace DeviceEnergyManagement {
      *
      *   • Description of ESA and its capabilities & power limits (sometimes referred to as a nameplate)
      *
-     *   • Current state of operation (including user opt-out, safety limitations / alarms) There are some optional
-     *     capabilities that some ESAs may be able to offer:
+     *   • Current state of operation (including user opt-out, safety limitations / alarms)
+     *
+     * There are some optional capabilities that some ESAs may be able to offer:
      *
      *   • Ability to control the load or generation
      *

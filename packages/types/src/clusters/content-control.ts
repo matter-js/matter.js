@@ -1018,7 +1018,7 @@ export namespace ContentControl {
              * The purpose of this command is to specify whether programs with no Content rating must be blocked by this
              * media device.
              *
-             * Upon receipt of the UnblockUnratedContent command, the media device shall set the BlockUn rated attribute
+             * Upon receipt of the UnblockUnratedContent command, the media device shall set the BlockUnrated attribute
              * to FALSE.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.9
@@ -1376,7 +1376,9 @@ export namespace ContentControl {
      * responsibility of the end product to enforce appropriate right access (for example, to prevent a child from
      * disabling this feature).
      *
-     * NOTE Support for Content Control cluster is provisional.
+     * > [!NOTE]
+     *
+     * > Support for Content Control cluster is provisional.
      *
      * ContentControlCluster supports optional features that you can enable with the ContentControlCluster.with()
      * factory method.

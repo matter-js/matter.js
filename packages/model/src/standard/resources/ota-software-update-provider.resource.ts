@@ -143,7 +143,7 @@ Resource.add(
                     {
                         tag: "field", name: "ImageUri", xref: "core§11.20.6.5.2.3",
 
-                        details: "This field, when present, shall contain a URI where the OTA Requestor SHOULD download a Soft ware " +
+                        details: "This field, when present, shall contain a URI where the OTA Requestor SHOULD download a Software " +
                             "Image. The syntax of the ImageURI field shall follow the URI syntax as specified in RFC 3986." +
                             "\n" +
                             "Beware, this field is conditionally present based on the conformance listed in Section 11.20.6.5.2, " +
@@ -262,8 +262,7 @@ Resource.add(
                         details: "This field provides a string version of the image being provided to the OTA Requestor by the OTA " +
                             "Provider." +
                             "\n" +
-                            "Beware, this field is conditionally present based on the conformance listed in Section 11.20.6.5.2," +
-                            "\n" +
+                            "Beware, this field is conditionally present based on the conformance listed in Section 11.20.6.5.2, " +
                             "“QueryImageResponse Command”." +
                             "\n" +
                             "See Section 11.20.3.2, “Querying the OTA Provider” for additional details about the flow and " +

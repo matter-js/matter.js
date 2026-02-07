@@ -11,10 +11,13 @@ import { Resource } from "#models/Resource.js";
 Resource.add(
     {
         tag: "cluster", name: "JointFabricAdministrator", pics: "JFPKI", xref: "core§11.25",
+
         details: "An instance of the Joint Fabric Administrator Cluster only applies to Joint Fabric Administrator " +
             "nodes fulfilling the role of Anchor CA." +
             "\n" +
-            "NOTE Support for Joint Fabric Administrator Cluster is provisional.",
+            "> [!NOTE]" +
+            "\n" +
+            "> Support for Joint Fabric Administrator Cluster is provisional.",
 
         children: [
             {
@@ -45,8 +48,9 @@ Resource.add(
 
             {
                 tag: "command", name: "IcaccsrResponse", xref: "core§11.25.7.2",
-                details: "This command shall be generated in response to a ICACCSRRequest command. Check ICAC Cross Signing " +
-                    "for details about the generation of the ICACCSR.",
+                details: "This command shall be generated in response to a ICACCSRRequest command." +
+                    "\n" +
+                    "Check ICAC Cross Signing for details about the generation of the ICACCSR.",
                 children: [{
                     tag: "field", name: "Icaccsr", xref: "core§11.25.7.2.1",
                     details: "This field shall be a DER-encoded octet string of a properly encoded PKCS #10 Certificate Signing " +
@@ -152,7 +156,7 @@ Resource.add(
                 details: "This command shall be used for communicating to client the endpoint that holds the Joint Fabric " +
                     "Administrator Cluster." +
                     "\n" +
-                    "### This field shall contain the unique identifier for the endpoint that holds the Joint Fabric " +
+                    "This field shall contain the unique identifier for the endpoint that holds the Joint Fabric " +
                     "Administrator Cluster."
             },
 

@@ -127,10 +127,12 @@ Resource.add({
 
                     details: "This field shall indicate the timestamp of when the UniqueLocationIDs was last modified." +
                         "\n" +
-                        "NOTE If multiple server instances update the UniqueLocationIDs field at the same time, it is " +
-                        "possible one of the updates will be missed. This is considered an acceptable limitation to reduce " +
-                        "the complexity of the design. Since this is meant to be provided from user input, it is unlikely " +
-                        "these signals would be happening at one time."
+                        "> [!NOTE]" +
+                        "\n" +
+                        "> If multiple server instances update the UniqueLocationIDs field at the same time, it is possible " +
+                        "  one of the updates will be missed. This is considered an acceptable limitation to reduce the " +
+                        "  complexity of the design. Since this is meant to be provided from user input, it is unlikely these " +
+                        "  signals would be happening at one time."
                 }
             ]
         },
@@ -169,8 +171,7 @@ Resource.add({
                 {
                     tag: "field", name: "LocationDescriptor", xref: "core§9.17.4.3.2",
 
-                    details: "This field shall indicate the location (e.g. living room, driveway) and associated metadata that is" +
-                        "\n" +
+                    details: "This field shall indicate the location (e.g. living room, driveway) and associated metadata that is " +
                         "provided externally if the user consents. (For example, provided by the user in an ecosystem " +
                         "specific interface.)" +
                         "\n" +

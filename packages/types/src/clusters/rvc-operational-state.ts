@@ -27,11 +27,7 @@ export namespace RvcOperationalState {
      *
      * RVC Pause Compatibility defines the compatibility of the states this cluster defines with the Pause command.
      *
-     * ### Table 13. RVC Pause Compatibility
-     *
      * RVC Resume Compatibility defines the compatibility of the states this cluster defines with the Resume command.
-     *
-     * ### Table 14. RVC Resume Compatibility
      *
      * While in the Charging or Docked states, the device shall NOT attempt to resume unless it transitioned to those
      * states while operating and can resume, such as, for example, if it is recharging while in a cleaning cycle. Else,

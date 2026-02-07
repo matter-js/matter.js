@@ -111,10 +111,12 @@ export namespace EcosystemInformation {
         /**
          * This field shall indicate the timestamp of when the UniqueLocationIDs was last modified.
          *
-         * NOTE If multiple server instances update the UniqueLocationIDs field at the same time, it is possible one of
-         * the updates will be missed. This is considered an acceptable limitation to reduce the complexity of the
-         * design. Since this is meant to be provided from user input, it is unlikely these signals would be happening
-         * at one time.
+         * > [!NOTE]
+         *
+         * > If multiple server instances update the UniqueLocationIDs field at the same time, it is possible one of the
+         *   updates will be missed. This is considered an acceptable limitation to reduce the complexity of the design.
+         *   Since this is meant to be provided from user input, it is unlikely these signals would be happening at one
+         *   time.
          *
          * @see {@link MatterSpecification.v142.Core} § 9.17.4.2.7
          */
@@ -160,10 +162,8 @@ export namespace EcosystemInformation {
         uniqueLocationId: TlvField(0, TlvString.bound({ maxLength: 64 })),
 
         /**
-         * This field shall indicate the location (e.g. living room, driveway) and associated metadata that is
-         *
-         * provided externally if the user consents. (For example, provided by the user in an ecosystem specific
-         * interface.)
+         * This field shall indicate the location (e.g. living room, driveway) and associated metadata that is provided
+         * externally if the user consents. (For example, provided by the user in an ecosystem specific interface.)
          *
          * "Location" in this context is typically used by the user’s grouping into rooms, areas or other logical
          * groupings of how devices are used. So a device might be part of multiple such "Locations"s.

@@ -23,7 +23,7 @@ Resource.add({
         "Descriptor cluster in addition to the Mounted Dimmable Load Control device type (see " +
         "[ref_MountedDimmableLoadControlServerGuidance])." +
         "\n" +
-        "### Before Matter 1.4, mounted dimmable load control units typically used the Dimmable Plug-In Unit " +
+        "Before Matter 1.4, mounted dimmable load control units typically used the Dimmable Plug-In Unit " +
         "device type. Clients can encounter devices which were made before or after these specification " +
         "updates. Therefore, clients SHOULD use the following heuristic to distinguish the type of physical " +
         "device based on the device type revision found on an endpoint (\"--\" means the device type is not " +

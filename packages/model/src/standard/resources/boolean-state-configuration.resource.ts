@@ -63,10 +63,8 @@ Resource.add(
                     "\n" +
                     "These supported sensitivity levels shall be ordered by sensitivity, where a value of 0 shall be " +
                     "considered the lowest sensitivity level (least sensitive) and the highest supported value shall be " +
-                    "considered the highest sensitivity level." +
-                    "\n" +
-                    "The number of supported sensitivity levels SHOULD represent unique sensitivity levels supported by " +
-                    "the device."
+                    "considered the highest sensitivity level. The number of supported sensitivity levels SHOULD " +
+                    "represent unique sensitivity levels supported by the device."
             },
 
             {
@@ -81,8 +79,9 @@ Resource.add(
                     "longer triggered, this attribute shall be set to the inactive state, by setting the bit to 0, for " +
                     "all supported alarm modes." +
                     "\n" +
-                    "If an alarm mode is not supported, the bit indicating this alarm mode shall always be 0. A bit shall " +
-                    "indicate whether the alarm mode inactive or not:" +
+                    "If an alarm mode is not supported, the bit indicating this alarm mode shall always be 0." +
+                    "\n" +
+                    "A bit shall indicate whether the alarm mode inactive or not:" +
                     "\n" +
                     "  • 0 = Inactive" +
                     "\n" +
@@ -96,8 +95,9 @@ Resource.add(
                     "longer triggered, this attribute shall be set to the unsuppressed state, by setting the bit to 0, " +
                     "for all supported alarm modes." +
                     "\n" +
-                    "If an alarm mode is not supported, the bit indicating this alarm mode shall always be 0. A bit shall " +
-                    "indicate whether the alarm mode is suppressed or not:" +
+                    "If an alarm mode is not supported, the bit indicating this alarm mode shall always be 0." +
+                    "\n" +
+                    "A bit shall indicate whether the alarm mode is suppressed or not:" +
                     "\n" +
                     "  • 0 = Not suppressed" +
                     "\n" +
@@ -107,8 +107,9 @@ Resource.add(
             {
                 tag: "attribute", name: "AlarmsEnabled", xref: "cluster§1.8.6.6",
 
-                details: "Indicates the alarm modes that will be emitted if the sensor is triggered. If an alarm mode is not " +
-                    "supported, the bit indicating this alarm mode shall always be 0." +
+                details: "Indicates the alarm modes that will be emitted if the sensor is triggered." +
+                    "\n" +
+                    "If an alarm mode is not supported, the bit indicating this alarm mode shall always be 0." +
                     "\n" +
                     "A bit shall indicate whether the alarm mode is enabled or disabled:" +
                     "\n" +
@@ -120,8 +121,9 @@ Resource.add(
             {
                 tag: "attribute", name: "AlarmsSupported", xref: "cluster§1.8.6.7",
 
-                details: "Indicates the alarms supported by the sensor. A bit shall indicate whether the alarm mode is " +
-                    "supported:" +
+                details: "Indicates the alarms supported by the sensor." +
+                    "\n" +
+                    "A bit shall indicate whether the alarm mode is supported:" +
                     "\n" +
                     "  • 0 = Not supported" +
                     "\n" +

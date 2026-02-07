@@ -78,11 +78,15 @@ Resource.add({
                 "The SupportedAreas attribute list changes mentioned above SHOULD NOT be allowed while the device is " +
                 "operating, to reduce the impact on the clients, and the potential confusion for the users." +
                 "\n" +
-                "A few examples are provided below. Valid list of areas:" +
+                "A few examples are provided below." +
+                "\n" +
+                "Valid list of areas:" +
                 "\n" +
                 "  • AreaID=0, LocationName=\"yellow bedroom\", MapID=null" +
                 "\n" +
-                "  • AreaID=1, LocationName=\"orange bedroom\", MapID=null Valid list of areas:" +
+                "  • AreaID=1, LocationName=\"orange bedroom\", MapID=null" +
+                "\n" +
+                "Valid list of areas:" +
                 "\n" +
                 "  • AreaID=5, LocationName=\"hallway\", MapID=1" +
                 "\n" +
@@ -114,8 +118,9 @@ Resource.add({
                 "indicate that the device is to operate on the first floor, and allow the user to choose only from " +
                 "the areas situated on that level." +
                 "\n" +
-                "If empty, that indicates that the device is currently unable to provide this information. Each entry " +
-                "in this list shall have a unique value for the MapID field." +
+                "If empty, that indicates that the device is currently unable to provide this information." +
+                "\n" +
+                "Each entry in this list shall have a unique value for the MapID field." +
                 "\n" +
                 "Each entry in this list shall have a unique value for the Name field." +
                 "\n" +
@@ -148,8 +153,9 @@ Resource.add({
                 "indicated by the SelectedAreas attribute. For example, a robotic vacuum cleaner may drive without " +
                 "cleaning when traveling without operating." +
                 "\n" +
-                "If this attribute is empty, the device is not constrained to operate in any specific areas. If this " +
-                "attribute is not empty:" +
+                "If this attribute is empty, the device is not constrained to operate in any specific areas." +
+                "\n" +
+                "If this attribute is not empty:" +
                 "\n" +
                 "  • each item in this list shall match the AreaID field of an entry in the SupportedAreas " +
                 "    attribute’s list" +
@@ -222,8 +228,9 @@ Resource.add({
         {
             tag: "attribute", name: "Progress", xref: "cluster§1.17.6.6",
 
-            details: "Indicates the operating status at one or more areas. Each entry in this list shall have a unique " +
-                "value for the AreaID field." +
+            details: "Indicates the operating status at one or more areas." +
+                "\n" +
+                "Each entry in this list shall have a unique value for the AreaID field." +
                 "\n" +
                 "For each entry in this list, the AreaID field shall match an entry on the SupportedAreas attribute’s " +
                 "list." +
@@ -288,8 +295,8 @@ Resource.add({
                 tag: "field", name: "Status", xref: "cluster§1.17.7.2.1",
 
                 details: "If the Status field is set to Success or UnsupportedArea, the server may use a non-empty string for " +
-                    "the StatusText field to provide additional information. For example, if Status is set to Unsupport " +
-                    "edArea, the server may use StatusText to indicate which areas are unsupported." +
+                    "the StatusText field to provide additional information. For example, if Status is set to " +
+                    "UnsupportedArea, the server may use StatusText to indicate which areas are unsupported." +
                     "\n" +
                     "If the Status field is not set to Success, or UnsupportedArea, the StatusText field shall include a " +
                     "vendor-defined error description which can be used to explain the error to the user. For example, if " +
@@ -373,13 +380,16 @@ Resource.add({
                 "\n" +
                 "For an area description to be meaningful, it shall have at least one of the following:" +
                 "\n" +
-                "  • a non-empty name (LocationInfo’s LocationName field) OR" +
+                "  • a non-empty name (LocationInfo’s LocationName field)" +
+                "\n" +
+                "OR" +
                 "\n" +
                 "  • some semantic data (one or more of these: FloorNumber, AreaType or LandmarkTag) The normative " +
                 "    text from the remainder of this section describes these constraints." +
                 "\n" +
-                "If the LocationInfo field is null, the LandmarkInfo field shall NOT be null. If the LandmarkInfo " +
-                "field is null, the LocationInfo field shall NOT be null." +
+                "If the LocationInfo field is null, the LandmarkInfo field shall NOT be null." +
+                "\n" +
+                "If the LandmarkInfo field is null, the LocationInfo field shall NOT be null." +
                 "\n" +
                 "If LocationInfo is not null, and its LocationName field is an empty string, at least one of the " +
                 "following shall NOT be null:" +
@@ -403,8 +413,9 @@ Resource.add({
                 {
                     tag: "field", name: "LocationInfo", xref: "cluster§1.17.5.2.1",
 
-                    details: "This field shall indicate the name of the area, floor number and/or area type. A few examples are " +
-                        "provided below." +
+                    details: "This field shall indicate the name of the area, floor number and/or area type." +
+                        "\n" +
+                        "A few examples are provided below." +
                         "\n" +
                         "  • An area can have LocationInfo’s LocationName field set to \"blue room\", and the AreaType field " +
                         "    set to the ID of a \"Living Room\" semantic tag. Clients wishing to direct the device to operate " +
@@ -440,10 +451,12 @@ Resource.add({
                     tag: "field", name: "MapId", xref: "cluster§1.17.5.3.1",
                     details: "This field shall represent the map’s identifier."
                 },
+
                 {
                     tag: "field", name: "Name", xref: "cluster§1.17.5.3.2",
-                    details: "This field shall represent a human understandable map description. For example: \"Main Floor\", or " +
-                        "\"Second Level\"."
+                    details: "This field shall represent a human understandable map description." +
+                        "\n" +
+                        "For example: \"Main Floor\", or \"Second Level\"."
                 }
             ]
         },

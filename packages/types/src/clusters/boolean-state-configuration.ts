@@ -218,10 +218,8 @@ export namespace BooleanStateConfiguration {
              *
              * These supported sensitivity levels shall be ordered by sensitivity, where a value of 0 shall be
              * considered the lowest sensitivity level (least sensitive) and the highest supported value shall be
-             * considered the highest sensitivity level.
-             *
-             * The number of supported sensitivity levels SHOULD represent unique sensitivity levels supported by the
-             * device.
+             * considered the highest sensitivity level. The number of supported sensitivity levels SHOULD represent
+             * unique sensitivity levels supported by the device.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.8.6.2
              */
@@ -246,8 +244,9 @@ export namespace BooleanStateConfiguration {
              * triggered, this attribute shall be set to the inactive state, by setting the bit to 0, for all supported
              * alarm modes.
              *
-             * If an alarm mode is not supported, the bit indicating this alarm mode shall always be 0. A bit shall
-             * indicate whether the alarm mode inactive or not:
+             * If an alarm mode is not supported, the bit indicating this alarm mode shall always be 0.
+             *
+             * A bit shall indicate whether the alarm mode inactive or not:
              *
              *   • 0 = Inactive
              *
@@ -258,8 +257,9 @@ export namespace BooleanStateConfiguration {
             alarmsActive: Attribute(0x3, TlvBitmap(TlvUInt8, AlarmMode)),
 
             /**
-             * Indicates the alarm modes that will be emitted if the sensor is triggered. If an alarm mode is not
-             * supported, the bit indicating this alarm mode shall always be 0.
+             * Indicates the alarm modes that will be emitted if the sensor is triggered.
+             *
+             * If an alarm mode is not supported, the bit indicating this alarm mode shall always be 0.
              *
              * A bit shall indicate whether the alarm mode is enabled or disabled:
              *
@@ -272,7 +272,9 @@ export namespace BooleanStateConfiguration {
             alarmsEnabled: OptionalAttribute(0x5, TlvBitmap(TlvUInt8, AlarmMode), { persistent: true }),
 
             /**
-             * Indicates the alarms supported by the sensor. A bit shall indicate whether the alarm mode is supported:
+             * Indicates the alarms supported by the sensor.
+             *
+             * A bit shall indicate whether the alarm mode is supported:
              *
              *   • 0 = Not supported
              *
@@ -316,8 +318,9 @@ export namespace BooleanStateConfiguration {
              * triggered, this attribute shall be set to the unsuppressed state, by setting the bit to 0, for all
              * supported alarm modes.
              *
-             * If an alarm mode is not supported, the bit indicating this alarm mode shall always be 0. A bit shall
-             * indicate whether the alarm mode is suppressed or not:
+             * If an alarm mode is not supported, the bit indicating this alarm mode shall always be 0.
+             *
+             * A bit shall indicate whether the alarm mode is suppressed or not:
              *
              *   • 0 = Not suppressed
              *

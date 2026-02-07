@@ -319,10 +319,11 @@ Resource.add({
                         "\n" +
                         "  • The EnableKey field does not match the a-priori value configured on the device." +
                         "\n" +
-                        "  • The TestEventTriggersEnabled field is currently false. Otherwise, the server shall respond with " +
-                        "    a PayloadTestResponse command with a Payload field value containing Count instances of the Value " +
-                        "    byte. If the response is too large to send, the server shall fail the command and respond with a " +
-                        "    response status of RESOURCE_EXHAUSTED." +
+                        "  • The TestEventTriggersEnabled field is currently false." +
+                        "\n" +
+                        "Otherwise, the server shall respond with a PayloadTestResponse command with a Payload field value " +
+                        "containing Count instances of the Value byte. If the response is too large to send, the server shall " +
+                        "fail the command and respond with a response status of RESOURCE_EXHAUSTED." +
                         "\n" +
                         "For example:" +
                         "\n" +
@@ -411,7 +412,7 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "ThreadFault",
-                    description: "The Node has encountered a fault with its802.15.4 radio."
+                    description: "The Node has encountered a fault with its 802.15.4 radio."
                 },
                 { tag: "field", name: "NfcFault", description: "The Node has encountered a fault with its NFC radio." },
                 { tag: "field", name: "BleFault", description: "The Node has encountered a fault with its BLE radio." },

@@ -60,19 +60,12 @@ Resource.add(
                     "For example, if the target temperature was 60°C, the current temperature was 20°C and the tank " +
                     "volume was 100L:" +
                     "\n" +
-                    "### Mass of water = 1kg per Litre" +
+                    "Mass of water = 1kg per Litre Total Mass = 100 x 1kg = 100kg Δ Temperature = (target temperature - " +
+                    "current temperature) = (60°C - 20°C) = 40°C" +
                     "\n" +
-                    "Total Mass = 100 x 1kg = 100kg" +
+                    "Energy required to heat the water to 60°C = 4182 x 40 x 100 = 16,728,000 J" +
                     "\n" +
-                    "Δ Temperature = (target temperature - current temperature)" +
-                    "\n" +
-                    "= (60°C - 20°C) = 40°C" +
-                    "\n" +
-                    "### Energy required to" +
-                    "\n" +
-                    "heat the water to 60°C = 4182 x 40 x 100 = 16,728,000 J" +
-                    "\n" +
-                    "Converting Joules in to Wh of heat (divide by 3600):" +
+                    "Converting Joules in to Wh of heat (divide by 3600): = 16,728,000 J / 3600 = 4647 Wh (4.65kWh)" +
                     "\n" +
                     "If the TankPercent feature is supported, then this estimate shall also take into account the " +
                     "percentage of the water in the tank which is already hot." +
@@ -112,11 +105,9 @@ Resource.add(
                     "(COLD_WATER_TEMP) was assumed to be 20°C:" +
                     "\n" +
                     "TankPercentage = int(((current temperature - COLD_WATER_TEMP) / (target temperature - " +
-                    "COLD_WATER_TEMP)) * 100)" +
+                    "COLD_WATER_TEMP)) * 100) TankPercentage = min( max(TankPercentage,0), 100)" +
                     "\n" +
-                    "TankPercentage = min( max(TankPercentage,0), 100)" +
-                    "\n" +
-                    "### TankPercentage = 50%"
+                    "TankPercentage = 50%"
             },
 
             {
@@ -142,9 +133,12 @@ Resource.add(
                 tag: "command", name: "Boost", xref: "cluster§9.5.8.1",
                 details: "Allows a client to request that the water heater is put into a Boost state."
             },
+
             {
                 tag: "command", name: "CancelBoost", xref: "cluster§9.5.8.2",
-                details: "Allows a client to cancel an ongoing Boost operation. This command has no payload."
+                details: "Allows a client to cancel an ongoing Boost operation." +
+                    "\n" +
+                    "This command has no payload."
             },
 
             {

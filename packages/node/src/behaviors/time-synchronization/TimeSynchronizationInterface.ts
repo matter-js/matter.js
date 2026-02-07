@@ -37,7 +37,9 @@ export namespace TimeSynchronizationInterface {
 
     export interface TimeSyncClient {
         /**
-         * This command is used to set the TrustedTimeSource attribute. Upon receipt of this command:
+         * This command is used to set the TrustedTimeSource attribute.
+         *
+         * Upon receipt of this command:
          *
          *   • If the TrustedTimeSource field in the command is null, the node shall set the TrustedTimeSource attribute
          *     to null and shall generate a MissingTrustedTimeSource event.

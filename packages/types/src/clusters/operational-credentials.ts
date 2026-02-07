@@ -231,12 +231,12 @@ export namespace OperationalCredentials {
      */
     export enum CertificateChainType {
         /**
-         * Request the DER- encoded DAC certificate
+         * Request the DER-encoded DAC certificate
          */
         DacCertificate = 1,
 
         /**
-         * Request the DER- encoded PAI certificate
+         * Request the DER-encoded PAI certificate
          */
         PaiCertificate = 2
     }
@@ -402,7 +402,7 @@ export namespace OperationalCredentials {
          * If no prior AddTrustedRootCertificate command was successfully executed within the fail-safe timer period,
          * then this command shall process an error by responding with a NOCResponse with a StatusCode of InvalidNOC as
          * described in Section 11.18.6.7.2, “Handling Errors”. In other words, AddNOC always requires that the client
-         * provides the root of trust certificate within the same Fail- Safe context as the rest of the new fabric’s
+         * provides the root of trust certificate within the same Fail-Safe context as the rest of the new fabric’s
          * operational credentials, even if some other fabric already uses the exact same root of trust certificate.
          *
          * If the NOC provided in the NOCValue encodes an Operational Identifier for a <Root Public Key, FabricID> pair
@@ -1141,17 +1141,17 @@ export namespace OperationalCredentials {
              * If the given Fabric being removed is the last one to reference a given Trusted Root CA Certificate stored
              * in the Trusted Root Certificates list, then that Trusted Root Certificate shall be removed.
              *
-             * ### WARNING
+             * > [!WARNING]
              *
-             * This command, if referring to an already existing Fabric not under the control of the invoking
-             * Administrator, shall ONLY be invoked after obtaining some form of explicit user consent through some
-             * method executed by the Administrator or Commissioner. This method of obtaining consent SHOULD employ as
-             * much data as possible about the existing Fabric associations within the Fabrics list, so that likelihood
-             * is as small as possible of a user removing a Fabric unwittingly. If a method exists for an Administrator
-             * or Commissioner to convey Fabric Removal to an entity related to that Fabric, whether in-band or
-             * out-of-band, then this method SHOULD be used to notify the other Administrative Domain’s party of the
-             * removal. Otherwise, users may only observe the removal of a Fabric association as persistently failing
-             * attempts to reach a Node operationally.
+             * > This command, if referring to an already existing Fabric not under the control of the invoking
+             *   Administrator, shall ONLY be invoked after obtaining some form of explicit user consent through some
+             *   method executed by the Administrator or Commissioner. This method of obtaining consent SHOULD employ as
+             *   much data as possible about the existing Fabric associations within the Fabrics list, so that
+             *   likelihood is as small as possible of a user removing a Fabric unwittingly. If a method exists for an
+             *   Administrator or Commissioner to convey Fabric Removal to an entity related to that Fabric, whether
+             *   in-band or out-of-band, then this method SHOULD be used to notify the other Administrative Domain’s
+             *   party of the removal. Otherwise, users may only observe the removal of a Fabric association as
+             *   persistently failing attempts to reach a Node operationally.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.18.6.12
              */

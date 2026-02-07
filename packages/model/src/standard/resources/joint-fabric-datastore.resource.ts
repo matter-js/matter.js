@@ -28,7 +28,9 @@ Resource.add({
         "The Admin level of access to the Joint Fabric Datastore cluster server shall be limited to JF " +
         "Administrator Nodes identified using the Administrator CAT." +
         "\n" +
-        "NOTE Support for Joint Fabric Datastore cluster is provisional.",
+        "> [!NOTE]" +
+        "\n" +
+        "> Support for Joint Fabric Datastore cluster is provisional.",
 
     children: [
         {
@@ -139,8 +141,9 @@ Resource.add({
             details: "This command shall be used to add a KeySet to the Joint Fabric Datastore Cluster of the accessing " +
                 "fabric." +
                 "\n" +
-                "GroupKeySet represents the KeySet to be added to the Joint Fabric Datastore Cluster. Upon receipt of " +
-                "this command, the Datastore shall:" +
+                "GroupKeySet represents the KeySet to be added to the Joint Fabric Datastore Cluster." +
+                "\n" +
+                "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
                 "  1. Ensure there are no KeySets in the KeySetList attribute with the given GroupKeySetID." +
                 "\n" +
@@ -155,8 +158,9 @@ Resource.add({
             details: "This command shall be used to update a KeySet in the Joint Fabric Datastore Cluster of the accessing " +
                 "fabric." +
                 "\n" +
-                "GroupKeySet represents the KeySet to be updated in the Joint Fabric Datastore Cluster. Upon receipt " +
-                "of this command, the Datastore shall:" +
+                "GroupKeySet represents the KeySet to be updated in the Joint Fabric Datastore Cluster." +
+                "\n" +
+                "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
                 "  1. Find the Epoch Key Entry for the KeySet in the KeySetList attribute with the given " +
                 "     GroupKeySetID, and update any changed fields." +
@@ -287,15 +291,14 @@ Resource.add({
                 "\n" +
                 "    I. If the GroupIDList contains an entry with the given GroupID:" +
                 "\n" +
-                "      1. Update the GroupIDList Entry in the Datastore with the new values and Status" +
+                "      1. Update the GroupIDList Entry in the Datastore with the new values and Status Pending" +
                 "\n" +
-                "### Pending" +
+                "      2. Update the Groups on the given Node with the new values." +
                 "\n" +
-                "2. Update the Groups on the given Node with the new values." +
+                "      1. If the update succeeds, set the Status to Committed on the GroupIDList Entry in the " +
+                "         Datastore." +
                 "\n" +
-                "  1. If the update succeeds, set the Status to Committed on the GroupIDList Entry in the Datastore." +
-                "\n" +
-                "  2. If not successful, the pending change shall be applied in a subsequent Node Refresh."
+                "      2. If not successful, the pending change shall be applied in a subsequent Node Refresh."
         },
 
         {
@@ -364,8 +367,9 @@ Resource.add({
             details: "The command shall be used to add a node to the Joint Fabric Datastore Cluster of the accessing " +
                 "fabric." +
                 "\n" +
-                "NodeID represents the node to be added to the Joint Fabric Datastore Cluster. Upon receipt of this " +
-                "command, the Datastore shall:" +
+                "NodeID represents the node to be added to the Joint Fabric Datastore Cluster." +
+                "\n" +
+                "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
                 "  1. Update CommissioningStatusEntry of the Node Information Entry with the given NodeID to Pending." +
                 "\n" +
@@ -562,8 +566,9 @@ Resource.add({
                 "EndpointID represents the unique identifier for the endpoint to be updated in the Joint Fabric " +
                 "Datastore Cluster." +
                 "\n" +
-                "NodeID represents the unique identifier for the node to which the endpoint belongs. Upon receipt of " +
-                "this command, the Datastore shall:" +
+                "NodeID represents the unique identifier for the node to which the endpoint belongs." +
+                "\n" +
+                "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
                 "  1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if " +
                 "     not, return NOT_FOUND." +
@@ -605,8 +610,9 @@ Resource.add({
                 "EndpointID represents the unique identifier for the endpoint to be updated in the Joint Fabric " +
                 "Datastore Cluster." +
                 "\n" +
-                "NodeID represents the unique identifier for the node to which the endpoint belongs. Upon receipt of " +
-                "this command, the Datastore shall:" +
+                "NodeID represents the unique identifier for the node to which the endpoint belongs." +
+                "\n" +
+                "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
                 "  1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if " +
                 "     not, return NOT_FOUND." +
@@ -649,8 +655,9 @@ Resource.add({
                 "EndpointID represents the unique identifier for the endpoint to be updated in the Joint Fabric " +
                 "Datastore Cluster." +
                 "\n" +
-                "NodeID represents the unique identifier for the node to which the endpoint belongs. Upon receipt of " +
-                "this command, the Datastore shall:" +
+                "NodeID represents the unique identifier for the node to which the endpoint belongs." +
+                "\n" +
+                "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
                 "  1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if " +
                 "     not, return NOT_FOUND." +
@@ -681,8 +688,9 @@ Resource.add({
                 "EndpointID represents the unique identifier for the endpoint to be updated in the Joint Fabric " +
                 "Datastore Cluster." +
                 "\n" +
-                "NodeID represents the unique identifier for the node to which the endpoint belongs. Upon receipt of " +
-                "this command, the Datastore shall:" +
+                "NodeID represents the unique identifier for the node to which the endpoint belongs." +
+                "\n" +
+                "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
                 "  1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if " +
                 "     not, return NOT_FOUND." +
@@ -706,8 +714,9 @@ Resource.add({
             details: "This command shall be used to add an ACL to a node in the Joint Fabric Datastore Cluster of the " +
                 "accessing fabric." +
                 "\n" +
-                "NodeID represents the unique identifier for the node to which the ACL is to be added. ACLEntry " +
-                "represents the ACL to be added to the Joint Fabric Datastore Cluster." +
+                "NodeID represents the unique identifier for the node to which the ACL is to be added." +
+                "\n" +
+                "ACLEntry represents the ACL to be added to the Joint Fabric Datastore Cluster." +
                 "\n" +
                 "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
@@ -736,8 +745,9 @@ Resource.add({
                 "ListID represents the unique identifier for the DatastoreACLEntryStruct to be removed from the " +
                 "Datastore’s list of DatastoreACLEntry." +
                 "\n" +
-                "NodeID represents the unique identifier for the node from which the ACL is to be removed. Upon " +
-                "receipt of this command, the Datastore shall:" +
+                "NodeID represents the unique identifier for the node from which the ACL is to be removed." +
+                "\n" +
+                "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
                 "  1. Confirm that a Node Information Entry exists for the given NodeID, and if not, return " +
                 "     NOT_FOUND." +

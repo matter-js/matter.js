@@ -262,8 +262,9 @@ Resource.add({
 
         {
             tag: "command", name: "Pause", xref: "cluster§6.10.7.2",
-            details: "This command is used to pause playback of the media. Upon receipt, this shall pause playback of the " +
-                "media."
+            details: "This command is used to pause playback of the media." +
+                "\n" +
+                "Upon receipt, this shall pause playback of the media."
         },
 
         {
@@ -276,8 +277,9 @@ Resource.add({
 
         {
             tag: "command", name: "StartOver", xref: "cluster§6.10.7.4",
-            details: "This command is used to start playback of the media from the beginning. Upon receipt, this shall " +
-                "Start Over with the current media playback item."
+            details: "This command is used to start playback of the media from the beginning." +
+                "\n" +
+                "Upon receipt, this shall Start Over with the current media playback item."
         },
 
         {

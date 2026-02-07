@@ -20,10 +20,8 @@ export enum Namespace {
      *
      * > [!NOTE]
      *
-     * > This namespace has been deprecated as of Matter 1.4.2.
-     *
-     * Clients SHOULD still have support for these tags, since the tags could be used by a server certified on a
-     * previous revision of Matter.
+     * > This namespace has been deprecated as of Matter 1.4.2. Clients SHOULD still have support for these tags, since
+     *   the tags could be used by a server certified on a previous revision of Matter.
      */
     Closure = 1,
 
@@ -82,9 +80,6 @@ export enum Namespace {
      * number comprised of Arabic numerals encoded as a string to indicate the row/column of the item. Number words
      * (e.g. "one", "two", etc.) shall NOT be used to describe the position of the item. The first row/column shall use
      * Label "1".
-     *
-     * The following example illustrates a compound device comprised of 9 endpoints arranged in a 3x3 grid. This example
-     * uses position tags to indicate position.
      */
     Position = 8,
 

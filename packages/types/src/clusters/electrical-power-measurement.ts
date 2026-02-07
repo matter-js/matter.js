@@ -186,7 +186,7 @@ export namespace ElectricalPowerMeasurement {
         Frequency = 11,
 
         /**
-         * Power Factor ratio in+/- 1/100ths of a percent.
+         * Power Factor ratio in +/- 1/100ths of a percent.
          */
         PowerFactor = 12,
 
@@ -272,17 +272,20 @@ export namespace ElectricalPowerMeasurement {
         /**
          * This field shall be the most recent timestamp in UTC that the value in the Min field was measured.
          *
-         * This field shall be greater than or equal to the value of the StartTimestamp field. This field shall be less
-         * than or equal to the value of the EndTimestamp field.
+         * This field shall be greater than or equal to the value of the StartTimestamp field.
+         *
+         * This field shall be less than or equal to the value of the EndTimestamp field.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.3.6
          */
         minTimestamp: TlvOptionalField(5, TlvEpochS),
 
         /**
-         * This field shall be the most recent timestamp in UTC of the value in the Max field. This field shall be
-         * greater than or equal to the value of the StartTimestamp field. This field shall be less than or equal to the
-         * value of the EndTimestamp field.
+         * This field shall be the most recent timestamp in UTC of the value in the Max field.
+         *
+         * This field shall be greater than or equal to the value of the StartTimestamp field.
+         *
+         * This field shall be less than or equal to the value of the EndTimestamp field.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.3.7
          */
@@ -309,8 +312,9 @@ export namespace ElectricalPowerMeasurement {
         endSystime: TlvOptionalField(8, TlvSysTimeMS),
 
         /**
-         * This field shall be the measurement time since boot of the value in the Min field was measured. This field
-         * shall be greater than or equal to the value of the StartSystime field.
+         * This field shall be the measurement time since boot of the value in the Min field was measured.
+         *
+         * This field shall be greater than or equal to the value of the StartSystime field.
          *
          * This field shall be less than or equal to the value of the EndSystime field.
          *
@@ -319,8 +323,9 @@ export namespace ElectricalPowerMeasurement {
         minSystime: TlvOptionalField(9, TlvSysTimeMS),
 
         /**
-         * This field shall be the measurement time since boot of the value in the Max field. This field shall be
-         * greater than or equal to the value of the StartSystime field.
+         * This field shall be the measurement time since boot of the value in the Max field.
+         *
+         * This field shall be greater than or equal to the value of the StartSystime field.
          *
          * This field shall be less than or equal to the value of the EndSystime field.
          *
@@ -415,8 +420,9 @@ export namespace ElectricalPowerMeasurement {
             apparentCurrent: OptionalAttribute(0x7, TlvNullable(TlvInt64), { default: null }),
 
             /**
-             * This shall indicate the most recent ReactivePower reading in millivolt-amps reactive (mVAR). A positive
-             * value represents power imported, while a negative value represents power exported.
+             * This shall indicate the most recent ReactivePower reading in millivolt-amps reactive (mVAR).
+             *
+             * A positive value represents power imported, while a negative value represents power exported.
              *
              * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
              * publication of deltas considered not meaningful.
@@ -615,8 +621,9 @@ export namespace ElectricalPowerMeasurement {
              *
              * If the neutral current cannot be measured or derived, a value of null shall be returned.
              *
-             * A positive value represents an imbalance between the phase currents when power is imported. A negative
-             * value represents an imbalance between the phase currents when power is exported.
+             * A positive value represents an imbalance between the phase currents when power is imported.
+             *
+             * A negative value represents an imbalance between the phase currents when power is exported.
              *
              * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
              * publication of deltas considered not meaningful.

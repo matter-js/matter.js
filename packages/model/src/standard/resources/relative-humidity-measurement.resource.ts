@@ -23,8 +23,9 @@ Resource.add(
                     "\n" +
                     "MeasuredValue = 100 x water content" +
                     "\n" +
-                    "Where 0% < = water content < = 100%, corresponding to a MeasuredValue in the range 0 to 10000. The " +
-                    "maximum resolution this format allows is 0.01%." +
+                    "Where 0% < = water content < = 100%, corresponding to a MeasuredValue in the range 0 to 10000." +
+                    "\n" +
+                    "The maximum resolution this format allows is 0.01%." +
                     "\n" +
                     "MinMeasuredValue and MaxMeasuredValue define the range of the sensor." +
                     "\n" +

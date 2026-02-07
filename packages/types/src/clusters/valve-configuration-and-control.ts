@@ -259,8 +259,9 @@ export namespace ValveConfigurationAndControl {
              * During a transition from one level to another level, the valve SHOULD keep this attribute updated to the
              * best of its ability, in order to represent the actual level of the valve during the movement.
              *
-             * A value of 100 percent shall indicate the fully open position. A value of 0 percent shall indicate the
-             * fully closed position.
+             * A value of 100 percent shall indicate the fully open position.
+             *
+             * A value of 0 percent shall indicate the fully closed position.
              *
              * A value of null shall indicate that the current state is not known.
              *
@@ -364,7 +365,9 @@ export namespace ValveConfigurationAndControl {
             defaultOpenDuration: WritableAttribute(0x1, TlvNullable(TlvUInt32.bound({ min: 1 })), { persistent: true }),
 
             /**
-             * Indicates the remaining duration, in seconds, until the valve closes. Null:
+             * Indicates the remaining duration, in seconds, until the valve closes.
+             *
+             * Null:
              *
              *   • When OpenDuration is null, or
              *

@@ -217,8 +217,9 @@ export namespace EnergyEvse {
      * The optimization strategy is not defined here, however in simple terms, the AddedEnergy requirement can be
      * fulfilled by knowing the charging Power (W) and the time needed to charge.
      *
-     * To compute the Charging Time: Required Energy (Wh) = Power (W) x ChargingTime (s) / 3600 Therefore: ChargingTime
-     * (s) = (3600 x RequiredEnergy (wH)) / Power (W)
+     * To compute the Charging Time: Required Energy (Wh) = Power (W) x ChargingTime (s) / 3600
+     *
+     * Therefore: ChargingTime (s) = (3600 x RequiredEnergy (wH)) / Power (W)
      *
      * To compute the charging time: Charging StartTime = TargetTimeMinutesPastMidnight - ChargingTime
      *
@@ -271,9 +272,8 @@ export namespace EnergyEvse {
          *   • the AddedEnergy field shall take precedence over the TargetSoC field, and if the EVSE does not support
          *     the SOC feature then the TargetSoC field may only take the values null or 100%.
          *
-         *   • if the AddedEnergy field has not been provided, the EVSE SHOULD assume the vehicle is empty
-         *
-         * and charge until the vehicle stops demanding a charge.
+         *   • if the AddedEnergy field has not been provided, the EVSE SHOULD assume the vehicle is empty and charge
+         *     until the vehicle stops demanding a charge.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 9.3.7.6.2
          */
@@ -313,8 +313,9 @@ export namespace EnergyEvse {
      * The optimization strategy is not defined here, however in simple terms, the AddedEnergy requirement can be
      * fulfilled by knowing the charging Power (W) and the time needed to charge.
      *
-     * To compute the Charging Time: Required Energy (Wh) = Power (W) x ChargingTime (s) / 3600 Therefore: ChargingTime
-     * (s) = (3600 x RequiredEnergy (wH)) / Power (W)
+     * To compute the Charging Time: Required Energy (Wh) = Power (W) x ChargingTime (s) / 3600
+     *
+     * Therefore: ChargingTime (s) = (3600 x RequiredEnergy (wH)) / Power (W)
      *
      * To compute the charging time: Charging StartTime = TargetTimeMinutesPastMidnight - ChargingTime
      *
@@ -892,8 +893,9 @@ export namespace EnergyEvse {
             dischargingEnabledUntil: Attribute(0x4, TlvNullable(TlvEpochS), { persistent: true }),
 
             /**
-             * Indicates the maximum current that can be received by the EVSE from the EV. This attribute can be set
-             * using the EnableDischarging command.
+             * Indicates the maximum current that can be received by the EVSE from the EV.
+             *
+             * This attribute can be set using the EnableDischarging command.
              *
              * This attribute value shall be the minimum of:
              *
@@ -996,17 +998,10 @@ export namespace EnergyEvse {
              *
              * Example:
              *
-             * ApproxEVEfficiency (km/kWh x 1000): 4800 (i.e. 4.8km/kWh x 1000)
+             * ApproxEVEfficiency (km/kWh x 1000): 4800 (i.e. 4.8km/kWh x 1000) AddedEnergy (Wh): 10,000
              *
-             * ### AddedEnergy (Wh): 10,000
-             *
-             * AddedRange (km) = 10,000 x 4800 / 1,000,000 = 48 km
-             *
-             * AddedRange (Miles) = AddedEnergy (Wh) x ApproxEVEfficiency (km/kWh x 1000) x
-             *
-             * 0.6213
-             *
-             * = 29.82 Miles
+             * AddedRange (km) = 10,000 x 4800 / 1,000,000 = 48 km AddedRange (Miles) = AddedEnergy (Wh) x
+             * ApproxEVEfficiency (km/kWh x 1000) x 0.6213 = 29.82 Miles
              *
              * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.16
              */
@@ -1074,8 +1069,9 @@ export namespace EnergyEvse {
              * Indicates the vehicle ID read by the EVSE via ISO-15118 using the PNC feature, if the EVSE supports this
              * capability.
              *
-             * The field may be based on the e-Mobility Account Identifier (EMAID). A null value shall indicate that
-             * this is unknown.
+             * The field may be based on the e-Mobility Account Identifier (EMAID).
+             *
+             * A null value shall indicate that this is unknown.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.19
              */
@@ -1454,9 +1450,9 @@ export namespace EnergyEvse {
      * cluster.
      *
      * This cluster supports a safety mechanism that may lockout remote operation until the initial latching conditions
-     * have been met. Some of the fault conditions defined in SAE J1772, such as Ground- Fault Circuit Interrupter
-     * (GFCI) or Charging Circuit Interrupting Device (CCID), may require clearing by an operator by, for example,
-     * pressing a button on the equipment or breaker panel.
+     * have been met. Some of the fault conditions defined in SAE J1772, such as Ground-Fault Circuit Interrupter (GFCI)
+     * or Charging Circuit Interrupting Device (CCID), may require clearing by an operator by, for example, pressing a
+     * button on the equipment or breaker panel.
      *
      * This EVSE cluster is written around support of a single EVSE. Having multiple EVSEs at home or a business is
      * managed by backend system and outside scope of this cluster.

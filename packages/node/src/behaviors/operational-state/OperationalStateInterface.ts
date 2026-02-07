@@ -45,8 +45,6 @@ export namespace OperationalStateInterface {
          *
          * The following table defines the compatibility of this cluster’s states with the Pause command.
          *
-         * ### Table 3. Pause Compatibility
-         *
          * @see {@link MatterSpecification.v142.Cluster} § 1.14.6.1
          */
         pause(): MaybePromise<OperationalState.OperationalCommandResponse>;
@@ -125,8 +123,6 @@ export namespace OperationalStateInterface {
          *   • For manufacturer-specific states, by the manufacturer.
          *
          * The following table defines the compatibility of this cluster’s states with the Resume command.
-         *
-         * ### Table 4. Resume Compatibility
          *
          * A device that is unable to honor the Resume command for any other reason shall respond with an
          * OperationalCommandResponse command with an ErrorStateID of UnableToStartOrResume but take no further action.

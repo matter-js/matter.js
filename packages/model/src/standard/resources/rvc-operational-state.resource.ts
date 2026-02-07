@@ -51,12 +51,8 @@ Resource.add({
                 "RVC Pause Compatibility defines the compatibility of the states this cluster defines with the Pause " +
                 "command." +
                 "\n" +
-                "### Table 13. RVC Pause Compatibility" +
-                "\n" +
                 "RVC Resume Compatibility defines the compatibility of the states this cluster defines with the " +
                 "Resume command." +
-                "\n" +
-                "### Table 14. RVC Resume Compatibility" +
                 "\n" +
                 "While in the Charging or Docked states, the device shall NOT attempt to resume unless it " +
                 "transitioned to those states while operating and can resume, such as, for example, if it is " +

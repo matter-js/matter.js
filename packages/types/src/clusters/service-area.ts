@@ -65,8 +65,9 @@ export namespace ServiceArea {
         mapId: TlvField(0, TlvUInt32),
 
         /**
-         * This field shall represent a human understandable map description. For example: "Main Floor", or "Second
-         * Level".
+         * This field shall represent a human understandable map description.
+         *
+         * For example: "Main Floor", or "Second Level".
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.3.2
          */
@@ -220,13 +221,16 @@ export namespace ServiceArea {
      *
      * For an area description to be meaningful, it shall have at least one of the following:
      *
-     *   • a non-empty name (LocationInfo’s LocationName field) OR
+     *   • a non-empty name (LocationInfo’s LocationName field)
+     *
+     * OR
      *
      *   • some semantic data (one or more of these: FloorNumber, AreaType or LandmarkTag) The normative text from the
      *     remainder of this section describes these constraints.
      *
-     * If the LocationInfo field is null, the LandmarkInfo field shall NOT be null. If the LandmarkInfo field is null,
-     * the LocationInfo field shall NOT be null.
+     * If the LocationInfo field is null, the LandmarkInfo field shall NOT be null.
+     *
+     * If the LandmarkInfo field is null, the LocationInfo field shall NOT be null.
      *
      * If LocationInfo is not null, and its LocationName field is an empty string, at least one of the following shall
      * NOT be null:
@@ -249,8 +253,9 @@ export namespace ServiceArea {
      */
     export const TlvAreaInfo = TlvObject({
         /**
-         * This field shall indicate the name of the area, floor number and/or area type. A few examples are provided
-         * below.
+         * This field shall indicate the name of the area, floor number and/or area type.
+         *
+         * A few examples are provided below.
          *
          *   • An area can have LocationInfo’s LocationName field set to "blue room", and the AreaType field set to the
          *     ID of a "Living Room" semantic tag. Clients wishing to direct the device to operate in (or service) the
@@ -286,13 +291,16 @@ export namespace ServiceArea {
      *
      * For an area description to be meaningful, it shall have at least one of the following:
      *
-     *   • a non-empty name (LocationInfo’s LocationName field) OR
+     *   • a non-empty name (LocationInfo’s LocationName field)
+     *
+     * OR
      *
      *   • some semantic data (one or more of these: FloorNumber, AreaType or LandmarkTag) The normative text from the
      *     remainder of this section describes these constraints.
      *
-     * If the LocationInfo field is null, the LandmarkInfo field shall NOT be null. If the LandmarkInfo field is null,
-     * the LocationInfo field shall NOT be null.
+     * If the LocationInfo field is null, the LandmarkInfo field shall NOT be null.
+     *
+     * If the LandmarkInfo field is null, the LocationInfo field shall NOT be null.
      *
      * If LocationInfo is not null, and its LocationName field is an empty string, at least one of the following shall
      * NOT be null:
@@ -423,7 +431,7 @@ export namespace ServiceArea {
     export const TlvSelectAreasResponse = TlvObject({
         /**
          * If the Status field is set to Success or UnsupportedArea, the server may use a non-empty string for the
-         * StatusText field to provide additional information. For example, if Status is set to Unsupport edArea, the
+         * StatusText field to provide additional information. For example, if Status is set to UnsupportedArea, the
          * server may use StatusText to indicate which areas are unsupported.
          *
          * If the Status field is not set to Success, or UnsupportedArea, the StatusText field shall include a
@@ -552,8 +560,9 @@ export namespace ServiceArea {
              * on the associated map. For example, the clients may allow the user to indicate that the device is to
              * operate on the first floor, and allow the user to choose only from the areas situated on that level.
              *
-             * If empty, that indicates that the device is currently unable to provide this information. Each entry in
-             * this list shall have a unique value for the MapID field.
+             * If empty, that indicates that the device is currently unable to provide this information.
+             *
+             * Each entry in this list shall have a unique value for the MapID field.
              *
              * Each entry in this list shall have a unique value for the Name field.
              *
@@ -587,8 +596,9 @@ export namespace ServiceArea {
     export const ProgressReportingComponent = MutableCluster.Component({
         attributes: {
             /**
-             * Indicates the operating status at one or more areas. Each entry in this list shall have a unique value
-             * for the AreaID field.
+             * Indicates the operating status at one or more areas.
+             *
+             * Each entry in this list shall have a unique value for the AreaID field.
              *
              * For each entry in this list, the AreaID field shall match an entry on the SupportedAreas attribute’s
              * list.
@@ -694,11 +704,15 @@ export namespace ServiceArea {
              * The SupportedAreas attribute list changes mentioned above SHOULD NOT be allowed while the device is
              * operating, to reduce the impact on the clients, and the potential confusion for the users.
              *
-             * A few examples are provided below. Valid list of areas:
+             * A few examples are provided below.
+             *
+             * Valid list of areas:
              *
              *   • AreaID=0, LocationName="yellow bedroom", MapID=null
              *
-             *   • AreaID=1, LocationName="orange bedroom", MapID=null Valid list of areas:
+             *   • AreaID=1, LocationName="orange bedroom", MapID=null
+             *
+             * Valid list of areas:
              *
              *   • AreaID=5, LocationName="hallway", MapID=1
              *
@@ -715,8 +729,9 @@ export namespace ServiceArea {
              * indicated by the SelectedAreas attribute. For example, a robotic vacuum cleaner may drive without
              * cleaning when traveling without operating.
              *
-             * If this attribute is empty, the device is not constrained to operate in any specific areas. If this
-             * attribute is not empty:
+             * If this attribute is empty, the device is not constrained to operate in any specific areas.
+             *
+             * If this attribute is not empty:
              *
              *   • each item in this list shall match the AreaID field of an entry in the SupportedAreas attribute’s
              *     list

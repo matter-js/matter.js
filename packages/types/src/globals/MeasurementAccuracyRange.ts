@@ -53,8 +53,9 @@ export const TlvMeasurementAccuracyRange = TlvObject({
     rangeMin: TlvField(0, TlvInt64),
 
     /**
-     * This field shall indicate the maximum measurement value for the specified level of accuracy. The value of this
-     * field shall be greater than the value of the RangeMin field.
+     * This field shall indicate the maximum measurement value for the specified level of accuracy.
+     *
+     * The value of this field shall be greater than the value of the RangeMin field.
      *
      * The value of this field shall be greater than or equal to the value of the MinMeasuredValue field on the
      * encompassing MeasurementAccuracyStruct.

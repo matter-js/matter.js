@@ -49,9 +49,8 @@ export namespace BooleanState {
             /**
              * This represents a boolean state.
              *
-             * The semantics of this boolean state are defined by the device type using this cluster.
-             *
-             * For example, in a Contact Sensor device type, FALSE=open or no contact, TRUE=closed or contact.
+             * The semantics of this boolean state are defined by the device type using this cluster. For example, in a
+             * Contact Sensor device type, FALSE=open or no contact, TRUE=closed or contact.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.7.4.1
              */

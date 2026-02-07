@@ -505,7 +505,9 @@ export namespace Switch {
             numberOfPositions: FixedAttribute(0x0, TlvUInt8.bound({ min: 2 })),
 
             /**
-             * Indicates the position of the switch. The valid range is zero to NumberOfPositions - 1.
+             * Indicates the position of the switch.
+             *
+             * The valid range is zero to NumberOfPositions - 1.
              *
              * CurrentPosition value 0 shall be assigned to the default position of the switch: for example the "open"
              * state of a rocker switch, or the "idle" state of a push button switch.
@@ -557,17 +559,11 @@ export namespace Switch {
 
     /**
      * This cluster exposes interactions with a switch device, for the purpose of using those interactions by other
-     * devices.
-     *
-     * Two types of switch devices are supported: latching switch (e.g. rocker switch) and momentary switch (e.g. push
-     * button), distinguished with their feature flags.
-     *
-     * Interactions with the switch device are exposed as attributes (for the latching switch) and as events (for both
-     * types of switches).
-     *
-     * An interested client may subscribe to these attributes/events and thus be informed of the interactions, and can
-     * perform actions based on this, for example by sending commands to perform an action such as controlling a light
-     * or a window shade.
+     * devices. Two types of switch devices are supported: latching switch (e.g. rocker switch) and momentary switch
+     * (e.g. push button), distinguished with their feature flags. Interactions with the switch device are exposed as
+     * attributes (for the latching switch) and as events (for both types of switches). An interested client may
+     * subscribe to these attributes/events and thus be informed of the interactions, and can perform actions based on
+     * this, for example by sending commands to perform an action such as controlling a light or a window shade.
      *
      * Per the Matter specification you cannot use {@link SwitchCluster} without enabling certain feature combinations.
      * You must use the {@link with} factory method to obtain a working cluster.

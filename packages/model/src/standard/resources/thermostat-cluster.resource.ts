@@ -77,7 +77,7 @@ Resource.add(
                 details: "Indicates the absolute minimum level that the heating setpoint may be set to. This is a limitation " +
                     "imposed by the manufacturer." +
                     "\n" +
-                    "### Refer to Setpoint Limits for constraints"
+                    "Refer to Setpoint Limits for constraints"
             },
 
             { tag: "attribute", name: "AbsMaxHeatSetpointLimit", xref: "cluster§4.3.9" },
@@ -88,7 +88,7 @@ Resource.add(
                 details: "Indicates the absolute maximum level that the cooling setpoint may be set to. This is a limitation " +
                     "imposed by the manufacturer." +
                     "\n" +
-                    "### Refer to Setpoint Limits for constraints"
+                    "Refer to Setpoint Limits for constraints"
             },
 
             {
@@ -139,8 +139,9 @@ Resource.add(
             {
                 tag: "attribute", name: "OccupiedCoolingSetpoint", xref: "cluster§4.3.9.13",
 
-                details: "Indicates the cooling mode setpoint when the room is occupied. Refer to Setpoint Limits for " +
-                    "constraints." +
+                details: "Indicates the cooling mode setpoint when the room is occupied." +
+                    "\n" +
+                    "Refer to Setpoint Limits for constraints." +
                     "\n" +
                     "If an attempt is made to set this attribute to a value greater than MaxCoolSetpointLimit or less " +
                     "than MinCoolSetpointLimit, a response with the status code CONSTRAINT_ERROR shall be returned." +
@@ -160,8 +161,9 @@ Resource.add(
             {
                 tag: "attribute", name: "OccupiedHeatingSetpoint", xref: "cluster§4.3.9.14",
 
-                details: "Indicates the heating mode setpoint when the room is occupied. Refer to Setpoint Limits for " +
-                    "constraints." +
+                details: "Indicates the heating mode setpoint when the room is occupied." +
+                    "\n" +
+                    "Refer to Setpoint Limits for constraints." +
                     "\n" +
                     "If an attempt is made to set this attribute to a value greater than MaxHeatSetpointLimit or less " +
                     "than MinHeatSetpointLimit, a response with the status code CONSTRAINT_ERROR shall be returned." +
@@ -181,8 +183,9 @@ Resource.add(
             {
                 tag: "attribute", name: "UnoccupiedCoolingSetpoint", xref: "cluster§4.3.9.15",
 
-                details: "Indicates the cooling mode setpoint when the room is unoccupied. Refer to Setpoint Limits for " +
-                    "constraints." +
+                details: "Indicates the cooling mode setpoint when the room is unoccupied." +
+                    "\n" +
+                    "Refer to Setpoint Limits for constraints." +
                     "\n" +
                     "If an attempt is made to set this attribute to a value greater than MaxCoolSetpointLimit or less " +
                     "than MinCoolSetpointLimit, a response with the status code CONSTRAINT_ERROR shall be returned." +
@@ -201,16 +204,16 @@ Resource.add(
             {
                 tag: "attribute", name: "UnoccupiedHeatingSetpoint", xref: "cluster§4.3.9.16",
 
-                details: "Indicates the heating mode setpoint when the room is unoccupied. Refer to Setpoint Limits for " +
-                    "constraints." +
+                details: "Indicates the heating mode setpoint when the room is unoccupied." +
+                    "\n" +
+                    "Refer to Setpoint Limits for constraints." +
                     "\n" +
                     "If an attempt is made to set this attribute to a value greater than MaxHeatSetpointLimit or less " +
                     "than MinHeatSetpointLimit, a response with the status code CONSTRAINT_ERROR shall be returned." +
                     "\n" +
                     "If this attribute is set to a value that is greater than (UnoccupiedCoolingSetpoint - " +
-                    "MinSetpointDeadBand), the value of UnoccupiedCoolingSetpoint shall be adjusted to" +
-                    "\n" +
-                    "+ MinSetpointDeadBand)." +
+                    "MinSetpointDeadBand), the value of UnoccupiedCoolingSetpoint shall be adjusted to " +
+                    "(UnoccupiedHeatingSetpoint + MinSetpointDeadBand)." +
                     "\n" +
                     "If the occupancy status of the room is unknown, this attribute shall NOT be used." +
                     "\n" +
@@ -284,8 +287,10 @@ Resource.add(
                     "> Prior to revision 8 of this cluster specification the value of this attribute was constrained to a " +
                     "  range of 0°C to 2.5°C." +
                     "\n" +
-                    "For backwards compatibility, this attribute is optionally writeable. However any writes to this " +
-                    "attribute shall be silently ignored."
+                    "> [!NOTE]" +
+                    "\n" +
+                    "> For backwards compatibility, this attribute is optionally writeable. However any writes to this " +
+                    "  attribute shall be silently ignored."
             },
 
             {
@@ -400,13 +405,17 @@ Resource.add(
                     "> [!NOTE]" +
                     "\n" +
                     "> Modifying the ScheduleActive bit does not clear or delete previous weekly schedule programming " +
-                    "  configurations."
+                    "  configurations." +
+                    "\n" +
+                    "Modifying the ScheduleActive bit does not clear or delete previous weekly schedule programming " +
+                    "configurations."
             },
 
             {
                 tag: "attribute", name: "ThermostatRunningState", xref: "cluster§4.3.9.32",
-                details: "Indicates the current relay state of the heat, cool, and fan relays. Unimplemented outputs shall be " +
-                    "treated as if they were Off."
+                details: "Indicates the current relay state of the heat, cool, and fan relays." +
+                    "\n" +
+                    "Unimplemented outputs shall be treated as if they were Off."
             },
 
             {
@@ -540,7 +549,7 @@ Resource.add(
                     "\n" +
                     "⇒ OccupiedHeatingSetpoint - Calculated Local Temperature ≥? EmergencyHeatDelta" +
                     "\n" +
-                    "⇒ 16°C - 10°C ≥? 2°C" +
+                    "  • ⇒ 16°C - 10°C ≥? 2°C" +
                     "\n" +
                     "⇒ TRUE >>> Thermostat server changes its SystemMode to operate in 2nd stage or emergency heat mode" +
                     "\n" +
@@ -624,7 +633,9 @@ Resource.add(
             {
                 tag: "attribute", name: "Presets", xref: "cluster§4.3.9.59",
 
-                details: "This attribute shall contain the current list of configured presets. On receipt of a write request:" +
+                details: "This attribute shall contain the current list of configured presets." +
+                    "\n" +
+                    "On receipt of a write request:" +
                     "\n" +
                     "  1. If the PresetHandle field is null, the PresetStruct shall be treated as an added preset, and " +
                     "     the device shall create a new unique value for the PresetHandle field." +
@@ -700,7 +711,9 @@ Resource.add(
             {
                 tag: "attribute", name: "Schedules", xref: "cluster§4.3.9.60",
 
-                details: "This attribute shall contain a list of ScheduleStructs. On receipt of a write request:" +
+                details: "This attribute shall contain a list of ScheduleStructs." +
+                    "\n" +
+                    "On receipt of a write request:" +
                     "\n" +
                     "  1. For all schedules in the write request:" +
                     "\n" +
@@ -1297,7 +1310,12 @@ Resource.add(
 
                 details: "> [!NOTE]" +
                     "\n" +
-                    "> CoolingAndHeating" +
+                    "> A thermostat indicating it supports CoolingAndHeating (or CoolingAndHeatingWithReheat) SHOULD be " +
+                    "  able to request heating or cooling on demand and will usually support the Auto SystemMode." +
+                    "\n" +
+                    "Systems which support cooling or heating, requiring external intervention to change modes or where " +
+                    "the whole building must be in the same mode, SHOULD report CoolingOnly or HeatingOnly based on the " +
+                    "current capability." +
                     "\n" +
                     "A thermostat indicating it supports CoolingAndHeating (or CoolingAndHeatingWithReheat) SHOULD be " +
                     "able to request heating or cooling on demand and will usually support the Auto SystemMode." +
@@ -1385,7 +1403,6 @@ Resource.add(
 
             {
                 tag: "datatype", name: "SystemModeEnum", xref: "cluster§4.3.8.24",
-                details: "Table 9. Interpretation of Heat, Cool and Auto SystemModeEnum Values",
 
                 children: [
                     {
@@ -1620,14 +1637,16 @@ Resource.add(
                     "  • If the server supports the OCC feature, and the Occupied bit is not set on the Occupancy " +
                     "    attribute, then the UnoccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint" +
                     "\n" +
-                    "  • Otherwise, the OccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint If a " +
-                    "    HeatingSetpoint was used to determine the heating setpoint:" +
+                    "  • Otherwise, the OccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint" +
+                    "\n" +
+                    "If a HeatingSetpoint was used to determine the heating setpoint:" +
                     "\n" +
                     "  • If the server supports the OCC feature, and the Occupied bit is not set on the Occupancy " +
                     "    attribute, then the UnoccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint" +
                     "\n" +
-                    "  • Otherwise, the OccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint The " +
-                    "    ScheduleTransitionStruct shall be invalid if all the following are true:" +
+                    "  • Otherwise, the OccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint" +
+                    "\n" +
+                    "The ScheduleTransitionStruct shall be invalid if all the following are true:" +
                     "\n" +
                     "  • The HeatingSetpoint field is not provided" +
                     "\n" +
@@ -1636,8 +1655,9 @@ Resource.add(
                     "  • The PresetHandle field on the encompassing ScheduleStruct is not provided" +
                     "\n" +
                     "  • The SystemMode field is provided and has the value Heat or Auto, or the SystemMode field on the " +
-                    "    parent ScheduleStruct has the value Heat or Auto The ScheduleTransitionStruct shall be invalid " +
-                    "    if all the following are true:" +
+                    "    parent ScheduleStruct has the value Heat or Auto" +
+                    "\n" +
+                    "The ScheduleTransitionStruct shall be invalid if all the following are true:" +
                     "\n" +
                     "  • The CoolingSetpoint field is not provided" +
                     "\n" +

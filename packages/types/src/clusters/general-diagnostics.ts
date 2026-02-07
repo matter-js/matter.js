@@ -72,10 +72,11 @@ export namespace GeneralDiagnostics {
          *
          *   • The EnableKey field does not match the a-priori value configured on the device.
          *
-         *   • The TestEventTriggersEnabled field is currently false. Otherwise, the server shall respond with a
-         *     PayloadTestResponse command with a Payload field value containing Count instances of the Value byte. If
-         *     the response is too large to send, the server shall fail the command and respond with a response status
-         *     of RESOURCE_EXHAUSTED.
+         *   • The TestEventTriggersEnabled field is currently false.
+         *
+         * Otherwise, the server shall respond with a PayloadTestResponse command with a Payload field value containing
+         * Count instances of the Value byte. If the response is too large to send, the server shall fail the command
+         * and respond with a response status of RESOURCE_EXHAUSTED.
          *
          * For example:
          *
@@ -351,7 +352,7 @@ export namespace GeneralDiagnostics {
         CellularFault = 2,
 
         /**
-         * The Node has encountered a fault with its802.15.4 radio.
+         * The Node has encountered a fault with its 802.15.4 radio.
          */
         ThreadFault = 3,
 

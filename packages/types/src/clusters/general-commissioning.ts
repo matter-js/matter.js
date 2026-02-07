@@ -487,9 +487,8 @@ export namespace GeneralCommissioning {
             breadcrumb: WritableAttribute(0x0, TlvUInt64, { default: 0, writeAcl: AccessLevel.Administer }),
 
             /**
-             * This attribute shall describe critical parameters needed at the beginning of commissioning flow.
-             *
-             * See Section 11.10.5.3, “BasicCommissioningInfo Type” for more information.
+             * This attribute shall describe critical parameters needed at the beginning of commissioning flow. See
+             * Section 11.10.5.3, “BasicCommissioningInfo Type” for more information.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.10.6.2
              */

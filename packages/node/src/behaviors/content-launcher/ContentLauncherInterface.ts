@@ -35,8 +35,9 @@ export namespace ContentLauncherInterface {
 
     export interface ContentSearch {
         /**
-         * Upon receipt, this shall launch the specified content with optional search criteria. This command returns a
-         * Launch Response.
+         * Upon receipt, this shall launch the specified content with optional search criteria.
+         *
+         * This command returns a Launch Response.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1
          */

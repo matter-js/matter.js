@@ -1213,9 +1213,8 @@ export namespace ColorControl {
 
             /**
              * Indicates the minimum mired value supported by the hardware. ColorTempPhysicalMinMireds corresponds to
-             * the maximum color temperature in kelvins supported by the hardware.
-             *
-             * ColorTempPhysicalMinMireds <= ColorTemperatureMireds.
+             * the maximum color temperature in kelvins supported by the hardware. ColorTempPhysicalMinMireds <=
+             * ColorTemperatureMireds.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.20
              */
@@ -1223,9 +1222,8 @@ export namespace ColorControl {
 
             /**
              * Indicates the maximum mired value supported by the hardware. ColorTempPhysicalMaxMireds corresponds to
-             * the minimum color temperature in kelvins supported by the hardware.
-             *
-             * ColorTemperatureMireds <= ColorTempPhysicalMaxMireds.
+             * the minimum color temperature in kelvins supported by the hardware. ColorTemperatureMireds <=
+             * ColorTempPhysicalMaxMireds.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.21
              */
@@ -1244,9 +1242,7 @@ export namespace ColorControl {
              * Note that since this attribute is stored as a micro reciprocal degree (mired) value (i.e. color
              * temperature in kelvins = 1,000,000 / CoupleColorTempToLevelMinMireds), the
              * CoupleColorTempToLevelMinMireds attribute corresponds to an upper bound on the value of the color
-             * temperature
-             *
-             * in kelvins supported by the device.
+             * temperature in kelvins supported by the device.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.22
              */
@@ -1419,9 +1415,13 @@ export namespace ColorControl {
             /**
              * This command is provided to allow MoveTo and Step commands to be stopped.
              *
-             * NOTE This automatically provides symmetry to the Level Control cluster.
+             * > [!NOTE]
              *
-             * NOTE The StopMoveStep command has no effect on an active color loop.
+             * > This automatically provides symmetry to the Level Control cluster.
+             *
+             * > [!NOTE]
+             *
+             * > The StopMoveStep command has no effect on an active color loop.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.20
              */
@@ -1551,8 +1551,9 @@ export namespace ColorControl {
             /**
              * Indicates the normalized chromaticity value x for this primary, as defined in the CIE xyY Color Space.
              *
-             * The value of x shall be related to the Primary1X attribute by the relationship x = Primary1X / 65536
-             * (Primary1X in the range 0 to 65279 inclusive)
+             * The value of x shall be related to the Primary1X attribute by the relationship
+             *
+             * x = Primary1X / 65536 (Primary1X in the range 0 to 65279 inclusive)
              *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.25
              */
@@ -1561,8 +1562,9 @@ export namespace ColorControl {
             /**
              * Indicates the normalized chromaticity value y for this primary, as defined in the CIE xyY Color Space.
              *
-             * The value of y shall be related to the Primary1Y attribute by the relationship y = Primary1Y / 65536
-             * (Primary1Y in the range 0 to 65279 inclusive)
+             * The value of y shall be related to the Primary1Y attribute by the relationship
+             *
+             * y = Primary1Y / 65536 (Primary1Y in the range 0 to 65279 inclusive)
              *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.26
              */
@@ -1574,12 +1576,6 @@ export namespace ColorControl {
              * value 254.
              *
              * A value of null shall indicate that this primary is not available.
-             *
-             * 3.2.7.28. Primary2X, Primary2Y, Primary2Intensity, Primary3X, Primary3Y, Primary3Intensity, Primary4X,
-             * Primary4Y, Primary4Intensity, Primary5X, Primary5Y, Primary5Intensity, Primary6X, Primary6Y and
-             * Primary6Intensity Attributes These attributes shall represent the capabilities of the 2nd, 3rd, 4th, 5th
-             * and 6th primaries, where present, in the same way as for the Primary1X, Primary1Y and Primary1Intensity
-             * attributes.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.27
              */
@@ -1664,8 +1660,9 @@ export namespace ColorControl {
              * Indicates the normalized chromaticity value x, as defined in the CIE xyY Color Space, of the current
              * white point of the device.
              *
-             * The value of x shall be related to the WhitePointX attribute by the relationship x = WhitePointX / 65536
-             * (WhitePointX in the range 0 to 65279 inclusive)
+             * The value of x shall be related to the WhitePointX attribute by the relationship
+             *
+             * x = WhitePointX / 65536 (WhitePointX in the range 0 to 65279 inclusive)
              *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.29
              */
@@ -1679,8 +1676,9 @@ export namespace ColorControl {
              * Indicates the normalized chromaticity value y, as defined in the CIE xyY Color Space, of the current
              * white point of the device.
              *
-             * The value of y shall be related to the WhitePointY attribute by the relationship y = WhitePointY / 65536
-             * (WhitePointY in the range 0 to 65279 inclusive)
+             * The value of y shall be related to the WhitePointY attribute by the relationship
+             *
+             * y = WhitePointY / 65536 (WhitePointY in the range 0 to 65279 inclusive)
              *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.30
              */
@@ -1694,8 +1692,9 @@ export namespace ColorControl {
              * Indicates the normalized chromaticity value x, as defined in the CIE xyY Color Space, of the red color
              * point of the device.
              *
-             * The value of x shall be related to the ColorPointRX attribute by the relationship x = ColorPointRX /
-             * 65536 (ColorPointRX in the range 0 to 65279 inclusive)
+             * The value of x shall be related to the ColorPointRX attribute by the relationship
+             *
+             * x = ColorPointRX / 65536 (ColorPointRX in the range 0 to 65279 inclusive)
              *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.31
              */
@@ -1709,8 +1708,9 @@ export namespace ColorControl {
              * Indicates the normalized chromaticity value y, as defined in the CIE xyY Color Space, of the red color
              * point of the device.
              *
-             * The value of y shall be related to the ColorPointRY attribute by the relationship y = ColorPointRY /
-             * 65536 (ColorPointRY in the range 0 to 65279 inclusive)
+             * The value of y shall be related to the ColorPointRY attribute by the relationship
+             *
+             * y = ColorPointRY / 65536 (ColorPointRY in the range 0 to 65279 inclusive)
              *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.32
              */
@@ -1726,14 +1726,6 @@ export namespace ColorControl {
              * contains the value 254.
              *
              * A value of null shall indicate an invalid value.
-             *
-             * 3.2.7.34. ColorPointGX, ColorPointGY, ColorPointGIntensity, ColorPointBX, ColorPointBY and
-             * ColorPointBIntensity Attributes These attributes shall represent the chromaticity values and intensities
-             * of the green and blue color points, in the same way as for the ColorPointRX, ColorPointRY and
-             * ColorPointRIntensity attributes.
-             *
-             * If any one of these red, green or blue color point attributes is implemented then they shall all be
-             * implemented.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.33
              */

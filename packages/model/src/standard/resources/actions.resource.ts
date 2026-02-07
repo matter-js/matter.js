@@ -71,9 +71,9 @@ Resource.add(
                     "  • When used without suffix, it shall provide information about the various actions which the " +
                     "    cluster provides." +
                     "\n" +
-                    "    ◦ Example: SetupURL could take the value of example://Actions or https://domain.example/ " +
-                    "      Matter/bridgev1/Actions for this generic case (access generic info how to use actions provided " +
-                    "      by this cluster)." +
+                    "    ◦ Example: SetupURL could take the value of example://Actions or " +
+                    "      https://domain.example/Matter/bridgev1/Actions for this generic case (access generic info how " +
+                    "      to use actions provided by this cluster)." +
                     "\n" +
                     "  • When used with a suffix of \"/?a=\" and the decimal value of ActionID for one of the actions, it " +
                     "    may provide information about that particular action. This could be a deeplink to " +
@@ -401,56 +401,46 @@ Resource.add(
                             "InstantActionWithTransition), or to bring these endpoints into a more dynamic state (typically using " +
                             "StartAction), where the endpoints would e.g. gradually cycle through certain colors for a pleasing " +
                             "effect. A voice controller could use \"set\" (to map to InstantAction) or \"play\" (to map to " +
-                            "StartAction) to trigger such actions." +
-                            "\n" +
-                            "Example: see Section 9.14.8.1, “Example 1: Scene recall” and Section 9.14.8.2, “Example 2: Set " +
-                            "dynamic light effect”."
+                            "StartAction) to trigger such actions. Example: see Section 9.14.8.1, “Example 1: Scene recall” and " +
+                            "Section 9.14.8.2, “Example 2: Set dynamic light effect”."
                     },
 
                     {
                         tag: "field", name: "Sequence", description: "A sequence of states with a certain time pattern",
                         xref: "core§9.14.4.2.2",
                         details: "Indicates an action which involves a sequence of events/states of the associated endpoints, such as " +
-                            "a wake-up experience." +
-                            "\n" +
-                            "Example: see Section 9.14.8.4, “Example 4: Wake-up routine”."
+                            "a wake-up experience. Example: see Section 9.14.8.4, “Example 4: Wake-up routine”."
                     },
 
                     {
                         tag: "field", name: "Automation",
                         description: "Control an automation (e.g. motion sensor controlling lights)",
                         xref: "core§9.14.4.2.3",
-                        details: "Indications an automation (e.g. a motion sensor controlling lights, an alarm system) which can " +
-                            "bee.g. started, stopped, paused, resumed." +
-                            "\n" +
-                            "Example: see Section 9.14.8.3, “Example 3: Pause sensor automation”."
+                        details: "Indications an automation (e.g. a motion sensor controlling lights, an alarm system) which can be " +
+                            "e.g. started, stopped, paused, resumed. Example: see Section 9.14.8.3, “Example 3: Pause sensor " +
+                            "automation”."
                     },
 
                     {
                         tag: "field", name: "Exception",
                         description: "Sequence that will run when something doesn’t happen", xref: "core§9.14.4.2.4",
                         details: "Indicates some action which the server will execute when a certain condition (which normally does " +
-                            "not happen) is not met." +
-                            "\n" +
-                            "Example: lock the doors when the server’s system has detected no one is at home while the doors are " +
-                            "in the 'unlocked' state."
+                            "not happen) is not met. Example: lock the doors when the server’s system has detected no one is at " +
+                            "home while the doors are in the 'unlocked' state."
                     },
 
                     {
                         tag: "field", name: "Notification", description: "Use the endpoints to send a message to user",
                         xref: "core§9.14.4.2.5",
-                        details: "Indicates an action that can be triggered (e.g. by InstantAction) to notify the user." +
-                            "\n" +
-                            "Example: play a pattern on the lights in the living room if there is someone in the garden in the " +
-                            "evening."
+                        details: "Indicates an action that can be triggered (e.g. by InstantAction) to notify the user. Example: play " +
+                            "a pattern on the lights in the living room if there is someone in the garden in the evening."
                     },
 
                     {
                         tag: "field", name: "Alarm", description: "Higher priority notification", xref: "core§9.14.4.2.6",
                         details: "Similar to Notification but with a higher priority (and might override other endpoint states which " +
-                            "Type=Notification would not override)." +
-                            "\n" +
-                            "Example: flash all lights in the house when CO sensor triggers."
+                            "Type=Notification would not override). Example: flash all lights in the house when CO sensor " +
+                            "triggers."
                     }
                 ]
             },

@@ -164,7 +164,9 @@ Resource.add({
                         "If the ResponseRequired bit is set on the message but this list is empty, the device shall provide a " +
                         "generic acknowledgement button, e.g. \"OK\"." +
                         "\n" +
-                        "If the ResponseRequired bit is not set on the message, this list shall be ignored. See Responses."
+                        "If the ResponseRequired bit is not set on the message, this list shall be ignored." +
+                        "\n" +
+                        "See Responses."
                 }
             ]
         },

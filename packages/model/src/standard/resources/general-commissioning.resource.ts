@@ -43,9 +43,8 @@ Resource.add({
 
         {
             tag: "attribute", name: "BasicCommissioningInfo", xref: "core§11.10.6.2",
-            details: "This attribute shall describe critical parameters needed at the beginning of commissioning flow." +
-                "\n" +
-                "See Section 11.10.5.3, “BasicCommissioningInfo Type” for more information."
+            details: "This attribute shall describe critical parameters needed at the beginning of commissioning flow. See " +
+                "Section 11.10.5.3, “BasicCommissioningInfo Type” for more information."
         },
 
         {

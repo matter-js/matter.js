@@ -405,11 +405,13 @@ Resource.add(
                 children: [
                     {
                         tag: "field", name: "OperationalDataset", xref: "core§11.9.7.4.1",
+
                         details: "The OperationalDataset field shall contain the Thread Network Parameters, including channel, PAN ID, " +
                             "and Extended PAN ID." +
                             "\n" +
-                            "The encoding for the OperationalDataset field is defined in the Thread specification. The client " +
-                            "shall pass the OperationalDataset as an opaque octet string."
+                            "The encoding for the OperationalDataset field is defined in the Thread specification." +
+                            "\n" +
+                            "The client shall pass the OperationalDataset as an opaque octet string."
                     },
 
                     {
@@ -436,7 +438,7 @@ Resource.add(
                     "If the Networks attribute does not contain a matching entry, the command shall immediately respond " +
                     "with NetworkConfigResponse having NetworkingStatus status field set to NetworkIdNotFound." +
                     "\n" +
-                    "On success, the NetworkConfigResponse command shall have its NetworkIndex field set to the 0- based " +
+                    "On success, the NetworkConfigResponse command shall have its NetworkIndex field set to the 0-based " +
                     "index of the entry in the Networks attribute that was just removed, and a NetworkingStatus status " +
                     "field set to Success.",
 
@@ -702,7 +704,7 @@ Resource.add(
                             "Networks attribute, the command shall immediately respond with NetworkConfigResponse having " +
                             "NetworkingStatus status field set to OutOfRange." +
                             "\n" +
-                            "On success, the NetworkConfigResponse command shall have its NetworkIndex field set to the 0- based " +
+                            "On success, the NetworkConfigResponse command shall have its NetworkIndex field set to the 0-based " +
                             "index of the entry in the Networks attribute that was just updated, matching the incoming " +
                             "NetworkIndex, and a NetworkingStatus status field set to Success." +
                             "\n" +
@@ -759,10 +761,13 @@ Resource.add(
 
             {
                 tag: "datatype", name: "ThreadCapabilitiesBitmap", xref: "core§11.9.5.2",
+
                 details: "The ThreadCapabilitiesBitmap encodes the supported Thread features and capabilities of a " +
                     "Thread-enabled network interface." +
                     "\n" +
-                    "NOTE The valid combinations of capabilities are restricted and dependent on Thread version.",
+                    "> [!NOTE]" +
+                    "\n" +
+                    "> The valid combinations of capabilities are restricted and dependent on Thread version.",
 
                 children: [
                     {
@@ -791,11 +796,11 @@ Resource.add(
                     "WiFiInterfaceScanResultStruct.",
 
                 children: [
-                    { tag: "field", name: "2G4", description: "2.4GHz - 2.401GHz to2.495GHz(802.11b/g/n/ax)" },
-                    { tag: "field", name: "3G65", description: "3.65GHz - 3.655GHz to3.695GHz (802.11y)" },
-                    { tag: "field", name: "5G", description: "5GHz - 5.150GHz to5.895GHz(802.11a/n/ac/ax)" },
-                    { tag: "field", name: "6G", description: "6GHz - 5.925GHz to7.125GHz (802.11ax / Wi-Fi 6E)" },
-                    { tag: "field", name: "60G", description: "60GHz - 57.24GHz to70.20GHz (802.11ad/ay)" },
+                    { tag: "field", name: "2G4", description: "2.4GHz - 2.401GHz to 2.495GHz (802.11b/g/n/ax)" },
+                    { tag: "field", name: "3G65", description: "3.65GHz - 3.655GHz to 3.695GHz (802.11y)" },
+                    { tag: "field", name: "5G", description: "5GHz - 5.150GHz to 5.895GHz (802.11a/n/ac/ax)" },
+                    { tag: "field", name: "6G", description: "6GHz - 5.925GHz to 7.125GHz (802.11ax / Wi-Fi 6E)" },
+                    { tag: "field", name: "60G", description: "60GHz - 57.24GHz to 70.20GHz (802.11ad/ay)" },
                     { tag: "field", name: "1G", description: "Sub-1GHz - 755MHz to 931MHz (802.11ah)" }
                 ]
             },
@@ -818,7 +823,7 @@ Resource.add(
                     { tag: "field", name: "NetworkNotFound", description: "Cannot find AP: SSID Not found" },
                     {
                         tag: "field", name: "RegulatoryError",
-                        description: "Cannot find AP: Mismatch on band/channels/regulatory domain/ 2.4GHz vs 5GHz"
+                        description: "Cannot find AP: Mismatch on band/channels/regulatory domain / 2.4GHz vs 5GHz"
                     },
                     { tag: "field", name: "AuthFailure", description: "Cannot associate due to authentication failure" },
                     {

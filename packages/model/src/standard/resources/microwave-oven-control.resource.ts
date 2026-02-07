@@ -46,8 +46,9 @@ Resource.add({
         {
             tag: "attribute", name: "PowerSetting", xref: "cluster§8.13.5.3",
 
-            details: "Indicates the power level associated with the operation of the device. If the MinPower, MaxPower, " +
-                "and PowerStep attributes are not supported:" +
+            details: "Indicates the power level associated with the operation of the device." +
+                "\n" +
+                "If the MinPower, MaxPower, and PowerStep attributes are not supported:" +
                 "\n" +
                 "  • The minimum value of this attribute shall be 10," +
                 "\n" +
@@ -76,8 +77,9 @@ Resource.add({
         {
             tag: "attribute", name: "PowerStep", xref: "cluster§8.13.5.6",
 
-            details: "Indicates the increment of power that can be set on the server. The value of this attribute shall be " +
-                "between 1 and MaxPower inclusive." +
+            details: "Indicates the increment of power that can be set on the server." +
+                "\n" +
+                "The value of this attribute shall be between 1 and MaxPower inclusive." +
                 "\n" +
                 "The value of this attribute shall be such that (MaxPower - MinPower) % PowerStep == 0" +
                 "\n" +
@@ -165,8 +167,9 @@ Resource.add({
 
         {
             tag: "command", name: "AddMoreTime", xref: "cluster§8.13.6.3",
-            details: "This command is used to add more time to the CookTime attribute of the server. This command supports " +
-                "these fields:",
+            details: "This command is used to add more time to the CookTime attribute of the server." +
+                "\n" +
+                "This command supports these fields:",
             children: [{
                 tag: "field", name: "TimeToAdd", xref: "cluster§8.13.6.3.1",
                 details: "This field shall indicate the number of seconds to be added to the CookTime attribute."

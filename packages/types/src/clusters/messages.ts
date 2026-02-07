@@ -309,7 +309,9 @@ export namespace Messages {
          * If the ResponseRequired bit is set on the message but this list is empty, the device shall provide a generic
          * acknowledgement button, e.g. "OK".
          *
-         * If the ResponseRequired bit is not set on the message, this list shall be ignored. See Responses.
+         * If the ResponseRequired bit is not set on the message, this list shall be ignored.
+         *
+         * See Responses.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1.7
          */

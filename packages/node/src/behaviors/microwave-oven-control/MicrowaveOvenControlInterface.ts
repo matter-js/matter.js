@@ -20,8 +20,9 @@ export namespace MicrowaveOvenControlInterface {
         setCookingParameters(request: MicrowaveOvenControl.SetCookingParametersRequest): MaybePromise;
 
         /**
-         * This command is used to add more time to the CookTime attribute of the server. This command supports these
-         * fields:
+         * This command is used to add more time to the CookTime attribute of the server.
+         *
+         * This command supports these fields:
          *
          * @see {@link MatterSpecification.v142.Cluster} § 8.13.6.3
          */

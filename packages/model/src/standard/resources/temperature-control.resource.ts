@@ -74,9 +74,8 @@ Resource.add(
                     "SetTemperature command." +
                     "\n" +
                     "For example, if the value of MinTemperature is 25.00C (2500) and the Step value is 0.50C (50), valid " +
-                    "values of the TargetTemperature field of the SetTemperature command would be 25.50C" +
-                    "\n" +
-                    "(2550), 26.00C (2600), 26.50C (2650), etc."
+                    "values of the TargetTemperature field of the SetTemperature command would be 25.50C (2550), 26.00C " +
+                    "(2600), 26.50C (2650), etc."
             },
 
             {

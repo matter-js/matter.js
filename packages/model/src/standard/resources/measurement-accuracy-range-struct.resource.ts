@@ -56,8 +56,9 @@ Resource.add({
         {
             tag: "field", name: "RangeMax", xref: "cluster§2.1.3.2.2",
 
-            details: "This field shall indicate the maximum measurement value for the specified level of accuracy. The " +
-                "value of this field shall be greater than the value of the RangeMin field." +
+            details: "This field shall indicate the maximum measurement value for the specified level of accuracy." +
+                "\n" +
+                "The value of this field shall be greater than the value of the RangeMin field." +
                 "\n" +
                 "The value of this field shall be greater than or equal to the value of the MinMeasuredValue field on " +
                 "the encompassing MeasurementAccuracyStruct." +
