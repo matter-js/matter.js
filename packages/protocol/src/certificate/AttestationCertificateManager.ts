@@ -107,7 +107,7 @@ export class AttestationCertificateManager {
             },
         });
         await cert.sign(this.#crypto, this.#paaKeyPair);
-        return cert.asSignedAsn1();
+        return cert.asSignedDer();
     }
 
     private async generatePAICert(vendorId: VendorId, productId?: number) {
@@ -142,7 +142,7 @@ export class AttestationCertificateManager {
             },
         });
         await cert.sign(this.#crypto, this.#paaKeyPair);
-        return cert.asSignedAsn1();
+        return cert.asSignedDer();
     }
 
     async generateDaCert(publicKey: Bytes, vendorId: VendorId, productId: number) {
@@ -177,6 +177,6 @@ export class AttestationCertificateManager {
             },
         });
         await cert.sign(this.#crypto, this.#paiKeyPair);
-        return cert.asSignedAsn1();
+        return cert.asSignedDer();
     }
 }

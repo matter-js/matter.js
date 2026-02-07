@@ -4,9 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto, DerBitString, DerCodec, X962 } from "#general";
+import { Bytes, Crypto } from "#general";
 import { Certificate } from "./Certificate.js";
-import { assertCertificateDerSize } from "./common.js";
 import { AttestationCertificate } from "./definitions/attestation.js";
 import { MatterCertificate } from "./definitions/base.js";
 
@@ -19,22 +18,7 @@ export abstract class AttestationBaseCertificate<CT extends MatterCertificate> e
      * If the certificate is already signed, it throws a CertificateError.
      */
     override async sign(crypto: Crypto, key: JsonWebKey) {
-        this.signature = await crypto.signEcdsa(key, this.asUnsignedAsn1());
-    }
-
-    /**
-     * Returns the signed certificate in ASN.1 DER format.
-     * If the certificate is not signed, it throws a CertificateError.
-     */
-    asSignedAsn1() {
-        const certificate = this.genericBuildAsn1Structure(this.cert);
-        const certBytes = DerCodec.encode({
-            certificate,
-            signAlgorithm: X962.EcdsaWithSHA256,
-            signature: DerBitString(this.signature.der),
-        });
-        assertCertificateDerSize(certBytes);
-        return certBytes;
+        this.signature = await crypto.signEcdsa(key, this.asUnsignedDer());
     }
 }
 

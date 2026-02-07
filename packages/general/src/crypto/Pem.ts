@@ -1,0 +1,71 @@
+/**
+ * @license
+ * Copyright 2022-2026 Matter.js Authors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { Base64 } from "#codec/Base64Codec.js";
+import { DerCodec } from "#codec/DerCodec.js";
+import { Bytes } from "#util/Bytes.js";
+import { CertificateError } from "./CryptoError.js";
+
+export type PemOrDer = Bytes | string;
+
+/**
+ * PEM encoding semantics per RFC 7468.
+ */
+export namespace Pem {
+    export function encode(der: {} | Bytes, kind = "CERTIFICATE") {
+        kind = kind.toUpperCase();
+
+        let bytes: Bytes;
+        if (Bytes.isBytes(der)) {
+            bytes = der;
+        } else {
+            bytes = DerCodec.encode(der);
+        }
+
+        const body = Base64.encode(Bytes.of(bytes))
+            .match(/.{1,64}/g)!
+            .join("\n");
+
+        return `-----BEGIN ${kind}-----\n${body}\n-----END ${kind}-----`;
+    }
+
+    export function asDer(pemOrDer: PemOrDer) {
+        if (Bytes.isBytes(pemOrDer)) {
+            if (Bytes.of(pemOrDer)[0] === "-".charCodeAt(0)) {
+                pemOrDer = new TextDecoder().decode(pemOrDer);
+            } else {
+                return pemOrDer;
+            }
+        }
+
+        const parts = pemOrDer.match(/-----BEGIN (?:[^-]|-[^-])+-----(.*)-----END (?:[^-]|-[^-])+-----/s);
+        if (!parts) {
+            throw new CertificateError("No data detected in PEM file");
+        }
+
+        const base64 = parts[1].replace(/\s/g, "");
+
+        try {
+            return Base64.decode(base64);
+        } catch (cause) {
+            const error = new CertificateError(`Error in PEM base64 encoding`);
+            error.cause = cause;
+            throw error;
+        }
+    }
+
+    export function decode(pemOrDer: PemOrDer) {
+        const bytes = asDer(pemOrDer);
+
+        try {
+            return DerCodec.decode(bytes);
+        } catch (cause) {
+            const error = new CertificateError(`Error in PEM DER encoding`);
+            error.cause = cause;
+            throw error;
+        }
+    }
+}

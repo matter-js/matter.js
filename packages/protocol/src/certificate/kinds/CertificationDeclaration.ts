@@ -3,7 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { Bytes, ContextTaggedBytes, Crypto, DerCodec, Pkcs7, PrivateKey, SHA256_CMS, X962 } from "#general";
+import { Bytes, ContextTaggedBytes, Crypto, DerCodec, Pkcs7, PrivateKey, Shs, X962 } from "#general";
 import { TypeFromBitmapSchema, VendorId } from "#types";
 import { assertCertificateDerSize } from "./common.js";
 import { CertificationDeclaration as CertificationDeclarationDef } from "./definitions/certification-declaration.js";
@@ -69,13 +69,13 @@ export class CertificationDeclaration {
     async asSignedAsn1(crypto: Crypto, privateKey: JsonWebKey) {
         const cert = {
             version: 3,
-            digestAlgorithm: [SHA256_CMS],
+            digestAlgorithm: [Shs.SHA256_CMS],
             encapContentInfo: Pkcs7.Data(this.#eContent),
             signerInfo: [
                 {
                     version: 3,
                     subjectKeyIdentifier: ContextTaggedBytes(0, this.#subjectKeyIdentifier),
-                    digestAlgorithm: SHA256_CMS,
+                    digestAlgorithm: Shs.SHA256_CMS,
                     signatureAlgorithm: X962.EcdsaWithSHA256,
                     signature: (await crypto.signEcdsa(privateKey, this.#eContent)).der,
                 },
