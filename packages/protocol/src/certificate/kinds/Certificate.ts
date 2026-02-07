@@ -9,7 +9,6 @@ import {
     CertificateError,
     ContextTagged,
     Crypto,
-    DatatypeOverride,
     DerBitString,
     DerCodec,
     DerNode,
@@ -98,175 +97,38 @@ export abstract class Certificate<CT extends MatterCertificate> {
      * It throws a CertificateError if the certificate is already signed.
      */
     async sign(crypto: Crypto, key: JsonWebKey) {
-        this.signature = await crypto.signEcdsa(key, this.asUnsignedAsn1());
+        this.signature = await crypto.signEcdsa(key, this.asUnsignedDer());
     }
 
     /**
-     * Convert the certificate to ASN.1 DER format without signature.
+     * Serialize as signed DER.
+     *
+     * If no signature is present, throws an error.
      */
-    asUnsignedAsn1(): Bytes {
-        const certBytes = DerCodec.encode(this.genericBuildAsn1Structure(this.cert));
+    asSignedDer() {
+        const certBytes = X509.certificateToDer({
+            ...matterToX509(this.cert),
+            signatureAlgorithm: X962.EcdsaWithSHA256,
+            signature: this.signature.der,
+        });
         assertCertificateDerSize(certBytes);
         return certBytes;
     }
 
     /**
-     * Convert the subject or issuer field of the certificate to ASN.1 DER format.
-     * Preserve order of keys from original subject and also copy potential custom elements
+     * Serialize as DER without signature.
      */
-    #subjectOrIssuerToAsn1(data: { [field: string]: any }) {
-        const asn = {} as { [field: string]: any[] };
-        Object.entries(data).forEach(([key, value]) => {
-            if (value === undefined) {
-                return;
-            }
-            switch (key) {
-                case "commonName":
-                    asn.commonName = X520.CommonName(value as string);
-                    break;
-                case "surName":
-                    asn.surName = X520.SurName(value as string);
-                    break;
-                case "serialNum":
-                    asn.serialNum = X520.SerialNumber(value as string);
-                    break;
-                case "countryName":
-                    asn.countryName = X520.CountryName(value as string);
-                    break;
-                case "localityName":
-                    asn.localityName = X520.LocalityName(value as string);
-                    break;
-                case "stateOrProvinceName":
-                    asn.stateOrProvinceName = X520.StateOrProvinceName(value as string);
-                    break;
-                case "orgName":
-                    asn.orgName = X520.OrganisationName(value as string);
-                    break;
-                case "orgUnitName":
-                    asn.orgUnitName = X520.OrganizationalUnitName(value as string);
-                    break;
-                case "title":
-                    asn.title = X520.Title(value as string);
-                    break;
-                case "name":
-                    asn.name = X520.Name(value as string);
-                    break;
-                case "givenName":
-                    asn.givenName = X520.GivenName(value as string);
-                    break;
-                case "initials":
-                    asn.initials = X520.Initials(value as string);
-                    break;
-                case "genQualifier":
-                    asn.genQualifier = X520.GenerationQualifier(value as string);
-                    break;
-                case "dnQualifier":
-                    asn.dnQualifier = X520.DnQualifier(value as string);
-                    break;
-                case "pseudonym":
-                    asn.pseudonym = X520.Pseudonym(value as string);
-                    break;
-                case "domainComponent":
-                    asn.domainComponent = X520.DomainComponent(value as string);
-                    break;
-                case "nodeId":
-                    asn.nodeId = NodeId_Matter(value as NodeId);
-                    break;
-                case "firmwareSigningId":
-                    asn.firmwareSigningId = FirmwareSigningId_Matter(value as number);
-                    break;
-                case "icacId":
-                    asn.icacId = IcacId_Matter(value as number | bigint);
-                    break;
-                case "rcacId":
-                    asn.rcacId = RcacId_Matter(value as number | bigint);
-                    break;
-                case "vvsId":
-                    asn.vvsId = VvsId_Matter(value as number | bigint);
-                    break;
-                case "fabricId":
-                    asn.fabricId = FabricId_Matter(value as FabricId);
-                    break;
-                case "caseAuthenticatedTags":
-                    // In theory if someone mixes multiple caseAuthenticatedTag fields with other fields we currently would
-                    // code them in ASN.1 as fields at the first position from the original data which might fail
-                    // certificate validation. Changing this would require to change Tlv decoding, so lets try that way for now.
-                    const caseAuthenticatedTags = value as CaseAuthenticatedTag[];
-                    CaseAuthenticatedTag.validateNocTagList(caseAuthenticatedTags);
-
-                    const cat0 = caseAuthenticatedTags[0];
-                    const cat1 = caseAuthenticatedTags[1];
-                    const cat2 = caseAuthenticatedTags[2];
-                    if (cat0 !== undefined) {
-                        asn.caseAuthenticatedTag0 = NocCat_Matter(cat0);
-                    }
-                    if (cat1 !== undefined) {
-                        asn.caseAuthenticatedTag1 = NocCat_Matter(cat1);
-                    }
-                    if (cat2 !== undefined) {
-                        asn.caseAuthenticatedTag2 = NocCat_Matter(cat2);
-                    }
-                    break;
-                case "vendorId": // Only relevant for ASN.1 encoding of DAC/PAA/PAI certificates
-                    asn.vendorId = VendorId_Matter(value as VendorId);
-                    break;
-                case "productId": // Only relevant for ASN.1 encoding of DAC/PAA/PAI certificates
-                    asn.productId = ProductId_Matter(value as number);
-                    break;
-                case "commonNamePs":
-                    asn.commonNamePs = X520.CommonName(value as string, true);
-                    break;
-                case "surNamePs":
-                    asn.surNamePs = X520.SurName(value as string, true);
-                    break;
-                case "serialNumPs":
-                    asn.serialNumPs = X520.SerialNumber(value as string, true);
-                    break;
-                case "countryNamePs":
-                    asn.countryNamePs = X520.CountryName(value as string, true);
-                    break;
-                case "localityNamePs":
-                    asn.localityNamePs = X520.LocalityName(value as string, true);
-                    break;
-                case "stateOrProvinceNamePs":
-                    asn.stateOrProvinceNamePs = X520.StateOrProvinceName(value as string, true);
-                    break;
-                case "orgNamePs":
-                    asn.orgNamePs = X520.OrganisationName(value as string, true);
-                    break;
-                case "orgUnitNamePs":
-                    asn.orgUnitNamePs = X520.OrganizationalUnitName(value as string, true);
-                    break;
-                case "titlePs":
-                    asn.titlePs = X520.Title(value as string, true);
-                    break;
-                case "namePs":
-                    asn.namePs = X520.Name(value as string, true);
-                    break;
-                case "givenNamePs":
-                    asn.givenNamePs = X520.GivenName(value as string, true);
-                    break;
-                case "initialsPs":
-                    asn.initialsPs = X520.Initials(value as string, true);
-                    break;
-                case "genQualifierPs":
-                    asn.genQualifierPs = X520.GenerationQualifier(value as string, true);
-                    break;
-                case "dnQualifierPs":
-                    asn.dnQualifierPs = X520.DnQualifier(value as string, true);
-                    break;
-                case "pseudonymPs":
-                    asn.pseudonymPs = X520.Pseudonym(value as string, true);
-                    break;
-            }
-        });
-        return asn;
+    asUnsignedDer(): Bytes {
+        // Serialize
+        const certBytes = X509.certificateToDer(matterToX509(this.cert));
+        assertCertificateDerSize(certBytes);
+        return certBytes;
     }
 
     /**
      * Convert the extensions of the certificate to ASN.1 DER format.
      */
-    #extensionsToAsn1(extensions: CertificateExtension) {
+    extensionsToAsn1(extensions: CertificateExtension) {
         const asn = {} as { [field: string]: any[] | any };
         Object.entries(extensions).forEach(([key, value]) => {
             if (value === undefined) {
@@ -299,39 +161,6 @@ export abstract class Certificate<CT extends MatterCertificate> {
         });
         return asn;
     }
-
-    /**
-     * Build the ASN.1 DER structure for the certificate.
-     */
-    genericBuildAsn1Structure({
-        serialNumber,
-        notBefore,
-        notAfter,
-        issuer,
-        subject,
-        ellipticCurvePublicKey,
-        extensions,
-    }: Unsigned<CT>) {
-        const {
-            basicConstraints: { isCa, pathLen },
-        } = extensions;
-        if (!isCa && pathLen !== undefined) {
-            throw new CertificateError("Path length must be undefined for non-CA certificates.");
-        }
-        return {
-            version: ContextTagged(0, 2), // v3
-            serialNumber: DatatypeOverride(DerType.Integer, serialNumber),
-            signatureAlgorithm: X962.EcdsaWithSHA256,
-            issuer: this.#subjectOrIssuerToAsn1(issuer),
-            validity: {
-                notBefore: matterToJsDate(notBefore),
-                notAfter: matterToJsDate(notAfter),
-            },
-            subject: this.#subjectOrIssuerToAsn1(subject),
-            publicKey: X962.PublicKeyEcPrime256v1(ellipticCurvePublicKey),
-            extensions: ContextTagged(3, this.#extensionsToAsn1(extensions)),
-        };
-    }
 }
 
 export namespace Certificate {
@@ -351,29 +180,6 @@ export namespace Certificate {
             signAlgorithm: X962.EcdsaWithSHA256,
             signature: DerBitString((await crypto.signEcdsa(key, DerCodec.encode(request))).der),
         });
-    }
-
-    /**
-     * X.509 certificate extension OIDs
-     */
-    namespace ExtensionOid {
-        export const BASIC_CONSTRAINTS = 0x551d13n;
-        export const KEY_USAGE = 0x551d0fn;
-        export const EXTENDED_KEY_USAGE = 0x551d25n;
-        export const SUBJECT_KEY_IDENTIFIER = 0x551d0en;
-        export const AUTHORITY_KEY_IDENTIFIER = 0x551d23n;
-    }
-
-    /**
-     * Extended Key Usage OIDs
-     */
-    namespace ExtendedKeyUsageOid {
-        export const SERVER_AUTH = 0x2b06010505070301n;
-        export const CLIENT_AUTH = 0x2b06010505070302n;
-        export const CODE_SIGNING = 0x2b06010505070303n;
-        export const EMAIL_PROTECTION = 0x2b06010505070304n;
-        export const TIME_STAMPING = 0x2b06010505070308n;
-        export const OCSP_SIGNING = 0x2b06010505070309n;
     }
 
     /**
@@ -520,7 +326,7 @@ export namespace Certificate {
             const valueNode = DerCodec.decode(valueOctetString);
 
             switch (oidValue) {
-                case ExtensionOid.BASIC_CONSTRAINTS:
+                case X509.Extension.BASIC_CONSTRAINTS:
                     {
                         const { _elements: bcElements } = valueNode;
                         // Always initialize basicConstraints when extension is present
@@ -539,7 +345,7 @@ export namespace Certificate {
                     }
                     break;
 
-                case ExtensionOid.KEY_USAGE:
+                case X509.Extension.KEY_USAGE:
                     {
                         // Note: DerKey.Bytes for BIT STRING returns data without the padding byte
                         const bitString = Bytes.of(valueNode._bytes);
@@ -563,7 +369,7 @@ export namespace Certificate {
                     }
                     break;
 
-                case ExtensionOid.EXTENDED_KEY_USAGE:
+                case X509.Extension.EXTENDED_KEY_USAGE:
                     {
                         const { _elements: ekuElements } = valueNode;
                         if (ekuElements) {
@@ -571,22 +377,22 @@ export namespace Certificate {
                             for (const eku of ekuElements) {
                                 const ekuOidValue = Bytes.asBigInt(eku._bytes);
                                 switch (ekuOidValue) {
-                                    case ExtendedKeyUsageOid.SERVER_AUTH:
+                                    case X509.ExtendedKeyUsage.SERVER_AUTH:
                                         ekuValues.push(1);
                                         break;
-                                    case ExtendedKeyUsageOid.CLIENT_AUTH:
+                                    case X509.ExtendedKeyUsage.CLIENT_AUTH:
                                         ekuValues.push(2);
                                         break;
-                                    case ExtendedKeyUsageOid.CODE_SIGNING:
+                                    case X509.ExtendedKeyUsage.CODE_SIGNING:
                                         ekuValues.push(3);
                                         break;
-                                    case ExtendedKeyUsageOid.EMAIL_PROTECTION:
+                                    case X509.ExtendedKeyUsage.EMAIL_PROTECTION:
                                         ekuValues.push(4);
                                         break;
-                                    case ExtendedKeyUsageOid.TIME_STAMPING:
+                                    case X509.ExtendedKeyUsage.TIME_STAMPING:
                                         ekuValues.push(5);
                                         break;
-                                    case ExtendedKeyUsageOid.OCSP_SIGNING:
+                                    case X509.ExtendedKeyUsage.OCSP_SIGNING:
                                         ekuValues.push(6);
                                         break;
                                 }
@@ -598,11 +404,11 @@ export namespace Certificate {
                     }
                     break;
 
-                case ExtensionOid.SUBJECT_KEY_IDENTIFIER:
+                case X509.Extension.SUBJECT_KEY_IDENTIFIER:
                     result.subjectKeyIdentifier = valueNode._bytes;
                     break;
 
-                case ExtensionOid.AUTHORITY_KEY_IDENTIFIER:
+                case X509.Extension.AUTHORITY_KEY_IDENTIFIER:
                     {
                         const { _elements: akiElements } = valueNode;
                         if (akiElements && akiElements.length > 0) {
@@ -835,4 +641,178 @@ export namespace Certificate {
 
         return publicKey;
     }
+}
+
+/**
+ * Convert from Matter TLV to x.509 DER semantics
+ */
+function matterToX509(cert: Unsigned<MatterCertificate>): X509.UnsignedCertificate {
+    const { serialNumber, notBefore, notAfter, issuer, subject, ellipticCurvePublicKey, extensions } = cert;
+
+    return {
+        serialNumber,
+        validity: {
+            notBefore: matterToJsDate(notBefore),
+            notAfter: matterToJsDate(notAfter),
+        },
+        issuer: astOfDistinguishedName(issuer),
+        subject: astOfDistinguishedName(subject),
+        extensions,
+        signatureAlgorithm: X962.EcdsaWithSHA256,
+        publicKey: X962.PublicKeyEcPrime256v1(ellipticCurvePublicKey),
+    };
+}
+
+/**
+ * Convert the subject or issuer field of a certificate to a DER AST.
+ *
+ * Preserve order of keys from original subject and also copy potential custom elements
+ */
+function astOfDistinguishedName(data: { [field: string]: any }) {
+    const ast = {} as { [field: string]: any[] };
+    Object.entries(data).forEach(([key, value]) => {
+        if (value === undefined) {
+            return;
+        }
+        switch (key) {
+            case "commonName":
+                ast.commonName = X520.CommonName(value as string);
+                break;
+            case "surName":
+                ast.surName = X520.SurName(value as string);
+                break;
+            case "serialNum":
+                ast.serialNum = X520.SerialNumber(value as string);
+                break;
+            case "countryName":
+                ast.countryName = X520.CountryName(value as string);
+                break;
+            case "localityName":
+                ast.localityName = X520.LocalityName(value as string);
+                break;
+            case "stateOrProvinceName":
+                ast.stateOrProvinceName = X520.StateOrProvinceName(value as string);
+                break;
+            case "orgName":
+                ast.orgName = X520.OrganisationName(value as string);
+                break;
+            case "orgUnitName":
+                ast.orgUnitName = X520.OrganizationalUnitName(value as string);
+                break;
+            case "title":
+                ast.title = X520.Title(value as string);
+                break;
+            case "name":
+                ast.name = X520.Name(value as string);
+                break;
+            case "givenName":
+                ast.givenName = X520.GivenName(value as string);
+                break;
+            case "initials":
+                ast.initials = X520.Initials(value as string);
+                break;
+            case "genQualifier":
+                ast.genQualifier = X520.GenerationQualifier(value as string);
+                break;
+            case "dnQualifier":
+                ast.dnQualifier = X520.DnQualifier(value as string);
+                break;
+            case "pseudonym":
+                ast.pseudonym = X520.Pseudonym(value as string);
+                break;
+            case "domainComponent":
+                ast.domainComponent = X520.DomainComponent(value as string);
+                break;
+            case "nodeId":
+                ast.nodeId = NodeId_Matter(value as NodeId);
+                break;
+            case "firmwareSigningId":
+                ast.firmwareSigningId = FirmwareSigningId_Matter(value as number);
+                break;
+            case "icacId":
+                ast.icacId = IcacId_Matter(value as number | bigint);
+                break;
+            case "rcacId":
+                ast.rcacId = RcacId_Matter(value as number | bigint);
+                break;
+            case "vvsId":
+                ast.vvsId = VvsId_Matter(value as number | bigint);
+                break;
+            case "fabricId":
+                ast.fabricId = FabricId_Matter(value as FabricId);
+                break;
+            case "caseAuthenticatedTags":
+                // In theory if someone mixes multiple caseAuthenticatedTag fields with other fields we currently would
+                // code them in ASN.1 as fields at the first position from the original data which might fail
+                // certificate validation. Changing this would require to change Tlv decoding, so lets try that way for now.
+                const caseAuthenticatedTags = value as CaseAuthenticatedTag[];
+                CaseAuthenticatedTag.validateNocTagList(caseAuthenticatedTags);
+
+                const cat0 = caseAuthenticatedTags[0];
+                const cat1 = caseAuthenticatedTags[1];
+                const cat2 = caseAuthenticatedTags[2];
+                if (cat0 !== undefined) {
+                    ast.caseAuthenticatedTag0 = NocCat_Matter(cat0);
+                }
+                if (cat1 !== undefined) {
+                    ast.caseAuthenticatedTag1 = NocCat_Matter(cat1);
+                }
+                if (cat2 !== undefined) {
+                    ast.caseAuthenticatedTag2 = NocCat_Matter(cat2);
+                }
+                break;
+            case "vendorId": // Only relevant for ASN.1 encoding of DAC/PAA/PAI certificates
+                ast.vendorId = VendorId_Matter(value as VendorId);
+                break;
+            case "productId": // Only relevant for ASN.1 encoding of DAC/PAA/PAI certificates
+                ast.productId = ProductId_Matter(value as number);
+                break;
+            case "commonNamePs":
+                ast.commonNamePs = X520.CommonName(value as string, true);
+                break;
+            case "surNamePs":
+                ast.surNamePs = X520.SurName(value as string, true);
+                break;
+            case "serialNumPs":
+                ast.serialNumPs = X520.SerialNumber(value as string, true);
+                break;
+            case "countryNamePs":
+                ast.countryNamePs = X520.CountryName(value as string, true);
+                break;
+            case "localityNamePs":
+                ast.localityNamePs = X520.LocalityName(value as string, true);
+                break;
+            case "stateOrProvinceNamePs":
+                ast.stateOrProvinceNamePs = X520.StateOrProvinceName(value as string, true);
+                break;
+            case "orgNamePs":
+                ast.orgNamePs = X520.OrganisationName(value as string, true);
+                break;
+            case "orgUnitNamePs":
+                ast.orgUnitNamePs = X520.OrganizationalUnitName(value as string, true);
+                break;
+            case "titlePs":
+                ast.titlePs = X520.Title(value as string, true);
+                break;
+            case "namePs":
+                ast.namePs = X520.Name(value as string, true);
+                break;
+            case "givenNamePs":
+                ast.givenNamePs = X520.GivenName(value as string, true);
+                break;
+            case "initialsPs":
+                ast.initialsPs = X520.Initials(value as string, true);
+                break;
+            case "genQualifierPs":
+                ast.genQualifierPs = X520.GenerationQualifier(value as string, true);
+                break;
+            case "dnQualifierPs":
+                ast.dnQualifierPs = X520.DnQualifier(value as string, true);
+                break;
+            case "pseudonymPs":
+                ast.pseudonymPs = X520.Pseudonym(value as string, true);
+                break;
+        }
+    });
+    return ast;
 }
