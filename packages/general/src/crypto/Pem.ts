@@ -41,12 +41,27 @@ export namespace Pem {
             }
         }
 
-        const parts = pemOrDer.match(/-----BEGIN (?:[^-]|-[^-])+-----(.*)-----END (?:[^-]|-[^-])+-----/s);
-        if (!parts) {
-            throw new CertificateError("No data detected in PEM file");
+        const lines = pemOrDer.split("\n");
+        let startPos = 0;
+        while (startPos < lines.length && !lines[startPos].startsWith("-----BEGIN ")) {
+            startPos++;
+        }
+        if (startPos >= lines.length) {
+            throw new CertificateError("No BEGIN line in PEM file");
         }
 
-        const base64 = parts[1].replace(/\s/g, "");
+        let endPos = startPos + 1;
+        while (endPos < lines.length && !lines[endPos].startsWith("-----END ")) {
+            endPos++;
+        }
+        if (endPos >= lines.length) {
+            throw new CertificateError("No END line in PEM file");
+        }
+
+        const base64 = lines
+            .slice(startPos + 1, endPos - startPos - 1)
+            .join("")
+            .replace(/\s/g, "");
 
         try {
             return Base64.decode(base64);
