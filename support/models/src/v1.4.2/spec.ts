@@ -385,10 +385,9 @@ export const SpecMatter = Matter(
                         "received GetGroupMembership command was empty), or the group IDs of all the groups in the Group " +
                         "Table for which the server endpoint is a member of the group and for which the group ID was included " +
                         "in the the GroupList field of the received GetGroupMembership command (in the case where the " +
-                        "GroupList field of the received GetGroupMembership command was not empty)." +
-                        "\n" +
-                        "Zigbee: If the total number of groups will cause the maximum payload length of a frame to be " +
-                        "exceeded, then the GroupList field shall contain only as many groups as will fit."
+                        "GroupList field of the received GetGroupMembership command was not empty). Zigbee: If the total " +
+                        "number of groups will cause the maximum payload length of a frame to be exceeded, then the GroupList " +
+                        "field shall contain only as many groups as will fit."
                 },
 
                 Field({ name: "entry", type: "group-id" })
@@ -906,72 +905,7 @@ export const SpecMatter = Matter(
                     "AttributeID, as described in the Value* Fields subsection." +
                     "\n" +
                     "The AttributeID field shall NOT refer to an attribute without the Scenes (\"S\") designation in the " +
-                    "Quality column of the cluster specification." +
-                    "\n" +
-                    "### 1.4.7.3.2. ValueUnsigned8, ValueSigned8, ValueUnsigned16, ValueSigned16, ValueUnsigned32, " +
-                    "ValueSigned32, ValueUnsigned64, ValueSigned64 Fields" +
-                    "\n" +
-                    "These fields shall indicate the attribute value as part of an extension field set, associated with a " +
-                    "given AttributeID under an ExtensionFieldSetStruct’s ClusterID. Which of the fields is used shall be " +
-                    "determined by the type of the attribute indicated by AttributeID as follows:" +
-                    "\n" +
-                    "  • Data types bool, map8, and uint8 shall map to ValueUnsigned8." +
-                    "\n" +
-                    "  • Data types int8 shall map to ValueSigned8." +
-                    "\n" +
-                    "  • Data types map16 and uint16 shall map to ValueUnsigned16." +
-                    "\n" +
-                    "  • Data types int16 shall map to ValueSigned16." +
-                    "\n" +
-                    "  • Data types map32, uint24, and uint32 shall map to ValueUnsigned32." +
-                    "\n" +
-                    "  • Data types int24 and int32 shall map to ValueSigned32." +
-                    "\n" +
-                    "  • Data types map64, uint40, uint48, uint56 and uint64 shall map to ValueUnsigned64." +
-                    "\n" +
-                    "  • Data types int40, int48, int56 and int64 shall map to ValueSigned64." +
-                    "\n" +
-                    "  • For derived types, the mapping shall be based on the base type. For example, an attribute of " +
-                    "    type percent shall be treated as if it were of type uint8, whereas an attribute of type " +
-                    "    percent100ths shall be treated as if it were of type uint16." +
-                    "\n" +
-                    "  • For boolean nullable attributes, any value that is not 0 or 1 shall be considered to have the " +
-                    "    null value." +
-                    "\n" +
-                    "  • For boolean non-nullable attributes, any value that is not 0 or 1 shall be considered to have " +
-                    "    the value FALSE." +
-                    "\n" +
-                    "  • For non-boolean nullable attributes, any value that is not a valid numeric value for the " +
-                    "    attribute’s type after accounting for range reductions due to being nullable and constraints " +
-                    "    shall be considered to have the null value for the type." +
-                    "\n" +
-                    "  • For non-boolean non-nullable attributes, any value that is not a valid numeric value for the " +
-                    "    attribute’s type after accounting for constraints shall be considered to be the valid attribute " +
-                    "    value that is closest to the provided value." +
-                    "\n" +
-                    "    ◦ In the event that an invalid provided value is of equal numerical distance to the two closest " +
-                    "      valid values, the lowest of those values shall be considered the closest valid attribute " +
-                    "      value." +
-                    "\n" +
-                    "If the used field does not match the data type of the attribute indicated by AttributeID, the " +
-                    "AttributeValuePairStruct shall be considered invalid." +
-                    "\n" +
-                    "Examples of processing are:" +
-                    "\n" +
-                    "  • ColorControl cluster CurrentX (AttributeID 0x0003) has a type of uint16 and is not nullable." +
-                    "\n" +
-                    "    ◦ ValueUnsigned16 of 0xAB12 would be used as-is, as it is in range." +
-                    "\n" +
-                    "    ◦ ValueUnsigned16 of 0xFF80 is outside of the range allowed for attribute CurrentX, and would be " +
-                    "      saturated to the closest valid value, which is the maximum of the attribute’s constraint " +
-                    "      range: 0xFEFF." +
-                    "\n" +
-                    "  • LevelControl cluster CurrentLevel (AttributeID 0x0000) has a type of uint8 and is nullable." +
-                    "\n" +
-                    "    ◦ ValueUnsigned8 of 0xA1 would be used as-is, as it is in range." +
-                    "\n" +
-                    "    ◦ ValueUnsigned8 of 0xFF is outside the range allowed for nullable attribute CurrentLevel, and " +
-                    "      would be considered as the null value."
+                    "Quality column of the cluster specification."
             }),
 
             Field({ name: "ValueUnsigned8", id: 0x1, type: "uint8", conformance: "O.a" }),
@@ -1336,22 +1270,27 @@ export const SpecMatter = Matter(
                 name: "LT", conformance: "O", constraint: "1", default: 0, title: "Lighting",
                 xref: "cluster§1.6.4.2",
 
-                details: "This feature supports an interface for controlling the level of a light source. For the CurrentLevel " +
-                    "attribute:" +
+                details: "This feature supports an interface for controlling the level of a light source." +
                     "\n" +
-                    "A value of 0x00 shall NOT be used." +
+                    "For the CurrentLevel attribute:" +
                     "\n" +
-                    "A value of 0x01 shall indicate the minimum level that can be attained on a device. A value of 0xFE " +
-                    "shall indicate the maximum level that can be attained on a device. A value of null shall represent " +
-                    "an undefined value." +
+                    "  • A value of 0x00 shall NOT be used." +
                     "\n" +
-                    "All other values are application specific gradations from the minimum to the maximum level."
+                    "  • A value of 0x01 shall indicate the minimum level that can be attained on a device." +
+                    "\n" +
+                    "  • A value of 0xFE shall indicate the maximum level that can be attained on a device." +
+                    "\n" +
+                    "  • A value of null shall represent an undefined value." +
+                    "\n" +
+                    "  • All other values are application specific gradations from the minimum to the maximum level."
             }),
 
             Field({
                 name: "FQ", conformance: "P", constraint: "2", default: 0, title: "Frequency",
                 xref: "cluster§1.6.4.3",
-                details: "NOTE The Frequency feature is provisional."
+                details: "> [!NOTE]" +
+                    "\n" +
+                    "> The Frequency feature is provisional."
             })
         ),
 
@@ -1665,9 +1604,8 @@ export const SpecMatter = Matter(
             xref: "cluster§1.7.4.1",
             details: "This represents a boolean state." +
                 "\n" +
-                "The semantics of this boolean state are defined by the device type using this cluster." +
-                "\n" +
-                "For example, in a Contact Sensor device type, FALSE=open or no contact, TRUE=closed or contact."
+                "The semantics of this boolean state are defined by the device type using this cluster. For example, " +
+                "in a Contact Sensor device type, FALSE=open or no contact, TRUE=closed or contact."
         }),
 
         Event(
@@ -1744,10 +1682,8 @@ export const SpecMatter = Matter(
                 "\n" +
                 "These supported sensitivity levels shall be ordered by sensitivity, where a value of 0 shall be " +
                 "considered the lowest sensitivity level (least sensitive) and the highest supported value shall be " +
-                "considered the highest sensitivity level." +
-                "\n" +
-                "The number of supported sensitivity levels SHOULD represent unique sensitivity levels supported by " +
-                "the device."
+                "considered the highest sensitivity level. The number of supported sensitivity levels SHOULD " +
+                "represent unique sensitivity levels supported by the device."
         }),
 
         Attribute({
@@ -1765,8 +1701,9 @@ export const SpecMatter = Matter(
                     "longer triggered, this attribute shall be set to the inactive state, by setting the bit to 0, for " +
                     "all supported alarm modes." +
                     "\n" +
-                    "If an alarm mode is not supported, the bit indicating this alarm mode shall always be 0. A bit shall " +
-                    "indicate whether the alarm mode inactive or not:" +
+                    "If an alarm mode is not supported, the bit indicating this alarm mode shall always be 0." +
+                    "\n" +
+                    "A bit shall indicate whether the alarm mode inactive or not:" +
                     "\n" +
                     "  • 0 = Inactive" +
                     "\n" +
@@ -1783,8 +1720,9 @@ export const SpecMatter = Matter(
                     "longer triggered, this attribute shall be set to the unsuppressed state, by setting the bit to 0, " +
                     "for all supported alarm modes." +
                     "\n" +
-                    "If an alarm mode is not supported, the bit indicating this alarm mode shall always be 0. A bit shall " +
-                    "indicate whether the alarm mode is suppressed or not:" +
+                    "If an alarm mode is not supported, the bit indicating this alarm mode shall always be 0." +
+                    "\n" +
+                    "A bit shall indicate whether the alarm mode is suppressed or not:" +
                     "\n" +
                     "  • 0 = Not suppressed" +
                     "\n" +
@@ -1797,8 +1735,9 @@ export const SpecMatter = Matter(
                 name: "AlarmsEnabled", id: 0x5, type: "AlarmModeBitmap", access: "R V", conformance: "[VIS | AUD]",
                 quality: "N", xref: "cluster§1.8.6.6",
 
-                details: "Indicates the alarm modes that will be emitted if the sensor is triggered. If an alarm mode is not " +
-                    "supported, the bit indicating this alarm mode shall always be 0." +
+                details: "Indicates the alarm modes that will be emitted if the sensor is triggered." +
+                    "\n" +
+                    "If an alarm mode is not supported, the bit indicating this alarm mode shall always be 0." +
                     "\n" +
                     "A bit shall indicate whether the alarm mode is enabled or disabled:" +
                     "\n" +
@@ -1813,8 +1752,9 @@ export const SpecMatter = Matter(
                 name: "AlarmsSupported", id: 0x6, type: "AlarmModeBitmap", access: "R V", conformance: "VIS | AUD",
                 quality: "F", xref: "cluster§1.8.6.7",
 
-                details: "Indicates the alarms supported by the sensor. A bit shall indicate whether the alarm mode is " +
-                    "supported:" +
+                details: "Indicates the alarms supported by the sensor." +
+                    "\n" +
+                    "A bit shall indicate whether the alarm mode is supported:" +
                     "\n" +
                     "  • 0 = Not supported" +
                     "\n" +
@@ -2147,8 +2087,9 @@ export const SpecMatter = Matter(
                     "attribute. Each item in this list represents a unique mode as indicated by the Mode field of the " +
                     "ModeOptionStruct." +
                     "\n" +
-                    "Each entry in this list shall have a unique value for the Mode field. Each entry in this list shall " +
-                    "have a unique value for the Label field." +
+                    "Each entry in this list shall have a unique value for the Mode field." +
+                    "\n" +
+                    "Each entry in this list shall have a unique value for the Label field." +
                     "\n" +
                     "The set of ModeTags listed in each entry in this list shall be distinct from the sets of ModeTags " +
                     "listed in the other entries. This comparison shall NOT depend on the order of the ModeTags in the " +
@@ -2492,17 +2433,12 @@ export const SpecMatter = Matter(
             name: "Switch", id: 0x3b, classification: "application", pics: "SWTCH", xref: "cluster§1.13",
 
             details: "This cluster exposes interactions with a switch device, for the purpose of using those interactions " +
-                "by other devices." +
-                "\n" +
-                "Two types of switch devices are supported: latching switch (e.g. rocker switch) and momentary switch " +
-                "(e.g. push button), distinguished with their feature flags." +
-                "\n" +
-                "Interactions with the switch device are exposed as attributes (for the latching switch) and as " +
-                "events (for both types of switches)." +
-                "\n" +
-                "An interested client may subscribe to these attributes/events and thus be informed of the " +
-                "interactions, and can perform actions based on this, for example by sending commands to perform an " +
-                "action such as controlling a light or a window shade."
+                "by other devices. Two types of switch devices are supported: latching switch (e.g. rocker switch) " +
+                "and momentary switch (e.g. push button), distinguished with their feature flags. Interactions with " +
+                "the switch device are exposed as attributes (for the latching switch) and as events (for both types " +
+                "of switches). An interested client may subscribe to these attributes/events and thus be informed of " +
+                "the interactions, and can perform actions based on this, for example by sending commands to perform " +
+                "an action such as controlling a light or a window shade."
         },
 
         Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
@@ -2555,7 +2491,10 @@ export const SpecMatter = Matter(
         Attribute({
             name: "CurrentPosition", id: 0x1, type: "uint8", access: "R V", conformance: "M",
             constraint: "max numberOfPositions - 1", quality: "N", xref: "cluster§1.13.5.2",
-            details: "Indicates the position of the switch. The valid range is zero to NumberOfPositions - 1." +
+
+            details: "Indicates the position of the switch." +
+                "\n" +
+                "The valid range is zero to NumberOfPositions - 1." +
                 "\n" +
                 "CurrentPosition value 0 shall be assigned to the default position of the switch: for example the " +
                 "\"open\" state of a rocker switch, or the \"idle\" state of a push button switch."
@@ -3010,9 +2949,7 @@ export const SpecMatter = Matter(
                 "  • The device shall respond with an OperationalCommandResponse command with an ErrorStateID of " +
                 "    NoError." +
                 "\n" +
-                "The following table defines the compatibility of this cluster’s states with the Pause command." +
-                "\n" +
-                "### Table 3. Pause Compatibility"
+                "The following table defines the compatibility of this cluster’s states with the Pause command."
         }),
 
         Command({
@@ -3097,8 +3034,6 @@ export const SpecMatter = Matter(
                 "  • For manufacturer-specific states, by the manufacturer." +
                 "\n" +
                 "The following table defines the compatibility of this cluster’s states with the Resume command." +
-                "\n" +
-                "### Table 4. Resume Compatibility" +
                 "\n" +
                 "A device that is unable to honor the Resume command for any other reason shall respond with an " +
                 "OperationalCommandResponse command with an ErrorStateID of UnableToStartOrResume but take no further " +
@@ -3589,7 +3524,9 @@ export const SpecMatter = Matter(
                         "If the ResponseRequired bit is set on the message but this list is empty, the device shall provide a " +
                         "generic acknowledgement button, e.g. \"OK\"." +
                         "\n" +
-                        "If the ResponseRequired bit is not set on the message, this list shall be ignored. See Responses."
+                        "If the ResponseRequired bit is not set on the message, this list shall be ignored." +
+                        "\n" +
+                        "See Responses."
                 },
 
                 Field({ name: "entry", type: "MessageResponseOptionStruct" })
@@ -3863,11 +3800,15 @@ export const SpecMatter = Matter(
                     "The SupportedAreas attribute list changes mentioned above SHOULD NOT be allowed while the device is " +
                     "operating, to reduce the impact on the clients, and the potential confusion for the users." +
                     "\n" +
-                    "A few examples are provided below. Valid list of areas:" +
+                    "A few examples are provided below." +
+                    "\n" +
+                    "Valid list of areas:" +
                     "\n" +
                     "  • AreaID=0, LocationName=\"yellow bedroom\", MapID=null" +
                     "\n" +
-                    "  • AreaID=1, LocationName=\"orange bedroom\", MapID=null Valid list of areas:" +
+                    "  • AreaID=1, LocationName=\"orange bedroom\", MapID=null" +
+                    "\n" +
+                    "Valid list of areas:" +
                     "\n" +
                     "  • AreaID=5, LocationName=\"hallway\", MapID=1" +
                     "\n" +
@@ -3904,8 +3845,9 @@ export const SpecMatter = Matter(
                     "indicate that the device is to operate on the first floor, and allow the user to choose only from " +
                     "the areas situated on that level." +
                     "\n" +
-                    "If empty, that indicates that the device is currently unable to provide this information. Each entry " +
-                    "in this list shall have a unique value for the MapID field." +
+                    "If empty, that indicates that the device is currently unable to provide this information." +
+                    "\n" +
+                    "Each entry in this list shall have a unique value for the MapID field." +
                     "\n" +
                     "Each entry in this list shall have a unique value for the Name field." +
                     "\n" +
@@ -3943,8 +3885,9 @@ export const SpecMatter = Matter(
                     "indicated by the SelectedAreas attribute. For example, a robotic vacuum cleaner may drive without " +
                     "cleaning when traveling without operating." +
                     "\n" +
-                    "If this attribute is empty, the device is not constrained to operate in any specific areas. If this " +
-                    "attribute is not empty:" +
+                    "If this attribute is empty, the device is not constrained to operate in any specific areas." +
+                    "\n" +
+                    "If this attribute is not empty:" +
                     "\n" +
                     "  • each item in this list shall match the AreaID field of an entry in the SupportedAreas " +
                     "    attribute’s list" +
@@ -4024,8 +3967,9 @@ export const SpecMatter = Matter(
                 name: "Progress", id: 0x5, type: "list", access: "R V", conformance: "PROG", constraint: "max 255",
                 default: [], xref: "cluster§1.17.6.6",
 
-                details: "Indicates the operating status at one or more areas. Each entry in this list shall have a unique " +
-                    "value for the AreaID field." +
+                details: "Indicates the operating status at one or more areas." +
+                    "\n" +
+                    "Each entry in this list shall have a unique value for the AreaID field." +
                     "\n" +
                     "For each entry in this list, the AreaID field shall match an entry on the SupportedAreas attribute’s " +
                     "list." +
@@ -4104,8 +4048,8 @@ export const SpecMatter = Matter(
                 name: "Status", id: 0x0, type: "SelectAreasStatus", conformance: "M", xref: "cluster§1.17.7.2.1",
 
                 details: "If the Status field is set to Success or UnsupportedArea, the server may use a non-empty string for " +
-                    "the StatusText field to provide additional information. For example, if Status is set to Unsupport " +
-                    "edArea, the server may use StatusText to indicate which areas are unsupported." +
+                    "the StatusText field to provide additional information. For example, if Status is set to " +
+                    "UnsupportedArea, the server may use StatusText to indicate which areas are unsupported." +
                     "\n" +
                     "If the Status field is not set to Success, or UnsupportedArea, the StatusText field shall include a " +
                     "vendor-defined error description which can be used to explain the error to the user. For example, if " +
@@ -4202,13 +4146,16 @@ export const SpecMatter = Matter(
                     "\n" +
                     "For an area description to be meaningful, it shall have at least one of the following:" +
                     "\n" +
-                    "  • a non-empty name (LocationInfo’s LocationName field) OR" +
+                    "  • a non-empty name (LocationInfo’s LocationName field)" +
+                    "\n" +
+                    "OR" +
                     "\n" +
                     "  • some semantic data (one or more of these: FloorNumber, AreaType or LandmarkTag) The normative " +
                     "    text from the remainder of this section describes these constraints." +
                     "\n" +
-                    "If the LocationInfo field is null, the LandmarkInfo field shall NOT be null. If the LandmarkInfo " +
-                    "field is null, the LocationInfo field shall NOT be null." +
+                    "If the LocationInfo field is null, the LandmarkInfo field shall NOT be null." +
+                    "\n" +
+                    "If the LandmarkInfo field is null, the LocationInfo field shall NOT be null." +
                     "\n" +
                     "If LocationInfo is not null, and its LocationName field is an empty string, at least one of the " +
                     "following shall NOT be null:" +
@@ -4233,8 +4180,9 @@ export const SpecMatter = Matter(
                 name: "LocationInfo", id: 0x0, type: "locationdesc", conformance: "M", quality: "X",
                 xref: "cluster§1.17.5.2.1",
 
-                details: "This field shall indicate the name of the area, floor number and/or area type. A few examples are " +
-                    "provided below." +
+                details: "This field shall indicate the name of the area, floor number and/or area type." +
+                    "\n" +
+                    "A few examples are provided below." +
                     "\n" +
                     "  • An area can have LocationInfo’s LocationName field set to \"blue room\", and the AreaType field " +
                     "    set to the ID of a \"Living Room\" semantic tag. Clients wishing to direct the device to operate " +
@@ -4274,8 +4222,9 @@ export const SpecMatter = Matter(
             Field({
                 name: "Name", id: 0x1, type: "string", conformance: "M", constraint: "max 64",
                 xref: "cluster§1.17.5.3.2",
-                details: "This field shall represent a human understandable map description. For example: \"Main Floor\", or " +
-                    "\"Second Level\"."
+                details: "This field shall represent a human understandable map description." +
+                    "\n" +
+                    "For example: \"Main Floor\", or \"Second Level\"."
             })
         ),
 
@@ -4451,7 +4400,7 @@ export const SpecMatter = Matter(
         Field({ name: "Frequency", id: 0xb, conformance: "M", description: "AC frequency in millihertz (mHz)" }),
         Field({
             name: "PowerFactor", id: 0xc, conformance: "M",
-            description: "Power Factor ratio in+/- 1/100ths of a percent."
+            description: "Power Factor ratio in +/- 1/100ths of a percent."
         }),
         Field({ name: "NeutralCurrent", id: 0xd, conformance: "M", description: "AC neutral current in milliamps (mA)" }),
         Field({
@@ -4518,8 +4467,9 @@ export const SpecMatter = Matter(
         Field({
             name: "RangeMax", id: 0x1, type: "int64", conformance: "M", xref: "cluster§2.1.3.2.2",
 
-            details: "This field shall indicate the maximum measurement value for the specified level of accuracy. The " +
-                "value of this field shall be greater than the value of the RangeMin field." +
+            details: "This field shall indicate the maximum measurement value for the specified level of accuracy." +
+                "\n" +
+                "The value of this field shall be greater than the value of the RangeMin field." +
                 "\n" +
                 "The value of this field shall be greater than or equal to the value of the MinMeasuredValue field on " +
                 "the encompassing MeasurementAccuracyStruct." +
@@ -4626,7 +4576,8 @@ export const SpecMatter = Matter(
                     "\n" +
                     "  • MeasuredValue = 10,000 x log10(illuminance) + 1," +
                     "\n" +
-                    "where 1 lx <= illuminance <= 3.576 Mlx, corresponding to a MeasuredValue in the range 1 to 0xFFFE. " +
+                    "where 1 lx <= illuminance <= 3.576 Mlx, corresponding to a MeasuredValue in the range 1 to 0xFFFE." +
+                    "\n" +
                     "The MeasuredValue attribute can take the following values:" +
                     "\n" +
                     "  • 0 indicates a value of illuminance that is too low to be measured," +
@@ -4682,10 +4633,13 @@ export const SpecMatter = Matter(
         },
 
         Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 4 }),
+
         Attribute({
             name: "MeasuredValue", id: 0x0, type: "temperature", access: "R V", conformance: "M",
             constraint: "minMeasuredValue to maxMeasuredValue", quality: "X P", xref: "cluster§2.3.4.1",
-            details: "Indicates the measured temperature. The null value indicates that the temperature is unknown."
+            details: "Indicates the measured temperature." +
+                "\n" +
+                "The null value indicates that the temperature is unknown."
         }),
 
         Attribute({
@@ -4782,23 +4736,24 @@ export const SpecMatter = Matter(
         Attribute({
             name: "MinScaledValue", id: 0x11, type: "int16", access: "R V", conformance: "EXT",
             constraint: "max 32766", quality: "X", xref: "cluster§2.4.5.6",
-            details: "Indicates the minimum value of ScaledValue that can be measured. The null value indicates that the " +
-                "value is not available."
+            details: "Indicates the minimum value of ScaledValue that can be measured." +
+                "\n" +
+                "The null value indicates that the value is not available."
         }),
 
         Attribute({
             name: "MaxScaledValue", id: 0x12, type: "int16", access: "R V", conformance: "EXT",
             constraint: "minScaledValue + 1 to 32767", quality: "X", xref: "cluster§2.4.5.7",
-            details: "Indicates the maximum value of ScaledValue that can be measured. The null value indicates that the " +
-                "value is not available."
+            details: "Indicates the maximum value of ScaledValue that can be measured." +
+                "\n" +
+                "The null value indicates that the value is not available."
         }),
 
         Attribute({
             name: "ScaledTolerance", id: 0x13, type: "uint16", access: "R V", conformance: "[EXT]",
             constraint: "max 2048", default: 0, xref: "cluster§2.4.5.8",
-            details: "Indicates the magnitude of the possible error that is associated with Scaled" +
-                "\n" +
-                "### Value. The true value is located in the range" +
+            details: "Indicates the magnitude of the possible error that is associated with ScaledValue. The true value is " +
+                "located in the range" +
                 "\n" +
                 "(ScaledValue – ScaledTolerance) to (ScaledValue + ScaledTolerance)."
         }),
@@ -4823,7 +4778,7 @@ export const SpecMatter = Matter(
                 name: "MeasuredValue", id: 0x0, type: "uint16", access: "R V", conformance: "M",
                 constraint: "minMeasuredValue to maxMeasuredValue", quality: "X P", xref: "cluster§2.5.4.1",
 
-                details: "Indicates the flow in m/h as follows:" +
+                details: "Indicates the flow in m^3/h as follows:" +
                     "\n" +
                     "MeasuredValue = 10 x Flow" +
                     "\n" +
@@ -4877,8 +4832,9 @@ export const SpecMatter = Matter(
                     "\n" +
                     "MeasuredValue = 100 x water content" +
                     "\n" +
-                    "Where 0% < = water content < = 100%, corresponding to a MeasuredValue in the range 0 to 10000. The " +
-                    "maximum resolution this format allows is 0.01%." +
+                    "Where 0% < = water content < = 100%, corresponding to a MeasuredValue in the range 0 to 10000." +
+                    "\n" +
+                    "The maximum resolution this format allows is 0.01%." +
                     "\n" +
                     "MinMeasuredValue and MaxMeasuredValue define the range of the sensor." +
                     "\n" +
@@ -5372,9 +5328,11 @@ export const SpecMatter = Matter(
     Cluster(
         {
             name: "ConcentrationMeasurement", classification: "application", pics: "CONC", xref: "cluster§2.10",
-            details: "The server cluster provides an interface to concentration measurement functionality. This cluster " +
-                "shall to be used via an alias to a specific substance (see Cluster IDs)."
+            details: "The server cluster provides an interface to concentration measurement functionality." +
+                "\n" +
+                "This cluster shall to be used via an alias to a specific substance (see Cluster IDs)."
         },
+
         Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
 
         Attribute(
@@ -5408,10 +5366,12 @@ export const SpecMatter = Matter(
         Attribute({
             name: "MeasuredValue", id: 0x0, type: "single", access: "R V", conformance: "MEA",
             constraint: "minMeasuredValue to maxMeasuredValue", quality: "X P", xref: "cluster§2.10.6.1",
+
             details: "Indicates the most recent measurement as a single-precision floating-point number. MeasuredValue’s " +
                 "unit is represented by MeasurementUnit." +
                 "\n" +
-                "A value of null indicates that the measurement is unknown or outside the valid range. " +
+                "A value of null indicates that the measurement is unknown or outside the valid range." +
+                "\n" +
                 "MinMeasuredValue and MaxMeasuredValue define the valid range for MeasuredValue."
         }),
 
@@ -5486,16 +5446,16 @@ export const SpecMatter = Matter(
         Datatype(
             {
                 name: "MeasurementUnitEnum", type: "enum8", xref: "cluster§2.10.5.1",
-                details: "Where mentioned, Billion refers to 10, Trillion refers to 1012 (short scale)."
+                details: "Where mentioned, Billion refers to 10^9, Trillion refers to 10^12 (short scale)."
             },
-            Field({ name: "Ppm", id: 0x0, conformance: "MEA", description: "Parts per Million (10)" }),
-            Field({ name: "Ppb", id: 0x1, conformance: "MEA", description: "Parts per Billion (10)" }),
-            Field({ name: "Ppt", id: 0x2, conformance: "MEA", description: "Parts per Trillion (1012)" }),
-            Field({ name: "Mgm3", id: 0x3, conformance: "MEA", description: "Milligram per m" }),
-            Field({ name: "Ugm3", id: 0x4, conformance: "MEA", description: "Microgram per m" }),
-            Field({ name: "Ngm3", id: 0x5, conformance: "MEA", description: "Nanogram per m" }),
-            Field({ name: "Pm3", id: 0x6, conformance: "MEA", description: "Particles per m" }),
-            Field({ name: "Bqm3", id: 0x7, conformance: "MEA", description: "Becquerel per m" })
+            Field({ name: "Ppm", id: 0x0, conformance: "MEA", description: "Parts per Million (10^6)" }),
+            Field({ name: "Ppb", id: 0x1, conformance: "MEA", description: "Parts per Billion (10^9)" }),
+            Field({ name: "Ppt", id: 0x2, conformance: "MEA", description: "Parts per Trillion (10^12)" }),
+            Field({ name: "Mgm3", id: 0x3, conformance: "MEA", description: "Milligram per m^3" }),
+            Field({ name: "Ugm3", id: 0x4, conformance: "MEA", description: "Microgram per m^3" }),
+            Field({ name: "Ngm3", id: 0x5, conformance: "MEA", description: "Nanogram per m^3" }),
+            Field({ name: "Pm3", id: 0x6, conformance: "MEA", description: "Particles per m^3" }),
+            Field({ name: "Bqm3", id: 0x7, conformance: "MEA", description: "Becquerel per m^3" })
         ),
 
         Datatype(
@@ -5806,11 +5766,12 @@ export const SpecMatter = Matter(
         ),
 
         Datatype(
-            {
-                name: "ExpressedStateEnum", type: "enum8", xref: "cluster§2.11.5.3",
+            { name: "ExpressedStateEnum", type: "enum8", xref: "cluster§2.11.5.3" },
+            Field({
+                name: "Normal", id: 0x0, conformance: "M", description: "Nominal state, the device is not alarming",
+                xref: "cluster§2.11.5.3.1",
                 details: "This value shall indicate that this alarm is not alarming."
-            },
-            Field({ name: "Normal", id: 0x0, conformance: "M", description: "Nominal state, the device is not alarming" }),
+            }),
 
             Field({
                 name: "SmokeAlarm", id: 0x1, conformance: "SMOKE", description: "Smoke Alarm state",
@@ -5908,12 +5869,14 @@ export const SpecMatter = Matter(
         ),
 
         Datatype(
-            {
-                name: "ContaminationStateEnum", type: "enum8", xref: "cluster§2.11.5.6",
+            { name: "ContaminationStateEnum", type: "enum8", xref: "cluster§2.11.5.6" },
+
+            Field({
+                name: "Normal", id: 0x0, conformance: "M",
+                description: "Nominal state, the sensor is not contaminated", xref: "cluster§2.11.5.6.1",
                 details: "This value shall indicate that the smoke sensor has nominal contamination levels, no customer action " +
                     "is required."
-            },
-            Field({ name: "Normal", id: 0x0, conformance: "M", description: "Nominal state, the sensor is not contaminated" }),
+            }),
 
             Field({
                 name: "Low", id: 0x1, conformance: "O", description: "Low contamination",
@@ -6141,7 +6104,7 @@ export const SpecMatter = Matter(
             Field({ name: "Frequency", id: 0xb, conformance: "M", description: "AC frequency in millihertz (mHz)" }),
             Field({
                 name: "PowerFactor", id: 0xc, conformance: "M",
-                description: "Power Factor ratio in+/- 1/100ths of a percent."
+                description: "Power Factor ratio in +/- 1/100ths of a percent."
             }),
             Field({ name: "NeutralCurrent", id: 0xd, conformance: "M", description: "AC neutral current in milliamps (mA)" }),
             Field({
@@ -6529,8 +6492,9 @@ export const SpecMatter = Matter(
             name: "ReactivePower", id: 0x9, type: "power-mVAR", access: "R V", conformance: "[ALTC]",
             default: null, quality: "X Q", xref: "cluster§2.13.6.10",
 
-            details: "This shall indicate the most recent ReactivePower reading in millivolt-amps reactive (mVAR). A " +
-                "positive value represents power imported, while a negative value represents power exported." +
+            details: "This shall indicate the most recent ReactivePower reading in millivolt-amps reactive (mVAR)." +
+                "\n" +
+                "A positive value represents power imported, while a negative value represents power exported." +
                 "\n" +
                 "The reporting interval of this attribute shall be manufacturer dependent. The server may choose to " +
                 "omit publication of deltas considered not meaningful." +
@@ -6712,8 +6676,9 @@ export const SpecMatter = Matter(
                 "\n" +
                 "If the neutral current cannot be measured or derived, a value of null shall be returned." +
                 "\n" +
-                "A positive value represents an imbalance between the phase currents when power is imported. A " +
-                "negative value represents an imbalance between the phase currents when power is exported." +
+                "A positive value represents an imbalance between the phase currents when power is imported." +
+                "\n" +
+                "A negative value represents an imbalance between the phase currents when power is exported." +
                 "\n" +
                 "The reporting interval of this attribute shall be manufacturer dependent. The server may choose to " +
                 "omit publication of deltas considered not meaningful." +
@@ -6779,7 +6744,7 @@ export const SpecMatter = Matter(
             Field({ name: "Frequency", id: 0xb, conformance: "M", description: "AC frequency in millihertz (mHz)" }),
             Field({
                 name: "PowerFactor", id: 0xc, conformance: "M",
-                description: "Power Factor ratio in+/- 1/100ths of a percent."
+                description: "Power Factor ratio in +/- 1/100ths of a percent."
             }),
             Field({ name: "NeutralCurrent", id: 0xd, conformance: "M", description: "AC neutral current in milliamps (mA)" }),
             Field({
@@ -6855,16 +6820,19 @@ export const SpecMatter = Matter(
                 xref: "cluster§2.13.5.3.6",
                 details: "This field shall be the most recent timestamp in UTC that the value in the Min field was measured." +
                     "\n" +
-                    "This field shall be greater than or equal to the value of the StartTimestamp field. This field shall " +
-                    "be less than or equal to the value of the EndTimestamp field."
+                    "This field shall be greater than or equal to the value of the StartTimestamp field." +
+                    "\n" +
+                    "This field shall be less than or equal to the value of the EndTimestamp field."
             }),
 
             Field({
                 name: "MaxTimestamp", id: 0x6, type: "epoch-s", conformance: "EndTimestamp",
                 constraint: "min minTimestamp + 1", xref: "cluster§2.13.5.3.7",
-                details: "This field shall be the most recent timestamp in UTC of the value in the Max field. This field shall " +
-                    "be greater than or equal to the value of the StartTimestamp field. This field shall be less than or " +
-                    "equal to the value of the EndTimestamp field."
+                details: "This field shall be the most recent timestamp in UTC of the value in the Max field." +
+                    "\n" +
+                    "This field shall be greater than or equal to the value of the StartTimestamp field." +
+                    "\n" +
+                    "This field shall be less than or equal to the value of the EndTimestamp field."
             }),
 
             Field({
@@ -6888,8 +6856,9 @@ export const SpecMatter = Matter(
             Field({
                 name: "MinSystime", id: 0x9, type: "systime-ms", conformance: "EndSystime",
                 xref: "cluster§2.13.5.3.10",
-                details: "This field shall be the measurement time since boot of the value in the Min field was measured. This " +
-                    "field shall be greater than or equal to the value of the StartSystime field." +
+                details: "This field shall be the measurement time since boot of the value in the Min field was measured." +
+                    "\n" +
+                    "This field shall be greater than or equal to the value of the StartSystime field." +
                     "\n" +
                     "This field shall be less than or equal to the value of the EndSystime field."
             }),
@@ -6897,8 +6866,9 @@ export const SpecMatter = Matter(
             Field({
                 name: "MaxSystime", id: 0xa, type: "systime-ms", conformance: "EndSystime",
                 constraint: "min minSystime + 1", xref: "cluster§2.13.5.3.11",
-                details: "This field shall be the measurement time since boot of the value in the Max field. This field shall " +
-                    "be greater than or equal to the value of the StartSystime field." +
+                details: "This field shall be the measurement time since boot of the value in the Max field." +
+                    "\n" +
+                    "This field shall be greater than or equal to the value of the StartSystime field." +
                     "\n" +
                     "This field shall be less than or equal to the value of the EndSystime field."
             })
@@ -7174,11 +7144,13 @@ export const SpecMatter = Matter(
             {
                 name: "Primary1X", id: 0x11, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 0, O",
                 constraint: "max 65279", quality: "F", xref: "cluster§3.2.7.25",
+
                 details: "Indicates the normalized chromaticity value x for this primary, as defined in the CIE xyY Color " +
                     "Space." +
                     "\n" +
-                    "The value of x shall be related to the Primary1X attribute by the relationship x = Primary1X / 65536 " +
-                    "(Primary1X in the range 0 to 65279 inclusive)"
+                    "The value of x shall be related to the Primary1X attribute by the relationship" +
+                    "\n" +
+                    "x = Primary1X / 65536 (Primary1X in the range 0 to 65279 inclusive)"
             }
         ),
 
@@ -7186,29 +7158,24 @@ export const SpecMatter = Matter(
             {
                 name: "Primary1Y", id: 0x12, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 0, O",
                 constraint: "max 65279", quality: "F", xref: "cluster§3.2.7.26",
+
                 details: "Indicates the normalized chromaticity value y for this primary, as defined in the CIE xyY Color " +
                     "Space." +
                     "\n" +
-                    "The value of y shall be related to the Primary1Y attribute by the relationship y = Primary1Y / 65536 " +
-                    "(Primary1Y in the range 0 to 65279 inclusive)"
+                    "The value of y shall be related to the Primary1Y attribute by the relationship" +
+                    "\n" +
+                    "y = Primary1Y / 65536 (Primary1Y in the range 0 to 65279 inclusive)"
             }
         ),
 
         Attribute({
             name: "Primary1Intensity", id: 0x13, type: "uint8", access: "R V",
             conformance: "NumberOfPrimaries > 0, O", quality: "X F", xref: "cluster§3.2.7.27",
-
             details: "Indicates a representation of the maximum intensity of this primary as defined in Section 3.1.3, " +
                 "“The Dimming Light Curve”, normalized such that the primary with the highest maximum intensity " +
                 "contains the value 254." +
                 "\n" +
-                "A value of null shall indicate that this primary is not available." +
-                "\n" +
-                "3.2.7.28. Primary2X, Primary2Y, Primary2Intensity, Primary3X, Primary3Y, Primary3Intensity, " +
-                "Primary4X, Primary4Y, Primary4Intensity, Primary5X, Primary5Y, Primary5Intensity, Primary6X, " +
-                "Primary6Y and Primary6Intensity Attributes These attributes shall represent the capabilities of the " +
-                "2nd, 3rd, 4th, 5th and 6th primaries, where present, in the same way as for the Primary1X, Primary1Y " +
-                "and Primary1Intensity attributes."
+                "A value of null shall indicate that this primary is not available."
         }),
 
         Attribute({
@@ -7276,11 +7243,13 @@ export const SpecMatter = Matter(
             {
                 name: "WhitePointX", id: 0x30, type: "uint16", access: "RW VM", conformance: "O",
                 constraint: "max 65279", xref: "cluster§3.2.7.29",
+
                 details: "Indicates the normalized chromaticity value x, as defined in the CIE xyY Color Space, of the current " +
                     "white point of the device." +
                     "\n" +
-                    "The value of x shall be related to the WhitePointX attribute by the relationship x = WhitePointX / " +
-                    "65536 (WhitePointX in the range 0 to 65279 inclusive)"
+                    "The value of x shall be related to the WhitePointX attribute by the relationship" +
+                    "\n" +
+                    "x = WhitePointX / 65536 (WhitePointX in the range 0 to 65279 inclusive)"
             }
         ),
 
@@ -7288,11 +7257,13 @@ export const SpecMatter = Matter(
             {
                 name: "WhitePointY", id: 0x31, type: "uint16", access: "RW VM", conformance: "O",
                 constraint: "max 65279", xref: "cluster§3.2.7.30",
+
                 details: "Indicates the normalized chromaticity value y, as defined in the CIE xyY Color Space, of the current " +
                     "white point of the device." +
                     "\n" +
-                    "The value of y shall be related to the WhitePointY attribute by the relationship y = WhitePointY / " +
-                    "65536 (WhitePointY in the range 0 to 65279 inclusive)"
+                    "The value of y shall be related to the WhitePointY attribute by the relationship" +
+                    "\n" +
+                    "y = WhitePointY / 65536 (WhitePointY in the range 0 to 65279 inclusive)"
             }
         ),
 
@@ -7300,11 +7271,13 @@ export const SpecMatter = Matter(
             {
                 name: "ColorPointRx", id: 0x32, type: "uint16", access: "RW VM", conformance: "O",
                 constraint: "max 65279", xref: "cluster§3.2.7.31",
+
                 details: "Indicates the normalized chromaticity value x, as defined in the CIE xyY Color Space, of the red " +
                     "color point of the device." +
                     "\n" +
-                    "The value of x shall be related to the ColorPointRX attribute by the relationship x = ColorPointRX / " +
-                    "65536 (ColorPointRX in the range 0 to 65279 inclusive)"
+                    "The value of x shall be related to the ColorPointRX attribute by the relationship" +
+                    "\n" +
+                    "x = ColorPointRX / 65536 (ColorPointRX in the range 0 to 65279 inclusive)"
             }
         ),
 
@@ -7312,31 +7285,24 @@ export const SpecMatter = Matter(
             {
                 name: "ColorPointRy", id: 0x33, type: "uint16", access: "RW VM", conformance: "O",
                 constraint: "max 65279", xref: "cluster§3.2.7.32",
+
                 details: "Indicates the normalized chromaticity value y, as defined in the CIE xyY Color Space, of the red " +
                     "color point of the device." +
                     "\n" +
-                    "The value of y shall be related to the ColorPointRY attribute by the relationship y = ColorPointRY / " +
-                    "65536 (ColorPointRY in the range 0 to 65279 inclusive)"
+                    "The value of y shall be related to the ColorPointRY attribute by the relationship" +
+                    "\n" +
+                    "y = ColorPointRY / 65536 (ColorPointRY in the range 0 to 65279 inclusive)"
             }
         ),
 
         Attribute({
             name: "ColorPointRIntensity", id: 0x34, type: "uint8", access: "RW VM", conformance: "O",
             quality: "X", xref: "cluster§3.2.7.33",
-
             details: "Indicates a representation of the relative intensity of the red color point as defined in Section " +
                 "3.1.3, “The Dimming Light Curve”, normalized such that the color point with the highest relative " +
                 "intensity contains the value 254." +
                 "\n" +
-                "A value of null shall indicate an invalid value." +
-                "\n" +
-                "3.2.7.34. ColorPointGX, ColorPointGY, ColorPointGIntensity, ColorPointBX, ColorPointBY and " +
-                "ColorPointBIntensity Attributes These attributes shall represent the chromaticity values and " +
-                "intensities of the green and blue color points, in the same way as for the ColorPointRX, " +
-                "ColorPointRY and ColorPointRIntensity attributes." +
-                "\n" +
-                "If any one of these red, green or blue color point attributes is implemented then they shall all be " +
-                "implemented."
+                "A value of null shall indicate an invalid value."
         }),
 
         Attribute({
@@ -7445,18 +7411,16 @@ export const SpecMatter = Matter(
             name: "ColorTempPhysicalMinMireds", id: 0x400b, type: "uint16", access: "R V", conformance: "CT",
             constraint: "1 to 65279", xref: "cluster§3.2.7.20",
             details: "Indicates the minimum mired value supported by the hardware. ColorTempPhysicalMinMireds corresponds " +
-                "to the maximum color temperature in kelvins supported by the hardware." +
-                "\n" +
-                "ColorTempPhysicalMinMireds <= ColorTemperatureMireds."
+                "to the maximum color temperature in kelvins supported by the hardware. ColorTempPhysicalMinMireds <= " +
+                "ColorTemperatureMireds."
         }),
 
         Attribute({
             name: "ColorTempPhysicalMaxMireds", id: 0x400c, type: "uint16", access: "R V", conformance: "CT",
             constraint: "max 65279", xref: "cluster§3.2.7.21",
             details: "Indicates the maximum mired value supported by the hardware. ColorTempPhysicalMaxMireds corresponds " +
-                "to the minimum color temperature in kelvins supported by the hardware." +
-                "\n" +
-                "ColorTemperatureMireds <= ColorTempPhysicalMaxMireds."
+                "to the minimum color temperature in kelvins supported by the hardware. ColorTemperatureMireds <= " +
+                "ColorTempPhysicalMaxMireds."
         }),
 
         Attribute(
@@ -7477,9 +7441,7 @@ export const SpecMatter = Matter(
                     "Note that since this attribute is stored as a micro reciprocal degree (mired) value (i.e. color " +
                     "temperature in kelvins = 1,000,000 / CoupleColorTempToLevelMinMireds), the " +
                     "CoupleColorTempToLevelMinMireds attribute corresponds to an upper bound on the value of the color " +
-                    "temperature" +
-                    "\n" +
-                    "in kelvins supported by the device."
+                    "temperature in kelvins supported by the device."
             }
         ),
 
@@ -7845,11 +7807,16 @@ export const SpecMatter = Matter(
             {
                 name: "StopMoveStep", id: 0x47, access: "O", conformance: "HS | XY | CT", direction: "request",
                 response: "status", xref: "cluster§3.2.8.20",
+
                 details: "This command is provided to allow MoveTo and Step commands to be stopped." +
                     "\n" +
-                    "NOTE This automatically provides symmetry to the Level Control cluster." +
+                    "> [!NOTE]" +
                     "\n" +
-                    "NOTE The StopMoveStep command has no effect on an active color loop."
+                    "> This automatically provides symmetry to the Level Control cluster." +
+                    "\n" +
+                    "> [!NOTE]" +
+                    "\n" +
+                    "> The StopMoveStep command has no effect on an active color loop."
             },
 
             Field({ name: "OptionsMask", id: 0x0, type: "OptionsBitmap", conformance: "M", constraint: "desc" }),
@@ -8147,20 +8114,9 @@ export const SpecMatter = Matter(
         {
             name: "PumpConfigurationAndControl", id: 0x200, classification: "application", pics: "PCC",
             xref: "cluster§4.2",
-
             details: "The Pump Configuration and Control cluster provides an interface for the setup and control of pump " +
                 "devices, and the automatic reporting of pump status information. Note that control of pump speed is " +
-                "not included – speed is controlled by the On/Off and Level Control clusters." +
-                "\n" +
-                "### Pump controller Pump" +
-                "\n" +
-                "C Pump configuration and control S C Level control S" +
-                "\n" +
-                "### C On/Off S" +
-                "\n" +
-                "C = Client S = Server" +
-                "\n" +
-                "Note: Device names are examples for illustration purposes only"
+                "not included – speed is controlled by the On/Off and Level Control clusters."
         },
 
         Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 4 }),
@@ -8221,7 +8177,7 @@ export const SpecMatter = Matter(
             details: "This attribute specifies the maximum flow the pump can achieve. It is a physical limit, and does not " +
                 "apply to any specific control mode or operation mode." +
                 "\n" +
-                "Valid range is 0 m/h to 6,553.4 m/h (steps of 0.1 m/h). Null if the value is invalid."
+                "Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid."
         }),
 
         Attribute({
@@ -8263,8 +8219,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "MinConstSpeed", id: 0x7, type: "uint16", access: "R V", conformance: "SPD, [AUTO]",
             default: null, quality: "X F", xref: "cluster§4.2.7.8",
-            details: "This attribute specifies the minimum speed the pump can achieve when it is working with the Con " +
-                "trolMode attribute set to ConstantSpeed." +
+            details: "This attribute specifies the minimum speed the pump can achieve when it is working with the " +
+                "ControlMode attribute set to ConstantSpeed." +
                 "\n" +
                 "Valid range is 0 to 65,534 RPM (steps of 1 RPM). Null if the value is invalid."
         }),
@@ -8284,7 +8240,7 @@ export const SpecMatter = Matter(
             details: "This attribute specifies the minimum flow the pump can achieve when it is working with the " +
                 "ControlMode attribute set to ConstantFlow." +
                 "\n" +
-                "Valid range is 0 m/h to 6,553.4 m/h (steps of 0.1 m/h). Null if the value is invalid."
+                "Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid."
         }),
 
         Attribute({
@@ -8293,7 +8249,7 @@ export const SpecMatter = Matter(
             details: "This attribute specifies the maximum flow the pump can achieve when it is working with the " +
                 "ControlMode attribute set to ConstantFlow." +
                 "\n" +
-                "Valid range is 0 m/h to 6,553.4 m/h (steps of 0.1 m/h). Null if the value is invalid."
+                "Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid."
         }),
 
         Attribute({
@@ -8308,14 +8264,11 @@ export const SpecMatter = Matter(
         Attribute({
             name: "MaxConstTemp", id: 0xc, type: "int16", access: "R V", conformance: "TEMP, [AUTO]",
             constraint: "min -27315", default: null, quality: "X F", xref: "cluster§4.2.7.13",
-
             details: "This attribute specifies the maximum temperature the pump can maintain in the system when it is " +
                 "working with the ControlMode attribute set to ConstantTemperature." +
                 "\n" +
                 "MaxConstTemp shall be greater than or equal to MinConstTemp Valid range is –273.15 °C to 327.67 °C " +
-                "(steps of 0.01 °C)." +
-                "\n" +
-                "Null if the value is invalid."
+                "(steps of 0.01 °C). Null if the value is invalid."
         }),
 
         Attribute({
@@ -8433,10 +8386,9 @@ export const SpecMatter = Matter(
                 "energy consumption of the pump increases. If LifetimeEnergyConsumed rises above maximum value it " +
                 "“rolls over” and starts at 0 (zero)." +
                 "\n" +
-                "This attribute is writeable, in order to allow setting to an appropriate value after maintenance. " +
-                "Valid range is 0 kWh to 4,294,967,294 kWh." +
+                "This attribute is writeable, in order to allow setting to an appropriate value after maintenance." +
                 "\n" +
-                "Null if the value is unknown."
+                "Valid range is 0 kWh to 4,294,967,294 kWh. Null if the value is unknown."
         }),
 
         Attribute({
@@ -8448,8 +8400,6 @@ export const SpecMatter = Matter(
                 "The actual operating mode of the pump is a result of the setting of the attributes OperationMode, " +
                 "ControlMode and the optional connection of a remote sensor. The operation and control is prioritized " +
                 "as shown in the scheme below:" +
-                "\n" +
-                "### Priority Scheme of Pump Operation and Control" +
                 "\n" +
                 "If this attribute is Maximum, Minimum or Local, the OperationMode attribute decides how the pump is " +
                 "operated." +
@@ -8624,9 +8574,9 @@ export const SpecMatter = Matter(
                 name: "ProportionalPressure", id: 0x2, conformance: "PRSCOMP",
                 description: "The pump will regulate its speed to maintain a constant differential pressure over its flanges.",
                 xref: "cluster§4.2.6.3.3",
-                details: "The setpoint is interpreted as a percentage of the range derived of the [MinCompPressure – Max " +
-                    "CompPressure] attributes. The internal setpoint will be lowered (compensated) dependent on the flow " +
-                    "in the pump (lower flow ⇒ lower internal setpoint)."
+                details: "The setpoint is interpreted as a percentage of the range derived of the [MinCompPressure – " +
+                    "MaxCompPressure] attributes. The internal setpoint will be lowered (compensated) dependent on the " +
+                    "flow in the pump (lower flow ⇒ lower internal setpoint)."
             }),
 
             Field({
@@ -8753,7 +8703,7 @@ export const SpecMatter = Matter(
             details: "Indicates the absolute minimum level that the heating setpoint may be set to. This is a limitation " +
                 "imposed by the manufacturer." +
                 "\n" +
-                "### Refer to Setpoint Limits for constraints"
+                "Refer to Setpoint Limits for constraints"
         }),
 
         Attribute({
@@ -8771,7 +8721,7 @@ export const SpecMatter = Matter(
             details: "Indicates the absolute maximum level that the cooling setpoint may be set to. This is a limitation " +
                 "imposed by the manufacturer." +
                 "\n" +
-                "### Refer to Setpoint Limits for constraints"
+                "Refer to Setpoint Limits for constraints"
         }),
 
         Attribute({
@@ -8829,8 +8779,9 @@ export const SpecMatter = Matter(
             conformance: "COOL", constraint: "desc", default: { type: "celsius", value: 26 }, quality: "N",
             xref: "cluster§4.3.9.13",
 
-            details: "Indicates the cooling mode setpoint when the room is occupied. Refer to Setpoint Limits for " +
-                "constraints." +
+            details: "Indicates the cooling mode setpoint when the room is occupied." +
+                "\n" +
+                "Refer to Setpoint Limits for constraints." +
                 "\n" +
                 "If an attempt is made to set this attribute to a value greater than MaxCoolSetpointLimit or less " +
                 "than MinCoolSetpointLimit, a response with the status code CONSTRAINT_ERROR shall be returned." +
@@ -8852,8 +8803,9 @@ export const SpecMatter = Matter(
             conformance: "HEAT", constraint: "desc", default: { type: "celsius", value: 20 }, quality: "N",
             xref: "cluster§4.3.9.14",
 
-            details: "Indicates the heating mode setpoint when the room is occupied. Refer to Setpoint Limits for " +
-                "constraints." +
+            details: "Indicates the heating mode setpoint when the room is occupied." +
+                "\n" +
+                "Refer to Setpoint Limits for constraints." +
                 "\n" +
                 "If an attempt is made to set this attribute to a value greater than MaxHeatSetpointLimit or less " +
                 "than MinHeatSetpointLimit, a response with the status code CONSTRAINT_ERROR shall be returned." +
@@ -8875,8 +8827,9 @@ export const SpecMatter = Matter(
             conformance: "COOL & OCC", constraint: "desc", default: { type: "celsius", value: 26 },
             quality: "N", xref: "cluster§4.3.9.15",
 
-            details: "Indicates the cooling mode setpoint when the room is unoccupied. Refer to Setpoint Limits for " +
-                "constraints." +
+            details: "Indicates the cooling mode setpoint when the room is unoccupied." +
+                "\n" +
+                "Refer to Setpoint Limits for constraints." +
                 "\n" +
                 "If an attempt is made to set this attribute to a value greater than MaxCoolSetpointLimit or less " +
                 "than MinCoolSetpointLimit, a response with the status code CONSTRAINT_ERROR shall be returned." +
@@ -8897,16 +8850,16 @@ export const SpecMatter = Matter(
             conformance: "HEAT & OCC", constraint: "desc", default: { type: "celsius", value: 20 },
             quality: "N", xref: "cluster§4.3.9.16",
 
-            details: "Indicates the heating mode setpoint when the room is unoccupied. Refer to Setpoint Limits for " +
-                "constraints." +
+            details: "Indicates the heating mode setpoint when the room is unoccupied." +
+                "\n" +
+                "Refer to Setpoint Limits for constraints." +
                 "\n" +
                 "If an attempt is made to set this attribute to a value greater than MaxHeatSetpointLimit or less " +
                 "than MinHeatSetpointLimit, a response with the status code CONSTRAINT_ERROR shall be returned." +
                 "\n" +
                 "If this attribute is set to a value that is greater than (UnoccupiedCoolingSetpoint - " +
-                "MinSetpointDeadBand), the value of UnoccupiedCoolingSetpoint shall be adjusted to" +
-                "\n" +
-                "+ MinSetpointDeadBand)." +
+                "MinSetpointDeadBand), the value of UnoccupiedCoolingSetpoint shall be adjusted to " +
+                "(UnoccupiedHeatingSetpoint + MinSetpointDeadBand)." +
                 "\n" +
                 "If the occupancy status of the room is unknown, this attribute shall NOT be used." +
                 "\n" +
@@ -8990,8 +8943,10 @@ export const SpecMatter = Matter(
                 "> Prior to revision 8 of this cluster specification the value of this attribute was constrained to a " +
                 "  range of 0°C to 2.5°C." +
                 "\n" +
-                "For backwards compatibility, this attribute is optionally writeable. However any writes to this " +
-                "attribute shall be silently ignored."
+                "> [!NOTE]" +
+                "\n" +
+                "> For backwards compatibility, this attribute is optionally writeable. However any writes to this " +
+                "  attribute shall be silently ignored."
         }),
 
         Attribute({
@@ -9117,14 +9072,18 @@ export const SpecMatter = Matter(
                 "> [!NOTE]" +
                 "\n" +
                 "> Modifying the ScheduleActive bit does not clear or delete previous weekly schedule programming " +
-                "  configurations."
+                "  configurations." +
+                "\n" +
+                "Modifying the ScheduleActive bit does not clear or delete previous weekly schedule programming " +
+                "configurations."
         }),
 
         Attribute({
             name: "ThermostatRunningState", id: 0x29, type: "RelayStateBitmap", access: "R V", conformance: "O",
             constraint: "desc", xref: "cluster§4.3.9.32",
-            details: "Indicates the current relay state of the heat, cool, and fan relays. Unimplemented outputs shall be " +
-                "treated as if they were Off."
+            details: "Indicates the current relay state of the heat, cool, and fan relays." +
+                "\n" +
+                "Unimplemented outputs shall be treated as if they were Off."
         }),
 
         Attribute({
@@ -9273,7 +9232,7 @@ export const SpecMatter = Matter(
                     "\n" +
                     "⇒ OccupiedHeatingSetpoint - Calculated Local Temperature ≥? EmergencyHeatDelta" +
                     "\n" +
-                    "⇒ 16°C - 10°C ≥? 2°C" +
+                    "  • ⇒ 16°C - 10°C ≥? 2°C" +
                     "\n" +
                     "⇒ TRUE >>> Thermostat server changes its SystemMode to operate in 2nd stage or emergency heat mode" +
                     "\n" +
@@ -9389,7 +9348,9 @@ export const SpecMatter = Matter(
                 name: "Presets", id: 0x50, type: "list", access: "RW VM", conformance: "PRES",
                 constraint: "max numberOfPresets", default: [], quality: "N T", xref: "cluster§4.3.9.59",
 
-                details: "This attribute shall contain the current list of configured presets. On receipt of a write request:" +
+                details: "This attribute shall contain the current list of configured presets." +
+                    "\n" +
+                    "On receipt of a write request:" +
                     "\n" +
                     "  1. If the PresetHandle field is null, the PresetStruct shall be treated as an added preset, and " +
                     "     the device shall create a new unique value for the PresetHandle field." +
@@ -9470,7 +9431,9 @@ export const SpecMatter = Matter(
                 name: "Schedules", id: 0x51, type: "list", access: "RW VM", conformance: "MSCH", constraint: "desc",
                 default: [], quality: "N T", xref: "cluster§4.3.9.60",
 
-                details: "This attribute shall contain a list of ScheduleStructs. On receipt of a write request:" +
+                details: "This attribute shall contain a list of ScheduleStructs." +
+                    "\n" +
+                    "On receipt of a write request:" +
                     "\n" +
                     "  1. For all schedules in the write request:" +
                     "\n" +
@@ -10098,7 +10061,12 @@ export const SpecMatter = Matter(
 
                 details: "> [!NOTE]" +
                     "\n" +
-                    "> CoolingAndHeating" +
+                    "> A thermostat indicating it supports CoolingAndHeating (or CoolingAndHeatingWithReheat) SHOULD be " +
+                    "  able to request heating or cooling on demand and will usually support the Auto SystemMode." +
+                    "\n" +
+                    "Systems which support cooling or heating, requiring external intervention to change modes or where " +
+                    "the whole building must be in the same mode, SHOULD report CoolingOnly or HeatingOnly based on the " +
+                    "current capability." +
                     "\n" +
                     "A thermostat indicating it supports CoolingAndHeating (or CoolingAndHeatingWithReheat) SHOULD be " +
                     "able to request heating or cooling on demand and will usually support the Auto SystemMode." +
@@ -10205,10 +10173,7 @@ export const SpecMatter = Matter(
         ),
 
         Datatype(
-            {
-                name: "SystemModeEnum", type: "enum8", xref: "cluster§4.3.8.24",
-                details: "Table 9. Interpretation of Heat, Cool and Auto SystemModeEnum Values"
-            },
+            { name: "SystemModeEnum", type: "enum8", xref: "cluster§4.3.8.24" },
             Field({
                 name: "Off", id: 0x0, conformance: "O",
                 description: "The Thermostat does not generate demand for Cooling or Heating"
@@ -10456,14 +10421,16 @@ export const SpecMatter = Matter(
                     "  • If the server supports the OCC feature, and the Occupied bit is not set on the Occupancy " +
                     "    attribute, then the UnoccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint" +
                     "\n" +
-                    "  • Otherwise, the OccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint If a " +
-                    "    HeatingSetpoint was used to determine the heating setpoint:" +
+                    "  • Otherwise, the OccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint" +
+                    "\n" +
+                    "If a HeatingSetpoint was used to determine the heating setpoint:" +
                     "\n" +
                     "  • If the server supports the OCC feature, and the Occupied bit is not set on the Occupancy " +
                     "    attribute, then the UnoccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint" +
                     "\n" +
-                    "  • Otherwise, the OccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint The " +
-                    "    ScheduleTransitionStruct shall be invalid if all the following are true:" +
+                    "  • Otherwise, the OccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint" +
+                    "\n" +
+                    "The ScheduleTransitionStruct shall be invalid if all the following are true:" +
                     "\n" +
                     "  • The HeatingSetpoint field is not provided" +
                     "\n" +
@@ -10472,8 +10439,9 @@ export const SpecMatter = Matter(
                     "  • The PresetHandle field on the encompassing ScheduleStruct is not provided" +
                     "\n" +
                     "  • The SystemMode field is provided and has the value Heat or Auto, or the SystemMode field on the " +
-                    "    parent ScheduleStruct has the value Heat or Auto The ScheduleTransitionStruct shall be invalid " +
-                    "    if all the following are true:" +
+                    "    parent ScheduleStruct has the value Heat or Auto" +
+                    "\n" +
+                    "The ScheduleTransitionStruct shall be invalid if all the following are true:" +
                     "\n" +
                     "  • The CoolingSetpoint field is not provided" +
                     "\n" +
@@ -10713,8 +10681,9 @@ export const SpecMatter = Matter(
         Attribute({
             name: "RockSupport", id: 0x7, type: "RockBitmap", access: "R V", conformance: "RCK",
             constraint: "min 1", quality: "F", xref: "cluster§4.4.6.8",
-            details: "This attribute is a bitmap that indicates the rocking motions that are supported by the server. If " +
-                "this attribute is supported by the server, at least one bit shall be set in this attribute."
+            details: "This attribute is a bitmap that indicates the rocking motions that are supported by the server." +
+                "\n" +
+                "If this attribute is supported by the server, at least one bit shall be set in this attribute."
         }),
 
         Attribute({
@@ -10736,8 +10705,9 @@ export const SpecMatter = Matter(
         Attribute({
             name: "WindSupport", id: 0x9, type: "WindBitmap", access: "R V", conformance: "WND",
             constraint: "min 1", quality: "F", xref: "cluster§4.4.6.10",
-            details: "This attribute is a bitmap that indicates what wind modes are supported by the server. If this " +
-                "attribute is supported by the server, at least one bit shall be set in this attribute."
+            details: "This attribute is a bitmap that indicates what wind modes are supported by the server." +
+                "\n" +
+                "If this attribute is supported by the server, at least one bit shall be set in this attribute."
         }),
 
         Attribute({
@@ -10797,13 +10767,14 @@ export const SpecMatter = Matter(
                     "value."
             }),
 
-            Field({
-                name: "LowestOff", id: 0x2, type: "bool", conformance: "O", default: true,
-                xref: "cluster§4.4.7.1.3",
-                details: "This field shall indicate that the fan being off" +
-                    "\n" +
-                    "= 0) is included as a step value."
-            })
+            Field(
+                {
+                    name: "LowestOff", id: 0x2, type: "bool", conformance: "O", default: true,
+                    xref: "cluster§4.4.7.1.3",
+                    details: "This field shall indicate that the fan being off (FanMode = Off, PercentSetting = 0, or SpeedSetting " +
+                        "= 0) is included as a step value."
+                }
+            )
         ),
 
         Datatype(
@@ -11016,7 +10987,9 @@ export const SpecMatter = Matter(
             name: "RemainingDuration", id: 0x3, type: "elapsed-s", access: "R V", conformance: "M",
             quality: "X Q", xref: "cluster§4.6.7.4",
 
-            details: "Indicates the remaining duration, in seconds, until the valve closes. Null:" +
+            details: "Indicates the remaining duration, in seconds, until the valve closes." +
+                "\n" +
+                "Null:" +
                 "\n" +
                 "  • When OpenDuration is null, or" +
                 "\n" +
@@ -11068,8 +11041,9 @@ export const SpecMatter = Matter(
                 "During a transition from one level to another level, the valve SHOULD keep this attribute updated to " +
                 "the best of its ability, in order to represent the actual level of the valve during the movement." +
                 "\n" +
-                "A value of 100 percent shall indicate the fully open position. A value of 0 percent shall indicate " +
-                "the fully closed position." +
+                "A value of 100 percent shall indicate the fully open position." +
+                "\n" +
+                "A value of 0 percent shall indicate the fully closed position." +
                 "\n" +
                 "A value of null shall indicate that the current state is not known."
         }),
@@ -11318,7 +11292,8 @@ export const SpecMatter = Matter(
                 name: "YDSCH", conformance: "O", constraint: "10", title: "YearDayAccessSchedules",
                 xref: "cluster§5.2.4.9",
 
-                details: "If the User feature is supported then Year Day Schedules are applied to a User and not a credential. " +
+                details: "If the User feature is supported then Year Day Schedules are applied to a User and not a credential." +
+                    "\n" +
                     "Year Day Schedules are used to restrict access to a specified date and time window." +
                     "\n" +
                     "The lock may automatically adjust the UserType when a schedule is created or cleared." +
@@ -11498,8 +11473,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "Language", id: 0x21, type: "string", access: "R[W] VM", conformance: "O",
             constraint: "max 3", quality: "P", xref: "cluster§5.2.9.20",
-            details: "Indicates the language for the on-screen or audible user interface using a 2- byte language code " +
-                "from ISO-639-1."
+            details: "Indicates the language for the on-screen or audible user interface using a 2-byte language code from " +
+                "ISO-639-1."
         }),
 
         Attribute({
@@ -11810,9 +11785,8 @@ export const SpecMatter = Matter(
                     "    ◦ shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
                     "      outside." +
                     "\n" +
-                    "    ◦ may generate a LockOperation event of LockOperationType Unlatch when it is actuated" +
-                    "\n" +
-                    "from the inside."
+                    "    ◦ may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
+                    "      inside."
             },
 
             Field({
@@ -12106,8 +12080,13 @@ export const SpecMatter = Matter(
                     "If the requested UserID is valid and the Code doesn’t exist, Get RFID Code Response shall have the " +
                     "following format:" +
                     "\n" +
-                    "UserID = requested User ID UserStatus = 0 (Available) UserType = Null (Not supported) PINCode = 0 " +
-                    "(zero length)" +
+                    "UserID = requested User ID" +
+                    "\n" +
+                    "UserStatus = 0 (Available)" +
+                    "\n" +
+                    "UserType = Null (Not supported)" +
+                    "\n" +
+                    "PINCode = 0 (zero length)" +
                     "\n" +
                     "If the requested UserID is invalid, send Default Response with an error status. The error status " +
                     "shall be equal to CONSTRAINT_ERROR when User_ID is less than the max number of users supported, and " +
@@ -12215,7 +12194,9 @@ export const SpecMatter = Matter(
                     "The associated UserType may be changed to ScheduleRestrictedUser by the lock when a Week Day " +
                     "schedule is set." +
                     "\n" +
-                    "Return status shall be one of the following values:"
+                    "Return status shall be one of the following values:" +
+                    "\n" +
+                    "One or more fields violates constraints or is invalid."
             },
 
             Field({
@@ -12615,11 +12596,15 @@ export const SpecMatter = Matter(
             {
                 name: "SetUserType", id: 0x14, access: "A", conformance: "!USR & (PIN | RID | FGP)",
                 direction: "request", response: "status", xref: "cluster§5.2.10.24",
+
                 details: "Set the user type for a specified user." +
                     "\n" +
                     "For user type value please refer to User Type Value." +
                     "\n" +
-                    "Return status shall be one of the following values:"
+                    "Return status shall be one of the following values:" +
+                    "\n" +
+                    "One or more fields violates constraints or is invalid. Door lock is unable to switch from restricted " +
+                    "to unrestricted user (e.g. need to clear schedules to switch)."
             },
 
             Field({
@@ -12669,7 +12654,7 @@ export const SpecMatter = Matter(
                 xref: "cluster§5.2.10.27.1",
                 details: "This field shall indicate the user ID." +
                     "\n" +
-                    "The value of the UserID field shall be between 0 and the value of the NumberOfRFIDUsersSup ported " +
+                    "The value of the UserID field shall be between 0 and the value of the NumberOfRFIDUsersSupported " +
                     "attribute."
             }),
 
@@ -12717,7 +12702,11 @@ export const SpecMatter = Matter(
                     "If the requested User ID is valid and the Code doesn’t exist, Get RFID Code Response shall have the " +
                     "following format:" +
                     "\n" +
-                    "User ID = requested User ID UserStatus = 0 (available) UserType = 0xFF (not supported)" +
+                    "User ID = requested User ID" +
+                    "\n" +
+                    "UserStatus = 0 (available)" +
+                    "\n" +
+                    "UserType = 0xFF (not supported)" +
                     "\n" +
                     "RFID Code = 0 (zero length)" +
                     "\n" +
@@ -12768,6 +12757,61 @@ export const SpecMatter = Matter(
                     "\n" +
                     "Fields used for different use cases:" +
                     "\n" +
+                    "  • OperationType shall be set to Add." +
+                    "\n" +
+                    "  • UserIndex value shall be set to a user record with UserType set to Available." +
+                    "\n" +
+                    "  • UserName may be null causing new user record to use empty string for UserName otherwise UserName " +
+                    "    shall be set to the value provided in the new user record." +
+                    "\n" +
+                    "  • UserUniqueID may be null causing new user record to use 0xFFFFFFFF for UserUniqueID otherwise " +
+                    "    UserUniqueID shall be set to the value provided in the new user record." +
+                    "\n" +
+                    "  • UserStatus may be null causing new user record to use OccupiedEnabled for UserStatus otherwise " +
+                    "    UserStatus shall be set to the value provided in the new user record." +
+                    "\n" +
+                    "  • UserType may be null causing new user record to use UnrestrictedUser for UserType otherwise " +
+                    "    UserType shall be set to the value provided in the new user record." +
+                    "\n" +
+                    "  • CredentialRule may be null causing new user record to use Single for CredentialRule otherwise " +
+                    "    CredentialRule shall be set to the value provided in the new user record." +
+                    "\n" +
+                    "CreatorFabricIndex and LastModifiedFabricIndex in the new user record shall be set to the accessing " +
+                    "fabric index." +
+                    "\n" +
+                    "A LockUserChange event shall be generated after successfully creating a new user." +
+                    "\n" +
+                    "  • OperationType shall be set to Modify." +
+                    "\n" +
+                    "  • UserIndex value shall be set for a user record with UserType NOT set to Available." +
+                    "\n" +
+                    "  • UserName shall be null if modifying a user record that was not created by the accessing fabric." +
+                    "\n" +
+                    "  • INVALID_COMMAND shall be returned if UserName is not null and the accessing fabric index doesn’t " +
+                    "    match the CreatorFabricIndex in the user record otherwise UserName shall be set to the value " +
+                    "    provided in the user record." +
+                    "\n" +
+                    "  • UserUniqueID shall be null if modifying the user record that was not created by the accessing " +
+                    "    fabric." +
+                    "\n" +
+                    "  • INVALID_COMMAND shall be returned if UserUniqueID is not null and the accessing fabric index " +
+                    "    doesn’t match the CreatorFabricIndex in the user record otherwise UserUniqueID shall be set to " +
+                    "    the value provided in the user record." +
+                    "\n" +
+                    "  • UserStatus may be null causing no change to UserStatus in user record otherwise UserStatus shall " +
+                    "    be set to the value provided in the user record." +
+                    "\n" +
+                    "  • UserType may be null causing no change to UserType in user record otherwise UserType shall be " +
+                    "    set to the value provided in the user record." +
+                    "\n" +
+                    "  • CredentialRule may be null causing no change to CredentialRule in user record otherwise " +
+                    "    CredentialRule shall be set to the value provided in the user record." +
+                    "\n" +
+                    "CreatorFabricIndex shall NOT be changed in the user record. LastModifiedFabricIndex in the new user " +
+                    "record shall be set to the accessing fabric index." +
+                    "\n" +
+                    "A LockUserChange event shall be generated after successfully modifying a user." +
+                    "\n" +
                     "Return status is a global status code or a cluster-specific status code from the Status Codes table " +
                     "and shall be one of the following values:" +
                     "\n" +
@@ -12796,8 +12840,9 @@ export const SpecMatter = Matter(
                 name: "UserName", id: 0x2, type: "string", conformance: "M", constraint: "max 10", quality: "X",
                 xref: "cluster§5.2.10.32.3",
 
-                details: "This field shall contain a string to use as a human readable identifier for the user. If UserName is " +
-                    "null then:" +
+                details: "This field shall contain a string to use as a human readable identifier for the user." +
+                    "\n" +
+                    "If UserName is null then:" +
                     "\n" +
                     "  • If the OperationType is Add, the UserName in the resulting user record shall be set to an empty " +
                     "    string." +
@@ -12830,8 +12875,9 @@ export const SpecMatter = Matter(
                 name: "UserStatus", id: 0x4, type: "UserStatusEnum", conformance: "M",
                 constraint: "occupiedEnabled, occupiedDisabled", quality: "X", xref: "cluster§5.2.10.32.5",
 
-                details: "This field shall indicate the UserStatus to assign to this user when created or modified. If " +
-                    "UserStatus is null then:" +
+                details: "This field shall indicate the UserStatus to assign to this user when created or modified." +
+                    "\n" +
+                    "If UserStatus is null then:" +
                     "\n" +
                     "  • If the OperationType is Add, the UserStatus in the resulting user record shall be set to default " +
                     "    value specified above." +
@@ -12847,8 +12893,9 @@ export const SpecMatter = Matter(
                 constraint: "unrestrictedUser, nonAccessUser, forcedUser, disposableUser, expiringUser, scheduleRestrictedUser, remoteOnlyUser",
                 quality: "X", xref: "cluster§5.2.10.32.6",
 
-                details: "This field shall indicate the UserType to assign to this user when created or modified. If UserType " +
-                    "is null then:" +
+                details: "This field shall indicate the UserType to assign to this user when created or modified." +
+                    "\n" +
+                    "If UserType is null then:" +
                     "\n" +
                     "  • If the OperationType is Add, the UserType in the resulting user record shall be set to default " +
                     "    value specified above." +
@@ -12887,7 +12934,7 @@ export const SpecMatter = Matter(
                 response: "GetUserResponse", xref: "cluster§5.2.10.33",
                 details: "Retrieve user." +
                     "\n" +
-                    "An InvokeResponse command shall be sent with an appropriate error (e.g. FAILURE, INVALID_ COMMAND, " +
+                    "An InvokeResponse command shall be sent with an appropriate error (e.g. FAILURE, INVALID_COMMAND, " +
                     "etc.) as needed otherwise the GetUserResponse Command shall be sent implying a status of SUCCESS."
             },
 
@@ -13002,10 +13049,100 @@ export const SpecMatter = Matter(
             {
                 name: "SetCredential", id: 0x22, access: "A T", conformance: "USR", direction: "request",
                 response: "SetCredentialResponse", xref: "cluster§5.2.10.36",
+
                 details: "Set a credential (e.g. PIN, RFID, Fingerprint, etc.) into the lock for a new user, existing user, or " +
                     "ProgrammingUser." +
                     "\n" +
-                    "Fields used for different use cases:"
+                    "Fields used for different use cases:" +
+                    "\n" +
+                    "  • OperationType shall be set to Add." +
+                    "\n" +
+                    "  • UserIndex shall be set to null and the lock will find a user record with a UserStatus value of " +
+                    "    Available and associate its UserIndex with the CredentialIndex in CredentialStruct provided." +
+                    "\n" +
+                    "  • CredentialIndex in CredentialStruct shall be for an unoccupied credential slot." +
+                    "\n" +
+                    "  • UserStatus may be null. If it is null, the new user record shall have UserStatus set to " +
+                    "    OccupiedEnabled. Otherwise the new user record shall have UserStatus set to the provided value." +
+                    "\n" +
+                    "  • UserType may be null. If it is null, the new user record shall have UserType set to " +
+                    "    UnrestrictedUser. Otherwise the new user record shall have UserType set to the provided value." +
+                    "\n" +
+                    "  • UserType shall NOT be set to ProgrammingUser for this use case." +
+                    "\n" +
+                    "CreatorFabricIndex and LastModifiedFabricIndex in new user and credential records shall be set to " +
+                    "the accessing fabric index." +
+                    "\n" +
+                    "A LockUserChange event shall be generated after successfully creating a new credential and a new " +
+                    "user. The UserIndex of this LockUserChange event shall be the UserIndex that was used to create the " +
+                    "user. The DataIndex of this LockUserChange event shall be the CredentialIndex that was used to " +
+                    "create the credential." +
+                    "\n" +
+                    "  • OperationType shall be set to Add." +
+                    "\n" +
+                    "  • UserIndex shall NOT be null and shall NOT already be associated with the CredentialIndex in " +
+                    "    CredentialStruct provided otherwise INVALID_COMMAND status response shall be returned." +
+                    "\n" +
+                    "  • INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the " +
+                    "    CreatorFabricIndex in the user record pointed to by UserIndex." +
+                    "\n" +
+                    "  • CredentialIndex in CredentialStruct provided shall be for an available credential slot." +
+                    "\n" +
+                    "  • UserStatus shall be null." +
+                    "\n" +
+                    "  • UserType shall be null." +
+                    "\n" +
+                    "CreatorFabricIndex shall NOT be changed in the user record. LastModifiedFabricIndex in the user " +
+                    "record shall be set to the accessing fabric index." +
+                    "\n" +
+                    "CreatorFabricIndex and LastModifiedFabricIndex in the new credential record shall be set to the " +
+                    "accessing fabric index." +
+                    "\n" +
+                    "A LockUserChange event shall be generated after successfully adding a new credential." +
+                    "\n" +
+                    "  • OperationType shall be set to Modify." +
+                    "\n" +
+                    "  • UserIndex value shall already be associated with the CredentialIndex in CredentialStruct " +
+                    "    provided otherwise INVALID_COMMAND status response shall be returned." +
+                    "\n" +
+                    "  • INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the " +
+                    "    CreatorFabricIndex in the user record pointed to by UserIndex." +
+                    "\n" +
+                    "  • INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the " +
+                    "    CreatorFabricIndex in the credential record pointed to by the CredentialIndex field value of the " +
+                    "    Credential parameter." +
+                    "\n" +
+                    "  • CredentialIndex in CredentialStruct provided shall be for an occupied credential slot" +
+                    "\n" +
+                    "  • UserStatus shall be null." +
+                    "\n" +
+                    "  • UserType shall be null." +
+                    "\n" +
+                    "CreatorFabricIndex shall NOT be changed in user and credential records. LastModifiedFabricIndex in " +
+                    "user and credential records shall be set to the accessing fabric index." +
+                    "\n" +
+                    "A LockUserChange event shall be generated after successfully modifying a credential." +
+                    "\n" +
+                    "  • OperationType shall be set to Modify." +
+                    "\n" +
+                    "  • UserIndex shall be null." +
+                    "\n" +
+                    "  • INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the " +
+                    "    CreatorFabricIndex in the credential record pointed to by the CredentialIndex field value of the " +
+                    "    Credential parameter." +
+                    "\n" +
+                    "  • CredentialType in CredentialStruct shall be set to ProgrammingPIN." +
+                    "\n" +
+                    "  • CredentialIndex in CredentialStruct shall be 0." +
+                    "\n" +
+                    "  • UserStatus shall be null." +
+                    "\n" +
+                    "  • UserType shall be set to ProgrammingUser." +
+                    "\n" +
+                    "CreatorFabricIndex shall NOT be changed in the credential record. LastModifiedFabricIndex in the " +
+                    "credential record shall be set to the accessing fabric index." +
+                    "\n" +
+                    "A LockUserChange event shall be generated after successfully modifying a ProgrammingUser PIN code."
             },
 
             Field({
@@ -13223,6 +13360,31 @@ export const SpecMatter = Matter(
                     "\n" +
                     "Fields used for different use cases:" +
                     "\n" +
+                    "  • CredentialType in Credential structure shall be set to the credential type to be cleared." +
+                    "\n" +
+                    "  • CredentialType in Credential structure shall NOT be set to ProgrammingPIN." +
+                    "\n" +
+                    "  • CredentialIndex in Credential structure shall be set to the credential index to be cleared." +
+                    "\n" +
+                    "A LockUserChange event shall be generated after successfully clearing a credential." +
+                    "\n" +
+                    "  • CredentialType in Credential structure shall be set to the credential type to be cleared." +
+                    "\n" +
+                    "  • CredentialType in Credential structure shall NOT be set to ProgrammingPIN." +
+                    "\n" +
+                    "  • CredentialIndex in Credential structure shall be set to 0xFFFE to indicate all credentials of " +
+                    "    that type shall be cleared." +
+                    "\n" +
+                    "A single LockUserChange event shall be generated after successfully clearing credentials. This event " +
+                    "shall have DataIndex set to the CredentialIndex in the Credential structure." +
+                    "\n" +
+                    "  • Credential field shall be null." +
+                    "\n" +
+                    "The ProgrammingPIN credential shall NOT be cleared." +
+                    "\n" +
+                    "For each credential type cleared, a LockUserChange event with the corresponding LockDataType shall " +
+                    "be generated. This event shall have DataIndex set to 0xFFFE." +
+                    "\n" +
                     "For each credential cleared whose user doesn’t have another valid credential, the corresponding user " +
                     "record shall be reset back to default values and its UserStatus value shall be set to Available and " +
                     "UserType value shall be set to UnrestrictedUser and all schedules shall be cleared. In this case a " +
@@ -13296,8 +13458,9 @@ export const SpecMatter = Matter(
             name: "ClearAliroReaderConfig", id: 0x29, access: "A T", conformance: "ALIRO", direction: "request",
             response: "status", xref: "cluster§5.2.10.43",
 
-            details: "This command allows clearing an existing Aliro Reader configuration for the lock. Administrators " +
-                "shall NOT clear an Aliro Reader configuration without explicit user permission." +
+            details: "This command allows clearing an existing Aliro Reader configuration for the lock." +
+                "\n" +
+                "Administrators shall NOT clear an Aliro Reader configuration without explicit user permission." +
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
@@ -13331,12 +13494,12 @@ export const SpecMatter = Matter(
             {
                 name: "OperatingModesBitmap", type: "map16", xref: "cluster§5.2.6.3",
 
-                details: "### WARNING" +
+                details: "> [!WARNING]" +
                     "\n" +
-                    "For the OperatingModesBitmap, a bit SET indicates that the operating mode IS NOT supported. A bit " +
-                    "CLEAR indicates that the operating mode IS supported. This is the inverse of most bitmaps in this " +
-                    "specification, and it is recommended that clients carefully take this into consideration. See " +
-                    "SupportedOperatingModes."
+                    "> For the OperatingModesBitmap, a bit SET indicates that the operating mode IS NOT supported. A bit " +
+                    "  CLEAR indicates that the operating mode IS supported. This is the inverse of most bitmaps in this " +
+                    "  specification, and it is recommended that clients carefully take this into consideration. See " +
+                    "  SupportedOperatingModes."
             },
 
             Field({ name: "Normal", constraint: "0", description: "Normal operation mode" }),
@@ -13934,8 +14097,9 @@ export const SpecMatter = Matter(
                 name: "ScheduleRestrictedUser", id: 0x8, conformance: "WDSCH | YDSCH",
                 description: "The user ID type is schedule restricted", xref: "cluster§5.2.6.18.9",
 
-                details: "This value shall indicate the user access is restricted by Week Day and/or Year Day schedule. When " +
-                    "UserType is set to ScheduleRestrictedUser, user access shall be restricted as follows:" +
+                details: "This value shall indicate the user access is restricted by Week Day and/or Year Day schedule." +
+                    "\n" +
+                    "When UserType is set to ScheduleRestrictedUser, user access shall be restricted as follows:" +
                     "\n" +
                     "  • If no WeekDaySchedules and no YearDaySchedules are set for the user, then access shall be denied" +
                     "\n" +
@@ -16125,8 +16289,9 @@ export const SpecMatter = Matter(
             {
                 name: "LaunchContent", id: 0x0, access: "O", conformance: "CS", direction: "request",
                 response: "LauncherResponse", xref: "cluster§6.7.7.1",
-                details: "Upon receipt, this shall launch the specified content with optional search criteria. This command " +
-                    "returns a Launch Response."
+                details: "Upon receipt, this shall launch the specified content with optional search criteria." +
+                    "\n" +
+                    "This command returns a Launch Response."
             },
 
             Field({
@@ -16465,20 +16630,18 @@ export const SpecMatter = Matter(
                     "shall use the https scheme."
             }),
 
-            Field(
-                {
-                    name: "Color", id: 0x1, type: "string", conformance: "O", constraint: "7, 9",
-                    xref: "cluster§6.7.5.9.2",
+            Field({
+                name: "Color", id: 0x1, type: "string", conformance: "O", constraint: "7, 9",
+                xref: "cluster§6.7.5.9.2",
 
-                    details: "This field shall indicate the color, in RGB or RGBA, used for styling different Video Player " +
-                        "sections like Logo, Watermark, etc. The value shall conform to the 6-digit or 8-digit format defined " +
-                        "for CSS sRGB hexadecimal color notation [https://www.w3.org/TR/css-color-4/#hex-notation]. Examples:" +
-                        "\n" +
-                        "  • #76DE19 for R=0x76, G=0xDE, B=0x19, A absent" +
-                        "\n" +
-                        "  • #76DE1980 for R=0x76, G=0xDE, B=0x19, A=0x80"
-                }
-            ),
+                details: "This field shall indicate the color, in RGB or RGBA, used for styling different Video Player " +
+                    "sections like Logo, Watermark, etc. The value shall conform to the 6-digit or 8-digit format defined " +
+                    "for CSS sRGB hexadecimal color notation. Examples:" +
+                    "\n" +
+                    "  • #76DE19 for R=0x76, G=0xDE, B=0x19, A absent" +
+                    "\n" +
+                    "  • #76DE1980 for R=0x76, G=0xDE, B=0x19, A=0x80"
+            }),
 
             Field({
                 name: "Size", id: 0x2, type: "DimensionStruct", conformance: "O", xref: "cluster§6.7.5.9.3",
@@ -16853,8 +17016,9 @@ export const SpecMatter = Matter(
             {
                 name: "RenameInput", id: 0x3, access: "M", conformance: "NU", direction: "request",
                 response: "status", xref: "cluster§6.9.7.4",
-                details: "Upon receipt, this command shall rename the input at a specific index in the Input List. Updates to " +
-                    "the input name shall appear in the device’s settings menus."
+                details: "Upon receipt, this command shall rename the input at a specific index in the Input List." +
+                    "\n" +
+                    "Updates to the input name shall appear in the device’s settings menus."
             },
 
             Field({ name: "Index", id: 0x0, type: "uint8", conformance: "M" }),
@@ -16892,7 +17056,7 @@ export const SpecMatter = Matter(
             Field({
                 name: "InputType", id: 0x1, type: "InputTypeEnum", conformance: "M", constraint: "desc",
                 xref: "cluster§6.9.5.2.2",
-                details: "### This field shall indicate the type of input"
+                details: "This field shall indicate the type of input"
             }),
             Field({
                 name: "Name", id: 0x2, type: "string", conformance: "M", xref: "cluster§6.9.5.2.3",
@@ -17194,8 +17358,9 @@ export const SpecMatter = Matter(
         Command({
             name: "Pause", id: 0x1, access: "O", conformance: "M", direction: "request",
             response: "PlaybackResponse", xref: "cluster§6.10.7.2",
-            details: "This command is used to pause playback of the media. Upon receipt, this shall pause playback of the " +
-                "media."
+            details: "This command is used to pause playback of the media." +
+                "\n" +
+                "Upon receipt, this shall pause playback of the media."
         }),
 
         Command({
@@ -17210,8 +17375,9 @@ export const SpecMatter = Matter(
         Command({
             name: "StartOver", id: 0x3, access: "O", conformance: "O", direction: "request",
             response: "PlaybackResponse", xref: "cluster§6.10.7.4",
-            details: "This command is used to start playback of the media from the beginning. Upon receipt, this shall " +
-                "Start Over with the current media playback item."
+            details: "This command is used to start playback of the media from the beginning." +
+                "\n" +
+                "Upon receipt, this shall Start Over with the current media playback item."
         }),
 
         Command({
@@ -17863,7 +18029,9 @@ export const SpecMatter = Matter(
                 "It is responsibility of the end product to enforce appropriate right access (for example, to prevent " +
                 "a child from disabling this feature)." +
                 "\n" +
-                "NOTE Support for Content Control cluster is provisional."
+                "> [!NOTE]" +
+                "\n" +
+                "> Support for Content Control cluster is provisional."
         },
 
         Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
@@ -18215,7 +18383,7 @@ export const SpecMatter = Matter(
             details: "The purpose of this command is to specify whether programs with no Content rating must be blocked by " +
                 "this media device." +
                 "\n" +
-                "Upon receipt of the UnblockUnratedContent command, the media device shall set the BlockUn rated " +
+                "Upon receipt of the UnblockUnratedContent command, the media device shall set the BlockUnrated " +
                 "attribute to FALSE."
         }),
 
@@ -18613,11 +18781,17 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, xref: "cluster§7.2.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§7.2.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§7.2.6" }),
-        Datatype({
-            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§7.2.5.1",
-            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                "ModeOptionStruct type. A blank field indicates no change."
-        }),
+
+        Datatype(
+            {
+                name: "ModeOptionStruct", type: "struct", xref: "cluster§7.2.5.1",
+                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                    "ModeOptionStruct type. A blank field indicates no change."
+            },
+            Field({ name: "Label", id: 0x0, conformance: "M" }),
+            Field({ name: "Mode", id: 0x1, conformance: "M" }),
+            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
+        ),
 
         Datatype(
             { name: "ModeChangeStatus", type: "enum8" },
@@ -18702,11 +18876,18 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, xref: "cluster§7.3.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§7.3.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§7.3.6" }),
-        Datatype({
-            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§7.3.5.1",
-            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                "ModeOptionStruct type. A blank field indicates no change."
-        }),
+
+        Datatype(
+            {
+                name: "ModeOptionStruct", type: "struct", xref: "cluster§7.3.5.1",
+                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                    "ModeOptionStruct type. A blank field indicates no change."
+            },
+            Field({ name: "Label", id: 0x0, conformance: "M" }),
+            Field({ name: "Mode", id: 0x1, conformance: "M" }),
+            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
+        ),
+
         Datatype(
             { name: "ModeChangeStatus", type: "enum8" },
             Field({ name: "CleaningInProgress", id: 0x40, xref: "cluster§7.3.7.1" })
@@ -18785,12 +18966,8 @@ export const SpecMatter = Matter(
                     "RVC Pause Compatibility defines the compatibility of the states this cluster defines with the Pause " +
                     "command." +
                     "\n" +
-                    "### Table 13. RVC Pause Compatibility" +
-                    "\n" +
                     "RVC Resume Compatibility defines the compatibility of the states this cluster defines with the " +
                     "Resume command." +
-                    "\n" +
-                    "### Table 14. RVC Resume Compatibility" +
                     "\n" +
                     "While in the Charging or Docked states, the device shall NOT attempt to resume unless it " +
                     "transitioned to those states while operating and can resume, such as, for example, if it is " +
@@ -18986,9 +19163,8 @@ export const SpecMatter = Matter(
                 "SetTemperature command." +
                 "\n" +
                 "For example, if the value of MinTemperature is 25.00C (2500) and the Step value is 0.50C (50), valid " +
-                "values of the TargetTemperature field of the SetTemperature command would be 25.50C" +
-                "\n" +
-                "(2550), 26.00C (2600), 26.50C (2650), etc."
+                "values of the TargetTemperature field of the SetTemperature command would be 25.50C (2550), 26.00C " +
+                "(2600), 26.50C (2650), etc."
         }),
 
         Attribute({
@@ -19071,11 +19247,17 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, conformance: "M", xref: "cluster§8.3.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§8.3.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§8.3.6" }),
-        Datatype({
-            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§8.3.5.1",
-            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                "ModeOptionStruct type. A blank field indicates no change."
-        }),
+
+        Datatype(
+            {
+                name: "ModeOptionStruct", type: "struct", xref: "cluster§8.3.5.1",
+                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                    "ModeOptionStruct type. A blank field indicates no change."
+            },
+            Field({ name: "Label", id: 0x0, conformance: "M" }),
+            Field({ name: "Mode", id: 0x1, conformance: "M" }),
+            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
+        ),
 
         Datatype(
             { name: "ModeTag", type: "enum16" },
@@ -19149,8 +19331,8 @@ export const SpecMatter = Matter(
         Datatype(
             {
                 name: "ModeOptionStruct", type: "struct", xref: "cluster§8.5.5.1",
-                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the ModeOption " +
-                    "Struct type. A blank field indicates no change."
+                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                    "ModeOptionStruct type. A blank field indicates no change."
             },
             Field({ name: "Label", id: 0x0, conformance: "M" }),
             Field({ name: "Mode", id: 0x1, conformance: "M" }),
@@ -19230,8 +19412,7 @@ export const SpecMatter = Matter(
                 "selected spin speed, as such, this attribute can be an integer between 0 and the number of entries " +
                 "in SpinSpeeds - 1. If a value is received that is outside of the defined constraints, a " +
                 "CONSTRAINT_ERROR shall be sent as the response. If a value is attempted to be written that doesn’t " +
-                "match a valid index (e.g. an index of 5 when the list has 4 values), a CONSTRAINT_ERROR shall be" +
-                "\n" +
+                "match a valid index (e.g. an index of 5 when the list has 4 values), a CONSTRAINT_ERROR shall be " +
                 "sent as the response. If null is written to this attribute, there will be no spin speed for the " +
                 "selected cycle. If the value is null, there will be no spin speed on the current mode."
         }),
@@ -19311,11 +19492,17 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, conformance: "M", xref: "cluster§8.7.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§8.7.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§8.7.6" }),
-        Datatype({
-            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§8.7.5.1",
-            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                "ModeOptionStruct type. A blank field indicates no change."
-        }),
+
+        Datatype(
+            {
+                name: "ModeOptionStruct", type: "struct", xref: "cluster§8.7.5.1",
+                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                    "ModeOptionStruct type. A blank field indicates no change."
+            },
+            Field({ name: "Label", id: 0x0, conformance: "M" }),
+            Field({ name: "Mode", id: 0x1, conformance: "M" }),
+            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
+        ),
 
         Datatype(
             { name: "ModeTag", type: "enum16" },
@@ -19477,11 +19664,17 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, xref: "cluster§8.11.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§8.11.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§8.11.6" }),
-        Datatype({
-            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§8.11.5.1",
-            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                "ModeOptionStruct type. A blank field indicates no change."
-        }),
+
+        Datatype(
+            {
+                name: "ModeOptionStruct", type: "struct", xref: "cluster§8.11.5.1",
+                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                    "ModeOptionStruct type. A blank field indicates no change."
+            },
+            Field({ name: "Label", id: 0x0, conformance: "M" }),
+            Field({ name: "Mode", id: 0x1, conformance: "M" }),
+            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
+        ),
 
         Datatype(
             { name: "ModeTag", type: "enum16" },
@@ -19635,8 +19828,9 @@ export const SpecMatter = Matter(
             name: "PowerSetting", id: 0x2, type: "uint8", access: "R V", conformance: "PWRNUM",
             constraint: "desc", xref: "cluster§8.13.5.3",
 
-            details: "Indicates the power level associated with the operation of the device. If the MinPower, MaxPower, " +
-                "and PowerStep attributes are not supported:" +
+            details: "Indicates the power level associated with the operation of the device." +
+                "\n" +
+                "If the MinPower, MaxPower, and PowerStep attributes are not supported:" +
                 "\n" +
                 "  • The minimum value of this attribute shall be 10," +
                 "\n" +
@@ -19668,8 +19862,9 @@ export const SpecMatter = Matter(
             name: "PowerStep", id: 0x5, type: "uint8", access: "R V", conformance: "PWRLMTS",
             constraint: "desc", quality: "F", xref: "cluster§8.13.5.6",
 
-            details: "Indicates the increment of power that can be set on the server. The value of this attribute shall be " +
-                "between 1 and MaxPower inclusive." +
+            details: "Indicates the increment of power that can be set on the server." +
+                "\n" +
+                "The value of this attribute shall be between 1 and MaxPower inclusive." +
                 "\n" +
                 "The value of this attribute shall be such that (MaxPower - MinPower) % PowerStep == 0" +
                 "\n" +
@@ -19772,8 +19967,9 @@ export const SpecMatter = Matter(
             {
                 name: "AddMoreTime", id: 0x1, access: "O", conformance: "O", direction: "request",
                 response: "status", xref: "cluster§8.13.6.3",
-                details: "This command is used to add more time to the CookTime attribute of the server. This command supports " +
-                    "these fields:"
+                details: "This command is used to add more time to the CookTime attribute of the server." +
+                    "\n" +
+                    "This command supports these fields:"
             },
 
             Field({
@@ -19804,8 +20000,9 @@ export const SpecMatter = Matter(
                 "\n" +
                 "  • Description of ESA and its capabilities & power limits (sometimes referred to as a nameplate)" +
                 "\n" +
-                "  • Current state of operation (including user opt-out, safety limitations / alarms) There are some " +
-                "    optional capabilities that some ESAs may be able to offer:" +
+                "  • Current state of operation (including user opt-out, safety limitations / alarms)" +
+                "\n" +
+                "There are some optional capabilities that some ESAs may be able to offer:" +
                 "\n" +
                 "  • Ability to control the load or generation" +
                 "\n" +
@@ -20225,7 +20422,9 @@ export const SpecMatter = Matter(
         Event({
             name: "Paused", id: 0x2, access: "V", conformance: "PAU", priority: "info",
             xref: "cluster§9.2.10.3",
-            details: "This event shall be generated when the ESA enters the Paused state. There is no data for this event."
+            details: "This event shall be generated when the ESA enters the Paused state." +
+                "\n" +
+                "There is no data for this event."
         }),
 
         Event(
@@ -20386,8 +20585,8 @@ export const SpecMatter = Matter(
                         "If this ESA supports PFR this would have 2 entries in the list as follows:" +
                         "\n" +
                         "If this ESA supports SFR where it does not know the actual power, but has an understanding of the " +
-                        "functions that use more energy, it could be requested to use more or less energy using the LoadCon " +
-                        "trol field as follows:"
+                        "functions that use more energy, it could be requested to use more or less energy using the " +
+                        "LoadControl field as follows:"
                 },
 
                 Field({ name: "entry", type: "ConstraintsStruct" })
@@ -20725,7 +20924,9 @@ export const SpecMatter = Matter(
                 name: "EarliestStartTime", id: 0x4, type: "epoch-s", conformance: "STA", quality: "X",
                 xref: "cluster§9.2.7.13.5",
                 details: "This field shall indicate the earliest start time, in UTC, that the entire Forecast can be shifted " +
-                    "to. A null value indicates that it can be started immediately."
+                    "to." +
+                    "\n" +
+                    "A null value indicates that it can be started immediately."
             }),
 
             Field({
@@ -20847,7 +21048,9 @@ export const SpecMatter = Matter(
                     "they may choose to use values between 0-100 as a percentage of compressor modulation, or could use " +
                     "these values as Enum states meaning heating with fan, heating without fan etc." +
                     "\n" +
-                    "NOTE An ESA shall always use the same value to represent the same operating state." +
+                    "> [!NOTE]" +
+                    "\n" +
+                    "> An ESA shall always use the same value to represent the same operating state." +
                     "\n" +
                     "By providing this information a smart EMS may be able to learn the observed power draw when the ESA " +
                     "is put into a specific state. It can potentially then use the ManufacturerESAState field in the " +
@@ -20984,11 +21187,13 @@ export const SpecMatter = Matter(
             Field({
                 name: "NominalPower", id: 0x1, type: "power-mW", conformance: "PFR", constraint: "desc",
                 xref: "cluster§9.2.7.15.2",
+
                 details: "This field shall indicate the new requested power that the ESA shall operate at. It MUST be between " +
                     "the AbsMinPower and AbsMaxPower attributes as advertised by the ESA if it supports PFR." +
                     "\n" +
-                    "This is a signed value and can be used to indicate charging or discharging. If the ESA does NOT " +
-                    "support PFR this value shall be ignored by the ESA."
+                    "This is a signed value and can be used to indicate charging or discharging." +
+                    "\n" +
+                    "If the ESA does NOT support PFR this value shall be ignored by the ESA."
             }),
 
             Field({
@@ -21082,7 +21287,7 @@ export const SpecMatter = Matter(
                 "\n" +
                 "This cluster supports a safety mechanism that may lockout remote operation until the initial " +
                 "latching conditions have been met. Some of the fault conditions defined in SAE J1772, such as " +
-                "Ground- Fault Circuit Interrupter (GFCI) or Charging Circuit Interrupting Device (CCID), may require " +
+                "Ground-Fault Circuit Interrupter (GFCI) or Charging Circuit Interrupting Device (CCID), may require " +
                 "clearing by an operator by, for example, pressing a button on the equipment or breaker panel." +
                 "\n" +
                 "This EVSE cluster is written around support of a single EVSE. Having multiple EVSEs at home or a " +
@@ -21284,8 +21489,9 @@ export const SpecMatter = Matter(
             name: "MaximumDischargeCurrent", id: 0x8, type: "amperage-mA", access: "R V", conformance: "V2X",
             constraint: "min 0", quality: "N", xref: "cluster§9.3.8.9",
 
-            details: "Indicates the maximum current that can be received by the EVSE from the EV. This attribute can be " +
-                "set using the EnableDischarging command." +
+            details: "Indicates the maximum current that can be received by the EVSE from the EV." +
+                "\n" +
+                "This attribute can be set using the EnableDischarging command." +
                 "\n" +
                 "This attribute value shall be the minimum of:" +
                 "\n" +
@@ -21404,17 +21610,10 @@ export const SpecMatter = Matter(
                     "\n" +
                     "Example:" +
                     "\n" +
-                    "ApproxEVEfficiency (km/kWh x 1000): 4800 (i.e. 4.8km/kWh x 1000)" +
+                    "ApproxEVEfficiency (km/kWh x 1000): 4800 (i.e. 4.8km/kWh x 1000) AddedEnergy (Wh): 10,000" +
                     "\n" +
-                    "### AddedEnergy (Wh): 10,000" +
-                    "\n" +
-                    "AddedRange (km) = 10,000 x 4800 / 1,000,000 = 48 km" +
-                    "\n" +
-                    "AddedRange (Miles) = AddedEnergy (Wh) x ApproxEVEfficiency (km/kWh x 1000) x" +
-                    "\n" +
-                    "0.6213" +
-                    "\n" +
-                    "= 29.82 Miles"
+                    "AddedRange (km) = 10,000 x 4800 / 1,000,000 = 48 km AddedRange (Miles) = AddedEnergy (Wh) x " +
+                    "ApproxEVEfficiency (km/kWh x 1000) x 0.6213 = 29.82 Miles"
             }
         ),
 
@@ -21436,11 +21635,13 @@ export const SpecMatter = Matter(
         Attribute({
             name: "VehicleId", id: 0x32, type: "string", access: "R V", conformance: "PNC",
             constraint: "max 32", quality: "X", xref: "cluster§9.3.8.19",
+
             details: "Indicates the vehicle ID read by the EVSE via ISO-15118 using the PNC feature, if the EVSE supports " +
                 "this capability." +
                 "\n" +
-                "The field may be based on the e-Mobility Account Identifier (EMAID). A null value shall indicate " +
-                "that this is unknown."
+                "The field may be based on the e-Mobility Account Identifier (EMAID)." +
+                "\n" +
+                "A null value shall indicate that this is unknown."
         }),
 
         Attribute({
@@ -21936,8 +22137,9 @@ export const SpecMatter = Matter(
                     "The optimization strategy is not defined here, however in simple terms, the AddedEnergy requirement " +
                     "can be fulfilled by knowing the charging Power (W) and the time needed to charge." +
                     "\n" +
-                    "To compute the Charging Time: Required Energy (Wh) = Power (W) x ChargingTime (s) / 3600 Therefore: " +
-                    "ChargingTime (s) = (3600 x RequiredEnergy (wH)) / Power (W)" +
+                    "To compute the Charging Time: Required Energy (Wh) = Power (W) x ChargingTime (s) / 3600" +
+                    "\n" +
+                    "Therefore: ChargingTime (s) = (3600 x RequiredEnergy (wH)) / Power (W)" +
                     "\n" +
                     "To compute the charging time: Charging StartTime = TargetTimeMinutesPastMidnight - ChargingTime"
             },
@@ -21993,9 +22195,8 @@ export const SpecMatter = Matter(
                     "  • the AddedEnergy field shall take precedence over the TargetSoC field, and if the EVSE does not " +
                     "    support the SOC feature then the TargetSoC field may only take the values null or 100%." +
                     "\n" +
-                    "  • if the AddedEnergy field has not been provided, the EVSE SHOULD assume the vehicle is empty" +
-                    "\n" +
-                    "and charge until the vehicle stops demanding a charge."
+                    "  • if the AddedEnergy field has not been provided, the EVSE SHOULD assume the vehicle is empty and " +
+                    "    charge until the vehicle stops demanding a charge."
             }),
 
             Field({
@@ -22084,11 +22285,17 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, xref: "cluster§9.4.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§9.4.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§9.4.6" }),
-        Datatype({
-            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§9.4.5.1",
-            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                "ModeOptionStruct type. A blank field indicates no change."
-        }),
+
+        Datatype(
+            {
+                name: "ModeOptionStruct", type: "struct", xref: "cluster§9.4.5.1",
+                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                    "ModeOptionStruct type. A blank field indicates no change."
+            },
+            Field({ name: "Label", id: 0x0, conformance: "M" }),
+            Field({ name: "Mode", id: 0x1, conformance: "M" }),
+            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
+        ),
 
         Datatype(
             { name: "ModeTag", type: "enum16" },
@@ -22199,19 +22406,12 @@ export const SpecMatter = Matter(
                     "For example, if the target temperature was 60°C, the current temperature was 20°C and the tank " +
                     "volume was 100L:" +
                     "\n" +
-                    "### Mass of water = 1kg per Litre" +
+                    "Mass of water = 1kg per Litre Total Mass = 100 x 1kg = 100kg Δ Temperature = (target temperature - " +
+                    "current temperature) = (60°C - 20°C) = 40°C" +
                     "\n" +
-                    "Total Mass = 100 x 1kg = 100kg" +
+                    "Energy required to heat the water to 60°C = 4182 x 40 x 100 = 16,728,000 J" +
                     "\n" +
-                    "Δ Temperature = (target temperature - current temperature)" +
-                    "\n" +
-                    "= (60°C - 20°C) = 40°C" +
-                    "\n" +
-                    "### Energy required to" +
-                    "\n" +
-                    "heat the water to 60°C = 4182 x 40 x 100 = 16,728,000 J" +
-                    "\n" +
-                    "Converting Joules in to Wh of heat (divide by 3600):" +
+                    "Converting Joules in to Wh of heat (divide by 3600): = 16,728,000 J / 3600 = 4647 Wh (4.65kWh)" +
                     "\n" +
                     "If the TankPercent feature is supported, then this estimate shall also take into account the " +
                     "percentage of the water in the tank which is already hot." +
@@ -22254,11 +22454,9 @@ export const SpecMatter = Matter(
                     "(COLD_WATER_TEMP) was assumed to be 20°C:" +
                     "\n" +
                     "TankPercentage = int(((current temperature - COLD_WATER_TEMP) / (target temperature - " +
-                    "COLD_WATER_TEMP)) * 100)" +
+                    "COLD_WATER_TEMP)) * 100) TankPercentage = min( max(TankPercentage,0), 100)" +
                     "\n" +
-                    "TankPercentage = min( max(TankPercentage,0), 100)" +
-                    "\n" +
-                    "### TankPercentage = 50%"
+                    "TankPercentage = 50%"
             }
         ),
 
@@ -22301,7 +22499,9 @@ export const SpecMatter = Matter(
         Command({
             name: "CancelBoost", id: 0x1, access: "M", conformance: "M", direction: "request",
             response: "status", xref: "cluster§9.5.8.2",
-            details: "Allows a client to cancel an ongoing Boost operation. This command has no payload."
+            details: "Allows a client to cancel an ongoing Boost operation." +
+                "\n" +
+                "This command has no payload."
         }),
 
         Datatype(
@@ -22423,11 +22623,17 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, xref: "cluster§9.6.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§9.6.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§9.6.6" }),
-        Datatype({
-            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§9.6.5.1",
-            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                "ModeOptionStruct type. A blank field indicates no change."
-        }),
+
+        Datatype(
+            {
+                name: "ModeOptionStruct", type: "struct", xref: "cluster§9.6.5.1",
+                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                    "ModeOptionStruct type. A blank field indicates no change."
+            },
+            Field({ name: "Label", id: 0x0, conformance: "M" }),
+            Field({ name: "Mode", id: 0x1, conformance: "M" }),
+            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
+        ),
 
         Datatype(
             { name: "ModeTag", type: "enum16" },
@@ -22464,7 +22670,9 @@ export const SpecMatter = Matter(
             xref: "cluster§9.7",
             details: "This cluster provides an interface to specify preferences for how devices should consume energy." +
                 "\n" +
-                "NOTE Support for Energy Preference cluster is provisional."
+                "> [!NOTE]" +
+                "\n" +
+                "> Support for Energy Preference cluster is provisional."
         },
 
         Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
@@ -22555,8 +22763,11 @@ export const SpecMatter = Matter(
             {
                 name: "LowPowerModeSensitivities", id: 0x3, type: "list", access: "R V", conformance: "LPMS",
                 constraint: "2 to 10", quality: "F", xref: "cluster§9.7.6.4",
+
                 details: "Indicates a list of BalanceStructs, each representing a condition or set of conditions for the " +
-                    "device to enter a low power mode. This shall contain at least two BalanceStructs." +
+                    "device to enter a low power mode." +
+                    "\n" +
+                    "This shall contain at least two BalanceStructs." +
                     "\n" +
                     "Each BalanceStruct shall have a Step field larger than the Step field on the previous BalanceStruct " +
                     "in the list."
@@ -22662,11 +22873,17 @@ export const SpecMatter = Matter(
         Attribute({ name: "CurrentMode", id: 0x1, xref: "cluster§9.8.6" }),
         Attribute({ name: "StartUpMode", id: 0x2, conformance: "X", xref: "cluster§9.8.6" }),
         Attribute({ name: "OnMode", id: 0x3, conformance: "X", xref: "cluster§9.8.6" }),
-        Datatype({
-            name: "ModeOptionStruct", type: "ModeOptionStruct", xref: "cluster§9.8.5.1",
-            details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
-                "ModeOptionStruct type. A blank field indicates no change."
-        }),
+
+        Datatype(
+            {
+                name: "ModeOptionStruct", type: "struct", xref: "cluster§9.8.5.1",
+                details: "The table below lists the changes relative to the Mode Base cluster for the fields of the " +
+                    "ModeOptionStruct type. A blank field indicates no change."
+            },
+            Field({ name: "Label", id: 0x0, conformance: "M" }),
+            Field({ name: "Mode", id: 0x1, conformance: "M" }),
+            Field({ name: "ModeTags", id: 0x2, conformance: "M", constraint: "1 to 8" })
+        ),
 
         Datatype(
             { name: "ModeTag", type: "enum16" },
@@ -23355,84 +23572,118 @@ export const SpecMatter = Matter(
     }),
     Datatype({ name: "octstr", description: "Octet string", isSeed: true, metatype: "bytes", xref: "core§7.19.1" }),
 
-    Datatype({
-        name: "list", description: "List", isSeed: true, metatype: "array", xref: "core§7.19.1.8",
+    Datatype(
+        {
+            name: "list", description: "List", isSeed: true, metatype: "array", xref: "core§7.19.1.8",
 
-        details: "A list is defined as a collection of entries of the same data type, with a finite count from 0 to " +
-            "65534. A cluster specification may define further constraints on the maximum possible count. The " +
-            "list entry data type shall be any defined data type, except a list data type, or any data type " +
-            "derived from a list." +
-            "\n" +
-            "The quality columns for a list definition are for the list." +
-            "\n" +
-            "The list entries are indicated with an index that is an unsigned integer starting at 0 (zero). The " +
-            "maintained order of entries, by index, is defined in the cluster specification, or undefined. Data " +
-            "that is defined as a list is indicated with \"list[X]\" where X is the entry type. The data type of " +
-            "the list entry has its own qualities, constraints, and conformance." +
-            "\n" +
-            "### To define qualities for the list entry data type, make the list entry data type a defined local " +
-            "derived data type, with a table including the columns required to define and constrain the data " +
-            "type." +
-            "\n" +
-            "There is an inline shortcut to define the list entry data type constraints. See List Constraints." +
-            "\n" +
-            "It is recommended to put a maximum constraint on the list and list entry data types." +
-            "\n" +
-            "It is recommended that a list entry data type be a struct, to enable the addition of new fields to " +
-            "the list’s entries in the future." +
-            "\n" +
-            "  • The cluster data version shall be incremented when the list order or entries change." +
-            "\n" +
-            "  • An entry shall NOT be NULL." +
-            "\n" +
-            "  • The list shall support reading and reporting all entries." +
-            "\n" +
-            "  • The list shall support reporting, updates, and/or deletion of one or more entries." +
-            "\n" +
-            "  • If the list is writable, it shall support writing or deleting the entire list." +
-            "\n" +
-            "  • If the list is writable, it shall support updating one or more individual entries by indicating " +
-            "    an index per updated entry." +
-            "\n" +
-            "  • If the list is writable, it shall support deleting one or more individual entries by indicating " +
-            "    an index per deleted entry." +
-            "\n" +
-            "  • If the list is writable, it shall support adding one or more individual entries." +
-            "\n" +
-            "  • A list may define an entry that is a struct that is fabric-scoped (see Section 7.6.4, " +
-            "    “Fabric-Scoped Access”)." +
-            "\n" +
-            "### Fabric-Scoped List" +
-            "\n" +
-            "  • A fabric-scoped list shall define an entry data type that is a struct, which shall also be " +
-            "    fabric-scoped (see Fabric-Scoped Struct)." +
-            "\n" +
-            "Each entry in a fabric-scoped list shall be fabric-scoped to a particular fabric or no fabric." +
-            "\n" +
-            "### Fabric-Filtered List" +
-            "\n" +
-            "A fabric-scoped list supports a fabric-filter that filters the view of the list for read and write " +
-            "interactions. This filter simplifies client side logic that does not want to read or write fabric " +
-            "data that is not associated with the accessing fabric." +
-            "\n" +
-            "  • An interaction upon a list with fabric-filtering shall only indicate and access entries where " +
-            "    the associated fabric matches the accessing fabric, and all other entries shall be ignored." +
-            "\n" +
-            "  • Fabric-filtered list entries shall be in the same order as the full list." +
-            "\n" +
-            "  • Fabric-filtered list entries shall be indexed from 0 with no gaps, as if the other entries did " +
-            "    not exist." +
-            "\n" +
-            "  • For a write interaction, fabric-filtering shall be enabled." +
-            "\n" +
-            "  • When writing to a fabric-scoped list, the write interaction shall be on an accessing fabric, " +
-            "    otherwise, the write interaction shall fail (see Interaction Model Specification)." +
-            "\n" +
-            "  • For a read interaction on a list, fabric-filtering may be enabled." +
-            "\n" +
-            "  • For a read interaction on a list, with fabric-filtering disabled, the list shall be reported as " +
-            "    a full list with all entries."
-    }),
+            details: "A list is defined as a collection of entries of the same data type, with a finite count from 0 to " +
+                "65534. A cluster specification may define further constraints on the maximum possible count. The " +
+                "list entry data type shall be any defined data type, except a list data type, or any data type " +
+                "derived from a list." +
+                "\n" +
+                "The quality columns for a list definition are for the list." +
+                "\n" +
+                "The list entries are indicated with an index that is an unsigned integer starting at 0 (zero). The " +
+                "maintained order of entries, by index, is defined in the cluster specification, or undefined. Data " +
+                "that is defined as a list is indicated with \"list[X]\" where X is the entry type. The data type of " +
+                "the list entry has its own qualities, constraints, and conformance." +
+                "\n" +
+                "To define qualities for the list entry data type, make the list entry data type a defined local " +
+                "derived data type, with a table including the columns required to define and constrain the data " +
+                "type." +
+                "\n" +
+                "For example: Derived data types defined here:" +
+                "\n" +
+                "SummerStruct defined here:" +
+                "\n" +
+                "Used Here:" +
+                "\n" +
+                "There is an inline shortcut to define the list entry data type constraints. See List Constraints." +
+                "\n" +
+                "For example:" +
+                "\n" +
+                "It is recommended to put a maximum constraint on the list and list entry data types." +
+                "\n" +
+                "It is recommended that a list entry data type be a struct, to enable the addition of new fields to " +
+                "the list’s entries in the future." +
+                "\n" +
+                "  • The cluster data version shall be incremented when the list order or entries change." +
+                "\n" +
+                "  • An entry shall NOT be NULL." +
+                "\n" +
+                "  • The list shall support reading and reporting all entries." +
+                "\n" +
+                "  • The list shall support reporting, updates, and/or deletion of one or more entries." +
+                "\n" +
+                "  • If the list is writable, it shall support writing or deleting the entire list." +
+                "\n" +
+                "  • If the list is writable, it shall support updating one or more individual entries by indicating " +
+                "    an index per updated entry." +
+                "\n" +
+                "  • If the list is writable, it shall support deleting one or more individual entries by indicating " +
+                "    an index per deleted entry." +
+                "\n" +
+                "  • If the list is writable, it shall support adding one or more individual entries." +
+                "\n" +
+                "  • A list may define an entry that is a struct that is fabric-scoped (see Section 7.6.4, " +
+                "    “Fabric-Scoped Access”)." +
+                "\n" +
+                "### Fabric-Scoped List" +
+                "\n" +
+                "  • A fabric-scoped list shall define an entry data type that is a struct, which shall also be " +
+                "    fabric-scoped (see Fabric-Scoped Struct)." +
+                "\n" +
+                "Each entry in a fabric-scoped list shall be fabric-scoped to a particular fabric or no fabric." +
+                "\n" +
+                "### Fabric-Filtered List" +
+                "\n" +
+                "A fabric-scoped list supports a fabric-filter that filters the view of the list for read and write " +
+                "interactions. This filter simplifies client side logic that does not want to read or write fabric " +
+                "data that is not associated with the accessing fabric." +
+                "\n" +
+                "  • An interaction upon a list with fabric-filtering shall only indicate and access entries where " +
+                "    the associated fabric matches the accessing fabric, and all other entries shall be ignored." +
+                "\n" +
+                "  • Fabric-filtered list entries shall be in the same order as the full list." +
+                "\n" +
+                "  • Fabric-filtered list entries shall be indexed from 0 with no gaps, as if the other entries did " +
+                "    not exist." +
+                "\n" +
+                "  • For a write interaction, fabric-filtering shall be enabled." +
+                "\n" +
+                "  • When writing to a fabric-scoped list, the write interaction shall be on an accessing fabric, " +
+                "    otherwise, the write interaction shall fail (see Interaction Model Specification)." +
+                "\n" +
+                "  • For a read interaction on a list, fabric-filtering may be enabled." +
+                "\n" +
+                "  • For a read interaction on a list, with fabric-filtering disabled, the list shall be reported as " +
+                "    a full list with all entries." +
+                "\n" +
+                "For example: A fabric-scoped full list with each entry having an associated FabricIndex and Value " +
+                "field:" +
+                "\n" +
+                "list = [ { FabricIndex = A, Value = 20 }, { FabricIndex = B, Value = 30 }, { FabricIndex = A, Value " +
+                "= 40 }, { FabricIndex = B, Value = 50 }, { FabricIndex = B, Value = 60 } ]" +
+                "\n" +
+                "would be a fabric-filtered list when accessed with fabric B:" +
+                "\n" +
+                "list = [ { FabricIndex = B, Value = 30 }, { FabricIndex = B, Value = 50 }, { FabricIndex = B, Value " +
+                "= 60 } ]" +
+                "\n" +
+                "Reading a fabric-filtered list entry index 2 accessed with fabric B reports:" +
+                "\n" +
+                "list[2] = [ { FabricIndex = B, Value = 60 } ]" +
+                "\n" +
+                "Writing fabric-filtered list entry index 1 when accessed with fabric B:" +
+                "\n" +
+                "list[1] = [ { FabricIndex = B, Value = 55 } ]" +
+                "\n" +
+                "changes the full list to:" +
+                "\n" +
+                "list = [ { FabricIndex = A, Value = 20 }, { FabricIndex = B, Value = 30 }, { FabricIndex = A, Value " +
+                "= 40 }, { FabricIndex = B, Value = 55 }, { FabricIndex = B, Value = 60 } ]"
+        }
+    ),
 
     Datatype({
         name: "struct", description: "Struct", isSeed: true, metatype: "object", xref: "core§7.19.1.9",
@@ -23488,7 +23739,7 @@ export const SpecMatter = Matter(
             "  • When the payload of a request command contains a fabric-scoped struct, the server shall " +
             "    implicitly load the accessing fabric-index into the global FabricIndex field of the struct." +
             "\n" +
-            "### • A fabric-scoped struct may be defined with some fields that are fabric-sensitive." +
+            "  • A fabric-scoped struct may be defined with some fields that are fabric-sensitive." +
             "\n" +
             "  • For interactions on a fabric-scoped struct that report back data, fabric-sensitive struct fields " +
             "    shall be omitted when reporting data back to the client, when the struct has an associated " +
@@ -23518,12 +23769,18 @@ export const SpecMatter = Matter(
                 "\n" +
                 "  • value = (temperature in °C) x 100" +
                 "\n" +
+                "  • -4°C ⇒ -400" +
+                "\n" +
+                "  • 123.45°C ⇒ 12345" +
+                "\n" +
                 "The range is constrained by absolute zero: -273.15°C to 327.67°C." +
                 "\n" +
                 "### Conversion of Temperature Values for Display" +
                 "\n" +
                 "When converting temperature values for display manufacturers SHOULD ensure that calculations round " +
                 "to the nearest representable value. Particular care is needed when using integer arithmetic." +
+                "\n" +
+                "For example, assuming a display resolution of 0.5:" +
                 "\n" +
                 "### Sample Conversion Code" +
                 "\n" +
@@ -23794,10 +24051,8 @@ export const SpecMatter = Matter(
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
-                "> This namespace has been deprecated as of Matter 1.4.2." +
-                "\n" +
-                "Clients SHOULD still have support for these tags, since the tags could be used by a server certified " +
-                "on a previous revision of Matter."
+                "> This namespace has been deprecated as of Matter 1.4.2. Clients SHOULD still have support for these " +
+                "  tags, since the tags could be used by a server certified on a previous revision of Matter."
         }),
 
         Field({
@@ -23856,10 +24111,7 @@ export const SpecMatter = Matter(
                 "If the Row or Column tags are used, the Label field in the same Semantic Tag structure shall be " +
                 "filled with a number comprised of Arabic numerals encoded as a string to indicate the row/column of " +
                 "the item. Number words (e.g. \"one\", \"two\", etc.) shall NOT be used to describe the position of the " +
-                "item. The first row/column shall use Label \"1\"." +
-                "\n" +
-                "The following example illustrates a compound device comprised of 9 endpoints arranged in a 3x3 grid. " +
-                "This example uses position tags to indicate position."
+                "item. The first row/column shall use Label \"1\"."
         }),
 
         Field({
@@ -24089,9 +24341,11 @@ export const SpecMatter = Matter(
     Datatype(
         {
             name: "WildcardPathFlagsBitmap", type: "map8", xref: "core§8.9.2.5",
-            details: "The WildcardPathFlagsBitmap indicates flags that apply to the path, affecting wildcard expansion. " +
+            details: "The WildcardPathFlagsBitmap indicates flags that apply to the path, affecting wildcard expansion." +
+                "\n" +
                 "The following flags are defined:"
         },
+
         Field({
             name: "WildcardSkipRootNode", constraint: "0",
             description: "Skip the Root Node endpoint (endpoint 0) during wildcard expansion."
@@ -24142,8 +24396,14 @@ export const SpecMatter = Matter(
                 "This cluster supports a list of one or more device type identifiers that represent conformance to " +
                 "device type specifications." +
                 "\n" +
+                "For Example: An Extended Color Light device type may support device type IDs for both a Dimmable " +
+                "Light and On/Off Light, because those are subsets of an Extended Color Light (the superset)." +
+                "\n" +
                 "The cluster supports a PartsList attribute that is a list of zero or more endpoints to support " +
-                "compound devices or composed device types."
+                "compound devices or composed device types." +
+                "\n" +
+                "For Example: A Refrigerator/Freezer appliance device type may be defined as being composed of " +
+                "multiple Temperature Sensor endpoints, a Metering endpoint, and two Thermostat endpoints."
         },
 
         Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
@@ -24381,8 +24641,9 @@ export const SpecMatter = Matter(
             Field({
                 name: "Label", id: 0x0, type: "string", conformance: "M", constraint: "max 16",
                 xref: "core§9.7.4.1.1",
-                details: "The Label or Value semantic is not defined here. Label examples: \"room\", \"zone\", \"group\", " +
-                    "\"direction\"."
+                details: "The Label or Value semantic is not defined here." +
+                    "\n" +
+                    "Label examples: \"room\", \"zone\", \"group\", \"direction\"."
             }),
 
             Field({
@@ -24483,7 +24744,7 @@ export const SpecMatter = Matter(
 
                 details: "This feature is for a device that is managed by a service associated with the device vendor and " +
                     "which imposes default access restrictions upon each new fabric added to it. This could arise, for " +
-                    "example, if the device is managed by a service provider under contract to an end-user, in such away " +
+                    "example, if the device is managed by a service provider under contract to an end-user, in such a way " +
                     "that the manager of the device does not unconditionally grant universal access to all of a device’s " +
                     "functionality, even for fabric administrators. For example, many Home Routers are managed by an " +
                     "Internet Service Provider (a service), and these services often have a policy that requires them to " +
@@ -24841,9 +25102,10 @@ export const SpecMatter = Matter(
                         "    user to allow viewing, downloading, installing or using a manufacturer-provided means for " +
                         "    guiding the user through the process to review and approve or deny the request. The device " +
                         "    manufacturer may choose to use a constructed URL which is valid in a HTTP GET request (i.e. " +
-                        "    dedicated for the product) such as, for example, https://domain.example/arl-app?vid=FFF1& " +
-                        "    pid=1234. If a client follows or launches the ARLRequestFlowUrl, it shall expand it as described " +
-                        "    in Section 9.10.9.3.4, “ARLRequestFlowUrl format”." +
+                        "    dedicated for the product) such as, for example, " +
+                        "    https://domain.example/arl-app?vid=FFF1&pid=1234. If a client follows or launches the " +
+                        "    ARLRequestFlowUrl, it shall expand it as described in Section 9.10.9.3.4, “ARLRequestFlowUrl " +
+                        "    format”." +
                         "\n" +
                         "  • A manufacturer contemplating using this flow should realize that" +
                         "\n" +
@@ -24865,7 +25127,7 @@ export const SpecMatter = Matter(
                         "    the contents of the value encoded with proper URL-encoded escaping." +
                         "\n" +
                         "  • If key MTcu is present, it shall have a value of \"_\" (i.e. MTcu=_). This is the \"callback URL " +
-                        "    (Call backUrl) placeholder\"." +
+                        "    (CallbackUrl) placeholder\"." +
                         "\n" +
                         "  • Any key whose name begins with MT not mentioned in the previous bullets shall be reserved for " +
                         "    future use by this specification. Manufacturers shall NOT include query keys starting with MT in " +
@@ -24893,8 +25155,9 @@ export const SpecMatter = Matter(
                         "client may replace the placeholder value \"_\" in the ExpandedARLRequestFlowUrl with a URL that the " +
                         "manufacturer flow can use to make a smooth return to the client when the ARL flow has terminated." +
                         "\n" +
-                        "This URL field may contain a query component (see RFC 3986 section 3.4). If a query is present, it " +
-                        "shall be composed of one or more key-value pairs:" +
+                        "This URL field may contain a query component (see RFC 3986 section 3.4)." +
+                        "\n" +
+                        "If a query is present, it shall be composed of one or more key-value pairs:" +
                         "\n" +
                         "  • The query shall use the & delimiter between key/value pairs." +
                         "\n" +
@@ -24914,11 +25177,9 @@ export const SpecMatter = Matter(
                         "fragment field (if present), shall remain as provided by the client through embedding within the " +
                         "ExpandedARLRequestFlowUrl, including the order of query key/value pairs present." +
                         "\n" +
-                        "### Expansion of CallbackUrl by the manufacturer custom flow" +
-                        "\n" +
-                        "Once the CallbackUrl is obtained by the manufacturer flow, it may be expanded to form a final " +
-                        "ExpandedARLRequestCallbackUrl URL to be used by proceeding with the following substitution algorithm " +
-                        "on the provided CallbackUrl:" +
+                        "Expansion of CallbackUrl by the manufacturer custom flow Once the CallbackUrl is obtained by the " +
+                        "manufacturer flow, it may be expanded to form a final ExpandedARLRequestCallbackUrl URL to be used " +
+                        "by proceeding with the following substitution algorithm on the provided CallbackUrl:" +
                         "\n" +
                         "  • If key MTaer is present, the manufacturer custom flow having received the initial query " +
                         "    containing the CallbackUrl shall substitute the placeholder value \"_\" (i.e. in MTaer=_) in the " +
@@ -24959,23 +25220,17 @@ export const SpecMatter = Matter(
                         "\n" +
                         "    ◦ Before expansion:" +
                         "\n" +
-                        "https://company.domain.example/matter/arl?vid=FFF1&pid=1234&MTcu=_" +
+                        "    ◦ After expansion:" +
                         "\n" +
-                        "  ◦ After expansion: " +
-                        "    https://company.domain.example/matter/arl?vid=FFF1&pid=1234&MTcu=https%3A%2F%2Fc " +
-                        "    lient.domain.example%2Fcb%3Ftoken%3DmAsJ6_vqbr-vjDiG_w%253D%253D%26MTaer%3D_" +
+                        "    ◦ The ExpandedARLRequestFlowUrl URL contains:" +
                         "\n" +
-                        "  ◦ The ExpandedARLRequestFlowUrl URL contains:" +
+                        "      ▪ A CallbackUrl with a client-provided arbitrary token= key/value pair and the MTaer= " +
+                        "        key/value pair place-holder to indicate support for a return access extension completion " +
+                        "        status: https://client.domain.example/cb?token=mAsJ6_vqbr-vjDiG_w%3D%3D&MTaer=_" +
                         "\n" +
-                        "    ▪ A CallbackUrl with a client-provided arbitrary token= key/value pair and the MTaer= key/value " +
-                        "      pair place-holder to indicate support for a return access extension completion status: " +
-                        "      https://client.domain.example/cb?token=mAsJ6_vqbr-vjDiG_w%3D%3D&MTaer=_" +
-                        "\n" +
-                        "    ▪ After expansion of the CallbackUrl (MTcu key) into an ExpandedCallbackUrl, with an example " +
-                        "      return access extension completion status of Success, the ExpandedARLRequestCallbackUrl would " +
-                        "      be:" +
-                        "\n" +
-                        "https://client.domain.example/cb?token=mAsJ6_vqbr-vjDiG_w%3D%3D&MTaer=Success" +
+                        "      ▪ After expansion of the CallbackUrl (MTcu key) into an ExpandedCallbackUrl, with an example " +
+                        "        return access extension completion status of Success, the ExpandedARLRequestCallbackUrl " +
+                        "        would be:" +
                         "\n" +
                         "Note that the MTcu key/value pair was initially provided URL-encoded within the " +
                         "ExpandedARLRequestFlowUrl URL and the MTaer=_ key/value pair placeholder now contains a substituted " +
@@ -25057,7 +25312,7 @@ export const SpecMatter = Matter(
                 name: "Operate", id: 0x3, conformance: "M",
                 description: "View privileges, and can perform the primary function of this Node (except Access Control Cluster)",
                 xref: "core§9.10.5.2.1",
-                details: "### This value implicitly grants View privileges"
+                details: "This value implicitly grants View privileges"
             }),
 
             Field({
@@ -25133,7 +25388,23 @@ export const SpecMatter = Matter(
                     "\n" +
                     "The Access Control Cluster shall require the Administer privilege to observe and modify the Access " +
                     "Control Cluster itself. The Administer privilege shall NOT be used on Access Control Entries which " +
-                    "use the Group auth mode."
+                    "use the Group auth mode." +
+                    "\n" +
+                    "E.g. A Fan Control Cluster may require Operate privilege to write to a level attribute " +
+                    "(low/medium/high), and to configure each level’s RPM setting via a command. The Fan Control Cluster " +
+                    "may also expose a current RPM attribute, which requires only View privilege to read. Clients granted " +
+                    "Operate privilege will be able to both change the level, and configure each level’s RPM. Clients " +
+                    "granted View privilege will be able to read the current RPM, but will not be granted sufficient " +
+                    "privilege to change the level or configure each level’s RPM." +
+                    "\n" +
+                    "E.g. A Fan Control Cluster may be included in a more industrial device type. To ensure proper " +
+                    "operation, this device type may restrict configuration of fan level RPM settings to require Manage " +
+                    "privilege. Clients granted Manage privilege will have sufficient privilege to configure each level’s " +
+                    "RPM; clients granted Operate privilege will not be able to perform such configuration, but will " +
+                    "still be able to change the level. This additional restriction would apply only to the Fan Control " +
+                    "Cluster as included in this particular device type; a client granted Operate privilege may still be " +
+                    "able to perform configuration in Fan Control Clusters included in other device types on the same " +
+                    "Node."
             }),
 
             Field({
@@ -25156,7 +25427,7 @@ export const SpecMatter = Matter(
                         "An attempt to create an entry with more subjects than the node can support shall result in a " +
                         "RESOURCE_EXHAUSTED error and the entry shall NOT be created." +
                         "\n" +
-                        "### Subject ID shall be of type uint64 with semantics depending on the entry’s AuthMode as follows:" +
+                        "Subject ID shall be of type uint64 with semantics depending on the entry’s AuthMode as follows:" +
                         "\n" +
                         "### Subject Semantics" +
                         "\n" +
@@ -25178,8 +25449,25 @@ export const SpecMatter = Matter(
                         "\n" +
                         "  • a CASE Authenticated Tag, which identifies the required source node indirectly (by tag)" +
                         "\n" +
+                        "E.g. an ACL entry with CASE AuthMode that grants privileges to Subject IDs [ 0x0000_0000_1111_1111, " +
+                        "0x0000_0000_2222_2222, 0x0000_0000_3333_3333 ] (which are Node IDs) will grant access to Nodes with " +
+                        "Node ID 0x0000_0000_1111_1111, 0x0000_0000_2222_2222, or 0x0000_0000_3333_3333, but will not grant " +
+                        "access to Nodes with Node ID 0x0000_0000_4444_4444 or 0x0000_0000_5555_5555." +
+                        "\n" +
+                        "E.g. an ACL entry with CASE AuthMode that grants privileges to Subject IDs [ 0x0000_0000_6666_6666, " +
+                        "0xFFFF_FFFD_ABCD_0002 ] (which are a Node ID and a CASE Authenticated Tag) will grant access to the " +
+                        "Node with Node ID 0x0000_0000_6666_6666 and any Nodes with CAT identifier value 0xABCD if the CAT’s " +
+                        "version is 0x0002 or higher. It will not grant access to Nodes with other CAT values such as " +
+                        "0x9999_9999. Any node with CAT identifier value of 0xABCD but version less than 0x0002 (for example: " +
+                        "0xFFFF_FFFD_ABCD_0001) will not be granted access." +
+                        "\n" +
                         "For Group authentication, the Group ID identifies the required group, as defined in the Group Key " +
-                        "Management Cluster."
+                        "Management Cluster." +
+                        "\n" +
+                        "E.g. an entry with Group AuthMode that grants privileges to Subject IDs [ 0x0000_0000_1111_1111, " +
+                        "0x0000_0000_2222_2222 ] (which are Group IDs) will grant access to Nodes in Group 0x1111_1111 or " +
+                        "0x2222_2222, but will not grant access to Nodes in Group 0x3333_3333, even if they share Operational " +
+                        "Group Keys."
                 },
 
                 Field({ name: "entry", type: "subject-id" })
@@ -25207,7 +25495,28 @@ export const SpecMatter = Matter(
                         "### Target Semantics" +
                         "\n" +
                         "An empty targets list indicates a wildcard: that is, this entry shall grant access to all cluster " +
-                        "instances on all endpoints on this Node."
+                        "instances on all endpoints on this Node." +
+                        "\n" +
+                        "E.g. an entry that grants privileges to the Color Light Bulb Device Type will grant privileges to " +
+                        "any cluster on any endpoint that contains the Color Light Bulb device type (whether that cluster is " +
+                        "in the Color Light Bulb device type or not), and will not grant privileges to any other cluster on " +
+                        "any other endpoint." +
+                        "\n" +
+                        "E.g. an entry that grants privileges to Endpoint 1 will grant privileges to any cluster on Endpoint " +
+                        "1, and will not grant privileges to any other cluster on any other endpoint." +
+                        "\n" +
+                        "E.g. an entry that grants privileges to the On/Off Cluster on any endpoint will not grant privileges " +
+                        "to any other cluster on any endpoint." +
+                        "\n" +
+                        "E.g. an entry that grants privileges to the On/Off Cluster with Color Light Bulb Device Type will " +
+                        "grant privileges to just the On/Off Cluster on any endpoint that contains the Color Light Bulb " +
+                        "device type, and will not grant privileges to any other cluster on any other endpoint (including " +
+                        "other clusters in the Color Light Bulb device type, or the On/Off cluster on endpoints that do not " +
+                        "contain the Color Light Bulb device type)." +
+                        "\n" +
+                        "E.g. an entry that grants privileges to the On/Off Cluster on Endpoint 1 will not grant privileges " +
+                        "to any other cluster on Endpoint 1, or to any other cluster (including the On/Off cluster) on any " +
+                        "other endpoint."
                 },
 
                 Field({ name: "entry", type: "AccessControlTargetStruct" })
@@ -25231,7 +25540,13 @@ export const SpecMatter = Matter(
                     "\n" +
                     "Administrators may iterate over this list of elements, and interpret selected elements at their " +
                     "discretion. The content of each element is not specified, but may be coordinated among manufacturers " +
-                    "at their discretion."
+                    "at their discretion." +
+                    "\n" +
+                    "E.g. a manufacturer could use this field to store structured data, including various metadata and " +
+                    "cryptographic signatures. The manufacturer could then verify a fabric’s Access Control List by " +
+                    "generating a canonical bytestream from the Access Control Entries for the fabric, then verifying the " +
+                    "signature against it. Such a canonical bytestream could be generated by encoding specific entry " +
+                    "fields and sub-fields (such as lists) in specific order and specific format (e.g. TLV)."
             }),
 
             Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
@@ -25417,7 +25732,9 @@ export const SpecMatter = Matter(
                 "provide a UniqueID attribute), the bridge shall generate a unique id on behalf of the bridged " +
                 "device." +
                 "\n" +
-                "NOTE The UniqueID attribute was optional in cluster revisions prior to revision 4."
+                "> [!NOTE]" +
+                "\n" +
+                "> The UniqueID attribute was optional in cluster revisions prior to revision 4."
         }),
 
         Attribute({ name: "CapabilityMinima", id: 0x13, conformance: "X", xref: "core§9.13.5" }),
@@ -25462,9 +25779,8 @@ export const SpecMatter = Matter(
             name: "ReachableChanged", id: 0x3, conformance: "M", priority: "critical", xref: "core§9.13.7.2",
             details: "This event shall be generated when there is a change in the Reachable attribute. Its purpose is to " +
                 "provide an indication towards interested parties that the reachability of a bridged device has " +
-                "changed over its native connectivity technology, so they may take appropriate action." +
-                "\n" +
-                "After (re)start of a bridge this event may be generated."
+                "changed over its native connectivity technology, so they may take appropriate action. After " +
+                "(re)start of a bridge this event may be generated."
         }),
 
         Event(
@@ -25472,9 +25788,7 @@ export const SpecMatter = Matter(
                 name: "ActiveChanged", id: 0x80, access: "V", conformance: "BIS", priority: "info",
                 xref: "core§9.13.7.3",
                 details: "This event (when supported) shall be generated the next time a bridged device becomes active after a " +
-                    "KeepActive command is received." +
-                    "\n" +
-                    "See KeepActive for more details."
+                    "KeepActive command is received. See KeepActive for more details."
             },
 
             Field({
@@ -25634,9 +25948,9 @@ export const SpecMatter = Matter(
                     "  • When used without suffix, it shall provide information about the various actions which the " +
                     "    cluster provides." +
                     "\n" +
-                    "    ◦ Example: SetupURL could take the value of example://Actions or https://domain.example/ " +
-                    "      Matter/bridgev1/Actions for this generic case (access generic info how to use actions provided " +
-                    "      by this cluster)." +
+                    "    ◦ Example: SetupURL could take the value of example://Actions or " +
+                    "      https://domain.example/Matter/bridgev1/Actions for this generic case (access generic info how " +
+                    "      to use actions provided by this cluster)." +
                     "\n" +
                     "  • When used with a suffix of \"/?a=\" and the decimal value of ActionID for one of the actions, it " +
                     "    may provide information about that particular action. This could be a deeplink to " +
@@ -26034,57 +26348,47 @@ export const SpecMatter = Matter(
                     "InstantActionWithTransition), or to bring these endpoints into a more dynamic state (typically using " +
                     "StartAction), where the endpoints would e.g. gradually cycle through certain colors for a pleasing " +
                     "effect. A voice controller could use \"set\" (to map to InstantAction) or \"play\" (to map to " +
-                    "StartAction) to trigger such actions." +
-                    "\n" +
-                    "Example: see Section 9.14.8.1, “Example 1: Scene recall” and Section 9.14.8.2, “Example 2: Set " +
-                    "dynamic light effect”."
+                    "StartAction) to trigger such actions. Example: see Section 9.14.8.1, “Example 1: Scene recall” and " +
+                    "Section 9.14.8.2, “Example 2: Set dynamic light effect”."
             }),
 
             Field({
                 name: "Sequence", id: 0x2, conformance: "M",
                 description: "A sequence of states with a certain time pattern", xref: "core§9.14.4.2.2",
                 details: "Indicates an action which involves a sequence of events/states of the associated endpoints, such as " +
-                    "a wake-up experience." +
-                    "\n" +
-                    "Example: see Section 9.14.8.4, “Example 4: Wake-up routine”."
+                    "a wake-up experience. Example: see Section 9.14.8.4, “Example 4: Wake-up routine”."
             }),
 
             Field({
                 name: "Automation", id: 0x3, conformance: "M",
                 description: "Control an automation (e.g. motion sensor controlling lights)",
                 xref: "core§9.14.4.2.3",
-                details: "Indications an automation (e.g. a motion sensor controlling lights, an alarm system) which can " +
-                    "bee.g. started, stopped, paused, resumed." +
-                    "\n" +
-                    "Example: see Section 9.14.8.3, “Example 3: Pause sensor automation”."
+                details: "Indications an automation (e.g. a motion sensor controlling lights, an alarm system) which can be " +
+                    "e.g. started, stopped, paused, resumed. Example: see Section 9.14.8.3, “Example 3: Pause sensor " +
+                    "automation”."
             }),
 
             Field({
                 name: "Exception", id: 0x4, conformance: "M",
                 description: "Sequence that will run when something doesn’t happen", xref: "core§9.14.4.2.4",
                 details: "Indicates some action which the server will execute when a certain condition (which normally does " +
-                    "not happen) is not met." +
-                    "\n" +
-                    "Example: lock the doors when the server’s system has detected no one is at home while the doors are " +
-                    "in the 'unlocked' state."
+                    "not happen) is not met. Example: lock the doors when the server’s system has detected no one is at " +
+                    "home while the doors are in the 'unlocked' state."
             }),
 
             Field({
                 name: "Notification", id: 0x5, conformance: "M",
                 description: "Use the endpoints to send a message to user", xref: "core§9.14.4.2.5",
-                details: "Indicates an action that can be triggered (e.g. by InstantAction) to notify the user." +
-                    "\n" +
-                    "Example: play a pattern on the lights in the living room if there is someone in the garden in the " +
-                    "evening."
+                details: "Indicates an action that can be triggered (e.g. by InstantAction) to notify the user. Example: play " +
+                    "a pattern on the lights in the living room if there is someone in the garden in the evening."
             }),
 
             Field({
                 name: "Alarm", id: 0x6, conformance: "M", description: "Higher priority notification",
                 xref: "core§9.14.4.2.6",
                 details: "Similar to Notification but with a higher priority (and might override other endpoint states which " +
-                    "Type=Notification would not override)." +
-                    "\n" +
-                    "Example: flash all lights in the house when CO sensor triggers."
+                    "Type=Notification would not override). Example: flash all lights in the house when CO sensor " +
+                    "triggers."
             })
         ),
 
@@ -26334,7 +26638,7 @@ export const SpecMatter = Matter(
                 "have a dependency on the UserActiveModeTriggerInstruction attribute but do not require the attribute " +
                 "to be present." +
                 "\n" +
-                "### An ICD can indicate multiple ways of being put into Active Mode by setting multiple bits in the " +
+                "An ICD can indicate multiple ways of being put into Active Mode by setting multiple bits in the " +
                 "bitmap at the same time. However, a device shall NOT set more than one bit which has a dependency on " +
                 "the UserActiveModeTriggerInstruction attribute."
         }),
@@ -26644,7 +26948,21 @@ export const SpecMatter = Matter(
                     "### Minimum Value for PromisedActiveDuration" +
                     "\n" +
                     "The minimum value of the PromisedActiveDuration field shall be equal to either 30000 milliseconds or " +
-                    "StayActiveDuration (from the received StayActiveRequest command), whichever is smaller."
+                    "StayActiveDuration (from the received StayActiveRequest command), whichever is smaller." +
+                    "\n" +
+                    "Example scenarios:" +
+                    "\n" +
+                    "  • A Client requests an ICD to stay awake for 20000 milliseconds in its StayActiveDuration field. " +
+                    "    The ICD responds with 20000 in its PromisedActiveDuration if it can stay active for that " +
+                    "    duration." +
+                    "\n" +
+                    "  • A Client requests an ICD to stay awake for 35000 milliseconds in its StayActiveDuration field. " +
+                    "    The ICD responds with 30000 in its PromisedActiveDuration since it can only stay active for that " +
+                    "    minimal amount." +
+                    "\n" +
+                    "  • A Client requests an ICD to stay awake for 10000 milliseconds in its StayActiveDuration field, " +
+                    "    but the ICD’s remaining active time is 20000 milliseconds. The ICD responds with 20000 " +
+                    "    milliseconds in its PromisedActiveDuration field since it intends to stay active that long."
             })
         ),
 
@@ -26936,10 +27254,12 @@ export const SpecMatter = Matter(
 
                 details: "This field shall indicate the timestamp of when the UniqueLocationIDs was last modified." +
                     "\n" +
-                    "NOTE If multiple server instances update the UniqueLocationIDs field at the same time, it is " +
-                    "possible one of the updates will be missed. This is considered an acceptable limitation to reduce " +
-                    "the complexity of the design. Since this is meant to be provided from user input, it is unlikely " +
-                    "these signals would be happening at one time."
+                    "> [!NOTE]" +
+                    "\n" +
+                    "> If multiple server instances update the UniqueLocationIDs field at the same time, it is possible " +
+                    "  one of the updates will be missed. This is considered an acceptable limitation to reduce the " +
+                    "  complexity of the design. Since this is meant to be provided from user input, it is unlikely these " +
+                    "  signals would be happening at one time."
             }),
 
             Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
@@ -26980,8 +27300,7 @@ export const SpecMatter = Matter(
                 name: "LocationDescriptor", id: 0x1, type: "locationdesc", access: "S", conformance: "M",
                 xref: "core§9.17.4.3.2",
 
-                details: "This field shall indicate the location (e.g. living room, driveway) and associated metadata that is" +
-                    "\n" +
+                details: "This field shall indicate the location (e.g. living room, driveway) and associated metadata that is " +
                     "provided externally if the user consents. (For example, provided by the user in an ecosystem " +
                     "specific interface.)" +
                     "\n" +
@@ -27114,13 +27433,11 @@ export const SpecMatter = Matter(
         Attribute({
             name: "PartNumber", id: 0xc, type: "string", access: "R V", conformance: "O", constraint: "max 32",
             quality: "F", xref: "core§11.1.5.13",
-
             details: "This attribute shall specify a human-readable (displayable) vendor assigned part number for the Node " +
-                "whose meaning and numbering scheme is vendor defined." +
-                "\n" +
-                "Multiple products (and hence PartNumbers) can share a ProductID. For instance, there may be " +
-                "different packaging (with different PartNumbers) for different regions; also different colors of a " +
-                "product might share the ProductID but may have a different PartNumber."
+                "whose meaning and numbering scheme is vendor defined. Multiple products (and hence PartNumbers) can " +
+                "share a ProductID. For instance, there may be different packaging (with different PartNumbers) for " +
+                "different regions; also different colors of a product might share the ProductID but may have a " +
+                "different PartNumber."
         }),
 
         Attribute({
@@ -27160,10 +27477,9 @@ export const SpecMatter = Matter(
             name: "Reachable", id: 0x11, type: "bool", access: "R V", conformance: "O", default: true,
             xref: "core§11.1.5.18",
             details: "This attribute (when used) shall indicate whether the Node can be reached. For a native Node this is " +
-                "implicitly True (and its use is optional)." +
-                "\n" +
-                "Its main use case is in the derived Bridged Device Basic Information cluster where it is used to " +
-                "indicate whether the bridged device is reachable by the bridge over the non-native network."
+                "implicitly True (and its use is optional). Its main use case is in the derived Bridged Device Basic " +
+                "Information cluster where it is used to indicate whether the bridged device is reachable by the " +
+                "bridge over the non-native network."
         }),
 
         Attribute({
@@ -27171,10 +27487,8 @@ export const SpecMatter = Matter(
             quality: "F", xref: "core§11.1.5.19",
 
             details: "Indicates a unique identifier for the device, which is constructed in a manufacturer specific " +
-                "manner." +
-                "\n" +
-                "It may be constructed using a permanent device identifier (such as device MAC address) as basis. In " +
-                "order to prevent tracking," +
+                "manner. It may be constructed using a permanent device identifier (such as device MAC address) as " +
+                "basis. In order to prevent tracking," +
                 "\n" +
                 "  • it SHOULD NOT be identical to (or easily derived from) such permanent device identifier" +
                 "\n" +
@@ -27191,8 +27505,10 @@ export const SpecMatter = Matter(
                 "\n" +
                 "> The conformance of the UniqueID attribute was optional in cluster revisions prior to revision 4." +
                 "\n" +
-                "This UniqueID attribute shall NOT be the same as the Persistent Unique ID which is used in the " +
-                "Rotating Device Identifier mechanism."
+                "> [!NOTE]" +
+                "\n" +
+                "> This UniqueID attribute shall NOT be the same as the Persistent Unique ID which is used in the " +
+                "  Rotating Device Identifier mechanism."
         }),
 
         Attribute({
@@ -27230,8 +27546,9 @@ export const SpecMatter = Matter(
                 "Nodes may query this field to determine the currently supported version of the specification on " +
                 "another given Node." +
                 "\n" +
-                "The format of this number is segmented as its four component bytes. Bit positions for the fields are " +
-                "as follows:" +
+                "The format of this number is segmented as its four component bytes." +
+                "\n" +
+                "Bit positions for the fields are as follows:" +
                 "\n" +
                 "For example, a SpecificationVersion value of 0x01040200 is composed of 4 version components, " +
                 "representing a version 1.4.2.0." +
@@ -27329,8 +27646,7 @@ export const SpecMatter = Matter(
             {
                 name: "ReachableChanged", id: 0x3, access: "V", conformance: "Reachable", priority: "info",
                 xref: "core§11.1.6.4",
-                details: "This event (when supported) shall be generated when there is a change in the Reachable attribute." +
-                    "\n" +
+                details: "This event (when supported) shall be generated when there is a change in the Reachable attribute. " +
                     "Its main use case is in the derived Bridged Device Basic Information cluster."
             },
 
@@ -27474,8 +27790,7 @@ export const SpecMatter = Matter(
                 default: [], xref: "core§11.2.6.2",
 
                 details: "This attribute is a list of GroupInfoMapStruct entries. Each entry provides read-only information " +
-                    "about how a given logical Group ID maps to a particular set of endpoints, and a name for the group." +
-                    "\n" +
+                    "about how a given logical Group ID maps to a particular set of endpoints, and a name for the group. " +
                     "The content of this attribute reflects data managed via the Groups cluster (see AppClusters), and is " +
                     "in general terms referred to as the 'node-wide Group Table'." +
                     "\n" +
@@ -27912,23 +28227,18 @@ export const SpecMatter = Matter(
                 "time." +
                 "\n" +
                 "If not UseActiveLocale, this value shall take priority over any unit implied through the " +
-                "ActiveLocale attribute." +
-                "\n" +
-                "If UseActiveLocale, any unit implied through the ActiveLocale attribute is used as the hour format, " +
-                "and if ActiveLocale is not present, the hour format is unknown."
+                "ActiveLocale attribute. If UseActiveLocale, any unit implied through the ActiveLocale attribute is " +
+                "used as the hour format, and if ActiveLocale is not present, the hour format is unknown."
         }),
 
         Attribute({
             name: "ActiveCalendarType", id: 0x1, type: "CalendarTypeEnum", access: "RW VM",
             conformance: "CALFMT", quality: "N", xref: "core§11.4.6.2",
-
             details: "Indicates the calendar format that the Node is currently configured to use when conveying dates." +
                 "\n" +
                 "If not UseActiveLocale, this value shall take priority over any unit implied through the " +
-                "ActiveLocale attribute." +
-                "\n" +
-                "If UseActiveLocale, any unit implied through the ActiveLocale attribute is used as the calendar " +
-                "type, and if ActiveLocale is not present, the calendar type is unknown."
+                "ActiveLocale attribute. If UseActiveLocale, any unit implied through the ActiveLocale attribute is " +
+                "used as the calendar type, and if ActiveLocale is not present, the calendar type is unknown."
         }),
 
         Attribute(
@@ -28024,7 +28334,7 @@ export const SpecMatter = Matter(
 
         Attribute(
             {
-                name: "SupportedTemperatureUnits", id: 0x1, type: "list", access: "R V", conformance: "P, TEMP",
+                name: "SupportedTemperatureUnits", id: 0x1, type: "list", access: "R V", conformance: "TEMP",
                 constraint: "2 to 3", quality: "F", xref: "core§11.5.6.2",
                 details: "Indicates a list of units supported by the Node to be used when writing the TemperatureUnit " +
                     "attribute of this cluster. Each entry in the list shall be unique."
@@ -28404,13 +28714,26 @@ export const SpecMatter = Matter(
                     "The above rules allow that some endpoints can have an unknown power source, and therefore would not " +
                     "be indicated by any instance of this cluster." +
                     "\n" +
-                    "### Empty list examples" +
+                    "### Legacy Implementations" +
+                    "\n" +
+                    "Legacy implementations of this cluster before revision 2, before this attribute was defined, would " +
+                    "have implemented this cluster on an application endpoint without indicating it in EndpointList " +
+                    "(since that attribute did not exist in revision 1), because it represented a power source for the " +
+                    "endpoint, not the entire node." +
+                    "\n" +
+                    "For example: Bridge implementations support endpoints for bridged devices that have different power " +
+                    "sources." +
+                    "\n" +
+                    "Such implementations followed device type requirements and semantics outside of this cluster, " +
+                    "because this attribute did not exist." +
+                    "\n" +
+                    "Future updates of such a cluster instance on the same endpoint, would allow that same endpoint to be " +
+                    "an entry in the EndpointList attribute. Therefore it is valid to list the endpoint upon which the " +
+                    "cluster instance exists." +
                     "\n" +
                     "Typically, there is one power source for the node. Also common is mains power for the node with " +
                     "battery backup power for the node. In both these common cases, for each cluster instance described, " +
                     "the list is empty." +
-                    "\n" +
-                    "### Populated list example" +
                     "\n" +
                     "A node has a mains power source with Order as 0 (zero), but some application endpoints (not all) " +
                     "have a battery back up source with Order as 1, which means this list is empty for the Power Source " +
@@ -29310,11 +29633,13 @@ export const SpecMatter = Matter(
             Field({
                 name: "OperationalDataset", id: 0x0, type: "octstr", conformance: "M", constraint: "max 254",
                 xref: "core§11.9.7.4.1",
+
                 details: "The OperationalDataset field shall contain the Thread Network Parameters, including channel, PAN ID, " +
                     "and Extended PAN ID." +
                     "\n" +
-                    "The encoding for the OperationalDataset field is defined in the Thread specification. The client " +
-                    "shall pass the OperationalDataset as an opaque octet string."
+                    "The encoding for the OperationalDataset field is defined in the Thread specification." +
+                    "\n" +
+                    "The client shall pass the OperationalDataset as an opaque octet string."
             }),
 
             Field({
@@ -29342,7 +29667,7 @@ export const SpecMatter = Matter(
                     "If the Networks attribute does not contain a matching entry, the command shall immediately respond " +
                     "with NetworkConfigResponse having NetworkingStatus status field set to NetworkIdNotFound." +
                     "\n" +
-                    "On success, the NetworkConfigResponse command shall have its NetworkIndex field set to the 0- based " +
+                    "On success, the NetworkConfigResponse command shall have its NetworkIndex field set to the 0-based " +
                     "index of the entry in the Networks attribute that was just removed, and a NetworkingStatus status " +
                     "field set to Success."
             },
@@ -29625,7 +29950,7 @@ export const SpecMatter = Matter(
                         "Networks attribute, the command shall immediately respond with NetworkConfigResponse having " +
                         "NetworkingStatus status field set to OutOfRange." +
                         "\n" +
-                        "On success, the NetworkConfigResponse command shall have its NetworkIndex field set to the 0- based " +
+                        "On success, the NetworkConfigResponse command shall have its NetworkIndex field set to the 0-based " +
                         "index of the entry in the Networks attribute that was just updated, matching the incoming " +
                         "NetworkIndex, and a NetworkingStatus status field set to Success." +
                         "\n" +
@@ -29682,10 +30007,13 @@ export const SpecMatter = Matter(
         Datatype(
             {
                 name: "ThreadCapabilitiesBitmap", type: "map16", xref: "core§11.9.5.2",
+
                 details: "The ThreadCapabilitiesBitmap encodes the supported Thread features and capabilities of a " +
                     "Thread-enabled network interface." +
                     "\n" +
-                    "NOTE The valid combinations of capabilities are restricted and dependent on Thread version."
+                    "> [!NOTE]" +
+                    "\n" +
+                    "> The valid combinations of capabilities are restricted and dependent on Thread version."
             },
 
             Field({
@@ -29713,14 +30041,17 @@ export const SpecMatter = Matter(
                 details: "WiFiBandEnum encodes a supported Wi-Fi frequency band present in the WiFiBand field of the " +
                     "WiFiInterfaceScanResultStruct."
             },
-            Field({ name: "2G4", id: 0x0, conformance: "O.b+", description: "2.4GHz - 2.401GHz to2.495GHz(802.11b/g/n/ax)" }),
-            Field({ name: "3G65", id: 0x1, conformance: "O.b+", description: "3.65GHz - 3.655GHz to3.695GHz (802.11y)" }),
-            Field({ name: "5G", id: 0x2, conformance: "O.b+", description: "5GHz - 5.150GHz to5.895GHz(802.11a/n/ac/ax)" }),
+            Field({
+                name: "2G4", id: 0x0, conformance: "O.b+",
+                description: "2.4GHz - 2.401GHz to 2.495GHz (802.11b/g/n/ax)"
+            }),
+            Field({ name: "3G65", id: 0x1, conformance: "O.b+", description: "3.65GHz - 3.655GHz to 3.695GHz (802.11y)" }),
+            Field({ name: "5G", id: 0x2, conformance: "O.b+", description: "5GHz - 5.150GHz to 5.895GHz (802.11a/n/ac/ax)" }),
             Field({
                 name: "6G", id: 0x3, conformance: "O.b+",
-                description: "6GHz - 5.925GHz to7.125GHz (802.11ax / Wi-Fi 6E)"
+                description: "6GHz - 5.925GHz to 7.125GHz (802.11ax / Wi-Fi 6E)"
             }),
-            Field({ name: "60G", id: 0x4, conformance: "O.b+", description: "60GHz - 57.24GHz to70.20GHz (802.11ad/ay)" }),
+            Field({ name: "60G", id: 0x4, conformance: "O.b+", description: "60GHz - 57.24GHz to 70.20GHz (802.11ad/ay)" }),
             Field({ name: "1G", id: 0x5, conformance: "O.b+", description: "Sub-1GHz - 755MHz to 931MHz (802.11ah)" })
         ),
 
@@ -29743,7 +30074,7 @@ export const SpecMatter = Matter(
             Field({ name: "NetworkNotFound", id: 0x5, conformance: "M", description: "Cannot find AP: SSID Not found" }),
             Field({
                 name: "RegulatoryError", id: 0x6, conformance: "M",
-                description: "Cannot find AP: Mismatch on band/channels/regulatory domain/ 2.4GHz vs 5GHz"
+                description: "Cannot find AP: Mismatch on band/channels/regulatory domain / 2.4GHz vs 5GHz"
             }),
             Field({
                 name: "AuthFailure", id: 0x7, conformance: "M",
@@ -29886,9 +30217,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "BasicCommissioningInfo", id: 0x1, type: "BasicCommissioningInfo", access: "R V",
             conformance: "M", constraint: "desc", quality: "F", xref: "core§11.10.6.2",
-            details: "This attribute shall describe critical parameters needed at the beginning of commissioning flow." +
-                "\n" +
-                "See Section 11.10.5.3, “BasicCommissioningInfo Type” for more information."
+            details: "This attribute shall describe critical parameters needed at the beginning of commissioning flow. See " +
+                "Section 11.10.5.3, “BasicCommissioningInfo Type” for more information."
         }),
 
         Attribute({
@@ -30521,8 +30851,9 @@ export const SpecMatter = Matter(
             {
                 name: "RetrieveLogsResponse", id: 0x1, conformance: "M", direction: "response",
                 xref: "core§11.11.5.2",
-                details: "This shall be generated as a response to the RetrieveLogsRequest. The data for this command is shown " +
-                    "in the following."
+                details: "This shall be generated as a response to the RetrieveLogsRequest." +
+                    "\n" +
+                    "The data for this command is shown in the following."
             },
 
             Field({
@@ -31019,10 +31350,11 @@ export const SpecMatter = Matter(
                     "\n" +
                     "  • The EnableKey field does not match the a-priori value configured on the device." +
                     "\n" +
-                    "  • The TestEventTriggersEnabled field is currently false. Otherwise, the server shall respond with " +
-                    "    a PayloadTestResponse command with a Payload field value containing Count instances of the Value " +
-                    "    byte. If the response is too large to send, the server shall fail the command and respond with a " +
-                    "    response status of RESOURCE_EXHAUSTED." +
+                    "  • The TestEventTriggersEnabled field is currently false." +
+                    "\n" +
+                    "Otherwise, the server shall respond with a PayloadTestResponse command with a Payload field value " +
+                    "containing Count instances of the Value byte. If the response is too large to send, the server shall " +
+                    "fail the command and respond with a response status of RESOURCE_EXHAUSTED." +
                     "\n" +
                     "For example:" +
                     "\n" +
@@ -31112,7 +31444,7 @@ export const SpecMatter = Matter(
             }),
             Field({
                 name: "ThreadFault", id: 0x3, conformance: "O",
-                description: "The Node has encountered a fault with its802.15.4 radio."
+                description: "The Node has encountered a fault with its 802.15.4 radio."
             }),
             Field({
                 name: "NfcFault", id: 0x4, conformance: "O",
@@ -31895,13 +32227,10 @@ export const SpecMatter = Matter(
         Attribute({
             name: "ChannelPage0Mask", id: 0x3c, type: "octstr", access: "R V", conformance: "M",
             constraint: "4", quality: "X", xref: "core§11.14.6.61",
-
             details: "Indicates the channels within channel page 0, in the 2.4GHz ISM band. The channels are represented " +
                 "in most significant bit order, with bit value 1 meaning selected, bit value 0 meaning unselected. " +
-                "For example, the most significant bit of the left-most byte indicates channel" +
-                "\n" +
-                "0. If channel 0 and channel 10 are selected, the mask would be: 80 20 00 00. Null when there is no " +
-                "dataset configured."
+                "For example, the most significant bit of the left-most byte indicates channel 0. If channel 0 and " +
+                "channel 10 are selected, the mask would be: 80 20 00 00. Null when there is no dataset configured."
         }),
 
         Attribute({
@@ -32024,7 +32353,7 @@ export const SpecMatter = Matter(
             }),
             Field({
                 name: "EndDevice", id: 0x3, conformance: "M",
-                description: "The Node acts as an End Device without RX- off-when-idle sleepy radio behavior."
+                description: "The Node acts as an End Device without RX-off-when-idle sleepy radio behavior."
             }),
             Field({ name: "Reed", id: 0x4, conformance: "M", description: "The Node acts as an Router Eligible End Device." }),
             Field({ name: "Router", id: 0x5, conformance: "M", description: "The Node acts as a Router Device." }),
@@ -32131,9 +32460,9 @@ export const SpecMatter = Matter(
             Field({
                 name: "ExtAddress", id: 0x0, type: "uint64", conformance: "M", xref: "core§11.14.5.5.1",
                 details: "This field shall specify the IEEE 802.15.4 extended address for the Node for which this route table " +
-                    "entry corresponds. The uint64 value is composed by taking the 8 octets of the extended address EUI- " +
-                    "64 and treating them as a big-endian integer. For example, octet string (in hexadecimal, from first " +
-                    "octet to last) 00112233AABBCCDD would lead to a value of 0x00112233AABBCCDD."
+                    "entry corresponds. The uint64 value is composed by taking the 8 octets of the extended address " +
+                    "EUI-64 and treating them as a big-endian integer. For example, octet string (in hexadecimal, from " +
+                    "first octet to last) 00112233AABBCCDD would lead to a value of 0x00112233AABBCCDD."
             }),
 
             Field({
@@ -32738,8 +33067,7 @@ export const SpecMatter = Matter(
                 name: "TimeZone", id: 0x5, type: "list", access: "R V", conformance: "TZ", constraint: "1 to 2",
                 default: "[{0,0}]", quality: "N", xref: "core§11.17.8.6",
 
-                details: "This attribute shall contain a list of time zone offsets from UTC and when they shall take effect." +
-                    "\n" +
+                details: "This attribute shall contain a list of time zone offsets from UTC and when they shall take effect. " +
                     "This attribute uses a list of time offset configurations to allow Nodes to handle scheduled " +
                     "regulatory time zone changes. This attribute shall NOT be used to indicate daylight savings time " +
                     "changes (see Section 11.17.8.7, “DSTOffset Attribute” for daylight savings time)." +
@@ -32969,7 +33297,9 @@ export const SpecMatter = Matter(
                 name: "SetTrustedTimeSource", id: 0x1, access: "F A", conformance: "TSC", direction: "request",
                 response: "status", xref: "core§11.17.9.2",
 
-                details: "This command is used to set the TrustedTimeSource attribute. Upon receipt of this command:" +
+                details: "This command is used to set the TrustedTimeSource attribute." +
+                    "\n" +
+                    "Upon receipt of this command:" +
                     "\n" +
                     "  • If the TrustedTimeSource field in the command is null, the node shall set the TrustedTimeSource " +
                     "    attribute to null and shall generate a MissingTrustedTimeSource event." +
@@ -33603,8 +33933,8 @@ export const SpecMatter = Matter(
                     "If no prior AddTrustedRootCertificate command was successfully executed within the fail-safe timer " +
                     "period, then this command shall process an error by responding with a NOCResponse with a StatusCode " +
                     "of InvalidNOC as described in Section 11.18.6.7.2, “Handling Errors”. In other words, AddNOC always " +
-                    "requires that the client provides the root of trust certificate within the same Fail- Safe context " +
-                    "as the rest of the new fabric’s operational credentials, even if some other fabric already uses the " +
+                    "requires that the client provides the root of trust certificate within the same Fail-Safe context as " +
+                    "the rest of the new fabric’s operational credentials, even if some other fabric already uses the " +
                     "exact same root of trust certificate." +
                     "\n" +
                     "If the NOC provided in the NOCValue encodes an Operational Identifier for a <Root Public Key, " +
@@ -33851,17 +34181,17 @@ export const SpecMatter = Matter(
                     "If the given Fabric being removed is the last one to reference a given Trusted Root CA Certificate " +
                     "stored in the Trusted Root Certificates list, then that Trusted Root Certificate shall be removed." +
                     "\n" +
-                    "### WARNING" +
+                    "> [!WARNING]" +
                     "\n" +
-                    "This command, if referring to an already existing Fabric not under the control of the invoking " +
-                    "Administrator, shall ONLY be invoked after obtaining some form of explicit user consent through some " +
-                    "method executed by the Administrator or Commissioner. This method of obtaining consent SHOULD employ " +
-                    "as much data as possible about the existing Fabric associations within the Fabrics list, so that " +
-                    "likelihood is as small as possible of a user removing a Fabric unwittingly. If a method exists for " +
-                    "an Administrator or Commissioner to convey Fabric Removal to an entity related to that Fabric, " +
-                    "whether in-band or out-of-band, then this method SHOULD be used to notify the other Administrative " +
-                    "Domain’s party of the removal. Otherwise, users may only observe the removal of a Fabric association " +
-                    "as persistently failing attempts to reach a Node operationally."
+                    "> This command, if referring to an already existing Fabric not under the control of the invoking " +
+                    "  Administrator, shall ONLY be invoked after obtaining some form of explicit user consent through " +
+                    "  some method executed by the Administrator or Commissioner. This method of obtaining consent SHOULD " +
+                    "  employ as much data as possible about the existing Fabric associations within the Fabrics list, so " +
+                    "  that likelihood is as small as possible of a user removing a Fabric unwittingly. If a method " +
+                    "  exists for an Administrator or Commissioner to convey Fabric Removal to an entity related to that " +
+                    "  Fabric, whether in-band or out-of-band, then this method SHOULD be used to notify the other " +
+                    "  Administrative Domain’s party of the removal. Otherwise, users may only observe the removal of a " +
+                    "  Fabric association as persistently failing attempts to reach a Node operationally."
             },
 
             Field({
@@ -34105,11 +34435,11 @@ export const SpecMatter = Matter(
             },
             Field({
                 name: "DacCertificate", id: 0x1, conformance: "M",
-                description: "Request the DER- encoded DAC certificate"
+                description: "Request the DER-encoded DAC certificate"
             }),
             Field({
                 name: "PaiCertificate", id: 0x2, conformance: "M",
-                description: "Request the DER- encoded PAI certificate"
+                description: "Request the DER-encoded PAI certificate"
             })
         ),
 
@@ -34684,7 +35014,7 @@ export const SpecMatter = Matter(
                     name: "ImageUri", id: 0x2, type: "string", conformance: "Status == UpdateAvailable",
                     constraint: "max 256", xref: "core§11.20.6.5.2.3",
 
-                    details: "This field, when present, shall contain a URI where the OTA Requestor SHOULD download a Soft ware " +
+                    details: "This field, when present, shall contain a URI where the OTA Requestor SHOULD download a Software " +
                         "Image. The syntax of the ImageURI field shall follow the URI syntax as specified in RFC 3986." +
                         "\n" +
                         "Beware, this field is conditionally present based on the conformance listed in Section 11.20.6.5.2, " +
@@ -34806,8 +35136,7 @@ export const SpecMatter = Matter(
                 details: "This field provides a string version of the image being provided to the OTA Requestor by the OTA " +
                     "Provider." +
                     "\n" +
-                    "Beware, this field is conditionally present based on the conformance listed in Section 11.20.6.5.2," +
-                    "\n" +
+                    "Beware, this field is conditionally present based on the conformance listed in Section 11.20.6.5.2, " +
                     "“QueryImageResponse Command”." +
                     "\n" +
                     "See Section 11.20.3.2, “Querying the OTA Provider” for additional details about the flow and " +
@@ -35485,7 +35814,9 @@ export const SpecMatter = Matter(
                 "The Admin level of access to the Joint Fabric Datastore cluster server shall be limited to JF " +
                 "Administrator Nodes identified using the Administrator CAT." +
                 "\n" +
-                "NOTE Support for Joint Fabric Datastore cluster is provisional."
+                "> [!NOTE]" +
+                "\n" +
+                "> Support for Joint Fabric Datastore cluster is provisional."
         },
 
         Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
@@ -35651,8 +35982,9 @@ export const SpecMatter = Matter(
                 details: "This command shall be used to add a KeySet to the Joint Fabric Datastore Cluster of the accessing " +
                     "fabric." +
                     "\n" +
-                    "GroupKeySet represents the KeySet to be added to the Joint Fabric Datastore Cluster. Upon receipt of " +
-                    "this command, the Datastore shall:" +
+                    "GroupKeySet represents the KeySet to be added to the Joint Fabric Datastore Cluster." +
+                    "\n" +
+                    "Upon receipt of this command, the Datastore shall:" +
                     "\n" +
                     "  1. Ensure there are no KeySets in the KeySetList attribute with the given GroupKeySetID." +
                     "\n" +
@@ -35672,8 +36004,9 @@ export const SpecMatter = Matter(
                 details: "This command shall be used to update a KeySet in the Joint Fabric Datastore Cluster of the accessing " +
                     "fabric." +
                     "\n" +
-                    "GroupKeySet represents the KeySet to be updated in the Joint Fabric Datastore Cluster. Upon receipt " +
-                    "of this command, the Datastore shall:" +
+                    "GroupKeySet represents the KeySet to be updated in the Joint Fabric Datastore Cluster." +
+                    "\n" +
+                    "Upon receipt of this command, the Datastore shall:" +
                     "\n" +
                     "  1. Find the Epoch Key Entry for the KeySet in the KeySetList attribute with the given " +
                     "     GroupKeySetID, and update any changed fields." +
@@ -35830,15 +36163,14 @@ export const SpecMatter = Matter(
                     "\n" +
                     "    I. If the GroupIDList contains an entry with the given GroupID:" +
                     "\n" +
-                    "      1. Update the GroupIDList Entry in the Datastore with the new values and Status" +
+                    "      1. Update the GroupIDList Entry in the Datastore with the new values and Status Pending" +
                     "\n" +
-                    "### Pending" +
+                    "      2. Update the Groups on the given Node with the new values." +
                     "\n" +
-                    "2. Update the Groups on the given Node with the new values." +
+                    "      1. If the update succeeds, set the Status to Committed on the GroupIDList Entry in the " +
+                    "         Datastore." +
                     "\n" +
-                    "  1. If the update succeeds, set the Status to Committed on the GroupIDList Entry in the Datastore." +
-                    "\n" +
-                    "  2. If not successful, the pending change shall be applied in a subsequent Node Refresh."
+                    "      2. If not successful, the pending change shall be applied in a subsequent Node Refresh."
             },
 
             Field({ name: "GroupId", id: 0x0, type: "group-id", conformance: "M" }),
@@ -35951,8 +36283,9 @@ export const SpecMatter = Matter(
                 details: "The command shall be used to add a node to the Joint Fabric Datastore Cluster of the accessing " +
                     "fabric." +
                     "\n" +
-                    "NodeID represents the node to be added to the Joint Fabric Datastore Cluster. Upon receipt of this " +
-                    "command, the Datastore shall:" +
+                    "NodeID represents the node to be added to the Joint Fabric Datastore Cluster." +
+                    "\n" +
+                    "Upon receipt of this command, the Datastore shall:" +
                     "\n" +
                     "  1. Update CommissioningStatusEntry of the Node Information Entry with the given NodeID to Pending." +
                     "\n" +
@@ -36178,8 +36511,9 @@ export const SpecMatter = Matter(
                     "EndpointID represents the unique identifier for the endpoint to be updated in the Joint Fabric " +
                     "Datastore Cluster." +
                     "\n" +
-                    "NodeID represents the unique identifier for the node to which the endpoint belongs. Upon receipt of " +
-                    "this command, the Datastore shall:" +
+                    "NodeID represents the unique identifier for the node to which the endpoint belongs." +
+                    "\n" +
+                    "Upon receipt of this command, the Datastore shall:" +
                     "\n" +
                     "  1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if " +
                     "     not, return NOT_FOUND." +
@@ -36228,8 +36562,9 @@ export const SpecMatter = Matter(
                     "EndpointID represents the unique identifier for the endpoint to be updated in the Joint Fabric " +
                     "Datastore Cluster." +
                     "\n" +
-                    "NodeID represents the unique identifier for the node to which the endpoint belongs. Upon receipt of " +
-                    "this command, the Datastore shall:" +
+                    "NodeID represents the unique identifier for the node to which the endpoint belongs." +
+                    "\n" +
+                    "Upon receipt of this command, the Datastore shall:" +
                     "\n" +
                     "  1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if " +
                     "     not, return NOT_FOUND." +
@@ -36279,8 +36614,9 @@ export const SpecMatter = Matter(
                     "EndpointID represents the unique identifier for the endpoint to be updated in the Joint Fabric " +
                     "Datastore Cluster." +
                     "\n" +
-                    "NodeID represents the unique identifier for the node to which the endpoint belongs. Upon receipt of " +
-                    "this command, the Datastore shall:" +
+                    "NodeID represents the unique identifier for the node to which the endpoint belongs." +
+                    "\n" +
+                    "Upon receipt of this command, the Datastore shall:" +
                     "\n" +
                     "  1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if " +
                     "     not, return NOT_FOUND." +
@@ -36318,8 +36654,9 @@ export const SpecMatter = Matter(
                     "EndpointID represents the unique identifier for the endpoint to be updated in the Joint Fabric " +
                     "Datastore Cluster." +
                     "\n" +
-                    "NodeID represents the unique identifier for the node to which the endpoint belongs. Upon receipt of " +
-                    "this command, the Datastore shall:" +
+                    "NodeID represents the unique identifier for the node to which the endpoint belongs." +
+                    "\n" +
+                    "Upon receipt of this command, the Datastore shall:" +
                     "\n" +
                     "  1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if " +
                     "     not, return NOT_FOUND." +
@@ -36350,8 +36687,9 @@ export const SpecMatter = Matter(
                 details: "This command shall be used to add an ACL to a node in the Joint Fabric Datastore Cluster of the " +
                     "accessing fabric." +
                     "\n" +
-                    "NodeID represents the unique identifier for the node to which the ACL is to be added. ACLEntry " +
-                    "represents the ACL to be added to the Joint Fabric Datastore Cluster." +
+                    "NodeID represents the unique identifier for the node to which the ACL is to be added." +
+                    "\n" +
+                    "ACLEntry represents the ACL to be added to the Joint Fabric Datastore Cluster." +
                     "\n" +
                     "Upon receipt of this command, the Datastore shall:" +
                     "\n" +
@@ -36386,8 +36724,9 @@ export const SpecMatter = Matter(
                     "ListID represents the unique identifier for the DatastoreACLEntryStruct to be removed from the " +
                     "Datastore’s list of DatastoreACLEntry." +
                     "\n" +
-                    "NodeID represents the unique identifier for the node from which the ACL is to be removed. Upon " +
-                    "receipt of this command, the Datastore shall:" +
+                    "NodeID represents the unique identifier for the node from which the ACL is to be removed." +
+                    "\n" +
+                    "Upon receipt of this command, the Datastore shall:" +
                     "\n" +
                     "  1. Confirm that a Node Information Entry exists for the given NodeID, and if not, return " +
                     "     NOT_FOUND." +
@@ -36814,10 +37153,13 @@ export const SpecMatter = Matter(
         {
             name: "JointFabricAdministrator", id: 0x753, classification: "node", pics: "JFPKI",
             xref: "core§11.25",
+
             details: "An instance of the Joint Fabric Administrator Cluster only applies to Joint Fabric Administrator " +
                 "nodes fulfilling the role of Anchor CA." +
                 "\n" +
-                "NOTE Support for Joint Fabric Administrator Cluster is provisional."
+                "> [!NOTE]" +
+                "\n" +
+                "> Support for Joint Fabric Administrator Cluster is provisional."
         },
 
         Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
@@ -36854,8 +37196,9 @@ export const SpecMatter = Matter(
             {
                 name: "IcaccsrResponse", id: 0x1, conformance: "P, M", direction: "response",
                 xref: "core§11.25.7.2",
-                details: "This command shall be generated in response to a ICACCSRRequest command. Check ICAC Cross Signing " +
-                    "for details about the generation of the ICACCSR."
+                details: "This command shall be generated in response to a ICACCSRRequest command." +
+                    "\n" +
+                    "Check ICAC Cross Signing for details about the generation of the ICACCSR."
             },
 
             Field({
@@ -36991,7 +37334,7 @@ export const SpecMatter = Matter(
                 details: "This command shall be used for communicating to client the endpoint that holds the Joint Fabric " +
                     "Administrator Cluster." +
                     "\n" +
-                    "### This field shall contain the unique identifier for the endpoint that holds the Joint Fabric " +
+                    "This field shall contain the unique identifier for the endpoint that holds the Joint Fabric " +
                     "Administrator Cluster."
             },
 
@@ -37090,11 +37433,7 @@ export const SpecMatter = Matter(
                     "\n" +
                     "> The approval is valid for a period determined by the manufacturer and characteristics of the node " +
                     "  presenting the Commissioner Control Cluster. Clients SHOULD send the CommissionNode command " +
-                    "  immediately upon receiving a CommissioningRequestResult event." +
-                    "\n" +
-                    "11.26.7.2. RequestID / ClientNodeID Fields The RequestID shall match the RequestID provided to " +
-                    "RequestCommissioningApproval and the ClientNodeID shall match the NodeID of the client which " +
-                    "generated the RequestCommissioningApproval command."
+                    "  immediately upon receiving a CommissioningRequestResult event."
             },
 
             Field({ name: "RequestId", id: 0x0, type: "uint64", access: "S", conformance: "M" }),
@@ -37786,7 +38125,7 @@ export const SpecMatter = Matter(
                 "On/Off Plug-In Unit device type optionally added in the DeviceTypeList of the Descriptor cluster in " +
                 "addition to the On/Off Plug-In Unit device type (see [ref_MountedOnOffControlServerGuidance])." +
                 "\n" +
-                "### Before Matter 1.4, mounted units typically used the On/Off Plug-In Unit device type. Clients can " +
+                "Before Matter 1.4, mounted units typically used the On/Off Plug-In Unit device type. Clients can " +
                 "encounter devices which were made before or after these specification updates. Therefore, clients " +
                 "SHOULD use the following heuristic to distinguish the type of physical device based on the device " +
                 "type revision found on an endpoint (\"--\" means the device type is not listed)."
@@ -37840,7 +38179,7 @@ export const SpecMatter = Matter(
                 "Descriptor cluster in addition to the Mounted Dimmable Load Control device type (see " +
                 "[ref_MountedDimmableLoadControlServerGuidance])." +
                 "\n" +
-                "### Before Matter 1.4, mounted dimmable load control units typically used the Dimmable Plug-In Unit " +
+                "Before Matter 1.4, mounted dimmable load control units typically used the Dimmable Plug-In Unit " +
                 "device type. Clients can encounter devices which were made before or after these specification " +
                 "updates. Therefore, clients SHOULD use the following heuristic to distinguish the type of physical " +
                 "device based on the device type revision found on an endpoint (\"--\" means the device type is not " +
@@ -37894,9 +38233,8 @@ export const SpecMatter = Matter(
                 "\n" +
                 "> Since this device type was added in Matter 1.4, for endpoints using this device type it is " +
                 "  recommended to add the subset device type On/Off Plug-in Unit to the DeviceTypeList of the " +
-                "  Descriptor cluster on the same endpoint for backward compatibility with existing clients." +
-                "\n" +
-                "See [ref_MountedOnOffClientGuidance] for client guidance with these two device types."
+                "  Descriptor cluster on the same endpoint for backward compatibility with existing clients. See " +
+                "  [ref_MountedOnOffClientGuidance] for client guidance with these two device types."
         },
 
         Requirement(
@@ -37946,12 +38284,10 @@ export const SpecMatter = Matter(
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
-                "> Since this device type was added in Matter 1.4, for endpoints using this device type" +
-                "\n" +
-                "it is recommended to add the subset device type Dimmable Plug-In Unit to the DeviceTypeList of the " +
-                "Descriptor cluster on the same endpoint for backward compatibility with existing clients." +
-                "\n" +
-                "See [ref_MountedDimmablePlugInUnitClientGuidance] for client guidance with these two device types."
+                "> Since this device type was added in Matter 1.4, for endpoints using this device type it is " +
+                "  recommended to add the subset device type Dimmable Plug-In Unit to the DeviceTypeList of the " +
+                "  Descriptor cluster on the same endpoint for backward compatibility with existing clients. See " +
+                "  [ref_MountedDimmablePlugInUnitClientGuidance] for client guidance with these two device types."
         },
 
         Requirement(
@@ -38775,8 +39111,9 @@ export const SpecMatter = Matter(
         {
             name: "Speaker", id: 0x22, classification: "simple", xref: "device§10.4",
 
-            details: "This defines conformance to the Speaker device type. This feature controls the speaker volume of the " +
-                "device." +
+            details: "This defines conformance to the Speaker device type." +
+                "\n" +
+                "This feature controls the speaker volume of the device." +
                 "\n" +
                 "To control unmute/mute, the On/Off cluster shall be used. A value of TRUE for the OnOff attribute " +
                 "shall represent the volume on (not muted) state, while a value of FALSE shall represent the volume " +
@@ -39688,10 +40025,8 @@ export const SpecMatter = Matter(
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
-                "> This namespace has been deprecated as of Matter 1.4.2." +
-                "\n" +
-                "Clients SHOULD still have support for these tags, since the tags could be used by a server certified " +
-                "on a previous revision of Matter."
+                "> This namespace has been deprecated as of Matter 1.4.2. Clients SHOULD still have support for these " +
+                "  tags, since the tags could be used by a server certified on a previous revision of Matter."
         },
 
         SemanticTag({ name: "Opening", id: 0x0, description: "Move toward open position" }),
@@ -39849,10 +40184,7 @@ export const SpecMatter = Matter(
                 "If the Row or Column tags are used, the Label field in the same Semantic Tag structure shall be " +
                 "filled with a number comprised of Arabic numerals encoded as a string to indicate the row/column of " +
                 "the item. Number words (e.g. \"one\", \"two\", etc.) shall NOT be used to describe the position of the " +
-                "item. The first row/column shall use Label \"1\"." +
-                "\n" +
-                "The following example illustrates a compound device comprised of 9 endpoints arranged in a 3x3 grid. " +
-                "This example uses position tags to indicate position."
+                "item. The first row/column shall use Label \"1\"."
         },
 
         SemanticTag({ name: "Left", id: 0x0 }),
