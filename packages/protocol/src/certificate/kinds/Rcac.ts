@@ -136,6 +136,6 @@ export class Rcac extends OperationalBase<OperationalCertificate.Rcac> {
             );
         }
 
-        await crypto.verifyEcdsa(PublicKey(this.cert.ellipticCurvePublicKey), this.asUnsignedAsn1(), this.signature);
+        await crypto.verifyEcdsa(PublicKey(this.cert.ellipticCurvePublicKey), this.asUnsignedDer(), this.signature);
     }
 }
