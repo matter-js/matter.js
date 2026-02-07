@@ -66,6 +66,7 @@ import {
     LaundryWasherMode,
     LevelControl,
     MicrowaveOvenMode,
+    ModeBase,
     ModeSelect,
     OccupancySensing,
     OperationalState,
@@ -398,7 +399,18 @@ export class AllClustersTestInstance extends NodeTestInstance {
                 ),
                 DescriptorServer.with(Descriptor.Feature.TagList),
                 DeviceEnergyManagementModeServer,
-                DishwasherModeServer,
+                class extends DishwasherModeServer {
+                    override changeToMode(request: ModeBase.ChangeToModeRequest) {
+                        if (request.newMode === 2) {
+                            // Refuse to self destruct for DISHM/2.1
+                            return {
+                                status: ModeBase.ModeChangeStatus.InvalidInMode,
+                                statusText: `Error: Hostile user rejected`,
+                            };
+                        }
+                        return super.changeToMode(request);
+                    }
+                },
                 DoorLockServer,
                 EnergyEvseModeServer,
                 FixedLabelServer,
@@ -619,6 +631,12 @@ export class AllClustersTestInstance extends NodeTestInstance {
                             label: "Heavy",
                             mode: 1,
                             modeTags: [{ value: DishwasherMode.ModeTag.Heavy }],
+                        },
+                        {
+                            // Unsupported mode for DISHM/2.1
+                            label: "Self destruct",
+                            mode: 2,
+                            modeTags: [{ value: DishwasherMode.ModeTag.Max }],
                         },
                     ],
                     currentMode: 0,

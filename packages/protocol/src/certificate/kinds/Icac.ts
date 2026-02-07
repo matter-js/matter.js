@@ -165,6 +165,6 @@ export class Icac extends OperationalBase<OperationalCertificate.Icac> {
             );
         }
 
-        await crypto.verifyEcdsa(PublicKey(root.cert.ellipticCurvePublicKey), this.asUnsignedAsn1(), this.signature);
+        await crypto.verifyEcdsa(PublicKey(root.cert.ellipticCurvePublicKey), this.asUnsignedDer(), this.signature);
     }
 }

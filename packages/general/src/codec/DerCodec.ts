@@ -42,9 +42,9 @@ export interface ObjectId {
     _bytes: Bytes;
 }
 
-export const ObjectId = (objectId: string): ObjectId => ({
+export const ObjectId = (objectId: string | bigint): ObjectId => ({
     _tag: DerType.ObjectIdentifier as number,
-    _bytes: Bytes.fromHex(objectId),
+    _bytes: typeof objectId === "bigint" ? Bytes.fromBigInt(objectId) : Bytes.fromHex(objectId),
 });
 
 export interface DerObject {
@@ -53,7 +53,7 @@ export interface DerObject {
     readonly [field: string]: unknown;
 }
 
-export const DerObject = (objectId: string, content: Record<string, unknown> = {}): DerObject => ({
+export const DerObject = (objectId: string | bigint, content: Record<string, unknown> = {}): DerObject => ({
     _objectId: ObjectId(objectId),
     ...content,
 });
@@ -166,7 +166,7 @@ export type DerSetDefinition = Array<DerNodeDefinition>;
  * Objects without special fields define an "object".
  *
  * Under this somewhat strange construct, the field name is effectively just documentation.  The object order and
- * ObjectID of the referenced node define the actual serialized format.
+ * ObjectID of the referenced nodes define the actual serialized format.
  */
 export type DerSequenceDefinition = {
     _tag?: undefined;
@@ -250,7 +250,7 @@ export class DerCodec {
                 // Raw Data
                 return Bytes.of(value._bytes);
             } else if (value._type === undefined && value._bytes === undefined) {
-                return this.#encodeObject(value);
+                return this.#encodeSequence(value);
             } else {
                 throw new DerError(`Unsupported object type ${typeof value}`);
             }
@@ -336,7 +336,7 @@ export class DerCodec {
         return this.#encodeAsn1(DerType.OctetString, value);
     }
 
-    static #encodeObject(object: any) {
+    static #encodeSequence(object: any) {
         const attributes = new Array<Bytes>();
         for (const key in object) {
             attributes.push(this.encode(object[key]));

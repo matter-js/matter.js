@@ -175,6 +175,6 @@ export class Noc extends OperationalBase<OperationalCertificate.Noc> {
             );
         }
 
-        await crypto.verifyEcdsa(PublicKey(issuer.cert.ellipticCurvePublicKey), this.asUnsignedAsn1(), this.signature);
+        await crypto.verifyEcdsa(PublicKey(issuer.cert.ellipticCurvePublicKey), this.asUnsignedDer(), this.signature);
     }
 }

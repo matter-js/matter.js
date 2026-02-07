@@ -13,6 +13,7 @@ import {
     Duration,
     Environment,
     Logger,
+    Pem,
     Repo,
     StorageContext,
     StorageManager,
@@ -118,7 +119,7 @@ export class DclCertificateService {
             throw new MatterDclError(`Certificate data not found in storage`, Diagnostic.dict({ skid: normalizedId }));
         }
 
-        return this.#derToPem(derBytes);
+        return Pem.encode(derBytes);
     }
 
     /**
@@ -397,7 +398,7 @@ export class DclCertificateService {
                 const subjectKeyId = this.#normalizeSubjectKeyId(cert.subjectKeyId);
 
                 // Convert PEM to DER
-                const derBytes = this.#pemToDer(cert.pemCert);
+                const derBytes = Pem.asDer(cert.pemCert);
 
                 const { subject, subjectAsText, serialNumber, vid, isRoot } = cert;
                 // Store certificate with metadata (using normalized ID without colons)
@@ -499,38 +500,6 @@ export class DclCertificateService {
 
         // Add entry to certificate index
         this.#certificateIndex.set(subjectKeyId, metadata);
-    }
-
-    /**
-     * Convert PEM certificate to DER format.
-     * Strips the PEM header/footer and decodes from base64.
-     */
-    #pemToDer(pemCert: string): Bytes {
-        // Remove PEM header and footer lines
-        const base64 = pemCert
-            .replace(/-----BEGIN CERTIFICATE-----/g, "")
-            .replace(/-----END CERTIFICATE-----/g, "")
-            .replace(/\r?\n/g, "")
-            .trim();
-
-        return Bytes.fromBase64(base64);
-    }
-
-    /**
-     * Convert DER certificate to PEM format.
-     * Encodes to base64 and adds PEM header/footer.
-     */
-    #derToPem(derBytes: Bytes): string {
-        const base64 = Bytes.toBase64(derBytes);
-        const lines: string[] = ["-----BEGIN CERTIFICATE-----"];
-
-        // Split base64 into 64-character lines
-        for (let i = 0; i < base64.length; i += 64) {
-            lines.push(base64.slice(i, i + 64));
-        }
-
-        lines.push("-----END CERTIFICATE-----");
-        return lines.join("\n");
     }
 }
 
