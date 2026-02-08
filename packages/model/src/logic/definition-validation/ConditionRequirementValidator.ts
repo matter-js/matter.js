@@ -4,15 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ConditionRequirementElement } from "../../elements/index.js";
-import { ConditionRequirementModel } from "../../models/index.js";
+import { ConditionElement } from "../../elements/index.js";
+import { ConditionModel } from "../../models/index.js";
 import { ModelValidator } from "./ModelValidator.js";
 
-ModelValidator.validators[ConditionRequirementElement.Tag] = class ConditionRequirementValidator extends (
-    ModelValidator<ConditionRequirementModel>
-) {
+ModelValidator.validators[ConditionElement.Tag] = class ConditionValidator extends ModelValidator<ConditionModel> {
     override validate() {
-        // TODO we need to validate is as needed. Likely here we can not do that much because we
+        // TODO we need to validate as needed. Likely here we can not do that much because we
         //  need an endpoint structure
         this.validateStructure(false);
         super.validate();

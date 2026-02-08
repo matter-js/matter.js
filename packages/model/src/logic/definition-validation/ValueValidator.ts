@@ -41,10 +41,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
                 const cluster = this.model.owner(ClusterModel);
                 const camelParent = camelize(parentName, true);
                 const parent = cluster?.children.find(
-                    c =>
-                        c.name === camelParent ||
-                        c.name === parentName ||
-                        camelParent.endsWith(c.name),
+                    c => c.name === camelParent || c.name === parentName || camelParent.endsWith(c.name),
                 );
                 if (parent) {
                     return parent.member(camelize(fieldName, true)) ?? parent;
