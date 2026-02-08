@@ -46,25 +46,26 @@ export namespace PressureMeasurement {
             scaledValue: Attribute(0x10, TlvNullable(TlvInt16)),
 
             /**
-             * Indicates the minimum value of ScaledValue that can be measured. The null value indicates that the value
-             * is not available.
+             * Indicates the minimum value of ScaledValue that can be measured.
+             *
+             * The null value indicates that the value is not available.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.6
              */
             minScaledValue: Attribute(0x11, TlvNullable(TlvInt16.bound({ max: 32766 }))),
 
             /**
-             * Indicates the maximum value of ScaledValue that can be measured. The null value indicates that the value
-             * is not available.
+             * Indicates the maximum value of ScaledValue that can be measured.
+             *
+             * The null value indicates that the value is not available.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.7
              */
             maxScaledValue: Attribute(0x12, TlvNullable(TlvInt16)),
 
             /**
-             * Indicates the magnitude of the possible error that is associated with Scaled
-             *
-             * ### Value. The true value is located in the range
+             * Indicates the magnitude of the possible error that is associated with ScaledValue. The true value is
+             * located in the range
              *
              * (ScaledValue – ScaledTolerance) to (ScaledValue + ScaledTolerance).
              *

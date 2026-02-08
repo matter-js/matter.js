@@ -219,11 +219,11 @@ export namespace Switch {
         /**
          * This field shall contain:
          *
-         *   • a value of 2 when the second press of a multi-press sequence has been detected,
+         *   - a value of 2 when the second press of a multi-press sequence has been detected,
          *
-         *   • a value of 3 when the third press of a multi-press sequence has been detected,
+         *   - a value of 3 when the third press of a multi-press sequence has been detected,
          *
-         *   • a value of N when the Nth press of a multi-press sequence has been detected.
+         *   - a value of N when the Nth press of a multi-press sequence has been detected.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.6.2
          */
@@ -251,12 +251,12 @@ export namespace Switch {
              *
              * When more than MultiPressMax presses are detected within a multi-press sequence:
              *
-             *   • The server for cluster revision < 2 SHOULD generate a MultiPressComplete event with the
+             *   - The server for cluster revision < 2 SHOULD generate a MultiPressComplete event with the
              *     TotalNumberOfPressesCounted field set to the value of the MultiPressMax attribute, and avoid
              *     generating any further InitialPress and MultiPressOngoing events until the switch has become fully
              *     idle (i.e. no longer in the process of counting presses within the multipress).
              *
-             *   • The server for cluster revision >= 2 shall generate a MultiPressComplete event with the
+             *   - The server for cluster revision >= 2 shall generate a MultiPressComplete event with the
              *     TotalNumberOfPressesCounted field set to zero (indicating an aborted sequence), and shall NOT
              *     generate any further InitialPress and MultiPressOngoing events until the switch has become fully idle
              *     (i.e. no longer in the process of counting presses within the multipress).
@@ -281,19 +281,19 @@ export namespace Switch {
              *
              * The TotalNumberOfPressesCounted field shall contain:
              *
-             *   • a value of 0 when there was an aborted multi-press sequence, where the number of presses goes beyond
+             *   - a value of 0 when there was an aborted multi-press sequence, where the number of presses goes beyond
              *     MultiPressMax presses,
              *
-             *   • a value of 1 when there was exactly one press in a multi-press sequence (and the sequence has ended),
+             *   - a value of 1 when there was exactly one press in a multi-press sequence (and the sequence has ended),
              *     i.e. there was no double press (or more),
              *
-             *   • a value of 2 when there were exactly two presses in a multi-press sequence (and the sequence has
+             *   - a value of 2 when there were exactly two presses in a multi-press sequence (and the sequence has
              *     ended),
              *
-             *   • a value of 3 when there were exactly three presses in a multi-press sequence (and the sequence has
+             *   - a value of 3 when there were exactly three presses in a multi-press sequence (and the sequence has
              *     ended),
              *
-             *   • a value of N when there were exactly N presses in a multi-press sequence (and the sequence has
+             *   - a value of N when there were exactly N presses in a multi-press sequence (and the sequence has
              *     ended).
              *
              *     > [!NOTE]
@@ -348,23 +348,23 @@ export namespace Switch {
              * This event shall be generated when the momentary switch has been pressed for a "long" time. The time
              * interval constituting a "long" time is manufacturer-determined, since it depends on the switch physics.
              *
-             *   • When the AS feature flag is set, this event:
+             *   - When the AS feature flag is set, this event:
              *
-             *     ◦ shall NOT be generated during a multi-press sequence (since a long press is a separate cycle from
+             *     - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle from
              *       any multi-press cycles);
              *
-             *     ◦ shall only be generated after the first InitialPress following a MultiPressComplete when a long
+             *     - shall only be generated after the first InitialPress following a MultiPressComplete when a long
              *       press is detected after the idle time.
              *
-             *   • Else, when the MSM feature flag is set, this event:
+             *   - Else, when the MSM feature flag is set, this event:
              *
-             *     ◦ shall NOT be generated during a multi-press sequence (since a long press is a separate cycle from
+             *     - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle from
              *       any multi-press cycles);
              *
-             *     ◦ shall only be generated after the first InitialPress following a MultiPressComplete when a long
+             *     - shall only be generated after the first InitialPress following a MultiPressComplete when a long
              *       press is detected after the idle time;
              *
-             *     ◦ shall NOT be generated after a MultiPressOngoing event without an intervening MultiPressComplete
+             *     - shall NOT be generated after a MultiPressOngoing event without an intervening MultiPressComplete
              *       event.
              *
              * The above constraints imply that for a given activity detection cycle of a switch having MSM and/or MSL
@@ -405,14 +405,14 @@ export namespace Switch {
              *
              * This event shall be generated, when the momentary switch has been released (after debouncing).
              *
-             *   • If the server has the Momentary Switch LongPress (MSL) feature flag set, then this event shall be
+             *   - If the server has the Momentary Switch LongPress (MSL) feature flag set, then this event shall be
              *     generated when the switch is released if no LongPress event had been generated since the previous
              *     InitialPress event.
              *
-             *   • If the server does not have the Momentary Switch LongPress (MSL) feature flag set, this event shall
+             *   - If the server does not have the Momentary Switch LongPress (MSL) feature flag set, this event shall
              *     be generated when the switch is released - even when the switch was pressed for a long time.
              *
-             *   • Also see Section 1.13.7, “Sequence of generated events”.
+             *   - Also see Section 1.13.7, “Sequence of generated events”.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.4
              */
@@ -497,15 +497,17 @@ export namespace Switch {
 
         attributes: {
             /**
-             * Indicates the maximum number of positions the switch has. Any kind of switch has a minimum of 2
-             * positions. Also see Section 1.13.10, “Multi Position Details” for the case NumberOfPositions>2.
+             * Indicates the maximum number of positions the switch has. Any kind of switch has a minimum of 2positions.
+             * Also see Section 1.13.10, “Multi Position Details” for the case NumberOfPositions>2.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.13.5.1
              */
             numberOfPositions: FixedAttribute(0x0, TlvUInt8.bound({ min: 2 })),
 
             /**
-             * Indicates the position of the switch. The valid range is zero to NumberOfPositions - 1.
+             * Indicates the position of the switch.
+             *
+             * The valid range is zero to NumberOfPositions - 1.
              *
              * CurrentPosition value 0 shall be assigned to the default position of the switch: for example the "open"
              * state of a rocker switch, or the "idle" state of a push button switch.
@@ -557,17 +559,11 @@ export namespace Switch {
 
     /**
      * This cluster exposes interactions with a switch device, for the purpose of using those interactions by other
-     * devices.
-     *
-     * Two types of switch devices are supported: latching switch (e.g. rocker switch) and momentary switch (e.g. push
-     * button), distinguished with their feature flags.
-     *
-     * Interactions with the switch device are exposed as attributes (for the latching switch) and as events (for both
-     * types of switches).
-     *
-     * An interested client may subscribe to these attributes/events and thus be informed of the interactions, and can
-     * perform actions based on this, for example by sending commands to perform an action such as controlling a light
-     * or a window shade.
+     * devices. Two types of switch devices are supported: latching switch (e.g. rocker switch) and momentary switch
+     * (e.g. push button), distinguished with their feature flags. Interactions with the switch device are exposed as
+     * attributes (for the latching switch) and as events (for both types of switches). An interested client may
+     * subscribe to these attributes/events and thus be informed of the interactions, and can perform actions based on
+     * this, for example by sending commands to perform an action such as controlling a light or a window shade.
      *
      * Per the Matter specification you cannot use {@link SwitchCluster} without enabling certain feature combinations.
      * You must use the {@link with} factory method to obtain a working cluster.

@@ -84,7 +84,7 @@ export const ElectricalEnergyMeasurement = Cluster(
 
     Datatype(
         { name: "EnergyMeasurementStruct", type: "struct" },
-        Field({ name: "Energy", id: 0x0, type: "energy-mWh", conformance: "M", constraint: "min 0" }),
+        Field({ name: "Energy", id: 0x0, type: "energy-mWh", conformance: "M", constraint: "0 to 2^62" }),
         Field({ name: "StartTimestamp", id: 0x1, type: "epoch-s", conformance: "desc" }),
         Field({ name: "EndTimestamp", id: 0x2, type: "epoch-s", conformance: "desc", constraint: "min startTimestamp + 1" }),
         Field({ name: "StartSystime", id: 0x3, type: "systime-ms", conformance: "desc" }),

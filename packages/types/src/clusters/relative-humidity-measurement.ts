@@ -28,8 +28,9 @@ export namespace RelativeHumidityMeasurement {
              *
              * MeasuredValue = 100 x water content
              *
-             * Where 0% < = water content < = 100%, corresponding to a MeasuredValue in the range 0 to 10000. The
-             * maximum resolution this format allows is 0.01%.
+             * Where 0% < = water content < = 100%, corresponding to a MeasuredValue in the range 0 to 10000.
+             *
+             * The maximum resolution this format allows is 0.01%.
              *
              * MinMeasuredValue and MaxMeasuredValue define the range of the sensor.
              *
@@ -68,7 +69,7 @@ export namespace RelativeHumidityMeasurement {
     });
 
     /**
-     * This is a base cluster. The server cluster provides an interface to water content measurement functionality. The
+     * This is a base cluster. The server cluster provides an interface to water contentmeasurementfunctionality. The
      * measurement is reportable and may be configured for reporting. Water content measurements currently is, but are
      * not limited to relative humidity.
      *

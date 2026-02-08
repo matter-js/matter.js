@@ -31,12 +31,10 @@ import { Identity } from "#general";
  *
  * > [!NOTE]
  *
- * > Since this device type was added in Matter 1.4, for endpoints using this device type
- *
- * it is recommended to add the subset device type Dimmable Plug-In Unit to the DeviceTypeList of the Descriptor cluster
- * on the same endpoint for backward compatibility with existing clients.
- *
- * See [ref_MountedDimmablePlugInUnitClientGuidance] for client guidance with these two device types.
+ * > Since this device type was added in Matter 1.4, for endpoints using this device type it is recommended to add the
+ *   subset device type Dimmable Plug-In Unit to the DeviceTypeList of the Descriptor cluster on the same endpoint for
+ *   backward compatibility with existing clients. See [ref_MountedDimmablePlugInUnitClientGuidance] for client guidance
+ *   with these two device types.
  *
  * @see {@link MatterSpecification.v142.Device} § 5.4
  */

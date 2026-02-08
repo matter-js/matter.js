@@ -15,9 +15,9 @@ export namespace SoftwareDiagnosticsInterface {
          *
          * Receipt of this command shall reset the following values which track high and lower watermarks:
          *
-         *   • The StackFreeMinimum field of the ThreadMetrics attribute
+         *   - The StackFreeMinimum field of the ThreadMetrics attribute
          *
-         *   • The CurrentHeapHighWatermark attribute
+         *   - The CurrentHeapHighWatermark attribute
          *
          * ### Effect on Receipt
          *

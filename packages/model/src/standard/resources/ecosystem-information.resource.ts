@@ -19,23 +19,23 @@ Resource.add({
         "\n" +
         "This augments the Bridged Device Basic Information Cluster in the following ways:" +
         "\n" +
-        "  • The Ecosystem Information Cluster adds support for providing a name and location for individual " +
+        "  - The Ecosystem Information Cluster adds support for providing a name and location for individual " +
         "    endpoints. (The endpoints do not need to be present on the Bridge for their name and location " +
-        "    information to be present.)" +
+        "information to be present.)" +
         "\n" +
-        "  • The Ecosystem Information Cluster adds metadata to support conflict resolution between multiple " +
-        "    sources of the name and location data." +
+        "  - The Ecosystem Information Cluster adds metadata to support conflict resolution between multiple " +
+        "sources of the name and location data." +
         "\n" +
-        "  • The Ecosystem Information Cluster supports user control for the presence of the name and " +
-        "    location information by specifying more restricted access." +
+        "  - The Ecosystem Information Cluster supports user control for the presence of the name and " +
+        "location information by specifying more restricted access." +
         "\n" +
         "A client SHOULD use the information provided by the Ecosystem Information Cluster to help the user " +
         "organize and interact with their devices. Some examples may include:" +
         "\n" +
-        "  • Directly organizing and labeling the devices in a client’s user interface." +
+        "  - Directly organizing and labeling the devices in a client’s user interface." +
         "\n" +
-        "  • Providing hints in the user interface, which can assist the user in organizing and labeling " +
-        "    their devices." +
+        "  - Providing hints in the user interface, which can assist the user in organizing and labeling " +
+        "their devices." +
         "\n" +
         "For the purposes of the Ecosystem Information Cluster section, an instance of the Ecosystem " +
         "Information Cluster will be referred to as an \"instance\".",
@@ -127,10 +127,12 @@ Resource.add({
 
                     details: "This field shall indicate the timestamp of when the UniqueLocationIDs was last modified." +
                         "\n" +
-                        "NOTE If multiple server instances update the UniqueLocationIDs field at the same time, it is " +
-                        "possible one of the updates will be missed. This is considered an acceptable limitation to reduce " +
-                        "the complexity of the design. Since this is meant to be provided from user input, it is unlikely " +
-                        "these signals would be happening at one time."
+                        "> [!NOTE]" +
+                        "\n" +
+                        "> If multiple server instances update the UniqueLocationIDs field at the same time, it is possible " +
+                        "one of the updates will be missed. This is considered an acceptable limitation to reduce the " +
+                        "complexity of the design. Since this is meant to be provided from user input, it is unlikely these " +
+                        "signals would be happening at one time."
                 }
             ]
         },
@@ -169,8 +171,7 @@ Resource.add({
                 {
                     tag: "field", name: "LocationDescriptor", xref: "core§9.17.4.3.2",
 
-                    details: "This field shall indicate the location (e.g. living room, driveway) and associated metadata that is" +
-                        "\n" +
+                    details: "This field shall indicate the location (e.g. living room, driveway) and associated metadata that is " +
                         "provided externally if the user consents. (For example, provided by the user in an ecosystem " +
                         "specific interface.)" +
                         "\n" +

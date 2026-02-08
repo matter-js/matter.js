@@ -592,12 +592,12 @@ export namespace MediaPlayback {
      */
     export const TlvSkipForwardRequest = TlvObject({
         /**
-         * This field shall indicate the duration of the time span to skip forward in the media, in milliseconds. In
-         * case the resulting position falls in the middle of a frame, the server shall set the position to the
-         * beginning of that frame and set the SampledPosition attribute on the cluster accordingly. If the resultant
-         * position falls beyond the furthest valid position in the media the client may seek forward to, the position
-         * should be set to that furthest valid position. If the SampledPosition attribute is supported it shall be
-         * updated on the cluster accordingly.
+         * This field shall indicate the duration of the time span to skip forward in the media,inmilliseconds. In case
+         * the resulting position falls in the middle of a frame, the server shall set the position to the beginning of
+         * that frame and set the SampledPosition attribute on theclusteraccordingly. If the resultant position falls
+         * beyond the furthest valid position in the media the client may seek forward to, the position should be set to
+         * that furthest valid position. If the SampledPosition attribute is supported it shall be updated on the
+         * cluster accordingly.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.9.1
          */
@@ -618,12 +618,12 @@ export namespace MediaPlayback {
      */
     export const TlvSkipBackwardRequest = TlvObject({
         /**
-         * This field shall indicate the duration of the time span to skip backward in the media, in milliseconds. In
-         * case the resulting position falls in the middle of a frame, the server shall set the position to the
-         * beginning of that frame and set the SampledPosition attribute on the cluster accordingly. If the resultant
-         * position falls before the earliest valid position to which a client may seek back to, the position should be
-         * set to that earliest valid position. If the SampledPosition attribute is supported it shall be updated on the
-         * cluster accordingly.
+         * This field shall indicate the duration of the time span to skip backward in the media,inmilliseconds. In case
+         * the resulting position falls in the middle of a frame, the server shall set the position to the beginning of
+         * that frame and set the SampledPosition attribute on theclusteraccordingly. If the resultant position falls
+         * before the earliest valid position to which a client may seek back to, the position should be set to that
+         * earliest valid position. If the SampledPosition attribute is supported it shall be updated on the cluster
+         * accordingly.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.10.1
          */
@@ -763,22 +763,22 @@ export namespace MediaPlayback {
             duration: Attribute(0x2, TlvNullable(TlvUInt64), { default: null }),
 
             /**
-             * Indicates the position of playback (Position field) at the time (UpdateAt field) specified in the
-             * attribute. The client may use the SampledPosition attribute to compute the current position within the
-             * media stream based on the PlaybackSpeed, PlaybackPositionStruct.UpdatedAt and
+             * Indicates the position of playback (Position field) at the time (UpdateAt field) specified
+             * intheattribute. The client may use the SampledPosition attribute to compute the current position within
+             * the media stream based on the PlaybackSpeed, PlaybackPositionStruct.UpdatedAt and
              * PlaybackPositionStruct.Position fields. To enable this, the SampledPosition attribute shall be updated
              * whenever a change in either the playback speed or the playback position is triggered outside the normal
              * playback of the media. The events which may cause this to happen include:
              *
-             *   • Starting or resumption of playback
+             *   - Starting or resumption of playback
              *
-             *   • Seeking
+             *   - Seeking
              *
-             *   • Skipping forward or backward
+             *   - Skipping forward or backward
              *
-             *   • Fast-forwarding or rewinding
+             *   - Fast-forwarding or rewinding
              *
-             *   • Updating of playback speed as a result of explicit request, or as a result of buffering events
+             *   - Updating of playback speed as a result of explicit request, or as a result of buffering events
              *
              * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.4
              */
@@ -788,28 +788,28 @@ export namespace MediaPlayback {
              * Indicates the speed at which the current media is being played. The new PlaybackSpeed shall be reflected
              * in this attribute whenever any of the following occurs:
              *
-             *   • Starting of playback
+             *   - Starting of playback
              *
-             *   • Resuming of playback
+             *   - Resuming of playback
              *
-             *   • Fast-forwarding
+             *   - Fast-forwarding
              *
-             *   • Rewinding
+             *   - Rewinding
              *
              * The PlaybackSpeed shall reflect the ratio of time elapsed in the media to the actual time taken for the
              * playback assuming no changes to media playback (for example buffering events or requests to
              * pause/rewind/forward).
              *
-             *   • A value for PlaybackSpeed of 1 shall indicate normal playback where, for example, playback for 1
+             *   - A value for PlaybackSpeed of 1 shall indicate normal playback where, for example, playback for 1
              *     second causes the media to advance by 1 second within the duration of the media.
              *
-             *   • A value for PlaybackSpeed which is greater than 0 shall indicate that as playback is happening the
+             *   - A value for PlaybackSpeed which is greater than 0 shall indicate that as playback is happening the
              *     media is currently advancing in time within the duration of the media.
              *
-             *   • A value for PlaybackSpeed which is less than 0 shall indicate that as playback is happening the media
+             *   - A value for PlaybackSpeed which is less than 0 shall indicate that as playback is happening the media
              *     is currently going back in time within the duration of the media.
              *
-             *   • A value for PlaybackSpeed of 0 shall indicate that the media is currently not playing back. When the
+             *   - A value for PlaybackSpeed of 0 shall indicate that the media is currently not playing back. When the
              *     CurrentState attribute has the value of PAUSED, NOT_PLAYING or BUFFERING, the PlaybackSpeed shall be
              *     set to 0 to reflect that the media is not playing.
              *
@@ -866,7 +866,7 @@ export namespace MediaPlayback {
             activeAudioTrack: Attribute(0x7, TlvNullable(TlvTrack), { default: null }),
 
             /**
-             * AvailableAudioTracks refers to the list of Audio tracks available for the current title being played. A
+             * AvailableAudioTracks refers to the list of Audio tracks available for the current title beingplayed. A
              * value of null shall indicate that no Audio Tracks corresponding to the current media are selectable by
              * the client.
              *
@@ -1058,8 +1058,9 @@ export namespace MediaPlayback {
             play: Command(0x0, TlvNoArguments, 0xa, TlvPlaybackResponse),
 
             /**
-             * This command is used to pause playback of the media. Upon receipt, this shall pause playback of the
-             * media.
+             * This command is used to pause playback of the media.
+             *
+             * Upon receipt, this shall pause playback of the media.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.2
              */
@@ -1076,8 +1077,9 @@ export namespace MediaPlayback {
             stop: Command(0x2, TlvNoArguments, 0xa, TlvPlaybackResponse),
 
             /**
-             * This command is used to start playback of the media from the beginning. Upon receipt, this shall Start
-             * Over with the current media playback item.
+             * This command is used to start playback of the media from the beginning.
+             *
+             * Upon receipt, this shall Start Over with the current media playback item.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.4
              */

@@ -39,9 +39,27 @@ export function addDetails(target: Block, element: { details?: string }) {
     if (element.details) {
         const lines = FormattedText(element.details, 100);
         for (let i = 0; i < lines.length; i++) {
+            let line = lines[i];
+
+            // Word-wrap continuation lines (non-empty lines after a non-empty line that don't start a new
+            // list item or block) have a wrap indent that becomes extra whitespace when string-concatenated.
+            // Strip the indent and add a trailing space to the preceding line for natural joining
+            const listMarkerPattern = /^(?:[-•◦▪>]|\d+\.\s|[a-z]+\.\s)/i;
+            const isWrapContinuation =
+                line && i > 0 && lines[i - 1] !== "" && !line.trimStart().match(listMarkerPattern);
+            if (isWrapContinuation) {
+                line = line.trimStart();
+            }
+            const isContinued =
+                i < lines.length - 1 &&
+                lines[i + 1] !== "" &&
+                line !== "" &&
+                !lines[i + 1].trimStart().match(listMarkerPattern);
+            const serialized = line === "" ? "\n" : isContinued && !line.endsWith(" ") ? `${line} ` : line;
+
             const prefix = i ? "    " : "details: ";
             const suffix = i < lines.length - 1 ? " +" : "";
-            lines[i] = `${prefix}${serialize(lines[i] === "" ? "\n" : lines[i])}${suffix}`;
+            lines[i] = `${prefix}${serialize(serialized)}${suffix}`;
         }
         const text = lines.join("\n");
         if (text) {

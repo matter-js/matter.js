@@ -97,8 +97,8 @@ Resource.add({
                         "> [!NOTE]" +
                         "\n" +
                         "> this mode is intended to be used so the current space can be mapped by the device if the robot has " +
-                        "  not previously done that, or if the layout has substantially changed, for an optimal subsequent " +
-                        "  cleaning experience."
+                        "not previously done that, or if the layout has substantially changed, for an optimal subsequent " +
+                        "cleaning experience."
                 }
             ]
         }

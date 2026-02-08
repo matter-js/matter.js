@@ -111,10 +111,12 @@ export namespace EcosystemInformation {
         /**
          * This field shall indicate the timestamp of when the UniqueLocationIDs was last modified.
          *
-         * NOTE If multiple server instances update the UniqueLocationIDs field at the same time, it is possible one of
-         * the updates will be missed. This is considered an acceptable limitation to reduce the complexity of the
-         * design. Since this is meant to be provided from user input, it is unlikely these signals would be happening
-         * at one time.
+         * > [!NOTE]
+         *
+         * > If multiple server instances update the UniqueLocationIDs field at the same time, it is possible one of the
+         *   updates will be missed. This is considered an acceptable limitation to reduce the complexity of the design.
+         *   Since this is meant to be provided from user input, it is unlikely these signals would be happening at one
+         *   time.
          *
          * @see {@link MatterSpecification.v142.Core} § 9.17.4.2.7
          */
@@ -160,10 +162,8 @@ export namespace EcosystemInformation {
         uniqueLocationId: TlvField(0, TlvString.bound({ maxLength: 64 })),
 
         /**
-         * This field shall indicate the location (e.g. living room, driveway) and associated metadata that is
-         *
-         * provided externally if the user consents. (For example, provided by the user in an ecosystem specific
-         * interface.)
+         * This field shall indicate the location (e.g. living room, driveway) and associated metadata that is provided
+         * externally if the user consents. (For example, provided by the user in an ecosystem specific interface.)
          *
          * "Location" in this context is typically used by the user’s grouping into rooms, areas or other logical
          * groupings of how devices are used. So a device might be part of multiple such "Locations"s.
@@ -211,8 +211,8 @@ export namespace EcosystemInformation {
 
             /**
              * This attribute shall contain the list of rooms, areas and groups associated with the DeviceDirectory
-             * entries, and shall NOT contain locations which are dynamically generated and removed by an ecosystem.
-             * (E.g. a location that is generated and removed based on the user being home is not permitted. However, an
+             * entries, and shall NOT contain locations which are dynamically generated and removed by anecosystem.
+             * (E.g. a location that is generated and removed based on the user being home is notpermitted. However, an
              * initially generated location name that does not quickly change is acceptable.) An empty list indicates
              * that the information is not available.
              *
@@ -237,22 +237,22 @@ export namespace EcosystemInformation {
      *
      * This augments the Bridged Device Basic Information Cluster in the following ways:
      *
-     *   • The Ecosystem Information Cluster adds support for providing a name and location for individual endpoints.
+     *   - The Ecosystem Information Cluster adds support for providing a name and location for individual endpoints.
      *     (The endpoints do not need to be present on the Bridge for their name and location information to be
      *     present.)
      *
-     *   • The Ecosystem Information Cluster adds metadata to support conflict resolution between multiple sources of
+     *   - The Ecosystem Information Cluster adds metadata to support conflict resolution between multiple sources of
      *     the name and location data.
      *
-     *   • The Ecosystem Information Cluster supports user control for the presence of the name and location information
+     *   - The Ecosystem Information Cluster supports user control for the presence of the name and location information
      *     by specifying more restricted access.
      *
      * A client SHOULD use the information provided by the Ecosystem Information Cluster to help the user organize and
      * interact with their devices. Some examples may include:
      *
-     *   • Directly organizing and labeling the devices in a client’s user interface.
+     *   - Directly organizing and labeling the devices in a client’s user interface.
      *
-     *   • Providing hints in the user interface, which can assist the user in organizing and labeling their devices.
+     *   - Providing hints in the user interface, which can assist the user in organizing and labeling their devices.
      *
      * For the purposes of the Ecosystem Information Cluster section, an instance of the Ecosystem Information Cluster
      * will be referred to as an "instance".

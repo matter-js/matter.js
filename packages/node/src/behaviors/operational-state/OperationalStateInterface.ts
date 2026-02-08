@@ -28,24 +28,20 @@ export namespace OperationalStateInterface {
          *
          * States are defined as Pause-compatible as follows:
          *
-         *   • For states defined in this cluster specification, in Table 3, “Pause Compatibility”.
+         *   - For states defined in this cluster specification, in Table 3, “Pause Compatibility”.
          *
-         *   • For states defined by derived cluster specifications, in the corresponding specifications.
+         *   - For states defined by derived cluster specifications, in the corresponding specifications.
          *
-         *   • For manufacturer-specific states, by the manufacturer.
+         *   - For manufacturer-specific states, by the manufacturer.
          *
          * A device that is unable to honor the Pause command for whatever reason shall respond with an
          * OperationalCommandResponse command with an ErrorStateID of CommandInvalidInState but take no further action.
          *
          * Otherwise, on success:
          *
-         *   • The OperationalState attribute shall be set to Paused.
+         *   - The OperationalState attribute shall be set to Paused.
          *
-         *   • The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
-         *
-         * The following table defines the compatibility of this cluster’s states with the Pause command.
-         *
-         * ### Table 3. Pause Compatibility
+         *   - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.14.6.1
          */
@@ -67,9 +63,9 @@ export namespace OperationalStateInterface {
          *
          * Otherwise, on success:
          *
-         *   • The OperationalState attribute shall be set to Stopped.
+         *   - The OperationalState attribute shall be set to Stopped.
          *
-         *   • The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
+         *   - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.14.6.2
          */
@@ -93,9 +89,9 @@ export namespace OperationalStateInterface {
          *
          * Otherwise, on success:
          *
-         *   • The OperationalState attribute shall be set to Running.
+         *   - The OperationalState attribute shall be set to Running.
          *
-         *   • The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
+         *   - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.14.6.3
          */
@@ -118,25 +114,21 @@ export namespace OperationalStateInterface {
          *
          * States are defined as Resume-compatible as follows:
          *
-         *   • For states defined in this cluster specification, in Table 4, “Resume Compatibility”.
+         *   - For states defined in this cluster specification, in Table 4, “Resume Compatibility”.
          *
-         *   • For states defined by derived cluster specifications, in the corresponding specifications.
+         *   - For states defined by derived cluster specifications, in the corresponding specifications.
          *
-         *   • For manufacturer-specific states, by the manufacturer.
-         *
-         * The following table defines the compatibility of this cluster’s states with the Resume command.
-         *
-         * ### Table 4. Resume Compatibility
+         *   - For manufacturer-specific states, by the manufacturer.
          *
          * A device that is unable to honor the Resume command for any other reason shall respond with an
          * OperationalCommandResponse command with an ErrorStateID of UnableToStartOrResume but take no further action.
          *
          * Otherwise, on success:
          *
-         *   • The OperationalState attribute shall be set to the most recent non-Error operational state prior to
+         *   - The OperationalState attribute shall be set to the most recent non-Error operational state prior to
          *     entering the Paused state.
          *
-         *   • The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
+         *   - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.14.6.4
          */

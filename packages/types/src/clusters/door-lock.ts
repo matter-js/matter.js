@@ -92,7 +92,7 @@ export namespace DoorLock {
          *
          * If the User feature is supported then Week Day Schedules are applied to a User and not a credential.
          *
-         * Week Day Schedules are used to restrict access to a specified time window on certain days of the week. The
+         * Week Day Schedules are used to restrict access to a specified time window on certain days oftheweek. The
          * schedule is repeated each week.
          *
          * The lock may automatically adjust the UserType when a schedule is created or cleared.
@@ -153,8 +153,9 @@ export namespace DoorLock {
         /**
          * YearDayAccessSchedules (YDSCH)
          *
-         * If the User feature is supported then Year Day Schedules are applied to a User and not a credential. Year Day
-         * Schedules are used to restrict access to a specified date and time window.
+         * If the User feature is supported then Year Day Schedules are applied to a User and not a credential.
+         *
+         * Year Day Schedules are used to restrict access to a specified date and time window.
          *
          * The lock may automatically adjust the UserType when a schedule is created or cleared.
          *
@@ -353,9 +354,9 @@ export namespace DoorLock {
          *
          * When UserType is set to YearDayScheduleUser, user access shall be restricted as follows:
          *
-         *   • If no YearDaySchedules are set for the user, then access shall be denied
+         *   - If no YearDaySchedules are set for the user, then access shall be denied
          *
-         *   • If one or more YearDaySchedules are set, user access shall be granted if and only if the current time
+         *   - If one or more YearDaySchedules are set, user access shall be granted if and only if the current time
          *     falls within at least one of the YearDaySchedules. If current time is not known, user access shall NOT be
          *     granted.
          *
@@ -371,9 +372,9 @@ export namespace DoorLock {
          *
          * When UserType is set to WeekDayScheduleUser, user access shall be restricted as follows:
          *
-         *   • If no WeekDaySchedules are set for the user, then access shall be denied
+         *   - If no WeekDaySchedules are set for the user, then access shall be denied
          *
-         *   • If one or more WeekDaySchedules are set, user access shall be granted if and only if the current time
+         *   - If one or more WeekDaySchedules are set, user access shall be granted if and only if the current time
          *     falls within at least one of the WeekDaySchedules. If current time is not known, user access shall NOT be
          *     granted.
          *
@@ -438,18 +439,19 @@ export namespace DoorLock {
         /**
          * The user ID type is schedule restricted
          *
-         * This value shall indicate the user access is restricted by Week Day and/or Year Day schedule. When UserType
-         * is set to ScheduleRestrictedUser, user access shall be restricted as follows:
+         * This value shall indicate the user access is restricted by Week Day and/or Year Day schedule.
          *
-         *   • If no WeekDaySchedules and no YearDaySchedules are set for the user, then access shall be denied
+         * When UserType is set to ScheduleRestrictedUser, user access shall be restricted as follows:
          *
-         *   • If one or more WeekDaySchedules are set, but no YearDaySchedules are set for the user, then user access
+         *   - If no WeekDaySchedules and no YearDaySchedules are set for the user, then access shall be denied
+         *
+         *   - If one or more WeekDaySchedules are set, but no YearDaySchedules are set for the user, then user access
          *     shall be equivalent to the WeekDayScheduleUser UserType
          *
-         *   • If one or more YearDaySchedules are set, but no WeekDaySchedules are set for the user, then user access
+         *   - If one or more YearDaySchedules are set, but no WeekDaySchedules are set for the user, then user access
          *     shall be equivalent to the YearDayScheduleUser UserType
          *
-         *   • If one or WeekDaySchedules are set AND one or more YearDaySchedules are set, then user access shall be
+         *   - If one or WeekDaySchedules are set AND one or more YearDaySchedules are set, then user access shall be
          *     granted if and only if the current time falls within at least one of the WeekDaySchedules AND the current
          *     time falls within at least one of the YearDaySchedules.
          *
@@ -460,10 +462,10 @@ export namespace DoorLock {
         /**
          * The user ID type is remote only
          *
-         * This value shall indicate the user access and PIN code is restricted to remote lock/unlock commands only.
-         * This type of user might be useful for regular delivery services or voice assistant unlocking operations to
-         * prevent a PIN code credential created for them from being used at the keypad. The PIN code credential would
-         * only be provided over-the-air for the lock/unlock commands.
+         * This value shall indicate the user access and PIN code is restricted to remote lock/unlockcommandsonly. This
+         * type of user might be useful for regular delivery services or voice assistant unlocking operations to prevent
+         * a PIN code credential created for them from being used at thekeypad. The PIN code credential would only be
+         * provided over-the-air for the lock/unlock commands.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.18.10
          */
@@ -513,12 +515,13 @@ export namespace DoorLock {
         userIndex: TlvField(1, TlvUInt16.bound({ min: 1 })),
 
         /**
-         * This field shall contain a string to use as a human readable identifier for the user. If UserName is null
-         * then:
+         * This field shall contain a string to use as a human readable identifier for the user.
          *
-         *   • If the OperationType is Add, the UserName in the resulting user record shall be set to an empty string.
+         * If UserName is null then:
          *
-         *   • If the OperationType is Modify, the UserName in the user record shall NOT be changed from the current
+         *   - If the OperationType is Add, the UserName in the resulting user record shall be set to an empty string.
+         *
+         *   - If the OperationType is Modify, the UserName in the user record shall NOT be changed from the current
          *     value.
          *
          * If UserName is not null, the UserName in the user record shall be set to the provided value.
@@ -533,10 +536,10 @@ export namespace DoorLock {
          *
          * If UserUniqueID is null then:
          *
-         *   • If the OperationType is Add, the UserUniqueID in the resulting user record shall be set to default value
+         *   - If the OperationType is Add, the UserUniqueID in the resulting user record shall be set to default value
          *     specified above.
          *
-         *   • If the OperationType is Modify, the UserUniqueID in the user record shall NOT be changed from the current
+         *   - If the OperationType is Modify, the UserUniqueID in the user record shall NOT be changed from the current
          *     value.
          *
          * If UserUniqueID is not null, the UserUniqueID in the user record shall be set to the provided value.
@@ -546,13 +549,14 @@ export namespace DoorLock {
         userUniqueId: TlvField(3, TlvNullable(TlvUInt32)),
 
         /**
-         * This field shall indicate the UserStatus to assign to this user when created or modified. If UserStatus is
-         * null then:
+         * This field shall indicate the UserStatus to assign to this user when created or modified.
          *
-         *   • If the OperationType is Add, the UserStatus in the resulting user record shall be set to default value
+         * If UserStatus is null then:
+         *
+         *   - If the OperationType is Add, the UserStatus in the resulting user record shall be set to default value
          *     specified above.
          *
-         *   • If the OperationType is Modify, the UserStatus in the user record shall NOT be changed from the current
+         *   - If the OperationType is Modify, the UserStatus in the user record shall NOT be changed from the current
          *     value.
          *
          * If UserStatus is not null, the UserStatus in the user record shall be set to the provided value.
@@ -562,13 +566,14 @@ export namespace DoorLock {
         userStatus: TlvField(4, TlvNullable(TlvEnum<UserStatus>())),
 
         /**
-         * This field shall indicate the UserType to assign to this user when created or modified. If UserType is null
-         * then:
+         * This field shall indicate the UserType to assign to this user when created or modified.
          *
-         *   • If the OperationType is Add, the UserType in the resulting user record shall be set to default value
+         * If UserType is null then:
+         *
+         *   - If the OperationType is Add, the UserType in the resulting user record shall be set to default value
          *     specified above.
          *
-         *   • If the OperationType is Modify, the UserType in the user record shall NOT be changed from the current
+         *   - If the OperationType is Modify, the UserType in the user record shall NOT be changed from the current
          *     value.
          *
          * If UserType is not null, the UserType in the user record shall be set to the provided value.
@@ -585,10 +590,10 @@ export namespace DoorLock {
          *
          * If CredentialRule is null then:
          *
-         *   • If the OperationType is Add, the CredentialRule in the resulting user record shall be set to default
+         *   - If the OperationType is Add, the CredentialRule in the resulting user record shall be set to default
          *     value specified above.
          *
-         *   • If the OperationType is Modify, the CredentialRule in the user record shall NOT be changed from the
+         *   - If the OperationType is Modify, the CredentialRule in the user record shall NOT be changed from the
          *     current value.
          *
          * If CredentialRule is not null, the CredentialRule in the user record shall be set to the provided value.
@@ -910,7 +915,7 @@ export namespace DoorLock {
         userIndex: TlvField(3, TlvNullable(TlvUInt16.bound({ min: 1 }))),
 
         /**
-         * This field shall indicate the user status to use in the new user record if a new user is being created. This
+         * This field shall indicate the user status to use in the new user record if a new user isbeingcreated. This
          * shall be null if OperationType is Modify. This may be null when adding a new credential and user.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.36.5
@@ -918,7 +923,7 @@ export namespace DoorLock {
         userStatus: TlvField(4, TlvNullable(TlvEnum<UserStatus>())),
 
         /**
-         * This field shall indicate the user type to use in the new user record if a new user is being created. This
+         * This field shall indicate the user type to use in the new user record if a new user is beingcreated. This
          * shall be null if OperationType is Modify. This may be null when adding a new credential and user.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.36.6
@@ -942,34 +947,34 @@ export namespace DoorLock {
         /**
          * Status comes from the Status Codes table and shall be one of the following values:
          *
-         *   • SUCCESS, if setting user credential was successful.
+         *   - SUCCESS, if setting user credential was successful.
          *
-         *   • FAILURE, if some unexpected internal error occurred setting user credential.
+         *   - FAILURE, if some unexpected internal error occurred setting user credential.
          *
-         *   • OCCUPIED, if OperationType is Add and CredentialIndex in Credential structure points to an occupied slot.
+         *   - OCCUPIED, if OperationType is Add and CredentialIndex in Credential structure points to an occupied slot.
          *
-         *   • OCCUPIED, if OperationType is Modify and CredentialIndex in Credential structure does not match the
+         *   - OCCUPIED, if OperationType is Modify and CredentialIndex in Credential structure does not match the
          *     CredentialIndex that is already associated with the provided UserIndex.
          *
-         *   • DUPLICATE, if CredentialData provided is a duplicate of another credential with the same CredentialType
+         *   - DUPLICATE, if CredentialData provided is a duplicate of another credential with the same CredentialType
          *     (e.g. duplicate PIN code).
          *
-         *   • RESOURCE_EXHAUSTED, if OperationType is Add and the new credential cannot be added due to resource
+         *   - RESOURCE_EXHAUSTED, if OperationType is Add and the new credential cannot be added due to resource
          *     constraints such as:
          *
-         *     ◦ The user referred to by UserIndex already has NumberOfCredentialsSupportedPerUser credentials
+         *     - The user referred to by UserIndex already has NumberOfCredentialsSupportedPerUser credentials
          *       associated.
          *
-         *     ◦ The credential is of type AliroEvictableEndpointKey or AliroNonEvictableEndpointKey, and adding it
+         *     - The credential is of type AliroEvictableEndpointKey or AliroNonEvictableEndpointKey, and adding it
          *       would cause the total number of credentials of those two types to exceed
          *       NumberOfAliroEndpointKeysSupported.
          *
-         *   • INVALID_COMMAND, if one or more fields violate constraints or are invalid.
+         *   - INVALID_COMMAND, if one or more fields violate constraints or are invalid.
          *
-         *   • INVALID_COMMAND, if the CredentialIndex in the Credential provided exceeds the number of credentials of
+         *   - INVALID_COMMAND, if the CredentialIndex in the Credential provided exceeds the number of credentials of
          *     the provided CredentialType supported by the lock.
          *
-         *   • INVALID_COMMAND, if OperationType is Modify and UserIndex points to an available slot.
+         *   - INVALID_COMMAND, if OperationType is Modify and UserIndex points to an available slot.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.37.1
          */
@@ -1063,7 +1068,7 @@ export namespace DoorLock {
         /**
          * This field shall indicate the credential’s last modifier fabric index. LastModifiedFabricIndex shall be null
          * if CredentialExists is set to False or when the modifier fabric cannot be determined (for example, when
-         * credential was modified outside the Interaction Model) and shall NOT be null otherwise. This value shall be
+         * credential was modified outside the Interaction Model) and shall NOT be nullotherwise. This value shall be
          * set to 0 if the last modifier fabric was deleted.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.39.4
@@ -1494,13 +1499,13 @@ export namespace DoorLock {
         /**
          * Status shall be one of the following values:
          *
-         *   • SUCCESS if both WeekDayIndex and UserIndex are valid and there is a corresponding schedule entry.
+         *   - SUCCESS if both WeekDayIndex and UserIndex are valid and there is a corresponding schedule entry.
          *
-         *   • INVALID_COMMAND if either WeekDayIndex and/or UserIndex values are not within valid range
+         *   - INVALID_COMMAND if either WeekDayIndex and/or UserIndex values are not within valid range
          *
-         *   • NOT_FOUND if no corresponding schedule entry found for WeekDayIndex.
+         *   - NOT_FOUND if no corresponding schedule entry found for WeekDayIndex.
          *
-         *   • NOT_FOUND if no corresponding user entry found for UserIndex.
+         *   - NOT_FOUND if no corresponding user entry found for UserIndex.
          *
          * If this field is SUCCESS, the optional fields for this command shall be present. For other (error) status
          * values, only the fields up to the status field shall be present.
@@ -1663,13 +1668,13 @@ export namespace DoorLock {
         /**
          * Status shall be one of the following values:
          *
-         *   • SUCCESS if both YearDayIndex and UserIndex are valid and there is a corresponding schedule entry.
+         *   - SUCCESS if both YearDayIndex and UserIndex are valid and there is a corresponding schedule entry.
          *
-         *   • INVALID_COMMAND if either YearDayIndex and/or UserIndex values are not within valid range
+         *   - INVALID_COMMAND if either YearDayIndex and/or UserIndex values are not within valid range
          *
-         *   • NOT_FOUND if no corresponding schedule entry found for YearDayIndex.
+         *   - NOT_FOUND if no corresponding schedule entry found for YearDayIndex.
          *
-         *   • NOT_FOUND if no corresponding user entry found for UserIndex.
+         *   - NOT_FOUND if no corresponding user entry found for UserIndex.
          *
          * If this field is SUCCESS, the optional fields for this command shall be present. For other (error) status
          * values, only the fields up to the status field shall be present.
@@ -1866,13 +1871,13 @@ export namespace DoorLock {
         /**
          * Status shall be one of the following values:
          *
-         *   • FAILURE if the attribute NumberOfHolidaySchedulesSupported is zero.
+         *   - FAILURE if the attribute NumberOfHolidaySchedulesSupported is zero.
          *
-         *   • SUCCESS if the HolidayIndex is valid and there is a corresponding schedule entry.
+         *   - SUCCESS if the HolidayIndex is valid and there is a corresponding schedule entry.
          *
-         *   • INVALID_COMMAND if the HolidayIndex is not within valid range
+         *   - INVALID_COMMAND if the HolidayIndex is not within valid range
          *
-         *   • NOT_FOUND if the HolidayIndex is within the valid range, however, there is not corresponding schedule
+         *   - NOT_FOUND if the HolidayIndex is within the valid range, however, there is not corresponding schedule
          *     entry found.
          *
          * If this field is SUCCESS, the optional fields for this command shall be present. For other (error) status
@@ -1998,7 +2003,13 @@ export namespace DoorLock {
      * If the requested UserID is valid and the Code doesn’t exist, Get RFID Code Response shall have the following
      * format:
      *
-     * UserID = requested User ID UserStatus = 0 (Available) UserType = Null (Not supported) PINCode = 0 (zero length)
+     * UserID = requested User ID
+     *
+     * UserStatus = 0 (Available)
+     *
+     * UserType = Null (Not supported)
+     *
+     * PINCode = 0 (zero length)
      *
      * If the requested UserID is invalid, send Default Response with an error status. The error status shall be equal
      * to CONSTRAINT_ERROR when User_ID is less than the max number of users supported, and NOT_FOUND if greater than or
@@ -2019,7 +2030,13 @@ export namespace DoorLock {
      * If the requested UserID is valid and the Code doesn’t exist, Get RFID Code Response shall have the following
      * format:
      *
-     * UserID = requested User ID UserStatus = 0 (Available) UserType = Null (Not supported) PINCode = 0 (zero length)
+     * UserID = requested User ID
+     *
+     * UserStatus = 0 (Available)
+     *
+     * UserType = Null (Not supported)
+     *
+     * PINCode = 0 (zero length)
      *
      * If the requested UserID is invalid, send Default Response with an error status. The error status shall be equal
      * to CONSTRAINT_ERROR when User_ID is less than the max number of users supported, and NOT_FOUND if greater than or
@@ -2244,7 +2261,7 @@ export namespace DoorLock {
         /**
          * This field shall indicate the user ID.
          *
-         * The value of the UserID field shall be between 0 and the value of the NumberOfRFIDUsersSup ported attribute.
+         * The value of the UserID field shall be between 0 and the value of the NumberOfRFIDUsersSupported attribute.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.27.1
          */
@@ -2306,7 +2323,11 @@ export namespace DoorLock {
      * If the requested User ID is valid and the Code doesn’t exist, Get RFID Code Response shall have the following
      * format:
      *
-     * User ID = requested User ID UserStatus = 0 (available) UserType = 0xFF (not supported)
+     * User ID = requested User ID
+     *
+     * UserStatus = 0 (available)
+     *
+     * UserType = 0xFF (not supported)
      *
      * RFID Code = 0 (zero length)
      *
@@ -2329,7 +2350,11 @@ export namespace DoorLock {
      * If the requested User ID is valid and the Code doesn’t exist, Get RFID Code Response shall have the following
      * format:
      *
-     * User ID = requested User ID UserStatus = 0 (available) UserType = 0xFF (not supported)
+     * User ID = requested User ID
+     *
+     * UserStatus = 0 (available)
+     *
+     * UserType = 0xFF (not supported)
      *
      * RFID Code = 0 (zero length)
      *
@@ -2524,11 +2549,11 @@ export namespace DoorLock {
      * that the operating mode IS supported. This is the inverse of most bitmaps in this specification, and it is
      * RECOMMENDED that clients carefully take this into consideration.
      *
-     * ### WARNING
+     * > [!WARNING]
      *
-     * For the OperatingModesBitmap, a bit SET indicates that the operating mode IS NOT supported. A bit CLEAR indicates
-     * that the operating mode IS supported. This is the inverse of most bitmaps in this specification, and it is
-     * recommended that clients carefully take this into consideration. See SupportedOperatingModes.
+     * > For the OperatingModesBitmap, a bit SET indicates that the operating mode IS NOT supported. A bit CLEAR
+     *   indicates that the operating mode IS supported. This is the inverse of most bitmaps in this specification, and
+     *   it is recommended that clients carefully take this into consideration. See SupportedOperatingModes.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.3
      */
@@ -2573,9 +2598,9 @@ export namespace DoorLock {
          *
          * This bit shall indicate the state related to local programming:
          *
-         *   • 0 = Local programming is disabled
+         *   - 0 = Local programming is disabled
          *
-         *   • 1 = Local programming is enabled
+         *   - 1 = Local programming is enabled
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.4.1
          */
@@ -2586,9 +2611,9 @@ export namespace DoorLock {
          *
          * This bit shall indicate the state related to keypad interface:
          *
-         *   • 0 = Keypad interface is disabled
+         *   - 0 = Keypad interface is disabled
          *
-         *   • 1 = Keypad interface is enabled
+         *   - 1 = Keypad interface is enabled
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.4.2
          */
@@ -2599,9 +2624,9 @@ export namespace DoorLock {
          *
          * This bit shall indicate the state related to remote interface:
          *
-         *   • 0 = Remote interface is disabled
+         *   - 0 = Remote interface is disabled
          *
-         *   • 1 = Remote interface is enabled
+         *   - 1 = Remote interface is enabled
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.4.3
          */
@@ -2612,9 +2637,9 @@ export namespace DoorLock {
          *
          * This bit shall indicate the state related to sound volume:
          *
-         *   • 0 = Sound volume value is 0 (Silent)
+         *   - 0 = Sound volume value is 0 (Silent)
          *
-         *   • 1 = Sound volume value is equal to something other than 0
+         *   - 1 = Sound volume value is equal to something other than 0
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.4.4
          */
@@ -2625,9 +2650,9 @@ export namespace DoorLock {
          *
          * This bit shall indicate the state related to auto relock time:
          *
-         *   • 0 = Auto relock time value is 0
+         *   - 0 = Auto relock time value is 0
          *
-         *   • 1 = Auto relock time value is equal to something other than 0
+         *   - 1 = Auto relock time value is equal to something other than 0
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.4.5
          */
@@ -2638,9 +2663,9 @@ export namespace DoorLock {
          *
          * This bit shall indicate the state related to LED settings:
          *
-         *   • 0 = LED settings value is 0 (NoLEDSignal)
+         *   - 0 = LED settings value is 0 (NoLEDSignal)
          *
-         *   • 1 = LED settings value is equal to something other than 0
+         *   - 1 = LED settings value is equal to something other than 0
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.4.6
          */
@@ -2656,9 +2681,9 @@ export namespace DoorLock {
          *
          * This bit shall indicate whether the door lock is able to add Users/Credentials/Schedules locally:
          *
-         *   • 0 = This ability is disabled
+         *   - 0 = This ability is disabled
          *
-         *   • 1 = This ability is enabled
+         *   - 1 = This ability is enabled
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.5.1
          */
@@ -2669,9 +2694,9 @@ export namespace DoorLock {
          *
          * This bit shall indicate whether the door lock is able to modify Users/Credentials/Schedules locally:
          *
-         *   • 0 = This ability is disabled
+         *   - 0 = This ability is disabled
          *
-         *   • 1 = This ability is enabled
+         *   - 1 = This ability is enabled
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.5.2
          */
@@ -2682,9 +2707,9 @@ export namespace DoorLock {
          *
          * This bit shall indicate whether the door lock is able to clear Users/Credentials/Schedules locally:
          *
-         *   • 0 = This ability is disabled
+         *   - 0 = This ability is disabled
          *
-         *   • 1 = This ability is enabled
+         *   - 1 = This ability is enabled
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.5.3
          */
@@ -2695,9 +2720,9 @@ export namespace DoorLock {
          *
          * This bit shall indicate whether the door lock is able to adjust lock settings locally:
          *
-         *   • 0 = This ability is disabled
+         *   - 0 = This ability is disabled
          *
-         *   • 1 = This ability is enabled
+         *   - 1 = This ability is enabled
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.5.4
          */
@@ -3249,16 +3274,70 @@ export namespace DoorLock {
              *
              * Fields used for different use cases:
              *
+             *   - OperationType shall be set to Add.
+             *
+             *   - UserIndex value shall be set to a user record with UserType set to Available.
+             *
+             *   - UserName may be null causing new user record to use empty string for UserName otherwise UserName
+             *     shall be set to the value provided in the new user record.
+             *
+             *   - UserUniqueID may be null causing new user record to use 0xFFFFFFFF for UserUniqueID otherwise
+             *     UserUniqueID shall be set to the value provided in the new user record.
+             *
+             *   - UserStatus may be null causing new user record to use OccupiedEnabled for UserStatus otherwise
+             *     UserStatus shall be set to the value provided in the new user record.
+             *
+             *   - UserType may be null causing new user record to use UnrestrictedUser for UserType otherwise UserType
+             *     shall be set to the value provided in the new user record.
+             *
+             *   - CredentialRule may be null causing new user record to use Single for CredentialRule otherwise
+             *     CredentialRule shall be set to the value provided in the new user record.
+             *
+             * CreatorFabricIndex and LastModifiedFabricIndex in the new user record shall be set to the accessing
+             * fabric index.
+             *
+             * A LockUserChange event shall be generated after successfully creating a new user.
+             *
+             *   - OperationType shall be set to Modify.
+             *
+             *   - UserIndex value shall be set for a user record with UserType NOT set to Available.
+             *
+             *   - UserName shall be null if modifying a user record that was not created by the accessing fabric.
+             *
+             *   - INVALID_COMMAND shall be returned if UserName is not null and the accessing fabric index doesn’t
+             *     match the CreatorFabricIndex in the user record otherwise UserName shall be set to the value provided
+             *     in the user record.
+             *
+             *   - UserUniqueID shall be null if modifying the user record that was not created by the accessing fabric.
+             *
+             *   - INVALID_COMMAND shall be returned if UserUniqueID is not null and the accessing fabric index doesn’t
+             *     match the CreatorFabricIndex in the user record otherwise UserUniqueID shall be set to the value
+             *     provided in the user record.
+             *
+             *   - UserStatus may be null causing no change to UserStatus in user record otherwise UserStatus shall be
+             *     set to the value provided in the user record.
+             *
+             *   - UserType may be null causing no change to UserType in user record otherwise UserType shall be set to
+             *     the value provided in the user record.
+             *
+             *   - CredentialRule may be null causing no change to CredentialRule in user record otherwise
+             *     CredentialRule shall be set to the value provided in the user record.
+             *
+             * CreatorFabricIndex shall NOT be changed in the user record. LastModifiedFabricIndex in the new user
+             * record shall be set to the accessing fabric index.
+             *
+             * A LockUserChange event shall be generated after successfully modifying a user.
+             *
              * Return status is a global status code or a cluster-specific status code from the Status Codes table and
              * shall be one of the following values:
              *
-             *   • SUCCESS, if setting User was successful.
+             *   - SUCCESS, if setting User was successful.
              *
-             *   • FAILURE, if some unexpected internal error occurred setting User.
+             *   - FAILURE, if some unexpected internal error occurred setting User.
              *
-             *   • OCCUPIED, if OperationType is Add and UserIndex points to an occupied slot.
+             *   - OCCUPIED, if OperationType is Add and UserIndex points to an occupied slot.
              *
-             *   • INVALID_COMMAND, if one or more fields violate constraints or are invalid or if OperationType is
+             *   - INVALID_COMMAND, if one or more fields violate constraints or are invalid or if OperationType is
              *     Modify and UserIndex points to an available slot.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.32
@@ -3274,7 +3353,7 @@ export namespace DoorLock {
             /**
              * Retrieve user.
              *
-             * An InvokeResponse command shall be sent with an appropriate error (e.g. FAILURE, INVALID_ COMMAND, etc.)
+             * An InvokeResponse command shall be sent with an appropriate error (e.g. FAILURE, INVALID_COMMAND, etc.)
              * as needed otherwise the GetUserResponse Command shall be sent implying a status of SUCCESS.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.33
@@ -3306,6 +3385,93 @@ export namespace DoorLock {
              *
              * Fields used for different use cases:
              *
+             *   - OperationType shall be set to Add.
+             *
+             *   - UserIndex shall be set to null and the lock will find a user record with a UserStatus value of
+             *     Available and associate its UserIndex with the CredentialIndex in CredentialStruct provided.
+             *
+             *   - CredentialIndex in CredentialStruct shall be for an unoccupied credential slot.
+             *
+             *   - UserStatus may be null. If it is null, the new user record shall have UserStatus set to
+             *     OccupiedEnabled. Otherwise the new user record shall have UserStatus set to the provided value.
+             *
+             *   - UserType may be null. If it is null, the new user record shall have UserType set to UnrestrictedUser.
+             *     Otherwise the new user record shall have UserType set to the provided value.
+             *
+             *   - UserType shall NOT be set to ProgrammingUser for this use case.
+             *
+             * CreatorFabricIndex and LastModifiedFabricIndex in new user and credential records shall be set to the
+             * accessing fabric index.
+             *
+             * A LockUserChange event shall be generated after successfully creating a new credential and anewuser. The
+             * UserIndex of this LockUserChange event shall be the UserIndex that was used to createtheuser. The
+             * DataIndex of this LockUserChange event shall be the CredentialIndex that was used to create the
+             * credential.
+             *
+             *   - OperationType shall be set to Add.
+             *
+             *   - UserIndex shall NOT be null and shall NOT already be associated with the CredentialIndex in
+             *     CredentialStruct provided otherwise INVALID_COMMAND status response shall be returned.
+             *
+             *   - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex
+             *     in the user record pointed to by UserIndex.
+             *
+             *   - CredentialIndex in CredentialStruct provided shall be for an available credential slot.
+             *
+             *   - UserStatus shall be null.
+             *
+             *   - UserType shall be null.
+             *
+             * CreatorFabricIndex shall NOT be changed in the user record. LastModifiedFabricIndex in the user record
+             * shall be set to the accessing fabric index.
+             *
+             * CreatorFabricIndex and LastModifiedFabricIndex in the new credential record shall be set to the accessing
+             * fabric index.
+             *
+             * A LockUserChange event shall be generated after successfully adding a new credential.
+             *
+             *   - OperationType shall be set to Modify.
+             *
+             *   - UserIndex value shall already be associated with the CredentialIndex in CredentialStruct provided
+             *     otherwise INVALID_COMMAND status response shall be returned.
+             *
+             *   - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex
+             *     in the user record pointed to by UserIndex.
+             *
+             *   - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex
+             *     in the credential record pointed to by the CredentialIndex field value of the Credential parameter.
+             *
+             *   - CredentialIndex in CredentialStruct provided shall be for an occupied credential slot
+             *
+             *   - UserStatus shall be null.
+             *
+             *   - UserType shall be null.
+             *
+             * CreatorFabricIndex shall NOT be changed in user and credential records. LastModifiedFabricIndex in user
+             * and credential records shall be set to the accessing fabric index.
+             *
+             * A LockUserChange event shall be generated after successfully modifying a credential.
+             *
+             *   - OperationType shall be set to Modify.
+             *
+             *   - UserIndex shall be null.
+             *
+             *   - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex
+             *     in the credential record pointed to by the CredentialIndex field value of the Credential parameter.
+             *
+             *   - CredentialType in CredentialStruct shall be set to ProgrammingPIN.
+             *
+             *   - CredentialIndex in CredentialStruct shall be 0.
+             *
+             *   - UserStatus shall be null.
+             *
+             *   - UserType shall be set to ProgrammingUser.
+             *
+             * CreatorFabricIndex shall NOT be changed in the credential record. LastModifiedFabricIndex in the
+             * credential record shall be set to the accessing fabric index.
+             *
+             * A LockUserChange event shall be generated after successfully modifying a ProgrammingUser PIN code.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.36
              */
             setCredential: Command(
@@ -3336,6 +3502,31 @@ export namespace DoorLock {
              * Clear one, one type, or all credentials except ProgrammingPIN credential.
              *
              * Fields used for different use cases:
+             *
+             *   - CredentialType in Credential structure shall be set to the credential type to be cleared.
+             *
+             *   - CredentialType in Credential structure shall NOT be set to ProgrammingPIN.
+             *
+             *   - CredentialIndex in Credential structure shall be set to the credential index to be cleared.
+             *
+             * A LockUserChange event shall be generated after successfully clearing a credential.
+             *
+             *   - CredentialType in Credential structure shall be set to the credential type to be cleared.
+             *
+             *   - CredentialType in Credential structure shall NOT be set to ProgrammingPIN.
+             *
+             *   - CredentialIndex in Credential structure shall be set to 0xFFFE to indicate all credentials of that
+             *     type shall be cleared.
+             *
+             * A single LockUserChange event shall be generated after successfully clearing credentials. This event
+             * shall have DataIndex set to the CredentialIndex in the Credential structure.
+             *
+             *   - Credential field shall be null.
+             *
+             * The ProgrammingPIN credential shall NOT be cleared.
+             *
+             * For each credential type cleared, a LockUserChange event with the corresponding LockDataType shall be
+             * generated. This event shall have DataIndex set to 0xFFFE.
              *
              * For each credential cleared whose user doesn’t have another valid credential, the corresponding user
              * record shall be reset back to default values and its UserStatus value shall be set to Available and
@@ -3447,6 +3638,8 @@ export namespace DoorLock {
              * set.
              *
              * Return status shall be one of the following values:
+             *
+             * One or more fields violates constraints or is invalid.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.12
              */
@@ -3853,8 +4046,9 @@ export namespace DoorLock {
             ),
 
             /**
-             * This command allows clearing an existing Aliro Reader configuration for the lock. Administrators shall
-             * NOT clear an Aliro Reader configuration without explicit user permission.
+             * This command allows clearing an existing Aliro Reader configuration for the lock.
+             *
+             * Administrators shall NOT clear an Aliro Reader configuration without explicit user permission.
              *
              * > [!NOTE]
              *
@@ -3956,6 +4150,9 @@ export namespace DoorLock {
              * For user type value please refer to User Type Value.
              *
              * Return status shall be one of the following values:
+             *
+             * One or more fields violates constraints or is invalid. Door lock is unable to switch from restricted to
+             * unrestricted user (e.g. need to clear schedules to switch).
              *
              * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.24
              */
@@ -4127,8 +4324,8 @@ export namespace DoorLock {
             /**
              * If the User feature is supported then Week Day Schedules are applied to a User and not a credential.
              *
-             * Week Day Schedules are used to restrict access to a specified time window on certain days of the week.
-             * The schedule is repeated each week.
+             * Week Day Schedules are used to restrict access to a specified time window on certain days oftheweek. The
+             * schedule is repeated each week.
              *
              * The lock may automatically adjust the UserType when a schedule is created or cleared.
              *
@@ -4180,8 +4377,9 @@ export namespace DoorLock {
             user: BitFlag(8),
 
             /**
-             * If the User feature is supported then Year Day Schedules are applied to a User and not a credential. Year
-             * Day Schedules are used to restrict access to a specified date and time window.
+             * If the User feature is supported then Year Day Schedules are applied to a User and not a credential.
+             *
+             * Year Day Schedules are used to restrict access to a specified date and time window.
              *
              * The lock may automatically adjust the UserType when a schedule is created or cleared.
              *
@@ -4232,9 +4430,9 @@ export namespace DoorLock {
 
         attributes: {
             /**
-             * This attribute may be NULL if the lock hardware does not currently know the status of the locking
-             * mechanism. For example, a lock may not know the LockState status after a power cycle until the first lock
-             * actuation is completed.
+             * This attribute may be NULL if the lock hardware does not currently know the status of
+             * thelockingmechanism. For example, a lock may not know the LockState status after a power cycle until the
+             * first lock actuation is completed.
              *
              * The Not Fully Locked value is used by a lock to indicate that the state of the lock is somewhere between
              * Locked and Unlocked so it is only partially secured. For example, a deadbolt could be partially extended
@@ -4260,7 +4458,7 @@ export namespace DoorLock {
             actuatorEnabled: Attribute(0x2, TlvBoolean),
 
             /**
-             * Indicates the language for the on-screen or audible user interface using a 2- byte language code from
+             * Indicates the language for the on-screen or audible user interface using a 2-byte language code from
              * ISO-639-1.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.20
@@ -4419,9 +4617,8 @@ export namespace DoorLock {
 
         commands: {
             /**
-             * This command causes the lock device to lock the door. This command includes an optional code for the
-             * lock. The door lock may require a PIN depending on the value of the RequirePINForRemoteOperation
-             * attribute.
+             * This command causes the lock device to lock the door. This command includes an optional code forthelock.
+             * The door lock may require a PIN depending on the value of the RequirePINForRemoteOperation attribute.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.1
              */
@@ -4466,29 +4663,28 @@ export namespace DoorLock {
              * The door lock server sends out a LockOperation event when the event is triggered by the various lock
              * operation sources.
              *
-             *   • If the door lock server supports the Unbolt Door command, it shall generate a LockOperation event
+             *   - If the door lock server supports the Unbolt Door command, it shall generate a LockOperation event
              *     with LockOperationType set to Unlock after an Unbolt Door command succeeds.
              *
-             *   • If the door lock server supports the Unbolting feature and an Unlock Door command is performed, it
+             *   - If the door lock server supports the Unbolting feature and an Unlock Door command is performed, it
              *     shall generate a LockOperation event with LockOperationType set to Unlatch when the unlatched state
              *     is reached and a LockOperation event with LockOperationType set to Unlock when the lock successfully
              *     completes the unlock → hold latch → release latch and return to unlock state operation.
              *
-             *   • If the command fails during holding or releasing the latch but after passing the unlocked state, the
+             *   - If the command fails during holding or releasing the latch but after passing the unlocked state, the
              *     door lock server shall generate a LockOperationError event with LockOperationType set to Unlatch and
              *     a LockOperation event with LockOperationType set to Unlock.
              *
-             *     ◦ If it fails before reaching the unlocked state, the door lock server shall generate only a
+             *     - If it fails before reaching the unlocked state, the door lock server shall generate only a
              *       LockOperationError event with LockOperationType set to Unlock.
              *
-             *   • Upon manual actuation, a door lock server that supports the Unbolting feature:
+             *   - Upon manual actuation, a door lock server that supports the Unbolting feature:
              *
-             *     ◦ shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the
+             *     - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the
              *       outside.
              *
-             *     ◦ may generate a LockOperation event of LockOperationType Unlatch when it is actuated
-             *
-             * from the inside.
+             *     - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the
+             *       inside.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.3
              */

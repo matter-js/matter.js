@@ -180,13 +180,13 @@ export namespace Groups {
         /**
          * This field shall contain the remaining capacity of the Group Table of the node. The following values apply:
          *
-         *   • 0 - No further groups may be added.
+         *   - 0 - No further groups may be added.
          *
-         *   • 0 < Capacity < 0xFE - Capacity holds the number of groups that may be added.
+         *   - 0 < Capacity < 0xFE - Capacity holds the number of groups that may be added.
          *
-         *   • 0xFE - At least 1 further group may be added (exact number is unknown).
+         *   - 0xFE - At least 1 further group may be added (exact number is unknown).
          *
-         *   • null - It is unknown if any further groups may be added.
+         *   - null - It is unknown if any further groups may be added.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.9.1
          */
@@ -198,10 +198,9 @@ export namespace Groups {
          * GetGroupMembership command was empty), or the group IDs of all the groups in the Group Table for which the
          * server endpoint is a member of the group and for which the group ID was included in the the GroupList field
          * of the received GetGroupMembership command (in the case where the GroupList field of the received
-         * GetGroupMembership command was not empty).
-         *
-         * Zigbee: If the total number of groups will cause the maximum payload length of a frame to be exceeded, then
-         * the GroupList field shall contain only as many groups as will fit.
+         * GetGroupMembership command was not empty). Zigbee: If the total number of groups will cause the maximum
+         * payload length of a frame to be exceeded, then the GroupList field shall contain only as many groups as will
+         * fit.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.9.2
          */

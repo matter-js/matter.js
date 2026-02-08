@@ -566,9 +566,9 @@ export namespace JointFabricDatastore {
     export interface DatastoreAclEntry extends TypeFromSchema<typeof TlvDatastoreAclEntry> {}
 
     /**
-     * The DatastoreEndpointEntryStruct represents an Endpoint on a specific Node which is managed by the Datastore.
-     * Only Nodes on the Joint Fabric are managed by the Datastore. As a result, references to NodeID are specific to
-     * the Joint Fabric.
+     * The DatastoreEndpointEntryStruct represents an Endpoint on a specific Node which is managed bytheDatastore. Only
+     * Nodes on the Joint Fabric are managed by the Datastore. As a result, references to NodeID are specific to the
+     * Joint Fabric.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.24.5.9
      */
@@ -605,9 +605,9 @@ export namespace JointFabricDatastore {
     });
 
     /**
-     * The DatastoreEndpointEntryStruct represents an Endpoint on a specific Node which is managed by the Datastore.
-     * Only Nodes on the Joint Fabric are managed by the Datastore. As a result, references to NodeID are specific to
-     * the Joint Fabric.
+     * The DatastoreEndpointEntryStruct represents an Endpoint on a specific Node which is managed bytheDatastore. Only
+     * Nodes on the Joint Fabric are managed by the Datastore. As a result, references to NodeID are specific to the
+     * Joint Fabric.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.24.5.9
      */
@@ -1147,8 +1147,9 @@ export namespace JointFabricDatastore {
             /**
              * This command shall be used to add a KeySet to the Joint Fabric Datastore Cluster of the accessing fabric.
              *
-             * GroupKeySet represents the KeySet to be added to the Joint Fabric Datastore Cluster. Upon receipt of this
-             * command, the Datastore shall:
+             * GroupKeySet represents the KeySet to be added to the Joint Fabric Datastore Cluster.
+             *
+             * Upon receipt of this command, the Datastore shall:
              *
              *   1. Ensure there are no KeySets in the KeySetList attribute with the given GroupKeySetID.
              *
@@ -1164,8 +1165,9 @@ export namespace JointFabricDatastore {
              * This command shall be used to update a KeySet in the Joint Fabric Datastore Cluster of the accessing
              * fabric.
              *
-             * GroupKeySet represents the KeySet to be updated in the Joint Fabric Datastore Cluster. Upon receipt of
-             * this command, the Datastore shall:
+             * GroupKeySet represents the KeySet to be updated in the Joint Fabric Datastore Cluster.
+             *
+             * Upon receipt of this command, the Datastore shall:
              *
              *   1. Find the Epoch Key Entry for the KeySet in the KeySetList attribute with the given GroupKeySetID,
              *      and update any changed fields.
@@ -1307,15 +1309,13 @@ export namespace JointFabricDatastore {
              *
              *     I. If the GroupIDList contains an entry with the given GroupID:
              *
-             *       1. Update the GroupIDList Entry in the Datastore with the new values and Status
+             *       1. Update the GroupIDList Entry in the Datastore with the new values and Status Pending
              *
-             * ### Pending
+             *       2. Update the Groups on the given Node with the new values.
              *
-             * 2. Update the Groups on the given Node with the new values.
+             *       1. If the update succeeds, set the Status to Committed on the GroupIDList Entry in the Datastore.
              *
-             *   1. If the update succeeds, set the Status to Committed on the GroupIDList Entry in the Datastore.
-             *
-             *   2. If not successful, the pending change shall be applied in a subsequent Node Refresh.
+             *       2. If not successful, the pending change shall be applied in a subsequent Node Refresh.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.24.7.5
              */
@@ -1388,8 +1388,9 @@ export namespace JointFabricDatastore {
             /**
              * The command shall be used to add a node to the Joint Fabric Datastore Cluster of the accessing fabric.
              *
-             * NodeID represents the node to be added to the Joint Fabric Datastore Cluster. Upon receipt of this
-             * command, the Datastore shall:
+             * NodeID represents the node to be added to the Joint Fabric Datastore Cluster.
+             *
+             * Upon receipt of this command, the Datastore shall:
              *
              *   1. Update CommissioningStatusEntry of the Node Information Entry with the given NodeID to Pending.
              *
@@ -1598,8 +1599,9 @@ export namespace JointFabricDatastore {
              * EndpointID represents the unique identifier for the endpoint to be updated in the Joint Fabric Datastore
              * Cluster.
              *
-             * NodeID represents the unique identifier for the node to which the endpoint belongs. Upon receipt of this
-             * command, the Datastore shall:
+             * NodeID represents the unique identifier for the node to which the endpoint belongs.
+             *
+             * Upon receipt of this command, the Datastore shall:
              *
              *   1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if not,
              *      return NOT_FOUND.
@@ -1648,8 +1650,9 @@ export namespace JointFabricDatastore {
              * EndpointID represents the unique identifier for the endpoint to be updated in the Joint Fabric Datastore
              * Cluster.
              *
-             * NodeID represents the unique identifier for the node to which the endpoint belongs. Upon receipt of this
-             * command, the Datastore shall:
+             * NodeID represents the unique identifier for the node to which the endpoint belongs.
+             *
+             * Upon receipt of this command, the Datastore shall:
              *
              *   1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if not,
              *      return NOT_FOUND.
@@ -1698,8 +1701,9 @@ export namespace JointFabricDatastore {
              * EndpointID represents the unique identifier for the endpoint to be updated in the Joint Fabric Datastore
              * Cluster.
              *
-             * NodeID represents the unique identifier for the node to which the endpoint belongs. Upon receipt of this
-             * command, the Datastore shall:
+             * NodeID represents the unique identifier for the node to which the endpoint belongs.
+             *
+             * Upon receipt of this command, the Datastore shall:
              *
              *   1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if not,
              *      return NOT_FOUND.
@@ -1737,8 +1741,9 @@ export namespace JointFabricDatastore {
              * EndpointID represents the unique identifier for the endpoint to be updated in the Joint Fabric Datastore
              * Cluster.
              *
-             * NodeID represents the unique identifier for the node to which the endpoint belongs. Upon receipt of this
-             * command, the Datastore shall:
+             * NodeID represents the unique identifier for the node to which the endpoint belongs.
+             *
+             * Upon receipt of this command, the Datastore shall:
              *
              *   1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if not,
              *      return NOT_FOUND.
@@ -1769,8 +1774,9 @@ export namespace JointFabricDatastore {
              * This command shall be used to add an ACL to a node in the Joint Fabric Datastore Cluster of the accessing
              * fabric.
              *
-             * NodeID represents the unique identifier for the node to which the ACL is to be added. ACLEntry represents
-             * the ACL to be added to the Joint Fabric Datastore Cluster.
+             * NodeID represents the unique identifier for the node to which the ACL is to be added.
+             *
+             * ACLEntry represents the ACL to be added to the Joint Fabric Datastore Cluster.
              *
              * Upon receipt of this command, the Datastore shall:
              *
@@ -1805,8 +1811,9 @@ export namespace JointFabricDatastore {
              * ListID represents the unique identifier for the DatastoreACLEntryStruct to be removed from the
              * Datastore’s list of DatastoreACLEntry.
              *
-             * NodeID represents the unique identifier for the node from which the ACL is to be removed. Upon receipt of
-             * this command, the Datastore shall:
+             * NodeID represents the unique identifier for the node from which the ACL is to be removed.
+             *
+             * Upon receipt of this command, the Datastore shall:
              *
              *   1. Confirm that a Node Information Entry exists for the given NodeID, and if not, return NOT_FOUND.
              *
@@ -1850,7 +1857,9 @@ export namespace JointFabricDatastore {
      * The Admin level of access to the Joint Fabric Datastore cluster server shall be limited to JF Administrator Nodes
      * identified using the Administrator CAT.
      *
-     * NOTE Support for Joint Fabric Datastore cluster is provisional.
+     * > [!NOTE]
+     *
+     * > Support for Joint Fabric Datastore cluster is provisional.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.24
      */

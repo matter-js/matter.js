@@ -89,15 +89,15 @@ Resource.add({
                 "\n" +
                 "Reception of this command shall reset the following attributes to 0:" +
                 "\n" +
-                "  • PacketRxCount" +
+                "  - PacketRxCount" +
                 "\n" +
-                "  • PacketTxCount" +
+                "  - PacketTxCount" +
                 "\n" +
-                "  • TxErrCount" +
+                "  - TxErrCount" +
                 "\n" +
-                "  • CollisionCount" +
+                "  - CollisionCount" +
                 "\n" +
-                "  • OverrunCount"
+                "  - OverrunCount"
         },
 
         {

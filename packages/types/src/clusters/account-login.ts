@@ -279,7 +279,7 @@ export namespace AccountLogin {
         events: {
             /**
              * This event can be used by the Content App to indicate that the current user has logged out. In response
-             * to this event, the Fabric Admin shall remove access to this Content App by the specified Node. If no Node
+             * to this event, the Fabric Admin shall remove access to this Content App by thespecifiedNode. If no Node
              * is provided, then the Fabric Admin shall remove access to all non-Admin Nodes.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 6.2.5.1
@@ -295,7 +295,7 @@ export namespace AccountLogin {
      * Client.
      *
      * Often a fabric administrator will facilitate commissioning of a Client (such as a Casting Video Client), and
-     * invoke commands on the AccountLogin cluster on the Content App associated with that client. Specifically:
+     * invoke commands on the AccountLogin cluster on the Content App associated withthatclient. Specifically:
      *
      *   1. GetSetupPIN in order to attempt to obtain the Passcode for commissioning.
      *

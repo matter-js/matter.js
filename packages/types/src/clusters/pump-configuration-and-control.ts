@@ -118,8 +118,8 @@ export namespace PumpConfigurationAndControl {
          * Device control is overridden by hardware, such as an external STOP button or via a local HMI.
          *
          * While this bit is set, the EffectiveOperationMode is adjusted to Local. Any request changing OperationMode
-         * shall generate a FAILURE error status until LocalOverride is cleared on the physical device. When
-         * LocalOverride is cleared, the device shall return to the operation mode set in OperationMode.
+         * shall generate a FAILURE error status until LocalOverride is cleared on thephysicaldevice. When LocalOverride
+         * is cleared, the device shall return to the operation mode set in OperationMode.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.2.6.1.3
          */
@@ -221,7 +221,7 @@ export namespace PumpConfigurationAndControl {
         /**
          * The pump will regulate its speed to maintain a constant differential pressure over its flanges.
          *
-         * The setpoint is interpreted as a percentage of the range derived of the [MinCompPressure – Max CompPressure]
+         * The setpoint is interpreted as a percentage of the range derived of the [MinCompPressure – MaxCompPressure]
          * attributes. The internal setpoint will be lowered (compensated) dependent on the flow in the pump (lower flow
          * ⇒ lower internal setpoint).
          *
@@ -339,7 +339,7 @@ export namespace PumpConfigurationAndControl {
             maxCompPressure: OptionalFixedAttribute(0x6, TlvNullable(TlvInt16), { default: null }),
 
             /**
-             * This attribute specifies the minimum speed the pump can achieve when it is working with the Con trolMode
+             * This attribute specifies the minimum speed the pump can achieve when it is working with the ControlMode
              * attribute set to ConstantSpeed.
              *
              * Valid range is 0 to 65,534 RPM (steps of 1 RPM). Null if the value is invalid.
@@ -362,7 +362,7 @@ export namespace PumpConfigurationAndControl {
              * This attribute specifies the minimum flow the pump can achieve when it is working with the ControlMode
              * attribute set to ConstantFlow.
              *
-             * Valid range is 0 m/h to 6,553.4 m/h (steps of 0.1 m/h). Null if the value is invalid.
+             * Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.2.7.10
              */
@@ -372,7 +372,7 @@ export namespace PumpConfigurationAndControl {
              * This attribute specifies the maximum flow the pump can achieve when it is working with the ControlMode
              * attribute set to ConstantFlow.
              *
-             * Valid range is 0 m/h to 6,553.4 m/h (steps of 0.1 m/h). Null if the value is invalid.
+             * Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.2.7.11
              */
@@ -393,9 +393,7 @@ export namespace PumpConfigurationAndControl {
              * with the ControlMode attribute set to ConstantTemperature.
              *
              * MaxConstTemp shall be greater than or equal to MinConstTemp Valid range is –273.15 °C to 327.67 °C (steps
-             * of 0.01 °C).
-             *
-             * Null if the value is invalid.
+             * of 0.01 °C). Null if the value is invalid.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.2.7.13
              */
@@ -436,7 +434,7 @@ export namespace PumpConfigurationAndControl {
     export const ConstantSpeedComponent = MutableCluster.Component({
         attributes: {
             /**
-             * This attribute specifies the minimum speed the pump can achieve when it is working with the Con trolMode
+             * This attribute specifies the minimum speed the pump can achieve when it is working with the ControlMode
              * attribute set to ConstantSpeed.
              *
              * Valid range is 0 to 65,534 RPM (steps of 1 RPM). Null if the value is invalid.
@@ -466,7 +464,7 @@ export namespace PumpConfigurationAndControl {
              * This attribute specifies the minimum flow the pump can achieve when it is working with the ControlMode
              * attribute set to ConstantFlow.
              *
-             * Valid range is 0 m/h to 6,553.4 m/h (steps of 0.1 m/h). Null if the value is invalid.
+             * Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.2.7.10
              */
@@ -476,7 +474,7 @@ export namespace PumpConfigurationAndControl {
              * This attribute specifies the maximum flow the pump can achieve when it is working with the ControlMode
              * attribute set to ConstantFlow.
              *
-             * Valid range is 0 m/h to 6,553.4 m/h (steps of 0.1 m/h). Null if the value is invalid.
+             * Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.2.7.11
              */
@@ -504,9 +502,7 @@ export namespace PumpConfigurationAndControl {
              * with the ControlMode attribute set to ConstantTemperature.
              *
              * MaxConstTemp shall be greater than or equal to MinConstTemp Valid range is –273.15 °C to 327.67 °C (steps
-             * of 0.01 °C).
-             *
-             * Null if the value is invalid.
+             * of 0.01 °C). Null if the value is invalid.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.2.7.13
              */
@@ -584,7 +580,7 @@ export namespace PumpConfigurationAndControl {
              * This attribute specifies the maximum flow the pump can achieve. It is a physical limit, and does not
              * apply to any specific control mode or operation mode.
              *
-             * Valid range is 0 m/h to 6,553.4 m/h (steps of 0.1 m/h). Null if the value is invalid.
+             * Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.2.7.3
              */
@@ -605,9 +601,9 @@ export namespace PumpConfigurationAndControl {
              * The value of the EffectiveOperationMode attribute is the same as the OperationMode attribute, unless one
              * of the following points are true:
              *
-             *   • The pump is physically set to run with the local settings
+             *   - The pump is physically set to run with the local settings
              *
-             *   • The LocalOverride bit in the PumpStatus attribute is set,
+             *   - The LocalOverride bit in the PumpStatus attribute is set,
              *
              * See OperationMode Attribute and ControlMode Attribute for a detailed description of the operation and
              * control of the pump.
@@ -622,10 +618,10 @@ export namespace PumpConfigurationAndControl {
              * This attribute contains the control mode that currently applies to the pump. It will have the value of
              * the ControlMode attribute, unless one of the following points are true:
              *
-             *   • The ControlMode attribute is set to Automatic. In this case, the value of the EffectiveControlMode
+             *   - The ControlMode attribute is set to Automatic. In this case, the value of the EffectiveControlMode
              *     shall match the behavior of the pump.
              *
-             *   • A remote sensor is used as the sensor for regulation of the pump. In this case, EffectiveControlMode
+             *   - A remote sensor is used as the sensor for regulation of the pump. In this case, EffectiveControlMode
              *     will display ConstantPressure, ConstantFlow or ConstantTemperature if the remote sensor is a pressure
              *     sensor, a flow sensor or a temperature sensor respectively, regardless of the value of the
              *     ControlMode attribute.
@@ -704,10 +700,9 @@ export namespace PumpConfigurationAndControl {
              * consumption of the pump increases. If LifetimeEnergyConsumed rises above maximum value it “rolls over”
              * and starts at 0 (zero).
              *
-             * This attribute is writeable, in order to allow setting to an appropriate value after maintenance. Valid
-             * range is 0 kWh to 4,294,967,294 kWh.
+             * This attribute is writeable, in order to allow setting to an appropriate value after maintenance.
              *
-             * Null if the value is unknown.
+             * Valid range is 0 kWh to 4,294,967,294 kWh. Null if the value is unknown.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.2.7.21
              */
@@ -723,8 +718,6 @@ export namespace PumpConfigurationAndControl {
              * The actual operating mode of the pump is a result of the setting of the attributes OperationMode,
              * ControlMode and the optional connection of a remote sensor. The operation and control is prioritized as
              * shown in the scheme below:
-             *
-             * ### Priority Scheme of Pump Operation and Control
              *
              * If this attribute is Maximum, Minimum or Local, the OperationMode attribute decides how the pump is
              * operated.
@@ -901,16 +894,6 @@ export namespace PumpConfigurationAndControl {
      * The Pump Configuration and Control cluster provides an interface for the setup and control of pump devices, and
      * the automatic reporting of pump status information. Note that control of pump speed is not included – speed is
      * controlled by the On/Off and Level Control clusters.
-     *
-     * ### Pump controller Pump
-     *
-     * C Pump configuration and control S C Level control S
-     *
-     * ### C On/Off S
-     *
-     * C = Client S = Server
-     *
-     * Note: Device names are examples for illustration purposes only
      *
      * Per the Matter specification you cannot use {@link PumpConfigurationAndControlCluster} without enabling certain
      * feature combinations. You must use the {@link with} factory method to obtain a working cluster.

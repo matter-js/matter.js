@@ -54,10 +54,10 @@ export namespace BooleanStateConfiguration {
          * acknowledges the alarm. This is intended to stop visual and/or audible alarms, when the user has become aware
          * that the sensor is triggered, but it is no longer desired to have the alarm modes active on the device, e.g.:
          *
-         *   • The triggering cause have been resolved by the user, but the sensor has not yet stopped detecting the
+         *   - The triggering cause have been resolved by the user, but the sensor has not yet stopped detecting the
          *     triggering cause.
          *
-         *   • The user is not able to address the triggering cause, but is aware of the alarm and suppress/acknowledge
+         *   - The user is not able to address the triggering cause, but is aware of the alarm and suppress/acknowledge
          *     it be addressed at a later point.
          *
          * Acknowledge of alarms will for the remainder of this cluster be referred to as suppress.
@@ -218,10 +218,8 @@ export namespace BooleanStateConfiguration {
              *
              * These supported sensitivity levels shall be ordered by sensitivity, where a value of 0 shall be
              * considered the lowest sensitivity level (least sensitive) and the highest supported value shall be
-             * considered the highest sensitivity level.
-             *
-             * The number of supported sensitivity levels SHOULD represent unique sensitivity levels supported by the
-             * device.
+             * considered the highest sensitivity level. The number of supported sensitivity levels SHOULD represent
+             * unique sensitivity levels supported by the device.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.8.6.2
              */
@@ -246,37 +244,41 @@ export namespace BooleanStateConfiguration {
              * triggered, this attribute shall be set to the inactive state, by setting the bit to 0, for all supported
              * alarm modes.
              *
-             * If an alarm mode is not supported, the bit indicating this alarm mode shall always be 0. A bit shall
-             * indicate whether the alarm mode inactive or not:
+             * If an alarm mode is not supported, the bit indicating this alarm mode shall always be 0.
              *
-             *   • 0 = Inactive
+             * A bit shall indicate whether the alarm mode inactive or not:
              *
-             *   • 1 = Active
+             *   - 0 = Inactive
+             *
+             *   - 1 = Active
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.8.6.4
              */
             alarmsActive: Attribute(0x3, TlvBitmap(TlvUInt8, AlarmMode)),
 
             /**
-             * Indicates the alarm modes that will be emitted if the sensor is triggered. If an alarm mode is not
-             * supported, the bit indicating this alarm mode shall always be 0.
+             * Indicates the alarm modes that will be emitted if the sensor is triggered.
+             *
+             * If an alarm mode is not supported, the bit indicating this alarm mode shall always be 0.
              *
              * A bit shall indicate whether the alarm mode is enabled or disabled:
              *
-             *   • 0 = Disabled
+             *   - 0 = Disabled
              *
-             *   • 1 = Enabled
+             *   - 1 = Enabled
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.8.6.6
              */
             alarmsEnabled: OptionalAttribute(0x5, TlvBitmap(TlvUInt8, AlarmMode), { persistent: true }),
 
             /**
-             * Indicates the alarms supported by the sensor. A bit shall indicate whether the alarm mode is supported:
+             * Indicates the alarms supported by the sensor.
              *
-             *   • 0 = Not supported
+             * A bit shall indicate whether the alarm mode is supported:
              *
-             *   • 1 = Supported
+             *   - 0 = Not supported
+             *
+             *   - 1 = Supported
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.8.6.7
              */
@@ -292,10 +294,10 @@ export namespace BooleanStateConfiguration {
 
         events: {
             /**
-             * This event shall be generated after any bits in the AlarmsActive and/or AlarmsSuppressed attributes
-             * change. This may occur in situations such as when internal processing by the server determines that an
-             * alarm mode becomes active or inactive, or when the SuppressAlarm or EnableDisableAlarm commands are
-             * processed in a way that some alarm modes becomes suppressed, active or inactive.
+             * This event shall be generated after any bits in the AlarmsActive and/or AlarmsSuppressedattributeschange.
+             * This may occur in situations such as when internal processing by the server determines that an alarm mode
+             * becomes active or inactive, or when the SuppressAlarm or EnableDisableAlarm commands are processed in a
+             * way that some alarm modes becomes suppressed, active or inactive.
              *
              * If several alarm modes change state at the same time, a single event combining multiple changes may be
              * emitted instead of multiple events each representing a single change.
@@ -316,12 +318,13 @@ export namespace BooleanStateConfiguration {
              * triggered, this attribute shall be set to the unsuppressed state, by setting the bit to 0, for all
              * supported alarm modes.
              *
-             * If an alarm mode is not supported, the bit indicating this alarm mode shall always be 0. A bit shall
-             * indicate whether the alarm mode is suppressed or not:
+             * If an alarm mode is not supported, the bit indicating this alarm mode shall always be 0.
              *
-             *   • 0 = Not suppressed
+             * A bit shall indicate whether the alarm mode is suppressed or not:
              *
-             *   • 1 = Suppressed
+             *   - 0 = Not suppressed
+             *
+             *   - 1 = Suppressed
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.8.6.5
              */
@@ -361,10 +364,10 @@ export namespace BooleanStateConfiguration {
              * aware that the sensor is triggered, but it is no longer desired to have the alarm modes active on the
              * device, e.g.:
              *
-             *   • The triggering cause have been resolved by the user, but the sensor has not yet stopped detecting the
+             *   - The triggering cause have been resolved by the user, but the sensor has not yet stopped detecting the
              *     triggering cause.
              *
-             *   • The user is not able to address the triggering cause, but is aware of the alarm and
+             *   - The user is not able to address the triggering cause, but is aware of the alarm and
              *     suppress/acknowledge it be addressed at a later point.
              *
              * Acknowledge of alarms will for the remainder of this cluster be referred to as suppress.

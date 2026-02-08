@@ -20,7 +20,7 @@ Resource.add({
         "> [!NOTE]" +
         "\n" +
         "> This cluster is not meant to be used for monitoring of the system resources, such as processing, " +
-        "  memory utilization, networking properties, etc." +
+        "memory utilization, networking properties, etc." +
         "\n" +
         "This cluster shall be used via an alias to a specific resource type (see Cluster IDs).",
 

@@ -27,11 +27,7 @@ export namespace RvcOperationalState {
      *
      * RVC Pause Compatibility defines the compatibility of the states this cluster defines with the Pause command.
      *
-     * ### Table 13. RVC Pause Compatibility
-     *
      * RVC Resume Compatibility defines the compatibility of the states this cluster defines with the Resume command.
-     *
-     * ### Table 14. RVC Resume Compatibility
      *
      * While in the Charging or Docked states, the device shall NOT attempt to resume unless it transitioned to those
      * states while operating and can resume, such as, for example, if it is recharging while in a cleaning cycle. Else,
@@ -112,8 +108,8 @@ export namespace RvcOperationalState {
         operationalStateId: TlvField(0, TlvEnum<OperationalState | OperationalStateNamespace.OperationalStateEnum>()),
 
         /**
-         * This field is present when the OperationalStateID is from the set reserved for Manufacturer Specific States.
-         * If present, this shall contain a human-readable description of the operational state.
+         * This field is present when the OperationalStateID is from the set reserved for ManufacturerSpecificStates. If
+         * present, this shall contain a human-readable description of the operational state.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.2.2
          */
@@ -245,7 +241,7 @@ export namespace RvcOperationalState {
         errorStateId: TlvField(0, TlvEnum<ErrorState | OperationalStateNamespace.ErrorState>()),
 
         /**
-         * This field is present when the ErrorStateID is from the set reserved for Manufacturer Specific errors. If
+         * This field is present when the ErrorStateID is from the set reserved for ManufacturerSpecificerrors. If
          * present, this shall contain a human-readable description of the error state.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.4.2
@@ -344,18 +340,18 @@ export namespace RvcOperationalState {
              *
              * Changes to this attribute shall only be marked as reportable in the following cases:
              *
-             *   • If it has changed due to a change in the CurrentPhase or OperationalState attributes, or
+             *   - If it has changed due to a change in the CurrentPhase or OperationalState attributes, or
              *
-             *   • When it changes from 0 to any other value and vice versa, or
+             *   - When it changes from 0 to any other value and vice versa, or
              *
-             *   • When it changes from null to any other value and vice versa, or
+             *   - When it changes from null to any other value and vice versa, or
              *
-             *   • When it increases, or
+             *   - When it increases, or
              *
-             *   • When there is any increase or decrease in the estimated time remaining that was due to progressing
+             *   - When there is any increase or decrease in the estimated time remaining that was due to progressing
              *     insight of the server’s control logic, or
              *
-             *   • When it changes at a rate significantly different from one unit per second.
+             *   - When it changes at a rate significantly different from one unit per second.
              *
              * Changes to this attribute merely due to the normal passage of time with no other dynamic change of device
              * state shall NOT be reported.
@@ -429,9 +425,9 @@ export namespace RvcOperationalState {
              *
              * Otherwise, on success:
              *
-             *   • The OperationalState attribute shall be set to SeekingCharger.
+             *   - The OperationalState attribute shall be set to SeekingCharger.
              *
-             *   • The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
+             *   - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 7.4.5.1
              */

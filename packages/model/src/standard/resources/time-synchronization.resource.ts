@@ -109,8 +109,7 @@ Resource.add({
         {
             tag: "attribute", name: "TimeZone", xref: "core§11.17.8.6",
 
-            details: "This attribute shall contain a list of time zone offsets from UTC and when they shall take effect." +
-                "\n" +
+            details: "This attribute shall contain a list of time zone offsets from UTC and when they shall take effect. " +
                 "This attribute uses a list of time offset configurations to allow Nodes to handle scheduled " +
                 "regulatory time zone changes. This attribute shall NOT be used to indicate daylight savings time " +
                 "changes (see Section 11.17.8.7, “DSTOffset Attribute” for daylight savings time)." +
@@ -126,11 +125,11 @@ Resource.add({
                 "If a node does not support a TimeZoneDatabase, the Name field of the TimeZoneStruct is only " +
                 "applicable for client-side localization. In particular:" +
                 "\n" +
-                "  • If the node does not support a TimeZoneDatabase, the Name field shall NOT be used to calculate " +
-                "    the local time." +
+                "  - If the node does not support a TimeZoneDatabase, the Name field shall NOT be used to calculate " +
+                "the local time." +
                 "\n" +
-                "  • If the node does not support a TimeZoneDatabase, the Name field shall NOT be used to calculate " +
-                "    DST start or end dates." +
+                "  - If the node does not support a TimeZoneDatabase, the Name field shall NOT be used to calculate " +
+                "DST start or end dates." +
                 "\n" +
                 "When time passes, the node SHOULD remove any entries which are no longer active and change the " +
                 "ValidAt time for the currently used TimeZoneStruct list item to zero." +
@@ -310,14 +309,16 @@ Resource.add({
         {
             tag: "command", name: "SetTrustedTimeSource", xref: "core§11.17.9.2",
 
-            details: "This command is used to set the TrustedTimeSource attribute. Upon receipt of this command:" +
+            details: "This command is used to set the TrustedTimeSource attribute." +
                 "\n" +
-                "  • If the TrustedTimeSource field in the command is null, the node shall set the TrustedTimeSource " +
-                "    attribute to null and shall generate a MissingTrustedTimeSource event." +
+                "Upon receipt of this command:" +
                 "\n" +
-                "  • Otherwise, the node shall set the TrustedTimeSource attribute to a struct which has NodeID and " +
-                "    Endpoint fields matching those in the TrustedTimeSource field and has its FabricIndex field set " +
-                "    to the command’s accessing fabric index.",
+                "  - If the TrustedTimeSource field in the command is null, the node shall set the TrustedTimeSource " +
+                "attribute to null and shall generate a MissingTrustedTimeSource event." +
+                "\n" +
+                "  - Otherwise, the node shall set the TrustedTimeSource attribute to a struct which has NodeID and " +
+                "Endpoint fields matching those in the TrustedTimeSource field and has its FabricIndex field set " +
+                "to the command’s accessing fabric index.",
 
             children: [{
                 tag: "field", name: "TrustedTimeSource", xref: "core§11.17.9.2.1",
@@ -363,11 +364,11 @@ Resource.add({
 
             details: "This command is used to set the DST offsets for a node." +
                 "\n" +
-                "  • If the length of DSTOffset is larger than DSTOffsetListMaxSize, the node shall respond with " +
-                "    RESOURCE_EXHAUSTED." +
+                "  - If the length of DSTOffset is larger than DSTOffsetListMaxSize, the node shall respond with " +
+                "RESOURCE_EXHAUSTED." +
                 "\n" +
-                "  • Else if the list entries do not conform to the list requirements for DSTOffset attribute, the " +
-                "    node shall respond with CONSTRAINT_ERROR." +
+                "  - Else if the list entries do not conform to the list requirements for DSTOffset attribute, the " +
+                "node shall respond with CONSTRAINT_ERROR." +
                 "\n" +
                 "If there are no errors in the list, the DSTOffset field shall be copied to the DSTOffset attribute." +
                 "\n" +

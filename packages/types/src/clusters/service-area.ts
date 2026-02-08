@@ -65,8 +65,9 @@ export namespace ServiceArea {
         mapId: TlvField(0, TlvUInt32),
 
         /**
-         * This field shall represent a human understandable map description. For example: "Main Floor", or "Second
-         * Level".
+         * This field shall represent a human understandable map description.
+         *
+         * For example: "Main Floor", or "Second Level".
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.3.2
          */
@@ -81,8 +82,6 @@ export namespace ServiceArea {
     export interface Map extends TypeFromSchema<typeof TlvMap> {}
 
     /**
-     * The following table defines the status values.
-     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.6
      */
     export enum OperationalStatus {
@@ -220,43 +219,47 @@ export namespace ServiceArea {
      *
      * For an area description to be meaningful, it shall have at least one of the following:
      *
-     *   • a non-empty name (LocationInfo’s LocationName field) OR
+     *   - a non-empty name (LocationInfo’s LocationName field)
      *
-     *   • some semantic data (one or more of these: FloorNumber, AreaType or LandmarkTag) The normative text from the
+     * OR
+     *
+     *   - some semantic data (one or more of these: FloorNumber, AreaType or LandmarkTag) The normative text from the
      *     remainder of this section describes these constraints.
      *
-     * If the LocationInfo field is null, the LandmarkInfo field shall NOT be null. If the LandmarkInfo field is null,
-     * the LocationInfo field shall NOT be null.
+     * If the LocationInfo field is null, the LandmarkInfo field shall NOT be null.
+     *
+     * If the LandmarkInfo field is null, the LocationInfo field shall NOT be null.
      *
      * If LocationInfo is not null, and its LocationName field is an empty string, at least one of the following shall
      * NOT be null:
      *
-     *   • LocationInfo’s FloorNumber field
+     *   - LocationInfo’s FloorNumber field
      *
-     *   • LocationInfo’s AreaType field
+     *   - LocationInfo’s AreaType field
      *
-     *   • LandmarkInfo field
+     *   - LandmarkInfo field
      *
      * If all three of the following are null, LocationInfo’s LocationName field shall NOT be an empty string:
      *
-     *   • LocationInfo’s FloorNumber field
+     *   - LocationInfo’s FloorNumber field
      *
-     *   • LocationInfo’s AreaType field
+     *   - LocationInfo’s AreaType field
      *
-     *   • LandmarkInfo field
+     *   - LandmarkInfo field
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.2
      */
     export const TlvAreaInfo = TlvObject({
         /**
-         * This field shall indicate the name of the area, floor number and/or area type. A few examples are provided
-         * below.
+         * This field shall indicate the name of the area, floor number and/or area type.
          *
-         *   • An area can have LocationInfo’s LocationName field set to "blue room", and the AreaType field set to the
+         * A few examples are provided below.
+         *
+         *   - An area can have LocationInfo’s LocationName field set to "blue room", and the AreaType field set to the
          *     ID of a "Living Room" semantic tag. Clients wishing to direct the device to operate in (or service) the
          *     living room can use this area.
          *
-         *   • An area can have LocationInfo set to null, the LandmarkInfo’s LandmarkTag field set to the ID of the
+         *   - An area can have LocationInfo set to null, the LandmarkInfo’s LandmarkTag field set to the ID of the
          *     "Table" landmark semantic tag, and the RelativePositionTag field set to the ID of the "Under" position
          *     semantic tag. With such an area indication, the client can request the device to operate in (or service)
          *     the area located under the table.
@@ -286,30 +289,33 @@ export namespace ServiceArea {
      *
      * For an area description to be meaningful, it shall have at least one of the following:
      *
-     *   • a non-empty name (LocationInfo’s LocationName field) OR
+     *   - a non-empty name (LocationInfo’s LocationName field)
      *
-     *   • some semantic data (one or more of these: FloorNumber, AreaType or LandmarkTag) The normative text from the
+     * OR
+     *
+     *   - some semantic data (one or more of these: FloorNumber, AreaType or LandmarkTag) The normative text from the
      *     remainder of this section describes these constraints.
      *
-     * If the LocationInfo field is null, the LandmarkInfo field shall NOT be null. If the LandmarkInfo field is null,
-     * the LocationInfo field shall NOT be null.
+     * If the LocationInfo field is null, the LandmarkInfo field shall NOT be null.
+     *
+     * If the LandmarkInfo field is null, the LocationInfo field shall NOT be null.
      *
      * If LocationInfo is not null, and its LocationName field is an empty string, at least one of the following shall
      * NOT be null:
      *
-     *   • LocationInfo’s FloorNumber field
+     *   - LocationInfo’s FloorNumber field
      *
-     *   • LocationInfo’s AreaType field
+     *   - LocationInfo’s AreaType field
      *
-     *   • LandmarkInfo field
+     *   - LandmarkInfo field
      *
      * If all three of the following are null, LocationInfo’s LocationName field shall NOT be an empty string:
      *
-     *   • LocationInfo’s FloorNumber field
+     *   - LocationInfo’s FloorNumber field
      *
-     *   • LocationInfo’s AreaType field
+     *   - LocationInfo’s AreaType field
      *
-     *   • LandmarkInfo field
+     *   - LandmarkInfo field
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.2
      */
@@ -423,7 +429,7 @@ export namespace ServiceArea {
     export const TlvSelectAreasResponse = TlvObject({
         /**
          * If the Status field is set to Success or UnsupportedArea, the server may use a non-empty string for the
-         * StatusText field to provide additional information. For example, if Status is set to Unsupport edArea, the
+         * StatusText field to provide additional information. For example, if Status is set to UnsupportedArea, the
          * server may use StatusText to indicate which areas are unsupported.
          *
          * If the Status field is not set to Success, or UnsupportedArea, the StatusText field shall include a
@@ -535,14 +541,14 @@ export namespace ServiceArea {
              *
              * A map is a full or a partial representation of a home, known to the device. For example:
              *
-             *   • a single level home may be represented using a single map
+             *   - a single level home may be represented using a single map
              *
-             *   • a two level home may be represented using two maps, one for each level
+             *   - a two level home may be represented using two maps, one for each level
              *
-             *   • a single level home may be represented using two maps, each including a different set of rooms, such
+             *   - a single level home may be represented using two maps, each including a different set of rooms, such
              *     as "map of living room and kitchen" and "map of bedrooms and hallway"
              *
-             *   • a single level home may be represented using one map for the indoor areas (living room, bedrooms
+             *   - a single level home may be represented using one map for the indoor areas (living room, bedrooms
              *     etc.) and one for the outdoor areas (garden, swimming pool etc.)
              *
              * Each map includes one or more areas - see the SupportedAreas attribute. In the context of this cluster
@@ -552,8 +558,9 @@ export namespace ServiceArea {
              * on the associated map. For example, the clients may allow the user to indicate that the device is to
              * operate on the first floor, and allow the user to choose only from the areas situated on that level.
              *
-             * If empty, that indicates that the device is currently unable to provide this information. Each entry in
-             * this list shall have a unique value for the MapID field.
+             * If empty, that indicates that the device is currently unable to provide this information.
+             *
+             * Each entry in this list shall have a unique value for the MapID field.
              *
              * Each entry in this list shall have a unique value for the Name field.
              *
@@ -587,8 +594,9 @@ export namespace ServiceArea {
     export const ProgressReportingComponent = MutableCluster.Component({
         attributes: {
             /**
-             * Indicates the operating status at one or more areas. Each entry in this list shall have a unique value
-             * for the AreaID field.
+             * Indicates the operating status at one or more areas.
+             *
+             * Each entry in this list shall have a unique value for the AreaID field.
              *
              * For each entry in this list, the AreaID field shall match an entry on the SupportedAreas attribute’s
              * list.
@@ -601,12 +609,12 @@ export namespace ServiceArea {
              *
              * If the SelectedAreas attribute is not empty, and the device starts operating:
              *
-             *   • the Progress attribute list shall be updated so each entry of SelectedAreas has a matching Progress
+             *   - the Progress attribute list shall be updated so each entry of SelectedAreas has a matching Progress
              *     list entry, based on the AreaID field
              *
-             *   • the length of the Progress and SelectedAreas list shall be the same
+             *   - the length of the Progress and SelectedAreas list shall be the same
              *
-             *   • the entries in the Progress list shall be initialized by the server, by having their status set to
+             *   - the entries in the Progress list shall be initialized by the server, by having their status set to
              *     Pending or Operating, and the TotalOperationalTime field set to null
              *
              * When the device ends operation unexpectedly, such as due to an error, the server shall update all
@@ -661,8 +669,8 @@ export namespace ServiceArea {
 
         attributes: {
             /**
-             * This attribute shall contain the list of areas that can be included in the SelectedAreas attribute’s
-             * list. Each item in this list represents a unique area, as indicated by the AreaID field of AreaStruct.
+             * This attribute shall contain the list of areas that can be included in the SelectedAreas attribute’slist.
+             * Each item in this list represents a unique area, as indicated by the AreaID field of AreaStruct.
              *
              * Each entry in this list shall have a unique value for the AreaID field.
              *
@@ -694,15 +702,19 @@ export namespace ServiceArea {
              * The SupportedAreas attribute list changes mentioned above SHOULD NOT be allowed while the device is
              * operating, to reduce the impact on the clients, and the potential confusion for the users.
              *
-             * A few examples are provided below. Valid list of areas:
+             * A few examples are provided below.
              *
-             *   • AreaID=0, LocationName="yellow bedroom", MapID=null
+             * Valid list of areas:
              *
-             *   • AreaID=1, LocationName="orange bedroom", MapID=null Valid list of areas:
+             *   - AreaID=0, LocationName="yellow bedroom", MapID=null
              *
-             *   • AreaID=5, LocationName="hallway", MapID=1
+             *   - AreaID=1, LocationName="orange bedroom", MapID=null
              *
-             *   • AreaID=3, LocationName="hallway", MapID=2
+             * Valid list of areas:
+             *
+             *   - AreaID=5, LocationName="hallway", MapID=1
+             *
+             *   - AreaID=3, LocationName="hallway", MapID=2
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.17.6.1
              */
@@ -715,13 +727,14 @@ export namespace ServiceArea {
              * indicated by the SelectedAreas attribute. For example, a robotic vacuum cleaner may drive without
              * cleaning when traveling without operating.
              *
-             * If this attribute is empty, the device is not constrained to operate in any specific areas. If this
-             * attribute is not empty:
+             * If this attribute is empty, the device is not constrained to operate in any specific areas.
              *
-             *   • each item in this list shall match the AreaID field of an entry in the SupportedAreas attribute’s
+             * If this attribute is not empty:
+             *
+             *   - each item in this list shall match the AreaID field of an entry in the SupportedAreas attribute’s
              *     list
              *
-             *   • each entry in this list shall have a unique value
+             *   - each entry in this list shall have a unique value
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.17.6.3
              */
@@ -732,7 +745,7 @@ export namespace ServiceArea {
              * regardless of whether it is operating or not, such as while traveling between areas.
              *
              * If the device is not mobile and can operate at multiple areas sequentially, this attribute shall indicate
-             * the area which is currently being serviced, or the area which is currently traversed by the device. For
+             * the area which is currently being serviced, or the area which is currently traversed bythedevice. For
              * example, a camera device may use this attribute to indicate which area it currently takes video of
              * (serviced area) or which area it currently has in view but not taking video of (e.g. an area which is
              * traversed while panning).
@@ -762,9 +775,9 @@ export namespace ServiceArea {
              *
              * A value of 0 means that the operation has completed.
              *
-             * When this attribute is null, that represents that there is no time currently defined until operation
-             * completion. This may happen, for example, because no operation is in progress or because the completion
-             * time is unknown.
+             * When this attribute is null, that represents that there is no time currently defined
+             * untiloperationcompletion. This may happen, for example, because no operation is in progress or because
+             * the completion time is unknown.
              *
              * Null if the CurrentArea attribute is null.
              *
@@ -774,11 +787,11 @@ export namespace ServiceArea {
              *
              * The value of this attribute shall only be reported in the following cases:
              *
-             *   • when it changes to or from 0
+             *   - when it changes to or from 0
              *
-             *   • when it decreases
+             *   - when it decreases
              *
-             *   • when it changes to or from null
+             *   - when it changes to or from null
              *
              *     > [!NOTE]
              *

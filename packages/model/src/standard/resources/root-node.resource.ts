@@ -15,13 +15,13 @@ Resource.add({
         "akin to a \"read me first\" endpoint that describes itself and the other endpoints that make up the " +
         "node." +
         "\n" +
-        "  • Device types with Endpoint scope shall NOT be supported on the same endpoint as this device " +
-        "    type." +
+        "  - Device types with Endpoint scope shall NOT be supported on the same endpoint as this device " +
+        "type." +
         "\n" +
-        "  • Clusters with an Application role shall NOT be supported on the same endpoint as this device " +
-        "    type." +
+        "  - Clusters with an Application role shall NOT be supported on the same endpoint as this device " +
+        "type." +
         "\n" +
-        "  • Other device types with Node scope may be supported on the same endpoint as this device type.",
+        "  - Other device types with Node scope may be supported on the same endpoint as this device type.",
 
     children: [
         { tag: "requirement", name: "BasicInformation", xref: "device§2.1.5" },

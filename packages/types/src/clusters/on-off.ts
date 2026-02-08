@@ -48,18 +48,18 @@ export namespace OnOff {
          * When this feature is supported, the device exposing this server cluster exhibits "dead front" behavior when
          * the "OnOff" attribute is FALSE (Off). This "dead front" behavior includes:
          *
-         *   • clusters other than this cluster that are also exposed may respond with failures to Invoke and Write
+         *   - clusters other than this cluster that are also exposed may respond with failures to Invoke and Write
          *     interactions. Such failure responses when in a "dead front" shall be with an INVALID_IN_STATE status
          *     code.
          *
-         *   • clusters other than this cluster may change the values of their attributes to best-effort values, due to
+         *   - clusters other than this cluster may change the values of their attributes to best-effort values, due to
          *     the actual values not being defined or available in this state. Device type specifications that require
          *     support for the DF feature SHOULD define what these best-effort values are.
          *
-         *   • Report Transactions shall continue to be generated. Such transactions may include best-effort values as
+         *   - Report Transactions shall continue to be generated. Such transactions may include best-effort values as
          *     noted above.
          *
-         *   • Event generation logic for clusters other than this cluster is unchanged (noting possible use of
+         *   - Event generation logic for clusters other than this cluster is unchanged (noting possible use of
          *     best-effort attribute values as in the preceding bullets).
          *
          * When this feature is supported and the OnOff attribute changes from TRUE to FALSE (e.g. when receiving an Off
@@ -145,9 +145,9 @@ export namespace OnOff {
 
         /**
          * This field is used to indicate which variant of the effect, indicated in the EffectIdentifier field, SHOULD
-         * be triggered. If the server does not support the given variant, it shall use the default variant. This field
-         * is dependent on the value of the EffectIdentifier field and shall contain one of the non-reserved values
-         * listed in either DelayedAllOffEffectVariantEnum or DyingLightEffectVariantEnum.
+         * be triggered. If the server does not support the given variant, it shall use thedefaultvariant. This field is
+         * dependent on the value of the EffectIdentifier field and shall contain one of the non-reserved values listed
+         * in either DelayedAllOffEffectVariantEnum or DyingLightEffectVariantEnum.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.4.2
          */
@@ -263,8 +263,8 @@ export namespace OnOff {
 
             /**
              * This attribute specifies the length of time (in 1/10ths second) that the On state shall be maintained
-             * before automatically transitioning to the Off state when using the OnWithTimedOff command. This attribute
-             * can be written at any time, but writing a value only has effect when in the Timed On state. See
+             * before automatically transitioning to the Off state when using the OnWithTimedOffcommand. This attribute
+             * can be written at any time, but writing a value only has effect when in the Timed Onstate. See
              * OnWithTimedOff for more details.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.5.6.4
@@ -370,18 +370,18 @@ export namespace OnOff {
              * When this feature is supported, the device exposing this server cluster exhibits "dead front" behavior
              * when the "OnOff" attribute is FALSE (Off). This "dead front" behavior includes:
              *
-             *   • clusters other than this cluster that are also exposed may respond with failures to Invoke and Write
+             *   - clusters other than this cluster that are also exposed may respond with failures to Invoke and Write
              *     interactions. Such failure responses when in a "dead front" shall be with an INVALID_IN_STATE status
              *     code.
              *
-             *   • clusters other than this cluster may change the values of their attributes to best-effort values, due
+             *   - clusters other than this cluster may change the values of their attributes to best-effort values, due
              *     to the actual values not being defined or available in this state. Device type specifications that
              *     require support for the DF feature SHOULD define what these best-effort values are.
              *
-             *   • Report Transactions shall continue to be generated. Such transactions may include best-effort values
+             *   - Report Transactions shall continue to be generated. Such transactions may include best-effort values
              *     as noted above.
              *
-             *   • Event generation logic for clusters other than this cluster is unchanged (noting possible use of
+             *   - Event generation logic for clusters other than this cluster is unchanged (noting possible use of
              *     best-effort attribute values as in the preceding bullets).
              *
              * When this feature is supported and the OnOff attribute changes from TRUE to FALSE (e.g. when receiving an

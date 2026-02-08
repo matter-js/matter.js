@@ -18,28 +18,28 @@ export namespace WindowCoveringInterface {
          *
          * if the PositionAware feature is supported:
          *
-         *   • TargetPositionLiftPercent100ths attribute shall be set to 0.00%.
+         *   - TargetPositionLiftPercent100ths attribute shall be set to 0.00%.
          *
-         *   • TargetPositionTiltPercent100ths attribute shall be set to 0.00%.
+         *   - TargetPositionTiltPercent100ths attribute shall be set to 0.00%.
          *
          * The server positioning attributes will follow the movements, once the movement has successfully finished, the
          * server attributes shall be updated as follows:
          *
          * if the PositionAware feature is supported:
          *
-         *   • CurrentPositionLiftPercent100ths attribute shall be 0.00%.
+         *   - CurrentPositionLiftPercent100ths attribute shall be 0.00%.
          *
-         *   • CurrentPositionLiftPercentage attribute shall be 0%.
+         *   - CurrentPositionLiftPercentage attribute shall be 0%.
          *
-         *   • CurrentPositionTiltPercent100ths attribute shall be 0.00%.
+         *   - CurrentPositionTiltPercent100ths attribute shall be 0.00%.
          *
-         *   • CurrentPositionTiltPercentage attribute shall be 0%.
+         *   - CurrentPositionTiltPercentage attribute shall be 0%.
          *
          * if the AbsolutePosition feature is supported:
          *
-         *   • CurrentPositionLift attribute shall be equal to the InstalledOpenLimitLift attribute.
+         *   - CurrentPositionLift attribute shall be equal to the InstalledOpenLimitLift attribute.
          *
-         *   • CurrentPositionTilt attribute shall be equal to the InstalledOpenLimitTilt attribute.
+         *   - CurrentPositionTilt attribute shall be equal to the InstalledOpenLimitTilt attribute.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.1
          */
@@ -52,28 +52,28 @@ export namespace WindowCoveringInterface {
          *
          * if the PositionAware feature is supported:
          *
-         *   • TargetPositionLiftPercent100ths attribute shall be set to 100.00%.
+         *   - TargetPositionLiftPercent100ths attribute shall be set to 100.00%.
          *
-         *   • TargetPositionTiltPercent100ths attribute shall be set to 100.00%.
+         *   - TargetPositionTiltPercent100ths attribute shall be set to 100.00%.
          *
          * The server positioning attributes will follow the movements, once the movement has successfully finished, the
          * server attributes shall be updated as follows:
          *
          * if the PositionAware feature is supported:
          *
-         *   • CurrentPositionLiftPercent100ths attribute shall be 100.00%.
+         *   - CurrentPositionLiftPercent100ths attribute shall be 100.00%.
          *
-         *   • CurrentPositionLiftPercentage attribute shall be 100%.
+         *   - CurrentPositionLiftPercentage attribute shall be 100%.
          *
-         *   • CurrentPositionTiltPercent100ths attribute shall be 100.00%.
+         *   - CurrentPositionTiltPercent100ths attribute shall be 100.00%.
          *
-         *   • CurrentPositionTiltPercentage attribute shall be 100%.
+         *   - CurrentPositionTiltPercentage attribute shall be 100%.
          *
          * if the AbsolutePosition feature is supported:
          *
-         *   • CurrentPositionLift attribute shall be equal to the InstalledClosedLimitLift attribute.
+         *   - CurrentPositionLift attribute shall be equal to the InstalledClosedLimitLift attribute.
          *
-         *   • CurrentPositionTilt attribute shall be equal to the InstalledClosedLimitTilt attribute.
+         *   - CurrentPositionTilt attribute shall be equal to the InstalledClosedLimitTilt attribute.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.2
          */
@@ -83,10 +83,10 @@ export namespace WindowCoveringInterface {
          * Upon receipt of this command, the window covering will stop any adjusting to the physical tilt and lift/slide
          * that is currently occurring. The server attributes supported shall be updated as follows:
          *
-         *   • TargetPositionLiftPercent100ths attribute will be set to CurrentPositionLiftPercent100ths attribute
+         *   - TargetPositionLiftPercent100ths attribute will be set to CurrentPositionLiftPercent100ths attribute
          *     value.
          *
-         *   • TargetPositionTiltPercent100ths attribute will be set to CurrentPositionTiltPercent100ths attribute
+         *   - TargetPositionTiltPercent100ths attribute will be set to CurrentPositionTiltPercent100ths attribute
          *     value.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.3

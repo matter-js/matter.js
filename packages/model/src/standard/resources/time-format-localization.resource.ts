@@ -35,22 +35,17 @@ Resource.add({
                 "time." +
                 "\n" +
                 "If not UseActiveLocale, this value shall take priority over any unit implied through the " +
-                "ActiveLocale attribute." +
-                "\n" +
-                "If UseActiveLocale, any unit implied through the ActiveLocale attribute is used as the hour format, " +
-                "and if ActiveLocale is not present, the hour format is unknown."
+                "ActiveLocale attribute. If UseActiveLocale, any unit implied through the ActiveLocale attribute is " +
+                "used as the hour format, and if ActiveLocale is not present, the hour format is unknown."
         },
 
         {
             tag: "attribute", name: "ActiveCalendarType", xref: "core§11.4.6.2",
-
             details: "Indicates the calendar format that the Node is currently configured to use when conveying dates." +
                 "\n" +
                 "If not UseActiveLocale, this value shall take priority over any unit implied through the " +
-                "ActiveLocale attribute." +
-                "\n" +
-                "If UseActiveLocale, any unit implied through the ActiveLocale attribute is used as the calendar " +
-                "type, and if ActiveLocale is not present, the calendar type is unknown."
+                "ActiveLocale attribute. If UseActiveLocale, any unit implied through the ActiveLocale attribute is " +
+                "used as the calendar type, and if ActiveLocale is not present, the calendar type is unknown."
         },
 
         {

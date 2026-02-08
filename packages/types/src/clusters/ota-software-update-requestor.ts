@@ -166,9 +166,9 @@ export namespace OtaSoftwareUpdateRequestor {
          * be available.
          *
          * An OTA Provider is announcing, either to a single Node or to a group of Nodes, that a new Software Image may
-         * be available. The details may only be obtained by executing a OTA Software Update Query procedure. A
-         * receiving OTA Requestor SHOULD only query the indicated OTA Provider at the ProviderLocation at its next
-         * upcoming OTA Provider query.
+         * be available. The details may only be obtained by executing a OTA Software UpdateQueryprocedure. A receiving
+         * OTA Requestor SHOULD only query the indicated OTA Provider at the ProviderLocation at its next upcoming OTA
+         * Provider query.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.20.7.4.1.2
          */
@@ -223,7 +223,7 @@ export namespace OtaSoftwareUpdateRequestor {
         /**
          * This optional field, if present, shall consist of a top-level anonymous list; each list element shall have a
          * profile-specific tag encoded in fully-qualified form. Each list element shall contain a manufacturer-specific
-         * payload, which the Node invoking this command wants to expose to the receiving Node. This payload may be used
+         * payload, which the Node invoking this command wants to expose to thereceivingNode. This payload may be used
          * for any purpose and SHOULD be as small as practical, especially if invoked to groups, in order to reduce
          * networking burden of these payloads.
          *
@@ -264,12 +264,12 @@ export namespace OtaSoftwareUpdateRequestor {
          * OTA Providers temporarily, or if its provider list is full. If the announcement is ignored, the response
          * SHOULD be SUCCESS.
          *
-         * Depending on the value of the AnnouncementReason field, the OTA Requestor may have to query the OTA Provider.
+         * Depending on the value of the AnnouncementReason field, the OTA Requestor may have to query theOTAProvider.
          * See Section 11.20.7.6.1.3, “AnnouncementReason Field” for the different values and their meaning.
          *
-         * If present, the MetadataForNode field’s may be used by a receiving OTA Requestor in any way it deems
-         * satisfactory. The MetadataForNode field SHOULD be empty under most normal operational circumstance, but can
-         * be useful in environments such as field trials or integration test environments to hint at additional
+         * If present, the MetadataForNode field’s may be used by a receiving OTA Requestor in any way
+         * itdeemssatisfactory. The MetadataForNode field SHOULD be empty under most normal operational circumstance,
+         * but can be useful in environments such as field trials or integration test environments to hint at additional
          * capabilities which OTA Requestors may use in a particular Vendor-specific context.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.20.7.6.1.5
@@ -501,8 +501,8 @@ export namespace OtaSoftwareUpdateRequestor {
             updatePossible: Attribute(0x1, TlvBoolean, { default: true }),
 
             /**
-             * This field shall reflect the current state of the OTA Requestor with regards to obtaining software
-             * updates. See Section 11.20.7.4.2, “UpdateStateEnum Type” for possible values.
+             * This field shall reflect the current state of the OTA Requestor with regards to obtainingsoftwareupdates.
+             * See Section 11.20.7.4.2, “UpdateStateEnum Type” for possible values.
              *
              * This field SHOULD be updated in a timely manner whenever OTA Requestor internal state updates.
              *

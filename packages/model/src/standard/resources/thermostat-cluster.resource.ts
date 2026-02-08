@@ -50,16 +50,16 @@ Resource.add(
 
                 details: "Indicates the current Calculated Local Temperature, when available." +
                     "\n" +
-                    "  • If the LTNE feature is not supported:" +
+                    "  - If the LTNE feature is not supported:" +
                     "\n" +
-                    "    ◦ If the LocalTemperatureCalibration is invalid or currently unavailable, the attribute shall " +
-                    "      report null." +
+                    "    - If the LocalTemperatureCalibration is invalid or currently unavailable, the attribute shall " +
+                    "report null." +
                     "\n" +
-                    "    ◦ If the LocalTemperatureCalibration is valid, the attribute shall report that value." +
+                    "    - If the LocalTemperatureCalibration is valid, the attribute shall report that value." +
                     "\n" +
-                    "  • Otherwise, if the LTNE feature is supported, there is no feedback externally available for the " +
+                    "  - Otherwise, if the LTNE feature is supported, there is no feedback externally available for the " +
                     "    LocalTemperatureCalibration. In that case, the LocalTemperature attribute shall always report " +
-                    "    null."
+                    "null."
             },
 
             {
@@ -77,7 +77,7 @@ Resource.add(
                 details: "Indicates the absolute minimum level that the heating setpoint may be set to. This is a limitation " +
                     "imposed by the manufacturer." +
                     "\n" +
-                    "### Refer to Setpoint Limits for constraints"
+                    "Refer to Setpoint Limits for constraints"
             },
 
             { tag: "attribute", name: "AbsMaxHeatSetpointLimit", xref: "cluster§4.3.9" },
@@ -88,7 +88,7 @@ Resource.add(
                 details: "Indicates the absolute maximum level that the cooling setpoint may be set to. This is a limitation " +
                     "imposed by the manufacturer." +
                     "\n" +
-                    "### Refer to Setpoint Limits for constraints"
+                    "Refer to Setpoint Limits for constraints"
             },
 
             {
@@ -133,14 +133,15 @@ Resource.add(
                     "> [!NOTE]" +
                     "\n" +
                     "> Prior to revision 8 of this cluster specification the value of this attribute was constrained to a " +
-                    "  range of -2.5°C to 2.5°C."
+                    "range of -2.5°C to 2.5°C."
             },
 
             {
                 tag: "attribute", name: "OccupiedCoolingSetpoint", xref: "cluster§4.3.9.13",
 
-                details: "Indicates the cooling mode setpoint when the room is occupied. Refer to Setpoint Limits for " +
-                    "constraints." +
+                details: "Indicates the cooling mode setpoint when the room is occupied." +
+                    "\n" +
+                    "Refer to Setpoint Limits for constraints." +
                     "\n" +
                     "If an attempt is made to set this attribute to a value greater than MaxCoolSetpointLimit or less " +
                     "than MinCoolSetpointLimit, a response with the status code CONSTRAINT_ERROR shall be returned." +
@@ -160,8 +161,9 @@ Resource.add(
             {
                 tag: "attribute", name: "OccupiedHeatingSetpoint", xref: "cluster§4.3.9.14",
 
-                details: "Indicates the heating mode setpoint when the room is occupied. Refer to Setpoint Limits for " +
-                    "constraints." +
+                details: "Indicates the heating mode setpoint when the room is occupied." +
+                    "\n" +
+                    "Refer to Setpoint Limits for constraints." +
                     "\n" +
                     "If an attempt is made to set this attribute to a value greater than MaxHeatSetpointLimit or less " +
                     "than MinHeatSetpointLimit, a response with the status code CONSTRAINT_ERROR shall be returned." +
@@ -181,8 +183,9 @@ Resource.add(
             {
                 tag: "attribute", name: "UnoccupiedCoolingSetpoint", xref: "cluster§4.3.9.15",
 
-                details: "Indicates the cooling mode setpoint when the room is unoccupied. Refer to Setpoint Limits for " +
-                    "constraints." +
+                details: "Indicates the cooling mode setpoint when the room is unoccupied." +
+                    "\n" +
+                    "Refer to Setpoint Limits for constraints." +
                     "\n" +
                     "If an attempt is made to set this attribute to a value greater than MaxCoolSetpointLimit or less " +
                     "than MinCoolSetpointLimit, a response with the status code CONSTRAINT_ERROR shall be returned." +
@@ -201,16 +204,16 @@ Resource.add(
             {
                 tag: "attribute", name: "UnoccupiedHeatingSetpoint", xref: "cluster§4.3.9.16",
 
-                details: "Indicates the heating mode setpoint when the room is unoccupied. Refer to Setpoint Limits for " +
-                    "constraints." +
+                details: "Indicates the heating mode setpoint when the room is unoccupied." +
+                    "\n" +
+                    "Refer to Setpoint Limits for constraints." +
                     "\n" +
                     "If an attempt is made to set this attribute to a value greater than MaxHeatSetpointLimit or less " +
                     "than MinHeatSetpointLimit, a response with the status code CONSTRAINT_ERROR shall be returned." +
                     "\n" +
                     "If this attribute is set to a value that is greater than (UnoccupiedCoolingSetpoint - " +
-                    "MinSetpointDeadBand), the value of UnoccupiedCoolingSetpoint shall be adjusted to" +
-                    "\n" +
-                    "+ MinSetpointDeadBand)." +
+                    "MinSetpointDeadBand), the value of UnoccupiedCoolingSetpoint shall be adjusted to " +
+                    "(UnoccupiedHeatingSetpoint + MinSetpointDeadBand)." +
                     "\n" +
                     "If the occupancy status of the room is unknown, this attribute shall NOT be used." +
                     "\n" +
@@ -282,9 +285,11 @@ Resource.add(
                     "> [!NOTE]" +
                     "\n" +
                     "> Prior to revision 8 of this cluster specification the value of this attribute was constrained to a " +
-                    "  range of 0°C to 2.5°C." +
+                    "range of 0°C to 2.5°C." +
                     "\n" +
-                    "For backwards compatibility, this attribute is optionally writeable. However any writes to this " +
+                    "> [!NOTE]" +
+                    "\n" +
+                    "> For backwards compatibility, this attribute is optionally writeable. However any writes to this " +
                     "attribute shall be silently ignored."
             },
 
@@ -400,13 +405,14 @@ Resource.add(
                     "> [!NOTE]" +
                     "\n" +
                     "> Modifying the ScheduleActive bit does not clear or delete previous weekly schedule programming " +
-                    "  configurations."
+                    "configurations."
             },
 
             {
                 tag: "attribute", name: "ThermostatRunningState", xref: "cluster§4.3.9.32",
-                details: "Indicates the current relay state of the heat, cool, and fan relays. Unimplemented outputs shall be " +
-                    "treated as if they were Off."
+                details: "Indicates the current relay state of the heat, cool, and fan relays." +
+                    "\n" +
+                    "Unimplemented outputs shall be treated as if they were Off."
             },
 
             {
@@ -532,11 +538,11 @@ Resource.add(
                     "(e.g., emergency heat) and continue operating in that running state until the " +
                     "OccupiedHeatingSetpoint value is reached. For example:" +
                     "\n" +
-                    "  • Calculated Local Temperature = 10.0°C" +
+                    "  - Calculated Local Temperature = 10.0°C" +
                     "\n" +
-                    "  • OccupiedHeatingSetpoint = 16.0°C" +
+                    "  - OccupiedHeatingSetpoint = 16.0°C" +
                     "\n" +
-                    "  • EmergencyHeatDelta = 2.0°C" +
+                    "  - EmergencyHeatDelta = 2.0°C" +
                     "\n" +
                     "⇒ OccupiedHeatingSetpoint - Calculated Local Temperature ≥? EmergencyHeatDelta" +
                     "\n" +
@@ -624,55 +630,57 @@ Resource.add(
             {
                 tag: "attribute", name: "Presets", xref: "cluster§4.3.9.59",
 
-                details: "This attribute shall contain the current list of configured presets. On receipt of a write request:" +
+                details: "This attribute shall contain the current list of configured presets." +
+                    "\n" +
+                    "On receipt of a write request:" +
                     "\n" +
                     "  1. If the PresetHandle field is null, the PresetStruct shall be treated as an added preset, and " +
-                    "     the device shall create a new unique value for the PresetHandle field." +
+                    "the device shall create a new unique value for the PresetHandle field." +
                     "\n" +
                     "    a. If the BuiltIn field is true, a response with the status code CONSTRAINT_ERROR shall be " +
-                    "       returned." +
+                    "returned." +
                     "\n" +
                     "  2. If the PresetHandle field is not null, the PresetStruct shall be treated as a modification of " +
-                    "     an existing preset." +
+                    "an existing preset." +
                     "\n" +
                     "    a. If the value of the PresetHandle field does not match any of the existing presets, a response " +
-                    "       with the status code NOT_FOUND shall be returned." +
+                    "with the status code NOT_FOUND shall be returned." +
                     "\n" +
                     "    b. If the value of the PresetHandle field is duplicated on multiple presets in the updated list, " +
-                    "       a response with the status code CONSTRAINT_ERROR shall be returned." +
+                    "a response with the status code CONSTRAINT_ERROR shall be returned." +
                     "\n" +
                     "    c. If the BuiltIn field is true, and the PresetStruct in the current value with a matching " +
-                    "       PresetHandle field has a BuiltIn field set to false, a response with the status code " +
-                    "       CONSTRAINT_ERROR shall be returned." +
+                    "PresetHandle field has a BuiltIn field set to false, a response with the status code " +
+                    "CONSTRAINT_ERROR shall be returned." +
                     "\n" +
                     "    d. If the BuiltIn field is false, and the PresetStruct in the current value with a matching " +
-                    "       PresetHandle field has a BuiltIn field set to true, a response with the status code " +
-                    "       CONSTRAINT_ERROR shall be returned." +
+                    "PresetHandle field has a BuiltIn field set to true, a response with the status code " +
+                    "CONSTRAINT_ERROR shall be returned." +
                     "\n" +
                     "  3. If the specified PresetScenarioEnum value does not exist in PresetTypes, a response with the " +
-                    "     status code CONSTRAINT_ERROR shall be returned." +
+                    "status code CONSTRAINT_ERROR shall be returned." +
                     "\n" +
                     "  4. If the Name is set, but the associated PresetTypeStruct does not have the SupportsNames bit " +
-                    "     set, a response with the status code CONSTRAINT_ERROR shall be returned." +
+                    "set, a response with the status code CONSTRAINT_ERROR shall be returned." +
                     "\n" +
                     "  5. If appending the received PresetStruct to the pending list of Presets would cause the total " +
-                    "     number of pending presets to exceed the value of the NumberOfPresets attribute, a response with " +
-                    "     the status code RESOURCE_EXHAUSTED shall be returned." +
+                    "number of pending presets to exceed the value of the NumberOfPresets attribute, a response with " +
+                    "the status code RESOURCE_EXHAUSTED shall be returned." +
                     "\n" +
                     "  6. If appending the received PresetStruct to the pending list of Presets would cause the total " +
-                    "     number of pending presets whose PresetScenario field matches the appended preset’s " +
-                    "     PresetScenario field to exceed the value of the NumberOfPresets field on the PresetTypeStruct " +
-                    "     whose PresetScenario matches the appended preset’s PresetScenario field, a response with the " +
-                    "     status code RESOURCE_EXHAUSTED shall be returned." +
+                    "number of pending presets whose PresetScenario field matches the appended preset’s " +
+                    "PresetScenario field to exceed the value of the NumberOfPresets field on the PresetTypeStruct " +
+                    "whose PresetScenario matches the appended preset’s PresetScenario field, a response with the " +
+                    "status code RESOURCE_EXHAUSTED shall be returned." +
                     "\n" +
                     "  7. Otherwise, the write shall be pended until receipt of a commit request, and the status code " +
-                    "     SUCCESS shall be returned." +
+                    "SUCCESS shall be returned." +
                     "\n" +
                     "    a. If the BuiltIn field is null:" +
                     "\n" +
                     "      i. If there is a PresetStruct in the current value with a matching PresetHandle field, the " +
-                    "         BuiltIn field on the pending PresetStruct shall be set to the value of the BuiltIn on the " +
-                    "         matching PresetStruct." +
+                    "BuiltIn field on the pending PresetStruct shall be set to the value of the BuiltIn on the " +
+                    "matching PresetStruct." +
                     "\n" +
                     "      ii. Otherwise, the BuiltIn field on the pending PresetStruct shall be set to false." +
                     "\n" +
@@ -681,18 +689,18 @@ Resource.add(
                     "  1. For all existing presets:" +
                     "\n" +
                     "    a. If, after applying all pending changes, the updated value of the Presets attribute would not " +
-                    "       contain a PresetStruct with a matching PresetHandle field, indicating the removal of the " +
-                    "       PresetStruct, the server shall check for invalid removal of the PresetStruct:" +
+                    "contain a PresetStruct with a matching PresetHandle field, indicating the removal of the " +
+                    "PresetStruct, the server shall check for invalid removal of the PresetStruct:" +
                     "\n" +
                     "      i. If the BuiltIn field is true on the removed PresetStruct, the attribute status shall be " +
-                    "         CONSTRAINT_ERROR." +
+                    "CONSTRAINT_ERROR." +
                     "\n" +
                     "      ii. If the MSCH feature is supported and the removed PresetHandle would be referenced by any " +
-                    "          PresetHandle on any ScheduleTransitionStruct on any ScheduleStruct in the updated value of " +
-                    "          the Schedules attribute, the attribute status shall be INVALID_IN_STATE." +
+                    "PresetHandle on any ScheduleTransitionStruct on any ScheduleStruct in the updated value of " +
+                    "the Schedules attribute, the attribute status shall be INVALID_IN_STATE." +
                     "\n" +
                     "      iii. If the removed PresetHandle is equal to the value of the ActivePresetHandle attribute, " +
-                    "           the attribute status shall be INVALID_IN_STATE." +
+                    "the attribute status shall be INVALID_IN_STATE." +
                     "\n" +
                     "  2. Otherwise, the attribute status shall be SUCCESS."
             },
@@ -700,95 +708,97 @@ Resource.add(
             {
                 tag: "attribute", name: "Schedules", xref: "cluster§4.3.9.60",
 
-                details: "This attribute shall contain a list of ScheduleStructs. On receipt of a write request:" +
+                details: "This attribute shall contain a list of ScheduleStructs." +
+                    "\n" +
+                    "On receipt of a write request:" +
                     "\n" +
                     "  1. For all schedules in the write request:" +
                     "\n" +
                     "    a. If the ScheduleHandle field is null, the ScheduleStruct shall be treated as an added " +
-                    "       schedule, and the device shall create a new unique value for the ScheduleHandle field." +
+                    "schedule, and the device shall create a new unique value for the ScheduleHandle field." +
                     "\n" +
                     "      i. If the BuiltIn field is true, a response with the status code CONSTRAINT_ERROR shall be " +
-                    "         returned." +
+                    "returned." +
                     "\n" +
                     "    b. Otherwise, if the ScheduleHandle field is not null, the ScheduleStruct shall be treated as a " +
-                    "       modification of an existing schedule." +
+                    "modification of an existing schedule." +
                     "\n" +
                     "      i. If the value of the ScheduleHandle field does not match any of the existing schedules, a " +
-                    "         response with the status code NOT_FOUND shall be returned." +
+                    "response with the status code NOT_FOUND shall be returned." +
                     "\n" +
                     "      ii. If the BuiltIn field is true, and the ScheduleStruct in the current value with a matching " +
-                    "          ScheduleHandle field has a BuiltIn field set to false, a response with the status code " +
-                    "          CONSTRAINT_ERROR shall be returned." +
+                    "ScheduleHandle field has a BuiltIn field set to false, a response with the status code " +
+                    "CONSTRAINT_ERROR shall be returned." +
                     "\n" +
                     "      iii. If the BuiltIn field is false, and the ScheduleStruct in the current value with a " +
-                    "           matching ScheduleHandle field has a BuiltIn field set to true, a response with the status " +
-                    "           code CONSTRAINT_ERROR shall be returned." +
+                    "matching ScheduleHandle field has a BuiltIn field set to true, a response with the status " +
+                    "code CONSTRAINT_ERROR shall be returned." +
                     "\n" +
                     "    c. If the specified SystemMode does not exist in ScheduleTypes, a response with the status code " +
-                    "       CONSTRAINT_ERROR shall be returned." +
+                    "CONSTRAINT_ERROR shall be returned." +
                     "\n" +
                     "    d. If the number of transitions exceeds the NumberOfScheduleTransitions value, a response with " +
-                    "       the status code RESOURCE_EXHAUSTED shall be returned." +
+                    "the status code RESOURCE_EXHAUSTED shall be returned." +
                     "\n" +
                     "    e. If the value of the NumberOfScheduleTransitionsPerDay attribute is not null, and the number " +
-                    "       of transitions on any single day of the week exceeds the NumberOfScheduleTransitionsPerDay " +
-                    "       value, a response with the status code RESOURCE_EXHAUSTED shall be returned." +
+                    "of transitions on any single day of the week exceeds the NumberOfScheduleTransitionsPerDay " +
+                    "value, a response with the status code RESOURCE_EXHAUSTED shall be returned." +
                     "\n" +
                     "    f. If the PresetHandle field is present, but the associated ScheduleTypeStruct does not have the " +
-                    "       SupportsPresets bit set, a response with the status code CONSTRAINT_ERROR shall be returned." +
+                    "SupportsPresets bit set, a response with the status code CONSTRAINT_ERROR shall be returned." +
                     "\n" +
                     "    g. If the PresetHandle field is present, but after applying all pending changes, the Presets " +
-                    "       attribute would not contain a PresetStruct whose PresetHandle field matches the value of the " +
-                    "       PresetHandle field, a response with the status code CONSTRAINT_ERROR shall be returned." +
+                    "attribute would not contain a PresetStruct whose PresetHandle field matches the value of the " +
+                    "PresetHandle field, a response with the status code CONSTRAINT_ERROR shall be returned." +
                     "\n" +
                     "    h. If the Name is set, but the associated ScheduleTypeStruct does not have the SupportsNames bit " +
-                    "       set, a response with the status code CONSTRAINT_ERROR shall be returned." +
+                    "set, a response with the status code CONSTRAINT_ERROR shall be returned." +
                     "\n" +
                     "      i. For all transitions in all schedules in the write request:" +
                     "\n" +
                     "      i. If the PresetHandle field is present, but the ScheduleTypeStruct matching the value of the " +
-                    "         SystemMode field on the encompassing ScheduleStruct does not have the SupportsPresets bit " +
-                    "         set, a response with the status code CONSTRAINT_ERROR shall be returned." +
+                    "SystemMode field on the encompassing ScheduleStruct does not have the SupportsPresets bit " +
+                    "set, a response with the status code CONSTRAINT_ERROR shall be returned." +
                     "\n" +
                     "    j. If the PresetHandle field is present, but after applying all pending changes, the Presets " +
-                    "       attribute would not contain a PresetStruct whose PresetHandle field matches the value of the " +
-                    "       PresetHandle field, a response with the status code CONSTRAINT_ERROR shall be returned." +
+                    "attribute would not contain a PresetStruct whose PresetHandle field matches the value of the " +
+                    "PresetHandle field, a response with the status code CONSTRAINT_ERROR shall be returned." +
                     "\n" +
                     "      i. If the SystemMode field is present, but the ScheduleTypeStruct matching the value of the " +
-                    "         SystemMode field on the encompassing ScheduleStruct does not have the SupportsSetpoints bit " +
-                    "         set, a response with the status code CONSTRAINT_ERROR shall be returned." +
+                    "SystemMode field on the encompassing ScheduleStruct does not have the SupportsSetpoints bit " +
+                    "set, a response with the status code CONSTRAINT_ERROR shall be returned." +
                     "\n" +
                     "      ii. If the SystemMode field is has a value of SystemModeOff, but the ScheduleTypeStruct " +
-                    "          matching the value of the SystemMode field on the encompassing ScheduleStruct does not " +
-                    "          have the SupportsOff bit set, a response with the status code CONSTRAINT_ERROR shall be " +
-                    "          returned." +
+                    "matching the value of the SystemMode field on the encompassing ScheduleStruct does not " +
+                    "have the SupportsOff bit set, a response with the status code CONSTRAINT_ERROR shall be " +
+                    "returned." +
                     "\n" +
                     "    k. If the HeatingSetpoint field is present, but the ScheduleTypeStruct matching the value of the " +
-                    "       SystemMode field on the encompassing ScheduleStruct does not have the SupportsSetpoints bit " +
-                    "       set, a response with the status code CONSTRAINT_ERROR shall be returned." +
+                    "SystemMode field on the encompassing ScheduleStruct does not have the SupportsSetpoints bit " +
+                    "set, a response with the status code CONSTRAINT_ERROR shall be returned." +
                     "\n" +
                     "    l. If the CoolingSetpoint field is present, but the ScheduleTypeStruct matching the value of the " +
-                    "       SystemMode field on the encompassing ScheduleStruct does not have the SupportsSetpoints bit " +
-                    "       set, a response with the status code CONSTRAINT_ERROR shall be returned." +
+                    "SystemMode field on the encompassing ScheduleStruct does not have the SupportsSetpoints bit " +
+                    "set, a response with the status code CONSTRAINT_ERROR shall be returned." +
                     "\n" +
                     "  2. If appending the received ScheduleStruct to the pending list of Schedules would cause the total " +
-                    "     number of pending schedules to exceed the value of the NumberOfSchedules attribute, a response " +
-                    "     with the status code RESOURCE_EXHAUSTED shall be returned." +
+                    "number of pending schedules to exceed the value of the NumberOfSchedules attribute, a response " +
+                    "with the status code RESOURCE_EXHAUSTED shall be returned." +
                     "\n" +
                     "  3. If appending the received ScheduleStruct to the pending list of Schedules would cause the total " +
-                    "     number of pending schedules whose SystemMode field matches the appended schedule’s SystemMode " +
-                    "     field to exceed the value of the NumberOfSchedules field on the ScheduleTypeStruct whose " +
-                    "     SystemMode field matches the appended schedule’s SystemMode field, a response with the status " +
-                    "     code RESOURCE_EXHAUSTED shall be returned." +
+                    "number of pending schedules whose SystemMode field matches the appended schedule’s SystemMode " +
+                    "field to exceed the value of the NumberOfSchedules field on the ScheduleTypeStruct whose " +
+                    "SystemMode field matches the appended schedule’s SystemMode field, a response with the status " +
+                    "code RESOURCE_EXHAUSTED shall be returned." +
                     "\n" +
                     "  4. Otherwise, the write shall be pended until receipt of a commit request, and the attribute " +
-                    "     status shall be SUCCESS." +
+                    "status shall be SUCCESS." +
                     "\n" +
                     "    a. If the BuiltIn field is null:" +
                     "\n" +
                     "      i. If there is a ScheduleStruct in the current value with a matching ScheduleHandle field, the " +
-                    "         BuiltIn field on the pending ScheduleStruct shall be set to the value of the BuiltIn on the " +
-                    "         matching ScheduleStruct." +
+                    "BuiltIn field on the pending ScheduleStruct shall be set to the value of the BuiltIn on the " +
+                    "matching ScheduleStruct." +
                     "\n" +
                     "      ii. Otherwise, the BuiltIn field on the pending ScheduleStruct shall be set to false." +
                     "\n" +
@@ -797,14 +807,14 @@ Resource.add(
                     "  1. For all existing schedules:" +
                     "\n" +
                     "    a. If, after applying all pending changes, the updated value of the Schedules attribute would " +
-                    "       not contain a ScheduleStruct with a matching ScheduleHandle field, indicating the removal of " +
-                    "       the ScheduleStruct, the server shall check for invalid removal of the ScheduleStruct:" +
+                    "not contain a ScheduleStruct with a matching ScheduleHandle field, indicating the removal of " +
+                    "the ScheduleStruct, the server shall check for invalid removal of the ScheduleStruct:" +
                     "\n" +
                     "      i. If the BuiltIn field is true on the removed ScheduleStruct, the attribute status shall be " +
-                    "         CONSTRAINT_ERROR." +
+                    "CONSTRAINT_ERROR." +
                     "\n" +
                     "      ii. If the removed ScheduleHandle is equal to the value of the ActiveScheduleHandle attribute, " +
-                    "          the attribute status shall be INVALID_IN_STATE." +
+                    "the attribute status shall be INVALID_IN_STATE." +
                     "\n" +
                     "  2. Otherwise, the attribute status shall be SUCCESS."
             },
@@ -997,11 +1007,11 @@ Resource.add(
                 details: "This data type is derived from int16 and represents a temperature difference with a resolution of " +
                     "0.01°C." +
                     "\n" +
-                    "  • value = (temperature in °C) x 100" +
+                    "  - value = (temperature in °C) x 100" +
                     "\n" +
-                    "  • -4°C ⇒ -400" +
+                    "  - -4°C ⇒ -400" +
                     "\n" +
-                    "  • 123.45°C ⇒ 12345" +
+                    "  - 123.45°C ⇒ 12345" +
                     "\n" +
                     "The full (non-null) range of -327.67°C to 327.67°C may be used."
             },
@@ -1012,11 +1022,11 @@ Resource.add(
                 details: "This data type is derived from int8 and represents a temperature from -12.7°C to 12.7°C with a " +
                     "resolution of 0.1°C." +
                     "\n" +
-                    "  • value = (temperature in °C) x 10" +
+                    "  - value = (temperature in °C) x 10" +
                     "\n" +
-                    "  • -4°C ⇒ -40" +
+                    "  - -4°C ⇒ -40" +
                     "\n" +
-                    "  • 12.3°C ⇒ 123" +
+                    "  - 12.3°C ⇒ 123" +
                     "\n" +
                     "This type is employed where compactness of representation is important and where the resolution and " +
                     "range are still satisfactory."
@@ -1028,11 +1038,11 @@ Resource.add(
                 details: "This data type is derived from uint8 and represents a temperature from 0°C to 25.5°C with a " +
                     "resolution of 0.1°C." +
                     "\n" +
-                    "  • value = (temperature in °C) x 10" +
+                    "  - value = (temperature in °C) x 10" +
                     "\n" +
-                    "  • 4°C ⇒ 40" +
+                    "  - 4°C ⇒ 40" +
                     "\n" +
-                    "  • 12.3°C ⇒ 123" +
+                    "  - 12.3°C ⇒ 123" +
                     "\n" +
                     "This type is employed where compactness of representation is important and where the resolution and " +
                     "range are still satisfactory."
@@ -1060,13 +1070,13 @@ Resource.add(
 
                         details: "These bits shall indicate what stage of cooling the HVAC system is using." +
                             "\n" +
-                            "  • 00 = Cool Stage 1" +
+                            "  - 00 = Cool Stage 1" +
                             "\n" +
-                            "  • 01 = Cool Stage 2" +
+                            "  - 01 = Cool Stage 2" +
                             "\n" +
-                            "  • 10 = Cool Stage 3" +
+                            "  - 10 = Cool Stage 3" +
                             "\n" +
-                            "  • 11 = Reserved"
+                            "  - 11 = Reserved"
                     },
 
                     {
@@ -1075,13 +1085,13 @@ Resource.add(
 
                         details: "These bits shall indicate what stage of heating the HVAC system is using." +
                             "\n" +
-                            "  • 00 = Heat Stage 1" +
+                            "  - 00 = Heat Stage 1" +
                             "\n" +
-                            "  • 01 = Heat Stage 2" +
+                            "  - 01 = Heat Stage 2" +
                             "\n" +
-                            "  • 10 = Heat Stage 3" +
+                            "  - 10 = Heat Stage 3" +
                             "\n" +
-                            "  • 11 = Reserved"
+                            "  - 11 = Reserved"
                     },
 
                     {
@@ -1089,9 +1099,9 @@ Resource.add(
                         xref: "cluster§4.3.8.5.3",
                         details: "This bit shall indicate whether the HVAC system is conventional or a heat pump." +
                             "\n" +
-                            "  • 0 = Conventional" +
+                            "  - 0 = Conventional" +
                             "\n" +
-                            "  • 1 = Heat Pump"
+                            "  - 1 = Heat Pump"
                     },
 
                     {
@@ -1099,9 +1109,9 @@ Resource.add(
                         xref: "cluster§4.3.8.5.4",
                         details: "This bit shall indicate whether the HVAC system uses fuel." +
                             "\n" +
-                            "  • 0 = Does not use fuel" +
+                            "  - 0 = Does not use fuel" +
                             "\n" +
-                            "  • 1 = Uses fuel"
+                            "  - 1 = Uses fuel"
                     }
                 ]
             },
@@ -1297,12 +1307,12 @@ Resource.add(
 
                 details: "> [!NOTE]" +
                     "\n" +
-                    "> CoolingAndHeating" +
-                    "\n" +
-                    "A thermostat indicating it supports CoolingAndHeating (or CoolingAndHeatingWithReheat) SHOULD be " +
+                    "> A thermostat indicating it supports CoolingAndHeating (or CoolingAndHeatingWithReheat) SHOULD be " +
                     "able to request heating or cooling on demand and will usually support the Auto SystemMode." +
                     "\n" +
-                    "Systems which support cooling or heating, requiring external intervention to change modes or where " +
+                    "> [!NOTE]" +
+                    "\n" +
+                    "> Systems which support cooling or heating, requiring external intervention to change modes or where " +
                     "the whole building must be in the same mode, SHOULD report CoolingOnly or HeatingOnly based on the " +
                     "current capability.",
 
@@ -1385,7 +1395,6 @@ Resource.add(
 
             {
                 tag: "datatype", name: "SystemModeEnum", xref: "cluster§4.3.8.24",
-                details: "Table 9. Interpretation of Heat, Cool and Auto SystemModeEnum Values",
 
                 children: [
                     {
@@ -1596,57 +1605,60 @@ Resource.add(
                     "at the time of transition:" +
                     "\n" +
                     "  1. If the PresetHandle field is provided, then the setpoint for the PresetStruct in the Presets " +
-                    "     attribute with that identifier shall be used" +
+                    "attribute with that identifier shall be used" +
                     "\n" +
                     "  2. If either the HeatingSetpoint or CoolingSetpoint is provided, then it shall be used" +
                     "\n" +
                     "    a. If the SystemMode field is provided, the HeatingSetpoint and CoolingSetpoint fields shall be " +
-                    "       interpreted using the SystemMode field" +
+                    "interpreted using the SystemMode field" +
                     "\n" +
                     "    b. If the SystemMode field is not provided, the HeatingSetpoint and CoolingSetpoint fields shall " +
-                    "       be interpreted using the SystemMode field on the parent ScheduleStruct" +
+                    "be interpreted using the SystemMode field on the parent ScheduleStruct" +
                     "\n" +
                     "  3. If neither the PresetHandle field or any Setpoint field is provided, then the PresetHandle " +
-                    "     field on the parent ScheduleStruct shall be used to determine the active PresetStruct" +
+                    "field on the parent ScheduleStruct shall be used to determine the active PresetStruct" +
                     "\n" +
                     "  4. If the PresetHandle is not indicated and no setpoint is provided for the current SystemMode, " +
-                    "     the server shall use a default value for the current SystemMode." +
+                    "the server shall use a default value for the current SystemMode." +
                     "\n" +
                     "If the setpoint was derived from a preset, then the ActivePresetHandle shall be set to the " +
                     "PresetHandle of that preset." +
                     "\n" +
                     "If a CoolingSetpoint was used to determine the cooling setpoint:" +
                     "\n" +
-                    "  • If the server supports the OCC feature, and the Occupied bit is not set on the Occupancy " +
-                    "    attribute, then the UnoccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint" +
+                    "  - If the server supports the OCC feature, and the Occupied bit is not set on the Occupancy " +
+                    "attribute, then the UnoccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint" +
                     "\n" +
-                    "  • Otherwise, the OccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint If a " +
-                    "    HeatingSetpoint was used to determine the heating setpoint:" +
+                    "  - Otherwise, the OccupiedCoolingSetpoint attribute shall be set to the CoolingSetpoint" +
                     "\n" +
-                    "  • If the server supports the OCC feature, and the Occupied bit is not set on the Occupancy " +
-                    "    attribute, then the UnoccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint" +
+                    "If a HeatingSetpoint was used to determine the heating setpoint:" +
                     "\n" +
-                    "  • Otherwise, the OccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint The " +
-                    "    ScheduleTransitionStruct shall be invalid if all the following are true:" +
+                    "  - If the server supports the OCC feature, and the Occupied bit is not set on the Occupancy " +
+                    "attribute, then the UnoccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint" +
                     "\n" +
-                    "  • The HeatingSetpoint field is not provided" +
+                    "  - Otherwise, the OccupiedHeatingSetpoint attribute shall be set to the HeatingSetpoint" +
                     "\n" +
-                    "  • The PresetHandle field is not provided" +
+                    "The ScheduleTransitionStruct shall be invalid if all the following are true:" +
                     "\n" +
-                    "  • The PresetHandle field on the encompassing ScheduleStruct is not provided" +
+                    "  - The HeatingSetpoint field is not provided" +
                     "\n" +
-                    "  • The SystemMode field is provided and has the value Heat or Auto, or the SystemMode field on the " +
-                    "    parent ScheduleStruct has the value Heat or Auto The ScheduleTransitionStruct shall be invalid " +
-                    "    if all the following are true:" +
+                    "  - The PresetHandle field is not provided" +
                     "\n" +
-                    "  • The CoolingSetpoint field is not provided" +
+                    "  - The PresetHandle field on the encompassing ScheduleStruct is not provided" +
                     "\n" +
-                    "  • The PresetHandle field is not provided" +
+                    "  - The SystemMode field is provided and has the value Heat or Auto, or the SystemMode field on the " +
+                    "parent ScheduleStruct has the value Heat or Auto" +
                     "\n" +
-                    "  • The PresetHandle field on the encompassing ScheduleStruct is not provided" +
+                    "The ScheduleTransitionStruct shall be invalid if all the following are true:" +
                     "\n" +
-                    "  • The SystemMode field is provided and has the value Cool or Auto, or the SystemMode field on the " +
-                    "    parent ScheduleStruct has the value Cool or Auto",
+                    "  - The CoolingSetpoint field is not provided" +
+                    "\n" +
+                    "  - The PresetHandle field is not provided" +
+                    "\n" +
+                    "  - The PresetHandle field on the encompassing ScheduleStruct is not provided" +
+                    "\n" +
+                    "  - The SystemMode field is provided and has the value Cool or Auto, or the SystemMode field on the " +
+                    "parent ScheduleStruct has the value Cool or Auto",
 
                 children: [
                     {

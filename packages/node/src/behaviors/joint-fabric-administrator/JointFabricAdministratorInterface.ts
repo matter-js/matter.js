@@ -80,7 +80,7 @@ export namespace JointFabricAdministratorInterface {
          * This command shall be used for communicating to client the endpoint that holds the Joint Fabric Administrator
          * Cluster.
          *
-         * ### This field shall contain the unique identifier for the endpoint that holds the Joint Fabric Administrator
+         * This field shall contain the unique identifier for the endpoint that holds the Joint Fabric Administrator
          * Cluster.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.25.7.9

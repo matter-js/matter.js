@@ -53,7 +53,7 @@ export namespace ModeSelect {
     export const TlvSemanticTag = TlvObject({
         /**
          * This field shall indicate a manufacturer code (Vendor ID), and the Value field shall indicate a semantic tag
-         * defined by the manufacturer. Each manufacturer code supports a single namespace of values. The same
+         * defined by the manufacturer. Each manufacturer code supports a single namespaceofvalues. The same
          * manufacturer code and semantic tag value in separate cluster instances are part of the same namespace and
          * have the same meaning. For example: a manufacturer tag meaning "pinch", has the same meaning in a cluster
          * whose purpose is to choose the amount of sugar, or amount of salt.
@@ -102,7 +102,7 @@ export namespace ModeSelect {
 
         /**
          * This field is a list of semantic tags that map to the mode option. This may be used by clients to determine
-         * the meaning of the mode option as defined in a standard or manufacturer specific namespace. Semantic tags can
+         * the meaning of the mode option as defined in a standard or manufacturer specificnamespace. Semantic tags can
          * help clients look for options that meet certain criteria. A semantic tag shall be either a standard tag or
          * manufacturer specific tag as defined in each SemanticTagStruct list entry.
          *
@@ -146,9 +146,9 @@ export namespace ModeSelect {
     export const OnOffComponent = MutableCluster.Component({
         attributes: {
             /**
-             * Indicates the value of CurrentMode that depends on the state of the On/Off cluster on the same endpoint.
-             * If this attribute is not present or is set to null, it shall NOT have an effect, otherwise the
-             * CurrentMode attribute shall depend on the OnOff attribute of the On/Off cluster
+             * Indicates the value of CurrentMode that depends on the state of the On/Off cluster on thesameendpoint. If
+             * this attribute is not present or is set to null, it shall NOT have an effect, otherwise the CurrentMode
+             * attribute shall depend on the OnOff attribute of the On/Off cluster
              *
              * The value of this field shall match the Mode field of one of the entries in the SupportedModes attribute.
              *
@@ -202,7 +202,7 @@ export namespace ModeSelect {
 
             /**
              * This attribute is the list of supported modes that may be selected for the CurrentMode attribute. Each
-             * item in this list represents a unique mode as indicated by the Mode field of the ModeOptionStruct. Each
+             * item in this list represents a unique mode as indicated by the Mode field oftheModeOptionStruct. Each
              * entry in this list shall have a unique value for the Mode field.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.9.6.3
@@ -273,7 +273,7 @@ export namespace ModeSelect {
      * within the namespace of the vendor ID of the manufacturer. If there is no semantic tag, the mode is anonymous,
      * and the selection is made by the user solely based on the Label string.
      *
-     * Each cluster ID that indicates this specification shall define a distinct purpose for the cluster instance. For
+     * Each cluster ID that indicates this specification shall define a distinct purpose for theclusterinstance. For
      * example: A LightBlinking cluster ID supports blinking modes for a light (and is described that way).
      *
      * An anonymous mode shall support the derived cluster purpose. A manufacturer specific semantic tag shall support

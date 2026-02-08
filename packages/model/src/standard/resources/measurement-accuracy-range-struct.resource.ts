@@ -15,30 +15,30 @@ Resource.add({
         "shall be expressed as a maximum +/- percentage of the true value, a maximum +/- fixed value of the " +
         "true value, or both." +
         "\n" +
-        "  • If both PercentMax and FixedMax are indicated, then for a given true value in the range between " +
-        "    RangeMin and RangeMax," +
+        "  - If both PercentMax and FixedMax are indicated, then for a given true value in the range between " +
+        "RangeMin and RangeMax," +
         "\n" +
-        "    ◦ the reported value shall be less than or equal to the sum of the true value, FixedMax and " +
-        "      PercentMax percent of the true value." +
+        "    - the reported value shall be less than or equal to the sum of the true value, FixedMax and " +
+        "PercentMax percent of the true value." +
         "\n" +
-        "    ◦ the reported value shall be greater than or equal to the true value minus the sum of FixedMax " +
-        "      and PercentMax percent of the true value." +
+        "    - the reported value shall be greater than or equal to the true value minus the sum of FixedMax " +
+        "and PercentMax percent of the true value." +
         "\n" +
-        "  • If only PercentMax is indicated, then for a given true value in the range between RangeMin and " +
-        "    RangeMax," +
+        "  - If only PercentMax is indicated, then for a given true value in the range between RangeMin and " +
+        "RangeMax," +
         "\n" +
-        "    ◦ the reported value shall be less than or equal to the sum of the true value and PercentMax " +
-        "      percent of the true value." +
+        "    - the reported value shall be less than or equal to the sum of the true value and PercentMax " +
+        "percent of the true value." +
         "\n" +
-        "    ◦ the reported value shall be greater than or equal to the true value minus PercentMax percent " +
-        "      of the true value." +
+        "    - the reported value shall be greater than or equal to the true value minus PercentMax percent " +
+        "of the true value." +
         "\n" +
-        "  • If only FixedMax is indicated, then for a given true value in the range between RangeMin and " +
-        "    RangeMax," +
+        "  - If only FixedMax is indicated, then for a given true value in the range between RangeMin and " +
+        "RangeMax," +
         "\n" +
-        "    ◦ the reported value shall be less than or equal to the sum of the true value and FixedMax." +
+        "    - the reported value shall be less than or equal to the sum of the true value and FixedMax." +
         "\n" +
-        "    ◦ the reported value shall be greater than or equal to the true value minus FixedMax.",
+        "    - the reported value shall be greater than or equal to the true value minus FixedMax.",
 
     children: [
         {
@@ -56,8 +56,9 @@ Resource.add({
         {
             tag: "field", name: "RangeMax", xref: "cluster§2.1.3.2.2",
 
-            details: "This field shall indicate the maximum measurement value for the specified level of accuracy. The " +
-                "value of this field shall be greater than the value of the RangeMin field." +
+            details: "This field shall indicate the maximum measurement value for the specified level of accuracy." +
+                "\n" +
+                "The value of this field shall be greater than the value of the RangeMin field." +
                 "\n" +
                 "The value of this field shall be greater than or equal to the value of the MinMeasuredValue field on " +
                 "the encompassing MeasurementAccuracyStruct." +

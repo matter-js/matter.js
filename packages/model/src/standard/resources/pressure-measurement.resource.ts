@@ -58,20 +58,22 @@ Resource.add(
 
             {
                 tag: "attribute", name: "MinScaledValue", xref: "cluster§2.4.5.6",
-                details: "Indicates the minimum value of ScaledValue that can be measured. The null value indicates that the " +
-                    "value is not available."
+                details: "Indicates the minimum value of ScaledValue that can be measured." +
+                    "\n" +
+                    "The null value indicates that the value is not available."
             },
+
             {
                 tag: "attribute", name: "MaxScaledValue", xref: "cluster§2.4.5.7",
-                details: "Indicates the maximum value of ScaledValue that can be measured. The null value indicates that the " +
-                    "value is not available."
+                details: "Indicates the maximum value of ScaledValue that can be measured." +
+                    "\n" +
+                    "The null value indicates that the value is not available."
             },
 
             {
                 tag: "attribute", name: "ScaledTolerance", xref: "cluster§2.4.5.8",
-                details: "Indicates the magnitude of the possible error that is associated with Scaled" +
-                    "\n" +
-                    "### Value. The true value is located in the range" +
+                details: "Indicates the magnitude of the possible error that is associated with ScaledValue. The true value is " +
+                    "located in the range" +
                     "\n" +
                     "(ScaledValue – ScaledTolerance) to (ScaledValue + ScaledTolerance)."
             },

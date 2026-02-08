@@ -19,7 +19,9 @@ export namespace WaterHeaterManagementInterface {
         boost(request: WaterHeaterManagement.BoostRequest): MaybePromise;
 
         /**
-         * Allows a client to cancel an ongoing Boost operation. This command has no payload.
+         * Allows a client to cancel an ongoing Boost operation.
+         *
+         * This command has no payload.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 9.5.8.2
          */

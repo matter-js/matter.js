@@ -5,8 +5,7 @@
  */
 
 import { looksLikeListItem } from "@matter/general";
-import { Words } from "../../util/words.js";
-import { Str } from "./html-translators.js";
+import { Str, convertSuperscripts } from "./html-translators.js";
 import { HtmlReference } from "./spec-types.js";
 
 /**
@@ -20,11 +19,6 @@ export const EndContentFlags = [
     // Similar issue for thermostat cluster
     /Optional temperature, humidity and occupancy sensors/,
 ];
-
-/**
- * Uncommon english words that are part of known splits.
- */
-export const NotWords = new Set(["cur"]);
 
 /**
  * A light attempt at dropping text to make documentation seem slightly less scavenged.
@@ -56,10 +50,11 @@ function extractUsefulDocumentation(text: string) {
         .replace(/ such that:$/, "")
         .replace(/, derived from \w+,/, "")
         .replace(/\([^)]*$/, "")
-        .replace(/\s{2,}/, "  ")
+        .replace(/(\S)\s{2,}/g, "$1 ")
         .replace(/This attribute shall (?:indicate|represent)/, "Indicates")
         .replace(/This attribute shall be null/, "Null")
         .replace(/The following tags are defined in this namespace\./, "")
+        .replace(/^The following table .*[.:]$/, "")
         .replace(/This section contains the .* as part of the semantic tag feature\./i, "")
         .replace(
             /The table below lists the changes relative to the Mode Base Cluster for the fields of the ModeOptionStruct type\./,
@@ -78,20 +73,7 @@ function extractUsefulDocumentation(text: string) {
  * Look for obvious split paragraphs and reassemble.
  */
 function mergeSplitParagraphs(paragraphs: string[]) {
-    // First merge by identifying word splits.  These we want to merge without an intervening space
-    for (let i = 0; i < paragraphs.length - 1; i++) {
-        const trailing = paragraphs[i].replace(/^.*\s(\w+)$/, "$1").toLowerCase();
-        const leading = paragraphs[i + 1].replace(/^(\w+)\W.*$/, "$1").toLowerCase();
-        if (Words.has(leading) && !NotWords.has(leading) && Words.has(trailing) && !NotWords.has(trailing)) {
-            continue;
-        }
-        const possibleWord = `${trailing}${leading}`;
-        if (Words.has(possibleWord)) {
-            joinParagraphs(i, "");
-        }
-    }
-
-    // Next merge by identifying sentence splits
+    // Merge by identifying sentence splits
     for (let i = 0; i < paragraphs.length - 1; i++) {
         const paragraph = paragraphs[i];
         if (
@@ -120,8 +102,13 @@ function mergeSplitParagraphs(paragraphs: string[]) {
 
         const nextParagraph = paragraphs[i + 1];
 
-        // Do not merge list items, paragraphs, or embedded headings
-        if (looksLikeListItem(nextParagraph) || nextParagraph.startsWith("###") || looksLikeEquation(nextParagraph)) {
+        // Do not merge list items (including indented nested ones), paragraphs, or embedded headings
+        if (
+            looksLikeListItem(nextParagraph) ||
+            looksLikeListItem(nextParagraph.trimStart()) ||
+            nextParagraph.startsWith("###") ||
+            looksLikeEquation(nextParagraph)
+        ) {
             continue;
         }
 
@@ -157,8 +144,6 @@ export function addDocumentation(target: { details?: string }, definition: HtmlR
 
     let paragraphs = Array<string>();
 
-    let collectNote = false;
-
     let listIndent = 0;
     let listSpacing = 0;
 
@@ -183,8 +168,55 @@ export function addDocumentation(target: { details?: string }, definition: HtmlR
             }
         }
 
+        // Skip code blocks from listingblock/literalblock <pre> elements
+        if (p.tagName === "PRE" && p.textContent?.match(/[{;]|function\s|return\s/)) {
+            continue;
+        }
+
+        // Convert numeric superscripts before text extraction (safe for prose, not for constraint columns)
+        convertSuperscripts(p);
+
         // Extract text
         let text = Str(p);
+
+        // For Asciidoctor list items, add numbered/bulleted marker.  The FormattedText serializer handles
+        // indentation based on marker type, so we use depth-appropriate markers matching its Bullets array
+        if (p.parentElement?.tagName === "LI") {
+            const li = p.parentElement;
+            const list = li.parentElement;
+
+            // Compute nesting depth by counting ancestor ol/ul elements
+            let depth = 0;
+            for (let ancestor = list?.parentElement; ancestor; ancestor = ancestor.parentElement) {
+                if (ancestor.tagName === "OL" || ancestor.tagName === "UL") {
+                    depth++;
+                }
+            }
+
+            // Skip bullet-less lists (Asciidoctor class="none" used for layout/continuation)
+            if ((list as HTMLElement)?.className?.includes("none")) {
+                // no marker
+            } else if (list?.tagName === "OL") {
+                // Ordered list — compute 1-based index and format based on list type
+                const index = Array.from(list.children).indexOf(li) + 1;
+                const type = list.getAttribute("type");
+                if (type === "a") {
+                    text = `${String.fromCharCode(96 + index)}. ${text}`;
+                } else if (type === "A") {
+                    text = `${String.fromCharCode(64 + index)}. ${text}`;
+                } else if (type === "i") {
+                    text = `${toRoman(index)}. ${text}`;
+                } else if (type === "I") {
+                    text = `${toRoman(index).toUpperCase()}. ${text}`;
+                } else {
+                    text = `${index}. ${text}`;
+                }
+            } else {
+                // Unordered list — markdown-style dash with indentation for nesting
+                const indent = "  ".repeat(depth);
+                text = `${indent}- ${text}`;
+            }
+        }
 
         // Ignore figure annotations
         if (text.match(/^Figure \d+/)) {
@@ -192,18 +224,11 @@ export function addDocumentation(target: { details?: string }, definition: HtmlR
             continue;
         }
 
-        // Next paragraph is a note if text is "NOTE"
-        if (text === "NOTE") {
+        // Admonition blocks (NOTE/WARNING) are marked with data-admonition attribute by the scanner
+        const admonition = p.getAttribute?.("data-admonition");
+        if (admonition) {
             listIndent = 0;
-            collectNote = true;
-            continue;
-        }
-
-        // Create note if we we saw "NOTE" previously
-        if (collectNote) {
-            listIndent = 0;
-            paragraphs.push(`> [!NOTE]\n> ${extractUsefulDocumentation(text)}`);
-            collectNote = false;
+            paragraphs.push(`> [!${admonition}]\n> ${extractUsefulDocumentation(text)}`);
             continue;
         }
 
@@ -220,7 +245,11 @@ export function addDocumentation(target: { details?: string }, definition: HtmlR
             text.match(/^[A-Z]/) &&
             !text.match(/[.?!:]$/) &&
             !looksLikeListItem(text) &&
-            !looksLikeEquation(text)
+            !looksLikeEquation(text) &&
+            !text.includes(" = ") &&
+            !text.match(/^This\s+[a-z]/) &&
+            !(text.length <= 3 && text === text.toUpperCase()) &&
+            !text.match(/^(?:Refer|See|Note|Check)\s/)
         ) {
             looksLikeHeading = true;
         }
@@ -255,7 +284,14 @@ export function addDocumentation(target: { details?: string }, definition: HtmlR
 
     if (paragraphs.length) {
         mergeSplitParagraphs(paragraphs);
-        paragraphs = paragraphs.map(extractUsefulDocumentation).filter(p => p !== "" && p !== "###");
+        paragraphs = paragraphs
+            .map(p => {
+                // Preserve leading indentation for list items through extractUsefulDocumentation
+                const match = p.match(/^(\s+)(?:-\s|\d+\.\s|[a-z]+\.\s)/i);
+                const cleaned = extractUsefulDocumentation(p);
+                return match ? `${match[1]}${cleaned.trimStart()}` : cleaned;
+            })
+            .filter(p => p !== "" && p !== "###");
         target.details = paragraphs.join("\n");
     }
 }
@@ -295,6 +331,29 @@ function sumStyles(el: HTMLElement, ...names: string[]) {
     }
 
     return sum;
+}
+
+/** Convert a number to lowercase roman numeral string */
+function toRoman(n: number): string {
+    const numerals = [
+        [100, "c"],
+        [90, "xc"],
+        [50, "l"],
+        [40, "xl"],
+        [10, "x"],
+        [9, "ix"],
+        [5, "v"],
+        [4, "iv"],
+        [1, "i"],
+    ] as const;
+    let result = "";
+    for (const [value, numeral] of numerals) {
+        while (n >= value) {
+            result += numeral;
+            n -= value;
+        }
+    }
+    return result;
 }
 
 /**

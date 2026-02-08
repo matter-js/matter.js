@@ -55,7 +55,7 @@ export namespace ChannelInterface {
     export interface ElectronicGuide {
         /**
          * This command retrieves the program guide. It accepts several filter parameters to return specific schedule
-         * and program information from a content app. The command shall receive in response a ProgramGuideResponse.
+         * and program information from a content app. The command shall receive in responseaProgramGuideResponse.
          * Standard error codes shall be used when arguments provided are not valid. For example, if StartTime is
          * greater than EndTime, the status code INVALID_ACTION shall be returned.
          *

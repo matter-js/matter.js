@@ -320,7 +320,7 @@ export namespace BasicInformation {
 
         attributes: {
             /**
-             * This attribute shall be set to the revision number of the Data Model against which the Node is certified.
+             * This attribute shall be set to the revision number of the Data Model against which the Nodeiscertified.
              * The value of this attribute shall be one of the valid values listed in Section 7.1.1, “Revision History”.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.1.5.1
@@ -371,7 +371,7 @@ export namespace BasicInformation {
 
             /**
              * This attribute shall be an ISO 3166-1 alpha-2 code to represent the country, dependent territory, or
-             * special area of geographic interest in which the Node is located at the time of the attribute being set.
+             * special area of geographic interest in which the Node is located at the time of the attributebeingset.
              * This attribute shall be set during initial commissioning (unless already set) and may be updated by
              * further reconfigurations. This attribute may affect some regulatory aspects of the Node’s operation, such
              * as radio transmission power levels in given spectrum allocation bands if technologies where this is
@@ -417,8 +417,8 @@ export namespace BasicInformation {
             softwareVersion: FixedAttribute(0x9, TlvUInt32, { default: 0 }),
 
             /**
-             * This attribute shall contain a current human-readable representation for the software running on the
-             * Node. This version information may be conveyed to users. The maximum length of the SoftwareVersionString
+             * This attribute shall contain a current human-readable representation for the software running ontheNode.
+             * This version information may be conveyed to users. The maximum length of the SoftwareVersionString
              * attribute is 64 bytes of UTF-8 characters. The contents SHOULD only use simple 7-bit ASCII alphanumeric
              * and punctuation characters, so as to simplify the conveyance of the value to a variety of cultures.
              *
@@ -440,11 +440,10 @@ export namespace BasicInformation {
 
             /**
              * This attribute shall specify a human-readable (displayable) vendor assigned part number for the Node
-             * whose meaning and numbering scheme is vendor defined.
-             *
-             * Multiple products (and hence PartNumbers) can share a ProductID. For instance, there may be different
-             * packaging (with different PartNumbers) for different regions; also different colors of a product might
-             * share the ProductID but may have a different PartNumber.
+             * whose meaning and numbering scheme is vendor defined. Multiple products (and hence PartNumbers) can share
+             * a ProductID. For instance, there may be different packaging (with different PartNumbers) for different
+             * regions; also different colors of a product might share the ProductID but may have a different
+             * PartNumber.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.1.5.13
              */
@@ -493,28 +492,26 @@ export namespace BasicInformation {
 
             /**
              * This attribute (when used) shall indicate whether the Node can be reached. For a native Node this is
-             * implicitly True (and its use is optional).
-             *
-             * Its main use case is in the derived Bridged Device Basic Information cluster where it is used to indicate
-             * whether the bridged device is reachable by the bridge over the non-native network.
+             * implicitly True (and its use is optional). Its main use case is in the derived Bridged Device Basic
+             * Information cluster where it is used to indicate whether the bridged device is reachable by the bridge
+             * over the non-native network.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.1.5.18
              */
             reachable: OptionalAttribute(0x11, TlvBoolean, { default: true }),
 
             /**
-             * Indicates a unique identifier for the device, which is constructed in a manufacturer specific manner.
+             * Indicates a unique identifier for the device, which is constructed in a manufacturer specificmanner. It
+             * may be constructed using a permanent device identifier (such as device MAC address) asbasis. In order to
+             * prevent tracking,
              *
-             * It may be constructed using a permanent device identifier (such as device MAC address) as basis. In order
-             * to prevent tracking,
+             *   - it SHOULD NOT be identical to (or easily derived from) such permanent device identifier
              *
-             *   • it SHOULD NOT be identical to (or easily derived from) such permanent device identifier
+             *   - it shall be updated when the device is factory reset
              *
-             *   • it shall be updated when the device is factory reset
+             *   - it shall NOT be identical to the SerialNumber attribute
              *
-             *   • it shall NOT be identical to the SerialNumber attribute
-             *
-             *   • it shall NOT be printed on the product or delivered with the product
+             *   - it shall NOT be printed on the product or delivered with the product
              *
              * The value does not need to be human readable, since it is intended for machine to machine (M2M)
              * communication.
@@ -523,8 +520,10 @@ export namespace BasicInformation {
              *
              * > The conformance of the UniqueID attribute was optional in cluster revisions prior to revision 4.
              *
-             * This UniqueID attribute shall NOT be the same as the Persistent Unique ID which is used in the Rotating
-             * Device Identifier mechanism.
+             * > [!NOTE]
+             *
+             * > This UniqueID attribute shall NOT be the same as the Persistent Unique ID which is used in the Rotating
+             *   Device Identifier mechanism.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.1.5.19
              */
@@ -567,21 +566,22 @@ export namespace BasicInformation {
              * Nodes may query this field to determine the currently supported version of the specification on another
              * given Node.
              *
-             * The format of this number is segmented as its four component bytes. Bit positions for the fields are as
-             * follows:
+             * The format of this number is segmented as its four component bytes.
+             *
+             * Bit positions for the fields are as follows:
              *
              * For example, a SpecificationVersion value of 0x01040200 is composed of 4 version components, representing
              * a version 1.4.2.0.
              *
              * In the example above:
              *
-             *   • Major version is the most significant byte (0x01).
+             *   - Major version is the most significant byte (0x01).
              *
-             *   • Minor version is the second most significant byte (0x04).
+             *   - Minor version is the second most significant byte (0x04).
              *
-             *   • Dot version is the third most significant byte (0x02).
+             *   - Dot version is the third most significant byte (0x02).
              *
-             *   • Reserved1 value is the least significant byte (0x00).
+             *   - Reserved1 value is the least significant byte (0x00).
              *
              * The initial revision (1.0) of this specification (1.0) was 0x01000000. Matter Spring 2024 release (1.3)
              * was 0x01030000.
@@ -654,9 +654,8 @@ export namespace BasicInformation {
             leave: OptionalEvent(0x2, Priority.Info, TlvLeaveEvent),
 
             /**
-             * This event (when supported) shall be generated when there is a change in the Reachable attribute.
-             *
-             * Its main use case is in the derived Bridged Device Basic Information cluster.
+             * This event (when supported) shall be generated when there is a change in the Reachable attribute. Its
+             * main use case is in the derived Bridged Device Basic Information cluster.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.1.6.4
              */

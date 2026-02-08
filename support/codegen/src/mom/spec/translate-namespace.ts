@@ -6,7 +6,7 @@
 
 import { SemanticNamespaceElement, SemanticTagElement } from "#model";
 import { addDocumentation } from "./add-documentation.js";
-import { Identifier, Integer, Str } from "./html-translators.js";
+import { Identifier, Integer, Str, StrWithSuperscripts } from "./html-translators.js";
 import { HtmlReference } from "./spec-types.js";
 import { Alias, Optional, translateTable } from "./translate-table.js";
 
@@ -45,7 +45,7 @@ export function* translateNamespace(nsRef: HtmlReference) {
         {
             id: Integer,
             name: Str,
-            description: Optional(Alias(Str, "summary")),
+            description: Optional(Alias(StrWithSuperscripts, "summary")),
         },
         tagsTable,
     ).map(SemanticTagElement);

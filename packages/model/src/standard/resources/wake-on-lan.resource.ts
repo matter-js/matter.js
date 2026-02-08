@@ -57,8 +57,8 @@ Resource.add({
                 "> [!NOTE]" +
                 "\n" +
                 "> Some companies may consider MAC Address to be protected data subject to PII handling " +
-                "  considerations and will therefore choose not to include it or read it. The MAC Address can often " +
-                "  be determined using ARP in IPv4 or NDP in IPv6."
+                "considerations and will therefore choose not to include it or read it. The MAC Address can often " +
+                "be determined using ARP in IPv4 or NDP in IPv6."
         }
     ]
 });

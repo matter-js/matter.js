@@ -239,9 +239,9 @@ export namespace ContentControl {
 
         /**
          * This field shall indicate the channel minor number value (for example, using ATSC format). When the channel
-         * number is expressed as a string, such as "13.1" or "256", the minor number would be 1 or 0, respectively.
-         * This field is required but shall be set to 0 for channels such as over-the-top channels that are not
-         * represented by a major or minor number.
+         * number is expressed as a string, such as "13.1" or "256", the minor number would be 1 or 0,respectively. This
+         * field is required but shall be set to 0 for channels such as over-the-top channels that are not represented
+         * by a major or minor number.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.3.3
          */
@@ -268,8 +268,8 @@ export namespace ContentControl {
      */
     export const TlvAddBlockChannelsRequest = TlvObject({
         /**
-         * This field indicates a set of channels that shall be blocked when the Content Control feature is activated.
-         * This field shall be set to values present in ChannelList attribute in the Channel cluster. The
+         * This field indicates a set of channels that shall be blocked when the Content Control featureisactivated.
+         * This field shall be set to values present in ChannelList attribute in theChannelcluster. The
          * BlockChannelIndex field passed in this command shall be NULL.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.12.1
@@ -794,10 +794,10 @@ export namespace ContentControl {
     export const OnDemandContentRatingComponent = MutableCluster.Component({
         attributes: {
             /**
-             * This attribute shall provide the collection of ratings that are currently valid for this media device.
-             * The items should honor the metadata of the on-demand content (e.g. Movie) rating system for one country
-             * or region where the media device has been provisioned. For example, for the MPAA system, RatingName may
-             * be one value out of "G", "PG", "PG-13", "R", "NC-17".
+             * This attribute shall provide the collection of ratings that are currently valid for thismediadevice. The
+             * items should honor the metadata of the on-demand content (e.g. Movie) rating system for one country or
+             * region where the media device has been provisioned. For example, for the MPAA system, RatingName may be
+             * one value out of "G", "PG", "PG-13", "R", "NC-17".
              *
              * The media device shall have a way to determine which rating system applies for the on-demand content and
              * then populate this attribute. For example, it can do it through examining the Location attribute in the
@@ -811,7 +811,7 @@ export namespace ContentControl {
             onDemandRatings: Attribute(0x1, TlvArray(TlvRatingName), { default: [] }),
 
             /**
-             * Indicates a threshold rating as a content filter which is compared with the rating for on-demand content.
+             * Indicates a threshold rating as a content filter which is compared with the rating for on-demandcontent.
              * For example, if the on-demand content rating is greater than or equal to OnDemandRatingThreshold, for a
              * rating system that is ordered from lower viewer age to higher viewer age, then on-demand content is not
              * appropriate for the User and the Node shall prevent the playback of content.
@@ -948,9 +948,9 @@ export namespace ContentControl {
              * A server that does not support the PM feature shall respond with InvalidPINCode to clients that only have
              * Operate privilege unless:
              *
-             *   • It has been provided with the PIN value to expect via an out of band mechanism, and
+             *   - It has been provided with the PIN value to expect via an out of band mechanism, and
              *
-             *   • The client has provided a PINCode that matches the expected PIN value.
+             *   - The client has provided a PINCode that matches the expected PIN value.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.6
              */
@@ -989,9 +989,9 @@ export namespace ContentControl {
     export const BlockUnratedComponent = MutableCluster.Component({
         attributes: {
             /**
-             * Indicates whether the playback of unrated content is allowed when the Content Control feature is
-             * activated. If this attribute equals FALSE, then playback of unrated content shall be permitted.
-             * Otherwise, the media device shall prevent the playback of unrated content.
+             * Indicates whether the playback of unrated content is allowed when the Content Control featureisactivated.
+             * If this attribute equals FALSE, then playback of unrated content shall be permitted. Otherwise, the media
+             * device shall prevent the playback of unrated content.
              *
              * When this attribute changes, the device SHOULD make the user aware of any limits of this feature. For
              * example, if the feature does not control content within apps, then the device should make this clear to
@@ -1018,7 +1018,7 @@ export namespace ContentControl {
              * The purpose of this command is to specify whether programs with no Content rating must be blocked by this
              * media device.
              *
-             * Upon receipt of the UnblockUnratedContent command, the media device shall set the BlockUn rated attribute
+             * Upon receipt of the UnblockUnratedContent command, the media device shall set the BlockUnrated attribute
              * to FALSE.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.9
@@ -1153,7 +1153,7 @@ export namespace ContentControl {
              * Indicates a set of periods during which the playback of content on media device shall be blocked when the
              * Content Control feature is activated. The media device shall reject any request to play content during
              * one period of this attribute. If it is entering any one period of this attribute, the media device shall
-             * block content which is playing and generate an event EnteringBlockContentTimeWindow. There shall NOT be
+             * block content which is playing and generate aneventEnteringBlockContentTimeWindow. There shall NOT be
              * multiple entries in this attribute list for the same day of week.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.11
@@ -1376,7 +1376,9 @@ export namespace ContentControl {
      * responsibility of the end product to enforce appropriate right access (for example, to prevent a child from
      * disabling this feature).
      *
-     * NOTE Support for Content Control cluster is provisional.
+     * > [!NOTE]
+     *
+     * > Support for Content Control cluster is provisional.
      *
      * ContentControlCluster supports optional features that you can enable with the ContentControlCluster.with()
      * factory method.

@@ -51,7 +51,7 @@ Resource.add({
                 "> [!NOTE]" +
                 "\n" +
                 "> Handling complex level situations, such as half levels (side split houses), or the levels from an " +
-                "  apartment building, is up to the client and/or user."
+                "apartment building, is up to the client and/or user."
         },
 
         {
@@ -65,7 +65,7 @@ Resource.add({
                 "> [!NOTE]" +
                 "\n" +
                 "> This field only indicates the type of the area. Multiple areas of the same type, such as bedrooms, " +
-                "  may exist in a user’s home."
+                "may exist in a user’s home."
         }
     ]
 });

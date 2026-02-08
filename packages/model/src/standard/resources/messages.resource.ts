@@ -121,8 +121,8 @@ Resource.add({
                 "> [!NOTE]" +
                 "\n" +
                 "> It is currently not specified where the friendly name label can be found on the node, meaning that " +
-                "  clients SHOULD NOT rely on a certain method they happen to observe in a particular server " +
-                "  instance, since other instances could employ a different method." +
+                "clients SHOULD NOT rely on a certain method they happen to observe in a particular server " +
+                "instance, since other instances could employ a different method." +
                 "\n" +
                 "The device SHOULD make it possible for the user to view which nodes have access to this cluster and " +
                 "to individually remove privileges for each node.",
@@ -164,7 +164,9 @@ Resource.add({
                         "If the ResponseRequired bit is set on the message but this list is empty, the device shall provide a " +
                         "generic acknowledgement button, e.g. \"OK\"." +
                         "\n" +
-                        "If the ResponseRequired bit is not set on the message, this list shall be ignored. See Responses."
+                        "If the ResponseRequired bit is not set on the message, this list shall be ignored." +
+                        "\n" +
+                        "See Responses."
                 }
             ]
         },

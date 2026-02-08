@@ -14,13 +14,11 @@ Matter specification.  You may override the default location with the
 MATTER_SPECIFICATION_PATH environment variable or --path= command line
 argument.
 
-I used Adobe Acrobat Pro v23.001.20174.0 to generate the HTML, choosing the
-option to save individual HTML based on headers.  We will probably parse
-output of the current Acrobat version.  Other means of HTML generation will
-require this code to be reworked.
+The script is optimized to work with the HTML version of the specification
+generated from the same sources as the published PDFs.
 
 If you have access to the spec PDFs, reach out in Matter Integrators Discord
-server if you would like access to a Dropbox folder with the HTML version of
+server if you would like access to a GitHub repository with the HTML version of
 the specification.  Specifically mention the term "masochist".`;
 
 import "./util/setup.js";
@@ -38,7 +36,7 @@ const args = await yargs(hideBin(process.argv))
     .option("document", {
         type: "string",
         describe: "limit ingestion to a specific document",
-        choices: ["core", "cluster", "device"],
+        choices: ["core", "cluster", "device", "namespace"],
     })
     .option("revision", { type: "string", describe: "spec version if path is unspecified" })
     .wrap(null) // Grr ESM version word wrap is broken so we just wrap manually to 79 chars

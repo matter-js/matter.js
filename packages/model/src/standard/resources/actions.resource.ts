@@ -17,14 +17,14 @@ Resource.add(
             "\n" +
             "Specifically this cluster provides:" +
             "\n" +
-            "  • Information about logical grouping of endpoints on the Node (example: lights in a room)" +
+            "  - Information about logical grouping of endpoints on the Node (example: lights in a room)" +
             "\n" +
-            "  • Information about named actions that can be performed on such a group of endpoints (example: " +
-            "    recall a scene for a group of lights by its name)" +
+            "  - Information about named actions that can be performed on such a group of endpoints (example: " +
+            "recall a scene for a group of lights by its name)" +
             "\n" +
-            "  • Commands to trigger such actions" +
+            "  - Commands to trigger such actions" +
             "\n" +
-            "  • Events to receive feedback on the state of such actions." +
+            "  - Events to receive feedback on the state of such actions." +
             "\n" +
             "The information on grouping and available actions is typically provided by the user or Bridge " +
             "manufacturer via some means not defined in Matter, and therefore provided as read-only to Nodes. For " +
@@ -68,22 +68,22 @@ Resource.add(
                     "specified in RFC 1738, max. 512 ASCII characters and shall use the https scheme. The location " +
                     "referenced by this URL shall provide additional information for the actions provided:" +
                     "\n" +
-                    "  • When used without suffix, it shall provide information about the various actions which the " +
-                    "    cluster provides." +
+                    "  - When used without suffix, it shall provide information about the various actions which the " +
+                    "cluster provides." +
                     "\n" +
-                    "    ◦ Example: SetupURL could take the value of example://Actions or https://domain.example/ " +
-                    "      Matter/bridgev1/Actions for this generic case (access generic info how to use actions provided " +
-                    "      by this cluster)." +
+                    "    - Example: SetupURL could take the value of example://Actions or " +
+                    "https://domain.example/Matter/bridgev1/Actions for this generic case (access generic info how " +
+                    "to use actions provided by this cluster)." +
                     "\n" +
-                    "  • When used with a suffix of \"/?a=\" and the decimal value of ActionID for one of the actions, it " +
-                    "    may provide information about that particular action. This could be a deeplink to " +
-                    "    manufacturer-app/website (associated somehow to the server node) with the " +
-                    "    information/edit-screen for this action so that the user can view and update details of the " +
-                    "    action, e.g. edit the scene, or change the wake-up experience time period." +
+                    "  - When used with a suffix of \"/?a=\" and the decimal value of ActionID for one of the actions, it " +
+                    "may provide information about that particular action. This could be a deeplink to " +
+                    "manufacturer-app/website (associated somehow to the server node) with the " +
+                    "information/edit-screen for this action so that the user can view and update details of the " +
+                    "action, e.g. edit the scene, or change the wake-up experience time period." +
                     "\n" +
-                    "    ◦ Example of SetupURL with suffix added: example://Actions/?a=12345 or " +
-                    "      https://domain.example/Matter/bridgev1/Actions/?a=12345 for linking to specific info/editing " +
-                    "      of the action with ActionID 0x3039."
+                    "    - Example of SetupURL with suffix added: example://Actions/?a=12345 or " +
+                    "https://domain.example/Matter/bridgev1/Actions/?a=12345 for linking to specific info/editing " +
+                    "of the action with ActionID 0x3039."
             },
 
             {
@@ -97,9 +97,9 @@ Resource.add(
                     "Example: When InstantActionWithTransition is invoked (with an InvokeID data field), two StateChanged " +
                     "events will be generated:" +
                     "\n" +
-                    "  • one when the transition starts (NewState=Active)" +
+                    "  - one when the transition starts (NewState=Active)" +
                     "\n" +
-                    "  • one when the transition completed (NewState=Inactive)",
+                    "  - one when the transition completed (NewState=Inactive)",
 
                 children: [
                     {
@@ -130,22 +130,22 @@ Resource.add(
                     "controller changes the state of one or more of the involved endpoints during the transition, thus " +
                     "interrupting the transition triggered by the action, two events would be generated:" +
                     "\n" +
-                    "  • StateChanged when the transition starts (NewState=Active)" +
+                    "  - StateChanged when the transition starts (NewState=Active)" +
                     "\n" +
-                    "  • ActionFailed when the interrupting command occurs (NewState=Inactive, Error=interrupted)" +
+                    "  - ActionFailed when the interrupting command occurs (NewState=Inactive, Error=interrupted)" +
                     "\n" +
                     "Example: When InstantActionWithTransition is invoked (with an InvokeID data field = 1), and the same " +
                     "client invokes an InstantAction with (the same or another ActionId and) InvokeID = 2, and this " +
                     "second command interrupts the transition triggered by the first command, these events would be " +
                     "generated:" +
                     "\n" +
-                    "  • StateChanged (InvokeID=1, NewState=Active) when the transition starts" +
+                    "  - StateChanged (InvokeID=1, NewState=Active) when the transition starts" +
                     "\n" +
-                    "  • ActionFailed (InvokeID=2, NewState=Inactive, Error=interrupted) when the second command " +
-                    "    interrupts the transition" +
+                    "  - ActionFailed (InvokeID=2, NewState=Inactive, Error=interrupted) when the second command " +
+                    "interrupts the transition" +
                     "\n" +
-                    "  • StateChanged (InvokeID=2, NewState=Inactive) upon the execution of the action for the second " +
-                    "    command",
+                    "  - StateChanged (InvokeID=2, NewState=Inactive) upon the execution of the action for the second " +
+                    "command",
 
                 children: [
                     {
@@ -401,56 +401,46 @@ Resource.add(
                             "InstantActionWithTransition), or to bring these endpoints into a more dynamic state (typically using " +
                             "StartAction), where the endpoints would e.g. gradually cycle through certain colors for a pleasing " +
                             "effect. A voice controller could use \"set\" (to map to InstantAction) or \"play\" (to map to " +
-                            "StartAction) to trigger such actions." +
-                            "\n" +
-                            "Example: see Section 9.14.8.1, “Example 1: Scene recall” and Section 9.14.8.2, “Example 2: Set " +
-                            "dynamic light effect”."
+                            "StartAction) to trigger such actions. Example: see Section 9.14.8.1, “Example 1: Scene recall” and " +
+                            "Section 9.14.8.2, “Example 2: Set dynamic light effect”."
                     },
 
                     {
                         tag: "field", name: "Sequence", description: "A sequence of states with a certain time pattern",
                         xref: "core§9.14.4.2.2",
                         details: "Indicates an action which involves a sequence of events/states of the associated endpoints, such as " +
-                            "a wake-up experience." +
-                            "\n" +
-                            "Example: see Section 9.14.8.4, “Example 4: Wake-up routine”."
+                            "a wake-up experience. Example: see Section 9.14.8.4, “Example 4: Wake-up routine”."
                     },
 
                     {
                         tag: "field", name: "Automation",
                         description: "Control an automation (e.g. motion sensor controlling lights)",
                         xref: "core§9.14.4.2.3",
-                        details: "Indications an automation (e.g. a motion sensor controlling lights, an alarm system) which can " +
-                            "bee.g. started, stopped, paused, resumed." +
-                            "\n" +
-                            "Example: see Section 9.14.8.3, “Example 3: Pause sensor automation”."
+                        details: "Indications an automation (e.g. a motion sensor controlling lights, an alarm system) which can be " +
+                            "e.g. started, stopped, paused, resumed. Example: see Section 9.14.8.3, “Example 3: Pause sensor " +
+                            "automation”."
                     },
 
                     {
                         tag: "field", name: "Exception",
                         description: "Sequence that will run when something doesn’t happen", xref: "core§9.14.4.2.4",
                         details: "Indicates some action which the server will execute when a certain condition (which normally does " +
-                            "not happen) is not met." +
-                            "\n" +
-                            "Example: lock the doors when the server’s system has detected no one is at home while the doors are " +
-                            "in the 'unlocked' state."
+                            "not happen) is not met. Example: lock the doors when the server’s system has detected no one is at " +
+                            "home while the doors are in the 'unlocked' state."
                     },
 
                     {
                         tag: "field", name: "Notification", description: "Use the endpoints to send a message to user",
                         xref: "core§9.14.4.2.5",
-                        details: "Indicates an action that can be triggered (e.g. by InstantAction) to notify the user." +
-                            "\n" +
-                            "Example: play a pattern on the lights in the living room if there is someone in the garden in the " +
-                            "evening."
+                        details: "Indicates an action that can be triggered (e.g. by InstantAction) to notify the user. Example: play " +
+                            "a pattern on the lights in the living room if there is someone in the garden in the evening."
                     },
 
                     {
                         tag: "field", name: "Alarm", description: "Higher priority notification", xref: "core§9.14.4.2.6",
                         details: "Similar to Notification but with a higher priority (and might override other endpoint states which " +
-                            "Type=Notification would not override)." +
-                            "\n" +
-                            "Example: flash all lights in the house when CO sensor triggers."
+                            "Type=Notification would not override). Example: flash all lights in the house when CO sensor " +
+                            "triggers."
                     }
                 ]
             },

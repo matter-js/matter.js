@@ -113,7 +113,7 @@ export namespace UnitLocalization {
 
     /**
      * Nodes should be expected to be deployed to any and all regions of the world. These global regions may have
-     * differing preferences for the units in which values are conveyed in communication to a user. As such, Nodes that
+     * differing preferences for the units in which values are conveyed in communication to auser. As such, Nodes that
      * visually or audibly convey measurable values to the user need a mechanism by which they can be configured to use
      * a user’s preferred unit.
      *
