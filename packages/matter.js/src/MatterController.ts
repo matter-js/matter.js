@@ -12,7 +12,11 @@
 
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { ClusterClient } from "#cluster/client/ClusterClient.js";
-import { InteractionClientProvider } from "#cluster/client/InteractionClient.js";
+import {
+    InteractionClientProvider,
+    NodeDiscoveryType,
+    PeerConnectionOptions,
+} from "#cluster/client/InteractionClient.js";
 import { BasicInformation, GeneralCommissioning } from "#clusters";
 import type { NodeCommissioningOptions } from "#CommissioningController.js";
 import { ControllerStore, ControllerStoreInterface } from "#ControllerStore.js";
@@ -44,9 +48,9 @@ import {
     SupportedStorageTypes,
     Time,
 } from "#general";
-import type { ClientNodeInteraction } from "#node";
 import {
     ClientNode,
+    ClientNodePhysicalProperties,
     ClusterState,
     CommissioningClient,
     ControllerBehavior,
@@ -68,10 +72,8 @@ import {
     Fabric,
     FabricAuthority,
     FabricManager,
-    NodeDiscoveryType,
     PeerAddress,
     PeerAddressStore,
-    PeerConnectionOptions,
     PeerDescriptor,
     PeerSet,
     PhysicalDeviceProperties,
@@ -620,9 +622,9 @@ export class MatterController {
         }
         if (
             options.caseAuthenticatedTags !== undefined &&
-            !isDeepEqual(options.caseAuthenticatedTags, node.state.network.caseAuthenticatedTags)
+            !isDeepEqual(options.caseAuthenticatedTags, node.state.commissioning.caseAuthenticatedTags)
         ) {
-            await node.setStateOf(NetworkClient, { caseAuthenticatedTags: options.caseAuthenticatedTags });
+            await node.setStateOf(CommissioningClient, { caseAuthenticatedTags: options.caseAuthenticatedTags });
         }
         await node.enable();
         return this.#clients!.connect(this.fabric.addressOf(peerNodeId), options);
@@ -856,7 +858,7 @@ class CommissionedNodeStore extends PeerAddressStore {
                                 ? RemoteDescriptor.fromLongForm(commissioningState)
                                 : undefined;
                         const deviceData = {
-                            meta: (peer.interaction as ClientNodeInteraction).physicalProperties,
+                            meta: ClientNodePhysicalProperties(peer),
                             basicInformation: peer.maybeStateOf(BasicInformationClient),
                         };
 

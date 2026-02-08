@@ -47,6 +47,9 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
     constructor(config: Node.Configuration<T>) {
         const parentEnvironment = config.environment ?? config.owner?.env ?? Environment.default;
 
+        // Ensure runtime is shared across components
+        void parentEnvironment.root.runtime;
+
         if (config.id === undefined) {
             config.id = `node${parentEnvironment.vars.increment("node.nextFallbackId")}`;
         }

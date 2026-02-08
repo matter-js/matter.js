@@ -42,9 +42,9 @@ export class UdpInterface implements ConnectionlessTransport {
     }
 
     onData(listener: (channel: Channel<Bytes>, messageBytes: Bytes) => void): ConnectionlessTransport.Listener {
-        return this.#server.onData((_netInterface, peerHost, peerPort, data) =>
-            listener(new UdpConnection(this.#server, peerHost, peerPort), data),
-        );
+        return this.#server.onData((_netInterface, peerHost, peerPort, data) => {
+            listener(new UdpConnection(this.#server, peerHost, peerPort), data);
+        });
     }
 
     get port() {

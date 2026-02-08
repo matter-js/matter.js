@@ -4,36 +4,29 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError, Logger, MatterError, ObserverGroup } from "#general";
+import { InternalError, MatterError, ObserverGroup } from "#general";
 import type { ClientNode } from "#node/ClientNode.js";
-import {
-    ClientInteraction,
-    ExchangeProvider,
-    InteractionQueue,
-    PeerAddress,
-    PeerSet,
-    QueuedClientInteraction,
-    SessionManager,
-} from "#protocol";
+import { ExchangeProvider, Peer, PeerAddress, PeerSet, SessionManager } from "#protocol";
 import { CommissioningClient } from "../commissioning/CommissioningClient.js";
-import { RemoteDescriptor } from "../commissioning/RemoteDescriptor.js";
 import { NetworkRuntime } from "./NetworkRuntime.js";
 
 export class UncommissionedError extends MatterError {}
 export class OfflineError extends MatterError {}
 
-const logger = Logger.get("ClientNetworkRuntime");
-
 /**
  * Handles network functionality for {@link ClientNode}.
  */
 export class ClientNetworkRuntime extends NetworkRuntime {
-    #client?: ClientInteraction;
-    #queuedClient?: QueuedClientInteraction;
     #observers = new ObserverGroup();
+    #isReady = false;
 
     constructor(owner: ClientNode) {
         super(owner);
+    }
+
+    set isReady(isReady: boolean) {
+        this.#isReady = isReady;
+        this.#syncOnlineStatus();
     }
 
     override get owner() {
@@ -41,45 +34,33 @@ export class ClientNetworkRuntime extends NetworkRuntime {
     }
 
     protected async start() {
-        // Ensure we can connect to the node
+        // Ensure the node is ready for peer interaction
         if (!this.owner.lifecycle.isCommissioned) {
             throw new UncommissionedError(`Cannot interact with ${this.owner} because it is uncommissioned`);
         }
-
         if (this.owner.state.network.isDisabled) {
             throw new UncommissionedError(`Cannot interact with ${this.owner} because it is disabled`);
         }
 
-        const address = this.owner.stateOf(CommissioningClient).peerAddress;
-
+        const address = PeerAddress(this.owner.stateOf(CommissioningClient).peerAddress);
         if (address === undefined) {
             throw new InternalError(`Commissioned node ${this.owner} has no peer address`);
+        }
+
+        // Client interaction requires the server to be online.  If not, bring online now
+        const server = this.owner.owner;
+        if (!server.lifecycle.isOnline) {
+            await server.start();
         }
 
         // Install the exchange provider for the node
         const { env, lifecycle } = this.owner;
         const peers = env.get(PeerSet);
-        const commissioningState = this.owner.stateOf(CommissioningClient);
-        const networkState = this.owner.state.network;
-
-        const exchangeProvider = await peers.exchangeProviderFor(address, {
-            discoveryOptions: {
-                discoveryData: RemoteDescriptor.fromLongForm(commissioningState),
-            },
-            caseAuthenticatedTags: networkState.caseAuthenticatedTags
-                ? [...networkState.caseAuthenticatedTags] // needed because the tags are readonly
-                : undefined,
-        });
-        env.set(ExchangeProvider, exchangeProvider);
-
-        this.#client = new ClientInteraction({ environment: env, abort: this.abortSignal });
-        env.set(ClientInteraction, this.#client);
-        this.#queuedClient = new QueuedClientInteraction({
-            environment: env,
-            abort: this.abortSignal,
-            queue: env.get(InteractionQueue), // created and owned by Peers
-        });
-        env.set(QueuedClientInteraction, this.#queuedClient);
+        const peer = peers.get(address);
+        if (peer === undefined) {
+            throw new InternalError(`Commissioned node ${this.owner} has no peer installed`);
+        }
+        env.set(ExchangeProvider, peer.exchangeProvider);
 
         // Monitor sessions to maintain online state.  We consider the node "online" if there is an active session.  If
         // not, we consider the node offline.  This is the only real way we have of determining whether the node is
@@ -90,49 +71,39 @@ export class ClientNetworkRuntime extends NetworkRuntime {
             this.owner.act(({ context }) => lifecycle.online.emit(context));
         }
 
-        this.#observers.on(sessions.added, session => {
-            if (lifecycle.isOnline) {
-                return;
-            }
+        const syncOnlineStatus = this.#syncOnlineStatus.bind(this);
 
-            const address = PeerAddress(commissioningState.peerAddress);
-            if (!address || !PeerAddress.is(session.peerAddress, address)) {
-                return;
-            }
-
-            this.owner.act(({ context }) => lifecycle.online.emit(context));
-        });
-
-        this.#observers.on(sessions.deleted, session => {
-            if (!lifecycle.isOnline) {
-                return;
-            }
-
-            const address = PeerAddress(commissioningState.peerAddress);
-            if (!PeerAddress.is(session.peerAddress, address)) {
-                return;
-            }
-
-            if (address && sessions.find(({ peerAddress }) => PeerAddress.is(peerAddress, address))) {
-                return;
-            }
-
-            this.owner.act(({ context }) => lifecycle.offline.emit(context));
-        });
+        this.#observers.on(peer.sessions.added, syncOnlineStatus);
+        this.#observers.on(peer.sessions.deleted, syncOnlineStatus);
     }
 
     protected async stop() {
+        this.isReady = false;
+
         await this.construction;
 
-        this.owner.env.delete(ClientInteraction, this.#client);
-        this.owner.env.delete(QueuedClientInteraction, this.#queuedClient);
+        this.#observers.close();
+    }
 
-        try {
-            await this.#client?.close();
-        } catch (e) {
-            logger.error(`Error closing connection to ${this.owner}`, e);
+    #syncOnlineStatus() {
+        let shouldBeOnline: boolean;
+        if (!this.#isReady) {
+            shouldBeOnline = false;
+        } else {
+            const peer = this.owner.env.maybeGet(Peer);
+            if (peer === undefined) {
+                shouldBeOnline = false;
+            } else {
+                shouldBeOnline = peer.hasSession;
+            }
         }
 
-        this.#observers.close();
+        if (this.owner.lifecycle.isOnline === shouldBeOnline) {
+            return;
+        }
+
+        this.owner.act(({ context }) => {
+            this.owner.lifecycle[shouldBeOnline ? "online" : "offline"].emit(context);
+        });
     }
 }

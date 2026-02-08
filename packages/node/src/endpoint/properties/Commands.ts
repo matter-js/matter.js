@@ -51,14 +51,14 @@ function BehaviorCommands(endpoint: Endpoint, type: Behavior.Type) {
 
 function Implementation(endpoint: Endpoint, type: Behavior.Type, name: string): Commands.Command {
     return {
-        [name](input: unknown, context?: ActionContext) {
+        [name](input: unknown, context?: Commands.CommandContext) {
             // Invoke with existing context
-            if (context) {
+            if (context && "transaction" in context) {
                 return Promise.resolve(invokerFor(context)(input, context));
             }
 
             // Invoke with a dedicated context
-            const context2 = LocalActorContext.open(`invoke-${name}`, { lifetime: endpoint.construction });
+            const context2 = LocalActorContext.open(`invoke-${name}`, { lifetime: endpoint.construction, ...context });
             try {
                 return Promise.resolve(context2.resolve(invokerFor(context2)(input, context)));
             } catch (e) {
@@ -80,8 +80,10 @@ function Implementation(endpoint: Endpoint, type: Behavior.Type, name: string): 
 }
 
 export namespace Commands {
+    export type CommandContext = ActionContext | LocalActorContext.Options;
+
     export interface Command<C extends (arg: unknown) => unknown = (arg: unknown) => unknown> {
-        (input: Parameters<C>[0], context?: ActionContext): Promise<Awaited<ReturnType<C>>>;
+        (input: Parameters<C>[0], context?: CommandContext): Promise<Awaited<ReturnType<C>>>;
     }
 
     export type OfBehavior<T extends Behavior.Type> = {
