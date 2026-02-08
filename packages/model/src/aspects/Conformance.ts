@@ -334,8 +334,7 @@ export namespace Conformance {
                         // or its defining type for fields typed as enums)
                         const enumDef = referenced.definingModel ?? referenced;
                         operatorResolver = (name: string) => {
-                            const enumValue =
-                                enumDef.member(name) ?? enumDef.member(camelize(name, true));
+                            const enumValue = enumDef.member(name) ?? enumDef.member(camelize(name, true));
                             if (enumValue) {
                                 return enumValue as ValueModel;
                             }

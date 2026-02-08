@@ -6,8 +6,8 @@
 
 import { Conformance } from "#aspects/Conformance.js";
 import { ClusterElement, DatatypeElement, FieldElement } from "#elements/index.js";
-import { MatterModel } from "#models/index.js";
 import { ValidateModel } from "#logic/ValidateModel.js";
+import { MatterModel } from "#models/index.js";
 
 const TEST_DEFINITIONS = [
     "M",
@@ -80,10 +80,7 @@ describe("Conformance", () => {
         const triggerEnum = DatatypeElement({
             name: "TriggerTypeEnum",
             type: "enum8",
-            children: [
-                FieldElement({ name: "Command", id: 0 }),
-                FieldElement({ name: "Motion", id: 1 }),
-            ],
+            children: [FieldElement({ name: "Command", id: 0 }), FieldElement({ name: "Motion", id: 1 })],
         });
 
         const optionsStruct = DatatypeElement({

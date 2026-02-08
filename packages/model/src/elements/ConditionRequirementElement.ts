@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { Conformance } from "../aspects/Conformance.js";
 import { ElementTag } from "../common/index.js";
-import { Conformance } from "../index.js";
 import { BaseElement } from "./BaseElement.js";
 
 /**

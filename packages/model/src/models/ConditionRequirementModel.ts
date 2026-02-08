@@ -8,7 +8,10 @@ import { Conformance } from "../aspects/index.js";
 import { ConditionRequirementElement } from "../elements/index.js";
 import { Model } from "./Model.js";
 
-export class ConditionRequirementModel extends Model<ConditionRequirementElement> implements ConditionRequirementElement {
+export class ConditionRequirementModel
+    extends Model<ConditionRequirementElement>
+    implements ConditionRequirementElement
+{
     override tag: ConditionRequirementElement.Tag = ConditionRequirementElement.Tag;
     declare condition: string;
     declare deviceTypeId?: number;
