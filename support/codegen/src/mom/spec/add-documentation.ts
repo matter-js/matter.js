@@ -287,7 +287,7 @@ export function addDocumentation(target: { details?: string }, definition: HtmlR
         paragraphs = paragraphs
             .map(p => {
                 // Preserve leading indentation for list items through extractUsefulDocumentation
-                const match = p.match(/^(\s+)(?:-\s|\d+\.\s|[a-zA-Z]+\.\s)/);
+                const match = p.match(/^(\s+)(?:-\s|\d+\.\s|[a-z]+\.\s)/i);
                 const cleaned = extractUsefulDocumentation(p);
                 return match ? `${match[1]}${cleaned.trimStart()}` : cleaned;
             })

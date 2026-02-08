@@ -44,7 +44,7 @@ export function addDetails(target: Block, element: { details?: string }) {
             // Word-wrap continuation lines (non-empty lines after a non-empty line that don't start a new
             // list item or block) have a wrap indent that becomes extra whitespace when string-concatenated.
             // Strip the indent and add a trailing space to the preceding line for natural joining
-            const listMarkerPattern = /^(?:[-•◦▪>]|\d+\.\s|[a-zA-Z]+\.\s)/;
+            const listMarkerPattern = /^(?:[-•◦▪>]|\d+\.\s|[a-z]+\.\s)/i;
             const isWrapContinuation =
                 line && i > 0 && lines[i - 1] !== "" && !line.trimStart().match(listMarkerPattern);
             if (isWrapContinuation) {
