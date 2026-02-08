@@ -9,6 +9,7 @@ export * from "./ClusterModel.js";
 export * from "./CommandModel.js";
 export * from "./CrossReference.js";
 export * from "./DatatypeModel.js";
+export * from "./ConditionRequirementModel.js";
 export * from "./DeviceTypeModel.js";
 export * from "./EndpointModel.js";
 export * from "./EventModel.js";

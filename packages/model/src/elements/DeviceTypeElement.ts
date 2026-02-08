@@ -6,6 +6,7 @@
 
 import { DeviceClassification, ElementTag } from "../common/index.js";
 import { BaseElement } from "./BaseElement.js";
+import { ConditionRequirementElement } from "./ConditionRequirementElement.js";
 import { FieldElement } from "./FieldElement.js";
 import { RequirementElement } from "./RequirementElement.js";
 
@@ -18,12 +19,12 @@ export interface DeviceTypeElement extends BaseElement {
     tag: `${DeviceTypeElement.Tag}`;
     classification?: `${DeviceClassification}`;
     category?: string;
-    children?: (RequirementElement | FieldElement)[];
+    children?: (RequirementElement | FieldElement | ConditionRequirementElement)[];
 }
 
 export function DeviceTypeElement(
     definition: DeviceTypeElement.Properties,
-    ...children: (RequirementElement | FieldElement)[]
+    ...children: (RequirementElement | FieldElement | ConditionRequirementElement)[]
 ) {
     return BaseElement(DeviceTypeElement.Tag, definition, children) as DeviceTypeElement;
 }

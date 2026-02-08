@@ -34,6 +34,23 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
                 return cluster?.features.find(f => f.name === name);
             }
 
+            // Dot-field references like "SolicitOffer.VideoStreamID" — resolve the command then the field.
+            // The command name may include a cluster prefix (e.g. "WebRTCProvideOffer" for "ProvideOffer")
+            if (name.includes(".")) {
+                const [parentName, fieldName] = name.split(".", 2);
+                const cluster = this.model.owner(ClusterModel);
+                const camelParent = camelize(parentName, true);
+                const parent = cluster?.children.find(
+                    c =>
+                        c.name === camelParent ||
+                        c.name === parentName ||
+                        camelParent.endsWith(c.name),
+                );
+                if (parent) {
+                    return parent.member(camelize(fieldName, true)) ?? parent;
+                }
+            }
+
             // Field lookup
             name = camelize(name, true);
             for (let model = this.model.parent; model; model = model.parent) {

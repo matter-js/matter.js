@@ -162,6 +162,24 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
                         return undefined;
                     }
 
+                    case "*": {
+                        const lhs = valueOf(value.lhs);
+                        const rhs = valueOf(value.rhs);
+                        if (typeof lhs === "number" && typeof rhs === "number") {
+                            return lhs * rhs;
+                        }
+                        return undefined;
+                    }
+
+                    case "/": {
+                        const lhs = valueOf(value.lhs);
+                        const rhs = valueOf(value.rhs);
+                        if (typeof lhs === "number" && typeof rhs === "number") {
+                            return lhs / rhs;
+                        }
+                        return undefined;
+                    }
+
                     case "^": {
                         const lhs = valueOf(value.lhs);
                         const rhs = valueOf(value.rhs);
@@ -315,7 +333,7 @@ export namespace Constraint {
      * Parsed binary operator.
      */
     export interface BinaryOperator {
-        type: "+" | "-" | "." | "^";
+        type: "+" | "-" | "*" | "/" | "." | "^";
 
         lhs: Expression;
 
@@ -364,6 +382,8 @@ namespace Serializer {
         switch (value.type) {
             case "+":
             case "-":
+            case "*":
+            case "/":
             case ".":
             case "^":
                 const sep = value.type === "." || value.type === "^" ? "" : " ";
@@ -591,6 +611,8 @@ namespace Parser {
             while (
                 tokens.token?.type === "+" ||
                 tokens.token?.type === "-" ||
+                tokens.token?.type === "*" ||
+                tokens.token?.type === "/" ||
                 tokens.token?.type === "." ||
                 tokens.token?.type === "^"
             ) {

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { asError, InternalError } from "#general";
+import { asError, camelize, InternalError } from "#general";
 import { type Model } from "#models/Model.js";
 import { type ValueModel } from "#models/ValueModel.js";
 import { FeatureSet, FieldValue, Metatype } from "../common/index.js";
@@ -311,6 +311,11 @@ export namespace Conformance {
             case Operator.OR:
             case Operator.XOR:
             case Operator.AND:
+                // Logical operators: validate both sides independently with the same resolver
+                validateReferences(conformance, ast.param.lhs, errorTarget, resolver);
+                validateReferences(conformance, ast.param.rhs, errorTarget, resolver);
+                break;
+
             case Operator.EQ:
             case Operator.NE:
             case Operator.GT:
@@ -319,14 +324,18 @@ export namespace Conformance {
             case Operator.LTE:
                 validateReferences(conformance, ast.param.lhs, errorTarget, resolver);
 
-                // Special case for binary operators -- if LHS references an enum, RHS may reference enum values using
-                // unqualified names
+                // Special case for comparison operators -- if LHS references an enum (or a field whose type is an enum),
+                // RHS may reference enum values using unqualified names.  Also handle boolean literals (True/False)
                 let operatorResolver = resolver;
                 if (ast.param.lhs.type === "name") {
-                    const referenced = resolver(ast.param.lhs.param);
-                    if ((referenced as ValueModel)?.effectiveMetatype === Metatype.enum) {
+                    const referenced = resolver(ast.param.lhs.param) as ValueModel | undefined;
+                    if (referenced?.effectiveMetatype === Metatype.enum) {
+                        // Find the actual enum definition with children (may be the referenced model itself,
+                        // or its defining type for fields typed as enums)
+                        const enumDef = referenced.definingModel ?? referenced;
                         operatorResolver = (name: string) => {
-                            const enumValue = (referenced as ValueModel).member(name);
+                            const enumValue =
+                                enumDef.member(name) ?? enumDef.member(camelize(name, true));
                             if (enumValue) {
                                 return enumValue as ValueModel;
                             }
@@ -562,6 +571,12 @@ function ParsedAst(conformance: Conformance, definition: string): Conformance.As
             conformance.error("INVALID_CHOICE", 'Choice indicator (".") not followed by identifier');
             name = "?" as Conformance.ChoiceName;
             num = 1;
+        } else if (tokens.token.value.length > 2 && tokens.token.value[0] >= "A" && tokens.token.value[0] <= "Z") {
+            // Uppercase multi-char identifier after "." — this is a field reference (e.g. SolicitOffer.VideoStreamID),
+            // not a choice indicator.  Treat as a name reference to the field
+            const fieldRef = `${(expr as { param?: string }).param}.${tokens.token.value}`;
+            tokens.next();
+            return { type: Conformance.Special.Name, param: fieldRef } as Conformance.Ast;
         } else {
             ({ name, num } = extractChoiceNameAndNumber(tokens.token.value));
             tokens.next();
@@ -612,6 +627,12 @@ function ParsedAst(conformance: Conformance, definition: string): Conformance.As
 
                 case "null":
                     return { type: Conformance.Special.Value, param: null };
+
+                case "true":
+                    return { type: Conformance.Special.Value, param: true };
+
+                case "false":
+                    return { type: Conformance.Special.Value, param: false };
             }
 
             return { type: Conformance.Special.Name, param: name };
@@ -646,7 +667,7 @@ function ParsedAst(conformance: Conformance, definition: string): Conformance.As
 
 namespace Parser {
     // Highest precedence first
-    export const BinaryOperatorPrecedence = [[">", "<", ">=", "<="], ["&"], ["|", "^"], ["==", "!="]];
+    export const BinaryOperatorPrecedence = [["==", "!=", ">", "<", ">=", "<="], ["&"], ["|", "^"]];
 
     export const BinaryOperators = new Set(BinaryOperatorPrecedence.flat());
 }

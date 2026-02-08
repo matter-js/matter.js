@@ -80,6 +80,24 @@ const TEST_CONSTRAINTS: [text: string, ast: Constraint.Ast, expectedText?: strin
         },
     ],
     [
+        "foo - 2 + 3",
+        {
+            value: {
+                type: "+",
+                lhs: {
+                    type: "-",
+                    lhs: {
+                        type: "reference",
+                        name: "foo",
+                    },
+                    rhs: 2,
+                },
+                rhs: 3,
+            },
+        },
+        "(foo - 2) + 3",
+    ],
+    [
         "min maxOf(holdTimeMin, 10)",
         {
             min: {
@@ -129,6 +147,37 @@ const TEST_CONSTRAINTS: [text: string, ast: Constraint.Ast, expectedText?: strin
                 type: "^",
                 lhs: 2,
                 rhs: 62,
+            },
+        },
+    ],
+    [
+        "0 to segmentDuration / 2",
+        {
+            min: 0,
+            max: {
+                type: "/",
+                lhs: {
+                    type: "reference",
+                    name: "segmentDuration",
+                },
+                rhs: 2,
+            },
+        },
+    ],
+    [
+        "-1 * panMax to panMax",
+        {
+            min: {
+                type: "*",
+                lhs: -1,
+                rhs: {
+                    type: "reference",
+                    name: "panMax",
+                },
+            },
+            max: {
+                type: "reference",
+                name: "panMax",
             },
         },
     ],

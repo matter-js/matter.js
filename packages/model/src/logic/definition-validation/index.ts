@@ -9,6 +9,7 @@ export * from "./ValueValidator.js";
 
 import "./AttributeValidator.js";
 import "./ClusterValidator.js";
+import "./ConditionRequirementValidator.js";
 import "./CommandValidator.js";
 import "./DatatypeValidator.js";
 import "./DeviceTypeValidator.js";
