@@ -52,12 +52,15 @@ ModelValidator.validators[RequirementElement.Tag] = class RequirementValidator e
             }
         }
 
-        // Skip type validation for condition requirements — their type is a cross-reference
-        // (e.g. "RootNode.AclExtensionCond") not a resolvable model type
+        // For condition requirements, temporarily clear the type before base validation since their type
+        // is a cross-reference (e.g. "RootNode.AclExtensionCond") not a resolvable model type
+        const savedType = this.model.type;
         if (this.model.element === RequirementElement.ElementType.Condition) {
-            return;
+            (this.model as any).type = undefined;
         }
-
         super.validate();
+        if (this.model.element === RequirementElement.ElementType.Condition) {
+            (this.model as any).type = savedType;
+        }
     }
 };

@@ -44,7 +44,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
                     c => c.name === camelParent || c.name === parentName || camelParent.endsWith(c.name),
                 );
                 if (parent) {
-                    return parent.member(camelize(fieldName, true)) ?? parent;
+                    return parent.member(camelize(fieldName, true));
                 }
             }
 

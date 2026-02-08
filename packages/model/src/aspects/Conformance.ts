@@ -570,10 +570,15 @@ function ParsedAst(conformance: Conformance, definition: string): Conformance.As
             conformance.error("INVALID_CHOICE", 'Choice indicator (".") not followed by identifier');
             name = "?" as Conformance.ChoiceName;
             num = 1;
-        } else if (tokens.token.value.length > 2 && tokens.token.value[0] >= "A" && tokens.token.value[0] <= "Z") {
-            // Uppercase multi-char identifier after "." — this is a field reference (e.g. SolicitOffer.VideoStreamID),
-            // not a choice indicator.  Treat as a name reference to the field
-            const fieldRef = `${(expr as { param?: string }).param}.${tokens.token.value}`;
+        } else if (
+            tokens.token.value.length > 2 &&
+            tokens.token.value[0] >= "A" &&
+            tokens.token.value[0] <= "Z" &&
+            (expr as { type?: string }).type === Conformance.Special.Name
+        ) {
+            // Uppercase multi-char identifier after "." on a name node — this is a field reference
+            // (e.g. SolicitOffer.VideoStreamID), not a choice indicator
+            const fieldRef = `${(expr as { param: string }).param}.${tokens.token.value}`;
             tokens.next();
             return { type: Conformance.Special.Name, param: fieldRef } as Conformance.Ast;
         } else {
