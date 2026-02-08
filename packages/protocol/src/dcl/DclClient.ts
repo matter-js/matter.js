@@ -3,6 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
+import { DclConfig } from "#dcl/DclConfig.js";
 import {
     DclApiErrorResponse,
     DclModelModelsWithVidPidResponse,
@@ -16,10 +17,6 @@ import {
 import { Duration, Logger, MatterError, Seconds } from "#general";
 
 const logger = new Logger("DclClient");
-
-// Swagger for DCL: https://zigbee-alliance.github.io/distributed-compliance-ledger/#/
-const DCL_PRODUCTION_URL = "https://on.dcl.csa-iot.org";
-const DCL_TEST_URL = "https://on.test-net.dcl.csa-iot.org";
 
 const DEFAULT_DCL_TIMEOUT = Seconds(5);
 
@@ -36,12 +33,12 @@ export class MatterDclResponseError extends MatterDclError {
     }
 }
 
-/** A client clas to use "fetch" to get REST DAta from DCL (Decentraland) */
+/** A client class to use "fetch" to get REST data from DCL (Distributed Compliance Ledger) */
 export class DclClient {
     #baseUrl: string;
 
     constructor(private readonly production: boolean = true) {
-        this.#baseUrl = this.production ? DCL_PRODUCTION_URL : DCL_TEST_URL;
+        this.#baseUrl = this.production ? DclConfig.dcl.productionUrl : DclConfig.dcl.testUrl;
     }
 
     async #fetchPaginatedJson<ItemT>(
