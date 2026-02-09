@@ -132,16 +132,18 @@ export class Behaviors {
                 const behaviorData = new Array<unknown>();
                 for (const attributeName of elements.attributes) {
                     const attr = cluster.attributes[attributeName];
-                    behaviorData.push([
-                        attributeName,
-                        Diagnostic.dict({
-                            id: Diagnostic.hex(attr.id),
-                            val: (backing?.stateView as Val.Struct)[attributeName],
-                            flags: Diagnostic.asFlags({
-                                fabricScoped: attr.fabricScoped,
+                    if (attr) {
+                        behaviorData.push([
+                            attributeName,
+                            Diagnostic.dict({
+                                id: Diagnostic.hex(attr.id),
+                                val: (backing?.stateView as Val.Struct)[attributeName],
+                                flags: Diagnostic.asFlags({
+                                    fabricScoped: attr.fabricScoped,
+                                }),
                             }),
-                        }),
-                    ]);
+                        ]);
+                    }
                 }
                 elementDiagnostic.push([Diagnostic.strong("attributes"), Diagnostic.list(behaviorData)]);
             }
