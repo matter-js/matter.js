@@ -72,8 +72,6 @@ import {
     Fabric,
     FabricAuthority,
     FabricManager,
-    PeerAddress,
-    PeerAddressStore,
     PeerDescriptor,
     PeerSet,
     PhysicalDeviceProperties,
@@ -794,14 +792,13 @@ export namespace MatterController {
 /**
  * Only used for Node data migration
  */
-class CommissionedNodeStore extends PeerAddressStore {
+class CommissionedNodeStore {
     #peers: Peers;
     #controllerStore: ControllerStoreInterface;
     #fabric: Fabric;
     #saves = new BasicMultiplex();
 
     constructor(controllerStore: ControllerStoreInterface, fabric: Fabric, peers: Peers) {
-        super();
         this.#controllerStore = controllerStore;
         this.#fabric = fabric;
         this.#peers = peers;
@@ -828,17 +825,6 @@ class CommissionedNodeStore extends PeerAddressStore {
             } satisfies CommissionedPeer);
         }
         return nodes;
-    }
-
-    async updatePeer() {
-        this.save();
-        return this.#saves;
-    }
-
-    async deletePeer(address: PeerAddress) {
-        await (await this.#controllerStore.clientNodeStore(address.nodeId.toString())).clearAll();
-        this.save();
-        return this.#saves;
     }
 
     save(ignorePeer?: string) {
