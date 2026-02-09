@@ -43,7 +43,6 @@ export class Events extends EventEmitter {
     setContext(endpoint: Endpoint, behavior: Behavior.Type) {
         this.#endpoint = endpoint;
         this.#behavior = behavior;
-        this.#changes = endpoint.env.get(ChangeNotificationService);
     }
 
     /**
@@ -70,6 +69,13 @@ export class Events extends EventEmitter {
     }
 
     get changes() {
+        if (
+            this.#changes === undefined &&
+            this.#endpoint !== undefined &&
+            this.#endpoint.env.has(ChangeNotificationService)
+        ) {
+            this.#changes = this.#endpoint.env.get(ChangeNotificationService);
+        }
         return this.#changes;
     }
 
