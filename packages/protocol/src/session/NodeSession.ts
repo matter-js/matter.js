@@ -111,7 +111,7 @@ export class NodeSession extends SecureSession {
                     await this.closeSubscriptions(true);
                 });
             }),
-            messageReceptionState: new MessageReceptionStateEncryptedWithoutRollover(),
+            messageReceptionState: new MessageReceptionStateEncryptedWithoutRollover(0),
         });
 
         this.#crypto = crypto;
