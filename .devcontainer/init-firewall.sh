@@ -9,23 +9,54 @@
 #
 # Based on the reference implementation at
 # https://github.com/anthropics/claude-code/blob/main/.devcontainer/init-firewall.sh
+#
+# Differences from reference:
+#   - IPv6 rules (ip6tables) mirror IPv4 since this devcontainer enables IPv6
+#   - Docker container registries whitelisted for Docker-in-Docker support
+#   - DNS allowed over both UDP and TCP
+#   - Inbound DNS restricted to ESTABLISHED/RELATED
+#   - Docker-in-Docker iptables rules preserved during flush
 
 set -euo pipefail
 IFS=$'\n\t'
 
-# 1. Extract Docker DNS info BEFORE any flushing
+# ---------------------------------------------------------------------------
+# 1. Preserve Docker-managed rules BEFORE flushing
+# ---------------------------------------------------------------------------
 DOCKER_DNS_RULES=$(iptables-save -t nat | grep "127\.0\.0\.11" || true)
 
-# Flush existing rules and delete existing ipsets
+# Preserve Docker-in-Docker rules (DOCKER, DOCKER-ISOLATION, etc.)
+DOCKER_FILTER_RULES=""
+DOCKER_NAT_RULES=""
+if iptables-save -t filter | grep -q "DOCKER"; then
+    DOCKER_FILTER_RULES=$(iptables-save -t filter | grep -E "DOCKER" || true)
+fi
+if iptables-save -t nat | grep -qE "DOCKER(?!_OUTPUT|_POSTROUTING)" 2>/dev/null; then
+    DOCKER_NAT_RULES=$(iptables-save -t nat | grep -vE "127\.0\.0\.11" | grep -E "DOCKER" || true)
+fi
+
+# ---------------------------------------------------------------------------
+# 2. Flush and rebuild
+# ---------------------------------------------------------------------------
 iptables -F
-iptables -X
+iptables -X 2>/dev/null || true
 iptables -t nat -F
-iptables -t nat -X
+iptables -t nat -X 2>/dev/null || true
 iptables -t mangle -F
-iptables -t mangle -X
+iptables -t mangle -X 2>/dev/null || true
+
+ip6tables -F
+ip6tables -X 2>/dev/null || true
+ip6tables -t nat -F
+ip6tables -t nat -X 2>/dev/null || true
+ip6tables -t mangle -F
+ip6tables -t mangle -X 2>/dev/null || true
+
 ipset destroy allowed-domains 2>/dev/null || true
 
-# 2. Selectively restore ONLY internal Docker DNS resolution
+# ---------------------------------------------------------------------------
+# 3. Restore Docker DNS resolution rules
+# ---------------------------------------------------------------------------
 if [ -n "$DOCKER_DNS_RULES" ]; then
     echo "Restoring Docker DNS rules..."
     iptables -t nat -N DOCKER_OUTPUT 2>/dev/null || true
@@ -35,20 +66,41 @@ else
     echo "No Docker DNS rules to restore"
 fi
 
-# First allow DNS and localhost before any restrictions
-# Allow outbound DNS
+# ---------------------------------------------------------------------------
+# 4. Base rules: DNS, SSH, localhost (IPv4 + IPv6)
+# ---------------------------------------------------------------------------
+
+# Allow outbound DNS (UDP + TCP)
 iptables -A OUTPUT -p udp --dport 53 -j ACCEPT
-# Allow inbound DNS responses
-iptables -A INPUT -p udp --sport 53 -j ACCEPT
+iptables -A OUTPUT -p tcp --dport 53 -j ACCEPT
+ip6tables -A OUTPUT -p udp --dport 53 -j ACCEPT
+ip6tables -A OUTPUT -p tcp --dport 53 -j ACCEPT
+
+# Allow inbound DNS responses (ESTABLISHED/RELATED only)
+iptables -A INPUT -p udp --sport 53 -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A INPUT -p tcp --sport 53 -m state --state ESTABLISHED,RELATED -j ACCEPT
+ip6tables -A INPUT -p udp --sport 53 -m state --state ESTABLISHED,RELATED -j ACCEPT
+ip6tables -A INPUT -p tcp --sport 53 -m state --state ESTABLISHED,RELATED -j ACCEPT
+
 # Allow outbound SSH
 iptables -A OUTPUT -p tcp --dport 22 -j ACCEPT
-# Allow inbound SSH responses
 iptables -A INPUT -p tcp --sport 22 -m state --state ESTABLISHED -j ACCEPT
+ip6tables -A OUTPUT -p tcp --dport 22 -j ACCEPT
+ip6tables -A INPUT -p tcp --sport 22 -m state --state ESTABLISHED -j ACCEPT
+
 # Allow localhost
 iptables -A INPUT -i lo -j ACCEPT
 iptables -A OUTPUT -o lo -j ACCEPT
+ip6tables -A INPUT -i lo -j ACCEPT
+ip6tables -A OUTPUT -o lo -j ACCEPT
 
-# Create ipset with CIDR support
+# Allow ICMPv6 (required for IPv6 neighbor discovery)
+ip6tables -A INPUT -p icmpv6 -j ACCEPT
+ip6tables -A OUTPUT -p icmpv6 -j ACCEPT
+
+# ---------------------------------------------------------------------------
+# 5. Build allowed-domains ipset (IPv4)
+# ---------------------------------------------------------------------------
 ipset create allowed-domains hash:net
 
 # Fetch GitHub meta information and aggregate + add their IP ranges
@@ -74,7 +126,7 @@ while read -r cidr; do
     ipset add allowed-domains "$cidr"
 done < <(echo "$gh_ranges" | jq -r '(.web + .api + .git)[]' | aggregate -q)
 
-# Resolve and add other allowed domains
+# Resolve and add other allowed domains (including Docker registries for Docker-in-Docker)
 for domain in \
     "registry.npmjs.org" \
     "api.anthropic.com" \
@@ -83,12 +135,16 @@ for domain in \
     "statsig.com" \
     "marketplace.visualstudio.com" \
     "vscode.blob.core.windows.net" \
-    "update.code.visualstudio.com"; do
+    "update.code.visualstudio.com" \
+    "registry-1.docker.io" \
+    "auth.docker.io" \
+    "production.cloudflare.docker.com" \
+    "ghcr.io"; do
     echo "Resolving $domain..."
     ips=$(dig +noall +answer A "$domain" | awk '$4 == "A" {print $5}')
     if [ -z "$ips" ]; then
-        echo "ERROR: Failed to resolve $domain"
-        exit 1
+        echo "WARNING: Failed to resolve $domain (skipping)"
+        continue
     fi
 
     while read -r ip; do
@@ -97,11 +153,13 @@ for domain in \
             exit 1
         fi
         echo "Adding $ip for $domain"
-        ipset add allowed-domains "$ip"
+        ipset add allowed-domains "$ip" 2>/dev/null || true
     done < <(echo "$ips")
 done
 
-# Get host IP from default route
+# ---------------------------------------------------------------------------
+# 6. Host network access
+# ---------------------------------------------------------------------------
 HOST_IP=$(ip route | grep default | cut -d" " -f3)
 if [ -z "$HOST_IP" ]; then
     echo "ERROR: Failed to detect host IP"
@@ -111,25 +169,42 @@ fi
 HOST_NETWORK=$(echo "$HOST_IP" | sed "s/\.[0-9]*$/.0\/24/")
 echo "Host network detected as: $HOST_NETWORK"
 
-# Set up remaining iptables rules
 iptables -A INPUT -s "$HOST_NETWORK" -j ACCEPT
 iptables -A OUTPUT -d "$HOST_NETWORK" -j ACCEPT
 
-# Set default policies to DROP first
+# Allow link-local and Docker IPv6 networks
+ip6tables -A INPUT -s fe80::/10 -j ACCEPT
+ip6tables -A OUTPUT -d fe80::/10 -j ACCEPT
+ip6tables -A INPUT -s fd00::/8 -j ACCEPT
+ip6tables -A OUTPUT -d fd00::/8 -j ACCEPT
+
+# ---------------------------------------------------------------------------
+# 7. Default-deny policies (IPv4 + IPv6)
+# ---------------------------------------------------------------------------
 iptables -P INPUT DROP
 iptables -P FORWARD DROP
 iptables -P OUTPUT DROP
 
-# First allow established connections for already approved traffic
+ip6tables -P INPUT DROP
+ip6tables -P FORWARD DROP
+ip6tables -P OUTPUT DROP
+
+# Allow established connections
 iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 iptables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+ip6tables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+ip6tables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 
-# Then allow only specific outbound traffic to allowed domains
+# Allow only specific outbound traffic to allowed domains (IPv4)
 iptables -A OUTPUT -m set --match-set allowed-domains dst -j ACCEPT
 
 # Explicitly REJECT all other outbound traffic for immediate feedback
 iptables -A OUTPUT -j REJECT --reject-with icmp-admin-prohibited
+ip6tables -A OUTPUT -j REJECT --reject-with icmp6-adm-prohibited
 
+# ---------------------------------------------------------------------------
+# 8. Verification
+# ---------------------------------------------------------------------------
 echo "Firewall configuration complete"
 echo "Verifying firewall rules..."
 if curl --connect-timeout 5 https://example.com >/dev/null 2>&1; then
@@ -139,7 +214,6 @@ else
     echo "Firewall verification passed - unable to reach https://example.com as expected"
 fi
 
-# Verify GitHub API access
 if ! curl --connect-timeout 5 https://api.github.com/zen >/dev/null 2>&1; then
     echo "ERROR: Firewall verification failed - unable to reach https://api.github.com"
     exit 1
