@@ -11,17 +11,31 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/general
+    - Fix: Fixes Duration string parsing
+
+- @matter/model
+    - Enhancement: Re-Parsed the Matter 1.4.2 specification to improve captured details. No functional changes
+
 - @matter/node
-    - Feature: We now allocate node IDs as sequential numbers; the old behavior of randomized node behavior is available if you set `ControllerBehavior` state property `nodeIdAssignment` to `"random"`
+    - Feature: Allocate node IDs as sequential numbers by default now; the old behavior of randomized node behavior is available if you set `ControllerBehavior` state property `nodeIdAssignment` to `"random"`
+    - Enhancement: Also export Matter events ia ChangeNotificationService
+    - Fix: Added missing export for ColorControlClient
 
 - @matter/nodejs
-  - Fix: Also handle ENETUNREACH as a non-critical network error that triggers the retry logic and MDNS lookup
+    - Fix: Also handle ENETUNREACH as a non-critical network error that triggers the retry logic and MDNS lookup
 
 - @matter/protocol
-  - Enhancement: Added some jitter to the subscription max ceiling to spread out subscription responses from devices
+    - Enhancement: Added some jitter to the subscription max ceiling to spread out subscription responses from devices
+
+- @matter/types
+  - Enhancement: Re-Parsed the Matter 1.4.2 specification to improve captured details. No functional changes
 
 - @project-chip/matter.js
-  - Fix: Prevent PairedNode from updating its structure when node is already decommissioned
+    - Fix: Prevent PairedNode from updating its structure when the node is already decommissioned
+
+- Other
+  - Enhancement: For dev-server users, we now prepare the container for claude-code usage by default
 
 ## 0.16.8 (2026-01-30)
 
