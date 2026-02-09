@@ -16,7 +16,7 @@ import { ValueModel } from "#models/ValueModel.js";
 export const writable = Decorator<Decorator.PropertyCollector>((_target, context) => {
     const model = FieldSemantics.of(context).mutableModel;
     if (!(model instanceof ValueModel)) {
-        throw new InvalidMetadataError("Only a value models may be writable");
+        throw new InvalidMetadataError("Only value models may be writable");
     }
     model.access = new Access({ ...model.access, rw: Access.Rw.ReadWrite });
 });
