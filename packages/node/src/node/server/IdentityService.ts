@@ -7,10 +7,8 @@
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { IndexBehavior } from "#behavior/system/index/IndexBehavior.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
-import { ImplementationError, InternalError } from "#general";
-import type { ClientNode } from "#node/ClientNode.js";
-import type { PeerAddress } from "#protocol";
-import type { FabricIndex, NodeId } from "#types";
+import { ImplementationError } from "#general";
+import { PeerAddress } from "@matter/protocol";
 
 /**
  * Thrown when there is a endpoint ID or number conflict.
@@ -23,6 +21,7 @@ export class IdentityConflictError extends ImplementationError {}
 export class IdentityService {
     #partsById?: Record<string, Endpoint | undefined>;
     #node: Endpoint;
+    #reservedPeerAddresses = new Set<PeerAddress>();
 
     constructor(node: Endpoint) {
         this.#node = node;
@@ -38,7 +37,7 @@ export class IdentityService {
     /**
      * Ensure that a number is available for assignment to a {@link Endpoint}.
      */
-    assertNumberAvailable(number: number, endpoint: Endpoint) {
+    assertEndpointNumberAvailable(number: number, endpoint: Endpoint) {
         let other;
         if (this.#node.lifecycle.hasNumber && this.#node.number === number) {
             other = this.#node;
@@ -60,14 +59,23 @@ export class IdentityService {
     }
 
     /**
-     * Assign a peer address.
+     * Detect whether a peer address is currently assigned to a peer.
      */
-    async assignNodeAddress(_node: ClientNode, _fabricIndex: FabricIndex, _nodeId?: NodeId): Promise<PeerAddress> {
-        throw new InternalError("Client node ID assignment is not initialized");
+    peerAddressInUse(address: PeerAddress) {
+        return this.#reservedPeerAddresses.has(PeerAddress(address));
     }
 
     /**
-     * Release a peer address.
+     * Mark a peer address as in use.
      */
-    releaseNodeAddress(_address: PeerAddress) {}
+    reservePeerAddress(address: PeerAddress) {
+        this.#reservedPeerAddresses.add(address);
+    }
+
+    /**
+     * Mark a peer address as available for use.
+     */
+    releasePeerAddress(address: PeerAddress) {
+        this.#reservedPeerAddresses.delete(PeerAddress(address));
+    }
 }

@@ -11,6 +11,7 @@ import { DiscoveryData } from "#common/Scanner.js";
 import {
     Abort,
     AbortedError,
+    AsyncObservable,
     BasicMultiplex,
     BasicSet,
     ClosedError,
@@ -22,7 +23,6 @@ import {
     isIpNetworkChannel,
     Lifetime,
     Logger,
-    MaybePromise,
     Millis,
     ObserverGroup,
     QuietObservable,
@@ -62,6 +62,7 @@ export class Peer {
     #service: IpService;
     #observers = new ObserverGroup();
     #exchangeProvider?: ExchangeProvider;
+    #updated = AsyncObservable<[peer: Peer]>();
 
     constructor(descriptor: PeerDescriptor, context: Peer.Context) {
         this.#lifetime = context.join(descriptor.address.toString());
@@ -124,6 +125,13 @@ export class Peer {
             // Ensure session parameters reflect those most recently reported by peer
             this.#descriptor.sessionParameters = session.parameters;
         });
+    }
+
+    /**
+     * Emits when metadata changes.
+     */
+    get updated() {
+        return this.#updated;
     }
 
     get lifetime() {
@@ -305,7 +313,6 @@ export class Peer {
             // When there are open reconnections, we could expect a peer closed abort error here, so ignore this error case
             AbortedError.accept(error);
         }
-        await this.#context.deletePeer(this);
         await this.#context.sessions.deleteResumptionRecord(this.address);
     }
 
@@ -341,7 +348,7 @@ export class Peer {
     async #save() {
         using _lifetime = this.#lifetime.join("saving");
         this.#isSaving = false;
-        await this.#context.savePeer(this);
+        await this.#updated.emit(this);
     }
 
     get #newestSession() {
@@ -404,8 +411,6 @@ export namespace Peer {
     export interface Context extends PeerConnection.Context {
         names: DnssdNames;
         networks: NetworkProfiles;
-        savePeer(peer: Peer): MaybePromise<void>;
-        deletePeer(peer: Peer): MaybePromise<void>;
         closed(peer: Peer): void;
     }
 

@@ -670,8 +670,7 @@ export class MatterController {
         // Note that we're assuming this is invoked prior to the node initializing peers
         const baseNodeStorage = baseStorage.createContext("nodes");
 
-        // Initialize a custom PeerAddressStore to manage commissioned nodes storage in legacy storage format
-        // Data migration needed
+        // Initialize component to manage commissioned nodes storage in legacy storage format data migration needed
         const controllerStore = new ControllerStore(server.id, baseStorage);
         if (!(await controllerStore.nodesStorage.has("commissionedNodes"))) {
             logger.debug("No former commissioned nodes to migrate.");

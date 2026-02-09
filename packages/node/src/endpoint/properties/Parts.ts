@@ -169,7 +169,7 @@ export class Parts extends EndpointContainer implements MutableSet<Endpoint, End
 
     #validateInsertion(forefather: Endpoint, endpoint: Endpoint, usedNumbers?: Set<number>) {
         if (endpoint.lifecycle.hasNumber) {
-            this.owner.env.get(IdentityService).assertNumberAvailable(endpoint.number, endpoint);
+            this.owner.env.get(IdentityService).assertEndpointNumberAvailable(endpoint.number, endpoint);
             if (usedNumbers?.has(endpoint.number)) {
                 throw new IdentityConflictError(
                     `Cannot add endpoint ${forefather} because descendents have conflicting definitions for endpoint number ${endpoint.number}`,
