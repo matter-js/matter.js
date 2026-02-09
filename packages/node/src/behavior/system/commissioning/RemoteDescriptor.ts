@@ -173,7 +173,7 @@ export namespace RemoteDescriptor {
         }
 
         if (VP !== undefined) {
-            const [vendor, product] = VP.split("+").map(Number.parseInt);
+            const [vendor, product] = VP.split("+").map(part => Number.parseInt(part, 10));
 
             long.vendorId = Number.isFinite(vendor) ? VendorId(vendor, false) : undefined;
             long.productId = Number.isFinite(product) ? product : undefined;
