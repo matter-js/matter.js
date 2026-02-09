@@ -19,7 +19,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Feature: Allocate node IDs as sequential numbers by default now; the old behavior of randomized node behavior is available if you set `ControllerBehavior` state property `nodeIdAssignment` to `"random"`
-    - Enhancement: Also export Matter events ia ChangeNotificationService
+    - Enhancement: Also export Matter events via ChangeNotificationService
     - Fix: Added missing export for ColorControlClient
 
 - @matter/nodejs
