@@ -16,6 +16,8 @@
 #   - DNS allowed over both UDP and TCP
 #   - Inbound DNS restricted to ESTABLISHED/RELATED
 #   - Docker-in-Docker iptables rules preserved during flush
+#   - Matter DCL (Distributed Compliance Ledger) hosts whitelisted
+#   - mDNS (UDP 5353) and Matter protocol (UDP 5540+) allowed for device communication
 
 set -euo pipefail
 IFS=$'\n\t'
@@ -98,6 +100,19 @@ ip6tables -A OUTPUT -o lo -j ACCEPT
 ip6tables -A INPUT -p icmpv6 -j ACCEPT
 ip6tables -A OUTPUT -p icmpv6 -j ACCEPT
 
+# Allow mDNS (UDP 5353) for Matter device discovery
+iptables -A OUTPUT -p udp --dport 5353 -d 224.0.0.251 -j ACCEPT
+iptables -A INPUT -p udp --dport 5353 -d 224.0.0.251 -j ACCEPT
+ip6tables -A OUTPUT -p udp --dport 5353 -d ff02::fb -j ACCEPT
+ip6tables -A INPUT -p udp --dport 5353 -d ff02::fb -j ACCEPT
+
+# Allow Matter protocol communication (UDP 5540+) on local/Docker networks
+# Matter uses UDP for secure channel messaging between devices
+iptables -A OUTPUT -p udp --dport 5540:5560 -j ACCEPT
+iptables -A INPUT -p udp --dport 5540:5560 -j ACCEPT
+ip6tables -A OUTPUT -p udp --dport 5540:5560 -j ACCEPT
+ip6tables -A INPUT -p udp --dport 5540:5560 -j ACCEPT
+
 # ---------------------------------------------------------------------------
 # 5. Build allowed-domains ipset (IPv4)
 # ---------------------------------------------------------------------------
@@ -139,7 +154,9 @@ for domain in \
     "registry-1.docker.io" \
     "auth.docker.io" \
     "production.cloudflare.docker.com" \
-    "ghcr.io"; do
+    "ghcr.io" \
+    "on.dcl.csa-iot.org" \
+    "on.test-net.dcl.csa-iot.org"; do
     echo "Resolving $domain..."
     ips=$(dig +noall +answer A "$domain" | awk '$4 == "A" {print $5}')
     if [ -z "$ips" ]; then
