@@ -15,6 +15,7 @@ import { listOf } from "#decoration/decorators/listOf.js";
 import { nonvolatile } from "#decoration/decorators/nonvolatile.js";
 import { nullable } from "#decoration/decorators/nullable.js";
 import { response } from "#decoration/decorators/response.js";
+import { writable } from "#decoration/index.js";
 import { AttributeModel } from "#models/AttributeModel.js";
 import { CommandModel, FieldModel } from "#models/index.js";
 import { Schema } from "#models/Schema.js";
@@ -60,6 +61,8 @@ describe("FieldSemantics", () => {
         expect(bar).not.undefined;
         expect(bar!.quality.nullable).true;
         expect(bar!.quality.nonvolatile).not.true;
+        expect(bar!.access.readable).true;
+        expect(bar!.access.writable).false;
     });
 
     it("sets nonvolatile", () => {
@@ -74,6 +77,24 @@ describe("FieldSemantics", () => {
         expect(bar).not.undefined;
         expect(bar!.quality.nullable).not.true;
         expect(bar!.quality.nonvolatile).true;
+        expect(bar!.access.readable).true;
+        expect(bar!.access.writable).false;
+    });
+
+    it("sets writable", () => {
+        class Foo {
+            @field(uint32, writable)
+            bar = 4;
+        }
+
+        const schema = Schema.Required(Foo);
+        expect(schema.children.length).equals(1);
+        const bar = schema.get(FieldModel, "bar");
+        expect(bar).not.undefined;
+        expect(bar!.quality.nullable).not.true;
+        expect(bar!.quality.nonvolatile).not.true;
+        expect(bar!.access.readable).true;
+        expect(bar!.access.writable).true;
     });
 
     it("merges with base class", () => {

@@ -12,6 +12,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/node
+    - Enhancement: Adds "writable" as decorator to mark attributes writable
+
+- @matter/node
     - Feature: We now allocate node IDs as sequential numbers; the old behavior of randomized node behavior is available if you set `ControllerBehavior` state property `nodeIdAssignment` to `"random"`
 
 - @matter/nodejs
