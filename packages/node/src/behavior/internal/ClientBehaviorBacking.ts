@@ -61,6 +61,6 @@ export class ClientBehaviorBacking extends BehaviorBacking {
         (this.store as DatasourceCache).reclaimValues?.();
 
         // Omit the agent to skip disposal logic as client behaviors have none
-        super.close();
+        return super.close();
     }
 }
