@@ -19,6 +19,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/protocol
   - Enhancement: Added some jitter to the subscription max ceiling to spread out subscription responses from devices
+  - Fix: Initializes the Message Reception state counter correctly as defined by the Matter specification
 
 - @project-chip/matter.js
   - Fix: Prevent PairedNode from updating its structure when node is already decommissioned
