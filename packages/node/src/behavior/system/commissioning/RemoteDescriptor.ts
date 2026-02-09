@@ -175,7 +175,7 @@ export namespace RemoteDescriptor {
         if (VP !== undefined) {
             const [vendor, product] = VP.split("+").map(Number.parseInt);
 
-            long.vendorId = Number.isFinite(vendor) ? VendorId(vendor) : undefined;
+            long.vendorId = Number.isFinite(vendor) ? VendorId(vendor, false) : undefined;
             long.productId = Number.isFinite(product) ? product : undefined;
         }
 
@@ -191,7 +191,7 @@ export namespace RemoteDescriptor {
         }
         long.sessionIntervals = sessionParameters;
 
-        long.deviceType = DT === undefined ? undefined : DeviceTypeId(DT);
+        long.deviceType = DT === undefined ? undefined : DeviceTypeId(DT, false);
         long.deviceName = DN;
         long.rotatingIdentifier = RI;
         long.pairingHint = PH;
