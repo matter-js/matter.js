@@ -11,9 +11,17 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/model
+    - Enhancement: Adds "writable" as decorator to mark attributes writable
+
 - @matter/node
+<<<<<<< ignore-invalid-mdns-data
     - Feature: We now allocate node IDs as sequential numbers; the old behavior of randomized node behavior is available if you set `ControllerBehavior` state property `nodeIdAssignment` to `"random"`
     - Adjustment: Ignore invalid VendorIds or DeviceTypeIds when processing MDNS data
+=======
+    - Feature: We now allocate node IDs as sequential numbers; the old behavior of randomized node behavior is available if you set `ControllerBehavior` state property `nodeIdAssignment` to "random"
+    - Fix: Prevents duplicate change events for Client behaviors when attributes are Quieter
+>>>>>>> main
 
 - @matter/nodejs
   - Fix: Also handle ENETUNREACH as a non-critical network error that triggers the retry logic and MDNS lookup
