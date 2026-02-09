@@ -16,3 +16,4 @@ export * from "./mandatory.js";
 export * from "./nonvolatile.js";
 export * from "./nullable.js";
 export * from "./response.js";
+export * from "./writable.js";
