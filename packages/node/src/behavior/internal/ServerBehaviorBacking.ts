@@ -7,12 +7,16 @@
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { GlobalAttributeState } from "#behavior/cluster/ClusterState.js";
 import { ValidatedElements } from "#behavior/cluster/ValidatedElements.js";
+import { OnlineEvent } from "#behavior/Events.js";
+import type { Endpoint } from "#endpoint/Endpoint.js";
+import type { Agent } from "#endpoint/index.js";
 import type { SupportedElements } from "#endpoint/properties/Behaviors.js";
-import { camelize, ImplementationError } from "#general";
+import { camelize, ImplementationError, MaybePromise, ObserverGroup } from "#general";
 import { ClusterModel, FeatureSet, FieldValue, Schema } from "#model";
 import { Val } from "#protocol";
 import { ClusterType, TlvNoResponse } from "#types";
 import { Behavior } from "../Behavior.js";
+import { Datasource } from "../state/managed/Datasource.js";
 import { BehaviorBacking } from "./BehaviorBacking.js";
 
 const NoElements = new Set<string>();
@@ -24,6 +28,14 @@ export class FeatureMismatchError extends ImplementationError {}
  */
 export class ServerBehaviorBacking extends BehaviorBacking {
     #elements?: SupportedElements;
+    #suppressedChanges?: Set<string>;
+    #quietObservers?: ObserverGroup;
+
+    constructor(endpoint: Endpoint, type: Behavior.Type, store: Datasource.Store, options?: Behavior.Options) {
+        super(endpoint, type, store, options);
+
+        this.#configureEventSuppression();
+    }
 
     get elements() {
         return this.#elements;
@@ -127,5 +139,67 @@ export class ServerBehaviorBacking extends BehaviorBacking {
             commands: validation.commands,
             events: validation.events,
         };
+    }
+
+    #onChange(props: string[]) {
+        if (this.#suppressedChanges) {
+            props = props.filter(name => !this.#suppressedChanges!.has(name));
+        }
+        this.broadcastChanges(props);
+    }
+
+    protected override get datasourceOptions(): Datasource.Options {
+        const options = super.datasourceOptions;
+        options.onChange = this.#onChange.bind(this);
+        return options;
+    }
+
+    override close(agent?: Agent): MaybePromise {
+        this.#quietObservers?.close();
+        return super.close(agent);
+    }
+
+    /**
+     * We handle events in bulk via {@link Datasource.Options.onChange}, but "quieter" and "changesOmitted" events
+     * require special handling.  Those we ignore in the change handler and instead report only when emitted by the
+     * corresponding {@link OnlineEvent}.
+     */
+    #configureEventSuppression() {
+        const { schema } = this.type;
+        if (!schema) {
+            return;
+        }
+
+        for (const property of schema.conformant.properties) {
+            const { changesOmitted, quieter } = property.effectiveQuality;
+
+            if (!changesOmitted && !quieter) {
+                continue;
+            }
+
+            const name = camelize(property.name);
+
+            if (!this.#suppressedChanges) {
+                this.#suppressedChanges = new Set();
+            }
+            this.#suppressedChanges.add(name);
+
+            if (!quieter) {
+                continue;
+            }
+
+            const event = (this.events as unknown as Record<string, OnlineEvent>)[`${name}$Changed`];
+            if (event === undefined) {
+                continue;
+            }
+
+            if (event.isQuieter) {
+                if (!this.#quietObservers) {
+                    this.#quietObservers = new ObserverGroup();
+                }
+
+                this.#quietObservers.on(event.quiet, () => this.broadcastChanges([name]));
+            }
+        }
     }
 }
