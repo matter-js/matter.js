@@ -210,6 +210,38 @@ describe("MessageReceptionState", () => {
                 expect(updateCalled).equal(false);
             });
 
+            it("no duplicate is detected on first message higher than start", () => {
+                const state = new MessageReceptionStateEncryptedWithoutRollover(0);
+                state.updateMessageCounter(0x1235);
+
+                let calculatedDiff;
+                MockTime.interceptOnce(
+                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // @ts-ignore
+                    MessageReceptionStateEncryptedWithoutRollover.prototype,
+                    "calculateDiff",
+                    result => {
+                        calculatedDiff = result.resolve;
+                        return result;
+                    },
+                );
+                let updateCalled = false;
+                MockTime.interceptOnce(
+                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // @ts-ignore
+                    MessageReceptionStateEncryptedWithoutRollover.prototype,
+                    "updateMessageCounterAndBitmap",
+                    result => {
+                        updateCalled = true;
+                        return result;
+                    },
+                );
+
+                expect(() => state.updateMessageCounter(0x1234)).not.throw;
+                expect(calculatedDiff).equal(undefined);
+                expect(updateCalled).equal(false);
+            });
+
             it("value tests within counter window", () => {
                 const state = new MessageReceptionStateEncryptedWithoutRollover();
                 const prototype = MessageReceptionStateEncryptedWithoutRollover.prototype;
