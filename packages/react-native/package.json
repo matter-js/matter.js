@@ -44,7 +44,7 @@
         "@types/node": "^25.2.2",
         "react-native-ble-plx": "^3.5.0",
         "react-native-polyfill-globals": "^3.1.0",
-        "react-native-quick-crypto": "^1.0.6",
+        "react-native-quick-crypto": "^1.0.9",
         "react-native-udp": "^4.1.7"
     },
     "devDependencies": {
