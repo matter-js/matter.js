@@ -742,7 +742,7 @@ const PEER1_STATE = {
         discriminator: 0x202,
         commissioningMode: 1,
         vendorId: 0xfff1,
-        productId: undefined,
+        productId: 0x8000,
         deviceType: 0x100,
         deviceName: "Matter.js Test Product",
         rotatingIdentifier: undefined,

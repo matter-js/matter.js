@@ -29,7 +29,7 @@
     },
     "dependencies": {
         "@matter/general": "*",
-        "mqtt": "^5.14.1",
+        "mqtt": "^5.15.0",
         "safe-buffer": "^5.2.1"
     },
     "devDependencies": {
