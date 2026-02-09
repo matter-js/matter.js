@@ -5,14 +5,12 @@
  */
 
 import { isClientBehavior } from "#behavior/cluster/cluster-behavior-utils.js";
-import { OnlineEvent } from "#behavior/Events.js";
 import { Migration } from "#behavior/state/migrations/Migration.js";
 import type { Agent } from "#endpoint/Agent.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { BehaviorInitializationError } from "#endpoint/errors.js";
 import type { SupportedElements } from "#endpoint/properties/Behaviors.js";
 import {
-    camelize,
     Construction,
     Entropy,
     EventEmitter,
@@ -23,7 +21,6 @@ import {
     Logger,
     MaybePromise,
     Observable,
-    ObserverGroup,
 } from "#general";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { ProtocolService } from "#node/integration/ProtocolService.js";
@@ -50,8 +47,6 @@ export abstract class BehaviorBacking {
     #datasource?: Datasource;
     #reactors?: Reactors;
     #construction: Construction<BehaviorBacking>;
-    #suppressedChanges?: Set<string>;
-    #quietObservers?: ObserverGroup;
 
     get construction() {
         return this.#construction;
@@ -64,8 +59,6 @@ export abstract class BehaviorBacking {
         this.#changeTracking = endpoint.env.get(ChangeNotificationService);
         this.store = store;
         this.#options = options;
-
-        this.#configureEventSuppression();
 
         this.#construction = Construction(this);
         this.#construction.onError(error => {
@@ -142,8 +135,6 @@ export abstract class BehaviorBacking {
         }
 
         return this.construction.close(() => {
-            this.#quietObservers?.close();
-
             let result = MaybePromise.then(
                 () => this.#reactors?.close(),
                 () => {
@@ -246,7 +237,7 @@ export abstract class BehaviorBacking {
             defaults: this.#endpoint.behaviors.defaultsFor(this.type),
             store: this.store,
             owner: this.#endpoint,
-            onChange: this.#onChange.bind(this),
+            onChange: this.broadcastChanges.bind(this),
         };
     }
 
@@ -327,50 +318,6 @@ export abstract class BehaviorBacking {
     }
 
     /**
-     * We handle events in bulk via {@link Datasource.Options.onChange}, but "quieter" and "changesOmitted" events
-     * require special handling.  Those we ignore in the change handler and instead report only when emitted by the
-     * corresponding {@link OnlineEvent}.
-     */
-    #configureEventSuppression() {
-        const { schema } = this.type;
-        if (!schema) {
-            return;
-        }
-
-        for (const property of schema.conformant.properties) {
-            const { changesOmitted, quieter } = property.effectiveQuality;
-
-            if (!changesOmitted && !quieter) {
-                continue;
-            }
-
-            const name = camelize(property.name);
-
-            if (!this.#suppressedChanges) {
-                this.#suppressedChanges = new Set();
-            }
-            this.#suppressedChanges.add(name);
-
-            if (!quieter) {
-                continue;
-            }
-
-            const event = (this.events as unknown as Record<string, OnlineEvent>)[`${name}$Changed`];
-            if (event === undefined) {
-                continue;
-            }
-
-            if (event.isQuieter) {
-                if (!this.#quietObservers) {
-                    this.#quietObservers = new ObserverGroup();
-                }
-
-                this.#quietObservers.on(event.quiet, () => this.#broadcastChanges([name]));
-            }
-        }
-    }
-
-    /**
      * Invoke {@link Behavior.destroy} to clean up application logic.
      */
     #invokeClose(agent: Agent): MaybePromise {
@@ -404,13 +351,6 @@ export abstract class BehaviorBacking {
         return behavior;
     }
 
-    #onChange(props: string[]) {
-        if (this.#suppressedChanges) {
-            props = props.filter(name => !this.#suppressedChanges!.has(name));
-        }
-        this.#broadcastChanges(props);
-    }
-
     /**
      * We provide two forms of optimized change tracking.
      *
@@ -420,7 +360,7 @@ export abstract class BehaviorBacking {
      *
      * This method informs these services of changes.
      */
-    #broadcastChanges(props: string[]) {
+    protected broadcastChanges(props: string[]) {
         this.#protocol.handleChange(this, props);
         this.#changeTracking.broadcastUpdate(this, props);
     }

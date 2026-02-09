@@ -16,11 +16,13 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/model
     - Enhancement: Re-Parsed the Matter 1.4.2 specification to improve captured details. No functional changes
+    - Enhancement: Adds "writable" as decorator to mark attributes writable
 
 - @matter/node
-    - Feature: Allocate node IDs as sequential numbers by default now; the old behavior of randomized node behavior is available if you set `ControllerBehavior` state property `nodeIdAssignment` to `"random"`
+    - Feature: We now allocate node IDs as sequential numbers; the old behavior of randomized node behavior is available if you set `ControllerBehavior` state property `nodeIdAssignment` to "random"
     - Enhancement: Also export Matter events via ChangeNotificationService
     - Fix: Added missing export for ColorControlClient
+    - Fix: Prevents duplicate change events for Client behaviors when attributes are Quieter
 
 - @matter/nodejs
     - Fix: Also handle ENETUNREACH as a non-critical network error that triggers the retry logic and MDNS lookup
