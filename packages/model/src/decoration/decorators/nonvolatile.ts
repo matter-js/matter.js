@@ -16,7 +16,7 @@ import { ValueModel } from "#models/ValueModel.js";
 export const nonvolatile = Decorator<Decorator.PropertyCollector>((_target, context) => {
     const model = FieldSemantics.of(context).mutableModel;
     if (!(model instanceof ValueModel)) {
-        throw new InvalidMetadataError("Only a value models may be nonvolatile");
+        throw new InvalidMetadataError("Only value models may be nonvolatile");
     }
     model.quality = new Quality({ ...model.quality, nonvolatile: true });
 });
