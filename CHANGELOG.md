@@ -11,7 +11,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
-- @matter/node
+- @matter/model
     - Enhancement: Adds "writable" as decorator to mark attributes writable
 
 - @matter/node
