@@ -83,13 +83,13 @@ describe("FieldSemantics", () => {
 
     it("sets writable", () => {
         class Foo {
-            @field(uint32, writable)
+            @attribute(0x1, uint32, writable)
             bar = 4;
         }
 
         const schema = Schema.Required(Foo);
         expect(schema.children.length).equals(1);
-        const bar = schema.get(FieldModel, "bar");
+        const bar = schema.get(AttributeModel, "bar");
         expect(bar).not.undefined;
         expect(bar!.quality.nullable).not.true;
         expect(bar!.quality.nonvolatile).not.true;
