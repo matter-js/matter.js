@@ -512,7 +512,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             }
 
             if (this.lifecycle.isInstalled) {
-                this.env.get(IdentityService).assertNumberAvailable(number, this);
+                this.env.get(IdentityService).assertEndpointNumberAvailable(number, this);
             }
         }
 
