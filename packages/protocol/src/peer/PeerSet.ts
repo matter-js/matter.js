@@ -9,7 +9,6 @@ import {
     AsyncObservable,
     BasicSet,
     ChannelType,
-    Construction,
     DnssdNames,
     Environment,
     Environmental,
@@ -33,7 +32,6 @@ import { SessionManager } from "#session/SessionManager.js";
 import { FabricIndex } from "#types";
 import { NetworkProfiles } from "./NetworkProfile.js";
 import { Peer } from "./Peer.js";
-import { PeerAddressStore } from "./PeerAddressStore.js";
 import { PeerDescriptor } from "./PeerDescriptor.js";
 import { PeerTimingParameters } from "./PeerTimingParameters.js";
 
@@ -44,7 +42,6 @@ export interface PeerSetContext {
     lifetime: Lifetime.Owner;
     sessions: SessionManager;
     names: DnssdNames;
-    store: PeerAddressStore;
     networks: NetworkProfiles;
     connectionRetries?: RetrySchedule;
     timing?: PeerTimingParameters;
@@ -57,8 +54,6 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     readonly #lifetime: Lifetime;
     readonly #sessions: SessionManager;
     readonly #peers = new BasicSet<Peer>();
-    readonly #construction: Construction<PeerSet>;
-    readonly #store: PeerAddressStore;
     readonly #disconnected = AsyncObservable<[peer: Peer]>();
     readonly #peerContext: Peer.Context;
     readonly #networks: NetworkProfiles;
@@ -66,11 +61,10 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     #exchanges?: ExchangeManager;
 
     constructor(context: PeerSetContext) {
-        const { lifetime, sessions, names, store, networks, timing } = context;
+        const { lifetime, sessions, names, networks, timing } = context;
 
         this.#lifetime = lifetime.join("peers");
         this.#sessions = sessions;
-        this.#store = store;
         this.#networks = networks;
 
         const self = this;
@@ -89,10 +83,8 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             },
 
             openSocket: (address, abort) => this.#openSocket(address, abort),
-            savePeer: peer => this.#store.updatePeer(peer.descriptor),
-            deletePeer: peer => this.#store.deletePeer(peer.address),
             closed: peer => this.#peers.delete(peer),
-            join: name => this.#construction.join(name),
+            join: name => this.#lifetime.join(name),
         };
 
         this.#peers.added.on(peer => {
@@ -112,12 +104,6 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                 address: session.peerAddress,
                 operationalAddress: operationalAddressOf(session),
             });
-        });
-
-        this.#construction = Construction(this, async () => {
-            for (const descriptor of await this.#store.loadPeers()) {
-                this.#peers.add(new Peer(descriptor, this.#peerContext));
-            }
         });
 
         this.#observers.on(this.#sessions.sessions.added, session => {
@@ -190,16 +176,11 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         return this.#peers[Symbol.iterator]();
     }
 
-    get construction() {
-        return this.#construction;
-    }
-
     static [Environmental.create](env: Environment) {
         const instance = new PeerSet({
             lifetime: env,
             sessions: env.get(SessionManager),
             names: env.get(MdnsService).names,
-            store: env.get(PeerAddressStore),
             networks: env.get(NetworkProfiles),
         });
         env.set(PeerSet, instance);

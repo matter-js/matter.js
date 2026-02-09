@@ -42,8 +42,8 @@ import {
     vendorId,
 } from "#model";
 import type { ClientNode } from "#node/ClientNode.js";
-import type { ServerNode } from "#node/ServerNode.js";
 import { IdentityService } from "#node/server/IdentityService.js";
+import type { ServerNode } from "#node/ServerNode.js";
 import type { ClientInteraction, PeerDescriptor, SupportedTransportsBitmap } from "#protocol";
 import {
     CommissioningMode,
@@ -83,6 +83,7 @@ const logger = Logger.get("CommissioningClient");
  * Updates node state based on commissioning status and commissions new nodes.
  */
 export class CommissioningClient extends Behavior {
+    declare internal: CommissioningClient.Internal;
     declare state: CommissioningClient.State;
     declare events: CommissioningClient.Events;
 
@@ -154,7 +155,8 @@ export class CommissioningClient extends Behavior {
         }
 
         // Ensure the controller is initialized
-        await node.owner?.act(agent => agent.load(ControllerBehavior));
+        await node.owner.act(agent => agent.load(ControllerBehavior));
+        const controller = node.owner.agentFor(this.context).get(ControllerBehavior);
 
         // Get the fabric we will commission into
         const fabricAuthority = opts.fabricAuthority ?? this.env.get(FabricAuthority);
@@ -186,8 +188,7 @@ export class CommissioningClient extends Behavior {
 
         const commissioner = node.env.get(ControllerCommissioner);
 
-        const identityService = node.env.get(IdentityService);
-        const address = await identityService.assignNodeAddress(node, fabric.fabricIndex, opts.nodeId);
+        const address = await controller.allocatePeerAddress(fabric.fabricIndex, opts.nodeId);
 
         const commissioningOptions: LocatedNodeCommissioningOptions = {
             addresses: addresses.map(ServerAddress),
@@ -222,8 +223,11 @@ export class CommissioningClient extends Behavior {
             await commissioner.commission(commissioningOptions);
             this.state.peerAddress = address;
             this.state.commissionedAt = Time.nowMs;
+
+            // Apply changes from the peer
+            await this.#update(this.env.get(PeerSet).for(address));
         } catch (e) {
-            identityService.releaseNodeAddress(address);
+            this.env.get(IdentityService).releasePeerAddress(address);
             throw e;
         }
 
@@ -399,12 +403,41 @@ export class CommissioningClient extends Behavior {
             address: addr,
             operationalAddress: this.state.addresses?.filter(a => a.type === "udp")?.[0],
             discoveryData: RemoteDescriptor.fromLongForm(this.state),
+            caseAuthenticatedTags: this.state.caseAuthenticatedTags,
         });
 
         peer.interaction = node.interaction as ClientInteraction;
         peer.protocol = node.protocol;
 
+        this.internal.peerObserver = peer.updated.use(this.callback(this.#update));
+
         this.env.set(Peer, peer);
+    }
+
+    /**
+     * Apply changes from the {@link Peer}.
+     *
+     * This persists information discovered via MDNS and the connection process.
+     */
+    async #update(peer: Peer) {
+        const { transaction } = this.context;
+        await transaction.addResources(this);
+        await transaction.begin();
+
+        if (peer.sessionParameters) {
+            this.state.sessionParameters = peer.sessionParameters;
+        }
+
+        const {
+            descriptor: { discoveryData, operationalAddress, caseAuthenticatedTags },
+        } = peer;
+
+        RemoteDescriptor.toLongForm(discoveryData, this.state);
+        if (operationalAddress) {
+            // TODO - modify lower tiers to pass along full set of operational addresses
+            this.state.addresses = [operationalAddress];
+        }
+        this.state.caseAuthenticatedTags = caseAuthenticatedTags;
     }
 
     /**
@@ -417,6 +450,9 @@ export class CommissioningClient extends Behavior {
             return;
         }
         node.env.delete(Peer, peer);
+
+        this.internal.peerObserver?.[Symbol.dispose]();
+        this.internal.peerObserver = undefined;
 
         if (peer.interaction === node.interaction) {
             peer.interaction = undefined;
@@ -522,6 +558,10 @@ export namespace CommissioningClient {
             this.ttl = address.ttl;
             this.discoveredAt = address.discoveredAt;
         }
+    }
+
+    export class Internal {
+        peerObserver?: Disposable;
     }
 
     export class State {

@@ -7,11 +7,10 @@
 import { limitNodeDataToAllowedFabrics } from "#behavior/cluster/FabricScopedDataHandler.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { Crypto, Environment, Observable, SharedEnvironmentServices } from "#general";
-import { NodePeerAddressStore } from "#node/client/NodePeerAddressStore.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { ServerEndpointInitializer } from "#node/server/ServerEndpointInitializer.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { FabricManager, MdnsService, OccurrenceManager, PeerAddressStore, PeerSet, SessionManager } from "#protocol";
+import { FabricManager, MdnsService, OccurrenceManager, PeerSet, SessionManager } from "#protocol";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { IdentityService } from "./IdentityService.js";
 
@@ -32,7 +31,6 @@ export namespace ServerEnvironment {
 
         env.set(EndpointInitializer, new ServerEndpointInitializer(env));
         env.set(IdentityService, new IdentityService(node));
-        env.set(PeerAddressStore, new NodePeerAddressStore(node));
         env.set(ChangeNotificationService, new ChangeNotificationService(node));
 
         // Ensure these are fully initialized
