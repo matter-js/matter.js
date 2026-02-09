@@ -29,7 +29,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Added some jitter to the subscription max ceiling to spread out subscription responses from devices
 
 - @matter/types
-  - Enhancement: Re-Parsed the Matter 1.4.2 specification to improve captured details. No functional changes
+    - Enhancement: Re-Parsed the Matter 1.4.2 specification to improve captured details. No functional changes
 
 - @project-chip/matter.js
     - Fix: Prevent PairedNode from updating its structure when the node is already decommissioned
