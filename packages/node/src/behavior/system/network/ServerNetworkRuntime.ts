@@ -295,9 +295,9 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         }
 
         // Initialize ScannerSet
-        this.owner.env.get(ScannerSet).add(env.get(MdnsService).client);
+        env.get(ScannerSet).add(env.get(MdnsService).client);
 
-        (await env.load(PeerSet)).exchanges = exchanges;
+        env.get(PeerSet).exchanges = exchanges;
 
         // Prevent new connections when aborted
         this.abortSignal.addEventListener("abort", () =>
