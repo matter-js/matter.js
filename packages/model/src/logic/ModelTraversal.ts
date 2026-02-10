@@ -456,6 +456,20 @@ export class ModelTraversal {
      */
     findMember(scope: Model | undefined, key: Children.Selector, allowedTags: ElementTag[]): Model | undefined {
         return this.operation(() => {
+            // Qualified names like "SolicitOffer.VideoStreamID" — walk intermediate segments
+            // without tag restriction, apply allowedTags only on the final segment
+            if (typeof key === "string" && key.includes(".")) {
+                const parts = key.split(".");
+                for (let i = 0; i < parts.length - 1 && scope; i++) {
+                    // Try exact match first, then suffix match for cluster-prefixed names
+                    // (e.g. "WebRTCProvideOffer" matching command "ProvideOffer")
+                    scope =
+                        scope.children.selectAll(parts[i])[0] ??
+                        scope.children.find(c => parts[i].endsWith(c.name));
+                }
+                key = parts[parts.length - 1];
+            }
+
             while (scope) {
                 const result = scope.children.select(key, allowedTags, this.#dismissed);
                 if (result) {
