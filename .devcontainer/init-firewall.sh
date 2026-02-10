@@ -169,7 +169,7 @@ for domain in \
             echo "ERROR: Invalid IP from DNS for $domain: $ip"
             exit 1
         fi
-        echo "Adding $ip for $domain"
+        #echo "Adding $ip for $domain"
         ipset add allowed-domains "$ip" 2>/dev/null || true
     done < <(echo "$ips")
 done
@@ -237,3 +237,6 @@ if ! curl --connect-timeout 5 https://api.github.com/zen >/dev/null 2>&1; then
 else
     echo "Firewall verification passed - able to reach https://api.github.com as expected"
 fi
+
+# Hmm lets see if we can actually lock down container
+rm /etc/sudoers.d/node

@@ -5,7 +5,7 @@
 # Claude Code devcontainer based on the reference implementation at
 # https://github.com/anthropics/claude-code/tree/main/.devcontainer
 
-FROM mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm
+FROM mcr.microsoft.com/devcontainers/javascript-node:24-bookworm
 
 ARG TZ
 ENV TZ="$TZ"
@@ -70,7 +70,7 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
   -x
 
 # Install Claude Code globally
-RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
+RUN curl -fsSL https://claude.ai/install.sh | bash
 
 # Copy and set up firewall script with passwordless sudo access
 COPY init-firewall.sh /usr/local/bin/
