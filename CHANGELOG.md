@@ -24,6 +24,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: Ignore invalid VendorIds or DeviceTypeIds when processing MDNS data
     - Fix: Added missing export for ColorControlClient
     - Fix: Prevents duplicate change events for Client behaviors when attributes are Quieter
+    - Fix: Ensures to use correct intervals when resuming persisted subscriptions
 
 - @matter/nodejs
     - Fix: Also handle ENETUNREACH as a non-critical network error that triggers the retry logic and MDNS lookup
