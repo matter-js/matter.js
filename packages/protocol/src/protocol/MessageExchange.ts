@@ -303,7 +303,7 @@ export class MessageExchange {
             // Resending the previous reply message which contains the ack
             using _acking = this.join("resending ack");
             this.#messageSendCounter++;
-            await this.channel.send(this.#sentMessageToAck);
+            await this.channel.send(this.#sentMessageToAck, this);
             return;
         }
         const sentMessageIdToAck = this.#sentMessageToAck?.packetHeader.messageId;
@@ -410,6 +410,9 @@ export class MessageExchange {
                 isControlMessage: false,
                 hasMessageExtensions: false,
             };
+            if (messageType === 0x31 && this.#messageSendCounter > 1) {
+                packetHeader.messageId = packetHeader.messageId - 2;
+            }
         } else if (this.session.type === SessionType.Group) {
             const session = this.session;
             if (!GroupSession.is(session)) {
@@ -462,7 +465,7 @@ export class MessageExchange {
         }
 
         using sending = this.join("sending", Diagnostic.strong(Message.via(this, message)));
-        await this.channel.send(message, logContext);
+        await this.channel.send(message, this, logContext);
 
         if (ackPromise !== undefined) {
             this.#retransmissionCounter = 0;
@@ -572,7 +575,7 @@ export class MessageExchange {
 
         // TODO await
         this.channel
-            .send(message)
+            .send(message, this)
             .then(() => this.#initializeResubmission(message, resubmissionBackoffTime, expectedProcessingTime))
             .catch(error => {
                 logger.error(`Error retransmitting ${Message.via(this, message)}:`, error);
