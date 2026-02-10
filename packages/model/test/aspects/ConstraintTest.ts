@@ -212,6 +212,21 @@ const TEST_CONSTRAINTS: [text: string, ast: Constraint.Ast, expectedText?: strin
         "max (2^62) - 1",
     ],
     [
+        "2 * 3 ^ 4",
+        {
+            value: {
+                type: "*",
+                lhs: 2,
+                rhs: {
+                    type: "^",
+                    lhs: 3,
+                    rhs: 4,
+                },
+            },
+        },
+        "2 * (3^4)",
+    ],
+    [
         "holdTimeLimits.holdTimeMin to holdTimeLimits.holdTimeMax",
         {
             min: {

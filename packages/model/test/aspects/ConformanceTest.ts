@@ -5,7 +5,14 @@
  */
 
 import { Conformance } from "#aspects/Conformance.js";
-import { ClusterElement, DatatypeElement, FieldElement } from "#elements/index.js";
+import {
+    ClusterElement,
+    ConditionElement,
+    DatatypeElement,
+    DeviceTypeElement,
+    FieldElement,
+    RequirementElement,
+} from "#elements/index.js";
 import { ValidateModel } from "#logic/ValidateModel.js";
 import { MatterModel } from "#models/index.js";
 
@@ -31,7 +38,7 @@ const TEST_DEFINITIONS = [
     "!USR & (PIN | RID | FGP)",
     "OperationalStateID >= 128 & OperationalStateID <= 191",
 
-    // Dot-field references (field presence in another command)
+    // Dot-field references (qualified field references)
     "SolicitOffer.VideoStreamID",
 
     // Enum value comparisons
@@ -39,6 +46,11 @@ const TEST_DEFINITIONS = [
     "TriggerType == Motion",
 
     // Boolean value comparison
+
+    // Condition names in conformance (used in device type requirements)
+    "TimeSyncCond, O",
+    "[Cooler]",
+    "[TLSCertificatesCond | TLSClientCond].a+, O",
 ];
 
 const TEST_DEFINITIONS2 = {
@@ -111,7 +123,7 @@ describe("Conformance", () => {
         );
 
         it("resolves simple enum field == value", () => {
-            const simple = conformanceErrors.filter(e => e.source?.includes("maxPreRollLen."));
+            const simple = conformanceErrors.filter(e => e.source?.includes("MaxPreRollLen"));
             expect(simple).deep.equal([]);
         });
 
@@ -153,8 +165,8 @@ describe("Conformance", () => {
 
     describe("operator precedence", () => {
         it("groups == higher than |", () => {
-            // TriggerType == Command | TriggerType == Motion should parse as
-            // (TriggerType == Command) | (TriggerType == Motion)
+            // Real spec pattern: TriggerType == Command | TriggerType == Motion
+            // Should parse as (TriggerType == Command) | (TriggerType == Motion)
             const conformance = new Conformance("TriggerType == Command | TriggerType == Motion");
             expect(conformance.ast.type).equal("|");
             const param = (conformance.ast as { param: { lhs: { type: string }; rhs: { type: string } } }).param;
@@ -162,7 +174,17 @@ describe("Conformance", () => {
             expect(param.rhs.type).equal("==");
         });
 
-        it("groups >= and <= with &", () => {
+        it("groups comparisons higher than equality", () => {
+            // Comparisons (>=, <=, >, <) bind tighter than equality (==, !=)
+            // A >= B == C should parse as (A >= B) == C, not A >= (B == C)
+            const conformance = new Conformance("A >= B == C");
+            expect(conformance.ast.type).equal("==");
+            const param = (conformance.ast as { param: { lhs: Conformance.Ast; rhs: Conformance.Ast } }).param;
+            expect(param.lhs.type).equal(">=");
+        });
+
+        it("groups range check: OperationalStateID >= 128 & OperationalStateID <= 191", () => {
+            // Real spec pattern from Operational State cluster — range-check conformance
             const conformance = new Conformance("OperationalStateID >= 128 & OperationalStateID <= 191");
             expect(conformance.ast).deep.equals({
                 type: "&",
@@ -199,6 +221,68 @@ describe("Conformance", () => {
                     },
                 },
             });
+        });
+    });
+
+    describe("device type condition requirements", () => {
+        // Models the real spec pattern: a device type (e.g. RootNode) defines conditions,
+        // and its cluster requirements use those condition names in their conformance expressions.
+        // For example, RootNode defines "TimeSyncCond" and has:
+        //   Requirement({ name: "TimeSynchronization", conformance: "TimeSyncCond, O", element: "serverCluster" })
+        const rootNode = DeviceTypeElement(
+            { name: "RootNode", id: 0x16, classification: "node" },
+
+            // Condition definitions
+            ConditionElement({ name: "TimeSyncCond" }),
+            ConditionElement({ name: "TimeSyncWithClientCond" }),
+
+            // Cluster requirements using conditions in conformance
+            RequirementElement({
+                name: "Descriptor",
+                id: 0x1d,
+                element: RequirementElement.ElementType.ServerCluster,
+            }),
+            RequirementElement({
+                name: "TimeSynchronization",
+                id: 0x38,
+                conformance: "TimeSyncCond, O",
+                element: RequirementElement.ElementType.ServerCluster,
+            }),
+        );
+
+        // Another device type referencing conditions via condition requirements
+        const refrigerator = DeviceTypeElement(
+            { name: "Refrigerator", id: 0x70, classification: "simple" },
+
+            ConditionElement({ name: "Cooler" }),
+
+            RequirementElement({
+                name: "Descriptor",
+                id: 0x1d,
+                element: RequirementElement.ElementType.ServerCluster,
+            }),
+
+            // Condition requirement — references the Cooler condition
+            RequirementElement({
+                name: "Cooler",
+                conformance: "M",
+                element: RequirementElement.ElementType.Condition,
+            }),
+        );
+
+        const matter = new MatterModel({ name: "TestDeviceMatter", children: [rootNode, refrigerator] });
+        const result = ValidateModel(matter);
+
+        it("validates condition elements without errors", () => {
+            const condErrors = result.errors.filter(
+                e => e.source?.includes("TimeSyncCond") || e.source?.includes("Cooler"),
+            );
+            expect(condErrors).deep.equal([]);
+        });
+
+        it("validates condition requirements without TYPE_UNKNOWN", () => {
+            const typeErrors = result.errors.filter(e => e.code === "TYPE_UNKNOWN");
+            expect(typeErrors).deep.equal([]);
         });
     });
 });

@@ -10,8 +10,6 @@ import { ModelValidator } from "./ModelValidator.js";
 
 ModelValidator.validators[ConditionElement.Tag] = class ConditionValidator extends ModelValidator<ConditionModel> {
     override validate() {
-        // TODO we need to validate as needed. Likely here we can not do that much because we
-        //  need an endpoint structure
         this.validateStructure(false);
         super.validate();
     }

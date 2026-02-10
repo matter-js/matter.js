@@ -624,16 +624,29 @@ namespace Parser {
         }
 
         function parseMultiplicative(): Constraint.Expression | undefined {
+            let value = parsePower();
+            if (value === undefined) {
+                return value;
+            }
+            while (tokens.token?.type === "*" || tokens.token?.type === "/") {
+                const type = tokens.token.type;
+                tokens.next();
+                const rhs = parsePower();
+                if (rhs === undefined) {
+                    constraint.error("MISSING_RIGHT_OPERAND", `Missing operand after "${type}"`);
+                    return;
+                }
+                value = { type, lhs: value, rhs };
+            }
+            return value;
+        }
+
+        function parsePower(): Constraint.Expression | undefined {
             let value = parsePrimary();
             if (value === undefined) {
                 return value;
             }
-            while (
-                tokens.token?.type === "*" ||
-                tokens.token?.type === "/" ||
-                tokens.token?.type === "^" ||
-                tokens.token?.type === "."
-            ) {
+            while (tokens.token?.type === "^" || tokens.token?.type === ".") {
                 const type = tokens.token.type;
                 tokens.next();
                 const rhs = parsePrimary();

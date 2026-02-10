@@ -8,7 +8,7 @@ import { camelize } from "#general";
 import { ModelTraversal } from "#logic/ModelTraversal.js";
 import { Access, Aspect, Conformance, Constraint, Quality } from "../../aspects/index.js";
 import { DefinitionError, FieldValue, Metatype } from "../../common/index.js";
-import { ClusterModel, Globals, ValueModel } from "../../models/index.js";
+import { ClusterModel, Globals, Model, ValueModel } from "../../models/index.js";
 import { ModelValidator } from "./ModelValidator.js";
 import { ValidationExceptions } from "./ValidationExceptions.js";
 
@@ -34,17 +34,25 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
                 return cluster?.features.find(f => f.name === name);
             }
 
-            // Dot-field references like "SolicitOffer.VideoStreamID" — resolve the command then the field.
-            // The command name may include a cluster prefix (e.g. "WebRTCProvideOffer" for "ProvideOffer")
+            // Qualified field references like "SolicitOffer.VideoStreamID" — resolve within the cluster scope.
+            // TODO - member() should handle qualified names natively; this is a workaround
             if (name.includes(".")) {
-                const [parentName, fieldName] = name.split(".", 2);
+                const parts = name.split(".");
                 const cluster = this.model.owner(ClusterModel);
-                const camelParent = camelize(parentName, true);
-                const parent = cluster?.children.find(
-                    c => c.name === camelParent || c.name === parentName || camelParent.endsWith(c.name),
-                );
-                if (parent) {
-                    return parent.member(camelize(fieldName, true));
+                if (cluster) {
+                    let scope: Model | undefined = cluster;
+                    for (let i = 0; i < parts.length && scope; i++) {
+                        const partName = camelize(parts[i], true);
+                        if (i < parts.length - 1) {
+                            // Intermediate: find child by name (commands, structs, etc.)
+                            scope = scope.children.find(
+                                (c: Model) => c.name === partName || partName.endsWith(c.name),
+                            );
+                        } else {
+                            // Final: use member() for inherited field lookup
+                            return scope.member(partName);
+                        }
+                    }
                 }
             }
 
