@@ -20,7 +20,7 @@ import {
     ServerAddress,
     ServerAddressUdp,
 } from "#general";
-import { ExchangeLogContext, MessageExchange } from "#protocol/MessageExchange.js";
+import type { ExchangeLogContext, MessageExchange } from "#protocol/MessageExchange.js";
 import type { Session } from "#session/Session.js";
 import type { SessionParameters } from "#session/SessionParameters.js";
 import { MRP } from "./MRP.js";
