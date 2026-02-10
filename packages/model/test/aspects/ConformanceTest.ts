@@ -225,36 +225,40 @@ describe("Conformance", () => {
     });
 
     describe("device type condition requirements", () => {
-        // Models the real spec pattern: a device type (e.g. RootNode) defines conditions,
-        // and its cluster requirements use those condition names in their conformance expressions.
-        // For example, RootNode defines "TimeSyncCond" and has:
-        //   Requirement({ name: "TimeSynchronization", conformance: "TimeSyncCond, O", element: "serverCluster" })
-        const rootNode = DeviceTypeElement(
-            { name: "RootNode", id: 0x16, classification: "node" },
+        // Models the real spec pattern: device types define conditions, other device types
+        // reference them via qualified types in condition requirements.
+        // E.g. RootNode defines "TimeSyncCond"; DoorLock has a condition requirement with
+        //   type: "RootNode.TimeSyncCond" — resolved via RequirementModel.allowedBaseTags
+        //   including ElementTag.Condition so findQualifiedType finds the ConditionElement.
+        const tempControlledCabinet = DeviceTypeElement(
+            { name: "TemperatureControlledCabinet", id: 0x71, classification: "simple" },
 
-            // Condition definitions
-            ConditionElement({ name: "TimeSyncCond" }),
-            ConditionElement({ name: "TimeSyncWithClientCond" }),
+            ConditionElement({ name: "Cooler" }),
+            ConditionElement({ name: "Heater" }),
 
-            // Cluster requirements using conditions in conformance
             RequirementElement({
                 name: "Descriptor",
                 id: 0x1d,
-                element: RequirementElement.ElementType.ServerCluster,
-            }),
-            RequirementElement({
-                name: "TimeSynchronization",
-                id: 0x38,
-                conformance: "TimeSyncCond, O",
                 element: RequirementElement.ElementType.ServerCluster,
             }),
         );
 
-        // Another device type referencing conditions via condition requirements
+        const rootNode = DeviceTypeElement(
+            { name: "RootNode", id: 0x16, classification: "node" },
+
+            ConditionElement({ name: "TimeSyncCond" }),
+            ConditionElement({ name: "AclExtensionCond" }),
+
+            RequirementElement({
+                name: "Descriptor",
+                id: 0x1d,
+                element: RequirementElement.ElementType.ServerCluster,
+            }),
+        );
+
+        // Refrigerator references conditions on TemperatureControlledCabinet via qualified type
         const refrigerator = DeviceTypeElement(
             { name: "Refrigerator", id: 0x70, classification: "simple" },
-
-            ConditionElement({ name: "Cooler" }),
 
             RequirementElement({
                 name: "Descriptor",
@@ -262,27 +266,52 @@ describe("Conformance", () => {
                 element: RequirementElement.ElementType.ServerCluster,
             }),
 
-            // Condition requirement — references the Cooler condition
+            // Cross-device condition requirement with qualified type
             RequirementElement({
                 name: "Cooler",
+                type: "TemperatureControlledCabinet.Cooler",
                 conformance: "M",
                 element: RequirementElement.ElementType.Condition,
             }),
         );
 
-        const matter = new MatterModel({ name: "TestDeviceMatter", children: [rootNode, refrigerator] });
+        // DoorLock references conditions on RootNode
+        const doorLock = DeviceTypeElement(
+            { name: "DoorLock", id: 0xa, classification: "simple" },
+
+            RequirementElement({
+                name: "Descriptor",
+                id: 0x1d,
+                element: RequirementElement.ElementType.ServerCluster,
+            }),
+
+            RequirementElement({
+                name: "AclExtensionCond",
+                type: "RootNode.AclExtensionCond",
+                conformance: "M",
+                element: RequirementElement.ElementType.Condition,
+            }),
+        );
+
+        const matter = new MatterModel({
+            name: "TestDeviceMatter",
+            children: [tempControlledCabinet, rootNode, refrigerator, doorLock],
+        });
         const result = ValidateModel(matter);
+
+        it("resolves qualified condition types across device types", () => {
+            const typeErrors = result.errors.filter(e => e.code === "TYPE_UNKNOWN");
+            expect(typeErrors).deep.equal([]);
+        });
 
         it("validates condition elements without errors", () => {
             const condErrors = result.errors.filter(
-                e => e.source?.includes("TimeSyncCond") || e.source?.includes("Cooler"),
+                e =>
+                    e.source?.includes("Cooler") ||
+                    e.source?.includes("AclExtensionCond") ||
+                    e.source?.includes("TimeSyncCond"),
             );
             expect(condErrors).deep.equal([]);
-        });
-
-        it("validates condition requirements without TYPE_UNKNOWN", () => {
-            const typeErrors = result.errors.filter(e => e.code === "TYPE_UNKNOWN");
-            expect(typeErrors).deep.equal([]);
         });
     });
 });
