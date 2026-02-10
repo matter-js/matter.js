@@ -410,9 +410,6 @@ export class MessageExchange {
                 isControlMessage: false,
                 hasMessageExtensions: false,
             };
-            if (messageType === 0x31 && this.#messageSendCounter > 1) {
-                packetHeader.messageId = packetHeader.messageId - 2;
-            }
         } else if (this.session.type === SessionType.Group) {
             const session = this.session;
             if (!GroupSession.is(session)) {
