@@ -13,6 +13,12 @@
 //
 // Using Docker desktop you must set default containers to be dual IPv4/IPv6.  On macs the options "Use kernel
 // networking for UDP" and "Enable host networking" must be enabled.
+//
+// Claude Code support:
+//
+// This devcontainer includes Claude Code with a network firewall that restricts outbound connections to whitelisted
+// domains only.  This allows running "claude --dangerously-skip-permissions" safely for unattended operation.
+// See https://code.claude.com/docs/en/devcontainer for details.
 
 {
 	"name": "matter.js",
@@ -22,6 +28,8 @@
 	"workspaceFolder": "/matter.js",
 
 	"postCreateCommand": "/bin/bash ./.devcontainer/post-create.sh",
+	"postStartCommand": "sudo /usr/local/bin/init-firewall.sh",
+	"waitFor": "postStartCommand",
 
 	"features": {
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {
@@ -37,26 +45,34 @@
 	"customizations": {
 		"vscode": {
 			"extensions": [
+				"anthropic.claude-code",
 				"rioj7.command-variable",
 				"stkb.rewrap",
 				"dbaeumer.vscode-eslint",
 				"esbenp.prettier-vscode"
-			]
+			],
+			"settings": {
+				"terminal.integrated.defaultProfile.linux": "zsh",
+				"terminal.integrated.profiles.linux": {
+					"bash": {
+						"path": "bash",
+						"icon": "terminal-bash"
+					},
+					"zsh": {
+						"path": "zsh"
+					}
+				}
+			}
 		}
+	},
+
+	"mounts": [
+		"source=matter-js-bashhistory-${devcontainerId},target=/commandhistory,type=volume",
+		"source=matter-js-claude-config-${devcontainerId},target=/home/node/.claude,type=volume"
+	],
+
+	"containerEnv": {
+		"NODE_OPTIONS": "--max-old-space-size=4096",
+		"CLAUDE_CONFIG_DIR": "/home/node/.claude"
 	}
-
-	// Features to add to the dev container. More info: https://containers.dev/features.
-	// "features": {},
-
-	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	// "forwardPorts": [],
-
-	// Use 'postCreateCommand' to run commands after the container is created.
-	// "postCreateCommand": "yarn install",
-
-	// Configure tool-specific properties.
-	// "customizations": {},
-
-	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
-	// "remoteUser": "root"
 }

@@ -20,7 +20,7 @@ import {
     ServerAddress,
     ServerAddressUdp,
 } from "#general";
-import type { ExchangeLogContext } from "#protocol/MessageExchange.js";
+import type { ExchangeLogContext, MessageExchange } from "#protocol/MessageExchange.js";
 import type { Session } from "#session/Session.js";
 import type { SessionParameters } from "#session/SessionParameters.js";
 import { MRP } from "./MRP.js";
@@ -80,8 +80,8 @@ export class MessageChannel implements Channel<Message> {
         return this.#channel.maxPayloadSize;
     }
 
-    async send(message: Message, logContext?: ExchangeLogContext) {
-        logger.debug("Message", Mark.OUTBOUND, Message.diagnosticsOf(this.session, message, logContext));
+    async send(message: Message, exchange?: MessageExchange, logContext?: ExchangeLogContext) {
+        logger.debug("Message", Mark.OUTBOUND, Message.diagnosticsOf(exchange ?? this.session, message, logContext));
         const packet = this.session.encode(message);
         const bytes = MessageCodec.encodePacket(packet);
         if (bytes.byteLength > this.maxPayloadSize) {
