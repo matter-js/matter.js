@@ -464,8 +464,7 @@ export class ModelTraversal {
                     // Try exact match first, then suffix match for cluster-prefixed names
                     // (e.g. "WebRTCProvideOffer" matching command "ProvideOffer")
                     scope =
-                        scope.children.selectAll(parts[i])[0] ??
-                        scope.children.find(c => parts[i].endsWith(c.name));
+                        scope.children.selectAll(parts[i])[0] ?? scope.children.find(c => parts[i].endsWith(c.name));
                 }
                 key = parts[parts.length - 1];
             }
