@@ -750,7 +750,7 @@ export class MessageExchange {
             this.#messageSendCounter === 1 &&
             this.#messageReceivedCounter === 1
         ) {
-            return undefined;
+            return "";
         }
         return `${this.#messageReceivedCounter}${Mark.TRANSFERRED}${this.#messageSendCounter}${this.#totalRetransmissionCounter > 0 ? `+${this.#totalRetransmissionCounter}` : ""}`;
     }
