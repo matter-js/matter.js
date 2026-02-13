@@ -117,12 +117,12 @@ describe("AsyncIterator", () => {
         });
 
         it("collects multiple errors into aggregate error", async () => {
-            // eslint-disable-next-line require-yield
+            // oxlint-disable-next-line require-yield
             async function* errorIterator1(): AsyncGenerator<number> {
                 throw new Error("Error 1");
             }
 
-            // eslint-disable-next-line require-yield
+            // oxlint-disable-next-line require-yield
             async function* errorIterator2(): AsyncGenerator<number> {
                 throw new Error("Error 2");
             }
@@ -142,7 +142,7 @@ describe("AsyncIterator", () => {
         });
 
         it("uses custom error message", async () => {
-            // eslint-disable-next-line require-yield
+            // oxlint-disable-next-line require-yield
             async function* errorIterator(): AsyncGenerator<number> {
                 throw new Error("fail");
             }

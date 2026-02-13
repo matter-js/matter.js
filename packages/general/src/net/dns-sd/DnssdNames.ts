@@ -41,7 +41,7 @@ export class DnssdNames {
         entropy,
         filter,
         goodbyeProtectionWindow,
-        minTtl: minTtl,
+        minTtl,
     }: DnssdNames.Context) {
         this.#socket = socket;
         this.#lifetime = lifetime.join("mdns names");

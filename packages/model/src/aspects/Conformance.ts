@@ -137,7 +137,7 @@ export namespace Conformance {
         | Ast.Name
         | Ast.Value
         | Ast.Option
-        // eslint-disable-next-line @typescript-eslint/no-duplicate-type-constituents
+        // oxlint-disable-next-line @typescript-eslint/no-duplicate-type-constituents
         | Ast.UnaryOperand
         | Ast.BinaryOperands
         | Ast.Otherwise

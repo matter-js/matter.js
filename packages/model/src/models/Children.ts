@@ -697,7 +697,7 @@ export function Children<T extends Model = Model>(
                 child = children[p as unknown as number];
             }
 
-            // eslint-disable-next-line @typescript-eslint/no-array-delete
+            // oxlint-disable-next-line @typescript-eslint/no-array-delete
             delete children[p as unknown as number];
 
             // Child may have been added elsewhere in the index so only delete if not still present

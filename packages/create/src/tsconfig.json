@@ -3,7 +3,6 @@
     "compilerOptions": {
         "types": [
             "@matter/tools",
-            "globals",
             "node"
         ]
     },

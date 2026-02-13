@@ -134,7 +134,7 @@ export abstract class ApiResource {
     /**
      * Subscribe to events.
      */
-    // eslint-disable-next-line require-yield
+    // oxlint-disable-next-line require-yield
     async *subscribe(
         _abort: Abort.Signal,
         _request?: Envelope.Data,
