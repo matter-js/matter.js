@@ -565,7 +565,7 @@ export class MessageExchange {
             return;
         }
 
-        if (ackPromise === undefined) {
+        if (ackPromise !== undefined) {
             this.#retransmissionCounter = 0;
             this.#retransmissionTimer?.start();
 
