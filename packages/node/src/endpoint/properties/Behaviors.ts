@@ -137,8 +137,7 @@ export class Behaviors {
                             attributeName,
                             Diagnostic.dict({
                                 id: Diagnostic.hex(attr.id),
-                                // oxlint-disable-next-line no-unsafe-optional-chaining -- backing is defined when attr exists
-                                val: (backing?.stateView as Val.Struct)[attributeName],
+                                val: (backing?.stateView as Val.Struct | undefined)?.[attributeName],
                                 flags: Diagnostic.asFlags({
                                     fabricScoped: attr.fabricScoped,
                                 }),
