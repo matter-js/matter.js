@@ -13,7 +13,6 @@ import { AccessControlServer } from "#behaviors/access-control";
 import { DescriptorServer } from "#behaviors/descriptor";
 import { AccessControl } from "#clusters/access-control";
 import { OtaSoftwareUpdateProvider } from "#clusters/ota-software-update-provider";
-import { OtaSoftwareUpdateRequestor } from "#clusters/ota-software-update-requestor";
 import {
     Bytes,
     Crypto,
@@ -31,6 +30,7 @@ import type { ServerNode } from "#node/ServerNode.js";
 import {
     assertRemoteActor,
     BdxProtocol,
+    BdxSession,
     FabricAuthority,
     Flow,
     NodeSession,
@@ -51,6 +51,8 @@ interface OtaUpdateInProgressDetails {
     timestamp: Timestamp;
     versionToApply?: number;
     directConsentObtained?: boolean;
+    /** Called when the entry is removed to clean up external listeners (e.g. sessionStarted) */
+    cleanup?: () => void;
 }
 
 export enum OtaSoftwareUpdateConsentState {
@@ -180,7 +182,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
             logger.info(
                 `OTA Update for Requestor`,
                 peerAddress,
-                `already in progress (${OtaSoftwareUpdateRequestor.UpdateState[updateInProgress.lastState]})`,
+                `already in progress (${OtaUpdateStatus[updateInProgress.lastState]})`,
             );
             return {
                 status: OtaSoftwareUpdateProvider.Status.Busy,
@@ -225,6 +227,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
                 case OtaSoftwareUpdateConsentState.Denied:
                 case OtaSoftwareUpdateConsentState.Unknown:
                 default:
+                    this.#removeInProgressDetails(peerAddress);
                     return {
                         status: OtaSoftwareUpdateProvider.Status.NotAvailable,
                     };
@@ -255,11 +258,20 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
                 };
             }
 
-            bdxProtocol.sessionStarted.on((bdxSession, scope) => {
+            const sessionListener = (bdxSession: BdxSession, scope: string) => {
                 if (scope !== this.updateStorage.scope || !PeerAddress.is(bdxSession.peerAddress, peerAddress)) {
                     // New session not for us
                     return;
                 }
+
+                // Found our session — unregister from sessionStarted to prevent listener accumulation
+                bdxProtocol.sessionStarted.off(sessionListener);
+
+                // Verify the entry still exists (might have been cancelled/timed out since queryImage)
+                if (this.#inProgressDetailsForPeer(peerAddress, updateToken) === undefined) {
+                    return;
+                }
+
                 this.#updateInProgressDetails(
                     peerAddress,
                     updateToken,
@@ -282,7 +294,33 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
                         newSoftwareVersion,
                     ),
                 );
-            });
+                bdxSession.closed.on(() => {
+                    const details = this.#inProgressDetailsForPeer(peerAddress, updateToken);
+                    if (
+                        details !== undefined &&
+                        details.lastState !== OtaUpdateStatus.WaitForApply &&
+                        details.lastState !== OtaUpdateStatus.Applying &&
+                        details.lastState !== OtaUpdateStatus.Done &&
+                        details.lastState !== OtaUpdateStatus.Cancelled
+                    ) {
+                        this.#updateInProgressDetails(
+                            peerAddress,
+                            updateToken,
+                            OtaUpdateStatus.Cancelled,
+                            newSoftwareVersion,
+                        );
+                    }
+                });
+            };
+            bdxProtocol.sessionStarted.on(sessionListener);
+
+            // Store cleanup so the listener is removed when the entry reaches a terminal state
+            const details = this.internal.inProgressDetails.get(
+                `${peerAddress.nodeId}-${peerAddress.fabricIndex}-${Bytes.toHex(updateToken)}`,
+            );
+            if (details !== undefined) {
+                details.cleanup = () => bdxProtocol.sessionStarted.off(sessionListener);
+            }
 
             // And keep it open until a minimum 5 minutes after the last block transfer to allow partial downloads
 
@@ -405,16 +443,52 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
 
     /**
      * Retrieves the in-progress details for a specific peer based on the peer address and an optional update token.
+     * Auto-removes entries older than 15 minutes to prevent stale entries from blocking future updates.
      */
     #inProgressDetailsForPeer(peerAddress: PeerAddress, updateToken?: Bytes) {
         const { fabricIndex, nodeId: requestorNodeId } = peerAddress;
+        const now = Time.nowMs;
         if (updateToken !== undefined) {
             const key = `${requestorNodeId}-${fabricIndex}-${Bytes.toHex(updateToken)}`;
-            return this.internal.inProgressDetails.get(key);
+            const details = this.internal.inProgressDetails.get(key);
+            if (details !== undefined && details.timestamp + Minutes(15) < now) {
+                logger.info(
+                    `Removing stale in-progress OTA entry for Requestor`,
+                    peerAddress,
+                    `(age: ${Math.round((now - details.timestamp) / 60_000)}min)`,
+                );
+                details.cleanup?.();
+                this.internal.inProgressDetails.delete(key);
+                return undefined;
+            }
+            return details;
         }
-        for (const details of this.internal.inProgressDetails.values()) {
+        for (const [key, details] of this.internal.inProgressDetails.entries()) {
             if (details.requestorNodeId === requestorNodeId && details.fabricIndex === fabricIndex) {
+                if (details.timestamp + Minutes(15) < now) {
+                    logger.info(
+                        `Removing stale in-progress OTA entry for Requestor`,
+                        peerAddress,
+                        `(age: ${Math.round((now - details.timestamp) / 60_000)}min)`,
+                    );
+                    details.cleanup?.();
+                    this.internal.inProgressDetails.delete(key);
+                    return undefined;
+                }
                 return details;
+            }
+        }
+    }
+
+    /**
+     * Removes all in-progress details entries for a specific peer address.
+     */
+    #removeInProgressDetails(peerAddress: PeerAddress) {
+        const { fabricIndex, nodeId: requestorNodeId } = peerAddress;
+        for (const [key, details] of this.internal.inProgressDetails.entries()) {
+            if (details.requestorNodeId === requestorNodeId && details.fabricIndex === fabricIndex) {
+                details.cleanup?.();
+                this.internal.inProgressDetails.delete(key);
             }
         }
     }
@@ -433,6 +507,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
         const { fabricIndex, nodeId: requestorNodeId } = peerAddress;
         const key = `${requestorNodeId}-${fabricIndex}-${Bytes.toHex(updateToken)}`;
         const origDetails = this.internal.inProgressDetails.get(key);
+        const previousState = origDetails?.lastState;
         const details: OtaUpdateInProgressDetails = origDetails ?? {
             requestorNodeId,
             fabricIndex,
@@ -440,6 +515,8 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
             timestamp: Time.nowMs,
             directConsentObtained,
         };
+        details.lastState = lastState;
+        details.timestamp = Time.nowMs;
         if (versionToApply !== undefined) {
             if (details.versionToApply !== undefined && details.versionToApply !== versionToApply) {
                 logger.warn(
@@ -455,7 +532,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
         logger.info(
             `OTA Update ${details.versionToApply !== undefined ? `to version ${details.versionToApply} ` : ""}for Requestor`,
             peerAddress.toString(),
-            `(${Bytes.toHex(updateToken)}) is now ${OtaUpdateStatus[lastState]}${origDetails === undefined ? "" : ` (formerly ${OtaUpdateStatus[origDetails.lastState]})`}`,
+            `(${Bytes.toHex(updateToken)}) is now ${OtaUpdateStatus[lastState]}${previousState === undefined ? "" : ` (formerly ${OtaUpdateStatus[previousState]})`}`,
         );
 
         this.internal.inProgressDetails.set(key, details);
@@ -463,6 +540,12 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
         this.endpoint.act(agent =>
             agent.get(SoftwareUpdateManager).onOtaStatusChange(peerAddress, lastState, details.versionToApply),
         );
+
+        // Ensure they don't block future updates
+        if (lastState === OtaUpdateStatus.Done || lastState === OtaUpdateStatus.Cancelled) {
+            details.cleanup?.();
+            this.internal.inProgressDetails.delete(key);
+        }
     }
 }
 

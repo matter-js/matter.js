@@ -399,7 +399,13 @@ export class PairedNode {
                 }`,
             );
             if (this.#connectionState === NodeStates.Connected) {
-                this.#scheduleReconnect();
+                if (this.#nodeShutdownReason === NodeShutDownReason.ForUpdate) {
+                    this.#nodeShutdownDetected = false;
+                    this.#nodeShutdownReason = undefined;
+                    this.#scheduleReconnect(Millis(RECONNECT_DELAY_AFTER_SHUTDOWN * 4));
+                } else {
+                    this.#scheduleReconnect();
+                }
             }
         });
 
@@ -998,7 +1004,13 @@ export class PairedNode {
             updateTimeoutHandler: () => {
                 logger.info(this.#peerAddress, `Subscription timed out ... trying to re-establish ...`);
                 if (this.#connectionState === NodeStates.Connected || !this.#reconnectDelayTimer?.isRunning) {
-                    this.triggerReconnect();
+                    if (this.#nodeShutdownReason === NodeShutDownReason.ForUpdate) {
+                        this.#nodeShutdownDetected = false;
+                        this.#nodeShutdownReason = undefined;
+                        this.#scheduleReconnect(Millis(RECONNECT_DELAY_AFTER_SHUTDOWN * 4));
+                    } else {
+                        this.triggerReconnect();
+                    }
                 }
             },
             subscriptionAlive: () => {
@@ -1169,7 +1181,7 @@ export class PairedNode {
             this.#setConnectionState(NodeStates.Reconnecting);
         }
 
-        if (!this.#reconnectDelayTimer?.isRunning) {
+        if (this.#reconnectDelayTimer?.isRunning) {
             this.#reconnectDelayTimer?.stop();
         }
         if (delay === undefined) {

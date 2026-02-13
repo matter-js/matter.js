@@ -179,6 +179,9 @@ export class MatterNode {
         this.#observers.on(updateManagerEvents.updateDone, peer => {
             logger.info(`Update done for peer `, peer);
         });
+        this.#observers.on(updateManagerEvents.updateFailed, peer => {
+            logger.info(`Update failed for peer `, peer);
+        });
 
         this.#started = true;
     }

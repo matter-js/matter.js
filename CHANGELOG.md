@@ -21,10 +21,15 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/node
     - Feature: We now allocate node IDs as sequential numbers; the old behavior of randomized node behavior is available if you set `ControllerBehavior` state property `nodeIdAssignment` to `"random"`
     - Enhancement: Also export Matter events via ChangeNotificationService
+    - Enhancement: Added updateFailed event to the OTA behavior
+    - Enhancement: Allows to access the update queue 
     - Adjustment: Ignore invalid VendorIds or DeviceTypeIds when processing MDNS data
     - Fix: Added missing export for ColorControlClient
     - Fix: Prevents duplicate change events for Client behaviors when attributes are Quieter
     - Fix: Ensures to use correct intervals when resuming persisted subscriptions
+    - Fix: Ensures stalled or canceled OTA updates do not block additional tries
+    - Fix: Ensures that the OTA update queue is not blocked and handles stalled/errored entries correctly
+    - Fix: Improves OTA success and failure detections
 
 - @matter/nodejs
     - Fix: Also handle ENETUNREACH as a non-critical network error that triggers the retry logic and MDNS lookup
@@ -32,12 +37,14 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/protocol
     - Enhancement: Added some jitter to the subscription max ceiling to spread out subscription responses from devices
     - Fix: Initializes the Message Reception state counter correctly as defined by the Matter specification
+    - Fix: Ensures that BDX sessions inform upper layers correctly in all canceled cases
 
 - @matter/types
     - Enhancement: Re-Parsed the Matter 1.4.2 specification to improve captured details. No functional changes
 
 - @project-chip/matter.js
     - Fix: Prevent PairedNode from updating its structure when the node is already decommissioned
+    - Fix: Ensures that reconnection triggers always stop the timer when a timer is already running to prevent duplicate triggers
 
 - Other
   - Enhancement: For dev-server users, we now prepare the container for claude-code usage by default
