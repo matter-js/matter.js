@@ -461,10 +461,7 @@ export class ModelTraversal {
             if (typeof key === "string" && key.includes(".")) {
                 const parts = key.split(".");
                 for (let i = 0; i < parts.length - 1 && scope; i++) {
-                    // Try exact match first, then suffix match for cluster-prefixed names
-                    // (e.g. "WebRTCProvideOffer" matching command "ProvideOffer")
-                    scope =
-                        scope.children.selectAll(parts[i])[0] ?? scope.children.find(c => parts[i].endsWith(c.name));
+                    scope = scope.children.selectAll(parts[i])[0];
                 }
                 key = parts[parts.length - 1];
             }

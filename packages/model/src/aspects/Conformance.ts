@@ -670,7 +670,7 @@ function ParsedAst(conformance: Conformance, definition: string): Conformance.As
 }
 
 namespace Parser {
-    // Highest precedence first: comparisons bind tighter than equality
+    // Highest precedence first
     export const BinaryOperatorPrecedence = [[">", "<", ">=", "<="], ["==", "!="], ["&"], ["|", "^"]];
 
     export const BinaryOperators = new Set(BinaryOperatorPrecedence.flat());
