@@ -88,7 +88,10 @@ export async function PeerConnection(
     using lifetime = (peer.lifetime ?? Lifetime.process).join("connecting");
 
     // Reserve network communication slot
-    const network = context.networks.select(peer, options?.network);
+    let network = context.networks.select(peer, options?.network);
+    if (network.connect) {
+        network = network.connect;
+    }
     using _slot = await network.semaphore.obtainSlot(overallAbort);
     if (overallAbort.aborted) {
         return;
