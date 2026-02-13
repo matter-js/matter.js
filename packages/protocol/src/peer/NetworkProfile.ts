@@ -21,8 +21,20 @@ export class UnknownNetworkProfileError extends MatterError {}
  * TODO - record latency and packet loss to support dynamic rate limits
  */
 export interface NetworkProfile {
+    /**
+     * The ID of the NetworkProfile used to register with {@link NetworkProfiles}.
+     */
     id: string;
+
+    /**
+     * A {@link Semaphore} that limits communications for this particular profile.
+     */
     semaphore: Semaphore;
+
+    /**
+     * An additional profile that applies only to the establishment of new CASE sessions.
+     */
+    connect?: NetworkProfile;
 }
 
 /**
@@ -72,11 +84,14 @@ export class NetworkProfiles {
         return this.configure(id, NetworkProfiles.defaults[id as keyof NetworkProfiles.Templates]);
     }
 
-    configure(id: string, parameters: NetworkProfiles.Limits) {
+    configure(id: string, limits: NetworkProfiles.Limits) {
         const network: NetworkProfile = {
             id,
-            semaphore: new Semaphore(`network semaphore ${id}`, parameters.exchanges, parameters.delay),
+            semaphore: new Semaphore(`network semaphore ${id}`, limits.exchanges, limits.delay),
         };
+        if (limits.connect) {
+            network.connect = this.configure(`${id}:connect`, { ...limits, ...limits.connect, connect: undefined });
+        }
         this.#networks.set(id, network);
         return network;
     }
@@ -123,6 +138,13 @@ export namespace NetworkProfiles {
          * Delay between new exchanges.
          */
         delay?: Duration;
+
+        /**
+         * Overrides specifically for establishing new sessions.
+         *
+         * If present, any values here act as limits specifically for CASE session establishment.
+         */
+        connect?: Partial<Limits>;
     }
 
     /**
@@ -163,6 +185,11 @@ export namespace NetworkProfiles {
     export const conservative: Limits = {
         exchanges: 4,
         delay: Millis(100),
+
+        connect: {
+            exchanges: 10,
+            delay: Millis(50),
+        },
     };
 
     export const defaults: Templates = {
