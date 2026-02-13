@@ -1,7 +1,6 @@
 // @license
 // Copyright 2022-2026 Matter.js Authors
 // SPDX-License-Identifier: Apache-2.0
-
 // Dev container notes for developers:
 //
 // You do not need to use a dev container with matter.js.  Native development should work fine.  Further, due to
@@ -19,18 +18,15 @@
 // This devcontainer includes Claude Code with a network firewall that restricts outbound connections to whitelisted
 // domains only.  This allows running "claude --dangerously-skip-permissions" safely for unattended operation.
 // See https://code.claude.com/docs/en/devcontainer for details.
-
 {
 	"name": "matter.js",
-
 	"dockerComposeFile": "docker-compose.yml",
 	"service": "devcontainer",
 	"workspaceFolder": "/matter.js",
-
-	"postCreateCommand": "/bin/bash ./.devcontainer/post-create.sh",
-	"postStartCommand": "sudo /usr/local/bin/init-firewall.sh",
+	"postCreateCommand": "/bin/bash ./.devcontainer/bin/post-create.sh",
+	"postStartCommand": "/bin/bash ./.devcontainer/bin/post-start.sh",
 	"waitFor": "postStartCommand",
-
+	"remoteUser": "matter",
 	"features": {
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {
 			"moby": true,
@@ -41,7 +37,6 @@
 			"dockerDashComposeVersion": "v2"
 		}
 	},
-
 	"customizations": {
 		"vscode": {
 			"extensions": [
@@ -65,14 +60,13 @@
 			}
 		}
 	},
-
 	"mounts": [
-		"source=matter-js-bashhistory-${devcontainerId},target=/commandhistory,type=volume",
-		"source=matter-js-claude-config-${devcontainerId},target=/home/node/.claude,type=volume"
+		"source=matter-js-npm-${devcontainerId},target=/matter.js/node_modules,type=volume",
+		"source=matter-js-bashhistory-${devcontainerId},target=/home/matter/.commandhistory,type=volume",
+		"source=matter-js-claude-config-${devcontainerId},target=/home/matter/.claude,type=volume"
 	],
-
 	"containerEnv": {
-		"NODE_OPTIONS": "--max-old-space-size=4096",
-		"CLAUDE_CONFIG_DIR": "/home/node/.claude"
+		//"NODE_OPTIONS": "--max-old-space-size=4096",
+		"CLAUDE_CONFIG_DIR": "/home/matter/.claude"
 	}
 }

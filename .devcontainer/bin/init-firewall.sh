@@ -3,6 +3,8 @@
 # Copyright 2022-2026 Matter.js Authors
 # SPDX-License-Identifier: Apache-2.0
 
+# ROLE: Installed during container build; run with sudo via post-start.sh
+
 # Network firewall for Claude Code devcontainer.  Restricts outbound connections to whitelisted
 # domains only, implementing a default-deny policy.  This allows running Claude Code with
 # --dangerously-skip-permissions safely.
@@ -65,7 +67,7 @@ if [ -n "$DOCKER_DNS_RULES" ]; then
     iptables -t nat -N DOCKER_POSTROUTING 2>/dev/null || true
     echo "$DOCKER_DNS_RULES" | xargs -L 1 iptables -t nat
 else
-    echo "No Docker DNS rules to restore"
+    : #echo "No Docker DNS rules to restore"
 fi
 
 # ---------------------------------------------------------------------------
@@ -119,10 +121,10 @@ ip6tables -A INPUT -p udp --dport 5540:5560 -j ACCEPT
 ipset create allowed-domains hash:net
 
 # Fetch GitHub meta information and aggregate + add their IP ranges
-echo "Fetching GitHub IP ranges..."
+#echo "Fetching GitHub IP ranges..."
 gh_ranges=$(curl -s https://api.github.com/meta)
 if [ -z "$gh_ranges" ]; then
-    echo "ERROR: Failed to fetch GitHub IP ranges"
+    : #echo "ERROR: Failed to fetch GitHub IP ranges"
     exit 1
 fi
 
@@ -131,13 +133,13 @@ if ! echo "$gh_ranges" | jq -e '.web and .api and .git' >/dev/null; then
     exit 1
 fi
 
-echo "Processing GitHub IPs..."
+#echo "Processing GitHub IPs..."
 while read -r cidr; do
     if [[ ! "$cidr" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}$ ]]; then
         echo "ERROR: Invalid CIDR range from GitHub meta: $cidr"
         exit 1
     fi
-    echo "Adding GitHub range $cidr"
+    #echo "Adding GitHub range $cidr"
     ipset add allowed-domains "$cidr"
 done < <(echo "$gh_ranges" | jq -r '(.web + .api + .git)[]' | aggregate -q)
 
@@ -157,7 +159,7 @@ for domain in \
     "ghcr.io" \
     "on.dcl.csa-iot.org" \
     "on.test-net.dcl.csa-iot.org"; do
-    echo "Resolving $domain..."
+    #echo "Resolving $domain..."
     ips=$(dig +noall +answer A "$domain" | awk '$4 == "A" {print $5}')
     if [ -z "$ips" ]; then
         echo "WARNING: Failed to resolve $domain (skipping)"
@@ -184,7 +186,7 @@ if [ -z "$HOST_IP" ]; then
 fi
 
 HOST_NETWORK=$(echo "$HOST_IP" | sed "s/\.[0-9]*$/.0\/24/")
-echo "Host network detected as: $HOST_NETWORK"
+#echo "Host network detected as: $HOST_NETWORK"
 
 iptables -A INPUT -s "$HOST_NETWORK" -j ACCEPT
 iptables -A OUTPUT -d "$HOST_NETWORK" -j ACCEPT
@@ -222,21 +224,18 @@ ip6tables -A OUTPUT -j REJECT --reject-with icmp6-adm-prohibited
 # ---------------------------------------------------------------------------
 # 8. Verification
 # ---------------------------------------------------------------------------
-echo "Firewall configuration complete"
-echo "Verifying firewall rules..."
+#echo "Firewall configuration complete"
+#echo "Verifying firewall rules..."
 if curl --connect-timeout 5 https://example.com >/dev/null 2>&1; then
     echo "ERROR: Firewall verification failed - was able to reach https://example.com"
     exit 1
 else
-    echo "Firewall verification passed - unable to reach https://example.com as expected"
+    : #echo "Firewall verification passed - unable to reach https://example.com as expected"
 fi
 
 if ! curl --connect-timeout 5 https://api.github.com/zen >/dev/null 2>&1; then
     echo "ERROR: Firewall verification failed - unable to reach https://api.github.com"
     exit 1
 else
-    echo "Firewall verification passed - able to reach https://api.github.com as expected"
+    : #echo "Firewall verification passed - able to reach https://api.github.com as expected"
 fi
-
-# Hmm lets see if we can actually lock down container
-rm /etc/sudoers.d/node
