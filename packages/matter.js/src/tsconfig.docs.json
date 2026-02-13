@@ -3,7 +3,7 @@
     "compilerOptions": {
         "outDir": "../dist/esm",
         "types": ["@matter/tools", "node"],
-        "resolveJsonModule": true, // needed for globals package
+        "resolveJsonModule": true,
     },
     "typedocOptions": {
         "entryPoints": [
