@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Crypto, Entropy, Environment, Key, PrivateKey, PublicKey, StandardCrypto, WebCrypto } from "#general";
+import { Crypto, Entropy, Environment, StandardCrypto, WebCrypto } from "#general";
 import { Buffer } from "@craftzdog/react-native-buffer";
 import QuickCrypto from "react-native-quick-crypto";
 
@@ -26,13 +26,6 @@ export class ReactNativeCrypto extends StandardCrypto {
 
     static override provider() {
         return new ReactNativeCrypto(crypto as unknown as WebCrypto);
-    }
-
-    /**
-     * QuickCrypto foes not yet support "deriveKey" for ECDH
-     */
-    override async generateDhSecret(key: PrivateKey, peerKey: PublicKey) {
-        return Key.sharedSecretFor(key, peerKey);
     }
 }
 
