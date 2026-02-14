@@ -24,8 +24,9 @@ import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace JointFabricAdministrator {
     /**
-     * This command shall be generated in response to a ICACCSRRequest command. Check ICAC Cross Signing for details
-     * about the generation of the ICACCSR.
+     * This command shall be generated in response to a ICACCSRRequest command.
+     *
+     * Check ICAC Cross Signing for details about the generation of the ICACCSR.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.25.7.2
      */
@@ -40,8 +41,9 @@ export namespace JointFabricAdministrator {
     });
 
     /**
-     * This command shall be generated in response to a ICACCSRRequest command. Check ICAC Cross Signing for details
-     * about the generation of the ICACCSR.
+     * This command shall be generated in response to a ICACCSRRequest command.
+     *
+     * Check ICAC Cross Signing for details about the generation of the ICACCSR.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.25.7.2
      */
@@ -329,7 +331,7 @@ export namespace JointFabricAdministrator {
         attributes: {
             /**
              * The AdministratorFabricIndex attribute shall indicate the FabricIndex from the Endpoint 0’s Operational
-             * Cluster Fabrics attribute (i.e. the Fabric Table) which is associated with the JointFabric. This field
+             * Cluster Fabrics attribute (i.e. the Fabric Table) which is associated withtheJointFabric. This field
              * shall have the value of null if there is no fabric associated with the JointFabric.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.25.6.1
@@ -436,8 +438,8 @@ export namespace JointFabricAdministrator {
              * This command shall be used for communicating to client the endpoint that holds the Joint Fabric
              * Administrator Cluster.
              *
-             * ### This field shall contain the unique identifier for the endpoint that holds the Joint Fabric
-             * Administrator Cluster.
+             * This field shall contain the unique identifier for the endpoint that holds the Joint Fabric Administrator
+             * Cluster.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.25.7.9
              */
@@ -455,7 +457,9 @@ export namespace JointFabricAdministrator {
      * An instance of the Joint Fabric Administrator Cluster only applies to Joint Fabric Administrator nodes fulfilling
      * the role of Anchor CA.
      *
-     * NOTE Support for Joint Fabric Administrator Cluster is provisional.
+     * > [!NOTE]
+     *
+     * > Support for Joint Fabric Administrator Cluster is provisional.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.25
      */

@@ -48,7 +48,7 @@ export class ServerInteraction<
             yield* attributeReader.process(request);
 
             const { existent, status, success } = attributeReader.counts;
-            readInfo = `${existent} matching attributes (${status ? `${status} status, ` : ""}${success ? `${success} values` : ""})`;
+            readInfo = `${existent} matching attributes (${status ? `${status} status` : ""}${success ? `${success} values` : ""})`;
         }
 
         if (Read.containsEvent(request)) {

@@ -77,7 +77,7 @@ export class PaseCommissioner {
             return this.#controllerInstance;
         }
 
-        const { certificateAuthorityConfig: rootCertificateData, fabricConfig: fabricConfig } = this.options;
+        const { certificateAuthorityConfig: rootCertificateData, fabricConfig } = this.options;
 
         this.#services = this.#environment.asDependent();
         try {

@@ -9,16 +9,6 @@ import { DataReader } from "../util/DataReader.js";
 import { toHex } from "../util/Number.js";
 import { isObject } from "../util/Type.js";
 
-export enum DerKey {
-    ObjectId = "_objectId",
-    TagId = "_tag",
-    Bytes = "_bytes",
-    Elements = "_elements",
-    BitsPadding = "_padding",
-    TypeOverride = "_type",
-    RawData = "_raw",
-}
-
 export class DerError extends UnexpectedDataError {}
 
 export enum DerType {
@@ -46,33 +36,87 @@ const enum DerClass {
     ContextSpecific = 0x80,
     Private = 0xc0,
 }
-export const ObjectId = (objectId: string) => ({
-    [DerKey.TagId]: DerType.ObjectIdentifier as number,
-    [DerKey.Bytes]: Bytes.fromHex(objectId),
+
+export interface ObjectId {
+    _tag: DerType.ObjectIdentifier;
+    _bytes: Bytes;
+}
+
+export const ObjectId = (objectId: string | bigint): ObjectId => ({
+    _tag: DerType.ObjectIdentifier as number,
+    _bytes: typeof objectId === "bigint" ? Bytes.fromBigInt(objectId) : Bytes.fromHex(objectId),
 });
-export const DerObject = (objectId: string, content: any = {}) => ({
-    [DerKey.ObjectId]: ObjectId(objectId),
+
+export interface DerObject {
+    readonly _tag?: undefined;
+    readonly _objectId: ObjectId;
+    readonly [field: string]: unknown;
+}
+
+export const DerObject = (objectId: string | bigint, content: Record<string, unknown> = {}): DerObject => ({
+    _objectId: ObjectId(objectId),
     ...content,
 });
-export const DerBitString = (data: Bytes, padding = 0) => ({
-    [DerKey.TagId]: DerType.BitString as number,
-    [DerKey.Bytes]: data,
-    [DerKey.BitsPadding]: padding,
+
+export interface DerTagged {
+    _tag: number;
+    _bytes: Bytes;
+}
+
+export interface DerBitString extends DerTagged {
+    _tag: DerType.BitString;
+    _bytes: Bytes;
+    _padding: number;
+}
+
+export const DerBitString = (data: Bytes, padding = 0): DerBitString => ({
+    _tag: DerType.BitString,
+    _bytes: data,
+    _padding: padding,
 });
-export const ContextTagged = (tagId: number, value?: any) => ({
-    [DerKey.TagId]: tagId | DerClass.ContextSpecific | CONSTRUCTED,
-    [DerKey.Bytes]: value === undefined ? new Uint8Array(0) : DerCodec.encode(value),
+
+export const ContextTagged = (tagId: number, value?: any): DerTagged => ({
+    _tag: tagId | DerClass.ContextSpecific | CONSTRUCTED,
+    _bytes: value === undefined ? new Uint8Array(0) : DerCodec.encode(value),
 });
-export const ContextTaggedBytes = (tagId: number, value: Bytes) => ({
-    [DerKey.TagId]: tagId | DerClass.ContextSpecific,
-    [DerKey.Bytes]: value,
+
+export const ContextTaggedBytes = (tagId: number, value: Bytes): DerTagged => ({
+    _tag: tagId | DerClass.ContextSpecific,
+    _bytes: value,
 });
-export const DatatypeOverride = (type: DerType, value: any) => ({
-    [DerKey.TypeOverride]: type,
-    [DerKey.RawData]: value,
-});
-export const RawBytes = (bytes: Bytes) => ({
-    [DerKey.Bytes]: bytes,
+
+export type DatatypeOverride =
+    | {
+          _tag?: undefined;
+          _type: DerType.Integer;
+          _raw: Bytes;
+      }
+    | {
+          _tag?: undefined;
+          _type: DerType.BitString;
+          _raw: number;
+      }
+    | {
+          _tag?: undefined;
+          _type: DerType.PrintableString | DerType.IA5String;
+          _raw: string;
+      };
+
+export const DatatypeOverride = <T extends DatatypeOverride["_type"]>(
+    type: T,
+    value: (DatatypeOverride & { _type: T })["_raw"],
+) =>
+    ({
+        _type: type,
+        _raw: value,
+    }) as DatatypeOverride;
+
+export interface RawBytes {
+    _bytes: Bytes;
+}
+
+export const RawBytes = (bytes: Bytes): RawBytes => ({
+    _bytes: bytes,
 });
 
 /**
@@ -80,7 +124,7 @@ export const RawBytes = (bytes: Bytes) => ({
  *
  * This allows to avoid e.g. round tripping a 256-bit number through a bigint when encoding.
  */
-export const DerRawUint = (number: Bytes) => {
+export const DerRawUint = (number: Bytes): DerTagged => {
     const numberData = Bytes.of(number);
 
     if (numberData[0] & 0x80) {
@@ -101,20 +145,60 @@ export const DerRawUint = (number: Bytes) => {
     }
 
     return {
-        [DerKey.TagId]: DerType.Integer,
-        [DerKey.Bytes]: number,
+        _tag: DerType.Integer,
+        _bytes: number,
     };
 };
 
 export type DerNode = {
-    [DerKey.TagId]: number;
-    [DerKey.Bytes]: Bytes;
-    [DerKey.Elements]?: DerNode[];
-    [DerKey.BitsPadding]?: number;
+    _tag: number;
+    _bytes: Bytes;
+    _elements?: DerNode[];
+    _padding?: number;
 };
 
+/**
+ * Arrays define a DER set.
+ */
+export type DerSetDefinition = Array<DerNodeDefinition>;
+
+/**
+ * Objects without special fields define an "object".
+ *
+ * Under this somewhat strange construct, the field name is effectively just documentation.  The object order and
+ * ObjectID of the referenced nodes define the actual serialized format.
+ */
+export type DerSequenceDefinition = {
+    _tag?: undefined;
+    _type?: undefined;
+    _bytes?: undefined;
+    _objectId?: ObjectId;
+    [field: string]: DerNodeDefinition;
+};
+
+/**
+ * Input to {@link DerCodec.encode}.
+ *
+ * This is a lenient mapping of native JS types we accept on encoding.  We map each of these to a {@link DerNode} and
+ * then encode.
+ */
+export type DerNodeDefinition =
+    | string
+    | number
+    | bigint
+    | Date
+    | boolean
+    | Bytes
+    | undefined
+    | DerNode
+    | DerSetDefinition
+    | DerSequenceDefinition
+    | DerObject
+    | RawBytes
+    | DatatypeOverride;
+
 export class DerCodec {
-    static encode(value: unknown): Bytes {
+    static encode(value: DerNodeDefinition): Bytes {
         if (Array.isArray(value)) {
             return this.#encodeArray(value);
         } else if (Bytes.isBytes(value)) {
@@ -130,8 +214,8 @@ export class DerCodec {
         } else if (value === undefined) {
             return new Uint8Array(0);
         } else if (isObject(value)) {
-            if (value[DerKey.TagId] !== undefined) {
-                const { [DerKey.TagId]: tagId, [DerKey.BitsPadding]: bitsPadding, [DerKey.Bytes]: bytes } = value;
+            if (value._tag !== undefined) {
+                const { _tag: tagId, _padding: bitsPadding, _bytes: bytes } = value;
                 if (typeof tagId !== "number") {
                     throw new DerError("Tag ID is non-numeric");
                 }
@@ -145,36 +229,28 @@ export class DerCodec {
                     tagId,
                     bitsPadding === undefined ? bytes : Bytes.concat(Uint8Array.of(bitsPadding), Bytes.of(bytes)),
                 );
-            } else if (value[DerKey.TypeOverride] !== undefined && value[DerKey.RawData] !== undefined) {
-                if (value[DerKey.TypeOverride] === DerType.Integer && Bytes.isBytes(value[DerKey.RawData])) {
-                    return this.#encodeInteger(value[DerKey.RawData]);
-                } else if (
-                    value[DerKey.TypeOverride] === DerType.BitString &&
-                    typeof value[DerKey.RawData] === "number"
-                ) {
-                    return this.#encodeBitString(value[DerKey.RawData]);
-                } else if (
-                    value[DerKey.TypeOverride] === DerType.PrintableString &&
-                    typeof value[DerKey.RawData] === "string"
-                ) {
-                    return this.#encodePrintableString(value[DerKey.RawData]);
-                } else if (
-                    value[DerKey.TypeOverride] === DerType.IA5String &&
-                    typeof value[DerKey.RawData] === "string"
-                ) {
-                    return this.#encodeIA5String(value[DerKey.RawData]);
+            } else if (value._type !== undefined && value._raw !== undefined) {
+                if (value._type === DerType.Integer && Bytes.isBytes(value._raw)) {
+                    return this.#encodeInteger(value._raw);
+                } else if (value._type === DerType.BitString && typeof value._raw === "number") {
+                    return this.#encodeBitString(value._raw);
+                } else if (value._type === DerType.PrintableString && typeof value._raw === "string") {
+                    return this.#encodePrintableString(value._raw);
+                } else if (value._type === DerType.IA5String && typeof value._raw === "string") {
+                    return this.#encodeIA5String(value._raw);
                 } else {
-                    throw new DerError(`Unsupported override type ${value[DerKey.TypeOverride]}`);
+                    throw new DerError(`Unsupported override type ${value._type}`);
                 }
             } else if (
-                value[DerKey.Bytes] !== undefined &&
-                Bytes.isBytes(value[DerKey.Bytes]) &&
+                "_bytes" in value &&
+                value._bytes !== undefined &&
+                Bytes.isBytes(value._bytes) &&
                 Object.keys(value).length === 1
             ) {
                 // Raw Data
-                return Bytes.of(value[DerKey.Bytes]);
-            } else if (value[DerKey.TypeOverride] === undefined && value[DerKey.Bytes] === undefined) {
-                return this.#encodeObject(value);
+                return Bytes.of(value._bytes);
+            } else if (value._type === undefined && value._bytes === undefined) {
+                return this.#encodeSequence(value);
             } else {
                 throw new DerError(`Unsupported object type ${typeof value}`);
             }
@@ -195,14 +271,14 @@ export class DerCodec {
             throw new DerError("Missing number in DER object");
         }
 
-        if (value[DerKey.TagId] !== DerType.Integer) {
-            throw new DerError(`Expected integer but DER tag is ${DerType[value[DerKey.TagId]]}`);
+        if (value._tag !== DerType.Integer) {
+            throw new DerError(`Expected integer but DER tag is ${DerType[value._tag]}`);
         }
 
-        if (!Bytes.isBytes(value[DerKey.Bytes])) {
+        if (!Bytes.isBytes(value._bytes)) {
             throw new DerError("Incorrect DER object type");
         }
-        const bytes = Bytes.of(value[DerKey.Bytes]);
+        const bytes = Bytes.of(value._bytes);
 
         // The common case
         if (bytes.length === byteLength) {
@@ -260,7 +336,7 @@ export class DerCodec {
         return this.#encodeAsn1(DerType.OctetString, value);
     }
 
-    static #encodeObject(object: any) {
+    static #encodeSequence(object: any) {
         const attributes = new Array<Bytes>();
         for (const key in object) {
             attributes.push(this.encode(object[key]));
@@ -280,7 +356,7 @@ export class DerCodec {
     }
 
     static #encodeIA5String(value: string) {
-        /*eslint-disable-next-line no-control-regex */
+        /*oxlint-disable-next-line no-control-regex */
         if (!/^[\x00-\x7F]*$/.test(value)) {
             throw new DerError(`String ${value} is not an IA5 string.`);
         }
@@ -335,15 +411,15 @@ export class DerCodec {
         const { tag, bytes } = this.#decodeAsn1(reader);
         if (tag === DerType.BitString) {
             const data = Bytes.of(bytes);
-            return { [DerKey.TagId]: tag, [DerKey.Bytes]: data.slice(1), [DerKey.BitsPadding]: data[0] };
+            return { _tag: tag, _bytes: data.slice(1), _padding: data[0] };
         }
-        if ((tag & CONSTRUCTED) === 0) return { [DerKey.TagId]: tag, [DerKey.Bytes]: bytes };
+        if ((tag & CONSTRUCTED) === 0) return { _tag: tag, _bytes: bytes };
         const elementsReader = new DataReader(bytes);
         const elements: DerNode[] = [];
         while (elementsReader.remainingBytesCount > 0) {
             elements.push(this.#decodeRec(elementsReader));
         }
-        return { [DerKey.TagId]: tag, [DerKey.Bytes]: bytes, [DerKey.Elements]: elements };
+        return { _tag: tag, _bytes: bytes, _elements: elements };
     }
 
     static #decodeAsn1(reader: DataReader): { tag: number; bytes: Bytes } {

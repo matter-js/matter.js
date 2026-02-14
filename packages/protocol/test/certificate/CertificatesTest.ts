@@ -11,14 +11,13 @@ import {
 } from "#certificate/ChipPAAuthorities.js";
 import { Paa } from "#certificate/kinds/AttestationCertificates.js";
 import { Certificate } from "#certificate/kinds/Certificate.js";
-import { CertificateError } from "#certificate/kinds/common.js";
 import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Rcac } from "#certificate/kinds/Rcac.js";
 import {
     Bytes,
+    CertificateError,
     DerCodec,
-    DerKey,
     DerNode,
     EcdsaSignature,
     PrivateKey,
@@ -80,7 +79,7 @@ describe("Certificates", () => {
                 if ("ASN1" in certs.ROOT) {
                     it("encode root certificate", () => {
                         const root = Rcac.fromTlv(certs.ROOT.TLV);
-                        expect(Bytes.toHex(root.asUnsignedAsn1())).equal(
+                        expect(Bytes.toHex(root.asUnsignedDer())).equal(
                             // @ts-expect-error ASN1 might be absent, but checked above
                             Bytes.toHex(certs.ROOT.ASN1),
                         );
@@ -90,7 +89,7 @@ describe("Certificates", () => {
                 if ("ICAC" in certs && "ASN1" in certs.ICAC) {
                     it("encode intermediate certificate", () => {
                         const icac = Icac.fromTlv(certs.ICAC.TLV);
-                        expect(Bytes.toHex(icac.asUnsignedAsn1())).equal(
+                        expect(Bytes.toHex(icac.asUnsignedDer())).equal(
                             // @ts-expect-error ASN1 might not be in OperationalCertificate.TlvIcac
                             Bytes.toHex(certs.ICAC.ASN1),
                         );
@@ -100,7 +99,7 @@ describe("Certificates", () => {
                 if ("ASN1" in certs.NOC) {
                     it("encode operational certificate", () => {
                         const noc = Noc.fromTlv(certs.NOC.TLV);
-                        expect(Bytes.toHex(noc.asUnsignedAsn1())).equal(
+                        expect(Bytes.toHex(noc.asUnsignedDer())).equal(
                             // @ts-expect-error ASN1 might not be in OperationalCertificate.TlvNoc
                             Bytes.toHex(certs.NOC.ASN1),
                         );
@@ -120,10 +119,10 @@ describe("Certificates", () => {
                 it("parse root certificate from ASN.1", async () => {
                     // Load from TLV, convert to ASN.1, parse back, and verify
                     const rootFromTlv = Rcac.fromTlv(certs.ROOT.TLV);
-                    const rootFromAsn1 = Rcac.fromAsn1(rootFromTlv.asSignedAsn1());
+                    const rootFromAsn1 = Rcac.fromAsn1(rootFromTlv.asSignedDer());
                     expect(rootFromAsn1.cert).to.deep.equal(rootFromTlv.cert);
                     if ("ASN1" in certs.ROOT) {
-                        expect(Bytes.toHex(rootFromTlv.asUnsignedAsn1())).to.equal(Bytes.toHex(certs.ROOT.ASN1));
+                        expect(Bytes.toHex(rootFromTlv.asUnsignedDer())).to.equal(Bytes.toHex(certs.ROOT.ASN1));
                     }
                     const tlvEncoded = rootFromAsn1.asSignedTlv();
                     expect(Bytes.toHex(tlvEncoded)).equal(Bytes.toHex(certs.ROOT.TLV));
@@ -134,7 +133,7 @@ describe("Certificates", () => {
                 if ("ICAC" in certs) {
                     it("parse intermediate certificate from ASN.1", async () => {
                         const icacFromTlv = Icac.fromTlv(certs.ICAC.TLV);
-                        const icacFromAsn1 = Icac.fromAsn1(icacFromTlv.asSignedAsn1());
+                        const icacFromAsn1 = Icac.fromAsn1(icacFromTlv.asSignedDer());
                         expect(icacFromAsn1.cert).to.deep.equal(icacFromTlv.cert);
                         const tlvEncoded = icacFromAsn1.asSignedTlv();
                         expect(Bytes.toHex(tlvEncoded)).equal(Bytes.toHex(certs.ICAC.TLV));
@@ -146,10 +145,10 @@ describe("Certificates", () => {
 
                 it("parse operational certificate from ASN.1", async () => {
                     const nocFromTlv = Noc.fromTlv(certs.NOC.TLV);
-                    const nocFromAsn1 = Noc.fromAsn1(nocFromTlv.asSignedAsn1());
+                    const nocFromAsn1 = Noc.fromAsn1(nocFromTlv.asSignedDer());
                     expect(nocFromAsn1.cert).to.deep.equal(nocFromTlv.cert);
                     if ("ASN1" in certs.NOC) {
-                        expect(Bytes.toHex(nocFromTlv.asUnsignedAsn1())).to.equal(Bytes.toHex(certs.NOC.ASN1));
+                        expect(Bytes.toHex(nocFromTlv.asUnsignedDer())).to.equal(Bytes.toHex(certs.NOC.ASN1));
                     }
                     const tlvEncoded = nocFromAsn1.asSignedTlv();
                     expect(Bytes.toHex(tlvEncoded)).equal(Bytes.toHex(certs.NOC.TLV));
@@ -175,7 +174,7 @@ describe("Certificates", () => {
             expect(rcac.cert.extensions.basicConstraints.isCa).to.be.true;
             expect(rcac.isSigned).to.be.true;
 
-            const asn1 = rcac.asSignedAsn1();
+            const asn1 = rcac.asSignedDer();
 
             expect(Bytes.toHex(asn1)).to.equal(Bytes.toHex(EXTERNAL_TEST_CERTIFICATES.RCAC_ASN1));
         });
@@ -188,7 +187,7 @@ describe("Certificates", () => {
             expect(icac.cert.extensions.basicConstraints.isCa).to.be.true;
             expect(icac.isSigned).to.be.true;
 
-            const asn1 = icac.asSignedAsn1();
+            const asn1 = icac.asSignedDer();
             expect(Bytes.toHex(asn1)).to.equal(Bytes.toHex(EXTERNAL_TEST_CERTIFICATES.ICAC_ASN1));
         });
 
@@ -201,7 +200,7 @@ describe("Certificates", () => {
             expect(noc.cert.extensions.basicConstraints.isCa).to.be.false;
             expect(noc.isSigned).to.be.true;
 
-            const asn1 = noc.asSignedAsn1();
+            const asn1 = noc.asSignedDer();
             expect(Bytes.toHex(asn1)).to.equal(Bytes.toHex(EXTERNAL_TEST_CERTIFICATES.NOC_ASN1));
         });
 
@@ -353,11 +352,11 @@ describe("Certificates", () => {
                     "3fcd56cf81d769100934b32f6a8b07afddfbf6c32f01e97385f251b8c71bc631a876c56fac76dd3c81449b71a0a450d28d9eaf314ccd3a166b61cddd965829f1",
                 ),
             };
-            const NOC_ASN1 = new Noc(NOC_JSON).asUnsignedAsn1();
+            const NOC_ASN1 = new Noc(NOC_JSON).asUnsignedDer();
             const NOC_TLV = new Noc(NOC_JSON).asSignedTlv();
 
             const unTlv = Noc.fromTlv(NOC_TLV);
-            const unAsn1 = unTlv.asUnsignedAsn1();
+            const unAsn1 = unTlv.asUnsignedDer();
 
             expect(unTlv.cert).to.deep.equal(NOC_JSON);
             expect(Object.keys(unTlv.cert.subject)).to.deep.equal(Object.keys(NOC_JSON.subject));
@@ -377,7 +376,7 @@ describe("Certificates", () => {
                     ],
                 },
             };
-            const result = new Noc(nocWithCat).asUnsignedAsn1();
+            const result = new Noc(nocWithCat).asUnsignedDer();
 
             expect(Bytes.toHex(result)).equal(Bytes.toHex(TEST_NOC_CERT_CAT_ASN1));
         });
@@ -396,7 +395,7 @@ describe("Certificates", () => {
                     ],
                 },
             };
-            expect(() => new Noc(nocWithCat).asUnsignedAsn1()).to.throw(
+            expect(() => new Noc(nocWithCat).asUnsignedDer()).to.throw(
                 ValidationOutOfBoundsError,
                 "Too many CaseAuthenticatedTags (4).",
             );
@@ -415,7 +414,7 @@ describe("Certificates", () => {
                     ],
                 },
             };
-            expect(() => new Noc(nocWithCat).asUnsignedAsn1()).to.throw(
+            expect(() => new Noc(nocWithCat).asUnsignedDer()).to.throw(
                 ValidationOutOfBoundsError,
                 "CASEAuthenticatedTags field contains duplicate identifier values.",
             );
@@ -476,15 +475,15 @@ describe("Certificates", () => {
             );
 
             const derNode = DerCodec.decode(result);
-            expect(derNode[DerKey.Elements]?.length).equal(3);
-            const [requestNode, signatureAlgorithmNode, signatureNode] = derNode[DerKey.Elements] as DerNode[];
+            expect(derNode._elements?.length).equal(3);
+            const [requestNode, signatureAlgorithmNode, signatureNode] = derNode._elements as DerNode[];
             expect(DerCodec.encode(signatureAlgorithmNode)).deep.equal(DerCodec.encode(X962.EcdsaWithSHA256));
             const requestBytes = DerCodec.encode(requestNode);
             expect(requestBytes).deep.equal(TEST_CSR_REQUEST_ASN1);
             await crypto.verifyEcdsa(
                 PublicKey(TEST_PUBLIC_KEY),
                 DerCodec.encode(requestNode),
-                new EcdsaSignature(signatureNode[DerKey.Bytes], "der"),
+                new EcdsaSignature(signatureNode._bytes, "der"),
             );
         });
     });

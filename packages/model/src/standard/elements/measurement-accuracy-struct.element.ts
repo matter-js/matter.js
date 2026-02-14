@@ -13,8 +13,8 @@ export const MeasurementAccuracyStruct = Datatype(
     { name: "MeasurementAccuracyStruct", type: "struct" },
     Field({ name: "MeasurementType", id: 0x0, type: "MeasurementTypeEnum", conformance: "M" }),
     Field({ name: "Measured", id: 0x1, type: "bool", conformance: "M" }),
-    Field({ name: "MinMeasuredValue", id: 0x2, type: "int64", conformance: "M" }),
-    Field({ name: "MaxMeasuredValue", id: 0x3, type: "int64", conformance: "M" }),
+    Field({ name: "MinMeasuredValue", id: 0x2, type: "int64", conformance: "M", constraint: "-2^62 to 2^62" }),
+    Field({ name: "MaxMeasuredValue", id: 0x3, type: "int64", conformance: "M", constraint: "-2^62 to 2^62" }),
     Field(
         { name: "AccuracyRanges", id: 0x4, type: "list", conformance: "M", constraint: "min 1" },
         Field({ name: "entry", type: "MeasurementAccuracyRangeStruct" })

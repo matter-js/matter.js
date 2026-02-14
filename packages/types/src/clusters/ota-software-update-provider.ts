@@ -286,7 +286,7 @@ export namespace OtaSoftwareUpdateProvider {
         delayedActionTime: TlvOptionalField(1, TlvUInt32),
 
         /**
-         * This field, when present, shall contain a URI where the OTA Requestor SHOULD download a Soft ware Image. The
+         * This field, when present, shall contain a URI where the OTA Requestor SHOULD download aSoftwareImage. The
          * syntax of the ImageURI field shall follow the URI syntax as specified in RFC 3986.
          *
          * Beware, this field is conditionally present based on the conformance listed in Section 11.20.6.5.2,
@@ -348,38 +348,38 @@ export namespace OtaSoftwareUpdateProvider {
          *
          * Example ImageURI values are below, and illustrate some but not all of valid and invalid cases:
          *
-         *   • Synchronous or Asynchronous BDX Protocol:
+         *   - Synchronous or Asynchronous BDX Protocol:
          *
-         *     ◦ Valid: bdx://8899AABBCCDDEEFF/the_file_designator123
+         *     - Valid: bdx://8899AABBCCDDEEFF/the_file_designator123
          *
-         *       ▪ Node ID: 0x8899AABBCCDDEEFF
+         *       - Node ID: 0x8899AABBCCDDEEFF
          *
-         *       ▪ File designator: the_file_designator123
+         *       - File designator: the_file_designator123
          *
-         *     ◦ Valid: bdx://0099AABBCCDDEE77/the%20file%20designator/some_more
+         *     - Valid: bdx://0099AABBCCDDEE77/the%20file%20designator/some_more
          *
-         *       ▪ Node ID: 0x0099AABBCCDDEE77
+         *       - Node ID: 0x0099AABBCCDDEE77
          *
-         *       ▪ File designator: the%20file%20designator/some_more. Note that the %20 are retained and not converted
+         *       - File designator: the%20file%20designator/some_more. Note that the %20 are retained and not converted
          *         to ASCII 0x20 (space). The file designator is the path as received verbatim, after the first '/'
          *         (U+002F / SOLIDUS) following the host.
          *
-         *     ◦ Invalid: bdx://99AABBCCDDEE77/the_file_designator123
+         *     - Invalid: bdx://99AABBCCDDEE77/the_file_designator123
          *
-         *       ▪ Node ID: Invalid since it is not exactly 16 characters long, due to having omitted leading zeros.
+         *       - Node ID: Invalid since it is not exactly 16 characters long, due to having omitted leading zeros.
          *
-         *     ◦ Invalid: bdx://0099aabbccddee77/the_file_designator123
+         *     - Invalid: bdx://0099aabbccddee77/the_file_designator123
          *
-         *       ▪ Node ID: Invalid since lowercase hexadecimal was used.
+         *       - Node ID: Invalid since lowercase hexadecimal was used.
          *
-         *     ◦ Invalid: bdx:8899AABBCCDDEEFF/the_file_designator123
+         *     - Invalid: bdx:8899AABBCCDDEEFF/the_file_designator123
          *
-         *       ▪ Invalid since bdx scheme does not contain an authority, that is, it does not have // after the first
+         *       - Invalid since bdx scheme does not contain an authority, that is, it does not have // after the first
          *         :.
          *
-         *   • HTTP over TLS:
+         *   - HTTP over TLS:
          *
-         *     ◦ Valid: https://example.domain:8466/software/image.bin
+         *     - Valid: https://example.domain:8466/software/image.bin
          *
          * See Section 11.20.3.2, “Querying the OTA Provider” for additional details about the flow.
          *
@@ -404,7 +404,6 @@ export namespace OtaSoftwareUpdateProvider {
          * This field provides a string version of the image being provided to the OTA Requestor by the OTA Provider.
          *
          * Beware, this field is conditionally present based on the conformance listed in Section 11.20.6.5.2,
-         *
          * “QueryImageResponse Command”.
          *
          * See Section 11.20.3.2, “Querying the OTA Provider” for additional details about the flow and acceptable
@@ -440,7 +439,7 @@ export namespace OtaSoftwareUpdateProvider {
         /**
          * This optional field, if present, shall consist of a top-level anonymous list; each list element shall have a
          * profile-specific tag encoded in fully-qualified form. Each list element shall contain a manufacturer-specific
-         * payload, which the OTA Provider wants to expose to the receiving OTA Requestor. This payload may be used for
+         * payload, which the OTA Provider wants to expose to the receiving OTARequestor. This payload may be used for
          * any purpose and SHOULD be as small as practical.
          *
          * The presence of this field shall NOT be required for correct operation of any OTA Provider compliant with

@@ -6,6 +6,7 @@
 
 import { PersistedFileDesignator } from "#bdx/PersistedFileDesignator.js";
 import { ScopedStorage } from "#bdx/ScopedStorage.js";
+import { DclErrorCodes } from "#dcl/DclRestApiTypes.js";
 import {
     Construction,
     Crypto,
@@ -24,7 +25,7 @@ import {
 } from "#general";
 import { DeviceSoftwareVersionModelDclSchema, VendorId } from "#types";
 import { OtaImageReader } from "../ota/OtaImageReader.js";
-import { DclClient, MatterDclError } from "./DclClient.js";
+import { DclClient, MatterDclError, MatterDclResponseError } from "./DclClient.js";
 
 const logger = Logger.get("DclOtaUpdateService");
 
@@ -176,7 +177,11 @@ export class DclOtaUpdateService {
             logger.debug(`No applicable updates found in ${dclLogStr}`, Diagnostic.dict(diagnosticInfo));
         } catch (error) {
             MatterDclError.accept(error);
-            logger.info(`Failed to check for updates for VID: ${vendorId}, PID: ${productId}: ${error.message}`);
+            if (error instanceof MatterDclResponseError && error.response.code === DclErrorCodes.NotFound) {
+                logger.debug(`No applicable updates found in ${dclLogStr}`, Diagnostic.dict(diagnosticInfo));
+            } else {
+                logger.info(`Failed to check for updates for VID: ${vendorId}, PID: ${productId}: ${error.message}`);
+            }
         }
     }
 
@@ -227,11 +232,17 @@ export class DclOtaUpdateService {
                         localUpdates[0].maxApplicableSoftwareVersion ?? localUpdates[0].softwareVersion - 1,
                     source: localUpdates[0].mode === "prod" ? "dcl-prod" : "local",
                 };
-                logger.debug(`Found local update`, Diagnostic.dict(localUpdate));
-                if (targetSoftwareVersion !== undefined && localUpdate.softwareVersion === targetSoftwareVersion) {
-                    return localUpdate;
+                if (
+                    localUpdate.softwareVersion > currentSoftwareVersion &&
+                    currentSoftwareVersion >= localUpdate.minApplicableSoftwareVersion &&
+                    currentSoftwareVersion <= localUpdate.maxApplicableSoftwareVersion
+                ) {
+                    logger.debug(`Found applicable local update`, Diagnostic.dict(localUpdate));
+                    if (targetSoftwareVersion !== undefined && localUpdate.softwareVersion === targetSoftwareVersion) {
+                        return localUpdate;
+                    }
+                    foundUpdates.push(localUpdate);
                 }
-                foundUpdates.push(localUpdate);
             }
         }
 
@@ -422,21 +433,28 @@ export class DclOtaUpdateService {
 
         logger.info(`Downloading OTA image from ${otaUrl}`, Diagnostic.dict(diagnosticInfo));
 
-        // Download or load the OTA image
-        const response = await fetch(otaUrl, {
-            method: "GET",
-            signal: AbortSignal.timeout(timeout),
-        });
+        try {
+            // Download or load the OTA image
+            const response = await fetch(otaUrl, {
+                method: "GET",
+                signal: AbortSignal.timeout(timeout),
+            });
 
-        if (!response.ok) {
-            throw new OtaUpdateError(`Failed to download OTA image: ${response.status} ${response.statusText}`);
+            if (!response.ok) {
+                throw new OtaUpdateError(`Failed to download OTA image: ${response.status} ${response.statusText}`);
+            }
+
+            if (!response.body) {
+                throw new OtaUpdateError("No response body received");
+            }
+
+            return await this.store(response.body, updateInfo, isProduction);
+        } catch (error) {
+            MatterError.reject(error);
+            const otaError = new OtaUpdateError(`Failed to download OTA image from ${otaUrl}`);
+            otaError.cause = error;
+            throw otaError;
         }
-
-        if (!response.body) {
-            throw new OtaUpdateError("No response body received");
-        }
-
-        return await this.store(response.body, updateInfo, isProduction);
     }
 
     /**
@@ -508,7 +526,7 @@ export class DclOtaUpdateService {
             return false;
         }
 
-        // Current version must be within the applicable range if specified
+        // The current version must be within the applicable range if specified
         if (
             versionInfo.minApplicableSoftwareVersion !== undefined &&
             currentVersion < versionInfo.minApplicableSoftwareVersion
@@ -651,19 +669,26 @@ export class DclOtaUpdateService {
             );
         }
 
-        // Fetch and read the OTA image
-        const response = await fetch(fileUrl, { method: "GET" });
+        try {
+            // Fetch and read the OTA image
+            const response = await fetch(fileUrl, { method: "GET" });
 
-        if (!response.ok) {
-            throw new OtaUpdateError(`Failed to fetch OTA image: ${response.status} ${response.statusText}`);
+            if (!response.ok) {
+                throw new OtaUpdateError(`Failed to fetch OTA image: ${response.status} ${response.statusText}`);
+            }
+
+            if (!response.body) {
+                throw new OtaUpdateError("No response body received");
+            }
+
+            // Use the stream-based method
+            return await this.updateInfoFromStream(response.body, fileUrl, options);
+        } catch (error) {
+            MatterError.reject(error);
+            const otaError = new OtaUpdateError(`Failed to read OTA image from ${fileUrl}`);
+            otaError.cause = error;
+            throw otaError;
         }
-
-        if (!response.body) {
-            throw new OtaUpdateError("No response body received");
-        }
-
-        // Use the stream-based method
-        return await this.updateInfoFromStream(response.body, fileUrl, options);
     }
 
     /**

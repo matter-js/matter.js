@@ -110,6 +110,7 @@ jobs:
               run \
               --tool-path chip-tool:../support/chip-testing/dist/esm/ControllerWebSocketTestApp.js \
               --app-path all-clusters:../bin/chip-all-clusters-app \
+              --app-path all-devices:../bin/all-devices-app \
               --app-path lock:../bin/chip-lock-app \
               --app-path bridge:../bin/chip-bridge-app \
               --app-path tv:../bin/chip-tv-app \
@@ -118,7 +119,7 @@ jobs:
               --app-path rvc:../bin/chip-rvc-app \
               --app-path network-manager:../bin/matter-network-manager-app \
               --app-path energy-gateway:../bin/chip-energy-gateway-app \
-              --app-path energy-management:../bin/chip-energy-management-app \
+              --app-path evse:../bin/chip-evse-app \
             '
       - name: Verify that Matter.js controller was used
         shell: bash

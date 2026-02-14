@@ -14,8 +14,8 @@ Resource.add({
     details: "> [!NOTE]" +
         "\n" +
         "> This scope of this document is the Binding cluster as part of the Cluster Library. The Binding " +
-        "  cluster is meant to replace the support from the Zigbee Device Object (ZDO) for supporting the " +
-        "  binding table." +
+        "cluster is meant to replace the support from the Zigbee Device Object (ZDO) for supporting the " +
+        "binding table." +
         "\n" +
         "A binding represents a persistent relationship between an endpoint and one or more other local or " +
         "remote endpoints. A binding does not require that the relationship exists. It is up to the node " +

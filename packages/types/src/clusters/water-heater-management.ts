@@ -110,11 +110,11 @@ export namespace WaterHeaterManagement {
          * This field shall indicate whether the boost state shall be automatically canceled once the hot water has
          * reached either:
          *
-         *   • the set point temperature (from the thermostat cluster)
+         *   - the set point temperature (from the thermostat cluster)
          *
-         *   • the TemporarySetpoint temperature (if specified)
+         *   - the TemporarySetpoint temperature (if specified)
          *
-         *   • the TargetPercentage (if specified).
+         *   - the TargetPercentage (if specified).
          *
          * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.3.2
          */
@@ -221,19 +221,12 @@ export namespace WaterHeaterManagement {
              * For example, if the target temperature was 60°C, the current temperature was 20°C and the tank volume was
              * 100L:
              *
-             * ### Mass of water = 1kg per Litre
+             * Mass of water = 1kg per Litre Total Mass = 100 x 1kg = 100kg Δ Temperature = (target temperature -
+             * current temperature) = (60°C - 20°C) = 40°C
              *
-             * Total Mass = 100 x 1kg = 100kg
+             * Energy required to heat the water to 60°C = 4182 x 40 x 100 = 16,728,000 J
              *
-             * Δ Temperature = (target temperature - current temperature)
-             *
-             * = (60°C - 20°C) = 40°C
-             *
-             * ### Energy required to
-             *
-             * heat the water to 60°C = 4182 x 40 x 100 = 16,728,000 J
-             *
-             * Converting Joules in to Wh of heat (divide by 3600):
+             * Converting Joules in to Wh of heat (divide by 3600): = 16,728,000 J / 3600 = 4647 Wh (4.65kWh)
              *
              * If the TankPercent feature is supported, then this estimate shall also take into account the percentage
              * of the water in the tank which is already hot.
@@ -280,11 +273,9 @@ export namespace WaterHeaterManagement {
              * (COLD_WATER_TEMP) was assumed to be 20°C:
              *
              * TankPercentage = int(((current temperature - COLD_WATER_TEMP) / (target temperature - COLD_WATER_TEMP)) *
-             * 100)
+             * 100) TankPercentage = min( max(TankPercentage,0), 100)
              *
-             * TankPercentage = min( max(TankPercentage,0), 100)
-             *
-             * ### TankPercentage = 50%
+             * TankPercentage = 50%
              *
              * @see {@link MatterSpecification.v142.Cluster} § 9.5.7.5
              */
@@ -348,7 +339,9 @@ export namespace WaterHeaterManagement {
             boost: Command(0x0, TlvBoostRequest, 0x0, TlvNoResponse, { invokeAcl: AccessLevel.Manage }),
 
             /**
-             * Allows a client to cancel an ongoing Boost operation. This command has no payload.
+             * Allows a client to cancel an ongoing Boost operation.
+             *
+             * This command has no payload.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 9.5.8.2
              */

@@ -96,7 +96,10 @@ export function identifyDocument(path: string): IndexDetail {
             throw new Error(`No version found for ${title} in ${path}`);
         }
 
-        version = versionEl.textContent.replace(/.*version ([\d.]+).*/i, "$1");
+        version = versionEl.textContent
+            .trim()
+            .split("\n")[0]
+            .replace(/.*version ([\d.]+).*/i, "$1");
     }
 
     // Drop dotted elements except the first two unless the third one is non-zero

@@ -4,10 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto, Diagnostic, PublicKey } from "#general";
+import { Bytes, CertificateError, Crypto, Diagnostic, PublicKey } from "#general";
 import { CaseAuthenticatedTag, FabricId, NodeId } from "#types";
 import { Certificate } from "./Certificate.js";
-import { CertificateError } from "./common.js";
 import { OperationalCertificate } from "./definitions/operational.js";
 import { Icac } from "./Icac.js";
 import { OperationalBase } from "./OperationalBase.js";
@@ -176,6 +175,6 @@ export class Noc extends OperationalBase<OperationalCertificate.Noc> {
             );
         }
 
-        await crypto.verifyEcdsa(PublicKey(issuer.cert.ellipticCurvePublicKey), this.asUnsignedAsn1(), this.signature);
+        await crypto.verifyEcdsa(PublicKey(issuer.cert.ellipticCurvePublicKey), this.asUnsignedDer(), this.signature);
     }
 }

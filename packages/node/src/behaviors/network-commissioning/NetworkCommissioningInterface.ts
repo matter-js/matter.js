@@ -17,9 +17,9 @@ export namespace NetworkCommissioningInterface {
          *
          * This command shall scan on the Cluster instance’s associated network interface for either of:
          *
-         *   • All available networks (non-directed scanning)
+         *   - All available networks (non-directed scanning)
          *
-         *   • Specific networks (directed scanning)
+         *   - Specific networks (directed scanning)
          *
          * Scanning for available networks detects all networks of the type corresponding to the cluster server
          * instance’s associated network interface that are possible to join, such as all visible Wi-Fi access points
@@ -72,7 +72,7 @@ export namespace NetworkCommissioningInterface {
          * If the Networks attribute does not contain a matching entry, the command shall immediately respond with
          * NetworkConfigResponse having NetworkingStatus status field set to NetworkIdNotFound.
          *
-         * On success, the NetworkConfigResponse command shall have its NetworkIndex field set to the 0- based index of
+         * On success, the NetworkConfigResponse command shall have its NetworkIndex field set to the 0-based index of
          * the entry in the Networks attribute that was just removed, and a NetworkingStatus status field set to
          * Success.
          *

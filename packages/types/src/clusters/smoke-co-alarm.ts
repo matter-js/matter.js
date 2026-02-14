@@ -85,13 +85,16 @@ export namespace SmokeCoAlarm {
     }
 
     /**
-     * This value shall indicate that the smoke sensor has nominal contamination levels, no customer action is required.
-     *
      * @see {@link MatterSpecification.v142.Cluster} § 2.11.5.6
      */
     export enum ContaminationState {
         /**
          * Nominal state, the sensor is not contaminated
+         *
+         * This value shall indicate that the smoke sensor has nominal contamination levels, no customer action is
+         * required.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.11.5.6.1
          */
         Normal = 0,
 
@@ -119,7 +122,7 @@ export namespace SmokeCoAlarm {
          * Critical state, will cause nuisance alarms
          *
          * This value shall indicate that the smoke sensor has contamination levels in a critical state. At this level,
-         * the contamination should cause a visible or audible alarm. User intervention is required. Critical
+         * the contamination should cause a visible or audible alarm. User intervention isrequired. Critical
          * contamination of the sensor shall also be reflected as a HardwareFault.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.11.5.6.4
@@ -232,13 +235,15 @@ export namespace SmokeCoAlarm {
     export interface InterconnectCoAlarmEvent extends TypeFromSchema<typeof TlvInterconnectCoAlarmEvent> {}
 
     /**
-     * This value shall indicate that this alarm is not alarming.
-     *
      * @see {@link MatterSpecification.v142.Cluster} § 2.11.5.3
      */
     export enum ExpressedState {
         /**
          * Nominal state, the device is not alarming
+         *
+         * This value shall indicate that this alarm is not alarming.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.11.5.3.1
          */
         Normal = 0,
 
@@ -267,7 +272,7 @@ export namespace SmokeCoAlarm {
         /**
          * Battery Alert State
          *
-         * This value shall indicate that this alarm is currently expressing visual indication of Critical Low Battery.
+         * This value shall indicate that this alarm is currently expressing visual indication of CriticalLowBattery.
          * This value shall indicate that the alarm is currently expressing audible indication of Critical Low Battery
          * unless the DeviceMuted attribute is supported and set to Muted.
          *
@@ -287,7 +292,7 @@ export namespace SmokeCoAlarm {
         /**
          * Hardware Fault Alert State
          *
-         * This value shall indicate that this alarm is currently expressing visual indication of Hardware Fault. This
+         * This value shall indicate that this alarm is currently expressing visual indication ofHardwareFault. This
          * value shall indicate that the alarm is currently expressing audible indication of Hardware Fault unless the
          * DeviceMuted attribute is supported and set to Muted.
          *
@@ -298,7 +303,7 @@ export namespace SmokeCoAlarm {
         /**
          * End of Service Alert State
          *
-         * This value shall indicate that this alarm is currently expressing visual indication of End Of Service. This
+         * This value shall indicate that this alarm is currently expressing visual indication of EndOfService. This
          * value shall indicate that the alarm is currently expressing audible indication of End of Service unless the
          * DeviceMuted attribute is supported and set to Muted.
          *
@@ -500,14 +505,14 @@ export namespace SmokeCoAlarm {
         attributes: {
             /**
              * Indicates the visibly- and audibly-expressed state of the alarm. When multiple alarm conditions are being
-             * reflected in the server, this attribute shall indicate the condition with the highest priority. Priority
+             * reflected in the server, this attribute shall indicate the condition with the highestpriority. Priority
              * order of conditions is determined by the manufacturer and shall be supplied as a part of certification
              * procedure. If the value of ExpressedState is not Normal, the attribute corresponding to the value shall
              * NOT be Normal. For example, if the ExpressedState is set to SmokeAlarm, the value of the SmokeState will
              * indicate the severity of the alarm (Warning or Critical). Clients SHOULD also read the other attributes
              * to be aware of further alarm conditions beyond the one indicated in ExpressedState.
              *
-             * Visible expression is typically a LED light pattern. Audible expression is a horn or speaker pattern.
+             * Visible expression is typically a LED light pattern. Audible expression is a horn or speakerpattern.
              * Audible expression shall BE suppressed if the DeviceMuted attribute is supported and set to Muted.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.1
@@ -577,8 +582,8 @@ export namespace SmokeCoAlarm {
             /**
              * Indicates the date when the device reaches its stated expiry date. After the ExpiryDate has been reached,
              * the EndOfServiceAlert shall start to be triggered. To account for better customer experience across time
-             * zones, the EndOfServiceAlert may be delayed by up to 24 hours after the ExpiryDate. Similarly, clients
-             * may delay any actions based on the ExpiryDate by up to 24 hours to best align with the local time zone.
+             * zones, the EndOfServiceAlert may be delayed by up to 24 hours aftertheExpiryDate. Similarly, clients may
+             * delay any actions based on the ExpiryDate by up to 24 hours to best align with the local time zone.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.13
              */

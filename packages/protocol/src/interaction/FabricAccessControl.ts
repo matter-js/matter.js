@@ -124,12 +124,12 @@ export class FabricAccessControl {
     ): AccessLevel[] {
         if (location.cluster === undefined) {
             // Without a cluster, internal behaviors are only accessible internally, so this is an irrelevant placeholder
-            logger.warn("Access control check without cluster, returning View access level");
+            logger.warn(`Access control check without cluster at ${location.path}, returning View access level`);
             return [AccessLevel.View];
         }
         if (endpoint === undefined) {
             // Without an endpoint, we can't determine access levels, ???
-            logger.warn("Access control check without endpoint, returning View access level");
+            logger.warn(`Access control check without endpoint at ${location.path}, returning View access level`);
             return [AccessLevel.View];
         }
 

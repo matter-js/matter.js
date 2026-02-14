@@ -278,13 +278,13 @@ Resource.add({
                     details: "This field shall contain the remaining capacity of the Scene Table of the server (for all groups for " +
                         "the accessing fabric). The following values apply:" +
                         "\n" +
-                        "  • 0 - No further scenes may be added." +
+                        "  - 0 - No further scenes may be added." +
                         "\n" +
-                        "  • 0 < Capacity < 0xFE - Capacity holds the number of scenes that may be added." +
+                        "  - 0 < Capacity < 0xFE - Capacity holds the number of scenes that may be added." +
                         "\n" +
-                        "  • 0xFE - At least 1 further scene may be added (exact number is unknown)." +
+                        "  - 0xFE - At least 1 further scene may be added (exact number is unknown)." +
                         "\n" +
-                        "  • null - It is unknown if any further scenes may be added."
+                        "  - null - It is unknown if any further scenes may be added."
                 },
 
                 {
@@ -434,72 +434,7 @@ Resource.add({
                     "AttributeID, as described in the Value* Fields subsection." +
                     "\n" +
                     "The AttributeID field shall NOT refer to an attribute without the Scenes (\"S\") designation in the " +
-                    "Quality column of the cluster specification." +
-                    "\n" +
-                    "### 1.4.7.3.2. ValueUnsigned8, ValueSigned8, ValueUnsigned16, ValueSigned16, ValueUnsigned32, " +
-                    "ValueSigned32, ValueUnsigned64, ValueSigned64 Fields" +
-                    "\n" +
-                    "These fields shall indicate the attribute value as part of an extension field set, associated with a " +
-                    "given AttributeID under an ExtensionFieldSetStruct’s ClusterID. Which of the fields is used shall be " +
-                    "determined by the type of the attribute indicated by AttributeID as follows:" +
-                    "\n" +
-                    "  • Data types bool, map8, and uint8 shall map to ValueUnsigned8." +
-                    "\n" +
-                    "  • Data types int8 shall map to ValueSigned8." +
-                    "\n" +
-                    "  • Data types map16 and uint16 shall map to ValueUnsigned16." +
-                    "\n" +
-                    "  • Data types int16 shall map to ValueSigned16." +
-                    "\n" +
-                    "  • Data types map32, uint24, and uint32 shall map to ValueUnsigned32." +
-                    "\n" +
-                    "  • Data types int24 and int32 shall map to ValueSigned32." +
-                    "\n" +
-                    "  • Data types map64, uint40, uint48, uint56 and uint64 shall map to ValueUnsigned64." +
-                    "\n" +
-                    "  • Data types int40, int48, int56 and int64 shall map to ValueSigned64." +
-                    "\n" +
-                    "  • For derived types, the mapping shall be based on the base type. For example, an attribute of " +
-                    "    type percent shall be treated as if it were of type uint8, whereas an attribute of type " +
-                    "    percent100ths shall be treated as if it were of type uint16." +
-                    "\n" +
-                    "  • For boolean nullable attributes, any value that is not 0 or 1 shall be considered to have the " +
-                    "    null value." +
-                    "\n" +
-                    "  • For boolean non-nullable attributes, any value that is not 0 or 1 shall be considered to have " +
-                    "    the value FALSE." +
-                    "\n" +
-                    "  • For non-boolean nullable attributes, any value that is not a valid numeric value for the " +
-                    "    attribute’s type after accounting for range reductions due to being nullable and constraints " +
-                    "    shall be considered to have the null value for the type." +
-                    "\n" +
-                    "  • For non-boolean non-nullable attributes, any value that is not a valid numeric value for the " +
-                    "    attribute’s type after accounting for constraints shall be considered to be the valid attribute " +
-                    "    value that is closest to the provided value." +
-                    "\n" +
-                    "    ◦ In the event that an invalid provided value is of equal numerical distance to the two closest " +
-                    "      valid values, the lowest of those values shall be considered the closest valid attribute " +
-                    "      value." +
-                    "\n" +
-                    "If the used field does not match the data type of the attribute indicated by AttributeID, the " +
-                    "AttributeValuePairStruct shall be considered invalid." +
-                    "\n" +
-                    "Examples of processing are:" +
-                    "\n" +
-                    "  • ColorControl cluster CurrentX (AttributeID 0x0003) has a type of uint16 and is not nullable." +
-                    "\n" +
-                    "    ◦ ValueUnsigned16 of 0xAB12 would be used as-is, as it is in range." +
-                    "\n" +
-                    "    ◦ ValueUnsigned16 of 0xFF80 is outside of the range allowed for attribute CurrentX, and would be " +
-                    "      saturated to the closest valid value, which is the maximum of the attribute’s constraint " +
-                    "      range: 0xFEFF." +
-                    "\n" +
-                    "  • LevelControl cluster CurrentLevel (AttributeID 0x0000) has a type of uint8 and is nullable." +
-                    "\n" +
-                    "    ◦ ValueUnsigned8 of 0xA1 would be used as-is, as it is in range." +
-                    "\n" +
-                    "    ◦ ValueUnsigned8 of 0xFF is outside the range allowed for nullable attribute CurrentLevel, and " +
-                    "      would be considered as the null value."
+                    "Quality column of the cluster specification."
             }]
         },
 

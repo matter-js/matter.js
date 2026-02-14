@@ -162,11 +162,11 @@ export namespace ContentLauncher {
         /**
          * This field shall indicate the color, in RGB or RGBA, used for styling different Video Player sections like
          * Logo, Watermark, etc. The value shall conform to the 6-digit or 8-digit format defined for CSS sRGB
-         * hexadecimal color notation [https://www.w3.org/TR/css-color-4/#hex-notation]. Examples:
+         * hexadecimal color notation. Examples:
          *
-         *   • #76DE19 for R=0x76, G=0xDE, B=0x19, A absent
+         *   - #76DE19 for R=0x76, G=0xDE, B=0x19, A absent
          *
-         *   • #76DE1980 for R=0x76, G=0xDE, B=0x19, A=0x80
+         *   - #76DE1980 for R=0x76, G=0xDE, B=0x19, A=0x80
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.9.2
          */
@@ -302,9 +302,9 @@ export namespace ContentLauncher {
      */
     export const TlvPlaybackPreferences = TlvObject({
         /**
-         * This field shall indicate the preferred position (in milliseconds) in the media to launch playback from. In
+         * This field shall indicate the preferred position (in milliseconds) in the media to launchplaybackfrom. In
          * case the position falls in the middle of a frame, the server shall set the position to the beginning of that
-         * frame and set the SampledPosition attribute on the MediaPlayback cluster accordingly. A value of null shall
+         * frame and set the SampledPosition attribute on the MediaPlaybackclusteraccordingly. A value of null shall
          * indicate that playback position is not applicable for the current state of the media playback. (For example :
          * Live media with no known duration and where seek is not supported).
          *
@@ -711,9 +711,9 @@ export namespace ContentLauncher {
         /**
          * This field shall indicate whether to automatically start playing content, where:
          *
-         *   • TRUE means best match should start playing automatically.
+         *   - TRUE means best match should start playing automatically.
          *
-         *   • FALSE means matches should be displayed on screen for user selection.
+         *   - FALSE means matches should be displayed on screen for user selection.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1.2
          */
@@ -744,7 +744,7 @@ export namespace ContentLauncher {
          * This field, if present, shall indicate whether to consider the context of current ongoing activity on the
          * receiver to fulfill the request. For example if the request only includes data in ContentSearch that
          * specifies an Episode number, and UseCurrentContent is set to TRUE, if there is a TV series on going, the
-         * request refers to the specific episode of the ongoing season of the TV series. TRUE means current activity
+         * request refers to the specific episode of the ongoing season of theTVseries. TRUE means current activity
          * context may be considered FALSE means current activity context shall NOT be considered
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1.5
@@ -810,8 +810,9 @@ export namespace ContentLauncher {
     export const ContentSearchComponent = MutableCluster.Component({
         commands: {
             /**
-             * Upon receipt, this shall launch the specified content with optional search criteria. This command returns
-             * a Launch Response.
+             * Upon receipt, this shall launch the specified content with optional search criteria.
+             *
+             * This command returns a Launch Response.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1
              */

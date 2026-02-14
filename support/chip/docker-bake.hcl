@@ -71,6 +71,12 @@ target "app" {
             },
 
             {
+                name: "all-devices",
+                target: "all-devices",
+                bin: "all-devices-app",
+            },
+
+            {
                 name: "lock",
                 target: "lock",
                 bin: "chip-lock-app",
@@ -119,9 +125,9 @@ target "app" {
             },
 
             {
-                name: "energy-management",
-                target: "energy-management",
-                bin: "chip-energy-management-app",
+                name: "evse",
+                target: "evse",
+                bin: "chip-evse-app",
             },
         ]
     }

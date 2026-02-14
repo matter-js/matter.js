@@ -73,7 +73,7 @@ export class AttestationCertificateManager {
     }
 
     // Method unused for now because we use the official Matter Test PAA, but is functional
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     private async generatePAACert(vendorId?: VendorId) {
         const now = Time.now;
@@ -107,7 +107,7 @@ export class AttestationCertificateManager {
             },
         });
         await cert.sign(this.#crypto, this.#paaKeyPair);
-        return cert.asSignedAsn1();
+        return cert.asSignedDer();
     }
 
     private async generatePAICert(vendorId: VendorId, productId?: number) {
@@ -142,7 +142,7 @@ export class AttestationCertificateManager {
             },
         });
         await cert.sign(this.#crypto, this.#paaKeyPair);
-        return cert.asSignedAsn1();
+        return cert.asSignedDer();
     }
 
     async generateDaCert(publicKey: Bytes, vendorId: VendorId, productId: number) {
@@ -177,6 +177,6 @@ export class AttestationCertificateManager {
             },
         });
         await cert.sign(this.#crypto, this.#paiKeyPair);
-        return cert.asSignedAsn1();
+        return cert.asSignedDer();
     }
 }

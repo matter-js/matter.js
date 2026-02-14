@@ -26,8 +26,9 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "Label", xref: "core§9.7.4.1.1",
-                    details: "The Label or Value semantic is not defined here. Label examples: \"room\", \"zone\", \"group\", " +
-                        "\"direction\"."
+                    details: "The Label or Value semantic is not defined here." +
+                        "\n" +
+                        "Label examples: \"room\", \"zone\", \"group\", \"direction\"."
                 },
 
                 {

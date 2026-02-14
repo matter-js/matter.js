@@ -12,7 +12,9 @@ Resource.add({
     tag: "cluster", name: "EnergyPreference", pics: "EPREF", xref: "cluster§9.7",
     details: "This cluster provides an interface to specify preferences for how devices should consume energy." +
         "\n" +
-        "NOTE Support for Energy Preference cluster is provisional.",
+        "> [!NOTE]" +
+        "\n" +
+        "> Support for Energy Preference cluster is provisional.",
 
     children: [
         {
@@ -68,13 +70,13 @@ Resource.add({
                 "the previous value, while preserving extreme preferences as follows:" +
                 "\n" +
                 "  1. If the previous value of CurrentEnergyBalance was zero, indicating a total preference for the " +
-                "     priority specified by the first element in EnergyPriorities, the new value of " +
-                "     CurrentEnergyBalance shall also be zero." +
+                "priority specified by the first element in EnergyPriorities, the new value of " +
+                "CurrentEnergyBalance shall also be zero." +
                 "\n" +
                 "  2. If the previous value of CurrentEnergyBalance was the index of the last BalanceStruct in the " +
-                "     previous value of EnergyBalances, indicating a total preference for the priority specified by " +
-                "     the last element in EnergyPriorities, the new value of CurrentEnergyBalance shall be the index " +
-                "     of the last element in the updated value of EnergyBalances."
+                "previous value of EnergyBalances, indicating a total preference for the priority specified by " +
+                "the last element in EnergyPriorities, the new value of CurrentEnergyBalance shall be the index " +
+                "of the last element in the updated value of EnergyBalances."
         },
 
         {
@@ -90,8 +92,11 @@ Resource.add({
 
         {
             tag: "attribute", name: "LowPowerModeSensitivities", xref: "cluster§9.7.6.4",
+
             details: "Indicates a list of BalanceStructs, each representing a condition or set of conditions for the " +
-                "device to enter a low power mode. This shall contain at least two BalanceStructs." +
+                "device to enter a low power mode." +
+                "\n" +
+                "This shall contain at least two BalanceStructs." +
                 "\n" +
                 "Each BalanceStruct shall have a Step field larger than the Step field on the previous BalanceStruct " +
                 "in the list."

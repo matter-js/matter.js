@@ -217,8 +217,9 @@ export namespace EnergyEvse {
      * The optimization strategy is not defined here, however in simple terms, the AddedEnergy requirement can be
      * fulfilled by knowing the charging Power (W) and the time needed to charge.
      *
-     * To compute the Charging Time: Required Energy (Wh) = Power (W) x ChargingTime (s) / 3600 Therefore: ChargingTime
-     * (s) = (3600 x RequiredEnergy (wH)) / Power (W)
+     * To compute the Charging Time: Required Energy (Wh) = Power (W) x ChargingTime (s) / 3600
+     *
+     * Therefore: ChargingTime (s) = (3600 x RequiredEnergy (wH)) / Power (W)
      *
      * To compute the charging time: Charging StartTime = TargetTimeMinutesPastMidnight - ChargingTime
      *
@@ -258,22 +259,21 @@ export namespace EnergyEvse {
          *
          * If the EVSE supports the SOC feature and can obtain the SoC of the vehicle:
          *
-         *   • the TargetSoC field shall take precedence over the AddedEnergy field.
+         *   - the TargetSoC field shall take precedence over the AddedEnergy field.
          *
-         *   • the EVSE SHOULD charge to the TargetSoC and then stop the charging automatically when it reaches that
+         *   - the EVSE SHOULD charge to the TargetSoC and then stop the charging automatically when it reaches that
          *     point.
          *
-         *   • if the TargetSoC value is set to 100% then the EVSE SHOULD continue to charge the vehicle until the
+         *   - if the TargetSoC value is set to 100% then the EVSE SHOULD continue to charge the vehicle until the
          *     vehicle decides to stop charging.
          *
          * If the EVSE does not support the SOC feature or cannot obtain the SoC of the vehicle:
          *
-         *   • the AddedEnergy field shall take precedence over the TargetSoC field, and if the EVSE does not support
+         *   - the AddedEnergy field shall take precedence over the TargetSoC field, and if the EVSE does not support
          *     the SOC feature then the TargetSoC field may only take the values null or 100%.
          *
-         *   • if the AddedEnergy field has not been provided, the EVSE SHOULD assume the vehicle is empty
-         *
-         * and charge until the vehicle stops demanding a charge.
+         *   - if the AddedEnergy field has not been provided, the EVSE SHOULD assume the vehicle is empty and charge
+         *     until the vehicle stops demanding a charge.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 9.3.7.6.2
          */
@@ -313,8 +313,9 @@ export namespace EnergyEvse {
      * The optimization strategy is not defined here, however in simple terms, the AddedEnergy requirement can be
      * fulfilled by knowing the charging Power (W) and the time needed to charge.
      *
-     * To compute the Charging Time: Required Energy (Wh) = Power (W) x ChargingTime (s) / 3600 Therefore: ChargingTime
-     * (s) = (3600 x RequiredEnergy (wH)) / Power (W)
+     * To compute the Charging Time: Required Energy (Wh) = Power (W) x ChargingTime (s) / 3600
+     *
+     * Therefore: ChargingTime (s) = (3600 x RequiredEnergy (wH)) / Power (W)
      *
      * To compute the charging time: Charging StartTime = TargetTimeMinutesPastMidnight - ChargingTime
      *
@@ -600,8 +601,8 @@ export namespace EnergyEvse {
         chargingEnabledUntil: TlvField(0, TlvNullable(TlvEpochS)),
 
         /**
-         * This field shall indicate the minimum current that can be delivered by the EVSE to the EV in trickle mode.
-         * The EVSE current limit can be advertised to an EV in 0.6A steps.
+         * This field shall indicate the minimum current that can be delivered by the EVSE to the EV intricklemode. The
+         * EVSE current limit can be advertised to an EV in 0.6A steps.
          *
          * The value of the MinimumChargeCurrent attribute shall be set to the value of this field (see Section 9.3.8.7,
          * “MinimumChargeCurrent Attribute” for further details).
@@ -835,8 +836,8 @@ export namespace EnergyEvse {
      */
     export const TlvFaultEvent = TlvObject({
         /**
-         * This field shall indicate the value of the SessionID attribute prior to the Fault State being changed. A
-         * value of null indicates no sessions have occurred before the fault occurred.
+         * This field shall indicate the value of the SessionID attribute prior to the Fault Statebeingchanged. A value
+         * of null indicates no sessions have occurred before the fault occurred.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.5.1
          */
@@ -892,16 +893,17 @@ export namespace EnergyEvse {
             dischargingEnabledUntil: Attribute(0x4, TlvNullable(TlvEpochS), { persistent: true }),
 
             /**
-             * Indicates the maximum current that can be received by the EVSE from the EV. This attribute can be set
-             * using the EnableDischarging command.
+             * Indicates the maximum current that can be received by the EVSE from the EV.
+             *
+             * This attribute can be set using the EnableDischarging command.
              *
              * This attribute value shall be the minimum of:
              *
-             *   • CircuitCapacity - Electrician’s installation setting
+             *   - CircuitCapacity - Electrician’s installation setting
              *
-             *   • CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)
+             *   - CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)
              *
-             *   • MaximumDischargeCurrent field in the EnableDischarging command
+             *   - MaximumDischargeCurrent field in the EnableDischarging command
              *
              * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.9
              */
@@ -981,8 +983,8 @@ export namespace EnergyEvse {
             /**
              * Indicates the vehicle efficiency rating for a connected vehicle.
              *
-             * This can be used to help indicate to the user approximately how many miles or km of range will be added.
-             * It allows user interfaces to display to the user simpler terms that they can relate to compared to kWh.
+             * This can be used to help indicate to the user approximately how many miles or km of range willbeadded. It
+             * allows user interfaces to display to the user simpler terms that they can relate to compared to kWh.
              *
              * This is value is stored in km per kWh multiplied by a scaling factor of 1000.
              *
@@ -996,17 +998,10 @@ export namespace EnergyEvse {
              *
              * Example:
              *
-             * ApproxEVEfficiency (km/kWh x 1000): 4800 (i.e. 4.8km/kWh x 1000)
+             * ApproxEVEfficiency (km/kWh x 1000): 4800 (i.e. 4.8km/kWh x 1000) AddedEnergy (Wh): 10,000
              *
-             * ### AddedEnergy (Wh): 10,000
-             *
-             * AddedRange (km) = 10,000 x 4800 / 1,000,000 = 48 km
-             *
-             * AddedRange (Miles) = AddedEnergy (Wh) x ApproxEVEfficiency (km/kWh x 1000) x
-             *
-             * 0.6213
-             *
-             * = 29.82 Miles
+             * AddedRange (km) = 10,000 x 4800 / 1,000,000 = 48 km AddedRange (Miles) = AddedEnergy (Wh) x
+             * ApproxEVEfficiency (km/kWh x 1000) x 0.6213 = 29.82 Miles
              *
              * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.16
              */
@@ -1074,8 +1069,9 @@ export namespace EnergyEvse {
              * Indicates the vehicle ID read by the EVSE via ISO-15118 using the PNC feature, if the EVSE supports this
              * capability.
              *
-             * The field may be based on the e-Mobility Account Identifier (EMAID). A null value shall indicate that
-             * this is unknown.
+             * The field may be based on the e-Mobility Account Identifier (EMAID).
+             *
+             * A null value shall indicate that this is unknown.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.19
              */
@@ -1271,13 +1267,13 @@ export namespace EnergyEvse {
              *
              * This attribute value shall be the minimum of:
              *
-             *   • CircuitCapacity - Electrician’s installation setting
+             *   - CircuitCapacity - Electrician’s installation setting
              *
-             *   • CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)
+             *   - CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)
              *
-             *   • MaximumChargeCurrent field in the EnableCharging command
+             *   - MaximumChargeCurrent field in the EnableCharging command
              *
-             *   • UserMaximumChargeCurrent attribute
+             *   - UserMaximumChargeCurrent attribute
              *
              * @see {@link MatterSpecification.v142.Cluster} § 9.3.8.8
              */
@@ -1306,7 +1302,7 @@ export namespace EnergyEvse {
             ),
 
             /**
-             * Indicates the size of a random window over which the EVSE will randomize the start of a charging session.
+             * Indicates the size of a random window over which the EVSE will randomize the start of achargingsession.
              * This value is in seconds.
              *
              * This is a feature that is mandated in some markets (such as UK) where the EVSE should by default
@@ -1440,7 +1436,7 @@ export namespace EnergyEvse {
      *
      * Devices targeted by this cluster include Electric Vehicle Supply Equipment (EVSE). The cluster generically
      * assumes a signaling protocol (J1772 in NA and IEC61851 in Europe and Asia) between the EVSE and Electric Vehicle
-     * (EV) that utilizes a pilot signal to manage the states of the charging process. [SAE J2847/3_202311] version and
+     * (EV) that utilizes a pilot signal to manage the states of thechargingprocess. [SAE J2847/3_202311] version and
      * IEC61841 define Pilot signal as a modulated DC voltage on a single wire.
      *
      * Power Line Communication (PLC) is supported by some EVSEs (e.g. for support of ISO 15118 in Europe and SAE
@@ -1454,9 +1450,9 @@ export namespace EnergyEvse {
      * cluster.
      *
      * This cluster supports a safety mechanism that may lockout remote operation until the initial latching conditions
-     * have been met. Some of the fault conditions defined in SAE J1772, such as Ground- Fault Circuit Interrupter
-     * (GFCI) or Charging Circuit Interrupting Device (CCID), may require clearing by an operator by, for example,
-     * pressing a button on the equipment or breaker panel.
+     * have been met. Some of the fault conditions defined in SAE J1772, such as Ground-Fault Circuit Interrupter (GFCI)
+     * or Charging Circuit Interrupting Device (CCID), may require clearing by an operator by, for example, pressing a
+     * button on the equipment or breaker panel.
      *
      * This EVSE cluster is written around support of a single EVSE. Having multiple EVSEs at home or a business is
      * managed by backend system and outside scope of this cluster.

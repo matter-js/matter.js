@@ -34,12 +34,10 @@ export namespace Actions {
          *
          * Can be used to set a static state of the associated endpoints (typically using InstantAction or
          * InstantActionWithTransition), or to bring these endpoints into a more dynamic state (typically using
-         * StartAction), where the endpoints would e.g. gradually cycle through certain colors for a pleasing effect. A
+         * StartAction), where the endpoints would e.g. gradually cycle through certain colors for apleasingeffect. A
          * voice controller could use "set" (to map to InstantAction) or "play" (to map to StartAction) to trigger such
-         * actions.
-         *
-         * Example: see Section 9.14.8.1, “Example 1: Scene recall” and Section 9.14.8.2, “Example 2: Set dynamic light
-         * effect”.
+         * actions. Example: see Section 9.14.8.1, “Example 1: Scene recall” and Section 9.14.8.2, “Example 2: Set
+         * dynamic light effect”.
          *
          * @see {@link MatterSpecification.v142.Core} § 9.14.4.2.1
          */
@@ -49,9 +47,7 @@ export namespace Actions {
          * A sequence of states with a certain time pattern
          *
          * Indicates an action which involves a sequence of events/states of the associated endpoints, such as a wake-up
-         * experience.
-         *
-         * Example: see Section 9.14.8.4, “Example 4: Wake-up routine”.
+         * experience. Example: see Section 9.14.8.4, “Example 4: Wake-up routine”.
          *
          * @see {@link MatterSpecification.v142.Core} § 9.14.4.2.2
          */
@@ -60,10 +56,8 @@ export namespace Actions {
         /**
          * Control an automation (e.g. motion sensor controlling lights)
          *
-         * Indications an automation (e.g. a motion sensor controlling lights, an alarm system) which can bee.g.
-         * started, stopped, paused, resumed.
-         *
-         * Example: see Section 9.14.8.3, “Example 3: Pause sensor automation”.
+         * Indications an automation (e.g. a motion sensor controlling lights, an alarm system) which can be e.g.
+         * started, stopped, paused, resumed. Example: see Section 9.14.8.3, “Example 3: Pause sensor automation”.
          *
          * @see {@link MatterSpecification.v142.Core} § 9.14.4.2.3
          */
@@ -73,10 +67,8 @@ export namespace Actions {
          * Sequence that will run when something doesn’t happen
          *
          * Indicates some action which the server will execute when a certain condition (which normally does not happen)
-         * is not met.
-         *
-         * Example: lock the doors when the server’s system has detected no one is at home while the doors are in the
-         * 'unlocked' state.
+         * is not met. Example: lock the doors when the server’s system has detected no one is at home while the doors
+         * are in the 'unlocked' state.
          *
          * @see {@link MatterSpecification.v142.Core} § 9.14.4.2.4
          */
@@ -85,9 +77,8 @@ export namespace Actions {
         /**
          * Use the endpoints to send a message to user
          *
-         * Indicates an action that can be triggered (e.g. by InstantAction) to notify the user.
-         *
-         * Example: play a pattern on the lights in the living room if there is someone in the garden in the evening.
+         * Indicates an action that can be triggered (e.g. by InstantAction) to notify the user. Example: play a pattern
+         * on the lights in the living room if there is someone in the garden in the evening.
          *
          * @see {@link MatterSpecification.v142.Core} § 9.14.4.2.5
          */
@@ -97,9 +88,7 @@ export namespace Actions {
          * Higher priority notification
          *
          * Similar to Notification but with a higher priority (and might override other endpoint states which
-         * Type=Notification would not override).
-         *
-         * Example: flash all lights in the house when CO sensor triggers.
+         * Type=Notification would not override). Example: flash all lights in the house when CO sensor triggers.
          *
          * @see {@link MatterSpecification.v142.Core} § 9.14.4.2.6
          */
@@ -241,7 +230,7 @@ export namespace Actions {
 
         /**
          * This field is a bitmap which shall be used to indicate which of the cluster’s commands are supported for this
-         * particular action, with a bit set to 1 for each supported command according to the table below. Other bits
+         * particular action, with a bit set to 1 for each supported command according to thetablebelow. Other bits
          * shall be set to 0.
          *
          * @see {@link MatterSpecification.v142.Core} § 9.14.4.6.5
@@ -717,20 +706,20 @@ export namespace Actions {
              * specified in RFC 1738, max. 512 ASCII characters and shall use the https scheme. The location referenced
              * by this URL shall provide additional information for the actions provided:
              *
-             *   • When used without suffix, it shall provide information about the various actions which the cluster
+             *   - When used without suffix, it shall provide information about the various actions which the cluster
              *     provides.
              *
-             *     ◦ Example: SetupURL could take the value of example://Actions or https://domain.example/
-             *       Matter/bridgev1/Actions for this generic case (access generic info how to use actions provided by
-             *       this cluster).
+             *     - Example: SetupURL could take the value of example://Actions or
+             *       https://domain.example/Matter/bridgev1/Actions for this generic case (access generic info how to
+             *       use actions provided by this cluster).
              *
-             *   • When used with a suffix of "/?a=" and the decimal value of ActionID for one of the actions, it may
+             *   - When used with a suffix of "/?a=" and the decimal value of ActionID for one of the actions, it may
              *     provide information about that particular action. This could be a deeplink to
              *     manufacturer-app/website (associated somehow to the server node) with the information/edit-screen for
              *     this action so that the user can view and update details of the action, e.g. edit the scene, or
              *     change the wake-up experience time period.
              *
-             *     ◦ Example of SetupURL with suffix added: example://Actions/?a=12345 or
+             *     - Example of SetupURL with suffix added: example://Actions/?a=12345 or
              *       https://domain.example/Matter/bridgev1/Actions/?a=12345 for linking to specific info/editing of the
              *       action with ActionID 0x3039.
              *
@@ -743,7 +732,7 @@ export namespace Actions {
             /**
              * This command is used to trigger an instantaneous action.
              *
-             * This command triggers an action (state change) on the involved endpoints, in a "fire and forget" manner.
+             * This command triggers an action (state change) on the involved endpoints, in a "fire and forget"manner.
              * Afterwards, the action’s state shall be Inactive.
              *
              * Example: recall a scene on a number of lights.
@@ -877,7 +866,7 @@ export namespace Actions {
             /**
              * This command is used to enable an action with a duration.
              *
-             * This command enables a certain action or automation, and shall change the action’s state to be Active.
+             * This command enables a certain action or automation, and shall change the action’s state tobeActive.
              * After the specified Duration, the action or automation will stop, and the action’s state shall change to
              * Disabled.
              *
@@ -903,7 +892,7 @@ export namespace Actions {
             /**
              * This command is used to disable an action with a duration.
              *
-             * This command disables a certain action or automation, and shall change the action’s state to Disabled.
+             * This command disables a certain action or automation, and shall change the action’s statetoDisabled.
              * After the specified Duration, the action or automation will re-start, and the action’s state shall change
              * to either Inactive or Active, depending on the actions (see Section 9.14.8.4, “Example 4: Wake-up
              * routine” and Section 9.14.8.6, “Example 6: Alarm system”).
@@ -927,9 +916,9 @@ export namespace Actions {
              * Example: When InstantActionWithTransition is invoked (with an InvokeID data field), two StateChanged
              * events will be generated:
              *
-             *   • one when the transition starts (NewState=Active)
+             *   - one when the transition starts (NewState=Active)
              *
-             *   • one when the transition completed (NewState=Inactive)
+             *   - one when the transition completed (NewState=Inactive)
              *
              * @see {@link MatterSpecification.v142.Core} § 9.14.7.1
              */
@@ -945,20 +934,20 @@ export namespace Actions {
              * controller changes the state of one or more of the involved endpoints during the transition, thus
              * interrupting the transition triggered by the action, two events would be generated:
              *
-             *   • StateChanged when the transition starts (NewState=Active)
+             *   - StateChanged when the transition starts (NewState=Active)
              *
-             *   • ActionFailed when the interrupting command occurs (NewState=Inactive, Error=interrupted)
+             *   - ActionFailed when the interrupting command occurs (NewState=Inactive, Error=interrupted)
              *
              * Example: When InstantActionWithTransition is invoked (with an InvokeID data field = 1), and the same
              * client invokes an InstantAction with (the same or another ActionId and) InvokeID = 2, and this second
              * command interrupts the transition triggered by the first command, these events would be generated:
              *
-             *   • StateChanged (InvokeID=1, NewState=Active) when the transition starts
+             *   - StateChanged (InvokeID=1, NewState=Active) when the transition starts
              *
-             *   • ActionFailed (InvokeID=2, NewState=Inactive, Error=interrupted) when the second command interrupts
+             *   - ActionFailed (InvokeID=2, NewState=Inactive, Error=interrupted) when the second command interrupts
              *     the transition
              *
-             *   • StateChanged (InvokeID=2, NewState=Inactive) upon the execution of the action for the second command
+             *   - StateChanged (InvokeID=2, NewState=Inactive) upon the execution of the action for the second command
              *
              * @see {@link MatterSpecification.v142.Core} § 9.14.7.2
              */
@@ -972,14 +961,14 @@ export namespace Actions {
      *
      * Specifically this cluster provides:
      *
-     *   • Information about logical grouping of endpoints on the Node (example: lights in a room)
+     *   - Information about logical grouping of endpoints on the Node (example: lights in a room)
      *
-     *   • Information about named actions that can be performed on such a group of endpoints (example: recall a scene
+     *   - Information about named actions that can be performed on such a group of endpoints (example: recall a scene
      *     for a group of lights by its name)
      *
-     *   • Commands to trigger such actions
+     *   - Commands to trigger such actions
      *
-     *   • Events to receive feedback on the state of such actions.
+     *   - Events to receive feedback on the state of such actions.
      *
      * The information on grouping and available actions is typically provided by the user or Bridge manufacturer via
      * some means not defined in Matter, and therefore provided as read-only to Nodes. For example: a
@@ -993,7 +982,7 @@ export namespace Actions {
      * After defining the attributes, commands and events for this cluster, and the associated data types, several
      * examples are provided to illustrate the capabilities of this cluster.
      *
-     * Actions can be defined in a flexible manner to suit the needs of the various nodes implementing this cluster. For
+     * Actions can be defined in a flexible manner to suit the needs of the various nodes implementingthiscluster. For
      * each action, the commands available for that particular action are defined.
      *
      * This cluster can be used to expose only the grouping of endpoints without any actions defined by populating the

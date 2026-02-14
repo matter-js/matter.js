@@ -20,7 +20,7 @@ Resource.add({
         "On/Off Plug-In Unit device type optionally added in the DeviceTypeList of the Descriptor cluster in " +
         "addition to the On/Off Plug-In Unit device type (see [ref_MountedOnOffControlServerGuidance])." +
         "\n" +
-        "### Before Matter 1.4, mounted units typically used the On/Off Plug-In Unit device type. Clients can " +
+        "Before Matter 1.4, mounted units typically used the On/Off Plug-In Unit device type. Clients can " +
         "encounter devices which were made before or after these specification updates. Therefore, clients " +
         "SHOULD use the following heuristic to distinguish the type of physical device based on the device " +
         "type revision found on an endpoint (\"--\" means the device type is not listed).",

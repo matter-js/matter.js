@@ -178,8 +178,9 @@ Resource.add({
         {
             tag: "attribute", name: "ReactivePower", xref: "cluster§2.13.6.10",
 
-            details: "This shall indicate the most recent ReactivePower reading in millivolt-amps reactive (mVAR). A " +
-                "positive value represents power imported, while a negative value represents power exported." +
+            details: "This shall indicate the most recent ReactivePower reading in millivolt-amps reactive (mVAR)." +
+                "\n" +
+                "A positive value represents power imported, while a negative value represents power exported." +
                 "\n" +
                 "The reporting interval of this attribute shall be manufacturer dependent. The server may choose to " +
                 "omit publication of deltas considered not meaningful." +
@@ -344,8 +345,9 @@ Resource.add({
                 "\n" +
                 "If the neutral current cannot be measured or derived, a value of null shall be returned." +
                 "\n" +
-                "A positive value represents an imbalance between the phase currents when power is imported. A " +
-                "negative value represents an imbalance between the phase currents when power is exported." +
+                "A positive value represents an imbalance between the phase currents when power is imported." +
+                "\n" +
+                "A negative value represents an imbalance between the phase currents when power is exported." +
                 "\n" +
                 "The reporting interval of this attribute shall be manufacturer dependent. The server may choose to " +
                 "omit publication of deltas considered not meaningful." +
@@ -394,7 +396,7 @@ Resource.add({
                 { tag: "field", name: "RmsCurrent", description: "Root mean squared current in milliamps (mA)" },
                 { tag: "field", name: "RmsPower", description: "Root mean squared power in milliwatts (mW)" },
                 { tag: "field", name: "Frequency", description: "AC frequency in millihertz (mHz)" },
-                { tag: "field", name: "PowerFactor", description: "Power Factor ratio in+/- 1/100ths of a percent." },
+                { tag: "field", name: "PowerFactor", description: "Power Factor ratio in +/- 1/100ths of a percent." },
                 { tag: "field", name: "NeutralCurrent", description: "AC neutral current in milliamps (mA)" },
                 { tag: "field", name: "ElectricalEnergy", description: "Electrical energy in milliwatt-hours (mWh)" },
                 {
@@ -459,15 +461,18 @@ Resource.add({
                     tag: "field", name: "MinTimestamp", xref: "cluster§2.13.5.3.6",
                     details: "This field shall be the most recent timestamp in UTC that the value in the Min field was measured." +
                         "\n" +
-                        "This field shall be greater than or equal to the value of the StartTimestamp field. This field shall " +
-                        "be less than or equal to the value of the EndTimestamp field."
+                        "This field shall be greater than or equal to the value of the StartTimestamp field." +
+                        "\n" +
+                        "This field shall be less than or equal to the value of the EndTimestamp field."
                 },
 
                 {
                     tag: "field", name: "MaxTimestamp", xref: "cluster§2.13.5.3.7",
-                    details: "This field shall be the most recent timestamp in UTC of the value in the Max field. This field shall " +
-                        "be greater than or equal to the value of the StartTimestamp field. This field shall be less than or " +
-                        "equal to the value of the EndTimestamp field."
+                    details: "This field shall be the most recent timestamp in UTC of the value in the Max field." +
+                        "\n" +
+                        "This field shall be greater than or equal to the value of the StartTimestamp field." +
+                        "\n" +
+                        "This field shall be less than or equal to the value of the EndTimestamp field."
                 },
 
                 {
@@ -488,16 +493,18 @@ Resource.add({
 
                 {
                     tag: "field", name: "MinSystime", xref: "cluster§2.13.5.3.10",
-                    details: "This field shall be the measurement time since boot of the value in the Min field was measured. This " +
-                        "field shall be greater than or equal to the value of the StartSystime field." +
+                    details: "This field shall be the measurement time since boot of the value in the Min field was measured." +
+                        "\n" +
+                        "This field shall be greater than or equal to the value of the StartSystime field." +
                         "\n" +
                         "This field shall be less than or equal to the value of the EndSystime field."
                 },
 
                 {
                     tag: "field", name: "MaxSystime", xref: "cluster§2.13.5.3.11",
-                    details: "This field shall be the measurement time since boot of the value in the Max field. This field shall " +
-                        "be greater than or equal to the value of the StartSystime field." +
+                    details: "This field shall be the measurement time since boot of the value in the Max field." +
+                        "\n" +
+                        "This field shall be greater than or equal to the value of the StartSystime field." +
                         "\n" +
                         "This field shall be less than or equal to the value of the EndSystime field."
                 }

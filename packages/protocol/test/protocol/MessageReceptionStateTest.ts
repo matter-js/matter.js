@@ -24,7 +24,7 @@ function assertMessageWindowUpdate(
 ) {
     let updatedBitMap;
     MockTime.interceptOnce(
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
         prototype,
         "calculateMessageCounterBitmap",
@@ -36,7 +36,7 @@ function assertMessageWindowUpdate(
 
     let calculatedDiff;
     MockTime.interceptOnce(
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
         prototype,
         "calculateDiff",
@@ -68,7 +68,7 @@ function assertMessageWindowDifference(
 ) {
     let calculatedDiff;
     MockTime.interceptOnce(
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
         prototype,
         "calculateDiff",
@@ -98,7 +98,7 @@ describe("MessageReceptionState", () => {
                 const prototype = MessageReceptionStateEncryptedWithoutRollover.prototype;
                 let updateCalled = false;
                 MockTime.interceptOnce(
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
                     // @ts-ignore
                     MessageReceptionStateEncryptedWithoutRollover.prototype,
                     "updateMessageCounterAndBitmap",
@@ -119,7 +119,7 @@ describe("MessageReceptionState", () => {
 
                 let calculatedDiff;
                 MockTime.interceptOnce(
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
                     // @ts-ignore
                     MessageReceptionStateEncryptedWithoutRollover.prototype,
                     "calculateDiff",
@@ -130,7 +130,7 @@ describe("MessageReceptionState", () => {
                 );
                 let updateCalled = false;
                 MockTime.interceptOnce(
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
                     // @ts-ignore
                     MessageReceptionStateEncryptedWithoutRollover.prototype,
                     "updateMessageCounterAndBitmap",
@@ -152,7 +152,7 @@ describe("MessageReceptionState", () => {
 
                 let calculatedDiff;
                 MockTime.interceptOnce(
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
                     // @ts-ignore
                     MessageReceptionStateEncryptedWithoutRollover.prototype,
                     "calculateDiff",
@@ -163,7 +163,7 @@ describe("MessageReceptionState", () => {
                 );
                 let updateCalled = false;
                 MockTime.interceptOnce(
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
                     // @ts-ignore
                     MessageReceptionStateEncryptedWithoutRollover.prototype,
                     "updateMessageCounterAndBitmap",
@@ -184,7 +184,7 @@ describe("MessageReceptionState", () => {
 
                 let calculatedDiff;
                 MockTime.interceptOnce(
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
                     // @ts-ignore
                     MessageReceptionStateEncryptedWithoutRollover.prototype,
                     "calculateDiff",
@@ -195,7 +195,7 @@ describe("MessageReceptionState", () => {
                 );
                 let updateCalled = false;
                 MockTime.interceptOnce(
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
                     // @ts-ignore
                     MessageReceptionStateEncryptedWithoutRollover.prototype,
                     "updateMessageCounterAndBitmap",
@@ -207,6 +207,38 @@ describe("MessageReceptionState", () => {
 
                 expect(() => state.updateMessageCounter(0x1234)).throws(DuplicateMessageError);
                 expect(calculatedDiff).equal(-1);
+                expect(updateCalled).equal(false);
+            });
+
+            it("no duplicate is detected on first message higher than start", () => {
+                const state = new MessageReceptionStateEncryptedWithoutRollover(0);
+                state.updateMessageCounter(0x1235);
+
+                let calculatedDiff;
+                MockTime.interceptOnce(
+                    // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // @ts-ignore
+                    MessageReceptionStateEncryptedWithoutRollover.prototype,
+                    "calculateDiff",
+                    result => {
+                        calculatedDiff = result.resolve;
+                        return result;
+                    },
+                );
+                let updateCalled = false;
+                MockTime.interceptOnce(
+                    // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // @ts-ignore
+                    MessageReceptionStateEncryptedWithoutRollover.prototype,
+                    "updateMessageCounterAndBitmap",
+                    result => {
+                        updateCalled = true;
+                        return result;
+                    },
+                );
+
+                expect(() => state.updateMessageCounter(0x1234)).not.throw;
+                expect(calculatedDiff).equal(undefined);
                 expect(updateCalled).equal(false);
             });
 
@@ -267,7 +299,7 @@ describe("MessageReceptionState", () => {
                 const prototype = MessageReceptionStateEncryptedWithRollover.prototype;
                 let updateCalled = false;
                 MockTime.interceptOnce(
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
                     // @ts-ignore
                     MessageReceptionStateEncryptedWithRollover.prototype,
                     "updateMessageCounterAndBitmap",
@@ -287,7 +319,7 @@ describe("MessageReceptionState", () => {
 
                 let calculatedDiff;
                 MockTime.interceptOnce(
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
                     // @ts-ignore
                     MessageReceptionStateEncryptedWithRollover.prototype,
                     "calculateDiff",
@@ -298,7 +330,7 @@ describe("MessageReceptionState", () => {
                 );
                 let updateCalled = false;
                 MockTime.interceptOnce(
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
                     // @ts-ignore
                     MessageReceptionStateEncryptedWithRollover.prototype,
                     "updateMessageCounterAndBitmap",
@@ -320,7 +352,7 @@ describe("MessageReceptionState", () => {
 
                 let calculatedDiff;
                 MockTime.interceptOnce(
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
                     // @ts-ignore
                     MessageReceptionStateEncryptedWithRollover.prototype,
                     "calculateDiff",
@@ -331,7 +363,7 @@ describe("MessageReceptionState", () => {
                 );
                 let updateCalled = false;
                 MockTime.interceptOnce(
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
                     // @ts-ignore
                     MessageReceptionStateEncryptedWithRollover.prototype,
                     "updateMessageCounterAndBitmap",
@@ -353,7 +385,7 @@ describe("MessageReceptionState", () => {
 
                 let calculatedDiff;
                 MockTime.interceptOnce(
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
                     // @ts-ignore
                     MessageReceptionStateEncryptedWithRollover.prototype,
                     "calculateDiff",
@@ -364,7 +396,7 @@ describe("MessageReceptionState", () => {
                 );
                 let updateCalled = false;
                 MockTime.interceptOnce(
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
                     // @ts-ignore
                     MessageReceptionStateEncryptedWithRollover.prototype,
                     "updateMessageCounterAndBitmap",
@@ -504,7 +536,7 @@ describe("MessageReceptionState", () => {
                 const prototype = MessageReceptionStateUnencryptedWithRollover.prototype;
                 let updateCalled = false;
                 MockTime.interceptOnce(
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
                     // @ts-ignore
                     MessageReceptionStateUnencryptedWithRollover.prototype,
                     "updateMessageCounterAndBitmap",
@@ -524,7 +556,7 @@ describe("MessageReceptionState", () => {
 
                 let calculatedDiff;
                 MockTime.interceptOnce(
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
                     // @ts-ignore
                     MessageReceptionStateUnencryptedWithRollover.prototype,
                     "calculateDiff",
@@ -535,7 +567,7 @@ describe("MessageReceptionState", () => {
                 );
                 let updateCalled = false;
                 MockTime.interceptOnce(
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
                     // @ts-ignore
                     MessageReceptionStateUnencryptedWithRollover.prototype,
                     "updateMessageCounterAndBitmap",
@@ -557,7 +589,7 @@ describe("MessageReceptionState", () => {
 
                 let calculatedDiff;
                 MockTime.interceptOnce(
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
                     // @ts-ignore
                     MessageReceptionStateUnencryptedWithRollover.prototype,
                     "calculateDiff",
@@ -568,7 +600,7 @@ describe("MessageReceptionState", () => {
                 );
                 let updateCalled = false;
                 MockTime.interceptOnce(
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
                     // @ts-ignore
                     MessageReceptionStateUnencryptedWithRollover.prototype,
                     "updateMessageCounterAndBitmap",
@@ -591,7 +623,7 @@ describe("MessageReceptionState", () => {
 
                 let calculatedDiff;
                 MockTime.interceptOnce(
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
                     // @ts-ignore
                     MessageReceptionStateUnencryptedWithRollover.prototype,
                     "calculateDiff",
@@ -602,7 +634,7 @@ describe("MessageReceptionState", () => {
                 );
                 let updateCalled = false;
                 MockTime.interceptOnce(
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // oxlint-disable-next-line @typescript-eslint/ban-ts-comment
                     // @ts-ignore
                     MessageReceptionStateUnencryptedWithRollover.prototype,
                     "updateMessageCounterAndBitmap",

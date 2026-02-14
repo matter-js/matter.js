@@ -133,6 +133,16 @@ export interface MdnsScannerTargetCriteria {
     }[];
 }
 
+interface WaiterRecord {
+    id: number;
+    resolver: (value: any) => void;
+    responder?: () => any;
+    timer?: Timer;
+    resolveOnUpdatedRecords: boolean;
+    cancelResolver?: (value: void) => void;
+    commissionable: boolean;
+}
+
 /**
  * This class implements the Scanner interface for a MDNS scanner via UDP messages in a IP based network. It sends out
  * queries to discover various types of Matter device types and listens for announcements.
@@ -156,19 +166,10 @@ export class MdnsClient implements Scanner {
     readonly #commissionableDeviceRecords = new Map<string, CommissionableDeviceRecordWithExpire>();
 
     /** Waiters for specific queryIds to resolve a promise when a record is discovered */
-    readonly #recordWaiters = new Map<
-        string,
-        {
-            resolver: (value: any) => void;
-            responder?: () => any;
-            timer?: Timer;
-            resolveOnUpdatedRecords: boolean;
-            cancelResolver?: (value: void) => void;
-            commissionable: boolean;
-        }
-    >();
+    readonly #recordWaiters = new Map<string, WaiterRecord[]>();
 
     #queryTimer?: Timer;
+    #queryCounter = 0;
     #nextAnnounceInterval = START_ANNOUNCE_INTERVAL;
     readonly #periodicTimer: Timer;
     #closing = false;
@@ -330,7 +331,7 @@ export class MdnsClient implements Scanner {
 
     /**
      * Set new DnsQuery records to the list of active queries to discover devices in the network and start sending them
-     * out. When entry already exists the query is overwritten and answers are always added.
+     * out. When an entry already exists, the query is overwritten and answers are always added.
      */
     #setQueryRecords(queryId: string, queries: DnsQuery[], answers: StructuredDnsAnswers = {}) {
         const activeExistingQuery = this.#activeAnnounceQueries.get(queryId);
@@ -347,7 +348,7 @@ export class MdnsClient implements Scanner {
             );
             if (newQueries.length === 0) {
                 // All queries already sent out, will be re-queried automatically
-                return;
+                return false;
             }
             queries = [...newQueries, ...existingQueries];
             answers = this.#combineStructuredAnswers(activeExistingQuery.answers, answers);
@@ -357,6 +358,7 @@ export class MdnsClient implements Scanner {
         this.#queryTimer?.stop();
         this.#nextAnnounceInterval = START_ANNOUNCE_INTERVAL; // Reset query interval
         this.#queryTimer = Time.getTimer("MDNS discovery", Instant, () => this.#sendQueries()).start();
+        return true;
     }
 
     /**
@@ -457,16 +459,19 @@ export class MdnsClient implements Scanner {
         resolveOnUpdatedRecords = true,
         cancelResolver?: (value: void) => void,
     ): Promise<T> {
+        const id = (this.#queryCounter = (this.#queryCounter + 1) % 0xffff_ffff);
         const { promise, resolver } = createPromise<T>();
         const timer =
             timeout !== undefined
                 ? Time.getTimer("MDNS timeout", timeout, () => {
                       cancelResolver?.();
-                      this.#finishWaiter(queryId, true);
+                      this.#finishWaiter(queryId, true, false, id);
                   }).start()
                 : undefined;
         this.#listening = true;
-        this.#recordWaiters.set(queryId, {
+        const waiters = this.#recordWaiters.get(queryId) ?? [];
+        waiters.push({
+            id,
             resolver,
             responder,
             timer,
@@ -474,12 +479,13 @@ export class MdnsClient implements Scanner {
             cancelResolver,
             commissionable,
         });
+        this.#recordWaiters.set(queryId, waiters);
         this.#hasCommissionableWaiters = this.#hasCommissionableWaiters || commissionable;
         if (!commissionable) {
             this.#registerOperationalQuery(queryId);
         }
-        logger.debug(
-            `Registered waiter for query ${queryId} with ${
+        logger.info(
+            `Registered waiter for query ${queryId} (${id}) with ${
                 timeout !== undefined ? `timeout ${timeout}` : "no timeout"
             }${resolveOnUpdatedRecords ? "" : " (not resolving on updated records)"}`,
         );
@@ -487,19 +493,39 @@ export class MdnsClient implements Scanner {
     }
 
     /**
-     * Remove a waiter promise for a specific queryId and stop the connected timer. If required also resolve the
+     * Remove a waiter promise for a specific queryId and stop the connected timer. If required, also resolve the
      * promise.
      */
-    #finishWaiter(queryId: string, resolvePromise: boolean, isUpdatedRecord = false) {
-        const waiter = this.#recordWaiters.get(queryId);
-        if (waiter === undefined) return;
-        const { timer, resolver, responder, resolveOnUpdatedRecords, commissionable } = waiter;
-        if (isUpdatedRecord && !resolveOnUpdatedRecords) return;
-        logger.debug(`Finishing waiter for query ${queryId}, resolving: ${resolvePromise}`);
-        timer?.stop();
-        if (resolvePromise) {
-            resolver(responder?.());
+    #finishWaiter(queryId: string, resolvePromise: boolean, isUpdatedRecord = false, finishId?: number) {
+        const waiters = this.#recordWaiters.get(queryId);
+        if (waiters === undefined) {
+            return;
         }
+
+        const waitersLeft = new Array<WaiterRecord>();
+        let commissionableRecordFinished = false;
+        for (const waiter of waiters) {
+            if (finishId !== undefined && waiter.id !== finishId) {
+                waitersLeft.push(waiter);
+                continue;
+            }
+            const { timer, resolver, responder, resolveOnUpdatedRecords, commissionable } = waiter;
+            if (isUpdatedRecord && !resolveOnUpdatedRecords) {
+                waitersLeft.push(waiter);
+                continue;
+            }
+            logger.info(`Finishing waiter for query ${queryId} (${waiter.id}), resolving: ${resolvePromise}`);
+            commissionableRecordFinished = commissionableRecordFinished || commissionable;
+            timer?.stop();
+            if (resolvePromise) {
+                resolver(responder?.());
+            }
+        }
+        if (waitersLeft.length !== 0) {
+            this.#recordWaiters.set(queryId, waitersLeft);
+            return;
+        }
+
         this.#recordWaiters.delete(queryId);
         this.#removeQuery(queryId);
 
@@ -507,21 +533,23 @@ export class MdnsClient implements Scanner {
             // We removed a waiter, so update what we still have left
             this.#hasCommissionableWaiters = false;
             let hasOperationalWaiters = false;
-            for (const { commissionable } of this.#recordWaiters.values()) {
-                if (commissionable) {
-                    this.#hasCommissionableWaiters = true;
-                    if (hasOperationalWaiters) {
-                        break; // No need to check further
-                    }
-                } else {
-                    hasOperationalWaiters = true;
-                    if (this.#hasCommissionableWaiters) {
-                        break; // No need to check further
+            loop: for (const waiters of this.#recordWaiters.values()) {
+                for (const { commissionable } of waiters) {
+                    if (commissionable) {
+                        this.#hasCommissionableWaiters = true;
+                        if (hasOperationalWaiters) {
+                            break loop; // No need to check further
+                        }
+                    } else {
+                        hasOperationalWaiters = true;
+                        if (this.#hasCommissionableWaiters) {
+                            break loop; // No need to check further
+                        }
                     }
                 }
             }
 
-            if (!commissionable) {
+            if (!commissionableRecordFinished) {
                 // We removed an operational device waiter, so we need to update the scan targets
                 this.#updateScanTargets();
             } else {
@@ -550,12 +578,19 @@ export class MdnsClient implements Scanner {
         }
         const deviceMatterQname = getOperationalDeviceQname(fabric.globalId, nodeId);
 
-        let storedDevice = ignoreExistingRecords ? undefined : this.#getOperationalDeviceRecords(deviceMatterQname);
-        if (storedDevice === undefined) {
+        let storedDevice = this.#getOperationalDeviceRecords(deviceMatterQname);
+        if (storedDevice === undefined || ignoreExistingRecords) {
             using _finding = this.#lifetime.join(
                 "finding peer",
                 PeerAddress({ fabricIndex: fabric.fabricIndex, nodeId }),
             );
+
+            if (storedDevice) {
+                // We know the device including IPs but want to query anew, so forget the addresses to ensure they get updated
+                const device = this.#operationalDeviceRecords.get(deviceMatterQname);
+                device?.addresses.clear();
+            }
+
             const promise = this.#registerWaiterPromise(deviceMatterQname, false, timeout, () =>
                 this.#getOperationalDeviceRecords(deviceMatterQname),
             );
@@ -580,9 +615,11 @@ export class MdnsClient implements Scanner {
 
     cancelCommissionableDeviceDiscovery(identifier: CommissionableDeviceIdentifiers, resolvePromise = true) {
         const queryId = this.#buildCommissionableQueryIdentifier(identifier);
-        const { cancelResolver } = this.#recordWaiters.get(queryId) ?? {};
-        // Mark as canceled to not loop further in discovery, if cancel-resolver is used
-        cancelResolver?.();
+        const waiters = this.#recordWaiters.get(queryId) ?? [];
+        for (const { cancelResolver } of waiters) {
+            // Mark as canceled to not loop further in discovery if cancel-resolver is used
+            cancelResolver?.();
+        }
         this.#finishWaiter(queryId, resolvePromise);
     }
 
@@ -827,12 +864,12 @@ export class MdnsClient implements Scanner {
             () => {
                 canceled = true;
                 if (queryResolver === undefined) {
-                    // Always finish when cancelSignal parameter was used, else cancelling is done separately
+                    // Always finish when the cancelSignal parameter was used, else cancelling is done separately
                     this.#finishWaiter(queryId, true);
                 }
             },
             cause => {
-                logger.error("Unexpected error canceling commissioning", cause);
+                logger.warn("Unexpected error canceling commissioning", cause);
             },
         );
 
@@ -881,7 +918,7 @@ export class MdnsClient implements Scanner {
     }
 
     /**
-     * Close all connects, end all timers and resolve all pending promises.
+     * Close all connections, end all timers, and resolve all pending promises.
      */
     async close() {
         using _closing = this.#lifetime.closing();
@@ -891,9 +928,11 @@ export class MdnsClient implements Scanner {
         this.#queryTimer?.stop();
         await this.#operationalInitialQueries?.close();
         // Resolve all pending promises where logic waits for the response (aka: has a timer)
-        [...this.#recordWaiters.keys()].forEach(queryId =>
-            this.#finishWaiter(queryId, !!this.#recordWaiters.get(queryId)?.timer),
-        );
+        [...this.#recordWaiters.entries()].forEach(([queryId, waiters]) => {
+            for (const { timer, id } of waiters) {
+                this.#finishWaiter(queryId, !!timer, false, id);
+            }
+        });
     }
 
     /** Converts the discovery data into a structured format for performant access. */
@@ -1396,12 +1435,15 @@ export class MdnsClient implements Scanner {
             if (this.#socket.supportsIpv4) {
                 queries.push({ name: target, recordClass: DnsRecordClass.IN, recordType: DnsRecordType.A });
             }
-            logger.debug(`Requesting IP addresses for operational device ${matterName} (interface ${netInterface}).`);
-            this.#setQueryRecords(matterName, queries, answers);
+            if (this.#setQueryRecords(matterName, queries, answers)) {
+                // Only log when we are not already searching for them
+                logger.debug(
+                    `Requesting IP addresses for operational device ${matterName} (interface ${netInterface}).`,
+                );
+            }
         } else if (addresses.size > 0) {
             this.#finishWaiter(matterName, true, deviceExisted);
         }
-        return;
     }
 
     /**

@@ -147,22 +147,23 @@ export namespace MicrowaveOvenControl {
     export const PowerAsNumberComponent = MutableCluster.Component({
         attributes: {
             /**
-             * Indicates the power level associated with the operation of the device. If the MinPower, MaxPower, and
-             * PowerStep attributes are not supported:
+             * Indicates the power level associated with the operation of the device.
              *
-             *   • The minimum value of this attribute shall be 10,
+             * If the MinPower, MaxPower, and PowerStep attributes are not supported:
              *
-             *   • The maximum value of this attribute shall be 100,
+             *   - The minimum value of this attribute shall be 10,
              *
-             *   • The value shall be in even multiples of 10,
+             *   - The maximum value of this attribute shall be 100,
              *
-             *   • The default value shall be 100.
+             *   - The value shall be in even multiples of 10,
+             *
+             *   - The default value shall be 100.
              *
              * If the MinPower, MaxPower, and PowerStep attributes are supported:
              *
-             *   • The value of this attribute shall be between MinPower and MaxPower inclusive.
+             *   - The value of this attribute shall be between MinPower and MaxPower inclusive.
              *
-             *   • The value of this attribute shall be such that (PowerSetting - MinPower) % PowerStep == 0
+             *   - The value of this attribute shall be such that (PowerSetting - MinPower) % PowerStep == 0
              *
              * @see {@link MatterSpecification.v142.Cluster} § 8.13.5.3
              */
@@ -190,8 +191,9 @@ export namespace MicrowaveOvenControl {
             maxPower: FixedAttribute(0x4, TlvUInt8.bound({ max: 100 })),
 
             /**
-             * Indicates the increment of power that can be set on the server. The value of this attribute shall be
-             * between 1 and MaxPower inclusive.
+             * Indicates the increment of power that can be set on the server.
+             *
+             * The value of this attribute shall be between 1 and MaxPower inclusive.
              *
              * The value of this attribute shall be such that (MaxPower - MinPower) % PowerStep == 0
              *
@@ -291,8 +293,9 @@ export namespace MicrowaveOvenControl {
             setCookingParameters: Command(0x0, TlvSetCookingParametersRequest, 0x0, TlvNoResponse),
 
             /**
-             * This command is used to add more time to the CookTime attribute of the server. This command supports
-             * these fields:
+             * This command is used to add more time to the CookTime attribute of the server.
+             *
+             * This command supports these fields:
              *
              * @see {@link MatterSpecification.v142.Cluster} § 8.13.6.3
              */

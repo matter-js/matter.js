@@ -21,7 +21,7 @@ export interface WsAdapter {
 }
 
 export namespace WsAdapter {
-    // eslint-disable-next-line prefer-const
+    // oxlint-disable-next-line prefer-const
     export let defaultFactory = undefined as undefined | Factory;
 
     export interface Factory {

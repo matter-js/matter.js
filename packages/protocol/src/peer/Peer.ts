@@ -14,6 +14,7 @@ import {
     Lifetime,
     Logger,
     MaybePromise,
+    ServerAddressUdp,
 } from "#general";
 import type { MdnsClient } from "#mdns/MdnsClient.js";
 import type { NodeSession } from "#session/NodeSession.js";
@@ -58,15 +59,42 @@ export class Peer {
         this.#context = context;
 
         this.#sessions.added.on(session => {
+            const updateNetworkAddress = (networkAddress: ServerAddressUdp) => {
+                this.#descriptor.operationalAddress = networkAddress;
+            };
+
             // Remove channel when destroyed
             session.closing.on(() => {
                 this.#sessions.delete(session);
             });
 
-            // Ensure operational address is always the most recent IP
-            const { channel } = session.channel;
-            if (isIpNetworkChannel(channel)) {
-                this.#descriptor.operationalAddress = channel.networkAddress;
+            // Ensure the operational address is always set to the most recent IP
+            if (!session.isClosed) {
+                const { channel } = session.channel;
+                if (isIpNetworkChannel(channel)) {
+                    updateNetworkAddress(channel.networkAddress);
+                    channel.networkAddressChanged.on(updateNetworkAddress);
+                }
+            }
+
+            // Cancel any active discovery since we have a secure session now
+            if (this.activeDiscovery) {
+                logger.debug(`Cancelling discovery for ${this.address.toString()} - secure session established`);
+                const { mdnsClient, stopTimerFunc } = this.activeDiscovery;
+                stopTimerFunc?.();
+                mdnsClient?.cancelOperationalDeviceDiscovery(this.fabric, this.address.nodeId, true);
+                this.activeDiscovery = undefined;
+            }
+
+            // Resolve any pending reconnection since we have a session now
+            if (this.activeReconnection) {
+                logger.debug(
+                    `Resolving reconnection for ${this.address.toString()} - session established via alternate path`,
+                );
+                const { resolver } = this.activeReconnection;
+                // TODO When we have the pairing process abortable then abort it
+                this.activeReconnection = undefined;
+                resolver(session as SecureSession);
             }
         });
     }
@@ -170,7 +198,8 @@ export namespace Peer {
 
     // TODO - factor away
     export interface ActiveReconnection {
-        promise: Promise<SecureSession>;
+        promise: Promise<SecureSession | undefined>;
+        resolver: (session: SecureSession | undefined) => void;
         rejecter: (reason?: any) => void;
     }
 }

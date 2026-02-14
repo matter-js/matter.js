@@ -11,6 +11,39 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/general
+    - Fix: Fixes Duration string parsing
+
+- @matter/model
+    - Enhancement: Re-Parsed the Matter 1.4.2 specification to improve captured details. No functional changes
+    - Enhancement: Adds "writable" as decorator to mark attributes writable
+
+- @matter/node
+    - Feature: We now allocate node IDs as sequential numbers; the old behavior of randomized node behavior is available if you set `ControllerBehavior` state property `nodeIdAssignment` to `"random"`
+    - Enhancement: Also export Matter events via ChangeNotificationService
+    - Adjustment: Ignore invalid VendorIds or DeviceTypeIds when processing MDNS data
+    - Fix: Added missing export for ColorControlClient
+    - Fix: Prevents duplicate change events for Client behaviors when attributes are Quieter
+    - Fix: Ensures to use correct intervals when resuming persisted subscriptions
+
+- @matter/nodejs
+    - Fix: Also handle ENETUNREACH as a non-critical network error that triggers the retry logic and MDNS lookup
+
+- @matter/protocol
+    - Enhancement: Added some jitter to the subscription max ceiling to spread out subscription responses from devices
+    - Fix: Initializes the Message Reception state counter correctly as defined by the Matter specification
+
+- @matter/types
+    - Enhancement: Re-Parsed the Matter 1.4.2 specification to improve captured details. No functional changes
+
+- @project-chip/matter.js
+    - Fix: Prevent PairedNode from updating its structure when the node is already decommissioned
+
+- Other
+  - Enhancement: For dev-server users, we now prepare the container for claude-code usage by default
+
+## 0.16.8 (2026-01-30)
+
 - @matter/node
     - Enhancement: Added automatic Command batching for non-root-endpoint commands when a node supports it and commands come in within the same macro-tick
     - Fix: Prevent error when writing Thermostat systemMode attribute
@@ -20,8 +53,23 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Add protection against out-of-order mDNS goodbye packets (TTL=0) that could incorrectly remove recently discovered devices
     - Enhancement: Add minimum TTL protection for PTR records to prevent DoS attacks with very short TTLs
     - Enhancement: Add RFC 6762 §7.3 compliant duplicate question suppression to MdnsServer
+    - Enhancement: When forcing an MDNS update for an operational device, ensure we also get new IP addresses
+    - Enhancement: Updates the session network address based on the address from the last opened exchange
+    - Enhancement: Ensures to update the persisted last known network address when addresses change on new sessions or exchanges
+    - Enhancement: When getting new IP addresses for a device while in resubmissions directly use them for the next message
+    - Enhancement: Ignores OTA update-file size issues when checksum validation passes
     - Fix: Correctly handle multi-message write interactions (server and client) according to Matter specification
     - Fix: Correctly handle multi-message invoke responses (server and client) according to Matter specification
+    - Fix: Sort out matching local OTA versions that are not applicable considering the current device version
+    - Fix: Ensures to correctly stores and updates the "last known address" from the current session
+    - Fix: Reuse sessions that are pushed by devices themselves, even when we are in a reconnection cycle
+    - Fix: Handle new sessions that devices pushed during a reconnection cycle as successful reconnections in more places
+    - Fix: Allows correctly handling multiple parallel mDNS queries for the same device
+
+- @project-chip/matter.js
+    - Enhancement: Allows specifying the BasicInformation attributes for the started Server node for a Controller
+    - Adjustment: Skip the full read before the subscription in the first two reconnection tries
+    - Fix: Ensures to fire decommissioning events for all situations where a node is decommissioned
 
 ## 0.16.7 (2026-01-22)
 
@@ -29,7 +77,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Allow querying for updates even when we do not announce us as a default provider
 
 - @project-chip/matter.js
-  - Fix: Prevent error when receiving attribute changes for behaviors that are not yet supported by an endpoint
+    - Fix: Prevent error when receiving attribute changes for behaviors that are not yet supported by an endpoint
 
 ## 0.16.6 (2026-01-22)
 

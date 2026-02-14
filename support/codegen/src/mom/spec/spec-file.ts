@@ -105,11 +105,29 @@ export class SpecFile {
             throw new Error(`No HTML files in ${path}`);
         }
 
+        // Sort to ensure stable processing order: cluster, core, device, namespace.  This matters because
+        // global elements from core must appear before device types in the output
+        const docOrder: Record<string, number> = { cluster: 0, core: 1, device: 2, namespace: 3 };
+        const loaded: SpecFile[] = [];
+
         for (const index of indices) {
-            const file = new SpecFile(resolve(path, index));
+            let file;
+            try {
+                file = new SpecFile(resolve(path, index));
+            } catch (e) {
+                // Skip HTML files that aren't recognized spec documents (e.g. master_lists.html)
+                logger.info(`skipping ${index}: ${(e as Error).message}`);
+                continue;
+            }
             if (options.document === undefined || file.#index.ref.xref.document === options.document) {
-                yield file;
+                loaded.push(file);
             }
         }
+
+        loaded.sort(
+            (a, b) => (docOrder[a.#index.ref.xref.document] ?? 99) - (docOrder[b.#index.ref.xref.document] ?? 99),
+        );
+
+        yield* loaded;
     }
 }

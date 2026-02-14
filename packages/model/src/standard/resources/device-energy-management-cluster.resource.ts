@@ -25,17 +25,18 @@ Resource.add(
             "It consists of the following areas which shall be supported by all devices implementing this " +
             "cluster:" +
             "\n" +
-            "  • Description of ESA and its capabilities & power limits (sometimes referred to as a nameplate)" +
+            "  - Description of ESA and its capabilities & power limits (sometimes referred to as a nameplate)" +
             "\n" +
-            "  • Current state of operation (including user opt-out, safety limitations / alarms) There are some " +
-            "    optional capabilities that some ESAs may be able to offer:" +
+            "  - Current state of operation (including user opt-out, safety limitations / alarms)" +
             "\n" +
-            "  • Ability to control the load or generation" +
+            "There are some optional capabilities that some ESAs may be able to offer:" +
             "\n" +
-            "  • Forecast data, including when it can be flexible (i.e. modify the power or time period)" +
+            "  - Ability to control the load or generation" +
             "\n" +
-            "  • The ability to have their power profile adjusted by an EMS, and to provide an updated Forecast " +
-            "    back to the EMS." +
+            "  - Forecast data, including when it can be flexible (i.e. modify the power or time period)" +
+            "\n" +
+            "  - The ability to have their power profile adjusted by an EMS, and to provide an updated Forecast " +
+            "back to the EMS." +
             "\n" +
             "This allows the EMS to manage multiple home loads and where ESAs can be flexible, continuously " +
             "optimizing the home energy to minimize cost, reduce CO2 impact, maximize self-consumption of solar " +
@@ -48,12 +49,12 @@ Resource.add(
             "> [!NOTE]" +
             "\n" +
             "> Grid Services are market dependent and will use other protocols ([OpenADR] / [IEEE2030.5]) to " +
-            "  communicate grid events to the EMS. These are outside the scope of Matter." +
+            "communicate grid events to the EMS. These are outside the scope of Matter." +
             "\n" +
             "> [!NOTE]" +
             "\n" +
             "> Different markets may follow different approaches, but the UK [PAS1878] and [EUCodeOfConduct] give " +
-            "  examples of how ESAs may be mandated to support these features in the future.",
+            "examples of how ESAs may be mandated to support these features in the future.",
 
         children: [
             {
@@ -304,8 +305,8 @@ Resource.add(
                     "> [!NOTE]" +
                     "\n" +
                     "> For Generator ESAs that can discharge an internal battery (such as a battery storage inverter) to " +
-                    "  loads in the home, the AbsMinPower will be a negative number representing the maximum power that " +
-                    "  the ESA can discharge its internal battery."
+                    "loads in the home, the AbsMinPower will be a negative number representing the maximum power that " +
+                    "the ESA can discharge its internal battery."
             },
 
             {
@@ -335,9 +336,9 @@ Resource.add(
                     "\n" +
                     "Changes to this attribute shall only be marked as reportable in the following cases:" +
                     "\n" +
-                    "  • At most once every 10 seconds on changes, or" +
+                    "  - At most once every 10 seconds on changes, or" +
                     "\n" +
-                    "  • When it changes from null to any other value and vice versa."
+                    "  - When it changes from null to any other value and vice versa."
             },
 
             {
@@ -354,14 +355,14 @@ Resource.add(
                     "\n" +
                     "Changes to this attribute shall only be marked as reportable in the following cases:" +
                     "\n" +
-                    "  • At most once every 10 seconds on changes, or" +
+                    "  - At most once every 10 seconds on changes, or" +
                     "\n" +
-                    "  • When it changes from null to any other value and vice versa, or" +
+                    "  - When it changes from null to any other value and vice versa, or" +
                     "\n" +
-                    "  • As a result of a command which causes the forecast to be updated, or" +
+                    "  - As a result of a command which causes the forecast to be updated, or" +
                     "\n" +
-                    "  • As a result of a change in the opt-out status which in turn may cause the ESA to recalculate its " +
-                    "    forecast."
+                    "  - As a result of a change in the opt-out status which in turn may cause the ESA to recalculate its " +
+                    "forecast."
             },
 
             {
@@ -432,7 +433,9 @@ Resource.add(
 
             {
                 tag: "event", name: "Paused", xref: "cluster§9.2.10.3",
-                details: "This event shall be generated when the ESA enters the Paused state. There is no data for this event."
+                details: "This event shall be generated when the ESA enters the Paused state." +
+                    "\n" +
+                    "There is no data for this event."
             },
 
             {
@@ -569,8 +572,8 @@ Resource.add(
                             "If this ESA supports PFR this would have 2 entries in the list as follows:" +
                             "\n" +
                             "If this ESA supports SFR where it does not know the actual power, but has an understanding of the " +
-                            "functions that use more energy, it could be requested to use more or less energy using the LoadCon " +
-                            "trol field as follows:"
+                            "functions that use more energy, it could be requested to use more or less energy using the " +
+                            "LoadControl field as follows:"
                     },
 
                     {
@@ -903,10 +906,13 @@ Resource.add(
                         tag: "field", name: "EndTime", xref: "cluster§9.2.7.13.4",
                         details: "This field shall indicate the planned end time, in UTC, for the entire Forecast."
                     },
+
                     {
                         tag: "field", name: "EarliestStartTime", xref: "cluster§9.2.7.13.5",
                         details: "This field shall indicate the earliest start time, in UTC, that the entire Forecast can be shifted " +
-                            "to. A null value indicates that it can be started immediately."
+                            "to." +
+                            "\n" +
+                            "A null value indicates that it can be started immediately."
                     },
 
                     {
@@ -1020,7 +1026,9 @@ Resource.add(
                             "they may choose to use values between 0-100 as a percentage of compressor modulation, or could use " +
                             "these values as Enum states meaning heating with fan, heating without fan etc." +
                             "\n" +
-                            "NOTE An ESA shall always use the same value to represent the same operating state." +
+                            "> [!NOTE]" +
+                            "\n" +
+                            "> An ESA shall always use the same value to represent the same operating state." +
                             "\n" +
                             "By providing this information a smart EMS may be able to learn the observed power draw when the ESA " +
                             "is put into a specific state. It can potentially then use the ManufacturerESAState field in the " +
@@ -1148,11 +1156,13 @@ Resource.add(
 
                     {
                         tag: "field", name: "NominalPower", xref: "cluster§9.2.7.15.2",
+
                         details: "This field shall indicate the new requested power that the ESA shall operate at. It MUST be between " +
                             "the AbsMinPower and AbsMaxPower attributes as advertised by the ESA if it supports PFR." +
                             "\n" +
-                            "This is a signed value and can be used to indicate charging or discharging. If the ESA does NOT " +
-                            "support PFR this value shall be ignored by the ESA."
+                            "This is a signed value and can be used to indicate charging or discharging." +
+                            "\n" +
+                            "If the ESA does NOT support PFR this value shall be ignored by the ESA."
                     },
 
                     {

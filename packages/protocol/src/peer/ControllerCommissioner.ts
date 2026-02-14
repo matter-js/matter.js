@@ -390,7 +390,7 @@ export class ControllerCommissioner {
     /** Validate if a Peer Address is already known and commissioned */
     #assertPeerAddress(address: PeerAddress) {
         if (this.#context.peers.has(address)) {
-            throw new NodeIdConflictError(`Node ID ${address.nodeId} is already commissioned and can not be reused.`);
+            throw new NodeIdConflictError(`Node ID ${address.nodeId} is already commissioned and can not be reused`);
         }
     }
 
@@ -466,9 +466,7 @@ export class ControllerCommissioner {
         discoveryData.SAT = paseSession.parameters.activeThreshold;
 
         const address = this.#determineAddress(fabric, commissioningOptions.nodeId);
-        logger.info(
-            `Start commissioning of node ${address.nodeId} into fabric ${fabric.fabricId} (index ${address.fabricIndex})`,
-        );
+        logger.info(`Start commissioning of node ${address.toString()} into fabric ${fabric.fabricId}`);
         const exchangeProvider = new DedicatedChannelExchangeProvider(this.#context.exchanges, paseSession);
         const commissioningManager = new commissioningFlowImpl(
             // Use the created secure session to do the commissioning

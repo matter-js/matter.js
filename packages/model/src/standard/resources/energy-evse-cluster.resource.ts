@@ -34,7 +34,7 @@ Resource.add(
             "\n" +
             "This cluster supports a safety mechanism that may lockout remote operation until the initial " +
             "latching conditions have been met. Some of the fault conditions defined in SAE J1772, such as " +
-            "Ground- Fault Circuit Interrupter (GFCI) or Charging Circuit Interrupting Device (CCID), may require " +
+            "Ground-Fault Circuit Interrupter (GFCI) or Charging Circuit Interrupting Device (CCID), may require " +
             "clearing by an operator by, for example, pressing a button on the equipment or breaker panel." +
             "\n" +
             "This EVSE cluster is written around support of a single EVSE. Having multiple EVSEs at home or a " +
@@ -137,7 +137,7 @@ Resource.add(
                     "> [!NOTE]" +
                     "\n" +
                     "> SessionEnding is not really a state but a transition. However, the transition period may take a " +
-                    "  few seconds and is useful for some clean up purposes." +
+                    "few seconds and is useful for some clean up purposes." +
                     "\n" +
                     "The Fault state is used to indicate that the FaultState attribute is not NoError." +
                     "\n" +
@@ -214,28 +214,29 @@ Resource.add(
                     "\n" +
                     "This attribute value shall be the minimum of:" +
                     "\n" +
-                    "  • CircuitCapacity - Electrician’s installation setting" +
+                    "  - CircuitCapacity - Electrician’s installation setting" +
                     "\n" +
-                    "  • CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)" +
+                    "  - CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)" +
                     "\n" +
-                    "  • MaximumChargeCurrent field in the EnableCharging command" +
+                    "  - MaximumChargeCurrent field in the EnableCharging command" +
                     "\n" +
-                    "  • UserMaximumChargeCurrent attribute"
+                    "  - UserMaximumChargeCurrent attribute"
             },
 
             {
                 tag: "attribute", name: "MaximumDischargeCurrent", xref: "cluster§9.3.8.9",
 
-                details: "Indicates the maximum current that can be received by the EVSE from the EV. This attribute can be " +
-                    "set using the EnableDischarging command." +
+                details: "Indicates the maximum current that can be received by the EVSE from the EV." +
+                    "\n" +
+                    "This attribute can be set using the EnableDischarging command." +
                     "\n" +
                     "This attribute value shall be the minimum of:" +
                     "\n" +
-                    "  • CircuitCapacity - Electrician’s installation setting" +
+                    "  - CircuitCapacity - Electrician’s installation setting" +
                     "\n" +
-                    "  • CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)" +
+                    "  - CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)" +
                     "\n" +
-                    "  • MaximumDischargeCurrent field in the EnableDischarging command"
+                    "  - MaximumDischargeCurrent field in the EnableDischarging command"
             },
 
             {
@@ -338,17 +339,10 @@ Resource.add(
                     "\n" +
                     "Example:" +
                     "\n" +
-                    "ApproxEVEfficiency (km/kWh x 1000): 4800 (i.e. 4.8km/kWh x 1000)" +
+                    "ApproxEVEfficiency (km/kWh x 1000): 4800 (i.e. 4.8km/kWh x 1000) AddedEnergy (Wh): 10,000" +
                     "\n" +
-                    "### AddedEnergy (Wh): 10,000" +
-                    "\n" +
-                    "AddedRange (km) = 10,000 x 4800 / 1,000,000 = 48 km" +
-                    "\n" +
-                    "AddedRange (Miles) = AddedEnergy (Wh) x ApproxEVEfficiency (km/kWh x 1000) x" +
-                    "\n" +
-                    "0.6213" +
-                    "\n" +
-                    "= 29.82 Miles"
+                    "AddedRange (km) = 10,000 x 4800 / 1,000,000 = 48 km AddedRange (Miles) = AddedEnergy (Wh) x " +
+                    "ApproxEVEfficiency (km/kWh x 1000) x 0.6213 = 29.82 Miles"
             },
 
             {
@@ -366,11 +360,13 @@ Resource.add(
 
             {
                 tag: "attribute", name: "VehicleId", xref: "cluster§9.3.8.19",
+
                 details: "Indicates the vehicle ID read by the EVSE via ISO-15118 using the PNC feature, if the EVSE supports " +
                     "this capability." +
                     "\n" +
-                    "The field may be based on the e-Mobility Account Identifier (EMAID). A null value shall indicate " +
-                    "that this is unknown."
+                    "The field may be based on the e-Mobility Account Identifier (EMAID)." +
+                    "\n" +
+                    "A null value shall indicate that this is unknown."
             },
 
             { tag: "attribute", name: "SessionId", xref: "cluster§9.3.8" },
@@ -791,8 +787,9 @@ Resource.add(
                     "The optimization strategy is not defined here, however in simple terms, the AddedEnergy requirement " +
                     "can be fulfilled by knowing the charging Power (W) and the time needed to charge." +
                     "\n" +
-                    "To compute the Charging Time: Required Energy (Wh) = Power (W) x ChargingTime (s) / 3600 Therefore: " +
-                    "ChargingTime (s) = (3600 x RequiredEnergy (wH)) / Power (W)" +
+                    "To compute the Charging Time: Required Energy (Wh) = Power (W) x ChargingTime (s) / 3600" +
+                    "\n" +
+                    "Therefore: ChargingTime (s) = (3600 x RequiredEnergy (wH)) / Power (W)" +
                     "\n" +
                     "To compute the charging time: Charging StartTime = TargetTimeMinutesPastMidnight - ChargingTime",
 
@@ -833,22 +830,21 @@ Resource.add(
                             "\n" +
                             "If the EVSE supports the SOC feature and can obtain the SoC of the vehicle:" +
                             "\n" +
-                            "  • the TargetSoC field shall take precedence over the AddedEnergy field." +
+                            "  - the TargetSoC field shall take precedence over the AddedEnergy field." +
                             "\n" +
-                            "  • the EVSE SHOULD charge to the TargetSoC and then stop the charging automatically when it reaches " +
-                            "    that point." +
+                            "  - the EVSE SHOULD charge to the TargetSoC and then stop the charging automatically when it reaches " +
+                            "that point." +
                             "\n" +
-                            "  • if the TargetSoC value is set to 100% then the EVSE SHOULD continue to charge the vehicle until " +
-                            "    the vehicle decides to stop charging." +
+                            "  - if the TargetSoC value is set to 100% then the EVSE SHOULD continue to charge the vehicle until " +
+                            "the vehicle decides to stop charging." +
                             "\n" +
                             "If the EVSE does not support the SOC feature or cannot obtain the SoC of the vehicle:" +
                             "\n" +
-                            "  • the AddedEnergy field shall take precedence over the TargetSoC field, and if the EVSE does not " +
-                            "    support the SOC feature then the TargetSoC field may only take the values null or 100%." +
+                            "  - the AddedEnergy field shall take precedence over the TargetSoC field, and if the EVSE does not " +
+                            "support the SOC feature then the TargetSoC field may only take the values null or 100%." +
                             "\n" +
-                            "  • if the AddedEnergy field has not been provided, the EVSE SHOULD assume the vehicle is empty" +
-                            "\n" +
-                            "and charge until the vehicle stops demanding a charge."
+                            "  - if the AddedEnergy field has not been provided, the EVSE SHOULD assume the vehicle is empty and " +
+                            "charge until the vehicle stops demanding a charge."
                     },
 
                     {
@@ -870,8 +866,8 @@ Resource.add(
                             "> [!NOTE]" +
                             "\n" +
                             "> If the EVSE can obtain the Battery Capacity of the vehicle, it SHOULD NOT limit this AddedEnergy " +
-                            "  value to the Battery Capacity of the vehicle, since the EV may also require energy for heating and " +
-                            "  cooling of the battery during charging, or for heating or cooling the cabin."
+                            "value to the Battery Capacity of the vehicle, since the EV may also require energy for heating and " +
+                            "cooling of the battery during charging, or for heating or cooling the cabin."
                     }
                 ]
             },

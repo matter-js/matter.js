@@ -24,6 +24,7 @@ import {
     LowerIdentifier,
     NoSpace,
     Str,
+    StrWithSuperscripts,
     UpperIdentifier,
 } from "./html-translators.js";
 import { repairConformance } from "./repairs/aspect-repairs.js";
@@ -472,7 +473,7 @@ function translateNamespace(definition: ClusterReference, elements: Array<Cluste
                 {
                     id: Alias(Integer, "modetagvalue", "statuscode", "statuscodevalue"),
                     name: Identifier,
-                    description: Optional(Alias(Str, "summary")),
+                    description: Optional(Alias(StrWithSuperscripts, "summary")),
                 },
                 table,
             );

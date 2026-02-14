@@ -136,7 +136,8 @@ jobs:
       - name: Maximize build space
         uses: easimon/maximize-build-space@v10
         with:
-          root-reserve-mb: 5128
+          root-reserve-mb: 4096
+          temp-reserve-mb: 3096
           remove-dotnet: 'true'
           remove-android: 'true'
           remove-haskell: 'true'
@@ -179,6 +180,7 @@ jobs:
               --iterations 1 \
               --tool-path chip-tool:../bin/chip-tool \
               --app-path all-clusters:../support/chip-testing/AllClustersTestApp.sh \
+              --app-path all-devices:../support/chip-testing/AllClustersTestApp.sh \
               --app-path bridge:../support/chip-testing/dist/esm/BridgeTestApp.js \
               --app-path tv:../support/chip-testing/dist/esm/TvTestApp.js \
               --app-path rvc:../support/chip-testing/AllClustersTestApp.sh \
@@ -193,6 +195,7 @@ jobs:
               --iterations 1 \
               --tool-path chip-tool:../bin/chip-tool \
               --app-path all-clusters:../support/chip-testing/dist/esm/AllClustersTestApp.js \
+              --app-path all-devices:../support/chip-testing/dist/esm/AllClustersTestApp.js \
               --app-path bridge:../support/chip-testing/dist/esm/BridgeTestApp.js \
               --app-path tv:../support/chip-testing/dist/esm/TvTestApp.js \
               --app-path rvc:../support/chip-testing/AllClustersTestApp.sh \
@@ -228,6 +231,7 @@ jobs:
               --iterations 1 \
               --tool-path chip-tool:../support/chip-testing/dist/esm/ControllerWebSocketTestApp.js \
               --app-path all-clusters:../support/chip-testing/AllClustersTestApp.sh \
+              --app-path all-devices:../support/chip-testing/AllClustersTestApp.sh \
               --app-path bridge:../support/chip-testing/dist/esm/BridgeTestApp.js \
               --app-path tv:../support/chip-testing/dist/esm/TvTestApp.js \
               --app-path rvc:../support/chip-testing/AllClustersTestApp.sh \
@@ -243,6 +247,7 @@ jobs:
               --iterations 1 \
               --tool-path chip-tool:../support/chip-testing/dist/esm/ControllerWebSocketTestApp.js \
               --app-path all-clusters:../support/chip-testing/dist/esm/AllClustersTestApp.js \
+              --app-path all-devices:../support/chip-testing/dist/esm/AllClustersTestApp.js \
               --app-path bridge:../support/chip-testing/dist/esm/BridgeTestApp.js \
               --app-path tv:../support/chip-testing/dist/esm/TvTestApp.js \
               --app-path rvc:../support/chip-testing/AllClustersTestApp.sh \
@@ -279,6 +284,7 @@ jobs:
               --iterations 1 \
               --tool-path chip-tool:../bin/chip-tool \
               --app-path all-clusters:../support/chip-testing/dist/esm/AllClustersTestApp.js \
+              --app-path all-devices:../support/chip-testing/dist/esm/AllClustersTestApp.js \
               --app-path bridge:../support/chip-testing/dist/esm/BridgeTestApp.js \
               --app-path tv:../support/chip-testing/dist/esm/TvTestApp.js \
             '
@@ -312,10 +318,11 @@ jobs:
               --iterations 1 \
               --tool-path chip-tool:../support/chip-testing/dist/esm/ControllerWebSocketTestApp.js \
               --app-path all-clusters:../support/chip-testing/dist/esm/AllClustersTestApp.js \
+              --app-path all-devices:../support/chip-testing/dist/esm/AllClustersTestApp.js \
               --app-path bridge:../support/chip-testing/dist/esm/BridgeTestApp.js \
               --app-path tv:../support/chip-testing/dist/esm/TvTestApp.js \
               --app-path energy-gateway:../support/chip-testing/dist/esm/AllClustersTestApp.js \
-              --app-path energy-management:../support/chip-testing/dist/esm/AllClustersTestApp.js \
+              --app-path evse:../support/chip-testing/dist/esm/AllClustersTestApp.js \
             '
 
   # Execute the slower (because simulated) application cluster tests
@@ -349,6 +356,7 @@ jobs:
               --iterations 1 \
               --tool-path chip-tool:../bin/chip-tool \
               --app-path all-clusters:../support/chip-testing/dist/esm/AllClustersTestApp.js \
+              --app-path all-devices:../support/chip-testing/dist/esm/AllClustersTestApp.js \
               --app-path bridge:../support/chip-testing/dist/esm/BridgeTestApp.js \
               --app-path tv:../support/chip-testing/dist/esm/TvTestApp.js \
             '
@@ -381,6 +389,7 @@ jobs:
               run \
               --tool-path chip-tool:../bin/chip-tool \
               --app-path all-clusters:../support/chip-testing/dist/esm/AllClustersTestApp.js \
+              --app-path all-devices:../support/chip-testing/dist/esm/AllClustersTestApp.js \
               --app-path bridge:../support/chip-testing/dist/esm/BridgeTestApp.js \
             '
   matterjs-tests-long:
@@ -411,6 +420,7 @@ jobs:
               run \
               --tool-path chip-tool:../support/chip-testing/dist/esm/ControllerWebSocketTestApp.js \
               --app-path all-clusters:../support/chip-testing/dist/esm/AllClustersTestApp.js \
+              --app-path all-devices:../support/chip-testing/dist/esm/AllClustersTestApp.js \
               --app-path bridge:../support/chip-testing/dist/esm/BridgeTestApp.js \
             '
 

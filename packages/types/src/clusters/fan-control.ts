@@ -171,9 +171,8 @@ export namespace FanControl {
         wrap: TlvOptionalField(1, TlvBoolean),
 
         /**
-         * This field shall indicate that the fan being off
-         *
-         * = 0) is included as a step value.
+         * This field shall indicate that the fan being off (FanMode = Off, PercentSetting = 0, or SpeedSetting = 0) is
+         * included as a step value.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.4.7.1.3
          */
@@ -319,8 +318,9 @@ export namespace FanControl {
     export const RockingComponent = MutableCluster.Component({
         attributes: {
             /**
-             * This attribute is a bitmap that indicates the rocking motions that are supported by the server. If this
-             * attribute is supported by the server, at least one bit shall be set in this attribute.
+             * This attribute is a bitmap that indicates the rocking motions that are supported by the server.
+             *
+             * If this attribute is supported by the server, at least one bit shall be set in this attribute.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.8
              */
@@ -350,8 +350,9 @@ export namespace FanControl {
     export const WindComponent = MutableCluster.Component({
         attributes: {
             /**
-             * This attribute is a bitmap that indicates what wind modes are supported by the server. If this attribute
-             * is supported by the server, at least one bit shall be set in this attribute.
+             * This attribute is a bitmap that indicates what wind modes are supported by the server.
+             *
+             * If this attribute is supported by the server, at least one bit shall be set in this attribute.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.10
              */
@@ -481,7 +482,7 @@ export namespace FanControl {
              * INVALID_IN_STATE to indicate that the fan is not in a state where this attribute can be changed to the
              * requested value.
              *
-             * The server may have values that this attribute can never be set to or that will be ignored by the server.
+             * The server may have values that this attribute can never be set to or that will be ignored bytheserver.
              * For example, where this cluster appears on the same or another endpoint as other clusters with a system
              * dependency, for example the Thermostat cluster, attempting to set this attribute to Off may not be
              * allowed by the system.

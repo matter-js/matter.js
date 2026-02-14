@@ -6,7 +6,7 @@
 
 import { camelize, InternalError } from "#general";
 import { AttributeElement, DatatypeElement, FieldElement, Metatype, ValueElement } from "#model";
-import { ByteSize, Integer, Str } from "./html-translators.js";
+import { ByteSize, Integer, Str, StrWithSuperscripts } from "./html-translators.js";
 import { repairTypeIdentifier } from "./repairs/type-repairs.js";
 import { GlobalReference } from "./spec-types.js";
 import {
@@ -62,7 +62,7 @@ export function* translateGlobal(ref: GlobalReference) {
  */
 const DatatypeSchema = {
     // We use the "long" name as description
-    description: Alias(Str, "datatype"),
+    description: Alias(StrWithSuperscripts, "datatype"),
 
     // Name is an identifier but we want to capture the case so we do not use Identifier
     name: Alias(Str, "short"),
@@ -194,7 +194,7 @@ const StatusCodeSchema = {
     // Name appears as "FOO_BAR" and any whitespace is a line wrap; should *not* be considered separate word
     name: Alias(el => camelize(Str(el).replace(/\s+/g, ""), true), "value"),
 
-    description: Alias(Str, "summary"),
+    description: Alias(StrWithSuperscripts, "summary"),
 };
 
 function installstatusCodes(ref: GlobalReference) {

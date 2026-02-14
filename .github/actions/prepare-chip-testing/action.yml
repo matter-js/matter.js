@@ -102,6 +102,7 @@ runs:
           "./scripts/build/build_examples.py \
             --target linux-x64-chip-tool-${BUILD_VARIANT} \
             --target linux-x64-all-clusters-${BUILD_VARIANT} \
+            --target linux-x64-all-devices-${BUILD_VARIANT} \
             --target linux-x64-lock-${BUILD_VARIANT} \
             --target linux-x64-tv-app-${BUILD_VARIANT} \
             --target linux-x64-bridge-${BUILD_VARIANT} \
@@ -110,11 +111,12 @@ runs:
             --target linux-x64-rvc-${BUILD_VARIANT} \
             --target linux-x64-network-manager-${BUILD_VARIANT} \
             --target linux-x64-energy-gateway-${BUILD_VARIANT} \
-            --target linux-x64-energy-management-${BUILD_VARIANT} \
+            --target linux-x64-evse-${BUILD_VARIANT} \
             build
           "
         cp out/linux-x64-chip-tool-${BUILD_VARIANT}/chip-tool ../bin/
         cp out/linux-x64-all-clusters-${BUILD_VARIANT}/chip-all-clusters-app ../bin/
+        cp out/linux-x64-all-devices-${BUILD_VARIANT}/all-devices-app ../bin/
         cp out/linux-x64-bridge-${BUILD_VARIANT}/chip-bridge-app ../bin/
         cp out/linux-x64-lock-${BUILD_VARIANT}/chip-lock-app ../bin/
         cp out/linux-x64-tv-app-${BUILD_VARIANT}/chip-tv-app ../bin/
@@ -123,7 +125,7 @@ runs:
         cp out/linux-x64-rvc-${BUILD_VARIANT}/chip-rvc-app ../bin/
         cp out/linux-x64-network-manager-${BUILD_VARIANT}/matter-network-manager-app ../bin/
         cp out/linux-x64-energy-gateway-${BUILD_VARIANT}/chip-energy-gateway-app ../bin/
-        cp out/linux-x64-energy-management-${BUILD_VARIANT}/chip-energy-management-app ../bin/
+        cp out/linux-x64-evse-${BUILD_VARIANT}/chip-evse-app ../bin/
 
     - name: Display used binaries
       shell: bash

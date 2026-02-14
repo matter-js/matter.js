@@ -983,9 +983,9 @@ export namespace PowerSource {
              * WiredFaultEnum value shall be added to this list, provided it is not already present. This list shall NOT
              * contain more than one instance of a specific WiredFaultEnum value. When the Node detects all conditions
              * contributing to a fault have been cleared, the corresponding WiredFaultEnum value shall be removed from
-             * this list. An empty list shall indicate there are currently no active faults. The order of this list
-             * SHOULD have no significance. Clients interested in monitoring changes in active faults may subscribe to
-             * this attribute, or they may subscribe to WiredFaultChange.
+             * this list. An empty list shall indicate there are currently noactivefaults. The order of this list SHOULD
+             * have no significance. Clients interested in monitoring changes in active faults may subscribe to this
+             * attribute, or they may subscribe to WiredFaultChange.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.7.7.11
              */
@@ -1023,15 +1023,15 @@ export namespace PowerSource {
 
             /**
              * Indicates the estimated percentage of battery charge remaining until the battery will no longer be able
-             * to provide power to the Node. Values are expressed in half percent units, ranging from 0 to 200. E.g. a
+             * to provide power to the Node. Values are expressed in half percent units, ranging from 0 to200. E.g. a
              * value of 48 is equivalent to 24%. A value of NULL shall indicate the Node is currently unable to assess
              * the value.
              *
              * Changes to this attribute shall only be marked as reportable in the following cases:
              *
-             *   • At most once every 10 seconds, or
+             *   - At most once every 10 seconds, or
              *
-             *   • When it changes from null to any other value and vice versa.
+             *   - When it changes from null to any other value and vice versa.
              *
              * Since reporting consumes power, devices SHOULD be careful not to over-report.
              *
@@ -1045,9 +1045,9 @@ export namespace PowerSource {
              *
              * Changes to this attribute shall only be marked as reportable in the following cases:
              *
-             *   • At most once every 10 seconds, or
+             *   - At most once every 10 seconds, or
              *
-             *   • When it changes from null to any other value and vice versa.
+             *   - When it changes from null to any other value and vice versa.
              *
              * Since reporting consumes power, devices SHOULD be careful not to over-report.
              *
@@ -1092,9 +1092,9 @@ export namespace PowerSource {
              * BatFaultEnum value shall be added to this list, provided it is not already present. This list shall NOT
              * contain more than one instance of a specific BatFaultEnum value. When the Node detects all conditions
              * contributing to a fault have been cleared, the corresponding BatFaultEnum value shall be removed from
-             * this list. An empty list shall indicate there are currently no active faults. The order of this list
-             * SHOULD have no significance. Clients interested in monitoring changes in active faults may subscribe to
-             * this attribute, or they may subscribe to BatFaultChange.
+             * this list. An empty list shall indicate there are currently noactivefaults. The order of this list SHOULD
+             * have no significance. Clients interested in monitoring changes in active faults may subscribe to this
+             * attribute, or they may subscribe to BatFaultChange.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.7.7.19
              */
@@ -1200,9 +1200,9 @@ export namespace PowerSource {
              *
              * Changes to this attribute shall only be marked as reportable in the following cases:
              *
-             *   • At most once every 10 seconds, or
+             *   - At most once every 10 seconds, or
              *
-             *   • When it changes from null to any other value and vice versa.
+             *   - When it changes from null to any other value and vice versa.
              *
              * Since reporting consumes power, devices SHOULD be careful not to over-report.
              *
@@ -1228,8 +1228,8 @@ export namespace PowerSource {
             /**
              * Indicates the set of charge faults currently detected by the Node on this power source. This set is
              * represented as a list of BatChargeFaultEnum. When the Node detects a fault has been raised, the
-             * appropriate BatChargeFaultEnum value shall be added to this list, provided it is not already present.
-             * This list shall NOT contain more than one instance of a specific BatChargeFaultEnum value. When the Node
+             * appropriate BatChargeFaultEnum value shall be added to this list, provided it is not alreadypresent. This
+             * list shall NOT contain more than one instance of a specific BatChargeFaultEnum value. When the Node
              * detects all conditions contributing to a fault have been cleared, the corresponding BatChargeFaultEnum
              * value shall be removed from this list. An empty list shall indicate there are currently no active faults.
              * The order of this list SHOULD have no significance. Clients interested in monitoring changes in active
@@ -1331,13 +1331,26 @@ export namespace PowerSource {
              * The above rules allow that some endpoints can have an unknown power source, and therefore would not be
              * indicated by any instance of this cluster.
              *
-             * ### Empty list examples
+             * ### Legacy Implementations
+             *
+             * Legacy implementations of this cluster before revision 2, before this attribute was defined, would have
+             * implemented this cluster on an application endpoint without indicating it in EndpointList (since that
+             * attribute did not exist in revision 1), because it represented a power source for the endpoint, not the
+             * entire node.
+             *
+             * For example: Bridge implementations support endpoints for bridged devices that have different power
+             * sources.
+             *
+             * Such implementations followed device type requirements and semantics outside of this cluster, because
+             * this attribute did not exist.
+             *
+             * Future updates of such a cluster instance on the same endpoint, would allow that same endpoint to be an
+             * entry in the EndpointList attribute. Therefore it is valid to list the endpoint upon which the cluster
+             * instance exists.
              *
              * Typically, there is one power source for the node. Also common is mains power for the node with battery
              * backup power for the node. In both these common cases, for each cluster instance described, the list is
              * empty.
-             *
-             * ### Populated list example
              *
              * A node has a mains power source with Order as 0 (zero), but some application endpoints (not all) have a
              * battery back up source with Order as 1, which means this list is empty for the Power Source cluster

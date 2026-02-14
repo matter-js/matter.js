@@ -33,7 +33,7 @@ export class SecureChannelMessenger {
     #defaultExpectedProcessingTime: Duration;
 
     constructor(
-        protected readonly exchange: MessageExchange,
+        readonly exchange: MessageExchange,
         defaultExpectedProcessingTime = EXPECTED_CRYPTO_PROCESSING_TIME,
     ) {
         this.#defaultExpectedProcessingTime = defaultExpectedProcessingTime;

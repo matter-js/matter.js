@@ -126,9 +126,9 @@ Resource.add({
                 "\n" +
                 "Changes to this attribute shall only be marked as reportable in the following cases:" +
                 "\n" +
-                "  • At most once every 10 seconds, or" +
+                "  - At most once every 10 seconds, or" +
                 "\n" +
-                "  • When it changes from null to any other value and vice versa." +
+                "  - When it changes from null to any other value and vice versa." +
                 "\n" +
                 "Since reporting consumes power, devices SHOULD be careful not to over-report."
         },
@@ -141,9 +141,9 @@ Resource.add({
                 "\n" +
                 "Changes to this attribute shall only be marked as reportable in the following cases:" +
                 "\n" +
-                "  • At most once every 10 seconds, or" +
+                "  - At most once every 10 seconds, or" +
                 "\n" +
-                "  • When it changes from null to any other value and vice versa." +
+                "  - When it changes from null to any other value and vice versa." +
                 "\n" +
                 "Since reporting consumes power, devices SHOULD be careful not to over-report."
         },
@@ -232,9 +232,9 @@ Resource.add({
                 "\n" +
                 "Changes to this attribute shall only be marked as reportable in the following cases:" +
                 "\n" +
-                "  • At most once every 10 seconds, or" +
+                "  - At most once every 10 seconds, or" +
                 "\n" +
-                "  • When it changes from null to any other value and vice versa." +
+                "  - When it changes from null to any other value and vice versa." +
                 "\n" +
                 "Since reporting consumes power, devices SHOULD be careful not to over-report."
         },
@@ -281,13 +281,26 @@ Resource.add({
                 "The above rules allow that some endpoints can have an unknown power source, and therefore would not " +
                 "be indicated by any instance of this cluster." +
                 "\n" +
-                "### Empty list examples" +
+                "### Legacy Implementations" +
+                "\n" +
+                "Legacy implementations of this cluster before revision 2, before this attribute was defined, would " +
+                "have implemented this cluster on an application endpoint without indicating it in EndpointList " +
+                "(since that attribute did not exist in revision 1), because it represented a power source for the " +
+                "endpoint, not the entire node." +
+                "\n" +
+                "For example: Bridge implementations support endpoints for bridged devices that have different power " +
+                "sources." +
+                "\n" +
+                "Such implementations followed device type requirements and semantics outside of this cluster, " +
+                "because this attribute did not exist." +
+                "\n" +
+                "Future updates of such a cluster instance on the same endpoint, would allow that same endpoint to be " +
+                "an entry in the EndpointList attribute. Therefore it is valid to list the endpoint upon which the " +
+                "cluster instance exists." +
                 "\n" +
                 "Typically, there is one power source for the node. Also common is mains power for the node with " +
                 "battery backup power for the node. In both these common cases, for each cluster instance described, " +
                 "the list is empty." +
-                "\n" +
-                "### Populated list example" +
                 "\n" +
                 "A node has a mains power source with Order as 0 (zero), but some application endpoints (not all) " +
                 "have a battery back up source with Order as 1, which means this list is empty for the Power Source " +

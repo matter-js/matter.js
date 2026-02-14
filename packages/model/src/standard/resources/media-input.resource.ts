@@ -56,10 +56,12 @@ Resource.add({
             tag: "command", name: "HideInputStatus", xref: "cluster§6.9.7.3",
             details: "Upon receipt, this command shall hide the input list from the screen."
         },
+
         {
             tag: "command", name: "RenameInput", xref: "cluster§6.9.7.4",
-            details: "Upon receipt, this command shall rename the input at a specific index in the Input List. Updates to " +
-                "the input name shall appear in the device’s settings menus."
+            details: "Upon receipt, this command shall rename the input at a specific index in the Input List." +
+                "\n" +
+                "Updates to the input name shall appear in the device’s settings menus."
         },
 
         {
@@ -80,7 +82,7 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "InputType", xref: "cluster§6.9.5.2.2",
-                    details: "### This field shall indicate the type of input"
+                    details: "This field shall indicate the type of input"
                 },
                 {
                     tag: "field", name: "Name", xref: "cluster§6.9.5.2.3",

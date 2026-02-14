@@ -15,17 +15,17 @@ export namespace WiFiNetworkDiagnosticsInterface {
          *
          * Reception of this command shall reset the following attributes to 0:
          *
-         *   • BeaconLostCount
+         *   - BeaconLostCount
          *
-         *   • BeaconRxCount
+         *   - BeaconRxCount
          *
-         *   • PacketMulticastRxCount
+         *   - PacketMulticastRxCount
          *
-         *   • PacketMulticastTxCount
+         *   - PacketMulticastTxCount
          *
-         *   • PacketUnicastRxCount
+         *   - PacketUnicastRxCount
          *
-         *   • PacketUnicastTxCount
+         *   - PacketUnicastTxCount
          *
          * @see {@link MatterSpecification.v142.Core} § 11.15.7.1
          */

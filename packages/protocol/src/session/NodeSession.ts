@@ -111,7 +111,7 @@ export class NodeSession extends SecureSession {
                     await this.closeSubscriptions(true);
                 });
             }),
-            messageReceptionState: new MessageReceptionStateEncryptedWithoutRollover(),
+            messageReceptionState: new MessageReceptionStateEncryptedWithoutRollover(0),
         });
 
         this.#crypto = crypto;
@@ -125,14 +125,14 @@ export class NodeSession extends SecureSession {
         this.#caseAuthenticatedTags = caseAuthenticatedTags ?? [];
         this.#isInitiator = isInitiator;
 
-        manager?.sessions.add(this);
-        fabric?.addSession(this);
-
         logger.debug(
             `Created secure ${this.isPase ? "PASE" : "CASE"} session for fabric index ${fabric?.fabricIndex}`,
             this.via,
             this.parameterDiagnostics,
         );
+
+        manager?.sessions.add(this);
+        fabric?.addSession(this);
     }
 
     get parameterDiagnostics() {
@@ -389,6 +389,7 @@ export namespace NodeSession {
             session.via,
             `${operation} session with`,
             Diagnostic.strong(PeerAddress({ fabricIndex: fabric.fabricIndex, nodeId: peerNodeId }).toString()),
+            messenger.exchange.diagnostics,
             Diagnostic.dict({
                 address: messenger.channelName,
                 fabric: `${GlobalFabricId.strOf(fabric.globalId)} (#${fabric.fabricIndex})`,

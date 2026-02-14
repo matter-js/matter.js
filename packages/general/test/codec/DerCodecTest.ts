@@ -5,7 +5,8 @@
  */
 
 import { ContextTagged, DatatypeOverride, DerBitString, DerCodec, DerRawUint, DerType } from "#codec/DerCodec.js";
-import { X520, X962 } from "#codec/DerTypes.js";
+import { X520 } from "#crypto/X520.js";
+import { X962 } from "#index.js";
 
 import { b$, Bytes } from "#util/Bytes.js";
 

@@ -2,8 +2,7 @@
     "extends": "../../tools/tsc/tsconfig.lib.json",
     "compilerOptions": {
         "types": [
-            "@matter/testing",
-            "globals"
+            "@matter/testing"
         ]
     },
     "references": [

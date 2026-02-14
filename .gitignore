@@ -10,3 +10,4 @@ dist/
 isolated-*.log
 *.log
 .matter-test.json
+.claude/

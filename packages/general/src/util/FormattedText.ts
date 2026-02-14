@@ -25,14 +25,14 @@ export function FormattedText(text: string, width = 120) {
  */
 export enum BlockKind {
     Simple = "simple",
-    Bullet1 = "•",
-    Bullet2 = "◦",
-    Bullet3 = "▪",
-    Bullet4 = "○",
-    Bullet5 = "●",
-    Bullet6 = "‣",
-    Bullet7 = "⁃",
-    Bullet8 = "◘",
+    Bullet1 = "-",
+    Bullet2 = "•",
+    Bullet3 = "◦",
+    Bullet4 = "▪",
+    Bullet5 = "○",
+    Bullet6 = "●",
+    Bullet7 = "‣",
+    Bullet8 = "⁃",
     Quote = ">",
     Number = "number",
     LowerAlpha = "alpha",
@@ -55,6 +55,7 @@ export function looksLikeListItem(text: string) {
 type Block = {
     kind: BlockKind;
     indentWidth: number;
+    sourceIndent?: number;
     entries: (string | Block)[];
 };
 
@@ -65,20 +66,20 @@ const Empty: Block = {
 };
 
 /**
- * Detect block prefixes.  This is designed to handle scavenged, poorly formatted text so does not use indentation.  It
- * just focus on the prefix characters of the paragraph/line (which are the same thing as paragraphs do not include
- * newlines).
+ * Detect block prefixes.  Uses indentation to determine nesting depth for markdown-style `-` bullets
+ * (where all levels use the same marker), and marker identity for other bullet/enumeration types.
  */
 function detectBlock(text: string, breadcrumb: Block[]) {
-    const match = text.match(/^\s*(\S+)/);
+    const match = text.match(/^(\s*)(\S+)/);
     if (!match) {
         return;
     }
 
-    const [, marker] = match;
+    const [, leadingSpace, marker] = match;
+    const indent = leadingSpace.length;
 
     if (Bullets.includes(marker as BlockKind) || marker === BlockKind.Quote) {
-        enterBlock(marker as BlockKind);
+        enterBlock(marker as BlockKind, indent);
         return;
     }
 
@@ -91,18 +92,47 @@ function detectBlock(text: string, breadcrumb: Block[]) {
     // Not in a block
     breadcrumb.length = 1;
 
-    function enterBlock(kind: BlockKind) {
-        // If we are already in block of this kind, ensure it is the deepest level
-        const level = breadcrumb.findIndex(entry => entry.kind === kind);
-        if (level !== -1) {
-            breadcrumb.length = level + 1;
-            return;
+    function enterBlock(kind: BlockKind, sourceIndent?: number) {
+        // For `-` markers with indentation, find the right nesting level by matching indent
+        if (sourceIndent !== undefined && kind === BlockKind.Bullet1) {
+            // Find the Bullet1 block whose sourceIndent matches (or is closest-smaller)
+            let matchLevel = -1;
+            for (let i = breadcrumb.length - 1; i >= 0; i--) {
+                if (breadcrumb[i].kind === kind) {
+                    if (breadcrumb[i].sourceIndent !== undefined && breadcrumb[i].sourceIndent! <= sourceIndent) {
+                        matchLevel = i;
+                        if (breadcrumb[i].sourceIndent === sourceIndent) {
+                            // Exact match — pop to this level
+                            breadcrumb.length = matchLevel + 1;
+                            return;
+                        }
+                        // sourceIndent is larger — fall through to create nested sub-block
+                        break;
+                    }
+                }
+            }
+            // If we found a shallower block but indent is less than any existing, pop to shallowest
+            if (matchLevel === -1) {
+                for (let i = 0; i < breadcrumb.length; i++) {
+                    if (breadcrumb[i].kind === kind) {
+                        breadcrumb.length = i + 1;
+                        return;
+                    }
+                }
+            }
+        } else {
+            const level = breadcrumb.findIndex(entry => entry.kind === kind);
+            if (level !== -1) {
+                breadcrumb.length = level + 1;
+                return;
+            }
         }
 
         // Need to start a new block
-        const block = {
+        const block: Block = {
             kind,
             indentWidth: (breadcrumb[breadcrumb.length - 1]?.indentWidth ?? 0) + kind === BlockKind.Quote ? 0 : 2,
+            sourceIndent,
             entries: [],
         };
 

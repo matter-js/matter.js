@@ -241,10 +241,6 @@ export namespace CommissionerControl {
              *   presenting the Commissioner Control Cluster. Clients SHOULD send the CommissionNode command immediately
              *   upon receiving a CommissioningRequestResult event.
              *
-             * 11.26.7.2. RequestID / ClientNodeID Fields The RequestID shall match the RequestID provided to
-             * RequestCommissioningApproval and the ClientNodeID shall match the NodeID of the client which generated
-             * the RequestCommissioningApproval command.
-             *
              * @see {@link MatterSpecification.v142.Core} § 11.26.7.1
              */
             commissioningRequestResult: Event(

@@ -383,7 +383,7 @@ export namespace ElectricalEnergyMeasurement {
         Frequency = 11,
 
         /**
-         * Power Factor ratio in+/- 1/100ths of a percent.
+         * Power Factor ratio in +/- 1/100ths of a percent.
          */
         PowerFactor = 12,
 

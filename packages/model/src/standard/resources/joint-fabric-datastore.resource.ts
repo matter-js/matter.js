@@ -28,7 +28,9 @@ Resource.add({
         "The Admin level of access to the Joint Fabric Datastore cluster server shall be limited to JF " +
         "Administrator Nodes identified using the Administrator CAT." +
         "\n" +
-        "NOTE Support for Joint Fabric Datastore cluster is provisional.",
+        "> [!NOTE]" +
+        "\n" +
+        "> Support for Joint Fabric Datastore cluster is provisional.",
 
     children: [
         {
@@ -139,8 +141,9 @@ Resource.add({
             details: "This command shall be used to add a KeySet to the Joint Fabric Datastore Cluster of the accessing " +
                 "fabric." +
                 "\n" +
-                "GroupKeySet represents the KeySet to be added to the Joint Fabric Datastore Cluster. Upon receipt of " +
-                "this command, the Datastore shall:" +
+                "GroupKeySet represents the KeySet to be added to the Joint Fabric Datastore Cluster." +
+                "\n" +
+                "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
                 "  1. Ensure there are no KeySets in the KeySetList attribute with the given GroupKeySetID." +
                 "\n" +
@@ -155,11 +158,12 @@ Resource.add({
             details: "This command shall be used to update a KeySet in the Joint Fabric Datastore Cluster of the accessing " +
                 "fabric." +
                 "\n" +
-                "GroupKeySet represents the KeySet to be updated in the Joint Fabric Datastore Cluster. Upon receipt " +
-                "of this command, the Datastore shall:" +
+                "GroupKeySet represents the KeySet to be updated in the Joint Fabric Datastore Cluster." +
+                "\n" +
+                "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
                 "  1. Find the Epoch Key Entry for the KeySet in the KeySetList attribute with the given " +
-                "     GroupKeySetID, and update any changed fields." +
+                "GroupKeySetID, and update any changed fields." +
                 "\n" +
                 "  2. If entry is not found, return NOT_FOUND." +
                 "\n" +
@@ -176,7 +180,7 @@ Resource.add({
                 "          I. If successful, update the Status on this DatastoreNodeKeySetEntryStruct to Committed." +
                 "\n" +
                 "          II. If not successful, update the State field of the StatusEntry on this " +
-                "              DatastoreNodeKeySetEntryStruct to CommitFailed and FailureCode code to the returned " +
+                "DatastoreNodeKeySetEntryStruct to CommitFailed and FailureCode code to the returned " +
                 "              error. The pending change shall be applied in a subsequent Node Refresh."
         },
 
@@ -200,10 +204,10 @@ Resource.add({
                 "    a. Iterate through each Node Information Entry:" +
                 "\n" +
                 "      i. If the NodeKeySetList list contains an entry with the given GroupKeySetID, and the entry " +
-                "         does NOT have Status DeletePending, then return CONSTRAINT_ERROR." +
+                "does NOT have Status DeletePending, then return CONSTRAINT_ERROR." +
                 "\n" +
                 "  3. Remove the DatastoreGroupKeySetStruct for the given GroupKeySetID from the GroupKeySetList " +
-                "     attribute."
+                "attribute."
         },
 
         {
@@ -220,10 +224,10 @@ Resource.add({
                 "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
                 "  1. Ensure there are no Groups in the GroupList attribute with the given GroupID. If a match is " +
-                "     found, return CONSTRAINT_ERROR." +
+                "found, return CONSTRAINT_ERROR." +
                 "\n" +
                 "  2. Add the DatastoreGroupInformationEntryStruct for the Group with the given GroupID to the " +
-                "     GroupList attribute."
+                "GroupList attribute."
         },
 
         {
@@ -246,7 +250,7 @@ Resource.add({
                 "  1. If entry is not found, return NOT_FOUND." +
                 "\n" +
                 "  2. Update the DatastoreGroupInformationEntryStruct for the Group with the given GroupID to match " +
-                "     the non-NULL fields passed in." +
+                "the non-NULL fields passed in." +
                 "\n" +
                 "  3. If any fields are changed as a result of this command:" +
                 "\n" +
@@ -255,14 +259,14 @@ Resource.add({
                 "      i. If the GroupKeySetID changed:" +
                 "\n" +
                 "        I. Add a DatastoreNodeKeySetEntryStruct with the new GroupKeySetID, and Status set to " +
-                "           Pending." +
+                "Pending." +
                 "\n" +
                 "        II. Add this KeySet to the Node." +
                 "\n" +
                 "  1. If successful, Set the Status to Committed for this entry in the NodeKeySetList." +
                 "\n" +
                 "  2. If not successful, Set the Status to CommitFailed and the FailureCode to the returned error. " +
-                "     The pending change shall be applied in a subsequent Node Refresh." +
+                "The pending change shall be applied in a subsequent Node Refresh." +
                 "\n" +
                 "    A. If the NodeKeySetList list contains an entry with the previous GroupKeySetID:" +
                 "\n" +
@@ -277,9 +281,9 @@ Resource.add({
                 "ii. If the GroupCAT, GroupCATVersion or GroupPermission changed:" +
                 "\n" +
                 "  A. If the ACLList contains an entry for this Group, update the ACL List Entry in the Datastore " +
-                "     with the new values and Status Pending, update the ACL attribute on the given Node with the new " +
+                "with the new values and Status Pending, update the ACL attribute on the given Node with the new " +
                 "     values. If the update succeeds, set the Status to Committed on the ACLList Entry in the " +
-                "     Datastore." +
+                "Datastore." +
                 "\n" +
                 "iii. If the FriendlyName changed:" +
                 "\n" +
@@ -287,15 +291,14 @@ Resource.add({
                 "\n" +
                 "    I. If the GroupIDList contains an entry with the given GroupID:" +
                 "\n" +
-                "      1. Update the GroupIDList Entry in the Datastore with the new values and Status" +
+                "      1. Update the GroupIDList Entry in the Datastore with the new values and Status Pending" +
                 "\n" +
-                "### Pending" +
+                "      2. Update the Groups on the given Node with the new values." +
                 "\n" +
-                "2. Update the Groups on the given Node with the new values." +
+                "      1. If the update succeeds, set the Status to Committed on the GroupIDList Entry in the " +
+                "Datastore." +
                 "\n" +
-                "  1. If the update succeeds, set the Status to Committed on the GroupIDList Entry in the Datastore." +
-                "\n" +
-                "  2. If not successful, the pending change shall be applied in a subsequent Node Refresh."
+                "      2. If not successful, the pending change shall be applied in a subsequent Node Refresh."
         },
 
         {
@@ -319,10 +322,10 @@ Resource.add({
                 "    a. Iterate through each Node Information Entry:" +
                 "\n" +
                 "      i. If the GroupIDList contains an entry with the given GroupID, and the entry does NOT have " +
-                "         Status DeletePending, then return CONSTRAINT_ERROR." +
+                "Status DeletePending, then return CONSTRAINT_ERROR." +
                 "\n" +
                 "  3. Remove the DatastoreGroupInformationEntryStruct for the Group with the given GroupID from the " +
-                "     GroupList attribute."
+                "GroupList attribute."
         },
 
         {
@@ -364,8 +367,9 @@ Resource.add({
             details: "The command shall be used to add a node to the Joint Fabric Datastore Cluster of the accessing " +
                 "fabric." +
                 "\n" +
-                "NodeID represents the node to be added to the Joint Fabric Datastore Cluster. Upon receipt of this " +
-                "command, the Datastore shall:" +
+                "NodeID represents the node to be added to the Joint Fabric Datastore Cluster." +
+                "\n" +
+                "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
                 "  1. Update CommissioningStatusEntry of the Node Information Entry with the given NodeID to Pending." +
                 "\n" +
@@ -382,23 +386,23 @@ Resource.add({
                 "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
                 "  1. Confirm that a Node Information Entry exists for the given NodeID, and if not, return " +
-                "     NOT_FOUND." +
+                "NOT_FOUND." +
                 "\n" +
                 "  2. Update the CommissioningStatusEntry for the Node Information Entry to Pending." +
                 "\n" +
                 "  3. Ensure the Endpoint List for the Node Information Entry with the given NodeID matches Endpoint " +
-                "     list on the given Node. This involves the following steps:" +
+                "list on the given Node. This involves the following steps:" +
                 "\n" +
                 "    a. Read the PartsList of the Descriptor cluster from the Node." +
                 "\n" +
                 "    b. For each Endpoint Information Entry in the Endpoint List of the Node Information Entry that " +
-                "       does not match an Endpoint ID in the PartsList, remove the Endpoint Information Entry." +
+                "does not match an Endpoint ID in the PartsList, remove the Endpoint Information Entry." +
                 "\n" +
                 "    c. For each Endpoint Information Entry in the Endpoint List of the Node Information Entry that " +
-                "       matches an Endpoint ID in the PartsList:" +
+                "matches an Endpoint ID in the PartsList:" +
                 "\n" +
                 "      i. Check that each entry in Node’s Group List occurs in the GroupIDList of the Endpoint " +
-                "         Information Entry." +
+                "Information Entry." +
                 "\n" +
                 "        A. Add any missing entries to the GroupIDList of the Endpoint Information Entry." +
                 "\n" +
@@ -409,22 +413,22 @@ Resource.add({
                 "  1. If successful, mark the Status to Committed." +
                 "\n" +
                 "  2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. " +
-                "     The error shall be handled in a subsequent Node Refresh." +
+                "The error shall be handled in a subsequent Node Refresh." +
                 "\n" +
                 "C. For any entries in the GroupIDList with Status of DeletePending:" +
                 "\n" +
                 "  1. If successful, remove the corresponding entry from the Node’s Group List." +
                 "\n" +
                 "  2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. " +
-                "     The error shall be handled in a subsequent Node Refresh." +
+                "The error shall be handled in a subsequent Node Refresh." +
                 "\n" +
                 "D. For any entries in the GroupIDList with Status of CommitFailure:" +
                 "\n" +
                 "  I. A CommitFailure with an unrecoverable FailureCode shall be handled by removing the entry from " +
-                "     the GroupIDList." +
+                "the GroupIDList." +
                 "\n" +
                 "  II. A CommitFailure with a recoverable FailureCode (i.e. TIMEOUT, BUSY) shall be handle in a " +
-                "      subsequent Node Refresh." +
+                "subsequent Node Refresh." +
                 "\n" +
                 "ii. Check that each entry in Node’s Binding List occurs in the BindingList of the Endpoint " +
                 "Information Entry." +
@@ -450,10 +454,10 @@ Resource.add({
                 "  D. For any entries in the BindingList with Status of CommitFailure:" +
                 "\n" +
                 "    I. A CommitFailure with an unrecoverable FailureCode shall be handled by removing the entry from " +
-                "       the BindingList." +
+                "the BindingList." +
                 "\n" +
                 "    II. A CommitFailure with a recoverable FailureCode (i.e. TIMEOUT, BUSY) shall be handle in a " +
-                "        subsequent Node Refresh." +
+                "subsequent Node Refresh." +
                 "\n" +
                 "4. Ensure the GroupKeySetList for the Node Information Entry with the given NodeID matches the Group " +
                 "Keys on the given Node. This involves the following steps:" +
@@ -461,7 +465,7 @@ Resource.add({
                 "  a. Read the Group Keys from the Node." +
                 "\n" +
                 "  b. For each GroupKeySetEntry in the GroupKeySetList of the Node Information Entry with a Pending " +
-                "     Status:" +
+                "Status:" +
                 "\n" +
                 "    i. Add the corresponding DatastoreGroupKeySetStruct to the Node’s Group Key list." +
                 "\n" +
@@ -471,16 +475,16 @@ Resource.add({
                 "         error. The error shall be handled in a subsequent Node Refresh." +
                 "\n" +
                 "  c. For each GroupKeySetEntry in the GroupKeySetList of the Node Information Entry with a " +
-                "     CommitFailure Status:" +
+                "CommitFailure Status:" +
                 "\n" +
                 "    i. A CommitFailure with an unrecoverable FailureCode shall be handled by removing the entry from " +
-                "       the GroupKeySetList." +
+                "the GroupKeySetList." +
                 "\n" +
                 "    ii. A CommitFailure with a recoverable FailureCode (i.e. TIMEOUT, BUSY) shall be handle in a " +
-                "        subsequent Node Refresh." +
+                "subsequent Node Refresh." +
                 "\n" +
                 "  d. All remaining entries in the GroupKeySetList should be replaced by the remaining entries on the " +
-                "     Node." +
+                "Node." +
                 "\n" +
                 "5. Ensure the ACLList for the Node Information Entry with the given NodeID matches the ACL attribute " +
                 "on the given Node. This involves the following steps:" +
@@ -488,7 +492,7 @@ Resource.add({
                 "  a. Read the ACL attribute on the Node." +
                 "\n" +
                 "  b. For each DatastoreACLEntryStruct in the ACLList of the Node Information Entry with a Pending " +
-                "     Status:" +
+                "Status:" +
                 "\n" +
                 "    i. Add the corresponding DatastoreACLEntryStruct to the Node’s ACL attribute." +
                 "\n" +
@@ -498,13 +502,13 @@ Resource.add({
                 "         error. The error shall be handled in a subsequent Node Refresh." +
                 "\n" +
                 "  c. For each DatastoreACLEntryStruct in the ACLList of the Node Information Entry with a " +
-                "     CommitFailure Status:" +
+                "CommitFailure Status:" +
                 "\n" +
                 "    i. A CommitFailure with an unrecoverable FailureCode (i.e. RESOURCE_EXHAUSTED, CONSTRAINT_ERROR) " +
-                "       shall be handled by removing the entry from the ACLList." +
+                "shall be handled by removing the entry from the ACLList." +
                 "\n" +
                 "    ii. A CommitFailure with a recoverable FailureCode (i.e. TIMEOUT, BUSY) shall be handle in a " +
-                "        subsequent Node Refresh." +
+                "subsequent Node Refresh." +
                 "\n" +
                 "  d. All remaining entries in the ACLList should be replaced by the remaining entries on the Node." +
                 "\n" +
@@ -562,17 +566,18 @@ Resource.add({
                 "EndpointID represents the unique identifier for the endpoint to be updated in the Joint Fabric " +
                 "Datastore Cluster." +
                 "\n" +
-                "NodeID represents the unique identifier for the node to which the endpoint belongs. Upon receipt of " +
-                "this command, the Datastore shall:" +
+                "NodeID represents the unique identifier for the node to which the endpoint belongs." +
+                "\n" +
+                "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
                 "  1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if " +
-                "     not, return NOT_FOUND." +
+                "not, return NOT_FOUND." +
                 "\n" +
                 "  2. Ensure the Group Key List for the Node Information Entry with the given NodeID includes the " +
-                "     KeySet for the given Group ID. If it does not:" +
+                "KeySet for the given Group ID. If it does not:" +
                 "\n" +
                 "    a. Add an entry for the KeySet of the given Group ID to the Group Key List for the Node. The new " +
-                "       entry’s status shall be set to Pending." +
+                "entry’s status shall be set to Pending." +
                 "\n" +
                 "    b. Add a Group Key Entry for this KeySet to the given Node ID." +
                 "\n" +
@@ -581,10 +586,10 @@ Resource.add({
                 "      ii. If not successful, the pending change shall be applied in a subsequent Node Refresh." +
                 "\n" +
                 "  3. Ensure the Group List for the Endpoint Information Entry with the given NodeID and EndpointID " +
-                "     includes an entry for the given Group. If it does not:" +
+                "includes an entry for the given Group. If it does not:" +
                 "\n" +
                 "    a. Add a Group entry for the given Group ID to the Group List for the Endpoint and Node. The new " +
-                "       entry’s status shall be set to Pending." +
+                "entry’s status shall be set to Pending." +
                 "\n" +
                 "    b. Add this Group entry to the given Endpoint ID on the given Node ID." +
                 "\n" +
@@ -605,30 +610,31 @@ Resource.add({
                 "EndpointID represents the unique identifier for the endpoint to be updated in the Joint Fabric " +
                 "Datastore Cluster." +
                 "\n" +
-                "NodeID represents the unique identifier for the node to which the endpoint belongs. Upon receipt of " +
-                "this command, the Datastore shall:" +
+                "NodeID represents the unique identifier for the node to which the endpoint belongs." +
+                "\n" +
+                "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
                 "  1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if " +
-                "     not, return NOT_FOUND." +
+                "not, return NOT_FOUND." +
                 "\n" +
                 "  2. Ensure the Group List for the Endpoint Information Entry with the given NodeID and EndpointID " +
-                "     does not include an entry for the given Group. If it does:" +
+                "does not include an entry for the given Group. If it does:" +
                 "\n" +
                 "    a. Update the status to DeletePending of the Group entry for the given Group ID in the Group " +
-                "       List." +
+                "List." +
                 "\n" +
                 "    b. Remove this Group entry for the given Endpoint ID on the given Node ID." +
                 "\n" +
                 "      i. If this succeeds, remove the Group entry for the given Group ID in the Group List for this " +
-                "         NodeID and EndpointID in the Datastore." +
+                "NodeID and EndpointID in the Datastore." +
                 "\n" +
                 "      ii. If not successful, the pending change shall be applied in a subsequent Node Refresh." +
                 "\n" +
                 "  3. Ensure the Group Key List for the Node Information Entry with the given NodeID does not include " +
-                "     the KeySet for the given Group ID. If it does:" +
+                "the KeySet for the given Group ID. If it does:" +
                 "\n" +
                 "    a. Update the status to DeletePending for the entry for the KeySet of the given Group ID in the " +
-                "       Node Group Key List." +
+                "Node Group Key List." +
                 "\n" +
                 "    b. Remove the Group Key Entry for this KeySet from the given Node ID." +
                 "\n" +
@@ -649,17 +655,18 @@ Resource.add({
                 "EndpointID represents the unique identifier for the endpoint to be updated in the Joint Fabric " +
                 "Datastore Cluster." +
                 "\n" +
-                "NodeID represents the unique identifier for the node to which the endpoint belongs. Upon receipt of " +
-                "this command, the Datastore shall:" +
+                "NodeID represents the unique identifier for the node to which the endpoint belongs." +
+                "\n" +
+                "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
                 "  1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if " +
-                "     not, return NOT_FOUND." +
+                "not, return NOT_FOUND." +
                 "\n" +
                 "  2. Ensure the Binding List for the Node Information Entry with the given NodeID includes the given " +
                 "     Binding. If it does not:" +
                 "\n" +
                 "    a. Add the Binding to the Binding List for the Node Information Entry for the given NodeID. The " +
-                "       new entry’s status shall be set to Pending." +
+                "new entry’s status shall be set to Pending." +
                 "\n" +
                 "    b. Add this Binding to the given Node ID." +
                 "\n" +
@@ -681,14 +688,15 @@ Resource.add({
                 "EndpointID represents the unique identifier for the endpoint to be updated in the Joint Fabric " +
                 "Datastore Cluster." +
                 "\n" +
-                "NodeID represents the unique identifier for the node to which the endpoint belongs. Upon receipt of " +
-                "this command, the Datastore shall:" +
+                "NodeID represents the unique identifier for the node to which the endpoint belongs." +
+                "\n" +
+                "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
                 "  1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if " +
-                "     not, return NOT_FOUND." +
+                "not, return NOT_FOUND." +
                 "\n" +
                 "  2. Ensure the Binding List for the Node Information Entry with the given NodeID does not include " +
-                "     an entry with the given ListID. If it does:" +
+                "an entry with the given ListID. If it does:" +
                 "\n" +
                 "    a. Update the status to DeletePending for the given Binding in the Binding List." +
                 "\n" +
@@ -706,18 +714,19 @@ Resource.add({
             details: "This command shall be used to add an ACL to a node in the Joint Fabric Datastore Cluster of the " +
                 "accessing fabric." +
                 "\n" +
-                "NodeID represents the unique identifier for the node to which the ACL is to be added. ACLEntry " +
-                "represents the ACL to be added to the Joint Fabric Datastore Cluster." +
+                "NodeID represents the unique identifier for the node to which the ACL is to be added." +
+                "\n" +
+                "ACLEntry represents the ACL to be added to the Joint Fabric Datastore Cluster." +
                 "\n" +
                 "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
                 "  1. Confirm that a Node Information Entry exists for the given NodeID, and if not, return " +
-                "     NOT_FOUND." +
+                "NOT_FOUND." +
                 "\n" +
                 "  2. Ensure the ACL List for the given NodeID includes the given ACLEntry. If it does not:" +
                 "\n" +
                 "    a. Add the ACLEntry to the ACL List for the given NodeID. The new entry’s status shall be set to " +
-                "       Pending." +
+                "Pending." +
                 "\n" +
                 "    b. Add this ACLEntry to the given Node ID." +
                 "\n" +
@@ -736,11 +745,12 @@ Resource.add({
                 "ListID represents the unique identifier for the DatastoreACLEntryStruct to be removed from the " +
                 "Datastore’s list of DatastoreACLEntry." +
                 "\n" +
-                "NodeID represents the unique identifier for the node from which the ACL is to be removed. Upon " +
-                "receipt of this command, the Datastore shall:" +
+                "NodeID represents the unique identifier for the node from which the ACL is to be removed." +
+                "\n" +
+                "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
                 "  1. Confirm that a Node Information Entry exists for the given NodeID, and if not, return " +
-                "     NOT_FOUND." +
+                "NOT_FOUND." +
                 "\n" +
                 "  2. Ensure the ACL List for the given NodeID does not include the given ACLEntry. If it does:" +
                 "\n" +

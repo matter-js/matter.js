@@ -36,17 +36,17 @@ Resource.add({
         "By using standard cluster and commands:" +
         "\n" +
         "  1. The Content App Platform is able to easily determine that a binding is needed on the Content " +
-        "     App endpoint because it can recognize the Content App Observer cluster implemented by a client " +
-        "     node." +
+        "App endpoint because it can recognize the Content App Observer cluster implemented by a client " +
+        "node." +
         "\n" +
         "  2. The Content App Platform is able to easily identify commands that are allowed to be sent by the " +
-        "     Content App to a client node because those commands use the Content App Observer cluster." +
+        "Content App to a client node because those commands use the Content App Observer cluster." +
         "\n" +
         "  3. The Content App is able to easily determine that a node supports the Content App Observer " +
-        "     cluster because it has received a binding which specifies the Content App Observer cluster." +
+        "cluster because it has received a binding which specifies the Content App Observer cluster." +
         "\n" +
         "  4. The Casting Video Client is able to support a single cluster for receiving commands from any " +
-        "     Content App and does not need to explicitly list every Content App it understands." +
+        "Content App and does not need to explicitly list every Content App it understands." +
         "\n" +
         "A Content App Observer SHOULD ignore the Data and EncodingHint field values in commands from a " +
         "Content App it does not recognize. A Content App SHOULD ignore the Data field values in responses " +

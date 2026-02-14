@@ -24,7 +24,9 @@ export namespace TemperatureMeasurement {
 
         attributes: {
             /**
-             * Indicates the measured temperature. The null value indicates that the temperature is unknown.
+             * Indicates the measured temperature.
+             *
+             * The null value indicates that the temperature is unknown.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 2.3.4.1
              */

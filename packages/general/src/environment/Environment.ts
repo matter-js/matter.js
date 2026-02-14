@@ -8,6 +8,7 @@ import { ServiceProvider } from "#environment/ServiceProvider.js";
 import { SharedEnvironmentServices } from "#environment/SharedEnvironmentServices.js";
 import { SharedServicesManager } from "#environment/SharedServicesManager.js";
 import { Diagnostic } from "#log/Diagnostic.js";
+import { LogFormat } from "#log/LogFormat.js";
 import { InternalError } from "#MatterError.js";
 import { Instant } from "#time/TimeUnit.js";
 import { Lifetime } from "#util/Lifetime.js";
@@ -387,3 +388,8 @@ export class Environment implements ServiceProvider, Lifetime.Owner {
 }
 
 let global = new Environment("default");
+
+if (typeof MatterHooks !== "undefined") {
+    MatterHooks.generateDiagnostics = () =>
+        (LogFormat.formats[Logger.format] ?? LogFormat.formats.ansi)(DiagnosticSource);
+}

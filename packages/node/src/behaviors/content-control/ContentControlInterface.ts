@@ -73,9 +73,9 @@ export namespace ContentControlInterface {
          * A server that does not support the PM feature shall respond with InvalidPINCode to clients that only have
          * Operate privilege unless:
          *
-         *   • It has been provided with the PIN value to expect via an out of band mechanism, and
+         *   - It has been provided with the PIN value to expect via an out of band mechanism, and
          *
-         *   • The client has provided a PINCode that matches the expected PIN value.
+         *   - The client has provided a PINCode that matches the expected PIN value.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.6
          */
@@ -108,7 +108,7 @@ export namespace ContentControlInterface {
          * The purpose of this command is to specify whether programs with no Content rating must be blocked by this
          * media device.
          *
-         * Upon receipt of the UnblockUnratedContent command, the media device shall set the BlockUn rated attribute to
+         * Upon receipt of the UnblockUnratedContent command, the media device shall set the BlockUnrated attribute to
          * FALSE.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.9

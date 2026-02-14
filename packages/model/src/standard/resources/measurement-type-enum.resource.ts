@@ -23,7 +23,7 @@ Resource.add({
         { tag: "field", name: "RmsCurrent", description: "Root mean squared current in milliamps (mA)" },
         { tag: "field", name: "RmsPower", description: "Root mean squared power in milliwatts (mW)" },
         { tag: "field", name: "Frequency", description: "AC frequency in millihertz (mHz)" },
-        { tag: "field", name: "PowerFactor", description: "Power Factor ratio in+/- 1/100ths of a percent." },
+        { tag: "field", name: "PowerFactor", description: "Power Factor ratio in +/- 1/100ths of a percent." },
         { tag: "field", name: "NeutralCurrent", description: "AC neutral current in milliamps (mA)" },
         { tag: "field", name: "ElectricalEnergy", description: "Electrical energy in milliwatt-hours (mWh)" },
         { tag: "field", name: "ReactiveEnergy", description: "Reactive power in millivolt-amp-hours reactive (mVARh)" },

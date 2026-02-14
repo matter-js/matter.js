@@ -22,6 +22,7 @@ import {
     MaybePromise,
     MockCrypto,
     Observable,
+    ServerAddress,
     ServerAddressUdp,
 } from "#general";
 import { MessageType } from "#interaction/InteractionMessenger.js";
@@ -161,16 +162,29 @@ export namespace ProtocolMocks {
         supportsLargeMessages = false;
         name = "mock-byte-channel";
         type = ChannelType.UDP;
-        networkAddress: ServerAddressUdp;
+        #networkAddress: ServerAddressUdp;
+        networkAddressChanged = new Observable<[ServerAddressUdp]>();
 
         constructor(config: MockNetworkConfig) {
             const index = config.index ?? 1;
             this.maxPayloadSize = config.maxPayloadSize ?? MAX_UDP_MESSAGE_SIZE;
-            this.networkAddress = { type: "udp", ip: `::${index}`, port: 5540 };
+            this.#networkAddress = { type: "udp", ip: `::${index}`, port: 5540 };
+        }
+
+        get networkAddress() {
+            return this.#networkAddress;
+        }
+
+        set networkAddress(networkAddress: ServerAddressUdp) {
+            if (ServerAddress.isEqual(networkAddress, this.#networkAddress)) {
+                return;
+            }
+            this.#networkAddress = networkAddress;
+            this.networkAddressChanged.emit(this.networkAddress);
         }
 
         async send(): Promise<void> {
-            // Currently we just ignore transmissions
+            // Currently, we just ignore transmissions
         }
 
         async close() {}

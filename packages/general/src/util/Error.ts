@@ -53,6 +53,35 @@ export function errorOf(cause: unknown): Error {
 }
 
 /**
+ * Determine if one or more error classes are present in an error's causal chain.
+ */
+export function causedBy(
+    error: unknown,
+    ...causes: [new (...args: any[]) => Error, ...(new (...args: any[]) => Error)[]]
+) {
+    const e = asError(error);
+    for (const cause of causes) {
+        if (e instanceof cause) {
+            return true;
+        }
+    }
+
+    if (e.cause && causedBy(e.cause, ...causes)) {
+        return true;
+    }
+
+    if (e instanceof AggregateError && e.errors) {
+        for (const e2 of e.errors) {
+            if (causedBy(e2, ...causes)) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+/**
  * Repacks an error object as a different error class.
  * The error stack is copied over from the original error instance
  */

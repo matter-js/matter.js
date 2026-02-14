@@ -31,7 +31,7 @@ import { SecureChannelMessenger } from "#securechannel/SecureChannelMessenger.js
 import { NodeSession } from "#session/NodeSession.js";
 import { Session } from "#session/Session.js";
 import { SessionManager } from "#session/SessionManager.js";
-import { UNICAST_UNSECURE_SESSION_ID } from "#session/UnsecuredSession.js";
+import { UNICAST_UNSECURE_SESSION_ID, UnsecuredSession } from "#session/UnsecuredSession.js";
 import { NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "#types";
 import { MessageExchange, MessageExchangeContext } from "./MessageExchange.js";
 import { DuplicateMessageError } from "./MessageReceptionState.js";
@@ -319,6 +319,15 @@ export class ExchangeManager {
                 }
 
                 const exchange = MessageExchange.fromInitialMessage(this.#messageExchangeContextFor(session), message);
+
+                // When opening a new exchange, ensure we have the latest address in the channel, the new message wins
+                // over potentially other known addresses.
+                // We ignore "inter exchange" address changes for now, we can address this when needed
+                // TODO Refactor this and move address to peer
+                if (!(session instanceof UnsecuredSession) && !session.isClosed) {
+                    session.channel.socket = channel;
+                }
+
                 this.#lifetime.details.exchange = exchange.idStr;
                 this.#addExchange(exchangeIndex, exchange);
                 try {

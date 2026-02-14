@@ -374,7 +374,7 @@ export namespace GeneralCommissioning {
 
             /**
              * Indicates the user’s response to the presented terms. Each bit position corresponds to a user response
-             * for the associated index of matching text, such that bit 0 (bit value 1) is for text index 0. Bit 15 (bit
+             * for the associated index of matching text, such that bit 0 (bit value 1) is for text index0. Bit 15 (bit
              * value 0x8000) is for text index 15. A bit value of 1 indicates acceptance and a value of 0 indicates
              * non-acceptance. For example, if there are two texts that were presented where the first (bit 0, value 1)
              * was declined and the second accepted (bit 1, value 2), we would expect the resulting value of the map to
@@ -487,9 +487,8 @@ export namespace GeneralCommissioning {
             breadcrumb: WritableAttribute(0x0, TlvUInt64, { default: 0, writeAcl: AccessLevel.Administer }),
 
             /**
-             * This attribute shall describe critical parameters needed at the beginning of commissioning flow.
-             *
-             * See Section 11.10.5.3, “BasicCommissioningInfo Type” for more information.
+             * This attribute shall describe critical parameters needed at the beginning of commissioning flow. See
+             * Section 11.10.5.3, “BasicCommissioningInfo Type” for more information.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.10.6.2
              */
@@ -552,21 +551,21 @@ export namespace GeneralCommissioning {
              * Otherwise, the command shall arm or re-arm the "fail-safe timer" with an expiry time set for a duration
              * of ExpiryLengthSeconds, or disarm it, depending on the situation:
              *
-             *   • If ExpiryLengthSeconds is 0 and the fail-safe timer was already armed and the accessing fabric
+             *   - If ExpiryLengthSeconds is 0 and the fail-safe timer was already armed and the accessing fabric
              *     matches the Fabric currently associated with the fail-safe context, then the fail-safe timer shall be
              *     immediately expired (see further below for side-effects of expiration).
              *
-             *   • If ExpiryLengthSeconds is 0 and the fail-safe timer was not armed, then this command invocation shall
+             *   - If ExpiryLengthSeconds is 0 and the fail-safe timer was not armed, then this command invocation shall
              *     lead to a success response with no side-effects against the fail-safe context.
              *
-             *   • If ExpiryLengthSeconds is non-zero and the fail-safe timer was not currently armed, then the
+             *   - If ExpiryLengthSeconds is non-zero and the fail-safe timer was not currently armed, then the
              *     fail-safe timer shall be armed for that duration.
              *
-             *   • If ExpiryLengthSeconds is non-zero and the fail-safe timer was currently armed, and the accessing
+             *   - If ExpiryLengthSeconds is non-zero and the fail-safe timer was currently armed, and the accessing
              *     Fabric matches the fail-safe context’s associated Fabric, then the fail-safe timer shall be re-armed
              *     to expire in ExpiryLengthSeconds.
              *
-             *   • Otherwise, the command shall leave the current fail-safe state unchanged and immediately respond with
+             *   - Otherwise, the command shall leave the current fail-safe state unchanged and immediately respond with
              *     ArmFailSafeResponse containing an ErrorCode value of BusyWithOtherAdmin, indicating a likely conflict
              *     between commissioners.
              *
@@ -585,29 +584,29 @@ export namespace GeneralCommissioning {
              * When first arming the fail-safe timer, a 'Fail Safe Context' shall be created on the receiver, to track
              * the following state information while the fail-safe is armed:
              *
-             *   • The fail-safe timer duration.
+             *   - The fail-safe timer duration.
              *
-             *   • The state of all Network Commissioning Networks attribute configurations, to allow recovery of
+             *   - The state of all Network Commissioning Networks attribute configurations, to allow recovery of
              *     connectivity after Fail-Safe expiry.
              *
-             *   • Whether an AddNOC command or UpdateNOC command has taken place.
+             *   - Whether an AddNOC command or UpdateNOC command has taken place.
              *
-             *   • A fabric-index for the fabric-scoping of the context, starting at the accessing fabric index for the
+             *   - A fabric-index for the fabric-scoping of the context, starting at the accessing fabric index for the
              *     ArmFailSafe command, and updated with the Fabric Index associated with an AddNOC or an UpdateNOC
              *     command being invoked successfully during the ongoing Fail-Safe timer period.
              *
-             *   • The operational credentials associated with any Fabric whose configuration is affected by the
+             *   - The operational credentials associated with any Fabric whose configuration is affected by the
              *     UpdateNOC command.
              *
-             *   • Optionally: the previous state of non-fabric-scoped data that is mutated during the fail-safe period.
+             *   - Optionally: the previous state of non-fabric-scoped data that is mutated during the fail-safe period.
              *
              * Note the following to assist in understanding the above state-keeping, which summarizes other normative
              * requirements in the respective sections:
              *
-             *   • The AddNOC command can only be invoked once per contiguous non-expiring fail-safe timer period, and
+             *   - The AddNOC command can only be invoked once per contiguous non-expiring fail-safe timer period, and
              *     only if no UpdateNOC command was previously processed within the same fail-safe timer period.
              *
-             *   • The UpdateNOC command can only be invoked once per contiguous non-expiring fail-safe timer period,
+             *   - The UpdateNOC command can only be invoked once per contiguous non-expiring fail-safe timer period,
              *     can only be invoked over a CASE session, and only if no AddNOC command was previously processed in
              *     the same fail-safe timer period.
              *
@@ -748,10 +747,10 @@ export namespace GeneralCommissioning {
              * CommissioningCompleteResponse if received over a CASE session and the accessing fabric index matches the
              * Fabric Index associated with the current Fail-Safe context. In other words:
              *
-             *   • If no AddNOC command had been successfully invoked, the CommissioningComplete command must originate
+             *   - If no AddNOC command had been successfully invoked, the CommissioningComplete command must originate
              *     from the Fabric that initiated the Fail-Safe context.
              *
-             *   • After an AddNOC command has been successfully invoked, the CommissioningComplete command must
+             *   - After an AddNOC command has been successfully invoked, the CommissioningComplete command must
              *     originate from the Fabric which was joined through the execution of that command, which updated the
              *     Fail-Safe context’s Fabric Index.
              *

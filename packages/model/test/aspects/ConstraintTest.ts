@@ -97,6 +97,57 @@ const TEST_CONSTRAINTS: [text: string, ast: Constraint.Ast, expectedText?: strin
         },
     ],
     [
+        "2^62",
+        {
+            value: {
+                type: "^",
+                lhs: 2,
+                rhs: 62,
+            },
+        },
+    ],
+    [
+        "-2^62 to 2^62",
+        {
+            min: {
+                type: "^",
+                lhs: -2,
+                rhs: 62,
+            },
+            max: {
+                type: "^",
+                lhs: 2,
+                rhs: 62,
+            },
+        },
+    ],
+    [
+        "0 to 2^62",
+        {
+            min: 0,
+            max: {
+                type: "^",
+                lhs: 2,
+                rhs: 62,
+            },
+        },
+    ],
+    [
+        "max (2^62) - 1",
+        {
+            max: {
+                type: "-",
+                lhs: {
+                    type: "^",
+                    lhs: 2,
+                    rhs: 62,
+                },
+                rhs: 1,
+            },
+        },
+        "max (2^62) - 1",
+    ],
+    [
         "holdTimeLimits.holdTimeMin to holdTimeLimits.holdTimeMax",
         {
             min: {

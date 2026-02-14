@@ -18,7 +18,9 @@ Resource.add({
         "It is responsibility of the end product to enforce appropriate right access (for example, to prevent " +
         "a child from disabling this feature)." +
         "\n" +
-        "NOTE Support for Content Control cluster is provisional.",
+        "> [!NOTE]" +
+        "\n" +
+        "> Support for Content Control cluster is provisional.",
 
     children: [
         {
@@ -258,9 +260,9 @@ Resource.add({
                 "A server that does not support the PM feature shall respond with InvalidPINCode to clients that only " +
                 "have Operate privilege unless:" +
                 "\n" +
-                "  • It has been provided with the PIN value to expect via an out of band mechanism, and" +
+                "  - It has been provided with the PIN value to expect via an out of band mechanism, and" +
                 "\n" +
-                "  • The client has provided a PINCode that matches the expected PIN value.",
+                "  - The client has provided a PINCode that matches the expected PIN value.",
 
             children: [
                 {
@@ -309,7 +311,7 @@ Resource.add({
             details: "The purpose of this command is to specify whether programs with no Content rating must be blocked by " +
                 "this media device." +
                 "\n" +
-                "Upon receipt of the UnblockUnratedContent command, the media device shall set the BlockUn rated " +
+                "Upon receipt of the UnblockUnratedContent command, the media device shall set the BlockUnrated " +
                 "attribute to FALSE."
         },
 

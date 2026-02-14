@@ -49,7 +49,7 @@ export namespace RefrigeratorAlarm {
     export const TlvResetRequest = TlvObject({
         /**
          * This field shall indicate a bitmap where each bit set in this field corresponds to an alarm that shall be
-         * reset to inactive in the State attribute unless the alarm definition requires manual intervention. If the
+         * reset to inactive in the State attribute unless the alarm definition requiresmanualintervention. If the
          * alarms indicated are successfully reset, the response status code shall be SUCCESS, otherwise, the response
          * status code shall be FAILURE.
          *
@@ -86,7 +86,7 @@ export namespace RefrigeratorAlarm {
         inactive: TlvField(1, TlvBitmap(TlvUInt32, Alarm)),
 
         /**
-         * This field shall be a copy of the new State attribute value that resulted in the event being generated. That
+         * This field shall be a copy of the new State attribute value that resulted in the eventbeinggenerated. That
          * is, this field shall have all the bits in Active set and shall NOT have any of the bits in Inactive set.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.15.8.1.4

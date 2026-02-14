@@ -167,13 +167,13 @@ Resource.add({
                     details: "This field shall contain the remaining capacity of the Group Table of the node. The following values " +
                         "apply:" +
                         "\n" +
-                        "  • 0 - No further groups may be added." +
+                        "  - 0 - No further groups may be added." +
                         "\n" +
-                        "  • 0 < Capacity < 0xFE - Capacity holds the number of groups that may be added." +
+                        "  - 0 < Capacity < 0xFE - Capacity holds the number of groups that may be added." +
                         "\n" +
-                        "  • 0xFE - At least 1 further group may be added (exact number is unknown)." +
+                        "  - 0xFE - At least 1 further group may be added (exact number is unknown)." +
                         "\n" +
-                        "  • null - It is unknown if any further groups may be added."
+                        "  - null - It is unknown if any further groups may be added."
                 },
 
                 {
@@ -184,10 +184,9 @@ Resource.add({
                         "received GetGroupMembership command was empty), or the group IDs of all the groups in the Group " +
                         "Table for which the server endpoint is a member of the group and for which the group ID was included " +
                         "in the the GroupList field of the received GetGroupMembership command (in the case where the " +
-                        "GroupList field of the received GetGroupMembership command was not empty)." +
-                        "\n" +
-                        "Zigbee: If the total number of groups will cause the maximum payload length of a frame to be " +
-                        "exceeded, then the GroupList field shall contain only as many groups as will fit."
+                        "GroupList field of the received GetGroupMembership command was not empty). Zigbee: If the total " +
+                        "number of groups will cause the maximum payload length of a frame to be exceeded, then the GroupList " +
+                        "field shall contain only as many groups as will fit."
                 }
             ]
         },

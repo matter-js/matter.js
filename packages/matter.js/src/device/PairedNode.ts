@@ -52,7 +52,6 @@ import {
     PaseClient,
     PeerAddress,
     Read,
-    ReadResult,
     SessionManager,
     Subscribe,
     UnknownNodeError,
@@ -70,7 +69,6 @@ import {
     EventId,
     getClusterAttributeById,
     getClusterById,
-    getClusterEventById,
     ManualPairingCodeCodec,
     NodeId,
     QrPairingCodeCodec,
@@ -329,6 +327,7 @@ export class PairedNode {
     #pendingNodeChangeEvents = new Map<EndpointNumber, keyof PairedNode.NodeStructureEvents>();
     #decommissioned = false;
     #peerAddress: PeerAddress;
+    #closing = false;
 
     /**
      * Endpoint structure change information that are checked when updating structure
@@ -672,8 +671,6 @@ export class PairedNode {
         try {
             await this.#initialize();
         } catch (error) {
-            MatterError.accept(error);
-
             if (error instanceof UnknownNodeError) {
                 logger.info(this.#peerAddress, `Node is unknown by controller, we can not connect.`);
                 this.#setConnectionState(NodeStates.Disconnected);
@@ -763,64 +760,91 @@ export class PairedNode {
             return;
         }
 
-        if (kind === "delete") {
-            if (this.#endpoints !== undefined) {
-                // When using the legacy Endpoint structure, events are handled differently
-                return;
-            }
-            const { endpoint } = changes;
-            if (endpoint === this.#clientNode) {
-                // Node was deleted, so the event is useless anyway, we get a decommission event
-                return;
-            }
-            this.#pendingNodeChangeEvents.set(endpoint.number, "nodeEndpointRemoved");
-            return;
-        }
-
-        const { behavior, endpoint, properties, version } = changes;
-        if (!ClusterBehavior.is(behavior)) {
-            return;
-        }
-        const endpointId = endpoint.number;
-        const clusterId = behavior.cluster.id;
-
-        if (!endpoint.behaviors.supported[behavior.id]) {
-            logger.info(`Ignoring attribute changes for ${endpointId}.${behavior.cluster.name} for fields`, properties);
-            return;
-        }
-
-        const state = endpoint.stateOf(behavior);
-        const attributes = behavior.cluster.attributes;
-        for (const attribute of properties ?? Object.keys(attributes)) {
-            let attributeId = parseInt(attribute, 10);
-            if (isNaN(attributeId)) {
-                attributeId = attributes[attribute]?.id;
-                if (attributeId === undefined) {
-                    continue;
+        switch (kind) {
+            case "update": {
+                const { behavior, endpoint, properties, version } = changes;
+                if (!ClusterBehavior.is(behavior)) {
+                    return;
                 }
-            }
-            const attrKey = `${clusterId}.${attributeId}`;
+                const endpointId = endpoint.number;
+                const clusterId = behavior.cluster.id;
 
-            // We need to determine the attribute name for the API
-            let attributeName = this.#attributeIdToNameMap.get(attrKey);
-            if (attributeName === undefined) {
-                const clusterDef = getClusterById(clusterId);
-                const attributeDef = getClusterAttributeById(clusterDef, attributeId as AttributeId);
-                attributeName = attributeDef?.name ?? `Unknown (${Diagnostic.hex(attributeId)})`;
-                this.#attributeIdToNameMap.set(attrKey, attributeName);
-            }
-            const value = (state as Val.Struct)[attribute];
+                if (!endpoint.behaviors.supported[behavior.id]) {
+                    logger.info(
+                        `Ignoring attribute changes for ${endpointId}.${behavior.cluster.name} for fields`,
+                        properties,
+                    );
+                    return;
+                }
 
-            this.#currentSubscriptionHandler?.attributeListener({
-                path: {
-                    endpointId,
-                    clusterId,
-                    attributeId: attributeId as AttributeId,
-                    attributeName,
-                },
-                value,
-                version,
-            });
+                const state = endpoint.stateOf(behavior);
+                const attributes = behavior.cluster.attributes;
+                for (const attribute of properties ?? Object.keys(attributes)) {
+                    let attributeId = parseInt(attribute, 10);
+                    if (isNaN(attributeId)) {
+                        attributeId = attributes[attribute]?.id;
+                        if (attributeId === undefined) {
+                            continue;
+                        }
+                    }
+                    const attrKey = `${clusterId}.${attributeId}`;
+
+                    // We need to determine the attribute name for the API
+                    let attributeName = this.#attributeIdToNameMap.get(attrKey);
+                    if (attributeName === undefined) {
+                        const clusterDef = getClusterById(clusterId);
+                        const attributeDef = getClusterAttributeById(clusterDef, attributeId as AttributeId);
+                        attributeName = attributeDef?.name ?? `Unknown (${Diagnostic.hex(attributeId)})`;
+                        this.#attributeIdToNameMap.set(attrKey, attributeName);
+                    }
+                    const value = (state as Val.Struct)[attribute];
+
+                    this.#currentSubscriptionHandler?.attributeListener({
+                        path: {
+                            endpointId,
+                            clusterId,
+                            attributeId: attributeId as AttributeId,
+                            attributeName,
+                        },
+                        value,
+                        version,
+                    });
+                }
+                break;
+            }
+
+            case "event": {
+                const { endpoint, behavior, event, number, timestamp: epochTimestamp, priority, payload } = changes;
+                if (!ClusterBehavior.is(behavior)) {
+                    return;
+                }
+
+                this.#currentSubscriptionHandler?.eventListener({
+                    path: {
+                        endpointId: endpoint.number,
+                        clusterId: behavior.cluster.id,
+                        eventId: event.id as EventId,
+                        eventName: camelize(event.name),
+                    },
+                    events: [{ eventNumber: number, epochTimestamp, priority, data: payload }],
+                });
+
+                break;
+            }
+
+            case "delete": {
+                if (this.#endpoints !== undefined) {
+                    // When using the legacy Endpoint structure, events are handled differently
+                    return;
+                }
+                const { endpoint } = changes;
+                if (endpoint === this.#clientNode) {
+                    // Node was deleted, so the event is useless anyway, we get a decommission event
+                    return;
+                }
+                this.#pendingNodeChangeEvents.set(endpoint.number, "nodeEndpointRemoved");
+                break;
+            }
         }
     }
 
@@ -994,8 +1018,10 @@ export class PairedNode {
                     (this.#registeredEndpointStructureChanges.size > 0 || this.#pendingNodeChangeEvents.size > 0) &&
                     !this.#updateEndpointStructureTimer.isRunning
                 ) {
-                    logger.info(this.#peerAddress, `Endpoint structure needs to be updated ...`);
-                    this.#updateEndpointStructureTimer.stop().start();
+                    if (!this.#closing && !this.#decommissioned) {
+                        logger.info(this.#peerAddress, `Endpoint structure needs to be updated ...`);
+                        this.#updateEndpointStructureTimer.stop().start();
+                    }
                 } else if (this.#deviceInformationUpdateNeeded) {
                     this.events.deviceInformationChanged.emit(this.#nodeDetails.details);
                 }
@@ -1021,44 +1047,11 @@ export class PairedNode {
             attributes: [{}],
         });
 
-        const convert = (entry: ReadResult.Report) => {
-            switch (entry.kind) {
-                case "attr-value": {
-                    // Attribute changes are handled via the ChangeNotificationService
-                    break;
-                }
-
-                case "event-value": {
-                    const {
-                        path: { endpointId, clusterId, eventId },
-                        number,
-                        timestamp,
-                        priority,
-                        value,
-                    } = entry;
-
-                    const cluster = getClusterById(clusterId);
-                    const event = getClusterEventById(cluster, eventId);
-                    subscriptionHandler.eventListener({
-                        path: {
-                            endpointId,
-                            clusterId,
-                            eventId,
-                            eventName: event?.name ?? `Unknown (${Diagnostic.hex(eventId)})`,
-                        },
-                        events: [{ eventNumber: number, epochTimestamp: timestamp, priority, data: value }],
-                    });
-                    break;
-                }
-            }
-        };
-
-        // First, read.  This allows us to retrieve attributes that do not support subscription and gives us
-        // physical device information required to optimize subscription parameters
-        for await (const chunk of this.#clientNode.interaction.read(read)) {
-            for (const entry of chunk) {
-                convert(entry);
-            }
+        // When we were already connected and just in the reconnection state, skip the read
+        if (!this.remoteInitializationDone || this.#connectionState !== NodeStates.Reconnecting) {
+            // First, read.  This allows us to retrieve attributes that do not support subscription and gives us
+            // physical device information required to optimize subscription parameters
+            for await (const _chunk of this.#clientNode.interaction.read(read));
         }
 
         const subscribe = Subscribe({
@@ -1079,11 +1072,7 @@ export class PairedNode {
         const subscription = await (this.#clientNode.interaction as ClientNodeInteraction).subscribe({
             ...subscribe,
             updated: async reports => {
-                for await (const chunk of reports) {
-                    for (const entry of chunk) {
-                        convert(entry);
-                    }
-                }
+                for await (const _chunk of reports);
                 subscriptionHandler.subscriptionAlive();
             },
             closed: () => {
@@ -1194,6 +1183,9 @@ export class PairedNode {
     }
 
     #updateEndpointStructure() {
+        if (this.#decommissioned || this.#closing) {
+            return;
+        }
         if (this.#endpoints === undefined) {
             // Combine triggers from attribute changes with the collected node details
             for (const endpointId of this.#registeredEndpointStructureChanges.keys()) {
@@ -1633,9 +1625,15 @@ export class PairedNode {
         }
         this.#decommissioned = true;
 
+        this.#updateEndpointStructureTimer?.stop();
+
+        this.#options.stateInformationCallback?.(this.nodeId, NodeStateInformation.Decommissioned);
+
         this.#setConnectionState(NodeStates.Disconnected);
 
         await this.#commissioningController.removeNode(this.nodeId, false);
+
+        this.events.decommissioned.emit();
     }
 
     /**
@@ -1744,6 +1742,7 @@ export class PairedNode {
 
     /** Closes the current subscription and ends all timers for reconnects or such used by this PairedNode instance. */
     close(sendDecommissionedStatus = false) {
+        this.#closing = true;
         this.#observers.close();
         this.#newChannelReconnectDelayTimer.stop();
         this.#reconnectDelayTimer?.stop();

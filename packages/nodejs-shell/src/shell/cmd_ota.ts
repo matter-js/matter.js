@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Crypto, Diagnostic, Environment } from "#general";
+import { Bytes, Crypto, Diagnostic, Environment } from "#general";
 import { OtaImageReader, PersistedFileDesignator } from "#protocol";
+import { VendorId } from "#types";
 import { createReadStream, createWriteStream, statSync, WriteStream } from "node:fs";
 import { basename, dirname, extname, join } from "node:path";
 import { Readable } from "node:stream";
@@ -124,7 +125,7 @@ export default function commands(theNode: MatterNode) {
                         // Get crypto from the environment
                         const crypto = Environment.default.get(Crypto);
 
-                        // Generate output filename by adding "-payload" before the extension
+                        // Generate the output filename by adding "-payload" before the extension
                         const dir = dirname(file);
                         const ext = extname(file);
                         const base = basename(file, ext);
@@ -187,7 +188,7 @@ export default function commands(theNode: MatterNode) {
 
                         if (fileArg.startsWith("file://")) {
                             // Absolute file path outside storage
-                            const filePath = fileArg.slice(7); // Remove "file://" prefix
+                            const filePath = fileArg.slice(7); // Remove the "file://" prefix
                             source = filePath;
 
                             // Create a Node.js readable stream and convert to Web ReadableStream
@@ -216,7 +217,7 @@ export default function commands(theNode: MatterNode) {
                         console.log(`Software Version String: ${header.softwareVersionString}`);
                         console.log(`Payload Size: ${header.payloadSize} bytes`);
                         console.log(`Digest Algorithm: ${header.imageDigestType}`);
-                        console.log(`Digest: ${header.imageDigest}`);
+                        console.log(`Digest: ${Bytes.toHex(header.imageDigest)}`);
                         if (header.minApplicableSoftwareVersion !== undefined) {
                             console.log(`Min Applicable Version: ${header.minApplicableSoftwareVersion}`);
                         }
@@ -320,7 +321,7 @@ export default function commands(theNode: MatterNode) {
                         let filePath = file;
 
                         if (filePath.startsWith("file://")) {
-                            filePath = filePath.slice(7); // Remove "file://" prefix
+                            filePath = filePath.slice(7); // Remove the "file://" prefix
                         } else if (!filePath.startsWith("/")) {
                             console.error("Error: File path must be absolute or start with file://");
                             return;
@@ -533,6 +534,80 @@ export default function commands(theNode: MatterNode) {
                         await writer.close();
 
                         console.log(`OTA image copied successfully to: ${targetPath}`);
+                    },
+                )
+                .command(
+                    "download <vendor-id> <product-id> <software-version>",
+                    "Check DCL for OTA updates matching the given vendor/product/version and download them",
+                    yargs => {
+                        return yargs
+                            .positional("vendor-id", {
+                                describe: "Vendor ID (hex, e.g., 0xFFF1 or FFF1)",
+                                type: "string",
+                                demandOption: true,
+                            })
+                            .positional("product-id", {
+                                describe: "Product ID (hex, e.g., 0x8000 or 8000)",
+                                type: "string",
+                                demandOption: true,
+                            })
+                            .positional("software-version", {
+                                describe: "Current software version (decimal number)",
+                                type: "number",
+                                demandOption: true,
+                            })
+                            .option("mode", {
+                                describe: "DCL mode (prod or test)",
+                                type: "string",
+                                choices: ["prod", "test", "both"],
+                                default: "prod",
+                            })
+                            .option("local", {
+                                describe: "Include local update files in search",
+                                type: "boolean",
+                                default: false,
+                            });
+                    },
+                    async argv => {
+                        const { vendorId: vendorIdStr, productId: productIdStr, softwareVersion, mode, local } = argv;
+
+                        const vendorId = parseHexId(vendorIdStr, "vendor");
+                        const productId = parseHexId(productIdStr, "product");
+                        const isProduction = mode === "prod" ? true : mode === "test" ? false : undefined;
+
+                        console.log(`Checking DCL for OTA updates...`);
+                        console.log(`  Vendor ID: ${Diagnostic.hex(vendorId as VendorId, 4).toUpperCase()}`);
+                        console.log(`  Product ID: ${Diagnostic.hex(productId, 4).toUpperCase()}`);
+                        console.log(`  Current Software Version: ${softwareVersion}`);
+                        console.log(`  DCL Mode: ${mode}\n`);
+
+                        const updateInfo = await theNode.otaService.checkForUpdate({
+                            vendorId: vendorId as VendorId,
+                            productId,
+                            currentSoftwareVersion: softwareVersion,
+                            includeStoredUpdates: local,
+                            isProduction,
+                        });
+
+                        if (updateInfo) {
+                            console.log("✓ Update available!");
+                            console.log(
+                                `  New Version: ${updateInfo.softwareVersion} (${updateInfo.softwareVersionString})`,
+                            );
+                            console.log(`  OTA URL: ${updateInfo.otaUrl}`);
+                            if (updateInfo.otaFileSize) {
+                                const sizeKB = Number(updateInfo.otaFileSize) / 1024;
+                                console.log(`  File Size: ${sizeKB.toFixed(2)} KB`);
+                            }
+                            if (updateInfo.releaseNotesUrl) {
+                                console.log(`  Release Notes: ${updateInfo.releaseNotesUrl}`);
+                            }
+
+                            const fd = await theNode.otaService.downloadUpdate(updateInfo);
+                            console.log(`\nOTA image added to storage successfully: ${fd.text}`);
+                        } else {
+                            console.log("✓ No updates available in DCL for this version.");
+                        }
                     },
                 ),
         handler: async (argv: any) => {

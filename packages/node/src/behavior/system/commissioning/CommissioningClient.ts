@@ -105,6 +105,7 @@ export class CommissioningClient extends Behavior {
         this.reactTo(node.lifecycle.partsReady, this.#initializeNode);
         this.reactTo(node.lifecycle.online, this.#nodeOnline);
         this.reactTo(this.events.peerAddress$Changed, this.#peerAddressChanged);
+        this.reactTo(this.events.addresses$Changed, this.#operationalAddressesChanged);
     }
 
     #nodeOnline() {
@@ -181,7 +182,7 @@ export class CommissioningClient extends Behavior {
         const commissioner = node.env.get(ControllerCommissioner);
 
         const identityService = node.env.get(IdentityService);
-        const address = identityService.assignNodeAddress(node, fabric.fabricIndex, opts.nodeId);
+        const address = await identityService.assignNodeAddress(node, fabric.fabricIndex, opts.nodeId);
 
         const commissioningOptions: LocatedNodeCommissioningOptions = {
             addresses: addresses.map(ServerAddress),
@@ -307,6 +308,37 @@ export class CommissioningClient extends Behavior {
     #initializeNode() {
         const endpoint = this.endpoint as ClientNode;
         endpoint.lifecycle.initialized.emit(this.state.peerAddress !== undefined);
+    }
+
+    #operationalAddressesChanged(newAddresses: ServerAddress[] | undefined, oldAddresses: ServerAddress[] | undefined) {
+        // Log when addresses change
+        if (newAddresses === undefined) {
+            logger.info("Operational address for", Diagnostic.strong(PeerAddress(this.state.peerAddress)), "cleared");
+            return;
+        }
+
+        const newAddressesStr = newAddresses?.map(a => ServerAddress.urlFor(a)).join(", ");
+        if (oldAddresses === undefined) {
+            logger.info(
+                "Operational address for",
+                Diagnostic.strong(PeerAddress(this.state.peerAddress)),
+                "set to",
+                Diagnostic.weak(newAddressesStr),
+            );
+            return;
+        }
+
+        const oldAddressesStr = oldAddresses.map(a => ServerAddress.urlFor(a)).join(", ");
+        if (oldAddressesStr !== newAddressesStr) {
+            logger.info(
+                "Operational address changed for",
+                Diagnostic.strong(PeerAddress(this.state.peerAddress)),
+                "from",
+                Diagnostic.weak(oldAddressesStr),
+                "to",
+                Diagnostic.weak(newAddressesStr),
+            );
+        }
     }
 
     #updateAddresses(addr: ProtocolPeerAddress) {
@@ -532,6 +564,9 @@ export namespace CommissioningClient {
     export class Events extends BaseEvents {
         peerAddress$Changed = new Observable<
             [value: ProtocolPeerAddress | undefined, oldValue: ProtocolPeerAddress | undefined]
+        >();
+        addresses$Changed = new Observable<
+            [value: ServerAddress[] | undefined, oldValue: ServerAddress[] | undefined]
         >();
     }
 

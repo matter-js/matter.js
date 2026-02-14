@@ -24,7 +24,7 @@ export namespace FlowMeasurement {
 
         attributes: {
             /**
-             * Indicates the flow in m/h as follows:
+             * Indicates the flow in m^3/h as follows:
              *
              * MeasuredValue = 10 x Flow
              *

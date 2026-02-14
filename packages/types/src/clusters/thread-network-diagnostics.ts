@@ -80,7 +80,7 @@ export namespace ThreadNetworkDiagnostics {
         SleepyEndDevice = 2,
 
         /**
-         * The Node acts as an End Device without RX- off-when-idle sleepy radio behavior.
+         * The Node acts as an End Device without RX-off-when-idle sleepy radio behavior.
          */
         EndDevice = 3,
 
@@ -232,7 +232,7 @@ export namespace ThreadNetworkDiagnostics {
     export const TlvRouteTable = TlvObject({
         /**
          * This field shall specify the IEEE 802.15.4 extended address for the Node for which this route table entry
-         * corresponds. The uint64 value is composed by taking the 8 octets of the extended address EUI- 64 and treating
+         * corresponds. The uint64 value is composed by taking the 8 octets of the extended address EUI-64 and treating
          * them as a big-endian integer. For example, octet string (in hexadecimal, from first octet to last)
          * 00112233AABBCCDD would lead to a value of 0x00112233AABBCCDD.
          *
@@ -544,7 +544,7 @@ export namespace ThreadNetworkDiagnostics {
              *
              * Reception of this command shall reset the following attributes to 0:
              *
-             *   • OverrunCount
+             *   - OverrunCount
              *
              * Upon completion, this command shall send a status code of SUCCESS back to the initiator.
              *
@@ -678,8 +678,8 @@ export namespace ThreadNetworkDiagnostics {
             txAckedCount: OptionalAttribute(0x1a, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * Indicates the total number of unique MAC frame transmission requests without requested acknowledgment.
-             * The attribute shall only be incremented by 1 for each MAC transmission request that is does not request
+             * Indicates the total number of unique MAC frame transmission requests withoutrequestedacknowledgment. The
+             * attribute shall only be incremented by 1 for each MAC transmission request that is does not request
              * acknowledgement regardless of the amount of CCA failures, CSMA-CA attempts, or retransmissions.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.14.6.28
@@ -842,8 +842,8 @@ export namespace ThreadNetworkDiagnostics {
             rxBeaconRequestCount: OptionalAttribute(0x2d, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * Indicates the total number of received unique MAC frame requests that are not counted by any other
-             * attribute. This value shall only be reset upon a Node reboot.
+             * Indicates the total number of received unique MAC frame requests that are not counted by
+             * anyotherattribute. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.14.6.47
              */
@@ -1092,10 +1092,8 @@ export namespace ThreadNetworkDiagnostics {
             /**
              * Indicates the channels within channel page 0, in the 2.4GHz ISM band. The channels are represented in
              * most significant bit order, with bit value 1 meaning selected, bit value 0 meaning unselected. For
-             * example, the most significant bit of the left-most byte indicates channel
-             *
-             * 0. If channel 0 and channel 10 are selected, the mask would be: 80 20 00 00. Null when there is no
-             * dataset configured.
+             * example, the most significant bit of the left-most byte indicates channel 0. If channel 0 and channel 10
+             * are selected, the mask would be: 80 20 00 00. Null when there is no dataset configured.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.14.6.61
              */

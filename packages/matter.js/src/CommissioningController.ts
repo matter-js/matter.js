@@ -6,6 +6,7 @@
 
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { InteractionClient } from "#cluster/client/InteractionClient.js";
+import { BasicInformation } from "#clusters";
 import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import {
     ClassExtends,
@@ -23,6 +24,7 @@ import {
 } from "#general";
 import {
     ChangeNotificationService,
+    ClusterState,
     CommissioningClient,
     Endpoint,
     NetworkClient,
@@ -159,6 +161,12 @@ export type CommissioningControllerOptions = CommissioningControllerNodeOptions 
      * to download OTA updates.
      */
     readonly enableOtaProvider?: boolean;
+
+    /**
+     * Options for the BasicInformation cluster of the Controller node.
+     * The vendorId is determined by the adminVendorId!
+     */
+    readonly basicInformation?: Partial<Omit<ClusterState.PropertiesOf<typeof BasicInformation.Complete>, "vendorId">>;
 };
 
 /** Options needed to commission a new node */
@@ -266,6 +274,7 @@ export class CommissioningController {
             rootCertificateAuthority,
             rootFabric,
             enableOtaProvider,
+            basicInformation = {},
         } = this.#options;
 
         // Initialize the Storage in a compatible way for the legacy API and new style for new API
@@ -287,6 +296,7 @@ export class CommissioningController {
             localPort,
             environment: this.#environment,
             enableOtaProvider,
+            basicInformation,
         });
 
         if (!controller.ble) {
@@ -697,7 +707,7 @@ export class CommissioningController {
                 return;
             }
             const { peerNodeId } = session;
-            logger.info(`Session for peer node ${peerNodeId} disconnected ...`);
+            logger.info(`Session for peer node ${this.fabric.addressOf(peerNodeId).toString()} disconnected ...`);
             const handler = this.#sessionDisconnectedHandler.get(peerNodeId);
             if (handler !== undefined) {
                 handler().catch(error => logger.warn(`Error while handling session disconnect: ${error}`));

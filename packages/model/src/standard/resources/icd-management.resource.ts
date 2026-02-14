@@ -94,7 +94,7 @@ Resource.add({
                 "have a dependency on the UserActiveModeTriggerInstruction attribute but do not require the attribute " +
                 "to be present." +
                 "\n" +
-                "### An ICD can indicate multiple ways of being put into Active Mode by setting multiple bits in the " +
+                "An ICD can indicate multiple ways of being put into Active Mode by setting multiple bits in the " +
                 "bitmap at the same time. However, a device shall NOT set more than one bit which has a dependency on " +
                 "the UserActiveModeTriggerInstruction attribute."
         },
@@ -131,9 +131,9 @@ Resource.add({
             tag: "attribute", name: "OperatingMode", xref: "core§9.16.6.9",
             details: "Indicates the operating mode of the ICD as specified in the OperatingModeEnum." +
                 "\n" +
-                "  • If the ICD is operating as a LIT ICD, OperatingMode shall be LIT." +
+                "  - If the ICD is operating as a LIT ICD, OperatingMode shall be LIT." +
                 "\n" +
-                "  • If the ICD is operating as a SIT ICD, OperatingMode shall be SIT."
+                "  - If the ICD is operating as a SIT ICD, OperatingMode shall be SIT."
         },
 
         {
@@ -187,40 +187,40 @@ Resource.add({
                         "On receipt of the RegisterClient command, the server shall perform the following procedure:" +
                         "\n" +
                         "  1. The server verifies that an entry for the fabric is available in the server’s list of " +
-                        "     registered clients." +
+                        "registered clients." +
                         "\n" +
                         "    a. If one of the entries in storage for the fabric has the same CheckInNodeID as the received " +
-                        "       CheckInNodeID, the server shall continue from step 2." +
+                        "CheckInNodeID, the server shall continue from step 2." +
                         "\n" +
                         "    b. If there is an available entry for the fabric, an entry is created for the fabric and the " +
-                        "       received CheckInNodeID, MonitoredSubject, Key and ClientType are stored. The server shall " +
-                        "       continue from step 5." +
+                        "received CheckInNodeID, MonitoredSubject, Key and ClientType are stored. The server shall " +
+                        "continue from step 5." +
                         "\n" +
                         "    c. If there are no available entries for the fabric, the status shall be RESOURCE_EXHAUSTED and " +
-                        "       the server shall continue from step 6." +
+                        "the server shall continue from step 6." +
                         "\n" +
                         "  2. The server shall verify the privileges of the command’s ISD." +
                         "\n" +
                         "    a. If the ISD of the command has administrator privileges for the server cluster, the server " +
-                        "       shall continue from step 4." +
+                        "shall continue from step 4." +
                         "\n" +
                         "    b. If the ISD of the command does not have administrator privileges for the server cluster, the " +
-                        "       server shall continue from step 3." +
+                        "server shall continue from step 3." +
                         "\n" +
                         "  3. The server shall verify that the received verification key is equal to the key previously " +
-                        "     stored in the list of registered clients with the matching CheckInNodeID." +
+                        "stored in the list of registered clients with the matching CheckInNodeID." +
                         "\n" +
                         "    a. If the verification key does not have a valid value, the status shall be FAILURE. the server " +
-                        "       shall continue from step 6." +
+                        "shall continue from step 6." +
                         "\n" +
                         "    b. If the verification key is not equal to the Key value stored in the entry, the status shall " +
-                        "       be FAILURE. The server shall continue from step 6." +
+                        "be FAILURE. The server shall continue from step 6." +
                         "\n" +
                         "    c. If the verification key is equal to the Key value stored in the entry, the server shall " +
-                        "       continue from step 4." +
+                        "continue from step 4." +
                         "\n" +
                         "  4. The entry shall be updated with the received CheckInNodeID, MonitoredSubject, Key and " +
-                        "     ClientType." +
+                        "ClientType." +
                         "\n" +
                         "    a. If the update fails, the status shall be FAILURE. The server shall continue from step 6." +
                         "\n" +
@@ -229,17 +229,17 @@ Resource.add({
                         "  5. The server shall persist the client information." +
                         "\n" +
                         "    a. If the persistence fails, the status shall be FAILURE and the server shall continue from step " +
-                        "       6." +
+                        "6." +
                         "\n" +
                         "    b. If the persistence succeeds, the status shall be SUCCESS and the server shall continue from " +
-                        "       step 6." +
+                        "step 6." +
                         "\n" +
                         "  6. The server shall generate a response." +
                         "\n" +
                         "    a. If the status is SUCCESS, the server shall generate a RegisterClientResponse command." +
                         "\n" +
                         "    b. If the status is not SUCCESS, the server shall generate a default response with the Status " +
-                        "       field set to the evaluated error status."
+                        "field set to the evaluated error status."
                 }
             ]
         },
@@ -286,51 +286,51 @@ Resource.add({
                         "On receipt of the UnregisterClient command, the server shall perform the following procedure:" +
                         "\n" +
                         "  1. The server shall check whether there is a entry stored on the device for the fabric with the " +
-                        "     same CheckInNodeID." +
+                        "same CheckInNodeID." +
                         "\n" +
                         "    a. If there are no entries stored for the fabric, the status shall be NOT_FOUND. The server " +
-                        "       shall continue from step 6." +
+                        "shall continue from step 6." +
                         "\n" +
                         "    b. If there is an error when reading from storage, the status shall be FAILURE. The server shall " +
-                        "       continue from step 6." +
+                        "continue from step 6." +
                         "\n" +
                         "    c. If there is at least one entry stored on the server for the fabric, the server shall continue " +
-                        "       from step 2." +
+                        "from step 2." +
                         "\n" +
                         "  2. The server shall verify if one of the entries for the fabric has the corresponding " +
-                        "     CheckInNodeID received in the command." +
+                        "CheckInNodeID received in the command." +
                         "\n" +
                         "    a. If no entries have the corresponding CheckInNodeID, the status shall be NOT_FOUND. The server " +
-                        "       shall continue from step 6." +
+                        "shall continue from step 6." +
                         "\n" +
                         "    b. If an entry has the corresponding CheckInNodeID, the server shall continue to step 3." +
                         "\n" +
                         "  3. The server shall check whether the ISD of the command has administrator permissions for the " +
-                        "     server cluster." +
+                        "server cluster." +
                         "\n" +
                         "    a. If the ISD of the command has administrator privileges for the server cluster, the server " +
-                        "       shall continue from step 5." +
+                        "shall continue from step 5." +
                         "\n" +
                         "    b. If the ISD of the command does not have administrator privileges for the server cluster, the " +
-                        "       server shall continue from step 4." +
+                        "server shall continue from step 4." +
                         "\n" +
                         "  4. The server shall verify that the received verification key is equal to the key previously " +
-                        "     stored in the list of registered clients with the matching CheckInNodeID." +
+                        "stored in the list of registered clients with the matching CheckInNodeID." +
                         "\n" +
                         "    a. If the verification key does not have a valid value, the status shall be FAILURE. the server " +
-                        "       shall continue from step 6." +
+                        "shall continue from step 6." +
                         "\n" +
                         "    b. If the verification key is not equal to the Key value stored in the entry, the status shall " +
-                        "       be FAILURE. The server shall continue from step 6." +
+                        "be FAILURE. The server shall continue from step 6." +
                         "\n" +
                         "    c. If the verification key is equal to the Key value stored in the entry, the server shall " +
-                        "       continue from step 5." +
+                        "continue from step 5." +
                         "\n" +
                         "  5. The server shall delete the entry with the matching CheckInNodeID from storage and will persist " +
-                        "     the change." +
+                        "the change." +
                         "\n" +
                         "    a. If the removal of the entry fails, the status shall be FAILURE. The server shall continue " +
-                        "       from step 6." +
+                        "from step 6." +
                         "\n" +
                         "    b. If the removal succeeds, the status shall be SUCCESS and the server shall continue to step 6." +
                         "\n" +
@@ -355,10 +355,10 @@ Resource.add({
                 "When receiving a StayActiveRequest command, the server shall calculate the maximum " +
                 "PromisedActiveDuration it can remain active as the greater of the following two values:" +
                 "\n" +
-                "  • StayActiveDuration: Specified in the received command by the client." +
+                "  - StayActiveDuration: Specified in the received command by the client." +
                 "\n" +
-                "  • Remaining Active Time: The server’s planned remaining active time based on the " +
-                "    ActiveModeThreshold and its internal resources and power budget." +
+                "  - Remaining Active Time: The server’s planned remaining active time based on the " +
+                "ActiveModeThreshold and its internal resources and power budget." +
                 "\n" +
                 "A server may replace StayActiveDuration with Minimum Active Duration in the above calculation." +
                 "\n" +
@@ -383,7 +383,21 @@ Resource.add({
                     "### Minimum Value for PromisedActiveDuration" +
                     "\n" +
                     "The minimum value of the PromisedActiveDuration field shall be equal to either 30000 milliseconds or " +
-                    "StayActiveDuration (from the received StayActiveRequest command), whichever is smaller."
+                    "StayActiveDuration (from the received StayActiveRequest command), whichever is smaller." +
+                    "\n" +
+                    "Example scenarios:" +
+                    "\n" +
+                    "  - A Client requests an ICD to stay awake for 20000 milliseconds in its StayActiveDuration field. " +
+                    "The ICD responds with 20000 in its PromisedActiveDuration if it can stay active for that " +
+                    "duration." +
+                    "\n" +
+                    "  - A Client requests an ICD to stay awake for 35000 milliseconds in its StayActiveDuration field. " +
+                    "The ICD responds with 30000 in its PromisedActiveDuration since it can only stay active for that " +
+                    "minimal amount." +
+                    "\n" +
+                    "  - A Client requests an ICD to stay awake for 10000 milliseconds in its StayActiveDuration field, " +
+                    "but the ICD’s remaining active time is 20000 milliseconds. The ICD responds with 20000 " +
+                    "milliseconds in its PromisedActiveDuration field since it intends to stay active that long."
             }]
         },
 
@@ -502,11 +516,11 @@ Resource.add({
                         "flexibility of having a different CheckInNodeID from the MonitoredSubject. A subscription shall " +
                         "count as an active subscription for this entry if:" +
                         "\n" +
-                        "  • It is on the associated fabric of this entry, and" +
+                        "  - It is on the associated fabric of this entry, and" +
                         "\n" +
-                        "  • The subject of this entry matches the ISD of the SubscriptionRequest message that created the " +
+                        "  - The subject of this entry matches the ISD of the SubscriptionRequest message that created the " +
                         "    subscription. Matching shall be determined using the subject_matches function defined in the " +
-                        "    Access Control Privilege Granting Algorithm." +
+                        "Access Control Privilege Granting Algorithm." +
                         "\n" +
                         "For example, if the MonitoredSubject is Node ID 0x1111_2222_3333_AAAA, and one of the subscribers to " +
                         "the server on the entry’s associated fabric bears that Node ID, then the entry matches." +

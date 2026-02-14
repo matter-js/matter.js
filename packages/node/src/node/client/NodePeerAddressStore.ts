@@ -5,6 +5,7 @@
  */
 
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
+import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavior.js";
 import { Crypto, ServerAddress, ServerAddressUdp } from "#general";
 import type { ClientNode } from "#node/ClientNode.js";
 import { IdentityService } from "#node/server/IdentityService.js";
@@ -35,15 +36,27 @@ export class NodePeerAddressStore extends PeerAddressStore {
         identityService.releaseNodeAddress = this.deletePeer.bind(this);
     }
 
-    assignNewAddress(node: ClientNode, fabricIndex: FabricIndex, nodeId?: NodeId) {
+    async assignNewAddress(node: ClientNode, fabricIndex: FabricIndex, nodeId?: NodeId) {
+        const useSequentialIds = node.owner?.state.controller.nodeIdAssignment !== "random";
+        let nextNodeId: NodeId = node.owner?.state.controller.nextNodeId ?? NodeId(1);
+
         while (nodeId === undefined) {
-            nodeId = NodeId.randomOperationalNodeId(this.#owner.env.get(Crypto));
+            if (useSequentialIds) {
+                nodeId = nextNodeId;
+                nextNodeId++;
+            } else {
+                nodeId = NodeId.randomOperationalNodeId(this.#owner.env.get(Crypto));
+            }
             if (this.#assignedAddresses.has({ fabricIndex, nodeId })) {
                 nodeId = undefined;
             }
         }
 
         const address = PeerAddress({ fabricIndex, nodeId });
+
+        if (useSequentialIds) {
+            await node.owner?.setStateOf(ControllerBehavior, { nextNodeId });
+        }
 
         this.#assignedAddresses.set(address, node);
 
@@ -94,6 +107,4 @@ export class NodePeerAddressStore extends PeerAddressStore {
     deletePeer(address: PeerAddress) {
         this.#assignedAddresses.delete(address);
     }
-
-    createNodeStore(): undefined {}
 }

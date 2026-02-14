@@ -6,7 +6,6 @@
 
 import { Constraint } from "#model";
 import { camelize } from "../../util/string.js";
-import { Words } from "../../util/words.js";
 import { repairConformanceRule } from "./repairs/aspect-repairs.js";
 
 /** String, trimmed with whitespace collapsed */
@@ -14,6 +13,15 @@ export const Str = (el: HTMLElement) => {
     // Remove footnote references.  We can reliably detect these by looking for spans that contain only a single digit
     for (const child of el.querySelectorAll("span")) {
         if (child.textContent?.match(/^[*0-9]$/)) {
+            child.remove();
+        }
+    }
+
+    // Same for Asciidoctor footnote superscripts inside bold names (e.g. <strong>CurrentPositionLift<sup>1</sup></strong>).
+    // Only remove when inside <strong> to avoid stripping real exponents like m<sup>3</sup>
+    for (const child of el.querySelectorAll("strong > sup")) {
+        const content = child.textContent?.trim();
+        if (content?.match(/^[*0-9]$/)) {
             child.remove();
         }
     }
@@ -48,11 +56,14 @@ export const Str = (el: HTMLElement) => {
             // Remove soft hyphen and any surrounding whitespace
             .replace(/\s*\u00ad\s*/g, "")
 
-            // Remove zero-width non-joiner
-            .replace(/\u200c/g, "")
+            // Remove zero-width characters (non-joiner, zero-width space)
+            .replace(/[\u200b\u200c]/g, "")
+
+            // Strip Asciidoctor inline stem/math delimiters (\$...\$)
+            .replace(/\\\$/g, "")
 
             // Collapse whitespace
-            .replace(/\s/g, " ")
+            .replace(/\s+/g, " ")
 
             // Convert "foo- bar" to "foo-bar"
             .replace(/([a-z]-) ([a-z])/g, "$1$2")
@@ -60,32 +71,33 @@ export const Str = (el: HTMLElement) => {
 };
 
 /**
- * String with special logic to handle common constraint bound 2**62 which is written with superscript.  When we have
- * constraint expression support we can change to 2**62 or something of the like but for now we just remove as this
- * effectively means "unbounded".
- *
- * Can also look for number<span>number</span> to generalize but unnecessary as of 1.3.
+ * Convert numeric superscripts to ^N notation in an element (e.g. 10<sup>6</sup> → 10^6, m<sup>3</sup> → m^3).
+ * Skips ordinals (st, nd, rd, th) and footnote markers.  Only use on prose/description elements, not on constraint
+ * or type cells where ^ would break parsing.
+ */
+export function convertSuperscripts(el: HTMLElement) {
+    for (const sup of el.querySelectorAll("sup")) {
+        const content = sup.textContent?.trim();
+        if (content?.match(/^-?\d+$/)) {
+            sup.replaceWith(el.ownerDocument.createTextNode(`^${content}`));
+        }
+    }
+}
+
+/** String with superscript conversion — use for description/summary columns */
+export const StrWithSuperscripts = (el: HTMLElement) => {
+    convertSuperscripts(el);
+    return Str(el);
+};
+
+/**
+ * Constraint string with superscript conversion.  The constraint parser supports `^` as an exponentiation operator,
+ * so 2^62 is passed through as a valid expression rather than being stripped.
  */
 export const ConstraintStr = (el: HTMLElement) => {
+    // Convert superscripts so 2<sup>62</sup> becomes "2^62" rather than "262"
+    convertSuperscripts(el);
     const str = Code(el);
-
-    switch (str) {
-        case "-262 to 262":
-            return "";
-
-        case "0 to 262":
-            return "min 0";
-
-        case "max 262 - 1":
-            return "";
-
-        case "max (262 - 1)":
-            return "";
-    }
-
-    if (str.indexOf("262") !== -1) {
-        throw new Error(`Unrecognized constraint definition "${str}" apparently referencing 2**62`);
-    }
 
     // As of 1.4.1 the constraint column is so badly butchered we must resolve to concatenating any two words that are
     // side-by-side in a fashion that is illegal syntactically
@@ -159,10 +171,7 @@ export const Bit = (el: HTMLElement) => {
     return Number.parseInt(text);
 };
 
-/**
- * DSL or identifier.  Note we replace "Fo o" with "Foo" because space errors are very common in the PDFs, especially in
- * narrow columns and we don't want to end up with FoO
- */
+/** DSL or identifier */
 export const Code = (el: HTMLElement) => {
     // Ensure textContent will produce space for P
     let shouldBeSpaced = false;
@@ -181,43 +190,7 @@ export const Code = (el: HTMLElement) => {
         }
     }
 
-    let str = Str(el);
-
-    // Use the english dictionary to heuristically repair whitespace errors
-    const parts = str.split(/\s+/);
-    for (let i = 0; i < parts.length - 1; i++) {
-        // If the current word is all uppercase, assume it's a standalone identifier
-        if (parts[i].match(/^[A-Z_]+$/)) {
-            continue;
-        }
-
-        // For all subsequent words that start with lowercase, see if they form an actual word when concatenated with
-        // the previous word
-        let beginning = parts[i].replace(/^.*([A-Z])/, "$1");
-        for (let j = i + 1; j < parts.length; j++) {
-            // Abort if next part does not appear to be a word segment
-            if (!parts[j].match(/^[a-z]/)) {
-                break;
-            }
-
-            // Get ending of word from next part
-            const ending = parts[j].replace(/^([a-z]+).*/, "$1");
-
-            // If the concatenation is a word, assume it should be joined
-            if (Words.has(`${beginning}${ending}`.toLowerCase())) {
-                // Join
-                parts[i] += parts.splice(i + 1, j - i).join("");
-
-                // Redo check from current point
-                i--;
-                break;
-            }
-
-            // Extend beginning for next iteration
-            beginning += parts[j];
-        }
-    }
-    str = parts.join(" ");
+    const str = Str(el);
 
     return str;
 };

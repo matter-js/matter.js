@@ -79,8 +79,9 @@ Resource.add({
 
         {
             tag: "command", name: "RetrieveLogsResponse", xref: "core§11.11.5.2",
-            details: "This shall be generated as a response to the RetrieveLogsRequest. The data for this command is shown " +
-                "in the following.",
+            details: "This shall be generated as a response to the RetrieveLogsRequest." +
+                "\n" +
+                "The data for this command is shown in the following.",
 
             children: [
                 {

@@ -162,6 +162,15 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
                         return undefined;
                     }
 
+                    case "^": {
+                        const lhs = valueOf(value.lhs);
+                        const rhs = valueOf(value.rhs);
+                        if (typeof lhs === "number" && typeof rhs === "number") {
+                            return lhs ** rhs;
+                        }
+                        return undefined;
+                    }
+
                     case ".": {
                         const object = valueOf(value.lhs);
                         if (!isObject(object)) {
@@ -306,7 +315,7 @@ export namespace Constraint {
      * Parsed binary operator.
      */
     export interface BinaryOperator {
-        type: "+" | "-" | ".";
+        type: "+" | "-" | "." | "^";
 
         lhs: Expression;
 
@@ -356,7 +365,8 @@ namespace Serializer {
             case "+":
             case "-":
             case ".":
-                const sep = value.type === "." ? "" : " ";
+            case "^":
+                const sep = value.type === "." || value.type === "^" ? "" : " ";
                 const sum = `${serializeValue(value.lhs, true)}${sep}${value.type}${sep}${serializeValue(value.rhs, true)}`;
                 if (inExpr) {
                     // Ideally only add parenthesis if precedence requires.  But nested expressions are not used
@@ -571,30 +581,35 @@ namespace Parser {
         }
 
         function parseExpression(): Constraint.Expression | undefined {
-            const value = parseValueExpression();
+            let value: Constraint.Expression | undefined = parseValueExpression();
 
             if (value === undefined) {
                 return value;
             }
 
+            // Handle chained binary operators (e.g. 2^62 - 1)
+            while (
+                tokens.token?.type === "+" ||
+                tokens.token?.type === "-" ||
+                tokens.token?.type === "." ||
+                tokens.token?.type === "^"
+            ) {
+                const type = tokens.token.type;
+                tokens.next();
+                const rhs = parseValueExpression();
+                if (rhs === undefined) {
+                    constraint.error("MISSING_RIGHT_OPERAND", `Missing operand after "${type}"`);
+                    return;
+                }
+
+                value = {
+                    type,
+                    lhs: value,
+                    rhs,
+                };
+            }
+
             switch (tokens.token?.type) {
-                case "+":
-                case "-":
-                case ".":
-                    const type = tokens.token.type;
-                    tokens.next();
-                    const rhs = parseValueExpression();
-                    if (rhs === undefined) {
-                        constraint.error("MISSING_RIGHT_OPERAND", `Missing operand after "${type}"`);
-                        return;
-                    }
-
-                    return {
-                        type,
-                        lhs: value,
-                        rhs,
-                    };
-
                 case "(":
                     const functionName = FieldValue.referenced(value);
                     if (functionName === undefined) {
