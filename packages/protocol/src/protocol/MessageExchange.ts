@@ -339,11 +339,10 @@ export class MessageExchange {
             return;
         }
         if (requiresAck) {
-            // We still have a message to ack, so ack this one as standalone ack directly
+            // We still have a message to ack, so ack the old one as standalone ack directly
             if (this.#receivedMessageToAck !== undefined) {
                 this.#receivedMessageAckTimer.stop();
                 await this.#sendStandaloneAckForMessage(this.#receivedMessageToAck);
-                return;
             }
             this.#receivedMessageToAck = message;
             this.#receivedMessageAckTimer.start();

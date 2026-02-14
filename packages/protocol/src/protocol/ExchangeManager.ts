@@ -178,7 +178,11 @@ export class ExchangeManager {
         if (packet.header.sessionType === SessionType.Unicast) {
             if (packet.header.sessionId === UNICAST_UNSECURE_SESSION_ID) {
                 if (this.#isClosing) return;
-                const initiatorNodeId = packet.header.sourceNodeId ?? NodeId.UNSPECIFIED_NODE_ID;
+
+                // Responses include our ephemeral initiator nodeId as destNodeId and no sourceNodeId
+                // Initiating requests include their sourceNodeId but no destNodeId
+                const initiatorNodeId =
+                    packet.header.destNodeId ?? packet.header.sourceNodeId ?? NodeId.UNSPECIFIED_NODE_ID;
                 session =
                     this.#sessions.getUnsecuredSession(initiatorNodeId) ??
                     this.#sessions.createUnsecuredSession({
