@@ -1,0 +1,87 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript"],
+  "categories": {
+    "correctness": "error"
+  },
+  "env": {
+    "builtin": true,
+    "es2018": true,
+    "node": true
+  },
+  "ignorePatterns": [
+    "**/dist/**/*",
+    "**/build/**/*",
+    "**/forwards/**/*",
+    "**/bin/*",
+    "**/require/*",
+    "compat/**",
+    "models/*/**/*",
+    "docs/**/*",
+    "**/.mocharc.cjs",
+    "**/*.cjs",
+    "examples/electron-matter-controller/**/*"
+  ],
+  "rules": {
+    "@typescript-eslint/no-explicit-any": "off",
+    "@typescript-eslint/no-unsafe-argument": "off",
+    "@typescript-eslint/no-unsafe-assignment": "off",
+    "@typescript-eslint/no-unsafe-member-access": "off",
+    "@typescript-eslint/no-unsafe-return": "off",
+    "@typescript-eslint/no-unsafe-call": "off",
+    "@typescript-eslint/no-empty-object-type": "off",
+    "@typescript-eslint/require-await": "off",
+    "@typescript-eslint/restrict-template-expressions": "off",
+    "@typescript-eslint/no-base-to-string": "off",
+    "@typescript-eslint/await-thenable": "off",
+    "@typescript-eslint/no-namespace": "off",
+    "@typescript-eslint/no-implied-eval": "off",
+    "@typescript-eslint/no-this-alias": "off",
+    "@typescript-eslint/no-unsafe-enum-comparison": "off",
+    "@typescript-eslint/no-unused-vars": "off",
+    "@typescript-eslint/unbound-method": "off",
+    "@typescript-eslint/no-redundant-type-constituents": "off",
+    "@typescript-eslint/no-unsafe-function-type": "off",
+    "no-inner-declarations": "off",
+    "no-case-declarations": "off",
+    "no-ex-assign": "off",
+    "no-sparse-arrays": "off",
+    "no-unexpected-multiline": "off",
+    "no-unassigned-vars": "off",
+    "@typescript-eslint/no-misused-spread": "off",
+    "@typescript-eslint/require-array-sort-compare": "off",
+    "@typescript-eslint/no-unnecessary-parameter-property-assignment": "off",
+    "@typescript-eslint/no-meaningless-void-operator": "off",
+    "@typescript-eslint/no-unsafe-declaration-merging": "off",
+    "no-unused-private-class-members": "off",
+    "no-constant-condition": [
+      "error",
+      {
+        "checkLoops": false
+      }
+    ],
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": ["**/export"],
+            "message": "Please import the directory rather than the export file"
+          },
+          {
+            "group": ["**/export.js"],
+            "message": "Please import directly from the defining file"
+          }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["**/test/**/*.ts"],
+      "rules": {
+        "no-unused-expressions": "off"
+      }
+    }
+  ]
+}

@@ -2,8 +2,8 @@
     "extends": "./tsconfig.json",
     "compilerOptions": {
         "outDir": "../dist/esm",
-        "types": ["@matter/tools", "globals", "node"],
-        "resolveJsonModule": true, // needed for globals package
+        "types": ["@matter/tools", "node"],
+        "resolveJsonModule": true,
     },
     "typedocOptions": {
         "entryPoints": [

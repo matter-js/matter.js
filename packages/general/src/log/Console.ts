@@ -16,7 +16,7 @@ export namespace Console {
     /**
      * The console targeted for logging.
      */
-    // eslint-disable-next-line prefer-const
+    // oxlint-disable-next-line prefer-const
     export let console = system;
 
     /**
