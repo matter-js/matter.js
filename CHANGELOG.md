@@ -38,6 +38,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Added some jitter to the subscription max ceiling to spread out subscription responses from devices
     - Fix: Initializes the Message Reception state counter correctly as defined by the Matter specification
     - Fix: Ensures that BDX sessions inform upper layers correctly in all canceled cases
+    - Fix: Fixes Session mapping for PASE/CASE messages
+    - Fix: When we have sent out the success for a session resumption ensure the session is registered even if we do not get the ack
+    - Fix: Ensures processing of received messages that lead to earlier Standalone Acks for previous messages 
 
 - @matter/types
     - Enhancement: Re-Parsed the Matter 1.4.2 specification to improve captured details. No functional changes
