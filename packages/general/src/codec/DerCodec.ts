@@ -356,7 +356,7 @@ export class DerCodec {
     }
 
     static #encodeIA5String(value: string) {
-        /*eslint-disable-next-line no-control-regex */
+        /*oxlint-disable-next-line no-control-regex */
         if (!/^[\x00-\x7F]*$/.test(value)) {
             throw new DerError(`String ${value} is not an IA5 string.`);
         }

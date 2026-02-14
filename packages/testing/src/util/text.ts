@@ -63,6 +63,6 @@ export async function* asyncLinesOf<C, T extends AsyncIterable<C>>(input: T, fil
  */
 export function deansify(text: string) {
     // Credit to https://stackoverflow.com/questions/25245716/remove-all-ansi-colors-styles-from-strings
-    // eslint-disable-next-line no-control-regex
+    // oxlint-disable-next-line no-control-regex
     return text.replace(/[\u001b\u009b][[()#;?]*(?:\d{1,4}(?:;\d{0,4})*)?[0-9A-ORZcf-nqry=><]/g, "");
 }

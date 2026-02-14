@@ -14,7 +14,6 @@ services:
         ZSH_IN_DOCKER_VERSION: "1.2.0"
     volumes:
       - ..:/matter.js:cached
-      - node-modules:/matter.js/node_modules
     networks:
       - "matter"
     cap_add:

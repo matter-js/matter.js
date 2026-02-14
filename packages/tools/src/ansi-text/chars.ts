@@ -24,7 +24,7 @@ export namespace Chars {
         "\u3000", // Ideographic space
     ]);
 
-    // eslint-disable-next-line no-misleading-character-class
+    // oxlint-disable-next-line no-misleading-character-class
     export const zeroWidth = /[\u200b\u200c\u200d\u2060\p{Mn}\p{Me}]/u;
 
     export const nonbreakingText = /[\u00a0\u202f\p{Letter}\p{Mark}\p{Sm}\p{Sc}\p{Sk}\p{So}\p{Number}\p{Punctuation}]/u;

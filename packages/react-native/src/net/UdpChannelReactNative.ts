@@ -198,11 +198,11 @@ export class UdpChannelReactNative implements UdpChannel {
             listener(netInterface, address, port, data);
         };
 
-        // eslint-disable-next-line @typescript-eslint/no-misused-promises
+        // oxlint-disable-next-line @typescript-eslint/no-misused-promises
         this.#socket.on("message", messageListener);
         return {
             close: async () => {
-                // eslint-disable-next-line @typescript-eslint/no-misused-promises
+                // oxlint-disable-next-line @typescript-eslint/no-misused-promises
                 this.#socket.removeListener("message", messageListener);
             },
         };

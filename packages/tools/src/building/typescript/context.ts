@@ -40,7 +40,7 @@ export namespace TypescriptContext {
         // Strangely there are not newlines between errors in this output like there is when you run tsc from the
         // command line.  Use the "light blue" ANSI escape code as an injection point for an additional newline
         //
-        // eslint-disable-next-line no-control-regex
+        // oxlint-disable-next-line no-control-regex
         formatted = formatted.replace(/\u001b\[96m/g, "\n\u001b[96m");
 
         throw new BuildError(formatted);

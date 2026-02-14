@@ -11,7 +11,7 @@ export interface Callable<A extends unknown[], R = void> {
     (...args: A): R;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
+// oxlint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
 export class Callable<A extends unknown[], R> {
     /**
      * Create a new invocable
