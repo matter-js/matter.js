@@ -174,13 +174,13 @@ export class MatterNode {
         this.#observers = this.#observers ?? new ObserverGroup(this.#environment.runtime);
         const updateManagerEvents = this.commissioningController.otaProvider.eventsOf(SoftwareUpdateManager);
         this.#observers.on(updateManagerEvents.updateAvailable, (peer, details) => {
-            logger.info(`Update available for peer `, peer, `:`, details);
+            logger.info(`Update available for peer`, peer, `:`, details);
         });
         this.#observers.on(updateManagerEvents.updateDone, peer => {
-            logger.info(`Update done for peer `, peer);
+            logger.info(`Update done for peer`, peer);
         });
         this.#observers.on(updateManagerEvents.updateFailed, peer => {
-            logger.info(`Update failed for peer `, peer);
+            logger.info(`Update failed for peer`, peer);
         });
 
         this.#started = true;

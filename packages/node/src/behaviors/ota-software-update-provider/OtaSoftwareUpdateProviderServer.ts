@@ -267,7 +267,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
                 // Found our session — unregister from sessionStarted to prevent listener accumulation
                 bdxProtocol.sessionStarted.off(sessionListener);
 
-                // Verify the entry still exists (might have been cancelled/timed out since queryImage)
+                // Verify the entry still exists (might have been canceled/timed-out-since queryImage)
                 if (this.#inProgressDetailsForPeer(peerAddress, updateToken) === undefined) {
                     return;
                 }
@@ -451,33 +451,33 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
         if (updateToken !== undefined) {
             const key = `${requestorNodeId}-${fabricIndex}-${Bytes.toHex(updateToken)}`;
             const details = this.internal.inProgressDetails.get(key);
-            if (details !== undefined && details.timestamp + Minutes(15) < now) {
-                logger.info(
-                    `Removing stale in-progress OTA entry for Requestor`,
-                    peerAddress,
-                    `(age: ${Math.round((now - details.timestamp) / 60_000)}min)`,
-                );
-                details.cleanup?.();
-                this.internal.inProgressDetails.delete(key);
+            if (details !== undefined && this.#removeIfStale(key, details, peerAddress, now)) {
                 return undefined;
             }
             return details;
         }
         for (const [key, details] of this.internal.inProgressDetails.entries()) {
             if (details.requestorNodeId === requestorNodeId && details.fabricIndex === fabricIndex) {
-                if (details.timestamp + Minutes(15) < now) {
-                    logger.info(
-                        `Removing stale in-progress OTA entry for Requestor`,
-                        peerAddress,
-                        `(age: ${Math.round((now - details.timestamp) / 60_000)}min)`,
-                    );
-                    details.cleanup?.();
-                    this.internal.inProgressDetails.delete(key);
+                if (this.#removeIfStale(key, details, peerAddress, now)) {
                     return undefined;
                 }
                 return details;
             }
         }
+    }
+
+    #removeIfStale(key: string, details: OtaUpdateInProgressDetails, peerAddress: PeerAddress, now: Timestamp) {
+        if (details.timestamp + Minutes(15) >= now) {
+            return false;
+        }
+        logger.info(
+            `Removing stale in-progress OTA entry for Requestor`,
+            peerAddress,
+            `(age: ${Duration.format(Timestamp.delta(details.timestamp, now))})`,
+        );
+        details.cleanup?.();
+        this.internal.inProgressDetails.delete(key);
+        return true;
     }
 
     /**

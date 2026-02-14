@@ -114,7 +114,7 @@ export interface SoftwareUpdateInfo {
     source: OtaUpdateSource;
 }
 
-export interface QueuedUpdateInfo {
+export interface PendingUpdateInfo {
     peerAddress: PeerAddress;
     vendorId: VendorId;
     productId: number;
@@ -233,10 +233,10 @@ export class SoftwareUpdateManager extends Behavior {
     /**
      * Returns a snapshot of the current update queue for introspection.
      */
-    get queuedUpdates(): QueuedUpdateInfo[] {
+    get queuedUpdates(): PendingUpdateInfo[] {
         const now = Time.nowMs;
         return this.internal.updateQueue.map(entry => {
-            let status: QueuedUpdateInfo["status"];
+            let status: PendingUpdateInfo["status"];
             if (entry.lastProgressUpdateTime === undefined) {
                 status = "queued";
             } else if (entry.lastProgressUpdateTime + Minutes(15) < now) {
