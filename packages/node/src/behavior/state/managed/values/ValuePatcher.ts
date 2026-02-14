@@ -189,7 +189,7 @@ function ListPatcher(schema: ValueModel, supervisor: RootSupervisor): ValueSuper
 
         // eslint reports error here when linting entire project but not individual file.  Unsure if this is a bug but
         // disabling as code is correct as written
-        // eslint-disable-next-line @typescript-eslint/no-for-in-array
+        // oxlint-disable-next-line @typescript-eslint/no-for-in-array
         for (const indexStr in changes) {
             const index = Number.parseInt(indexStr);
 

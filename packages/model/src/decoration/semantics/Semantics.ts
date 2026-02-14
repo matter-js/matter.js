@@ -181,7 +181,7 @@ export namespace Semantics {
     /**
      * Access the {@link ClassSemantics} of a constructor or decorator context.
      */
-    // eslint-disable-next-line prefer-const
+    // oxlint-disable-next-line prefer-const
     export let classOf = (_source: ClassSemantics.Source): ClassSemantics => {
         // This should be replaced by ClassSemantics
         throw new InternalError(`Class decoration lookup not installed`);

@@ -74,12 +74,12 @@ export namespace Status {
      *
      * A value of 0 forces lock reports for all async transactions; a negative value disables reporting.
      */
-    // eslint-disable-next-line prefer-const
+    // oxlint-disable-next-line prefer-const
     export let slowTransactionTime = Millis(200);
 
     /**
      * The log level for slow transaction reporting.
      */
-    // eslint-disable-next-line prefer-const
+    // oxlint-disable-next-line prefer-const
     export let slowLogLevel = LogLevel.INFO;
 }

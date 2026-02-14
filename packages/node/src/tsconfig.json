@@ -3,8 +3,7 @@
     "compilerOptions": {
         "allowJs": true,
         "types": [
-            "@matter/tools",
-            "globals"
+            "@matter/tools"
         ]
     },
     "references": [
