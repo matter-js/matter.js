@@ -59,8 +59,15 @@ export class BdxProtocol implements ProtocolHandler {
         const peerDetails = this.#peerScopes.get(peerScopeStr);
         if (peerDetails !== undefined) {
             const { storage: existingStorage, config: existingConfig } = peerDetails;
-            logger.warn(config, "vs", existingConfig);
-            if (existingStorage !== storage || isDeepEqual(config, existingConfig)) {
+            if (existingStorage !== storage || !isDeepEqual(config, existingConfig)) {
+                logger.warn(
+                    "Cannot enable BDX for peer",
+                    peer,
+                    "with different storage or config:",
+                    config,
+                    "vs",
+                    existingConfig,
+                );
                 return false;
             }
         } else {
