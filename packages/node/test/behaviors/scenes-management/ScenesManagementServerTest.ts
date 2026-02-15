@@ -34,7 +34,7 @@ describe("ScenesManagementServer", () => {
         expect(peer1).not.undefined;
 
         const onoff = peer1.endpoints.for(EndpointNumber(1));
-        // Ensure off - commands are batched via a timer, so we need MockTime.resolve() to advance time
+        // Ensure off
         await MockTime.resolve(onoff.commandsOf(OnOffClient).off());
 
         const cmds = onoff.commandsOf(ScenesManagementClient);

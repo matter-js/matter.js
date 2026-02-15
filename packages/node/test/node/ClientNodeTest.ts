@@ -191,7 +191,6 @@ describe("ClientNode", () => {
         const receivedUpdate = new Promise<boolean>(resolve => ep1.eventsOf(OnOffClient).onOff$Changed.on(resolve));
 
         // *** INVOCATION ***
-        // Commands are batched via a timer, so we need MockTime.resolve() to advance time
 
         await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle());
 
