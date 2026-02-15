@@ -13,6 +13,7 @@ import {
     Duration,
     EcdsaSignature,
     Logger,
+    MatterError,
     NetworkError,
     PublicKey,
     UnexpectedDataError,
@@ -151,12 +152,22 @@ export class CaseClient {
                 peerSessionParameters: sessionParameters,
                 caseAuthenticatedTags,
             });
-            await messenger.sendSuccess();
             NodeSession.logNew(logger, "Resumed", secureSession, messenger, fabric, peerNodeId);
 
             resumptionRecord.resumptionId = resumptionId; /* update resumptionId */
             resumptionRecord.sessionParameters = secureSession.parameters; /* update mrpParams */
             resumed = true;
+
+            try {
+                await messenger.sendSuccess();
+            } catch (error) {
+                MatterError.accept(error);
+                logger.info(
+                    messenger.exchange.via,
+                    "Error sending Sigma2Resume-Success, assume session still valid:",
+                    error,
+                );
+            }
         } else {
             // Process sigma2
             const {

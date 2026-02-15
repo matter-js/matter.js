@@ -101,7 +101,10 @@ const STRUCTURE_UPDATE_TIMEOUT = Seconds(5);
 const RECONNECT_DELAY = Seconds(15);
 
 /** Delay after a shutdown event to try to reconnect to the device */
-const RECONNECT_DELAY_AFTER_SHUTDOWN = Seconds(30); // Give device time to restart and maybe inform us about
+const RECONNECT_DELAY_AFTER_SHUTDOWN = Seconds(30); // Give the device time to restart and maybe inform us about
+
+/** Delay after a node-updated event or other such indicators to try to reconnect to the device */
+const RECONNECT_DELAY_AFTER_NODE_UPDATE = Millis(RECONNECT_DELAY_AFTER_SHUTDOWN * 4); // Give more time for update and reconnection to us
 
 /** Maximum delay after a disconnect to try to reconnect to the device */
 const RECONNECT_MAX_DELAY = Minutes(10);
@@ -399,7 +402,13 @@ export class PairedNode {
                 }`,
             );
             if (this.#connectionState === NodeStates.Connected) {
-                this.#scheduleReconnect();
+                if (this.#nodeShutdownReason === NodeShutDownReason.ForUpdate) {
+                    this.#nodeShutdownDetected = false;
+                    this.#nodeShutdownReason = undefined;
+                    this.#scheduleReconnect(RECONNECT_DELAY_AFTER_NODE_UPDATE);
+                } else {
+                    this.#scheduleReconnect();
+                }
             }
         });
 
@@ -998,7 +1007,13 @@ export class PairedNode {
             updateTimeoutHandler: () => {
                 logger.info(this.#peerAddress, `Subscription timed out ... trying to re-establish ...`);
                 if (this.#connectionState === NodeStates.Connected || !this.#reconnectDelayTimer?.isRunning) {
-                    this.triggerReconnect();
+                    if (this.#nodeShutdownReason === NodeShutDownReason.ForUpdate) {
+                        this.#nodeShutdownDetected = false;
+                        this.#nodeShutdownReason = undefined;
+                        this.#scheduleReconnect(RECONNECT_DELAY_AFTER_NODE_UPDATE);
+                    } else {
+                        this.triggerReconnect();
+                    }
                 }
             },
             subscriptionAlive: () => {
@@ -1030,7 +1045,7 @@ export class PairedNode {
                 if (this.#nodeShutdownDetected) {
                     const delay =
                         this.#nodeShutdownReason === NodeShutDownReason.ForUpdate
-                            ? Millis(RECONNECT_DELAY_AFTER_SHUTDOWN * 4)
+                            ? RECONNECT_DELAY_AFTER_NODE_UPDATE
                             : RECONNECT_DELAY_AFTER_SHUTDOWN;
                     this.#nodeShutdownDetected = false;
                     this.#nodeShutdownReason = undefined;
@@ -1169,7 +1184,7 @@ export class PairedNode {
             this.#setConnectionState(NodeStates.Reconnecting);
         }
 
-        if (!this.#reconnectDelayTimer?.isRunning) {
+        if (this.#reconnectDelayTimer?.isRunning) {
             this.#reconnectDelayTimer?.stop();
         }
         if (delay === undefined) {

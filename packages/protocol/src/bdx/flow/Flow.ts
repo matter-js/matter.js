@@ -112,20 +112,25 @@ export abstract class Flow {
         // Emit initial progress info
         this.progressInfo.emit(0, this.dataLength);
 
-        // Continue to transfer chunks until done or closed
-        while (!this.isClosed) {
-            if (await this.transferNextChunk()) {
-                break;
+        try {
+            // Continue to transfer chunks until done or closed
+            while (!this.isClosed) {
+                if (await this.transferNextChunk()) {
+                    break;
+                }
+                this.progressInfo.emit(this.transferredBytes, this.dataLength);
             }
             this.progressInfo.emit(this.transferredBytes, this.dataLength);
-        }
-        this.progressInfo.emit(this.transferredBytes, this.dataLength);
 
-        if (this.isClosed) {
+            if (this.isClosed) {
+                this.progressCancelled.emit();
+            } else {
+                await this.finalizeTransfer();
+                this.progressFinished.emit(this.transferredBytes);
+            }
+        } catch (error) {
             this.progressCancelled.emit();
-        } else {
-            await this.finalizeTransfer();
-            this.progressFinished.emit(this.transferredBytes);
+            throw error;
         }
     }
 
