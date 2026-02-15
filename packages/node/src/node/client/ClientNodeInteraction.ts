@@ -6,7 +6,6 @@
 
 import type { ActionContext } from "#behavior/context/ActionContext.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
-import type { CommandInvoker } from "#node/client/commands/CommandInvoker.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { NodePhysicalProperties } from "#node/NodePhysicalProperties.js";
 import {
@@ -28,7 +27,6 @@ import {
 } from "#protocol";
 import { EndpointNumber } from "#types";
 import { ClientEndpointInitializer } from "./ClientEndpointInitializer.js";
-import { CommandBatch } from "./commands/CommandBatch.js";
 
 /**
  * A {@link ClientInteraction} that brings the node online before attempting interaction.
@@ -36,48 +34,9 @@ import { CommandBatch } from "./commands/CommandBatch.js";
 export class ClientNodeInteraction implements Interactable<ActionContext> {
     readonly #node: ClientNode;
     #physicalProps?: PhysicalDeviceProperties;
-    #invoker?: CommandInvoker;
 
     constructor(node: ClientNode) {
         this.#node = node;
-    }
-
-    /**
-     * The node this interaction is associated with.
-     */
-    protected get node(): ClientNode {
-        return this.#node;
-    }
-
-    /**
-     * Command invoker for this interaction.
-     *
-     * For regular client nodes, returns a {@link CommandBatch} that collects commands
-     * invoked within the same timer tick and sends them as a single batched invoke-request.
-     *
-     * Override in subclasses to provide different invoker behavior (e.g., groups use plain
-     * {@link CommandInvoker} without batching).
-     */
-    get invoker() {
-        if (this.#invoker === undefined) {
-            this.#invoker = this.createInvoker();
-        }
-        return this.#invoker;
-    }
-
-    /**
-     * Create the command invoker for this interaction.
-     * Override in subclasses to provide different invoker types.
-     */
-    protected createInvoker(): CommandInvoker {
-        return new CommandBatch(this.#node);
-    }
-
-    /**
-     * Close the interaction and release resources.
-     */
-    async close() {
-        await this.#invoker?.close();
     }
 
     /**
@@ -173,6 +132,8 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
      *
      * When the number of commands exceeds the peer's MaxPathsPerInvoke limit (or 1 for older nodes),
      * commands are split across multiple parallel exchanges automatically by ClientInteraction.
+     *
+     * Single commands may be automatically batched with other commands invoked in the same timer tick.
      */
     async *invoke(request: ClientInvoke, context?: ActionContext): DecodedInvokeResult {
         // For commands, we always ignore the queue because the user is responsible for managing that themselves

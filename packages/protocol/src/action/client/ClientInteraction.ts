@@ -21,19 +21,23 @@ import {
     Abort,
     AsyncIterator,
     BasicSet,
+    createPromise,
     Diagnostic,
     Duration,
     Entropy,
     Environment,
     ImplementationError,
+    Instant,
     isObject,
     Lifetime,
     Logger,
     Minutes,
+    Mutex,
     RetrySchedule,
     Seconds,
     Time,
     TimeoutError,
+    Timer,
 } from "#general";
 import { InteractionClientMessenger, MessageType } from "#interaction/InteractionMessenger.js";
 import { Subscription } from "#interaction/Subscription.js";
@@ -51,6 +55,15 @@ import { PeerSubscription } from "./subscription/PeerSubscription.js";
 import { SustainedSubscription } from "./subscription/SustainedSubscription.js";
 
 const logger = Logger.get("ClientInteraction");
+
+/** Maximum value for commandRef (uint16) */
+const MAX_COMMAND_REF = 0xffff;
+
+interface PendingCommand {
+    request: Invoke.ConcreteCommandRequest<any>;
+    resolve: (entry: InvokeResult.DecodedData | undefined) => void;
+    reject: (error: Error) => void;
+}
 
 export type SubscriptionResult<T extends ClientSubscribe = ClientSubscribe> = Promise<
     T extends { sustain: true } ? SustainedSubscription : PeerSubscription
@@ -92,6 +105,12 @@ export class ClientInteraction<
     readonly #sustainRetries: RetrySchedule;
     readonly #address?: PeerAddress;
 
+    // Command batching state
+    readonly #pendingCommands = new Map<number, PendingCommand>();
+    readonly #batchMutex: Mutex;
+    #batchTimer?: Timer;
+    #nextCommandRef = 1;
+
     constructor({ environment, abort, sustainRetries, exchangeProvider, address }: ClientInteractionContext) {
         this.environment = environment;
         this.#exchanges = exchangeProvider ?? environment.get(ExchangeProvider);
@@ -104,6 +123,7 @@ export class ClientInteraction<
             RetrySchedule.Configuration(SustainedSubscription.DefaultRetrySchedule, sustainRetries),
         );
         this.#address = address;
+        this.#batchMutex = new Mutex(this);
 
         this.#lifetime = environment.join("interactions");
         Object.defineProperties(this.#lifetime.details, {
@@ -127,6 +147,14 @@ export class ClientInteraction<
 
     async close() {
         using _closing = this.#lifetime.closing();
+
+        // Close batching
+        this.#batchTimer?.stop();
+        for (const [, pending] of this.#pendingCommands) {
+            pending.reject(new ImplementationError("ClientInteraction closed"));
+        }
+        this.#pendingCommands.clear();
+        await this.#batchMutex.close();
 
         this.#abort();
 
@@ -405,8 +433,20 @@ export class ClientInteraction<
      *
      * When the number of commands exceeds the peer's MaxPathsPerInvoke limit (or 1 for older nodes),
      * commands are split across multiple parallel exchanges automatically.
+     *
+     * Single commands are automatically batched with other commands invoked in the same timer tick
+     * when the device supports multiple invokes per exchange and the target is not endpoint 0.
      */
     async *invoke(request: ClientInvoke, session?: SessionT): DecodedInvokeResult {
+        // Single command with batching support — auto-batch
+        if (request.invokeRequests.length === 1 && request.batchDuration !== false && this.#maxPathsPerInvoke > 1) {
+            const endpointId = request.invokeRequests[0].commandPath.endpointId;
+            if (endpointId !== undefined && endpointId !== 0) {
+                yield* this.#invokeWithBatching(request);
+                return;
+            }
+        }
+
         const maxPathsPerInvoke = this.#maxPathsPerInvoke;
         const commandCount = request.commands.size;
 
@@ -414,6 +454,125 @@ export class ClientInteraction<
             yield* this.#invokeWithSplitting(request, maxPathsPerInvoke, session);
         } else {
             yield* this.#invokeSingle(request, session);
+        }
+    }
+
+    /**
+     * Queue a single command for batched execution.
+     * Yields the raw response entry when the batch completes.
+     */
+    async *#invokeWithBatching(request: ClientInvoke): DecodedInvokeResult {
+        if (this.#abort.aborted) {
+            throw new ImplementationError("Client interaction unavailable after close");
+        }
+
+        const cmd = [...request.commands.values()][0];
+        const commandRef = this.#allocateCommandRef();
+        const { promise, resolver, rejecter } = createPromise<InvokeResult.DecodedData | undefined>();
+
+        this.#pendingCommands.set(commandRef, {
+            request: { ...cmd, commandRef } as Invoke.ConcreteCommandRequest<any>,
+            resolve: resolver,
+            reject: rejecter,
+        });
+
+        if (!this.#batchTimer?.isRunning) {
+            this.#batchTimer = Time.getTimer("invoke-batch", request.batchDuration || Instant, () =>
+                this.#flushBatch(),
+            );
+            this.#batchTimer.start();
+        }
+
+        const entry = await promise;
+        if (entry !== undefined) {
+            yield [entry];
+        }
+    }
+
+    #allocateCommandRef(): number {
+        const startRef = this.#nextCommandRef;
+
+        do {
+            const ref = this.#nextCommandRef;
+            this.#nextCommandRef = this.#nextCommandRef >= MAX_COMMAND_REF ? 1 : this.#nextCommandRef + 1;
+
+            if (!this.#pendingCommands.has(ref)) {
+                return ref;
+            }
+        } while (this.#nextCommandRef !== startRef);
+
+        throw new ImplementationError("No available commandRef values");
+    }
+
+    async #flushBatch() {
+        if (this.#pendingCommands.size === 0) {
+            return;
+        }
+
+        // Snapshot current commands and clear for next batch
+        const commands = new Map(this.#pendingCommands);
+        this.#pendingCommands.clear();
+
+        try {
+            await this.#batchMutex.produce(async () => {
+                await this.#executeBatch(commands);
+            });
+        } catch (error) {
+            // Mutex may be closed during shutdown — reject remaining commands
+            for (const [, pending] of commands) {
+                pending.reject(error as Error);
+            }
+        }
+    }
+
+    async #executeBatch(commands: Map<number, PendingCommand>) {
+        try {
+            const commandList = [...commands.values()];
+
+            // For single commands, don't include commandRef (optimization)
+            const isSingleCommand = commandList.length === 1;
+            const invokeRequests = isSingleCommand
+                ? [{ ...commandList[0].request, commandRef: undefined }]
+                : commandList.map(c => c.request);
+
+            logger.debug(`Executing ${invokeRequests.length} command(s)${isSingleCommand ? "" : " (batched)"}`);
+
+            // Use #invokeSingle directly to avoid re-entering the batching path in invoke()
+            const batchRequest = Invoke({ commands: invokeRequests }) as ClientInvoke;
+            const maxPathsPerInvoke = this.#maxPathsPerInvoke;
+            const chunks =
+                invokeRequests.length > maxPathsPerInvoke
+                    ? this.#invokeWithSplitting(batchRequest, maxPathsPerInvoke)
+                    : this.#invokeSingle(batchRequest);
+
+            for await (const chunk of chunks) {
+                for (const entry of chunk) {
+                    let pending: PendingCommand | undefined;
+
+                    if (isSingleCommand) {
+                        pending = commandList[0];
+                        commands.clear();
+                    } else {
+                        pending = commands.get(entry.commandRef!);
+                        if (!pending) {
+                            logger.warn(`Received response for unknown commandRef ${entry.commandRef}`);
+                            continue;
+                        }
+                        commands.delete(entry.commandRef!);
+                    }
+
+                    pending.resolve(entry);
+                }
+            }
+
+            // Resolve any remaining commands with undefined (valid for suppressResponse)
+            for (const [, pending] of commands) {
+                pending.resolve(undefined);
+            }
+        } catch (error) {
+            for (const [, pending] of commands) {
+                pending.reject(error as Error);
+            }
         }
     }
 

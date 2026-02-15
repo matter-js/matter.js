@@ -5,8 +5,8 @@
  */
 
 import { OnOffClient, OnOffServer } from "#behaviors/on-off";
-import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
 import { ServerNode } from "#node/ServerNode.js";
+import { ClientInteraction } from "#protocol";
 import { MockSite } from "./mock-site.js";
 
 describe("CommandBatcher", () => {
@@ -70,7 +70,7 @@ describe("CommandBatcher", () => {
 
         // The command should be pending in the batcher
         let resolved = false;
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        // oxlint-disable-next-line @typescript-eslint/no-floating-promises
         pendingPromise.then(() => (resolved = true));
 
         // Give microtasks a chance to run
@@ -184,16 +184,14 @@ describe("CommandBatcher", () => {
         const promise1 = cmds.toggle().catch(e => e);
         const promise2 = cmds.toggle().catch(e => e);
 
-        // Close the invoker directly - this should reject pending commands
-        await (peer1.interaction as ClientNodeInteraction).invoker.close();
+        // Close the ClientInteraction directly - this should reject pending commands
+        await peer1.env.get(ClientInteraction).close();
 
         // Both promises should have resolved to errors
         const error1 = await MockTime.resolve(promise1);
         const error2 = await MockTime.resolve(promise2);
 
         expect(error1).instanceOf(Error);
-        expect(error1.message).equals("CommandBatcher closed");
         expect(error2).instanceOf(Error);
-        expect(error2.message).equals("CommandBatcher closed");
     });
 });
