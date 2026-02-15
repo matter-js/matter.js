@@ -24,12 +24,12 @@ export function ClientCommandMethod(name: string) {
             const chunks = (node.interaction as ClientInteraction).invoke(
                 Invoke({
                     commands: [
-                        {
+                        Invoke.ConcreteCommandRequest<any>({
                             endpoint: this.endpoint,
                             cluster: this.cluster,
                             command: name,
                             fields,
-                        } as Invoke.ConcreteCommandRequest<any>,
+                        }),
                     ],
                 }),
             );
