@@ -30,8 +30,24 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensures trying different IPs when we have a timeout-based reconnection process
     - Fix: Fix cancelCommissionableDeviceDiscovery not working when called from the MDNS discovery callback (#2131)
 
+- @matter/nodejs-ble
+    - Fix: Fix crash when BLE peripheral disconnects during service/characteristic discovery
+
 - @matter/react-native
     - Fix: Bring BleScanner cancel support in line with nodejs-ble, fixing cancelCommissionableDeviceDiscovery not working when called from the discovery callback (#2131)
+
+- @matter/nodejs-shell
+    - Adjustment: `ota add` stores files as "local" mode; `ota list`, `ota delete`, and `ota copy` support "local" mode filter
+=======
+- @matter/node
+    - Breaking: `ControllerBehavior` is no longer present in the `EndpointType` of `ServerNode` by default
+
+- @matter/nodejs-ble
+    - Fix: Fix crash when BLE peripheral disconnects during service/characteristic discovery
+
+- @matter/nodejs-shell
+    - Adjustment: `ota add` stores files as "local" mode; `ota list`, `ota delete`, and `ota copy` support "local" mode filter
+>>>>>>> 2c3082601 (Do not include controller in ServerNode by default)
 
 - @project-chip/matter.js
     - Fix: Fixes crash when decommissioning a node while a reconnect is in progress (#3237)

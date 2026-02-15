@@ -314,7 +314,7 @@ export class MatterController {
 
         this.#construction = Construction(this, async () => {
             // Now after all Legacy stuff is prepared, initialize the ServerNode
-            this.#node = await ServerNode.create({
+            this.#node = await ServerNode.create(ServerNode.RootEndpoint.with(ControllerBehavior), {
                 environment,
                 id,
                 network: {
@@ -419,7 +419,7 @@ export class MatterController {
     }
 
     get ble() {
-        return this.node.state.controller.ble ?? false;
+        return this.node.stateOf(ControllerBehavior).ble ?? false;
     }
 
     get fabric() {

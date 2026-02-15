@@ -16,4 +16,5 @@ export * from "./product-description/index.js";
 export * from "./remote/index.js";
 export * from "./sessions/index.js";
 export * from "./software-update/index.js";
+export * from "./subscriptions/index.js";
 export * from "./websocket/index.js";

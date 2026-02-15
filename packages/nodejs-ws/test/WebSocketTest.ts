@@ -204,7 +204,6 @@ describe("WebSocket", () => {
         await cx.receiveUpdate("test", 0, "subscriptions", "a");
         await cx.receiveUpdate("test", 0, "sessions", "a");
         await cx.receiveUpdate("test", 0, "events", "a");
-        await cx.receiveUpdate("test", 0, "controller", "a");
         await cx.receiveUpdate("test", 0, "websocket", "a");
         await cx.receiveUpdate("test", 0, "descriptor", "a");
         await cx.receiveUpdate("test", 1, "identify", "a");
@@ -213,8 +212,6 @@ describe("WebSocket", () => {
         await cx.receiveUpdate("test", 1, "onOff", "a");
         await cx.receiveUpdate("test", 1, "descriptor", "a");
         await cx.receiveUpdate("test", 0, "productDescription", "a");
-        await cx.receiveUpdate("test", 0, "controller", "a");
-        await cx.receiveUpdate("test", 0, "commissioning", "a");
 
         await cx.send({
             id: "b",

@@ -23,7 +23,7 @@ import {
 import { Node } from "#node/Node.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { FabricId } from "#types";
-import type { MockServerNode } from "./mock-server-node.js";
+import { MockServerNode } from "./mock-server-node.js";
 
 const logger = Logger.get("MockSite");
 
@@ -36,20 +36,20 @@ export class MockSite {
     #nextNetworkIndex = 1;
     #storage = {} as Record<string, Storage>;
 
-    addNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpoint>(
+    addNode<T extends MockServerNode.RootEndpoint = MockServerNode.RootEndpoint>(
         type?: T,
         options?: MockServerNode.Options<T>,
     ): Promise<ServerNode<T>>;
-    addNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpoint>(
+    addNode<T extends MockServerNode.RootEndpoint = MockServerNode.RootEndpoint>(
         definition: T | MockServerNode.Configuration<T>,
         options?: MockServerNode.Options<T>,
     ): Promise<ServerNode<T>>;
-    async addNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpoint>(
+    async addNode<T extends MockServerNode.RootEndpoint = MockServerNode.RootEndpoint>(
         definition: T | MockServerNode.Configuration<T>,
         options?: MockServerNode.Options<T>,
     ) {
         const config = Node.nodeConfigFor(
-            ServerNode.RootEndpoint as T,
+            MockServerNode.RootEndpoint as T,
             definition,
             options ?? ({} as MockServerNode.Options<T>),
         );
@@ -90,7 +90,7 @@ export class MockSite {
         return node;
     }
 
-    async addController(options?: MockServerNode.Options<ServerNode.RootEndpoint>) {
+    async addController(options?: MockServerNode.Options<MockServerNode.RootEndpoint>) {
         options ??= {};
         if (options.controller?.adminFabricId === undefined) {
             options.controller ??= {};

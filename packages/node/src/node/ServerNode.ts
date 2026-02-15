@@ -6,7 +6,6 @@
 
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { CommissioningServer } from "#behavior/system/commissioning/CommissioningServer.js";
-import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavior.js";
 import { EventsBehavior } from "#behavior/system/events/EventsBehavior.js";
 import { NetworkServer } from "#behavior/system/network/NetworkServer.js";
 import { ServerNetworkRuntime } from "#behavior/system/network/ServerNetworkRuntime.js";
@@ -219,7 +218,6 @@ export namespace ServerNode {
         SubscriptionsBehavior,
         SessionsBehavior,
         EventsBehavior,
-        ControllerBehavior,
     );
 
     export interface RootEndpoint extends Identity<typeof RootEndpoint> {}
