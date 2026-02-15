@@ -259,5 +259,78 @@ describe("Ota", () => {
         ]);
     }).timeout(10_000); // locally needs 1s, but CI might be slower
 
+    it("Queue processes a single update via addUpdateConsent", async () => {
+        const data = { expectedOtaImage: Bytes.fromHex("") };
+
+        const { applyUpdatePromise, announceOtaProviderPromise, TestOtaRequestorServer } =
+            InstrumentedOtaRequestorServer({ requestUserConsent: false }, data);
+
+        const {
+            queryImagePromise,
+            applyUpdateRequestPromise,
+            checkUpdateAvailablePromise,
+            notifyUpdateAppliedPromise,
+            TestOtaProviderServer,
+        } = InstrumentedOtaProviderServer({
+            requestUserConsentForUpdate: false,
+        });
+
+        const { site, device, controller, otaProvider, otaRequestor } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        // Wait until defaults got announced
+        await MockTime.resolve(otaRequestor.eventsOf(OtaSoftwareUpdateRequestorServer).defaultOtaProviders$Changed);
+
+        // Add OTA image
+        const { otaImage, vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        data.expectedOtaImage = Bytes.of(otaImage.image);
+
+        // Get peer info
+        const peer1 = controller.peers.get("peer1")!;
+        expect(peer1).not.undefined;
+        const peerAddress = peer1.state.commissioning.peerAddress!;
+
+        // Use addUpdateConsent (queued path, not forceUpdate)
+        const added = await otaProvider.act(agent => {
+            return agent
+                .get(SoftwareUpdateManager)
+                .addUpdateConsent(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion);
+        });
+        expect(added).equals(true);
+
+        // Verify queue shows 1 entry
+        const queue1 = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates);
+        expect(queue1).length(1);
+        expect(queue1[0].targetSoftwareVersion).equals(targetSoftwareVersion);
+
+        await MockTime.resolve(announceOtaProviderPromise);
+
+        // After announcement, verify queue shows in-progress
+        const queue2 = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates);
+        expect(queue2).length(1);
+        expect(queue2[0].status).equals("in-progress");
+
+        await MockTime.resolve(queryImagePromise);
+        await MockTime.resolve(checkUpdateAvailablePromise);
+        await MockTime.resolve(applyUpdateRequestPromise);
+        await MockTime.resolve(applyUpdatePromise);
+
+        // Simulate device restart with new version
+        await MockTime.resolve(device.cancel());
+        await device.setStateOf(BasicInformationServer, { softwareVersion: targetSoftwareVersion });
+        await MockTime.resolve(device.start());
+
+        await MockTime.resolve(notifyUpdateAppliedPromise);
+
+        // Queue should be empty after completion
+        const queue3 = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates);
+        expect(queue3).length(0);
+
+        await site[Symbol.asyncDispose]();
+    }).timeout(10_000);
+
     // TODO Add more test cases for edge cases and error cases, also split out setup into helpers
 });
