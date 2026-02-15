@@ -9,7 +9,7 @@ import { ServerNode } from "#node/ServerNode.js";
 import { ClientInteraction } from "#protocol";
 import { MockSite } from "./mock-site.js";
 
-describe("CommandBatcher", () => {
+describe("ClientInvoke", () => {
     before(() => {
         MockTime.init();
 
