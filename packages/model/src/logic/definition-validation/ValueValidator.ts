@@ -34,11 +34,8 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
                 return cluster?.features.find(f => f.name === name);
             }
 
-            // Field lookup — member() handles qualified names like "SolicitOffer.VideoStreamID" natively
-            name = name
-                .split(".")
-                .map(part => camelize(part, true))
-                .join(".");
+            // Field lookup
+            name = camelize(name, true);
             for (let model = this.model.parent; model; model = model.parent) {
                 const member = model.member(name);
                 if (member) {
