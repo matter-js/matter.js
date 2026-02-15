@@ -476,10 +476,22 @@ export class ClientInteraction<
             reject: rejecter,
         });
 
-        if (!this.#batchTimer?.isRunning) {
-            this.#batchTimer = Time.getTimer("invoke-batch", request.batchDuration || Instant, () =>
-                this.#flushBatch(),
-            );
+        const duration = request.batchDuration || Instant;
+
+        if (this.#batchTimer?.isRunning) {
+            // Restart with a shorter duration if the new command needs a faster flush than the remaining time
+            const remaining = this.#batchTimer.interval - (this.#batchTimer.elapsed?.time ?? 0);
+            if (duration < remaining) {
+                this.#batchTimer.stop();
+                this.#batchTimer.interval = duration;
+                this.#batchTimer.start();
+            }
+        } else {
+            if (!this.#batchTimer) {
+                this.#batchTimer = Time.getTimer("invoke-batch", duration, () => this.#flushBatch());
+            } else {
+                this.#batchTimer.interval = duration;
+            }
             this.#batchTimer.start();
         }
 
