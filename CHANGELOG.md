@@ -18,6 +18,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/general
     - Fix: Fixes Duration string parsing
+    - Fix: Ensures that the OTA update queue is not blocked and handles stalled/errored entries correctly
+    - Fix: Improves OTA success and failure detections
 
 - @matter/model
     - Enhancement: Re-Parsed the Matter 1.4.2 specification to improve captured details. No functional changes
@@ -47,8 +49,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Fixes Session mapping for PASE/CASE messages
     - Fix: When we have sent out the success for a session resumption ensure the session is registered even if we do not get the ack
     - Fix: Ensures processing of received messages that lead to earlier Standalone Acks for previous messages
-    - Fix: Ensures that the OTA update queue is not blocked and handles stalled/errored entries correctly
-    - Fix: Improves OTA success and failure detections
 
 - @matter/types
     - Enhancement: Re-Parsed the Matter 1.4.2 specification to improve captured details. No functional changes
