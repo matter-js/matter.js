@@ -19,7 +19,7 @@ import {
     PublicKey,
     UnexpectedDataError,
 } from "#general";
-import { PeerCommunicationError } from "#peer/PeerCommunicationError.js";
+import { TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
 import { ExchangeSendOptions, MessageExchange } from "#protocol/MessageExchange.js";
 import { RetransmissionLimitReachedError } from "#protocol/errors.js";
 import { NodeSession } from "#session/NodeSession.js";
@@ -63,7 +63,7 @@ export class CaseClient {
         } catch (error) {
             if (
                 !localAbort.aborted &&
-                !causedBy(error, NetworkError, PeerCommunicationError, RetransmissionLimitReachedError)
+                !causedBy(error, NetworkError, TransientPeerCommunicationError, RetransmissionLimitReachedError)
             ) {
                 await messenger.sendError(SecureChannelStatusCode.InvalidParam);
             }

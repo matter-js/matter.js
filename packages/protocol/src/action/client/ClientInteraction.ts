@@ -26,6 +26,7 @@ import {
     Duration,
     Entropy,
     Environment,
+    Forever,
     ImplementationError,
     Instant,
     isObject,
@@ -182,22 +183,20 @@ export class ClientInteraction<
         }
 
         await using context = await this.#begin("reading", request, session);
-        const { checkAbort, messenger } = context;
+        const { abort, messenger } = context;
 
         logger.info("Read", Mark.OUTBOUND, messenger.exchange.via, request);
-        await messenger.sendReadRequest(request);
-        checkAbort();
+        await messenger.sendReadRequest(request, { abort });
 
         let attributeReportCount = 0;
         let eventReportCount = 0;
 
         const leftOverData = new Array<TypeFromSchema<typeof TlvAttributeReport>>();
-        for await (const report of messenger.readDataReports()) {
-            checkAbort();
+        for await (const report of messenger.readDataReports({ abort })) {
             attributeReportCount += report.attributeReports?.length ?? 0;
             eventReportCount += report.eventReports?.length ?? 0;
             yield InputChunk(report, leftOverData);
-            checkAbort();
+            abort.throwIfAborted();
         }
 
         logger.info(
@@ -218,17 +217,15 @@ export class ClientInteraction<
      */
     async write<T extends ClientWrite>(request: T, session?: SessionT): WriteResult<T> {
         await using context = await this.#begin("writing", request, session);
-        const { checkAbort, messenger } = context;
+        const { abort, messenger } = context;
 
         if (request.timedRequest) {
-            await messenger.sendTimedRequest(request.timeout ?? DEFAULT_TIMED_REQUEST_TIMEOUT);
-            checkAbort();
+            await messenger.sendTimedRequest(request.timeout ?? DEFAULT_TIMED_REQUEST_TIMEOUT, { abort });
         }
 
         logger.info("Write", Mark.OUTBOUND, messenger.exchange.via, request);
 
-        const response = await messenger.sendWriteCommand(request);
-        checkAbort();
+        const response = await messenger.sendWriteCommand(request, session);
         if (request.suppressResponse) {
             return undefined as Awaited<WriteResult<T>>;
         }
@@ -283,11 +280,10 @@ export class ClientInteraction<
      */
     async *#invokeSingle(request: ClientInvoke, session?: SessionT): DecodedInvokeResult {
         await using context = await this.#begin("invoking", request, session);
-        const { checkAbort, messenger } = context;
+        const { abort, messenger } = context;
 
         if (request.timedRequest) {
-            await messenger.sendTimedRequest(request.timeout ?? DEFAULT_TIMED_REQUEST_TIMEOUT);
-            checkAbort();
+            await messenger.sendTimedRequest(request.timeout ?? DEFAULT_TIMED_REQUEST_TIMEOUT, { abort });
         }
 
         logger.info(
@@ -299,14 +295,14 @@ export class ClientInteraction<
         );
 
         const { expectedProcessingTime, useExtendedFailSafeMessageResponseTimeout } = request;
-        const result = await messenger.sendInvokeCommand(
-            request,
-            expectedProcessingTime ??
+        const result = await messenger.sendInvokeCommand(request, {
+            expectedProcessingTime:
+                expectedProcessingTime ??
                 (useExtendedFailSafeMessageResponseTimeout
                     ? DEFAULT_MINIMUM_RESPONSE_TIMEOUT_WITH_FAILSAFE
                     : undefined),
-        );
-        checkAbort();
+            abort,
+        });
         if (!request.suppressResponse) {
             if (result && result.invokeResponses?.length) {
                 const chunk: InvokeResult.Chunk = result.invokeResponses
@@ -381,7 +377,7 @@ export class ClientInteraction<
             } else {
                 yield [];
             }
-            checkAbort();
+            abort.throwIfAborted();
         }
     }
 
@@ -580,6 +576,8 @@ export class ClientInteraction<
      * Subscribe to attribute values and events.
      */
     async subscribe<T extends ClientSubscribe>(request: T, session?: SessionT): SubscriptionResult<T> {
+        let interactionSession: InteractionSession | undefined = session;
+
         const subscriptionPathsCount = (request.attributeRequests?.length ?? 0) + (request.eventRequests?.length ?? 0);
         if (subscriptionPathsCount === 0) {
             throw new ImplementationError("When subscribing to attributes and events, at least one must be specified.");
@@ -620,9 +618,9 @@ export class ClientInteraction<
             );
         }
 
-        const subscribe = async (request: ClientSubscribe, abort?: AbortSignal) => {
-            await using context = await this.#begin("subscribing", request, session);
-            const { checkAbort, messenger } = context;
+        const subscribe = async (request: ClientSubscribe, extraAbort?: AbortSignal) => {
+            await using context = await this.#begin("subscribing", request, interactionSession, extraAbort);
+            const { abort, messenger } = context;
 
             logger.info(
                 "Subscribe",
@@ -636,17 +634,19 @@ export class ClientInteraction<
                 request,
             );
 
-            await messenger.sendSubscribeRequest({
-                ...request,
-                minIntervalFloorSeconds: Seconds.of(minIntervalFloor),
-                maxIntervalCeilingSeconds: Seconds.of(maxIntervalCeiling),
-            });
-            checkAbort();
+            await messenger.sendSubscribeRequest(
+                {
+                    ...request,
+                    minIntervalFloorSeconds: Seconds.of(minIntervalFloor),
+                    maxIntervalCeilingSeconds: Seconds.of(maxIntervalCeiling),
+                },
+                { abort },
+            );
 
-            await this.#handleSubscriptionResponse(request, readChunks(messenger));
-            checkAbort();
+            await this.#handleSubscriptionResponse(request, readChunks(messenger, abort));
+            abort.throwIfAborted();
 
-            const responseMessage = await messenger.nextMessage(MessageType.SubscribeResponse);
+            const responseMessage = await messenger.nextMessage(MessageType.SubscribeResponse, { abort });
             const response = TlvSubscribeResponse.decode(responseMessage.payload);
 
             const subscription = new PeerSubscription({
@@ -686,8 +686,15 @@ export class ClientInteraction<
                 abort: session?.abort,
                 retries: this.#sustainRetries,
             });
+
+            // For sustained subscriptions, the connection process should not time out; it should only stop on abort
+            if (interactionSession === undefined) {
+                interactionSession = { connectionTimeout: Forever };
+            } else {
+                interactionSession = { ...interactionSession, connectionTimeout: Forever };
+            }
         } else {
-            subscription = await subscribe(request, session?.abort);
+            subscription = await subscribe(request);
         }
 
         this.subscriptions.addActive(subscription);
@@ -714,12 +721,12 @@ export class ClientInteraction<
         }
         this.#interactions.add(request);
 
-        const checkAbort = Abort.checkerFor(session);
+        const abort = new Abort({ abort: [session?.abort, this.#abort] });
 
         const messenger = await BdxMessenger.create(this.#exchangeProvider, request.messageTimeout);
 
         const context: RequestContext<BdxMessenger> = {
-            checkAbort,
+            abort,
             messenger,
             [Symbol.asyncDispose]: async () => {
                 await messenger.close();
@@ -728,9 +735,10 @@ export class ClientInteraction<
         };
 
         try {
-            context.checkAbort();
+            abort.throwIfAborted();
         } catch (e) {
             await context[Symbol.asyncDispose]();
+            throw e;
         }
 
         return { context };
@@ -739,7 +747,8 @@ export class ClientInteraction<
     async #begin(
         what: string,
         request: ClientRead | ClientWrite | ClientInvoke | ClientSubscribe,
-        session: SessionT | undefined,
+        session: InteractionSession | undefined,
+        extraAbort?: AbortSignal,
     ) {
         using lifetime = this.#lifetime.join(what);
 
@@ -749,7 +758,7 @@ export class ClientInteraction<
             );
         }
 
-        const checkAbort = Abort.checkerFor(session);
+        const abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort] });
 
         const now = Time.nowMs;
         let messenger: InteractionClientMessenger;
@@ -781,7 +790,7 @@ export class ClientInteraction<
         });
 
         const context: RequestContext = {
-            checkAbort,
+            abort,
             messenger,
             [Symbol.asyncDispose]: async () => {
                 using _closing = lifetime.closing();
@@ -791,9 +800,10 @@ export class ClientInteraction<
         };
 
         try {
-            context.checkAbort();
+            abort.throwIfAborted();
         } catch (e) {
             await context[Symbol.asyncDispose]();
+            throw e;
         }
 
         return context;
@@ -817,15 +827,15 @@ export class ClientInteraction<
 }
 
 export interface RequestContext<M extends InteractionClientMessenger | BdxMessenger = InteractionClientMessenger> {
-    checkAbort(): void;
+    abort: Abort;
     messenger: M;
 
     [Symbol.asyncDispose](): Promise<void>;
 }
 
-async function* readChunks(messenger: InteractionClientMessenger) {
+async function* readChunks(messenger: InteractionClientMessenger, abort: Abort) {
     const leftOverData = new Array<TypeFromSchema<typeof TlvAttributeReport>>();
-    for await (const report of messenger.readDataReports()) {
+    for await (const report of messenger.readDataReports({ abort })) {
         yield InputChunk(report, leftOverData);
     }
 }

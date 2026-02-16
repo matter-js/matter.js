@@ -22,6 +22,7 @@ import {
     Timespan,
     Timestamp,
 } from "#general";
+import { PeerLossContext } from "#peer/PeerLossContext.js";
 import { SessionClosedError } from "#protocol/errors.js";
 import { MessageChannel } from "#protocol/MessageChannel.js";
 import type { MessageExchange } from "#protocol/MessageExchange.js";
@@ -268,21 +269,19 @@ export abstract class Session {
      * This terminates (potentially) subscriptions and exchanges without notifying peers.  It places the session in a
      * closing state so no further exchanges are accepted.
      *
-     * @param except an exchange that should not be forced close; this allows the current exchange to remain open
-     * @param keepSubscriptions whether to keep the subscriptions open after force-closing the session.
-     *  TODO refactor when moving subscriptions away from sessions
+     * TODO refactor when moving subscriptions away from sessions
      */
-    async initiateForceClose(except?: MessageExchange, keepSubscriptions = false) {
+    async initiateForceClose(context: PeerLossContext) {
         await this.initiateClose(async () => {
-            if (!keepSubscriptions) {
+            if (!context.keepSubscriptions) {
                 await this.closeSubscriptions();
             }
             for (const exchange of this.#exchanges) {
-                if (exchange === except) {
+                if (exchange === context.currentExchange) {
                     this.deferredClose = true;
                     continue;
                 }
-                await exchange.close(true);
+                await exchange.close(context.cause);
             }
         });
     }

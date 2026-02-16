@@ -13,5 +13,6 @@ export * from "./PeerAddress.js";
 export * from "./PeerCommunicationError.js";
 export * from "./PeerDescriptor.js";
 export * from "./PeerExchangeProvider.js";
+export * from "./PeerLossContext.js";
 export * from "./PeerSet.js";
 export * from "./PhysicalDeviceProperties.js";

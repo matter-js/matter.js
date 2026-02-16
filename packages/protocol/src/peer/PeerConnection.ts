@@ -36,7 +36,7 @@ import type { SessionManager } from "#session/SessionManager.js";
 import { SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "#types";
 import { NetworkProfiles } from "./NetworkProfile.js";
 import type { Peer } from "./Peer.js";
-import { PeerCommunicationError } from "./PeerCommunicationError.js";
+import { TransientPeerCommunicationError } from "./PeerCommunicationError.js";
 import { PeerTimingParameters } from "./PeerTimingParameters.js";
 
 const logger = Logger.get("PeerConnection");
@@ -417,7 +417,7 @@ export async function PeerConnection(
         using _handling = lifetime.join("handling error");
 
         let delay: undefined | Duration;
-        if (causedBy(e, NetworkError, PeerCommunicationError)) {
+        if (causedBy(e, NetworkError, TransientPeerCommunicationError)) {
             error(
                 address,
                 `Connection error (retry in ${Duration.format(context.timing.delayAfterNetworkError)}):`,
