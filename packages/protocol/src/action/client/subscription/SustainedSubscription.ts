@@ -7,8 +7,10 @@
 import { Subscribe } from "#action/request/Subscribe.js";
 import type { ActiveSubscription } from "#action/response/SubscribeResult.js";
 import {
+    AbortedError,
     asError,
     AsyncObservableValue,
+    causedBy,
     Diagnostic,
     Duration,
     Hours,
@@ -93,14 +95,16 @@ export class SustainedSubscription extends ClientSubscription {
                     this.subscriptionId = this.#subscription.subscriptionId;
                     break;
                 } catch (e) {
+                    if (!causedBy(e, AbortedError) || !this.abort.aborted) {
+                        logger.error(
+                            `Failed to establish subscription to ${this.peer}, retry in ${Duration.format(retry)}:`,
+                            Diagnostic.errorMessage(asError(e)),
+                        );
+                    }
+
                     if (this.abort.aborted) {
                         return;
                     }
-
-                    logger.error(
-                        `Failed to establish subscription to ${this.peer}, retry in ${Duration.format(retry)}:`,
-                        Diagnostic.errorMessage(asError(e)),
-                    );
                 }
 
                 const readyForRetry = Time.sleep("subscription retry", retry);

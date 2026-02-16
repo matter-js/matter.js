@@ -23,6 +23,8 @@ import {
 } from "#general";
 import { Subscription } from "#interaction/Subscription.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
+import { PeerInitiatedCloseError } from "#peer/PeerCommunicationError.js";
+import { PeerLossContext } from "#peer/PeerLossContext.js";
 import { NoAssociatedFabricError } from "#protocol/errors.js";
 import { MessageCounter } from "#protocol/MessageCounter.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
@@ -277,13 +279,12 @@ export class NodeSession extends SecureSession {
     async handlePeerClose() {
         this.#isPeerLost = true;
         await this.#closedByPeer.emit(true);
-        await this.handlePeerLoss();
+        await this.handlePeerLoss({ cause: new PeerInitiatedCloseError() });
     }
 
-    async handlePeerLoss(data: { currentExchange?: MessageExchange; keepSubscriptions?: boolean } = {}) {
+    async handlePeerLoss(context: PeerLossContext) {
         this.#isPeerLost = true;
-        const { currentExchange, keepSubscriptions } = data;
-        await this.initiateForceClose(currentExchange, keepSubscriptions);
+        await this.initiateForceClose(context);
     }
 
     get isPeerLost() {
@@ -315,9 +316,9 @@ export class NodeSession extends SecureSession {
         });
     }
 
-    override async initiateForceClose(currentExchange?: MessageExchange, keepSubscriptions = false) {
+    override async initiateForceClose(context: PeerLossContext) {
         this.#isPeerLost = true;
-        await super.initiateForceClose(currentExchange, keepSubscriptions);
+        await super.initiateForceClose(context);
     }
 
     override addExchange(exchange: MessageExchange) {
