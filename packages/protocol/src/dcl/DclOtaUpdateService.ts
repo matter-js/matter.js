@@ -888,8 +888,8 @@ export class DclOtaUpdateService {
             // Read header to get software version and size
             const blob = await fileDesignator.openBlob();
             const reader = blob.stream().getReader();
-
             const header = await OtaImageReader.header(reader);
+            await reader.cancel();
 
             const { currentVersion } = options;
             if (currentVersion !== undefined) {
@@ -975,7 +975,7 @@ export class DclOtaUpdateService {
         }
 
         if (filename !== undefined) {
-            // Delete a specific file by name — fileDesignatorForUpdate accepts both old and new formats
+            // Delete a specific file by name — fileDesignatorForUpdate expects the new filename format with a version suffix
             try {
                 const fileDesignator = await this.fileDesignatorForUpdate(filename);
                 await fileDesignator.delete();
