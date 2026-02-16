@@ -40,7 +40,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensures that BDX sessions inform upper layers correctly in all canceled cases
     - Fix: Fixes Session mapping for PASE/CASE messages
     - Fix: When we have sent out the success for a session resumption ensure the session is registered even if we do not get the ack
-    - Fix: Ensures processing of received messages that lead to earlier Standalone Acks for previous messages 
+    - Fix: Ensures processing of received messages that lead to earlier Standalone Acks for previous messages
+    - Fix: Ensures that production certificates are always stored correctly
 
 - @matter/types
     - Enhancement: Re-Parsed the Matter 1.4.2 specification to improve captured details. No functional changes

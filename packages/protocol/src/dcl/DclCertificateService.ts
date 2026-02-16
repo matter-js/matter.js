@@ -324,10 +324,9 @@ export class DclCertificateService {
             return;
         }
 
-        // Store the index if anything changed
+        await this.#saveIndex();
         const newCerts = this.#certificateIndex.size - initialSize;
         if (newCerts > 0) {
-            await this.#saveIndex();
             logger.info(`Downloaded and stored ${newCerts} new certificates (total: ${this.#certificateIndex.size})`);
         } else {
             logger.info(`All certificates up to date (${this.#certificateIndex.size} total)`);
@@ -378,7 +377,20 @@ export class DclCertificateService {
 
             // Check if certificate already exists before fetching details (skip check if force is true)
             if (!force && this.#certificateIndex.has(normalizedSubjectKeyId)) {
-                logger.debug(`Certificate already exists, skipping`, Diagnostic.dict({ skid: normalizedSubjectKeyId }));
+                // If the existing certificate was stored as test but is now found in production DCL, upgrade it
+                const existing = this.#certificateIndex.get(normalizedSubjectKeyId)!;
+                if (isProduction && !existing.isProduction) {
+                    existing.isProduction = true;
+                    logger.debug(
+                        `Upgraded certificate to production`,
+                        Diagnostic.dict({ skid: normalizedSubjectKeyId }),
+                    );
+                } else {
+                    logger.debug(
+                        `Certificate already exists, skipping`,
+                        Diagnostic.dict({ skid: normalizedSubjectKeyId }),
+                    );
+                }
                 return;
             }
 
@@ -495,6 +507,12 @@ export class DclCertificateService {
         derBytes: Bytes,
         metadata: DclCertificateService.CertificateMetadata,
     ) {
+        // Never downgrade isProduction from true to false
+        const existing = this.#certificateIndex.get(subjectKeyId);
+        if (existing?.isProduction && !metadata.isProduction) {
+            metadata = { ...metadata, isProduction: true };
+        }
+
         // Store the DER certificate
         await storage.set(subjectKeyId, derBytes);
 
