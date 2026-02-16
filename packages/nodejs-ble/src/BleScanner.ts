@@ -174,7 +174,7 @@ export class BleScanner implements Scanner {
             }
             if (record.VP.includes("+")) {
                 const productIdQueryId = this.#buildCommissionableQueryIdentifier({
-                    vendorId: VendorId(parseInt(record.VP.split("+")[1])),
+                    productId: parseInt(record.VP.split("+")[1]),
                 });
                 if (this.#recordWaiters.has(productIdQueryId)) {
                     return productIdQueryId;
