@@ -66,7 +66,7 @@
         "esbuild": "^0.27.3",
         "minimatch": "^10.1.2",
         "type-fest": "^5.4.3",
-        "typedoc": "^0.28.16",
+        "typedoc": "^0.28.17",
         "typedoc-github-theme": "^0.4.0",
         "typescript": "~5.9.3"
     },
