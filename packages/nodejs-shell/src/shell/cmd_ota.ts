@@ -245,9 +245,9 @@ export default function commands(theNode: MatterNode) {
                                 type: "string",
                             })
                             .option("mode", {
-                                describe: "Filter by mode (prod or test)",
+                                describe: "Filter by mode (prod, test, or local)",
                                 type: "string",
-                                choices: ["prod", "test"],
+                                choices: ["prod", "test", "local"],
                             });
                     },
                     async argv => {
@@ -355,7 +355,7 @@ export default function commands(theNode: MatterNode) {
                         if (localFile) {
                             const nodeStream = createReadStream(filePath);
                             const webStream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
-                            fd = await theNode.otaService.store(webStream, updateInfo);
+                            fd = await theNode.otaService.store(webStream, updateInfo, "local");
                         } else {
                             fd = await theNode.otaService.downloadUpdate(updateInfo);
                         }
@@ -385,9 +385,9 @@ export default function commands(theNode: MatterNode) {
                                 requires: "vid",
                             })
                             .option("mode", {
-                                describe: "Mode (prod or test) - requires --vid",
+                                describe: "Mode (prod, test, or local) - requires --vid",
                                 type: "string",
-                                choices: ["prod", "test"],
+                                choices: ["prod", "test", "local"],
                                 default: "prod",
                                 requires: "vid",
                             })
@@ -455,9 +455,9 @@ export default function commands(theNode: MatterNode) {
                                 type: "string",
                             })
                             .option("mode", {
-                                describe: "Mode when using vendor/product ID (prod or test)",
+                                describe: "Mode when using vendor/product ID (prod, test, or local)",
                                 type: "string",
-                                choices: ["prod", "test"],
+                                choices: ["prod", "test", "local"],
                             })
                             .check(argv => {
                                 if ((argv.pid || argv.mode) && !(argv.pid && argv.mode)) {
@@ -477,7 +477,7 @@ export default function commands(theNode: MatterNode) {
                             // Source is vendor ID, construct keyname
                             const vendorId = parseHexId(sourceArg, "vendor");
                             const productId = parseHexId(pid, "product");
-                            const modeStr = mode as "prod" | "test";
+                            const modeStr = mode as "prod" | "test" | "local";
                             keyname = `${vendorId.toString(16)}-${productId.toString(16)}-${modeStr}`;
                         } else {
                             // Source is keyname
