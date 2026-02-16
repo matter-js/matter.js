@@ -35,12 +35,19 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Also handle ENETUNREACH as a non-critical network error that triggers the retry logic and MDNS lookup
 
 - @matter/protocol
+    - Adjustment: OTA update files are now stored per software version, allowing different updates to be served to different nodes simultaneously. Former files are migrated.
     - Enhancement: Added some jitter to the subscription max ceiling to spread out subscription responses from devices
     - Fix: Initializes the Message Reception state counter correctly as defined by the Matter specification
     - Fix: Ensures that BDX sessions inform upper layers correctly in all canceled cases
     - Fix: Fixes Session mapping for PASE/CASE messages
     - Fix: When we have sent out the success for a session resumption ensure the session is registered even if we do not get the ack
-    - Fix: Ensures processing of received messages that lead to earlier Standalone Acks for previous messages 
+    - Fix: Ensures processing of received messages that lead to earlier Standalone Acks for previous messages
+
+- @matter/nodejs-shell
+    - Adjustment: `ota add` stores files as "local" mode; `ota list`, `ota delete`, and `ota copy` support "local" mode filter
+
+- @matter/react-native
+  - Dependency: Updated to @react-native-community/netinfo which requires "Access Wi-Fi Information Entitlement" for iOS!
 
 - @matter/types
     - Enhancement: Re-Parsed the Matter 1.4.2 specification to improve captured details. No functional changes
