@@ -53,9 +53,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: When we have sent out the success for a session resumption ensure the session is registered even if we do not get the ack
     - Fix: Ensures processing of received messages that lead to earlier Standalone Acks for previous messages
 
-- @matter/nodejs-shell
-    - Adjustment: `ota add` stores files as "local" mode; `ota list`, `ota delete`, and `ota copy` support "local" mode filter
-
 - @matter/react-native
   - Dependency: Updated to @react-native-community/netinfo which requires "Access Wi-Fi Information Entitlement" for iOS!
 
