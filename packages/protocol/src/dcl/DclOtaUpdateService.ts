@@ -38,6 +38,8 @@ export class OtaUpdateError extends MatterError {
 
 export type OtaUpdateSource = "local" | "dcl-prod" | "dcl-test";
 
+export type OtaStorageMode = "prod" | "test" | "local";
+
 export interface DeviceSoftwareVersionModelDclSchemaWithSource extends DeviceSoftwareVersionModelDclSchema {
     source: OtaUpdateSource;
 }
@@ -50,7 +52,7 @@ export type OtaUpdateInfo = DeviceSoftwareVersionModelDclSchemaWithSource;
 
 const OTA_DOWNLOAD_TIMEOUT = Minutes(5);
 
-const OTA_FILENAME_REGEX = /^[0-9a-f]+[./][0-9a-f]+[./](?:prod|test)$/i;
+const OTA_FILENAME_REGEX = /^[0-9a-f]+[./][0-9a-f]+[./](?:prod|test|local)(?:[./]\d+)?$/i;
 
 /**
  * Service to query and manage OTA updates from the Distributed Compliance Ledger (DCL), but also allows to inject own
@@ -319,23 +321,31 @@ export class DclOtaUpdateService {
         }
     }
 
-    #fileName(vid: number, pid: number, isProduction: boolean) {
-        return `${vid.toString(16)}.${pid.toString(16)}.${isProduction ? "prod" : "test"}`;
+    #fileName(vid: number, pid: number, mode: OtaStorageMode, softwareVersion: number) {
+        return `${vid.toString(16)}.${pid.toString(16)}.${mode}.${softwareVersion}`;
     }
 
     /**
      * Store an OTA update image from a ReadableStream into persistent storage.
      */
-    async store(stream: ReadableStream<Uint8Array>, updateInfo: OtaUpdateInfo, isProduction = true) {
+    async store(
+        stream: ReadableStream<Uint8Array>,
+        updateInfo: OtaUpdateInfo,
+        // TODO: Change default to "local" on next breaking release
+        mode: boolean | OtaStorageMode = true,
+    ) {
         if (this.#storage === undefined) {
             await this.construction;
         }
         const storage = this.#storage!;
 
+        if (typeof mode === "boolean") {
+            mode = mode ? "prod" : "test";
+        }
+
         const { softwareVersion, softwareVersionString, vid, pid } = updateInfo;
 
-        // Generate filename with production/test indicator (version not included as we always use latest)
-        const filename = this.#fileName(vid, pid, isProduction);
+        const filename = this.#fileName(vid, pid, mode, softwareVersion);
         const fileDesignator = new PersistedFileDesignator(filename, storage);
 
         const diagnosticInfo = {
@@ -343,7 +353,7 @@ export class DclOtaUpdateService {
             vid,
             pid,
             v: `${softwareVersion} (${softwareVersionString})`,
-            prod: isProduction,
+            mode,
         };
 
         try {
@@ -384,17 +394,16 @@ export class DclOtaUpdateService {
         const storage = this.#storage!;
 
         const { otaUrl, softwareVersion, softwareVersionString, vid, pid, source } = updateInfo;
-        const isProduction = source === "dcl-prod";
+        const mode: OtaStorageMode = source === "dcl-prod" ? "prod" : source === "dcl-test" ? "test" : "local";
 
         const diagnosticInfo = {
             vid,
             pid,
             v: `${softwareVersion} (${softwareVersionString})`,
-            prod: isProduction,
+            mode,
         };
 
-        // Generate filename with production/test indicator (a version not included as we always use latest)
-        const filename = this.#fileName(vid, pid, isProduction);
+        const filename = this.#fileName(vid, pid, mode, softwareVersion);
         const fileDesignator = new PersistedFileDesignator(filename, storage);
 
         if (await fileDesignator.exists()) {
@@ -448,7 +457,7 @@ export class DclOtaUpdateService {
                 throw new OtaUpdateError("No response body received");
             }
 
-            return await this.store(response.body, updateInfo, isProduction);
+            return await this.store(response.body, updateInfo, mode);
         } catch (error) {
             MatterError.reject(error);
             const otaError = new OtaUpdateError(`Failed to download OTA image from ${otaUrl}`);
@@ -938,7 +947,7 @@ export namespace DclOtaUpdateService {
         softwareVersionString: string;
         minApplicableSoftwareVersion?: number;
         maxApplicableSoftwareVersion?: number;
-        mode: "prod" | "test";
+        mode: OtaStorageMode;
         size: number;
     };
 
@@ -946,6 +955,7 @@ export namespace DclOtaUpdateService {
         vendorId?: number;
         productId?: number;
         isProduction?: boolean;
+        mode?: OtaStorageMode;
         currentVersion?: number;
     }
 }
