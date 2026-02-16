@@ -34,6 +34,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/nodejs
     - Fix: Also handle ENETUNREACH as a non-critical network error that triggers the retry logic and MDNS lookup
 
+- @matter/nodejs-ble
+    - Fix: Fixes the parsing of combined "VendorId+ProductId" discovery keys
+
 - @matter/protocol
     - Enhancement: Added some jitter to the subscription max ceiling to spread out subscription responses from devices
     - Fix: Initializes the Message Reception state counter correctly as defined by the Matter specification
