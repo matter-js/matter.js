@@ -9,7 +9,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
-## __WORK IN PROGRESS__
+## 0.16.9 (2026-02-16)
 
 - @matter/general
     - Fix: Fixes Duration string parsing
