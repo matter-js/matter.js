@@ -262,13 +262,11 @@ export default function commands(theNode: MatterNode) {
                         // Parse vendor and product IDs from hex strings
                         const vendorId = vid ? parseHexId(vid, "vendor") : undefined;
                         const productId = pid ? parseHexId(pid, "product") : undefined;
-                        const isProduction = mode ? mode === "prod" : undefined;
-
                         // Get list of downloaded updates
                         const updates = await theNode.otaService.find({
                             vendorId,
                             productId,
-                            isProduction,
+                            mode: mode as "prod" | "test" | "local" | undefined,
                         });
 
                         if (updates.length === 0) {
@@ -414,12 +412,10 @@ export default function commands(theNode: MatterNode) {
                             // Delete by vendor ID, product ID (optional), and mode
                             const vendorId = parseHexId(vid as string, "vendor");
                             const productId = pid ? parseHexId(pid, "product") : undefined;
-                            const isProduction = mode === "prod";
-
                             const deletedCount = await theNode.otaService.delete({
                                 vendorId,
                                 productId,
-                                isProduction,
+                                mode: mode as "prod" | "test" | "local",
                             });
 
                             if (productId !== undefined) {

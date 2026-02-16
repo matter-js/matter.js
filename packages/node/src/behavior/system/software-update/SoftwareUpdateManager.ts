@@ -307,7 +307,7 @@ export class SoftwareUpdateManager extends Behavior {
                     softwareVersion < candidateSoftwareVersion &&
                     softwareVersion >= minApplicableSoftwareVersion &&
                     softwareVersion <= maxApplicableSoftwareVersion &&
-                    (mode === "local" || mode === "prod" || (this.state.allowTestOtaImages && mode === "test")),
+                    (mode === "prod" || this.state.allowTestOtaImages),
             )
             .sort((a, b) => b.softwareVersion - a.softwareVersion);
 
@@ -366,6 +366,61 @@ export class SoftwareUpdateManager extends Behavior {
     /** Triggered by a Timer to call the update with different parameters */
     async #checkAvailableUpdates() {
         await this.queryUpdates();
+        await this.#cleanupObsoleteUpdates();
+    }
+
+    /**
+     * Clean up stored OTA files that no node in the system needs anymore.
+     * A stored version is obsolete when ALL nodes with that vendor/product ID are already at or above that version.
+     * Only cleans "prod" and "test" mode files; "local" files are user-managed.
+     */
+    async #cleanupObsoleteUpdates() {
+        const rootNode = Node.forEndpoint(this.endpoint) as ServerNode;
+
+        // Collect minimum software version per vendor/product across all nodes
+        const nodeVersions = new Map<string, number>();
+        for (const peer of rootNode.peers) {
+            const basicInfo = peer.maybeStateOf(BasicInformationClient);
+            if (basicInfo === undefined) {
+                continue;
+            }
+            const { vendorId, productId, softwareVersion } = basicInfo;
+            const key = `${vendorId}-${productId}`;
+            const existing = nodeVersions.get(key);
+            if (existing === undefined || softwareVersion < existing) {
+                nodeVersions.set(key, softwareVersion);
+            }
+        }
+
+        if (nodeVersions.size === 0) {
+            return;
+        }
+
+        // Check all stored updates against node versions
+        const storedUpdates = await this.internal.otaService.find({});
+        for (const update of storedUpdates) {
+            if (update.mode === "local") {
+                continue; // Never auto-delete user-added files
+            }
+
+            const key = `${update.vendorId}-${update.productId}`;
+            const minNodeVersion = nodeVersions.get(key);
+            if (minNodeVersion === undefined) {
+                continue; // No known nodes for this vid/pid, keep the file
+            }
+
+            // If all nodes are at or above this stored version, it's obsolete
+            if (update.softwareVersion <= minNodeVersion) {
+                try {
+                    await this.internal.otaService.delete({ filename: update.filename });
+                    logger.info(
+                        `Cleaned up obsolete OTA file ${update.filename} (all nodes at version >= ${minNodeVersion})`,
+                    );
+                } catch (error) {
+                    logger.warn(`Failed to clean up OTA file ${update.filename}:`, error);
+                }
+            }
+        }
     }
 
     /**

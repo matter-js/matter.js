@@ -381,42 +381,6 @@ export class DclOtaUpdateService {
     }
 
     /**
-     * Clean up old versions in a mode context, keeping only the latest version.
-     * Only applies to "prod" and "test" modes. "local" mode files are user-managed.
-     */
-    async #cleanupOldVersions(vid: number, pid: number, mode: OtaStorageMode, keepVersion: number) {
-        if (mode === "local") {
-            return; // Never auto-delete user-added files
-        }
-
-        if (this.#storage === undefined) {
-            return;
-        }
-
-        const modeContext = this.#storage.context
-            .createContext(vid.toString(16))
-            .createContext(pid.toString(16))
-            .createContext(mode);
-
-        const versionKeys = await modeContext.keys();
-        for (const versionKey of versionKeys) {
-            const version = parseInt(versionKey, 10);
-            if (isNaN(version) || version === keepVersion) {
-                continue;
-            }
-
-            try {
-                await modeContext.delete(versionKey);
-                logger.debug(
-                    `Cleaned up old OTA version: ${vid.toString(16)}.${pid.toString(16)}.${mode}.${versionKey}`,
-                );
-            } catch (error) {
-                logger.warn(`Failed to clean up old OTA version ${versionKey}:`, error);
-            }
-        }
-    }
-
-    /**
      * Store an OTA update image from a ReadableStream into persistent storage.
      */
     async store(
@@ -455,9 +419,6 @@ export class DclOtaUpdateService {
             await this.#verifyUpdate(updateInfo, fileDesignator);
 
             logger.debug(`Stored OTA image`, Diagnostic.dict(diagnosticInfo));
-
-            // Clean up old versions for DCL modes (not local)
-            await this.#cleanupOldVersions(vid, pid, mode, softwareVersion);
 
             return fileDesignator;
         } catch (error) {
@@ -815,8 +776,10 @@ export class DclOtaUpdateService {
         const results = await this.#findEntries(this.#storage!.context, options);
 
         // Sort by vendor ID, product ID, mode, and version
+        const modeOrder: Record<string, number> = { prod: 0, test: 1, local: 2 };
         results.sort((a, b) => {
-            if (a.mode !== b.mode) return a.mode === "prod" ? -1 : 1;
+            const modeDiff = (modeOrder[a.mode] ?? 99) - (modeOrder[b.mode] ?? 99);
+            if (modeDiff !== 0) return modeDiff;
             if (a.vendorId !== b.vendorId) return a.vendorId - b.vendorId;
             if (a.productId !== b.productId) return a.productId - b.productId;
             return a.softwareVersion - b.softwareVersion;
