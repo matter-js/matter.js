@@ -274,7 +274,7 @@ export class DclOtaUpdateService {
             });
             if (localUpdates.length) {
                 const localUpdate: DeviceSoftwareVersionModelDclSchemaWithSource = {
-                    ...localUpdates[0],
+                    ...localUpdates[localUpdates.length - 1],
                     vid: VendorId(vendorId),
                     pid: productId,
                     cdVersionNumber: 0,
@@ -950,7 +950,7 @@ export class DclOtaUpdateService {
      * If only vendor ID is provided (no product ID), all files for that vendor are deleted.
      *
      * @param options - Deletion criteria
-     * @param options.filename - Specific filename to delete (supports both old `fff1.8000.prod` and new `fff1.8000.prod.3` formats)
+     * @param options.filename - Specific filename to delete (e.g. `fff1.8000.prod.3`)
      * @param options.vendorId - Vendor ID to filter files for deletion
      * @param options.productId - Product ID to filter files for deletion (optional, requires vendorId)
      * @param options.isProduction - @deprecated Use mode instead. Production (true) or test (false) mode
@@ -1023,10 +1023,9 @@ export class DclOtaUpdateService {
 
         for (const productKey of await vendorStorage.contexts()) {
             const productContext = vendorStorage.createContext(productKey);
+            const modeSubContexts = await productContext.contexts();
 
             for (const modeStr of modesToDelete) {
-                // Handle new format: mode sub-context with version keys
-                const modeSubContexts = await productContext.contexts();
                 if (modeSubContexts.includes(modeStr)) {
                     const modeContext = productContext.createContext(modeStr);
                     for (const versionKey of await modeContext.keys()) {
