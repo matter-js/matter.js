@@ -912,27 +912,36 @@ export class DclOtaUpdateService {
      * If only vendor ID is provided (no product ID), all files for that vendor are deleted.
      *
      * @param options - Deletion criteria
-     * @param options.filename - Specific filename to delete
+     * @param options.filename - Specific filename to delete (supports both old `fff1.8000.prod` and new `fff1.8000.prod.3` formats)
      * @param options.vendorId - Vendor ID to filter files for deletion
      * @param options.productId - Product ID to filter files for deletion (optional, requires vendorId)
-     * @param options.isProduction - Production (true) or test (false) mode (defaults to true)
+     * @param options.isProduction - @deprecated Use mode instead. Production (true) or test (false) mode
+     * @param options.mode - Storage mode: "prod", "test", or "local"
      * @returns Number of files deleted
      */
-    async delete(options: { filename?: string; vendorId?: number; productId?: number; isProduction?: boolean }) {
+    async delete(options: {
+        filename?: string;
+        vendorId?: number;
+        productId?: number;
+        /** @deprecated Use mode instead */
+        isProduction?: boolean;
+        mode?: OtaStorageMode;
+    }) {
         if (this.#storage === undefined) {
             await this.construction;
         }
         const storage = this.#storage!;
 
         const { vendorId, productId, isProduction } = options;
-        let { filename } = options;
+        let { filename, mode } = options;
 
-        if (filename == undefined && vendorId !== undefined && productId !== undefined && isProduction !== undefined) {
-            filename = this.#fileName(vendorId, productId, isProduction);
+        // Backward compat: derive mode from boolean
+        if (mode === undefined && isProduction !== undefined) {
+            mode = isProduction ? "prod" : "test";
         }
 
         if (filename !== undefined) {
-            // Delete a specific file by name
+            // Delete a specific file by name — fileDesignatorForUpdate accepts both old and new formats
             try {
                 const fileDesignator = await this.fileDesignatorForUpdate(filename);
                 await fileDesignator.delete();
@@ -945,27 +954,63 @@ export class DclOtaUpdateService {
             return 1;
         }
 
+        if (vendorId !== undefined && productId !== undefined && mode !== undefined) {
+            // Delete all versions for this vid/pid/mode
+            const vendorHex = vendorId.toString(16);
+            const productHex = productId.toString(16);
+            const modeContext = storage.context.createContext(vendorHex).createContext(productHex).createContext(mode);
+            const versionKeys = await modeContext.keys();
+            let deletedCount = 0;
+            for (const versionKey of versionKeys) {
+                const fd = new PersistedFileDesignator(versionKey, modeContext);
+                await fd.delete();
+                deletedCount++;
+            }
+            // Also check for legacy bare key (pre-migration format: key "prod"/"test" directly under product context)
+            const productContext = storage.context.createContext(vendorHex).createContext(productHex);
+            if (await productContext.has(mode)) {
+                const fd = new PersistedFileDesignator(mode, productContext);
+                await fd.delete();
+                deletedCount++;
+            }
+            if (deletedCount > 0) {
+                logger.info(`Deleted ${deletedCount} OTA file(s) for ${vendorHex}.${productHex}.${mode}`);
+            }
+            return deletedCount;
+        }
+
         if (vendorId === undefined) {
             throw new OtaUpdateError("Either filename or vendorId must be provided to delete files");
         }
 
-        // Delete all files for the vendor with the specified mode
+        // Delete all files for the vendor, optionally filtered by mode
         const vendorHex = vendorId.toString(16);
-
         const vendorStorage = storage.context.createContext(vendorHex);
         let deletedCount = 0;
+        const validModes: OtaStorageMode[] = ["prod", "test", "local"];
+        const modesToDelete = mode !== undefined ? [mode] : validModes;
 
-        for (const key of await vendorStorage.contexts()) {
-            const prodStorage = vendorStorage.createContext(key);
-            if (isProduction !== false && (await prodStorage.has("prod"))) {
-                const fileDesignator = new PersistedFileDesignator("prod", prodStorage);
-                await fileDesignator.delete();
-                deletedCount++;
-            }
-            if (isProduction !== true && (await prodStorage.has("test"))) {
-                const fileDesignator = new PersistedFileDesignator("test", prodStorage);
-                await fileDesignator.delete();
-                deletedCount++;
+        for (const productKey of await vendorStorage.contexts()) {
+            const productContext = vendorStorage.createContext(productKey);
+
+            for (const modeStr of modesToDelete) {
+                // Handle new format: mode sub-context with version keys
+                const modeSubContexts = await productContext.contexts();
+                if (modeSubContexts.includes(modeStr)) {
+                    const modeContext = productContext.createContext(modeStr);
+                    for (const versionKey of await modeContext.keys()) {
+                        const fd = new PersistedFileDesignator(versionKey, modeContext);
+                        await fd.delete();
+                        deletedCount++;
+                    }
+                }
+
+                // Handle legacy bare key (pre-migration format)
+                if (await productContext.has(modeStr)) {
+                    const fd = new PersistedFileDesignator(modeStr, productContext);
+                    await fd.delete();
+                    deletedCount++;
+                }
             }
         }
 
