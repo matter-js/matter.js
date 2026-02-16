@@ -18,8 +18,6 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/general
     - Fix: Fixes Duration string parsing
-    - Fix: Ensures that the OTA update queue is not blocked and handles stalled/errored entries correctly
-    - Fix: Improves OTA success and failure detections
 
 - @matter/model
     - Enhancement: Re-Parsed the Matter 1.4.2 specification to improve captured details. No functional changes
@@ -35,6 +33,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Prevents duplicate change events for Client behaviors when attributes are Quieter
     - Fix: Ensures to use correct intervals when resuming persisted subscriptions
     - Fix: Ensures stalled or canceled OTA updates do not block additional tries
+    - Fix: Ensures that the OTA update queue is not blocked and handles stalled/errored entries correctly
+    - Fix: Improves OTA success and failure detections
 
 - @matter/nodejs
     - Fix: Also handle ENETUNREACH as a non-critical network error that triggers the retry logic and MDNS lookup
