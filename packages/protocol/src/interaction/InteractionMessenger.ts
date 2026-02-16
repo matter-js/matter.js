@@ -20,7 +20,7 @@ import {
     UnexpectedDataError,
 } from "#general";
 import { Specification } from "#model";
-import { PeerCommunicationError } from "#peer/PeerCommunicationError.js";
+import { TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
 import { RetransmissionLimitReachedError, SessionClosedError, UnexpectedMessageError } from "#protocol/errors.js";
 import {
     ReceivedStatusResponseError,
@@ -840,8 +840,8 @@ export class InteractionServerMessenger extends InteractionMessenger {
 }
 
 export class IncomingInteractionClientMessenger extends InteractionMessenger {
-    async waitFor(expectedMessageInfo: string, messageType: number, timeout?: Duration) {
-        const message = await this.anyNextMessage(expectedMessageInfo, { timeout });
+    async waitFor(expectedMessageInfo: string, messageType: number, options?: ExchangeSendOptions) {
+        const message = await this.anyNextMessage(expectedMessageInfo, options);
         const {
             payloadHeader: { messageType: receivedMessageType },
         } = message;
@@ -864,9 +864,9 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
      *
      * Data reports payloads are decoded but list attributes may be split across messages; these will require reassembly.
      */
-    async *readDataReports() {
+    async *readDataReports(options?: ExchangeSendOptions) {
         while (true) {
-            const dataReportMessage = await this.waitFor("DataReport", MessageType.ReportData);
+            const dataReportMessage = await this.waitFor("DataReport", MessageType.ReportData, options);
             const report = TlvDataReport.decode(dataReportMessage.payload);
 
             yield report;
@@ -930,7 +930,7 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
         } catch (error) {
             if (
                 this.#exchangeProvider.supportsReconnect &&
-                causedBy(error, PeerCommunicationError, SessionClosedError, RetransmissionLimitReachedError) &&
+                causedBy(error, TransientPeerCommunicationError, SessionClosedError, RetransmissionLimitReachedError) &&
                 !options?.multipleMessageInteraction
             ) {
                 // When retransmission failed (most likely due to a lost connection or invalid session), try to
@@ -949,8 +949,8 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
         }
     }
 
-    async sendReadRequest(readRequest: ReadRequest) {
-        await this.send(MessageType.ReadRequest, this.#encodeReadingRequest(TlvReadRequest, readRequest));
+    async sendReadRequest(readRequest: ReadRequest, options?: ExchangeSendOptions) {
+        await this.send(MessageType.ReadRequest, this.#encodeReadingRequest(TlvReadRequest, readRequest), options);
     }
 
     #encodeReadingRequest<T extends TlvSchema<any>>(schema: T, request: TypeFromSchema<T>) {
@@ -1007,9 +1007,9 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
         return dataVersionFilters;
     }
 
-    async sendSubscribeRequest(subscribeRequest: SubscribeRequest) {
+    async sendSubscribeRequest(subscribeRequest: SubscribeRequest, options?: ExchangeSendOptions) {
         const request = this.#encodeReadingRequest(TlvSubscribeRequest, subscribeRequest);
-        await this.send(MessageType.SubscribeRequest, request);
+        await this.send(MessageType.SubscribeRequest, request, options);
     }
 
     /**
@@ -1018,34 +1018,27 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
      */
     async sendInvokeCommand(
         invokeRequest: InvokeRequest,
-        expectedProcessingTime?: Duration,
+        options?: ExchangeSendOptions,
     ): Promise<InvokeResponse | undefined> {
         if (invokeRequest.suppressResponse) {
             await this.requestWithSuppressedResponse(
                 MessageType.InvokeRequest,
                 TlvInvokeRequest,
                 invokeRequest,
-                expectedProcessingTime,
+                options,
             );
             return undefined;
         }
 
         // Send invoke request
-        await this.send(MessageType.InvokeRequest, TlvInvokeRequest.encode(invokeRequest), {
-            expectAckOnly: false,
-            expectedProcessingTime,
-        });
+        await this.send(MessageType.InvokeRequest, TlvInvokeRequest.encode(invokeRequest), options);
 
         // Receive and accumulate responses from potentially multiple chunks
         const allInvokeResponses: InvokeResponse["invokeResponses"] = [];
         let finalResponse: InvokeResponse | undefined;
 
         while (true) {
-            const responseMessage = await this.nextMessage(
-                MessageType.InvokeResponse,
-                { expectedProcessingTime },
-                "InvokeResponse",
-            );
+            const responseMessage = await this.nextMessage(MessageType.InvokeResponse, options, "InvokeResponse");
             const response = TlvInvokeResponse.decode(responseMessage.payload);
 
             // Accumulate responses from this chunk
@@ -1072,9 +1065,9 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
         return finalResponse;
     }
 
-    async sendWriteCommand(writeRequest: WriteRequest) {
+    async sendWriteCommand(writeRequest: WriteRequest, options?: ExchangeSendOptions) {
         if (writeRequest.suppressResponse) {
-            await this.requestWithSuppressedResponse(MessageType.WriteRequest, TlvWriteRequest, writeRequest);
+            await this.requestWithSuppressedResponse(MessageType.WriteRequest, TlvWriteRequest, writeRequest, options);
         } else {
             return await this.request(
                 MessageType.WriteRequest,
@@ -1086,23 +1079,31 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
         }
     }
 
-    sendTimedRequest(timeout: Duration) {
-        return this.request(MessageType.TimedRequest, TlvTimedRequest, MessageType.StatusResponse, TlvStatusResponse, {
-            timeout,
-            interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
-        });
+    sendTimedRequest(timeout: Duration, options?: ExchangeSendOptions) {
+        return this.request(
+            MessageType.TimedRequest,
+            TlvTimedRequest,
+            MessageType.StatusResponse,
+            TlvStatusResponse,
+            {
+                timeout,
+                interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+            },
+            options,
+        );
     }
 
     private async requestWithSuppressedResponse<RequestT>(
         requestMessageType: number,
         requestSchema: TlvSchema<RequestT>,
         request: RequestT,
-        expectedProcessingTime?: Duration,
+        options?: ExchangeSendOptions,
     ): Promise<void> {
         try {
             await this.send(requestMessageType, requestSchema.encode(request), {
                 expectAckOnly: true,
-                expectedProcessingTime: expectedProcessingTime,
+                expectedProcessingTime: options?.expectedProcessingTime,
+                abort: options?.abort,
                 logContext: {
                     invokeFlags: Diagnostic.asFlags({
                         suppressResponse: true,
@@ -1124,15 +1125,19 @@ export class InteractionClientMessenger extends IncomingInteractionClientMesseng
         responseMessageType: number,
         responseSchema: TlvSchema<ResponseT>,
         request: RequestT,
-        expectedProcessingTime?: Duration,
+        options?: ExchangeSendOptions,
     ): Promise<ResponseT> {
         await this.send(requestMessageType, requestSchema.encode(request), {
             expectAckOnly: false,
-            expectedProcessingTime,
+            expectedProcessingTime: options?.expectedProcessingTime,
+            abort: options?.abort,
         });
         const responseMessage = await this.nextMessage(
             responseMessageType,
-            { expectedProcessingTime },
+            {
+                expectedProcessingTime: options?.expectedProcessingTime,
+                abort: options?.abort,
+            },
             MessageType[responseMessageType] ?? `Response-${Diagnostic.hex(responseMessageType)}`,
         );
         return responseSchema.decode(responseMessage.payload);

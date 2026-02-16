@@ -14,6 +14,8 @@ import {
     UnexpectedDataError,
     UninitializedDependencyError,
 } from "#general";
+import { FabricChangedError, FailsafeExpiredError } from "#peer/PeerCommunicationError.js";
+import { PeerLossContext } from "#peer/PeerLossContext.js";
 import type { MessageExchange } from "#protocol/MessageExchange.js";
 import type { NodeSession } from "#session/NodeSession.js";
 import { CaseAuthenticatedTag, NodeId, ValidationError, VendorId } from "#types";
@@ -145,7 +147,7 @@ export abstract class FailsafeContext {
         // TODO 3. Any temporary administrative privileges automatically granted to any open PASE session SHALL be revoked (see Section 6.6.2.8, “Bootstrapping of the Access Control Cluster”).
 
         // 4. The Secure Session Context of any PASE session still established at the Server SHALL be cleared.
-        await this.closePaseSession();
+        await this.closePaseSession({ cause: new FailsafeExpiredError() });
 
         await this.close();
     }
@@ -179,10 +181,10 @@ export abstract class FailsafeContext {
         return result;
     }
 
-    async closePaseSession(currentExchange?: MessageExchange) {
+    async closePaseSession(context: PeerLossContext) {
         const session = this.#sessions.getPaseSession();
         if (session) {
-            await session.initiateForceClose(currentExchange);
+            await session.initiateForceClose(context);
         }
     }
 
@@ -280,7 +282,7 @@ export abstract class FailsafeContext {
 
         // On expiry of the fail-safe timer, the following actions SHALL be performed in order:
         // 1. Terminate any open PASE secure session by clearing any associated Secure Session Context at the Server.
-        await this.closePaseSession(currentExchange);
+        await this.closePaseSession({ cause: new FailsafeExpiredError(), currentExchange });
 
         // TODO 2. Revoke the temporary administrative privileges granted to any open PASE session (see Section 6.6.2.8, “Bootstrapping of the Access Control Cluster”) at the Server.
 
@@ -291,7 +293,7 @@ export abstract class FailsafeContext {
             if (this.#fabrics.has(fabricIndex)) {
                 fabric = this.#fabrics.for(fabricIndex);
                 for (const session of this.#sessions.sessionsForFabricIndex(fabricIndex)) {
-                    await session.initiateForceClose(currentExchange);
+                    await session.initiateForceClose({ cause: new FabricChangedError(), currentExchange });
                 }
             }
         }

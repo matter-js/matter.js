@@ -19,7 +19,7 @@ import {
     PublicKey,
     UnexpectedDataError,
 } from "#general";
-import { PeerCommunicationError } from "#peer/PeerCommunicationError.js";
+import { TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { SessionParametersWithDurations } from "#session/pase/PaseMessages.js";
 import { ResumptionRecord, SessionManager } from "#session/SessionManager.js";
@@ -65,7 +65,7 @@ export class CaseServer implements ProtocolHandler {
         } catch (e) {
             const error = asError(e);
 
-            if (causedBy(error, FabricNotFoundError, ChannelStatusResponseError, PeerCommunicationError)) {
+            if (causedBy(error, FabricNotFoundError, ChannelStatusResponseError, TransientPeerCommunicationError)) {
                 logger.error(messenger.via, "Error establishing CASE session:", Diagnostic.errorMessage(error));
             } else {
                 logger.error(messenger.via, "Error establishing CASE session:", error);

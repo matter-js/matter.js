@@ -11,6 +11,7 @@ import {
     BasicSet,
     Bytes,
     Channel,
+    ClosedError,
     ConnectionlessTransport,
     Construction,
     Crypto,
@@ -33,6 +34,8 @@ import {
 } from "#general";
 import type { Subscription } from "#interaction/Subscription.js";
 import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
+import { PeerShutdownError } from "#peer/PeerCommunicationError.js";
+import { PeerLossContext } from "#peer/PeerLossContext.js";
 import { SessionClosedError } from "#protocol/errors.js";
 import { GroupSession } from "#session/GroupSession.js";
 import { CaseAuthenticatedTag, FabricId, FabricIndex, GroupId, NodeId } from "#types";
@@ -117,6 +120,11 @@ export interface SessionManagerContext {
 }
 
 const ID_SPACE_UPPER_BOUND = 0xffff;
+
+/**
+ * Thrown when communication terminates due node shutdown.
+ */
+export class ShutdownError extends ClosedError {}
 
 /**
  * Manages Matter sessions associated with peer connections.
@@ -446,20 +454,29 @@ export class SessionManager {
      * device supports persistent subscriptions.
      */
     handlePeerShutdown(address: PeerAddress, asOf?: Timestamp) {
-        return this.#handlePeerLoss({ address, asOf: asOf ?? Time.nowMs, keepSubscriptions: true });
+        return this.#handlePeerLoss({
+            address,
+            cause: new PeerShutdownError(),
+            asOf: asOf ?? Time.nowMs,
+            keepSubscriptions: true,
+        });
     }
 
     /**
      * Removes all Peer sessions and closes subscriptions.
      */
-    async handlePeerLoss(address: PeerAddress, asOf?: Timestamp) {
-        return await this.#handlePeerLoss({ address, asOf: asOf ?? Time.nowMs });
+    async handlePeerLoss(address: PeerAddress, cause: Error, asOf?: Timestamp) {
+        return await this.#handlePeerLoss({ address, asOf: asOf ?? Time.nowMs, cause });
     }
 
-    async #handlePeerLoss(options: { address: PeerAddress; asOf?: Timestamp; keepSubscriptions?: boolean }) {
+    async #handlePeerLoss(
+        context: {
+            address: PeerAddress;
+        } & PeerLossContext,
+    ) {
         await this.#construction;
 
-        const { address, asOf, keepSubscriptions } = options;
+        const { address, asOf } = context;
         for (const session of this.#sessions) {
             if (!session.peerIs(address)) {
                 continue;
@@ -469,7 +486,7 @@ export class SessionManager {
                 continue;
             }
 
-            await session.handlePeerLoss({ keepSubscriptions });
+            await session.handlePeerLoss(context);
         }
     }
 
@@ -749,24 +766,26 @@ export class SessionManager {
 
         await this.#subscriptionUpdateMutex;
 
+        const context: PeerLossContext = { cause: new ShutdownError("Session closed by node shutdown") };
+
         const closePromises = this.#sessions.map(async session => {
             await session.closeSubscriptions(true);
 
             // TODO - some CHIP tests (CASERecovery for one) expect us to exit without closing the session and will fail
             // if we end gracefully.  Not clear why this behavior would be desirable as it leads to a timeout when the
             // node attempts contact even if we've already restarted
-            await session.initiateForceClose();
+            await session.initiateForceClose(context);
 
             this.#sessions.delete(session);
         });
 
         for (const session of this.#unsecuredSessions.values()) {
-            closePromises.push(session.initiateForceClose());
+            closePromises.push(session.initiateForceClose(context));
         }
 
         for (const sessions of this.#groupSessions.values()) {
             for (const session of sessions) {
-                closePromises.push(session.initiateForceClose());
+                closePromises.push(session.initiateForceClose(context));
             }
         }
         await MatterAggregateError.allSettled(closePromises, "Error closing sessions").catch(error =>
