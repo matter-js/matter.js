@@ -52,7 +52,7 @@ export type OtaUpdateInfo = DeviceSoftwareVersionModelDclSchemaWithSource;
 
 const OTA_DOWNLOAD_TIMEOUT = Minutes(5);
 
-const OTA_FILENAME_REGEX = /^[0-9a-f]+[./][0-9a-f]+[./](?:prod|test|local)(?:[./]\d+)?$/i;
+const OTA_FILENAME_REGEX = /^[0-9a-f]+[./][0-9a-f]+[./](?:prod|test|local)[./]\d+$/i;
 
 /**
  * Service to query and manage OTA updates from the Distributed Compliance Ledger (DCL), but also allows to inject own
@@ -113,16 +113,17 @@ export class DclOtaUpdateService {
                     }
 
                     try {
-                        // Read the old file to get the software version from the OTA header
-                        const blob = await productContext.openBlob(key);
-                        const reader = blob.stream().getReader();
-                        const header = await OtaImageReader.header(reader);
+                        // Read the old file header to extract the software version
+                        const headerBlob = await productContext.openBlob(key);
+                        const headerReader = headerBlob.stream().getReader();
+                        const header = await OtaImageReader.header(headerReader);
+                        await headerReader.cancel();
                         const versionKey = header.softwareVersion.toString();
 
-                        // Write to new location: mode sub-context + version key
+                        // Copy to new location: mode sub-context + version key
                         const modeContext = productContext.createContext(key);
-                        const newBlob = await productContext.openBlob(key);
-                        await modeContext.writeBlobFromStream(versionKey, newBlob.stream());
+                        const copyBlob = await productContext.openBlob(key);
+                        await modeContext.writeBlobFromStream(versionKey, copyBlob.stream());
 
                         // Delete old bare key
                         await productContext.delete(key);
@@ -883,26 +884,6 @@ export class DclOtaUpdateService {
             }
         }
 
-        // Legacy support: check for bare "prod"/"test" keys from pre-migration storage.
-        // After migration these keys no longer exist, so this is a no-op for migrated storage.
-        // Can be removed in a future breaking release.
-        for (const legacyKey of ["prod", "test"] as const) {
-            if (filterMode !== undefined && filterMode !== legacyKey) continue;
-            if (isProduction === true && legacyKey !== "prod") continue;
-            if (isProduction === false && legacyKey !== "test") continue;
-
-            if (await productContext.has(legacyKey)) {
-                const fileDesignator = new PersistedFileDesignator(legacyKey, productContext);
-                const entry = await this.#checkEntry(fileDesignator, options);
-                if (entry !== undefined) {
-                    result.push({
-                        ...entry,
-                        mode: legacyKey,
-                    });
-                }
-            }
-        }
-
         return result;
     }
 
@@ -1023,13 +1004,6 @@ export class DclOtaUpdateService {
                 await fd.delete();
                 deletedCount++;
             }
-            // Also check for legacy bare key (pre-migration format: key "prod"/"test" directly under product context)
-            const productContext = storage.context.createContext(vendorHex).createContext(productHex);
-            if (await productContext.has(mode)) {
-                const fd = new PersistedFileDesignator(mode, productContext);
-                await fd.delete();
-                deletedCount++;
-            }
             if (deletedCount > 0) {
                 logger.info(`Deleted ${deletedCount} OTA file(s) for ${vendorHex}.${productHex}.${mode}`);
             }
@@ -1062,12 +1036,6 @@ export class DclOtaUpdateService {
                     }
                 }
 
-                // Handle legacy bare key (pre-migration format)
-                if (await productContext.has(modeStr)) {
-                    const fd = new PersistedFileDesignator(modeStr, productContext);
-                    await fd.delete();
-                    deletedCount++;
-                }
             }
         }
 
