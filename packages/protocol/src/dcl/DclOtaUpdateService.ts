@@ -283,14 +283,8 @@ export class DclOtaUpdateService {
                     softwareVersionValid: true,
                     schemaVersion: 1,
                     minApplicableSoftwareVersion: entry.minApplicableSoftwareVersion ?? 0,
-                    maxApplicableSoftwareVersion:
-                        entry.maxApplicableSoftwareVersion ?? entry.softwareVersion - 1,
-                    source:
-                        entry.mode === "prod"
-                            ? "dcl-prod"
-                            : entry.mode === "test"
-                              ? "dcl-test"
-                              : "local",
+                    maxApplicableSoftwareVersion: entry.maxApplicableSoftwareVersion ?? entry.softwareVersion - 1,
+                    source: entry.mode === "prod" ? "dcl-prod" : entry.mode === "test" ? "dcl-test" : "local",
                 };
                 if (
                     localUpdate.softwareVersion > currentSoftwareVersion &&
@@ -1036,7 +1030,6 @@ export class DclOtaUpdateService {
                         deletedCount++;
                     }
                 }
-
             }
         }
 

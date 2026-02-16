@@ -800,19 +800,23 @@ describe("DclOtaUpdateService", () => {
                     controller.close();
                 },
             });
-            await service.store(stream, {
-                vid: VendorId(0xfff1),
-                pid: 0x8000,
-                softwareVersion: 3,
-                softwareVersionString: "v3.0.0",
-                cdVersionNumber: 1,
-                softwareVersionValid: true,
-                otaUrl: "file://local",
-                minApplicableSoftwareVersion: 2,
-                maxApplicableSoftwareVersion: 2,
-                schemaVersion: 0,
-                source: "local",
-            }, "local");
+            await service.store(
+                stream,
+                {
+                    vid: VendorId(0xfff1),
+                    pid: 0x8000,
+                    softwareVersion: 3,
+                    softwareVersionString: "v3.0.0",
+                    cdVersionNumber: 1,
+                    softwareVersionValid: true,
+                    otaUrl: "file://local",
+                    minApplicableSoftwareVersion: 2,
+                    maxApplicableSoftwareVersion: 2,
+                    schemaVersion: 0,
+                    source: "local",
+                },
+                "local",
+            );
 
             // Filter with new mode param
             expect((await service.find({ mode: "prod" })).length).to.equal(1);
@@ -1140,7 +1144,10 @@ describe("DclOtaUpdateService", () => {
             await service.downloadUpdate(baseInfo, true);
 
             // Store as test
-            await service.downloadUpdate({ ...baseInfo, otaUrl: "https://example.com/test.bin", source: "dcl-test" }, true);
+            await service.downloadUpdate(
+                { ...baseInfo, otaUrl: "https://example.com/test.bin", source: "dcl-test" },
+                true,
+            );
 
             // Store as local
             const stream = new ReadableStream({
