@@ -307,7 +307,7 @@ export class SoftwareUpdateManager extends Behavior {
                     softwareVersion < candidateSoftwareVersion &&
                     softwareVersion >= minApplicableSoftwareVersion &&
                     softwareVersion <= maxApplicableSoftwareVersion &&
-                    (this.state.allowTestOtaImages || mode !== "test"),
+                    (mode === "local" || mode === "prod" || (this.state.allowTestOtaImages && mode === "test")),
             )
             .sort((a, b) => b.softwareVersion - a.softwareVersion);
 
