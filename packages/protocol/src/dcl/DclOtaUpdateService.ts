@@ -381,6 +381,42 @@ export class DclOtaUpdateService {
     }
 
     /**
+     * Clean up old versions in a mode context, keeping only the latest version.
+     * Only applies to "prod" and "test" modes. "local" mode files are user-managed.
+     */
+    async #cleanupOldVersions(vid: number, pid: number, mode: OtaStorageMode, keepVersion: number) {
+        if (mode === "local") {
+            return; // Never auto-delete user-added files
+        }
+
+        if (this.#storage === undefined) {
+            return;
+        }
+
+        const modeContext = this.#storage.context
+            .createContext(vid.toString(16))
+            .createContext(pid.toString(16))
+            .createContext(mode);
+
+        const versionKeys = await modeContext.keys();
+        for (const versionKey of versionKeys) {
+            const version = parseInt(versionKey, 10);
+            if (isNaN(version) || version === keepVersion) {
+                continue;
+            }
+
+            try {
+                await modeContext.delete(versionKey);
+                logger.debug(
+                    `Cleaned up old OTA version: ${vid.toString(16)}.${pid.toString(16)}.${mode}.${versionKey}`,
+                );
+            } catch (error) {
+                logger.warn(`Failed to clean up old OTA version ${versionKey}:`, error);
+            }
+        }
+    }
+
+    /**
      * Store an OTA update image from a ReadableStream into persistent storage.
      */
     async store(
@@ -419,6 +455,9 @@ export class DclOtaUpdateService {
             await this.#verifyUpdate(updateInfo, fileDesignator);
 
             logger.debug(`Stored OTA image`, Diagnostic.dict(diagnosticInfo));
+
+            // Clean up old versions for DCL modes (not local)
+            await this.#cleanupOldVersions(vid, pid, mode, softwareVersion);
 
             return fileDesignator;
         } catch (error) {
