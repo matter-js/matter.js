@@ -9,6 +9,12 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+- @matter/protocol
+    - Fix: Ensures that the OTA update queue is not blocked and handles stalled/errored entries correctly
+    - Fix: Improves OTA success and failure detections
+
 ## 0.16.9 (2026-02-16)
 
 - @matter/general
@@ -28,8 +34,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Prevents duplicate change events for Client behaviors when attributes are Quieter
     - Fix: Ensures to use correct intervals when resuming persisted subscriptions
     - Fix: Ensures stalled or canceled OTA updates do not block additional tries
-    - Fix: Ensures that the OTA update queue is not blocked and handles stalled/errored entries correctly
-    - Fix: Improves OTA success and failure detections
 
 - @matter/nodejs
     - Fix: Also handle ENETUNREACH as a non-critical network error that triggers the retry logic and MDNS lookup
