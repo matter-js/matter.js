@@ -341,8 +341,8 @@ describe("DclOtaUpdateService", () => {
 
             // Verify file was created
             expect(fileDesignator.exists()).to.be.true;
-            expect(fileDesignator.blobName).to.equal("prod");
-            expect(fileDesignator.text).to.equal("ota/fff1.8000.prod");
+            expect(fileDesignator.blobName).to.equal("3");
+            expect(fileDesignator.text).to.equal("ota/fff1.8000.prod.3");
 
             // Verify stored in storage with the correct filename
             const stored = await fileDesignator.openBlob();
@@ -652,8 +652,8 @@ describe("DclOtaUpdateService", () => {
             const fileDesignator = await service.downloadUpdate(update!, true);
 
             expect(fileDesignator.exists()).to.be.true;
-            expect(fileDesignator.blobName).to.equal("prod");
-            expect(fileDesignator.text).to.equal("ota/fff1.8000.prod");
+            expect(fileDesignator.blobName).to.equal("3");
+            expect(fileDesignator.text).to.equal("ota/fff1.8000.prod.3");
         });
     });
 
@@ -745,6 +745,86 @@ describe("DclOtaUpdateService", () => {
             expect(updates).to.be.an("array");
             expect(updates.length).to.equal(0);
         });
+
+        it("filters by mode using new mode parameter", async () => {
+            const otaImage1 = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
+            const otaImage2 = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
+
+            fetchMock.addResponse("https://example.com/ota1.bin", otaImage1, { binary: true });
+            fetchMock.addResponse("https://example.com/ota2.bin", otaImage2, { binary: true });
+            fetchMock.install();
+
+            const service = new DclOtaUpdateService(environment);
+
+            await service.downloadUpdate(
+                {
+                    vid: VendorId(0xfff1),
+                    pid: 0x8000,
+                    softwareVersion: 3,
+                    softwareVersionString: "v3.0.0",
+                    cdVersionNumber: 1,
+                    softwareVersionValid: true,
+                    otaUrl: "https://example.com/ota1.bin",
+                    otaFileSize: otaImage1.byteLength,
+                    minApplicableSoftwareVersion: 2,
+                    maxApplicableSoftwareVersion: 2,
+                    schemaVersion: 0,
+                    source: "dcl-prod",
+                },
+                true,
+            );
+
+            await service.downloadUpdate(
+                {
+                    vid: VendorId(0xfff1),
+                    pid: 0x8000,
+                    softwareVersion: 3,
+                    softwareVersionString: "v3.0.0",
+                    cdVersionNumber: 1,
+                    softwareVersionValid: true,
+                    otaUrl: "https://example.com/ota2.bin",
+                    otaFileSize: otaImage2.byteLength,
+                    minApplicableSoftwareVersion: 2,
+                    maxApplicableSoftwareVersion: 2,
+                    schemaVersion: 0,
+                    source: "dcl-test",
+                },
+                true,
+            );
+
+            // Store a local file
+            const localImage = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
+            const stream = new ReadableStream({
+                start(controller) {
+                    controller.enqueue(localImage);
+                    controller.close();
+                },
+            });
+            await service.store(stream, {
+                vid: VendorId(0xfff1),
+                pid: 0x8000,
+                softwareVersion: 3,
+                softwareVersionString: "v3.0.0",
+                cdVersionNumber: 1,
+                softwareVersionValid: true,
+                otaUrl: "file://local",
+                minApplicableSoftwareVersion: 2,
+                maxApplicableSoftwareVersion: 2,
+                schemaVersion: 0,
+                source: "local",
+            }, "local");
+
+            // Filter with new mode param
+            expect((await service.find({ mode: "prod" })).length).to.equal(1);
+            expect((await service.find({ mode: "test" })).length).to.equal(1);
+            expect((await service.find({ mode: "local" })).length).to.equal(1);
+            expect((await service.find({})).length).to.equal(3);
+
+            // isProduction backward compat: false returns test + local
+            const nonProd = await service.find({ isProduction: false });
+            expect(nonProd.length).to.equal(2);
+            expect(nonProd.map(u => u.mode).sort()).to.deep.equal(["local", "test"]);
+        });
     });
 
     describe("delete", () => {
@@ -798,7 +878,7 @@ describe("DclOtaUpdateService", () => {
             const countBefore = (await service.find({})).length;
             expect(countBefore).to.equal(2);
 
-            expect(await service.delete({ filename: "fff1.8000.prod" })).to.equal(1);
+            expect(await service.delete({ filename: "fff1.8000.prod.3" })).to.equal(1);
 
             const countAfter = (await service.find({})).length;
             expect(countAfter).to.equal(1);
@@ -830,7 +910,7 @@ describe("DclOtaUpdateService", () => {
         it("does not throw error when file not found with correct pattern", async () => {
             const service = new DclOtaUpdateService(environment);
 
-            expect(await service.delete({ filename: "0.0.test" })).equal(0);
+            expect(await service.delete({ filename: "0.0.test.1" })).equal(0);
         });
 
         it("throws error when file not found with invalid pattern", async () => {
@@ -843,6 +923,54 @@ describe("DclOtaUpdateService", () => {
             const service = new DclOtaUpdateService(environment);
 
             expect(await service.delete({ vendorId: 0xfff1, productId: 0x9999, isProduction: true })).equal(0);
+        });
+
+        it("deletes specific version by filename", async () => {
+            const service = new DclOtaUpdateService(environment);
+
+            // We have fff1.8000.prod.3 and fff1.8001.prod.2 from beforeEach
+            expect(await service.delete({ filename: "fff1.8000.prod.3" })).to.equal(1);
+
+            const remaining = await service.find({});
+            expect(remaining.length).to.equal(1);
+            expect(remaining[0].productId).to.equal(0x8001);
+        });
+
+        it("deletes all versions for a mode", async () => {
+            // Store a second version for the same vid/pid
+            const otaImage4 = await createOtaImage(crypto, 0xfff1, 0x8000, 4);
+            fetchMock.addResponse("https://example.com/ota4.bin", otaImage4, { binary: true });
+
+            const service = new DclOtaUpdateService(environment);
+            await service.downloadUpdate(
+                {
+                    vid: VendorId(0xfff1),
+                    pid: 0x8000,
+                    softwareVersion: 4,
+                    softwareVersionString: "v4.0.0",
+                    cdVersionNumber: 1,
+                    softwareVersionValid: true,
+                    otaUrl: "https://example.com/ota4.bin",
+                    otaFileSize: otaImage4.byteLength,
+                    minApplicableSoftwareVersion: 3,
+                    maxApplicableSoftwareVersion: 3,
+                    schemaVersion: 0,
+                    source: "dcl-prod",
+                },
+                true,
+            );
+
+            // Should have 3 files total (v3 + v4 for 8000, v2 for 8001)
+            expect((await service.find({})).length).to.equal(3);
+
+            // Delete all prod versions for fff1/8000
+            const deleted = await service.delete({ vendorId: 0xfff1, productId: 0x8000, mode: "prod" });
+            expect(deleted).to.equal(2);
+
+            // Only the 8001 file should remain
+            const remaining = await service.find({});
+            expect(remaining.length).to.equal(1);
+            expect(remaining[0].productId).to.equal(0x8001);
         });
     });
 
@@ -911,10 +1039,10 @@ describe("DclOtaUpdateService", () => {
             const service = new DclOtaUpdateService(environment);
             await service.downloadUpdate(updateInfo, true);
 
-            const fileDesignator = await service.fileDesignatorForUpdate("fff1.8000.prod");
+            const fileDesignator = await service.fileDesignatorForUpdate("fff1.8000.prod.3");
             expect(fileDesignator).to.not.be.undefined;
-            expect(fileDesignator.blobName).to.equal("prod");
-            expect(fileDesignator.text).to.equal("ota/fff1.8000.prod");
+            expect(fileDesignator.blobName).to.equal("3");
+            expect(fileDesignator.text).to.equal("ota/fff1.8000.prod.3");
             expect(await fileDesignator.exists()).to.be.true;
         });
 
@@ -929,7 +1057,252 @@ describe("DclOtaUpdateService", () => {
         it("throws error for non-existent file with valid pattern", async () => {
             const service = new DclOtaUpdateService(environment);
 
-            await expect(service.fileDesignatorForUpdate("0.0.test")).to.be.rejectedWith(/OTA file not found/);
+            await expect(service.fileDesignatorForUpdate("0.0.test.1")).to.be.rejectedWith(/OTA file not found/);
+        });
+    });
+
+    describe("version-keyed storage", () => {
+        it("stores multiple versions for same vid/pid/mode", async () => {
+            const otaImage3 = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
+            const otaImage4 = await createOtaImage(crypto, 0xfff1, 0x8000, 4);
+
+            fetchMock.addResponse("https://example.com/ota3.bin", otaImage3, { binary: true });
+            fetchMock.addResponse("https://example.com/ota4.bin", otaImage4, { binary: true });
+            fetchMock.install();
+
+            const service = new DclOtaUpdateService(environment);
+
+            const updateInfo3: DeviceSoftwareVersionModelDclSchemaWithSource = {
+                vid: VendorId(0xfff1),
+                pid: 0x8000,
+                softwareVersion: 3,
+                softwareVersionString: "v3.0.0",
+                cdVersionNumber: 1,
+                softwareVersionValid: true,
+                otaUrl: "https://example.com/ota3.bin",
+                otaFileSize: otaImage3.byteLength,
+                minApplicableSoftwareVersion: 2,
+                maxApplicableSoftwareVersion: 2,
+                schemaVersion: 0,
+                source: "dcl-prod",
+            };
+
+            const updateInfo4: DeviceSoftwareVersionModelDclSchemaWithSource = {
+                vid: VendorId(0xfff1),
+                pid: 0x8000,
+                softwareVersion: 4,
+                softwareVersionString: "v4.0.0",
+                cdVersionNumber: 1,
+                softwareVersionValid: true,
+                otaUrl: "https://example.com/ota4.bin",
+                otaFileSize: otaImage4.byteLength,
+                minApplicableSoftwareVersion: 3,
+                maxApplicableSoftwareVersion: 3,
+                schemaVersion: 0,
+                source: "dcl-prod",
+            };
+
+            await service.downloadUpdate(updateInfo3, true);
+            await service.downloadUpdate(updateInfo4, true);
+
+            const updates = await service.find({ vendorId: 0xfff1, productId: 0x8000 });
+            expect(updates.length).to.equal(2);
+            expect(updates.map(u => u.softwareVersion).sort()).to.deep.equal([3, 4]);
+        });
+
+        it("stores files with three different modes", async () => {
+            const otaImageProd = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
+            const otaImageTest = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
+            const otaImageLocal = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
+
+            fetchMock.addResponse("https://example.com/prod.bin", otaImageProd, { binary: true });
+            fetchMock.addResponse("https://example.com/test.bin", otaImageTest, { binary: true });
+            fetchMock.install();
+
+            const service = new DclOtaUpdateService(environment);
+
+            const baseInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
+                vid: VendorId(0xfff1),
+                pid: 0x8000,
+                softwareVersion: 3,
+                softwareVersionString: "v3.0.0",
+                cdVersionNumber: 1,
+                softwareVersionValid: true,
+                otaUrl: "https://example.com/prod.bin",
+                otaFileSize: otaImageProd.byteLength,
+                minApplicableSoftwareVersion: 2,
+                maxApplicableSoftwareVersion: 2,
+                schemaVersion: 0,
+                source: "dcl-prod",
+            };
+
+            // Store as prod
+            await service.downloadUpdate(baseInfo, true);
+
+            // Store as test
+            await service.downloadUpdate({ ...baseInfo, otaUrl: "https://example.com/test.bin", source: "dcl-test" }, true);
+
+            // Store as local
+            const stream = new ReadableStream({
+                start(controller) {
+                    controller.enqueue(otaImageLocal);
+                    controller.close();
+                },
+            });
+            await service.store(stream, baseInfo, "local");
+
+            // All three should be findable
+            const all = await service.find({ vendorId: 0xfff1, productId: 0x8000 });
+            expect(all.length).to.equal(3);
+
+            const modes = all.map(u => u.mode).sort();
+            expect(modes).to.deep.equal(["local", "prod", "test"]);
+
+            // Filter by mode
+            const prodOnly = await service.find({ vendorId: 0xfff1, productId: 0x8000, mode: "prod" });
+            expect(prodOnly.length).to.equal(1);
+            expect(prodOnly[0].mode).to.equal("prod");
+
+            const localOnly = await service.find({ vendorId: 0xfff1, productId: 0x8000, mode: "local" });
+            expect(localOnly.length).to.equal(1);
+            expect(localOnly[0].mode).to.equal("local");
+        });
+
+        it("store() accepts boolean for backward compatibility", async () => {
+            const otaImage = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
+            const service = new DclOtaUpdateService(environment);
+
+            const baseInfo: DeviceSoftwareVersionModelDclSchemaWithSource = {
+                vid: VendorId(0xfff1),
+                pid: 0x8000,
+                softwareVersion: 3,
+                softwareVersionString: "v3.0.0",
+                cdVersionNumber: 1,
+                softwareVersionValid: true,
+                otaUrl: "file://test",
+                otaFileSize: otaImage.byteLength,
+                minApplicableSoftwareVersion: 2,
+                maxApplicableSoftwareVersion: 2,
+                schemaVersion: 0,
+                source: "local",
+            };
+
+            // Store with boolean true (should map to "prod")
+            const stream1 = new ReadableStream({
+                start(controller) {
+                    controller.enqueue(otaImage);
+                    controller.close();
+                },
+            });
+            await service.store(stream1, baseInfo, true);
+
+            const prodUpdates = await service.find({ mode: "prod" });
+            expect(prodUpdates.length).to.equal(1);
+
+            // Store with boolean false (should map to "test")
+            const stream2 = new ReadableStream({
+                start(controller) {
+                    controller.enqueue(otaImage);
+                    controller.close();
+                },
+            });
+            await service.store(stream2, baseInfo, false);
+
+            const testUpdates = await service.find({ mode: "test" });
+            expect(testUpdates.length).to.equal(1);
+        });
+    });
+
+    describe("migration", () => {
+        it("migrates old bare keys to version-keyed format", async () => {
+            // Pre-populate storage with old-format data
+            const otaImage = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
+
+            // Initialize storage so we can write directly to it
+            storage.initialize();
+
+            // Write directly to storage in old format: bin/fff1/8000/prod
+            storage.set(["bin", "fff1", "8000"], "prod", otaImage);
+
+            // Creating the service triggers migration
+            const service = new DclOtaUpdateService(environment);
+            await service.construction;
+
+            // Should find the migrated entry with version key
+            const updates = await service.find({ vendorId: 0xfff1, productId: 0x8000 });
+            expect(updates.length).to.equal(1);
+            expect(updates[0].softwareVersion).to.equal(3);
+            expect(updates[0].mode).to.equal("prod");
+            expect(updates[0].filename).to.equal("fff1.8000.prod.3");
+        });
+
+        it("migrates test mode bare keys", async () => {
+            const otaImage = await createOtaImage(crypto, 0xfff1, 0x8000, 2);
+
+            // Initialize storage so we can write directly to it
+            storage.initialize();
+
+            // Write in old format: bin/fff1/8000/test
+            storage.set(["bin", "fff1", "8000"], "test", otaImage);
+
+            const service = new DclOtaUpdateService(environment);
+            await service.construction;
+
+            const updates = await service.find({ vendorId: 0xfff1, productId: 0x8000 });
+            expect(updates.length).to.equal(1);
+            expect(updates[0].softwareVersion).to.equal(2);
+            expect(updates[0].mode).to.equal("test");
+        });
+
+        it("handles corrupt files during migration gracefully", async () => {
+            // Initialize storage so we can write directly to it
+            storage.initialize();
+
+            // Write garbage data in old format
+            storage.set(["bin", "fff1", "8000"], "prod", new Uint8Array([0x00, 0x01, 0x02]));
+
+            // Service should start without error
+            const service = new DclOtaUpdateService(environment);
+            await service.construction;
+
+            // Corrupt file should be deleted, no entries found
+            const updates = await service.find({ vendorId: 0xfff1, productId: 0x8000 });
+            expect(updates.length).to.equal(0);
+        });
+
+        it("leaves already-migrated storage untouched", async () => {
+            // Store via the service (creates new-format entries)
+            const otaImage = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
+            fetchMock.addResponse("https://example.com/ota.bin", otaImage, { binary: true });
+            fetchMock.install();
+
+            const service1 = new DclOtaUpdateService(environment);
+            await service1.downloadUpdate(
+                {
+                    vid: VendorId(0xfff1),
+                    pid: 0x8000,
+                    softwareVersion: 3,
+                    softwareVersionString: "v3.0.0",
+                    cdVersionNumber: 1,
+                    softwareVersionValid: true,
+                    otaUrl: "https://example.com/ota.bin",
+                    otaFileSize: otaImage.byteLength,
+                    minApplicableSoftwareVersion: 2,
+                    maxApplicableSoftwareVersion: 2,
+                    schemaVersion: 0,
+                    source: "dcl-prod",
+                },
+                true,
+            );
+
+            // Create a second service instance (triggers migration again)
+            const service2 = new DclOtaUpdateService(environment);
+            await service2.construction;
+
+            // Should still find exactly one entry
+            const updates = await service2.find({ vendorId: 0xfff1, productId: 0x8000 });
+            expect(updates.length).to.equal(1);
+            expect(updates[0].softwareVersion).to.equal(3);
         });
     });
 });
