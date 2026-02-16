@@ -9,6 +9,14 @@ The main work (all changes without a GitHub username in brackets in the below li
 	## __WORK IN PROGRESS__
 -->
 
+## __WORK IN PROGRESS__
+
+- @matter/protocol
+    - Adjustment: OTA update files are now stored per software version, allowing different updates to be served to different nodes simultaneously. Former files are migrated.
+
+- @matter/nodejs-shell
+    - Adjustment: `ota add` stores files as "local" mode; `ota list`, `ota delete`, and `ota copy` support "local" mode filter
+
 ## 0.16.9 (2026-02-16)
 
 - @matter/general
@@ -43,7 +51,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensures that BDX sessions inform upper layers correctly in all canceled cases
     - Fix: Fixes Session mapping for PASE/CASE messages
     - Fix: When we have sent out the success for a session resumption ensure the session is registered even if we do not get the ack
-    - Fix: Ensures processing of received messages that lead to earlier Standalone Acks for previous messages 
+    - Fix: Ensures processing of received messages that lead to earlier Standalone Acks for previous messages
+
+- @matter/react-native
+  - Dependency: Updated to @react-native-community/netinfo which requires "Access Wi-Fi Information Entitlement" for iOS!
 
 - @matter/types
     - Enhancement: Re-Parsed the Matter 1.4.2 specification to improve captured details. No functional changes
