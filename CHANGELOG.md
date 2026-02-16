@@ -55,6 +55,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## 0.16.8 (2026-01-30)
 
 - @matter/node
+    - Enhancement: Added automatic Command batching for non-root-endpoint commands when a node supports it and commands come in within the same macro-tick
     - Fix: Prevent error when writing Thermostat systemMode attribute
 
 - @matter/protocol
