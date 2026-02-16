@@ -80,6 +80,7 @@ export class DclOtaUpdateService {
         this.#construction = Construction(this, async () => {
             this.#storageManager = await environment.get(StorageService).open("ota");
             this.#storage = new ScopedStorage(this.#storageManager.createContext("bin"), "ota");
+            await this.#migrateStorage();
         });
     }
 
@@ -94,6 +95,55 @@ export class DclOtaUpdateService {
 
     async close() {
         await this.#storageManager?.close();
+    }
+
+    async #migrateStorage() {
+        const storage = this.#storage!;
+        const context = storage.context;
+
+        for (const vendorHex of await context.contexts()) {
+            const vendorContext = context.createContext(vendorHex);
+            for (const productHex of await vendorContext.contexts()) {
+                const productContext = vendorContext.createContext(productHex);
+                const keys = await productContext.keys();
+
+                for (const key of keys) {
+                    if (key !== "prod" && key !== "test") {
+                        continue; // Not an old-format key
+                    }
+
+                    try {
+                        // Read the old file to get the software version from the OTA header
+                        const blob = await productContext.openBlob(key);
+                        const reader = blob.stream().getReader();
+                        const header = await OtaImageReader.header(reader);
+                        const versionKey = header.softwareVersion.toString();
+
+                        // Write to new location: mode sub-context + version key
+                        const modeContext = productContext.createContext(key);
+                        const newBlob = await productContext.openBlob(key);
+                        await modeContext.writeBlobFromStream(versionKey, newBlob.stream());
+
+                        // Delete old bare key
+                        await productContext.delete(key);
+
+                        logger.info(
+                            `Migrated OTA storage: ${vendorHex}.${productHex}.${key} -> ${vendorHex}.${productHex}.${key}.${versionKey}`,
+                        );
+                    } catch (error) {
+                        logger.warn(
+                            `Failed to migrate OTA file ${vendorHex}.${productHex}.${key}, deleting corrupt entry:`,
+                            error,
+                        );
+                        try {
+                            await productContext.delete(key);
+                        } catch {
+                            // Ignore cleanup errors
+                        }
+                    }
+                }
+            }
+        }
     }
 
     async #queryDclForUpdate(options: {
