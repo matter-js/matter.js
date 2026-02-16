@@ -264,29 +264,31 @@ export class DclOtaUpdateService {
 
         const foundUpdates = new Array<DeviceSoftwareVersionModelDclSchemaWithSource>();
 
-        // Check for local updates if allowed
+        // Check for local updates if allowed — search all modes regardless of isProduction
+        // (isProduction controls which DCL to query, not which stored files to consider)
         if (includeStoredUpdates) {
             const localUpdates = await this.find({
                 vendorId,
                 productId,
-                isProduction,
                 currentVersion: currentSoftwareVersion,
             });
-            if (localUpdates.length) {
+            // Check each stored entry for applicability (highest version first via reverse iteration)
+            for (let i = localUpdates.length - 1; i >= 0; i--) {
+                const entry = localUpdates[i];
                 const localUpdate: DeviceSoftwareVersionModelDclSchemaWithSource = {
-                    ...localUpdates[localUpdates.length - 1],
+                    ...entry,
                     vid: VendorId(vendorId),
                     pid: productId,
                     cdVersionNumber: 0,
                     softwareVersionValid: true,
                     schemaVersion: 1,
-                    minApplicableSoftwareVersion: localUpdates[0].minApplicableSoftwareVersion ?? 0,
+                    minApplicableSoftwareVersion: entry.minApplicableSoftwareVersion ?? 0,
                     maxApplicableSoftwareVersion:
-                        localUpdates[0].maxApplicableSoftwareVersion ?? localUpdates[0].softwareVersion - 1,
+                        entry.maxApplicableSoftwareVersion ?? entry.softwareVersion - 1,
                     source:
-                        localUpdates[0].mode === "prod"
+                        entry.mode === "prod"
                             ? "dcl-prod"
-                            : localUpdates[0].mode === "test"
+                            : entry.mode === "test"
                               ? "dcl-test"
                               : "local",
                 };
