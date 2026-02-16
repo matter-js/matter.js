@@ -7,7 +7,7 @@
  */
 
 import { Minutes } from "#time/TimeUnit.js";
-import { AbortedError, InternalError } from "../MatterError.js";
+import { AbortedError, ClosedError, InternalError } from "../MatterError.js";
 import { Abort } from "./Abort.js";
 import { createPromise } from "./Promises.js";
 import { EndOfStreamError } from "./Streams.js";
@@ -15,11 +15,14 @@ import { EndOfStreamError } from "./Streams.js";
 export class DataReadQueue<T> {
     readonly #queue = new Array<T>();
     #pendingRead?: { resolver: (data: T) => void; rejecter: (reason: any) => void };
-    #closed = false;
+    #closeCause?: Error;
 
     async read(abort?: AbortSignal): Promise<T> {
         const { promise, resolver } = createPromise<T>();
-        if (this.#closed) throw new EndOfStreamError();
+        if (this.#closeCause) {
+            throw new ClosedError("Channel is closed", { cause: this.#closeCause });
+        }
+
         const data = this.#queue.shift();
         if (data !== undefined) {
             return data;
@@ -55,15 +58,17 @@ export class DataReadQueue<T> {
     }
 
     write(data: T) {
-        if (this.#closed) {
-            throw new EndOfStreamError();
+        if (this.#closeCause) {
+            throw new ClosedError("Channel is closed", { cause: this.#closeCause });
         }
+
         const pendingRead = this.#pendingRead;
         this.#pendingRead = undefined;
         if (pendingRead) {
             pendingRead.resolver(data);
             return;
         }
+
         this.#queue.push(data);
     }
 
@@ -71,12 +76,12 @@ export class DataReadQueue<T> {
         return this.#queue.length;
     }
 
-    close() {
-        if (this.#closed) {
+    close(cause: Error = new EndOfStreamError()) {
+        if (this.#closeCause) {
             return;
         }
 
-        this.#closed = true;
+        this.#closeCause = cause;
 
         const pendingRead = this.#pendingRead;
         this.#pendingRead = undefined;

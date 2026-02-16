@@ -8,9 +8,11 @@ import { Message, PacketHeader, SessionType } from "#codec/MessageCodec.js";
 import { Mark } from "#common/Mark.js";
 import {
     Abort,
+    asError,
     AsyncObservableValue,
     Bytes,
     causedBy,
+    ClosedError,
     createPromise,
     CRYPTO_AEAD_MIC_LENGTH_BYTES,
     DataReadQueue,
@@ -28,7 +30,7 @@ import {
     Timer,
     Timestamp,
 } from "#general";
-import { PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
+import { PeerUnresponsiveError, TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
 import { GroupSession } from "#session/GroupSession.js";
 import type { NodeSession } from "#session/NodeSession.js";
 import { Session } from "#session/Session.js";
@@ -125,7 +127,7 @@ export interface MessageExchangeContext {
     session: Session;
     localSessionParameters: SessionParameters;
 
-    peerLost(exchange: MessageExchange): Promise<void>;
+    peerLost(exchange: MessageExchange, cause: Error): Promise<void>;
 
     /** @deprecated */
     retry(number: number): void;
@@ -195,6 +197,7 @@ export class MessageExchange {
     });
 
     #closeTimer: Timer | undefined;
+    #closeCause?: Error;
     #isDestroyed = false;
     #timedInteractionTimer: Timer | undefined;
     #used: boolean;
@@ -406,25 +409,22 @@ export class MessageExchange {
     }
 
     async send(messageType: number, payload: Bytes, options: ExchangeSendOptions = {}) {
+        if (this.#closeCause) {
+            throw new ClosedError("Session is closed", { cause: this.#closeCause });
+        }
+
         this.#sendOptions = options;
         this.#retransmissionCounter = 0;
 
         try {
             await this.#send(messageType, payload);
         } catch (e) {
-            if (causedBy(e, PeerUnresponsiveError)) {
-                await this.#context.peerLost(this);
+            if (causedBy(e, TransientPeerCommunicationError)) {
+                await this.#context.peerLost(this, asError(e));
             }
 
             throw e;
         } finally {
-            this.#retransmissionTimer?.stop();
-            this.#retransmissionTimer =
-                this.#sentMessageToAck =
-                this.#sentMessageAckSuccess =
-                this.#sentMessageAckFailure =
-                    undefined;
-            this.#retransmissionCounter = 0;
             this.#kick = undefined;
         }
     }
@@ -480,7 +480,7 @@ export class MessageExchange {
 
         let packetHeader: PacketHeader;
         if (this.session.type === SessionType.Unicast) {
-            const messageId = await abort.race(this.session.getIncrementedMessageCounter());
+            const messageId = await abort.attempt(this.session.getIncrementedMessageCounter());
             if (messageId === undefined) {
                 return;
             }
@@ -503,7 +503,7 @@ export class MessageExchange {
             if (destGroupId === 0) {
                 throw new InternalError(`Invalid GroupId extracted from NodeId ${this.#peerNodeId}`);
             }
-            const messageId = await abort.race(this.session.getIncrementedMessageCounter());
+            const messageId = await abort.attempt(this.session.getIncrementedMessageCounter());
             if (messageId === undefined) {
                 return;
             }
@@ -560,7 +560,7 @@ export class MessageExchange {
 
         this.#onSend?.(message, 0);
         using sending = this.join("sending", Diagnostic.strong(Message.via(this, message)));
-        await abort.race(this.channel.send(message, this, logContext));
+        await abort.attempt(this.channel.send(message, this, logContext));
         if (abort.aborted) {
             return;
         }
@@ -571,7 +571,7 @@ export class MessageExchange {
 
             // Await response.  Resolves with message when received, undefined when aborted, and rejects on timeout
             using _waiting = sending.join("waiting for ack");
-            const responseMessage = await abort.race(ackPromise);
+            const responseMessage = await abort.attempt(ackPromise);
             if (abort.aborted) {
                 return;
             }
@@ -595,8 +595,8 @@ export class MessageExchange {
         try {
             return await this.#nextMessage(options);
         } catch (e) {
-            if (causedBy(e, PeerUnresponsiveError)) {
-                await this.#context.peerLost(this);
+            if (causedBy(e, TransientPeerCommunicationError)) {
+                await this.#context.peerLost(this, asError(e));
             }
 
             throw e;
@@ -608,7 +608,10 @@ export class MessageExchange {
 
         if (options?.timeout !== undefined) {
             timeout = options.timeout;
-        } else if (!this.session.isClosed && (!options?.abort || options?.expectedProcessingTime !== undefined)) {
+        } else if (
+            !this.session.isClosed &&
+            ((!this.#sendOptions.abort && !options?.abort) || options?.expectedProcessingTime !== undefined)
+        ) {
             timeout = this.channel.calculateMaximumPeerResponseTime(
                 this.session.parameters,
                 this.context.localSessionParameters,
@@ -797,18 +800,25 @@ export class MessageExchange {
 
     /**
      * Closes the exchange.
-     * If force is true, the exchange will be closed immediately, even if there are still messages to send.
-     * If force is false, the exchange will be closed only after all messages have been sent.
+     *
+     * If cause is defined, the exchange is closed immediately, even if there are still messages to send.  Further
+     * attempts at communicating via the exchange will throw this error.
+     *
+     * If cause is undefined, the exchange is closed only after all messages have been sent.
      */
-    async close(force = false) {
+    async close(cause?: Error) {
         if (this.#isDestroyed) {
             return;
         }
 
-        this.#lifetime.closing();
+        if (this.#closeCause === undefined) {
+            this.#closeCause = cause;
+        }
+
+        using closing = this.#lifetime.closing();
 
         if (this.#closeTimer !== undefined) {
-            if (force) {
+            if (cause) {
                 // Force close does not wait any longer
                 this.#closeTimer.stop();
                 return this.#close();
@@ -822,24 +832,29 @@ export class MessageExchange {
             logger.info(this.via, `Exchange never used, closing directly`);
             return this.#close();
         }
-        await this.#closing.emit(true);
+
+        {
+            using _emitting = closing.join("emitting");
+            await this.#closing.emit(true);
+        }
 
         if (this.#receivedMessageToAck !== undefined) {
             this.#receivedMessageAckTimer.stop();
             const messageToAck = this.#receivedMessageToAck;
             this.#receivedMessageToAck = undefined;
             try {
+                using _acking = closing.join("acking");
                 await this.#sendStandaloneAckForMessage(messageToAck);
             } catch (error) {
                 logger.error(this.via, `Unhandled error closing exchange`, error);
             }
-            if (force) {
+            if (cause) {
                 // We have sent the Ack, so close here, no retries needed
-                return this.#close();
+                await this.#close();
             }
-        } else if (this.#sentMessageToAck === undefined || force) {
+        } else if (this.#sentMessageToAck === undefined || cause) {
             // No message left that we need to ack and no sent message left that waits for an ack, close directly
-            return this.#close();
+            await this.#close();
         }
 
         // Wait until all potential outstanding Resubmissions are done (up to default of MRP.MAX_TRANSMISSIONS), also
@@ -868,7 +883,7 @@ export class MessageExchange {
 
         this.#closeTimer?.stop();
         this.#timedInteractionTimer?.stop();
-        this.#messagesQueue.close();
+        this.#messagesQueue.close(this.#closeCause);
 
         await this.#closed.emit(true);
     }

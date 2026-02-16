@@ -32,7 +32,7 @@ import { PeerAddress } from "#peer/PeerAddress.js";
 import { SecureChannelMessenger } from "#securechannel/SecureChannelMessenger.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { Session } from "#session/Session.js";
-import { SessionManager } from "#session/SessionManager.js";
+import { SessionManager, ShutdownError } from "#session/SessionManager.js";
 import { UNICAST_UNSECURE_SESSION_ID, UnsecuredSession } from "#session/UnsecuredSession.js";
 import { FabricIndex, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "#types";
 import { MessageExchange, MessageExchangeContext } from "./MessageExchange.js";
@@ -153,7 +153,7 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
         const exchangesClosed = new BasicMultiplex();
 
         for (const exchange of this.#exchanges.values()) {
-            exchangesClosed.add(exchange.close(true));
+            exchangesClosed.add(exchange.close(new ShutdownError("Exchange closed by node shutdown")));
         }
 
         {
@@ -450,7 +450,7 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
             session,
             localSessionParameters: this.#sessions.sessionParameters,
 
-            peerLost: async (exchange: MessageExchange) => {
+            peerLost: async (exchange: MessageExchange, cause: Error) => {
                 if (!(session instanceof NodeSession)) {
                     return;
                 }
@@ -461,13 +461,14 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
                     session.peerAddress.nodeId === NodeId.UNSPECIFIED_NODE_ID
                 ) {
                     await session.handlePeerLoss({
+                        cause,
                         currentExchange: exchange,
                     });
                     return;
                 }
 
                 // Report peer loss to the session manager; this notify all sessions for the peer
-                await this.#sessions.handlePeerLoss(session.peerAddress, Time.nowMs);
+                await this.#sessions.handlePeerLoss(session.peerAddress, cause, Time.nowMs);
             },
 
             retry: number => this.#sessions.retry.emit(session, number),

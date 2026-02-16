@@ -112,9 +112,13 @@ export function serializeToJs(value: unknown) {
     return parts.join("");
 }
 
+export function hex(number: number | bigint) {
+    return number.toString(16);
+}
+
 export namespace hex {
     export function fixed(value: number | bigint, width: number) {
-        return value.toString(16).padStart(width, "0");
+        return hex(value).padStart(width, "0");
     }
 
     export function byte(value: number | bigint) {

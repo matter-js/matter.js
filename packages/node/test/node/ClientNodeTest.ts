@@ -17,9 +17,9 @@ import { WindowCoveringDevice } from "#devices/window-covering";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import {
-    AbortedError,
     b$,
     Bytes,
+    causedBy,
     Crypto,
     deepCopy,
     Entropy,
@@ -1037,12 +1037,7 @@ async function expectTimeoutError(promise: Promise<any>) {
     try {
         return await MockTime.resolve(promise);
     } catch (e) {
-        if (!(e instanceof AbortedError)) {
-            throw e;
-        }
-
-        expect(e instanceof AbortedError);
-        expect(e.cause instanceof PeerUnreachableError);
+        expect(causedBy(e, PeerUnreachableError));
     }
 }
 

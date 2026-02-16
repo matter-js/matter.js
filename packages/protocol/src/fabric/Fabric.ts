@@ -29,6 +29,7 @@ import {
 import { FabricGroups, GROUP_SECURITY_INFO } from "#groups/FabricGroups.js";
 import { FabricAccessControl } from "#interaction/FabricAccessControl.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
+import { FabricChangedError, FabricRemovedError } from "#peer/PeerCommunicationError.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { SecureSession } from "#session/SecureSession.js";
 import {
@@ -376,7 +377,7 @@ export class Fabric {
             await session.initiateClose(async () => {
                 await session.closeSubscriptions(true);
             });
-            await session.initiateForceClose(currentExchange);
+            await session.initiateForceClose({ cause: new FabricChangedError(), currentExchange });
         }
     }
 
@@ -409,7 +410,7 @@ export class Fabric {
         await this.#deleting.emit();
 
         for (const session of [...this.#sessions]) {
-            await session.initiateForceClose(currentExchange);
+            await session.initiateForceClose({ cause: new FabricRemovedError(), currentExchange });
         }
 
         await this.#deleted.emit();
