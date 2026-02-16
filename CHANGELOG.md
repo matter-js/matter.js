@@ -35,8 +35,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Also handle ENETUNREACH as a non-critical network error that triggers the retry logic and MDNS lookup
 
 - @matter/protocol
-    - Adjustment: OTA update files are now stored per software version, allowing different updates to be served to different nodes simultaneously. Former files are migrated.
     - Enhancement: Added some jitter to the subscription max ceiling to spread out subscription responses from devices
+    - Adjustment: OTA update files are now stored per software version, allowing different updates to be served to different nodes simultaneously. Former files are migrated.
     - Fix: Initializes the Message Reception state counter correctly as defined by the Matter specification
     - Fix: Ensures that BDX sessions inform upper layers correctly in all canceled cases
     - Fix: Fixes Session mapping for PASE/CASE messages
