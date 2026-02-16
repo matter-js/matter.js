@@ -741,7 +741,7 @@ export class DclOtaUpdateService {
             return vendorEntries.map(entry => ({
                 ...entry,
                 vendorId,
-                filename: this.#fileName(vendorId, entry.productId, entry.mode === "prod"),
+                filename: this.#fileName(vendorId, entry.productId, entry.mode, entry.softwareVersion),
             }));
         }
 
@@ -754,7 +754,7 @@ export class DclOtaUpdateService {
                 ...vendorEntries.map(entry => ({
                     ...entry,
                     vendorId,
-                    filename: this.#fileName(vendorId, entry.productId, entry.mode === "prod"),
+                    filename: this.#fileName(vendorId, entry.productId, entry.mode, entry.softwareVersion),
                 })),
             );
         }
@@ -788,26 +788,61 @@ export class DclOtaUpdateService {
     }
 
     async #findVendorProductEntries(productContext: StorageContext, options: DclOtaUpdateService.FindOptions) {
-        const { isProduction } = options;
+        const { isProduction, mode: filterMode } = options;
 
         const result = new Array<Omit<DclOtaUpdateService.OtaUpdateListEntry, "vendorId" | "productId" | "filename">>();
 
-        if (isProduction !== false && (await productContext.has("prod"))) {
-            const prodResult = await this.#checkEntry(new PersistedFileDesignator("prod", productContext), options);
-            if (prodResult !== undefined) {
-                result.push({
-                    ...prodResult,
-                    mode: "prod",
-                });
+        // New format: enumerate mode sub-contexts
+        const modeContexts = await productContext.contexts();
+        const validModes: OtaStorageMode[] = ["prod", "test", "local"];
+
+        for (const modeStr of modeContexts) {
+            if (!validModes.includes(modeStr as OtaStorageMode)) {
+                continue;
+            }
+            const mode = modeStr as OtaStorageMode;
+
+            // Apply mode/isProduction filters
+            if (filterMode !== undefined && filterMode !== mode) {
+                continue;
+            }
+            if (filterMode === undefined && isProduction !== undefined) {
+                if (isProduction === true && mode !== "prod") continue;
+                if (isProduction === false && mode === "prod") continue;
+            }
+
+            const modeContext = productContext.createContext(modeStr);
+            const versionKeys = await modeContext.keys();
+
+            for (const versionKey of versionKeys) {
+                const fileDesignator = new PersistedFileDesignator(versionKey, modeContext);
+                const entry = await this.#checkEntry(fileDesignator, options);
+                if (entry !== undefined) {
+                    result.push({
+                        ...entry,
+                        mode,
+                    });
+                }
             }
         }
-        if (isProduction !== true && (await productContext.has("test"))) {
-            const testResult = await this.#checkEntry(new PersistedFileDesignator("test", productContext), options);
-            if (testResult !== undefined) {
-                result.push({
-                    ...testResult,
-                    mode: "test",
-                });
+
+        // Legacy support: check for bare "prod"/"test" keys from pre-migration storage.
+        // After migration these keys no longer exist, so this is a no-op for migrated storage.
+        // Can be removed in a future breaking release.
+        for (const legacyKey of ["prod", "test"] as const) {
+            if (filterMode !== undefined && filterMode !== legacyKey) continue;
+            if (isProduction === true && legacyKey !== "prod") continue;
+            if (isProduction === false && legacyKey !== "test") continue;
+
+            if (await productContext.has(legacyKey)) {
+                const fileDesignator = new PersistedFileDesignator(legacyKey, productContext);
+                const entry = await this.#checkEntry(fileDesignator, options);
+                if (entry !== undefined) {
+                    result.push({
+                        ...entry,
+                        mode: legacyKey,
+                    });
+                }
             }
         }
 
