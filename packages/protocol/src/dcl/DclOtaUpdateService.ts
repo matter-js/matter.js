@@ -232,7 +232,12 @@ export class DclOtaUpdateService {
                     minApplicableSoftwareVersion: localUpdates[0].minApplicableSoftwareVersion ?? 0,
                     maxApplicableSoftwareVersion:
                         localUpdates[0].maxApplicableSoftwareVersion ?? localUpdates[0].softwareVersion - 1,
-                    source: localUpdates[0].mode === "prod" ? "dcl-prod" : "local",
+                    source:
+                        localUpdates[0].mode === "prod"
+                            ? "dcl-prod"
+                            : localUpdates[0].mode === "test"
+                              ? "dcl-test"
+                              : "local",
                 };
                 if (
                     localUpdate.softwareVersion > currentSoftwareVersion &&
