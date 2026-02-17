@@ -30,6 +30,21 @@ const TestCMS_SignerPrivateKey = Bytes.fromHex("AEF3484116E9481EC57BE0472DF41BF4
 // Look for the line under "X509v3 Subject Key Identifier:"
 const TestCMS_SignerSubjectKeyIdentifier = Bytes.fromHex("62FA823359ACFAA9963E1CFA140ADDF504F37160");
 
+/**
+ * Returns the well-known test CD signer's subject key identifier and public key.
+ *
+ * The public key is derived from the private key in Appendix F of the Matter 1.1 Core Specification.
+ * This is useful for validating Certification Declarations signed with the test signer.
+ */
+export function testCdSignerInfo(): { subjectKeyId: Bytes; publicKey: Bytes } {
+    // PrivateKey() automatically derives the public key from the private key bytes
+    const key = PrivateKey(TestCMS_SignerPrivateKey);
+    return {
+        subjectKeyId: TestCMS_SignerSubjectKeyIdentifier,
+        publicKey: key.publicKey,
+    };
+}
+
 /** A Matter Certification Declaration */
 export class CertificationDeclaration {
     #eContent: Bytes;
