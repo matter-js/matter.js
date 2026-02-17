@@ -9,9 +9,12 @@ import { DclCertificateService } from "#dcl/DclCertificateService.js";
 import {
     Bytes,
     Days,
+    DerCodec,
+    DerType,
     Environment,
     Minutes,
     MockFetch,
+    ObjectId,
     StorageBackendMemory,
     StorageManager,
     StorageService,
@@ -116,6 +119,11 @@ describe("DclCertificateService", () => {
 
         // Create StorageService with a factory that returns the storage backend
         new StorageService(environment, (_namespace: string) => storage);
+
+        // Default empty revocation response for all tests
+        fetchMock.addResponse("/dcl/pki/revocation-points", {
+            PkiRevocationDistributionPoint: [],
+        });
 
         MockTime.reset();
     });
@@ -569,6 +577,9 @@ describe("DclCertificateService", () => {
 
             // Reset and set up mocks for second service instance
             fetchMock.uninstall();
+            fetchMock.addResponse("/dcl/pki/revocation-points", {
+                PkiRevocationDistributionPoint: [],
+            });
             fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
             fetchMock.addResponse(
                 "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
@@ -643,15 +654,15 @@ describe("DclCertificateService", () => {
             await service.update(false);
 
             const afterNormalUpdateCallCount = fetchMock.getCallLog().length;
-            // Should only fetch root certificate list (1 call), not individual certificates
-            expect(afterNormalUpdateCallCount).to.equal(initialCallCount + 1);
+            // Should fetch root certificate list (1 call) + revocation points (1 call), not individual certificates
+            expect(afterNormalUpdateCallCount).to.equal(initialCallCount + 2);
 
             // Now trigger update WITH force - should re-fetch everything including cert details
             await service.update(true);
 
             const afterForceUpdateCallCount = fetchMock.getCallLog().length;
-            // Should have made 3 more calls: 1 for root list + 2 for certificate details
-            expect(afterForceUpdateCallCount).to.equal(afterNormalUpdateCallCount + 3);
+            // Should have made 4 more calls: 1 for root list + 2 for certificate details + 1 for revocation points
+            expect(afterForceUpdateCallCount).to.equal(afterNormalUpdateCallCount + 4);
 
             // Should still have same number of certificates (they were overwritten, not duplicated)
             const finalCertCount = service.certificates.length;
@@ -736,6 +747,9 @@ describe("DclCertificateService", () => {
 
             // Reset mocks and install again for the fetch
             fetchMock.uninstall();
+            fetchMock.addResponse("/dcl/pki/revocation-points", {
+                PkiRevocationDistributionPoint: [],
+            });
             fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
             fetchMock.addResponse(
                 "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
@@ -893,6 +907,352 @@ describe("DclCertificateService", () => {
 
             const countAfter = service.certificates.length;
             expect(countAfter).to.equal(1);
+
+            await service.close();
+        });
+    });
+
+    describe("revocation support", () => {
+        /**
+         * Build a minimal DER-encoded CRL containing specified revoked serial numbers.
+         * This creates a valid-enough CRL structure for the parser to extract serial numbers from.
+         */
+        function buildTestCrl(revokedSerialHexes: string[]): Uint8Array {
+            // Build revokedCertificates entries: each is SEQUENCE { INTEGER serial, UTCTime date }
+            const revokedEntries: Record<string, any> = {};
+            for (let i = 0; i < revokedSerialHexes.length; i++) {
+                revokedEntries[`entry${i}`] = {
+                    serial: {
+                        _tag: DerType.Integer,
+                        _bytes: Bytes.fromHex(revokedSerialHexes[i]),
+                    },
+                    revocationDate: {
+                        _tag: DerType.UtcDate,
+                        _bytes: Bytes.fromString("250101000000Z"),
+                    },
+                } as any;
+            }
+
+            // ecdsaWithSHA256 OID as a sequence containing OID
+            const signatureAlgorithm = {
+                _objectId: ObjectId("2a8648ce3d040302"), // ecdsaWithSHA256
+            };
+
+            // Build tbsCertList
+            const tbsCertList: Record<string, any> = {
+                version: {
+                    _tag: DerType.Integer,
+                    _bytes: Uint8Array.of(1), // v2
+                },
+                signature: signatureAlgorithm,
+                issuer: {
+                    cn: ["Test Issuer"],
+                },
+                thisUpdate: {
+                    _tag: DerType.UtcDate,
+                    _bytes: Bytes.fromString("250101000000Z"),
+                },
+                nextUpdate: {
+                    _tag: DerType.UtcDate,
+                    _bytes: Bytes.fromString("260101000000Z"),
+                },
+            };
+
+            // Only add revokedCertificates if there are entries
+            if (revokedSerialHexes.length > 0) {
+                tbsCertList.revokedCertificates = revokedEntries;
+            }
+
+            // Build CertificateList
+            const certificateList: any = {
+                tbsCertList,
+                signatureAlgorithm,
+                signatureValue: {
+                    _tag: DerType.BitString,
+                    _bytes: new Uint8Array(32), // dummy signature
+                    _padding: 0,
+                },
+            };
+
+            return Bytes.of(DerCodec.encode(certificateList));
+        }
+
+        it("parseCrlRevokedSerials extracts serial numbers from CRL", () => {
+            const crl = buildTestCrl(["01AB", "02CD", "FF00FF"]);
+            const serials = DclCertificateService.parseCrlRevokedSerials(crl);
+
+            expect(serials.size).to.equal(3);
+            expect(serials.has("01AB")).to.be.true;
+            expect(serials.has("02CD")).to.be.true;
+            expect(serials.has("FF00FF")).to.be.true;
+        });
+
+        it("parseCrlRevokedSerials returns empty set for CRL with no revoked entries", () => {
+            const crl = buildTestCrl([]);
+            const serials = DclCertificateService.parseCrlRevokedSerials(crl);
+
+            expect(serials.size).to.equal(0);
+        });
+
+        it("isRevoked returns false when no revocation data exists", async () => {
+            fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment);
+            await service.construction;
+
+            // No revocation data has been fetched for this issuer, should return false
+            const result = service.isRevoked("AABBCCDD", "01AB");
+            expect(result).to.be.false;
+
+            await service.close();
+        });
+
+        it("isRevoked returns false for non-revoked serial when data exists", async () => {
+            // Mock revocation distribution points with a CRL
+            const testCrl = buildTestCrl(["0123456789ABCDEF"]);
+            const issuerSkid = "AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89:AB:CD:EF:01";
+
+            fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            fetchMock.addResponse("/dcl/pki/revocation-points", {
+                PkiRevocationDistributionPoint: [
+                    {
+                        vid: 0xfff1,
+                        pid: 0,
+                        isPAA: true,
+                        label: "test-label",
+                        crlSignerDelegator: "",
+                        crlSignerCertificate: "test-cert",
+                        issuerSubjectKeyID: issuerSkid,
+                        dataURL: "https://example.com/test.crl",
+                        dataFileSize: "",
+                        dataDigest: "",
+                        dataDigestType: 0,
+                        revocationType: 1,
+                        schemaVersion: 0,
+                    },
+                ],
+            });
+            fetchMock.addResponse("https://example.com/test.crl", testCrl, { binary: true });
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment);
+            await service.construction;
+
+            const normalizedSkid = issuerSkid.replace(/:/g, "").toUpperCase();
+
+            // This serial IS revoked
+            expect(service.isRevoked(normalizedSkid, "0123456789ABCDEF")).to.be.true;
+
+            // This serial is NOT revoked
+            expect(service.isRevoked(normalizedSkid, "FEDCBA9876543210")).to.be.false;
+
+            await service.close();
+        });
+
+        it("revocation data persists and loads on restart", async () => {
+            const testCrl = buildTestCrl(["AABB"]);
+            const issuerSkid = "11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44";
+
+            fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            fetchMock.addResponse("/dcl/pki/revocation-points", {
+                PkiRevocationDistributionPoint: [
+                    {
+                        vid: 0xfff1,
+                        pid: 0,
+                        isPAA: true,
+                        label: "test-label",
+                        crlSignerDelegator: "",
+                        crlSignerCertificate: "test-cert",
+                        issuerSubjectKeyID: issuerSkid,
+                        dataURL: "https://example.com/persist-test.crl",
+                        dataFileSize: "",
+                        dataDigest: "",
+                        dataDigestType: 0,
+                        revocationType: 1,
+                        schemaVersion: 0,
+                    },
+                ],
+            });
+            fetchMock.addResponse("https://example.com/persist-test.crl", testCrl, { binary: true });
+            fetchMock.install();
+
+            const normalizedSkid = issuerSkid.replace(/:/g, "").toUpperCase();
+
+            // First instance: fetch and store revocation data
+            const service1 = new DclCertificateService(environment);
+            await service1.construction;
+
+            expect(service1.isRevoked(normalizedSkid, "AABB")).to.be.true;
+            await service1.close();
+
+            // Second instance: should load revocation data from storage
+            const service2 = new DclCertificateService(environment);
+            await service2.construction;
+
+            // Revocation data should persist across restarts
+            expect(service2.isRevoked(normalizedSkid, "AABB")).to.be.true;
+            expect(service2.isRevoked(normalizedSkid, "CCDD")).to.be.false;
+
+            await service2.close();
+        });
+
+        it("isRevoked accepts Bytes for authority key identifier and serial number", async () => {
+            const testCrl = buildTestCrl(["01AB"]);
+            const issuerSkid = "AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD";
+
+            fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            fetchMock.addResponse("/dcl/pki/revocation-points", {
+                PkiRevocationDistributionPoint: [
+                    {
+                        vid: 0xfff1,
+                        pid: 0,
+                        isPAA: true,
+                        label: "test-label",
+                        crlSignerDelegator: "",
+                        crlSignerCertificate: "test-cert",
+                        issuerSubjectKeyID: issuerSkid,
+                        dataURL: "https://example.com/bytes-test.crl",
+                        dataFileSize: "",
+                        dataDigest: "",
+                        dataDigestType: 0,
+                        revocationType: 1,
+                        schemaVersion: 0,
+                    },
+                ],
+            });
+            fetchMock.addResponse("https://example.com/bytes-test.crl", testCrl, { binary: true });
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment);
+            await service.construction;
+
+            // Use Bytes for both arguments
+            const akidBytes = Bytes.fromHex("AABBCCDDEEFF00112233445566778899AABBCCDD");
+            const serialBytes = Bytes.fromHex("01AB");
+
+            expect(service.isRevoked(akidBytes, serialBytes)).to.be.true;
+            expect(service.isRevoked(akidBytes, Bytes.fromHex("FFFF"))).to.be.false;
+
+            await service.close();
+        });
+
+        it("skips non-CRL revocation types", async () => {
+            fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            // Revocation point with revocationType !== 1 (not CRL)
+            fetchMock.addResponse("/dcl/pki/revocation-points", {
+                PkiRevocationDistributionPoint: [
+                    {
+                        vid: 0xfff1,
+                        pid: 0,
+                        isPAA: true,
+                        label: "test-label",
+                        crlSignerDelegator: "",
+                        crlSignerCertificate: "test-cert",
+                        issuerSubjectKeyID: "AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD",
+                        dataURL: "https://example.com/should-not-be-fetched.crl",
+                        dataFileSize: "",
+                        dataDigest: "",
+                        dataDigestType: 0,
+                        revocationType: 2, // Not CRL
+                        schemaVersion: 0,
+                    },
+                ],
+            });
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment);
+            await service.construction;
+
+            // Should not have fetched the CRL (non-CRL type was skipped)
+            const callLog = fetchMock.getCallLog();
+            expect(callLog.some(call => call.url.includes("should-not-be-fetched"))).to.be.false;
+
+            // No revocation data should exist
+            expect(service.isRevoked("AABBCCDDEEFF00112233445566778899AABBCCDD", "01AB")).to.be.false;
+
+            await service.close();
+        });
+
+        it("handles CRL fetch failure gracefully", async () => {
+            fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            // Revocation point with a CRL URL that returns 404
+            fetchMock.addResponse("/dcl/pki/revocation-points", {
+                PkiRevocationDistributionPoint: [
+                    {
+                        vid: 0xfff1,
+                        pid: 0,
+                        isPAA: true,
+                        label: "test-label",
+                        crlSignerDelegator: "",
+                        crlSignerCertificate: "test-cert",
+                        issuerSubjectKeyID: "AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD",
+                        dataURL: "https://example.com/broken.crl",
+                        dataFileSize: "",
+                        dataDigest: "",
+                        dataDigestType: 0,
+                        revocationType: 1,
+                        schemaVersion: 0,
+                    },
+                ],
+            });
+            fetchMock.addResponse("https://example.com/broken.crl", { error: "Not found" }, { status: 404 });
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment);
+            await service.construction;
+
+            // Service should still work despite CRL fetch failure
+            expect(service.certificates.length).to.equal(2);
+            expect(service.isRevoked("AABBCCDDEEFF00112233445566778899AABBCCDD", "01AB")).to.be.false;
 
             await service.close();
         });

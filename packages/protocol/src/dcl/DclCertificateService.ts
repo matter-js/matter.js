@@ -8,6 +8,8 @@ import {
     Bytes,
     Construction,
     Days,
+    DerCodec,
+    DerNode,
     Diagnostic,
     Directory,
     Duration,
@@ -15,12 +17,14 @@ import {
     Logger,
     Pem,
     Repo,
+    Seconds,
     StorageContext,
     StorageManager,
     StorageService,
     Time,
     Timer,
 } from "#general";
+import { DeviceAttestationPkiRevocationDclSchema, RevocationTypeEnum } from "#types";
 import { Paa } from "../certificate/kinds/AttestationCertificates.js";
 import { DclClient, MatterDclError } from "./DclClient.js";
 import { DclPkiRootCertificateSubjectReference } from "./DclRestApiTypes.js";
@@ -48,6 +52,9 @@ export class DclCertificateService {
     #closed = false;
     #options: DclCertificateService.Options;
     #fetchPromise?: Promise<void>;
+    #revocationStorage?: StorageContext;
+    // Key: normalized issuerSubjectKeyId, Value: Set of revoked serial numbers (hex)
+    #revocationIndex = new Map<string, Set<string>>();
 
     constructor(environment: Environment, options: DclCertificateService.Options = {}) {
         environment.set(DclCertificateService, this);
@@ -57,6 +64,8 @@ export class DclCertificateService {
             this.#storageManager = await environment.get(StorageService).open("certificates");
             this.#storage = this.#storageManager.createContext("root");
             await this.#loadIndex(this.#storage);
+            this.#revocationStorage = this.#storageManager.createContext("revocations");
+            await this.#loadRevocationIndex();
             await this.update();
 
             if (options.updateInterval !== null) {
@@ -142,6 +151,29 @@ export class DclCertificateService {
         }
 
         return Bytes.of(derBytes);
+    }
+
+    /**
+     * Check if a certificate is revoked by looking up its serial number in the revocation set
+     * for the given authority key identifier.
+     * Returns true if the certificate is revoked, false otherwise.
+     * If revocation data is not available for the given authority, returns false.
+     */
+    isRevoked(authorityKeyIdentifier: Bytes | string, serialNumber: Bytes | string): boolean {
+        this.construction.assert();
+
+        const akid = this.#normalizeSubjectKeyId(authorityKeyIdentifier);
+        const revokedSet = this.#revocationIndex.get(akid);
+        if (revokedSet === undefined) {
+            return false; // No revocation data for this authority
+        }
+
+        const serialHex =
+            typeof serialNumber === "string"
+                ? serialNumber.replace(/:/g, "").toUpperCase()
+                : Bytes.toHex(serialNumber).toUpperCase();
+
+        return revokedSet.has(serialHex);
     }
 
     /**
@@ -354,6 +386,11 @@ export class DclCertificateService {
         } else {
             logger.info(`All certificates up to date (${this.#certificateIndex.size} total)`);
         }
+
+        // Fetch revocation distribution points
+        if (!this.#closed) {
+            await this.#fetchRevocationData(force);
+        }
     }
 
     /** Fetch certificates from DCL for the specified environment. */
@@ -522,6 +559,174 @@ export class DclCertificateService {
 
         // Add entry to certificate index
         this.#certificateIndex.set(subjectKeyId, metadata);
+    }
+
+    /**
+     * Load the revocation index from storage.
+     */
+    async #loadRevocationIndex() {
+        if (!this.#revocationStorage) return;
+        const stored = await this.#revocationStorage.get<Record<string, string[]>>("index", {});
+        for (const [key, serials] of Object.entries(stored)) {
+            this.#revocationIndex.set(key, new Set(serials));
+        }
+    }
+
+    /**
+     * Save the revocation index to storage.
+     */
+    async #saveRevocationIndex() {
+        if (!this.#revocationStorage || this.#closed) return;
+        const data: Record<string, string[]> = {};
+        for (const [key, serials] of this.#revocationIndex) {
+            data[key] = Array.from(serials);
+        }
+        await this.#revocationStorage.set("index", data);
+    }
+
+    /**
+     * Fetch revocation distribution points from DCL and process them.
+     */
+    async #fetchRevocationData(force = false) {
+        try {
+            logger.debug("Fetching revocation distribution points from DCL");
+
+            const dclClient = new DclClient(true); // production
+            const points = await dclClient.fetchRevocationDistributionPoints(this.#options);
+
+            let updatedCount = 0;
+            for (const point of points) {
+                if (this.#closed) return;
+
+                // Only process CRL type (revocationType === 1)
+                if (point.revocationType !== RevocationTypeEnum.Crl) continue;
+
+                try {
+                    await this.#processRevocationPoint(point, force);
+                    updatedCount++;
+                } catch (error) {
+                    logger.info(
+                        `Failed to process revocation point for ${point.issuerSubjectKeyId}:`,
+                        error,
+                    );
+                }
+            }
+
+            if (updatedCount > 0) {
+                await this.#saveRevocationIndex();
+                logger.info(`Processed ${updatedCount} revocation distribution points`);
+            }
+        } catch (error) {
+            logger.info("Failed to fetch revocation distribution points", error);
+        }
+    }
+
+    /**
+     * Process a single revocation distribution point: download the CRL and extract revoked serial numbers.
+     */
+    async #processRevocationPoint(point: DeviceAttestationPkiRevocationDclSchema, force: boolean) {
+        const issuerKeyId = this.#normalizeSubjectKeyId(point.issuerSubjectKeyId);
+
+        // Skip if already processed (unless force)
+        if (!force && this.#revocationIndex.has(issuerKeyId)) {
+            return;
+        }
+
+        // Download the CRL from dataUrl
+        const response = await fetch(point.dataUrl, {
+            signal: AbortSignal.timeout(this.#options.timeout ?? Seconds(5)),
+        });
+        if (!response.ok) {
+            throw new MatterDclError(
+                `Failed to fetch CRL from ${point.dataUrl}: ${response.status}`,
+            );
+        }
+        const crlBytes = new Uint8Array(await response.arrayBuffer());
+
+        // Parse the CRL to extract revoked serial numbers
+        const revokedSerials = DclCertificateService.parseCrlRevokedSerials(crlBytes);
+
+        // Store in revocation index
+        this.#revocationIndex.set(issuerKeyId, revokedSerials);
+    }
+
+    /**
+     * Parse a DER-encoded CRL (RFC 5280 CertificateList) to extract revoked serial numbers.
+     *
+     * CertificateList ::= SEQUENCE {
+     *   tbsCertList SEQUENCE {
+     *     version INTEGER OPTIONAL,
+     *     signature AlgorithmIdentifier,
+     *     issuer Name,
+     *     thisUpdate Time,
+     *     nextUpdate Time OPTIONAL,
+     *     revokedCertificates SEQUENCE OF SEQUENCE { ... } OPTIONAL,
+     *     crlExtensions [0] EXPLICIT Extensions OPTIONAL
+     *   },
+     *   signatureAlgorithm AlgorithmIdentifier,
+     *   signatureValue BIT STRING
+     * }
+     *
+     * This method is exposed as static for testing purposes.
+     */
+    static parseCrlRevokedSerials(crlDer: Bytes): Set<string> {
+        const serials = new Set<string>();
+
+        const decoded = DerCodec.decode(crlDer);
+        const certListElements = decoded._elements;
+        if (!certListElements || certListElements.length < 2) {
+            return serials;
+        }
+
+        // First element is tbsCertList
+        const tbsCertList = certListElements[0];
+        const tbsElements = tbsCertList._elements;
+        if (!tbsElements) {
+            return serials;
+        }
+
+        // Find the revokedCertificates sequence.
+        // tbsCertList fields: [version?, signature, issuer, thisUpdate, nextUpdate?, revokedCertificates?, crlExtensions?]
+        // We look for a CONSTRUCTED SEQUENCE (tag 0x30) that contains SEQUENCE children
+        // (each child being a revocation entry with serial + date).
+        // The revokedCertificates is the first SEQUENCE whose children are also SEQUENCES
+        // containing an INTEGER (serial number) as first element.
+        let revokedCertsNode: DerNode | undefined;
+        for (const element of tbsElements) {
+            // SEQUENCE tag = 0x30 (Sequence 0x10 | Constructed 0x20)
+            if (element._tag === 0x30 && element._elements) {
+                // Check if this looks like revokedCertificates:
+                // It should contain child SEQUENCES, each starting with an INTEGER (0x02)
+                const firstChild = element._elements[0];
+                if (
+                    firstChild &&
+                    firstChild._tag === 0x30 &&
+                    firstChild._elements &&
+                    firstChild._elements[0]?._tag === 0x02
+                ) {
+                    revokedCertsNode = element;
+                    break;
+                }
+            }
+        }
+
+        if (!revokedCertsNode?._elements) {
+            return serials; // No revoked certificates
+        }
+
+        // Each entry in revokedCertificates is: SEQUENCE { INTEGER serial, Time revocationDate, ... }
+        for (const entry of revokedCertsNode._elements) {
+            if (entry._tag !== 0x30 || !entry._elements || entry._elements.length < 1) continue;
+
+            const serialNode = entry._elements[0];
+            if (serialNode._tag !== 0x02) continue; // Must be INTEGER
+
+            // Convert serial number bytes to hex
+            const serialHex = Bytes.toHex(Bytes.of(serialNode._bytes)).toUpperCase();
+            serials.add(serialHex);
+        }
+
+        return serials;
     }
 }
 
