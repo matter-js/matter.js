@@ -354,7 +354,7 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
                     await protocolHandler.onNewExchange(exchange, message);
                 } catch (error) {
                     MatterError.accept(error);
-                    logger.error(`${Message.via(exchange, message)} Error:`, error);
+                    logger.error(Message.via(exchange, message), `Error handling message:`, error);
                 }
             } else if (message.payloadHeader.requiresAck) {
                 const exchange = MessageExchange.fromInitialMessage(this.#messageExchangeContextFor(session), message);
