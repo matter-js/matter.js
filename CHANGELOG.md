@@ -12,7 +12,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/model
-    - Fix: Constraint evaluation for expressions with negative exponentiation bases (e.g. `-2^62 to 2^62`) and improves precision for large exponent arithmetic by using BigInt when results exceed the safe integer range (#3232)
+    - Fix: Constraint evaluation for expressions with negative exponentiation bases (e.g. `-2^62 to 2^62`) and improves precision for large exponent arithmetic by using BigInt when results exceed the safe integer range
 
 - @matter/protocol
     - Adjustment: OTA update files are now stored per software version, allowing different updates to be served to different nodes simultaneously. Former files are migrated.
@@ -20,7 +20,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensures trying different IPs when we have a timeout-based reconnection process
 
 - @matter/nodejs-ble
-    - Fix: Fix crash when BLE peripheral disconnects during service/characteristic discovery (#1977)
+    - Fix: Fix crash when BLE peripheral disconnects during service/characteristic discovery
 
 - @matter/nodejs-shell
     - Adjustment: `ota add` stores files as "local" mode; `ota list`, `ota delete`, and `ota copy` support "local" mode filter
