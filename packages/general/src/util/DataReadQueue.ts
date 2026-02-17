@@ -87,7 +87,7 @@ export class DataReadQueue<T> {
         this.#pendingRead = undefined;
 
         if (pendingRead) {
-            pendingRead.rejecter(new EndOfStreamError());
+            pendingRead.rejecter(cause);
         }
     }
 }
