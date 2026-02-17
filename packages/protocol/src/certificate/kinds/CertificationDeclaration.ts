@@ -3,7 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { Bytes, ContextTaggedBytes, Crypto, DerCodec, Pkcs7, PrivateKey, Shs, X962 } from "#general";
+import { Bytes, ContextTaggedBytes, Crypto, DerCodec, DerError, EcdsaSignature, Pkcs7, PrivateKey, Shs, X962 } from "#general";
 import { TypeFromBitmapSchema, VendorId } from "#types";
 import { assertCertificateDerSize } from "./common.js";
 import { CertificationDeclaration as CertificationDeclarationDef } from "./definitions/certification-declaration.js";
@@ -34,6 +34,108 @@ const TestCMS_SignerSubjectKeyIdentifier = Bytes.fromHex("62FA823359ACFAA9963E1C
 export class CertificationDeclaration {
     #eContent: Bytes;
     #subjectKeyIdentifier: Bytes;
+
+    /**
+     * Parse a DER-encoded CMS/PKCS#7 SignedData structure containing a Certification Declaration.
+     *
+     * Extracts:
+     * - The decoded CD content (TLV fields)
+     * - The signer's subject key identifier
+     * - The ECDSA signature
+     * - The raw eContent bytes (signed data before TLV decoding)
+     */
+    static parse(cdBytes: Bytes): {
+        content: TypeFromBitmapSchema<typeof CertificationDeclarationDef.TlvDc>;
+        signerSubjectKeyId: Bytes;
+        signature: EcdsaSignature;
+        signedData: Bytes;
+    } {
+        // Decode the outer ContentInfo SEQUENCE
+        const contentInfo = DerCodec.decode(cdBytes);
+        const contentInfoElements = contentInfo._elements;
+        if (!contentInfoElements || contentInfoElements.length < 2) {
+            throw new DerError("Invalid CMS ContentInfo structure");
+        }
+
+        // contentInfoElements[0] = OID (signedData 1.2.840.113549.1.7.2)
+        // contentInfoElements[1] = [0] CONSTRUCTED context tag containing SignedData SEQUENCE
+        const signedDataWrapper = contentInfoElements[1];
+        // Tag 0xa0 = context-specific (0x80) | constructed (0x20) | tag number 0
+        if (signedDataWrapper._tag !== 0xa0 || !signedDataWrapper._elements || signedDataWrapper._elements.length < 1) {
+            throw new DerError("Invalid CMS SignedData wrapper");
+        }
+
+        // The inner SEQUENCE is the SignedData
+        const signedData = signedDataWrapper._elements[0];
+        const signedDataElements = signedData._elements;
+        if (!signedDataElements || signedDataElements.length < 4) {
+            throw new DerError("Invalid CMS SignedData structure");
+        }
+
+        // signedDataElements[0] = INTEGER (version)
+        // signedDataElements[1] = SET (digestAlgorithms)
+        // signedDataElements[2] = SEQUENCE (encapContentInfo)
+        // signedDataElements[3] = SET (signerInfos)
+
+        // Extract eContent from encapContentInfo
+        const encapContentInfo = signedDataElements[2];
+        const encapElements = encapContentInfo._elements;
+        if (!encapElements || encapElements.length < 2) {
+            throw new DerError("Invalid encapContentInfo structure");
+        }
+
+        // encapElements[0] = OID (data 1.2.840.113549.1.7.1)
+        // encapElements[1] = [0] CONSTRUCTED context tag containing OCTET STRING
+        const eContentWrapper = encapElements[1];
+        if (eContentWrapper._tag !== 0xa0 || !eContentWrapper._elements || eContentWrapper._elements.length < 1) {
+            throw new DerError("Invalid eContent wrapper in encapContentInfo");
+        }
+
+        // The OCTET STRING containing the TLV-encoded CD
+        const eContentOctetString = eContentWrapper._elements[0];
+        const eContentBytes = Bytes.of(eContentOctetString._bytes);
+
+        // Extract signerInfo from signerInfos SET
+        const signerInfosSet = signedDataElements[3];
+        const signerInfos = signerInfosSet._elements;
+        if (!signerInfos || signerInfos.length < 1) {
+            throw new DerError("No SignerInfo found in SignedData");
+        }
+
+        // Take the first (and typically only) SignerInfo
+        const signerInfo = signerInfos[0];
+        const signerInfoElements = signerInfo._elements;
+        if (!signerInfoElements || signerInfoElements.length < 5) {
+            throw new DerError("Invalid SignerInfo structure");
+        }
+
+        // signerInfoElements[0] = INTEGER (version = 3)
+        // signerInfoElements[1] = [0] context-tagged OCTET STRING (subjectKeyIdentifier)
+        //   Tag 0x80 = context-specific (0x80) | primitive | tag number 0
+        // signerInfoElements[2] = SEQUENCE (digestAlgorithm)
+        // signerInfoElements[3] = SEQUENCE (signatureAlgorithm)
+        // signerInfoElements[4] = OCTET STRING (signature)
+
+        const subjectKeyIdNode = signerInfoElements[1];
+        if (subjectKeyIdNode._tag !== 0x80) {
+            throw new DerError("Expected SubjectKeyIdentifier context tag [0] in SignerInfo");
+        }
+        const signerSubjectKeyId = Bytes.of(subjectKeyIdNode._bytes);
+
+        const signatureNode = signerInfoElements[4];
+        const signatureDerBytes = Bytes.of(signatureNode._bytes);
+        const signature = new EcdsaSignature(signatureDerBytes, EcdsaSignature.DER);
+
+        // Decode the TLV content
+        const content = CertificationDeclarationDef.TlvDc.decode(eContentBytes);
+
+        return {
+            content,
+            signerSubjectKeyId,
+            signature,
+            signedData: eContentBytes,
+        };
+    }
 
     /**
      * Generator which is the main usage for the class from outside.
