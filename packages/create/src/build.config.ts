@@ -50,7 +50,12 @@ export async function before({ project }: Project.Context) {
             continue;
         }
 
-        entrypoint = examplesPkg.json.main ?? entrypoint;
+        const resolvedEntrypoint = examplesPkg.json.main ?? entrypoint;
+        if (!resolvedEntrypoint) {
+            continue;
+        }
+
+        entrypoint = resolvedEntrypoint;
         if (entrypoint.startsWith("src/")) {
             entrypoint = entrypoint.slice(4);
         }
