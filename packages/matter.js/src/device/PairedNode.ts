@@ -635,7 +635,8 @@ export class PairedNode {
      */
     async reconnect(connectOptions?: CommissioningControllerNodeOptions) {
         if (this.#decommissioned) {
-            throw new UnknownNodeError("This node is decommissioned and cannot be connected to.");
+            logger.debug(this.#peerAddress, "Ignoring reconnect request because node is decommissioned.");
+            return;
         }
         if (connectOptions !== undefined) {
             this.#options = connectOptions;
@@ -675,6 +676,11 @@ export class PairedNode {
             }
         }
 
+        if (this.#decommissioned || this.#closing) {
+            this.#reconnectionInProgress = false;
+            return;
+        }
+
         this.#setConnectionState(NodeStates.WaitingForDeviceDiscovery);
 
         try {
@@ -683,7 +689,7 @@ export class PairedNode {
             if (error instanceof UnknownNodeError) {
                 logger.info(this.#peerAddress, `Node is unknown by controller, we can not connect.`);
                 this.#setConnectionState(NodeStates.Disconnected);
-            } else if (this.#connectionState === NodeStates.Disconnected) {
+            } else if (this.#decommissioned || this.#closing || this.#connectionState === NodeStates.Disconnected) {
                 logger.info(this.#peerAddress, `No reconnection desired because requested status is Disconnected.`);
             } else {
                 if (error instanceof ChannelStatusResponseError) {
@@ -1180,6 +1186,9 @@ export class PairedNode {
     }
 
     #scheduleReconnect(delay?: Duration) {
+        if (this.#decommissioned || this.#closing) {
+            return;
+        }
         if (this.connectionState !== NodeStates.WaitingForDeviceDiscovery) {
             this.#setConnectionState(NodeStates.Reconnecting);
         }
