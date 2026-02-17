@@ -293,10 +293,7 @@ export class BleScanner implements Scanner {
         cancelSignal?.then(
             () => {
                 canceled = true;
-                if (queryResolver === undefined) {
-                    // Always finish when cancelSignal parameter was used, else cancelling is done separately
-                    this.#finishWaiter(queryKey, true);
-                }
+                this.#finishWaiter(queryKey, true);
             },
             cause => {
                 logger.error("Unexpected error canceling commissioning", cause);

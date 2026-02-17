@@ -863,10 +863,7 @@ export class MdnsClient implements Scanner {
         cancelSignal?.then(
             () => {
                 canceled = true;
-                if (queryResolver === undefined) {
-                    // Always finish when the cancelSignal parameter was used, else cancelling is done separately
-                    this.#finishWaiter(queryId, true);
-                }
+                this.#finishWaiter(queryId, true);
             },
             cause => {
                 logger.warn("Unexpected error canceling commissioning", cause);
