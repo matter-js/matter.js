@@ -9,16 +9,14 @@ import { DclCertificateService } from "#dcl/DclCertificateService.js";
 import {
     Bytes,
     Days,
-    DerCodec,
-    DerType,
     Environment,
     Minutes,
     MockFetch,
-    ObjectId,
     StorageBackendMemory,
     StorageManager,
     StorageService,
 } from "#general";
+import { buildTestCrl, pemEncode } from "../certificate/TestHelpers.js";
 
 // Mock DCL responses - using colon format as returned by real DCL API
 const mockDclRootCertificateList = {
@@ -90,17 +88,6 @@ const mockGitHubFileList = [
     { name: "dcld_mirror_test.der", type: "file" }, // Should be filtered out
     { name: "README.md", type: "file" },
 ];
-
-// Helper function to encode DER as PEM
-function pemEncode(der: Bytes): string {
-    const base64 = Bytes.toBase64(der);
-    const lines: string[] = ["-----BEGIN CERTIFICATE-----"];
-    for (let i = 0; i < base64.length; i += 64) {
-        lines.push(base64.slice(i, i + 64));
-    }
-    lines.push("-----END CERTIFICATE-----");
-    return lines.join("\n");
-}
 
 describe("DclCertificateService", () => {
     let fetchMock: MockFetch;
@@ -913,70 +900,6 @@ describe("DclCertificateService", () => {
     });
 
     describe("revocation support", () => {
-        /**
-         * Build a minimal DER-encoded CRL containing specified revoked serial numbers.
-         * This creates a valid-enough CRL structure for the parser to extract serial numbers from.
-         */
-        function buildTestCrl(revokedSerialHexes: string[]): Uint8Array {
-            // Build revokedCertificates entries: each is SEQUENCE { INTEGER serial, UTCTime date }
-            const revokedEntries: Record<string, any> = {};
-            for (let i = 0; i < revokedSerialHexes.length; i++) {
-                revokedEntries[`entry${i}`] = {
-                    serial: {
-                        _tag: DerType.Integer,
-                        _bytes: Bytes.fromHex(revokedSerialHexes[i]),
-                    },
-                    revocationDate: {
-                        _tag: DerType.UtcDate,
-                        _bytes: Bytes.fromString("250101000000Z"),
-                    },
-                } as any;
-            }
-
-            // ecdsaWithSHA256 OID as a sequence containing OID
-            const signatureAlgorithm = {
-                _objectId: ObjectId("2a8648ce3d040302"), // ecdsaWithSHA256
-            };
-
-            // Build tbsCertList
-            const tbsCertList: Record<string, any> = {
-                version: {
-                    _tag: DerType.Integer,
-                    _bytes: Uint8Array.of(1), // v2
-                },
-                signature: signatureAlgorithm,
-                issuer: {
-                    cn: ["Test Issuer"],
-                },
-                thisUpdate: {
-                    _tag: DerType.UtcDate,
-                    _bytes: Bytes.fromString("250101000000Z"),
-                },
-                nextUpdate: {
-                    _tag: DerType.UtcDate,
-                    _bytes: Bytes.fromString("260101000000Z"),
-                },
-            };
-
-            // Only add revokedCertificates if there are entries
-            if (revokedSerialHexes.length > 0) {
-                tbsCertList.revokedCertificates = revokedEntries;
-            }
-
-            // Build CertificateList
-            const certificateList: any = {
-                tbsCertList,
-                signatureAlgorithm,
-                signatureValue: {
-                    _tag: DerType.BitString,
-                    _bytes: new Uint8Array(32), // dummy signature
-                    _padding: 0,
-                },
-            };
-
-            return Bytes.of(DerCodec.encode(certificateList));
-        }
-
         it("parseCrlRevokedSerials extracts serial numbers from CRL", () => {
             const crl = buildTestCrl(["01AB", "02CD", "FF00FF"]);
             const serials = DclCertificateService.parseCrlRevokedSerials(crl);

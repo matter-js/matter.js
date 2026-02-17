@@ -16,11 +16,8 @@ import { TlvAttestation } from "#common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "#dcl/DclCertificateService.js";
 import {
     Bytes,
-    DerCodec,
-    DerType,
     Environment,
     MockFetch,
-    ObjectId,
     PrivateKey,
     PublicKey,
     StandardCrypto,
@@ -29,17 +26,7 @@ import {
     StorageService,
 } from "#general";
 import { VendorId } from "#types";
-
-// Helper function to encode DER as PEM
-function pemEncode(der: Bytes): string {
-    const base64 = Bytes.toBase64(der);
-    const lines: string[] = ["-----BEGIN CERTIFICATE-----"];
-    for (let i = 0; i < base64.length; i += 64) {
-        lines.push(base64.slice(i, i + 64));
-    }
-    lines.push("-----END CERTIFICATE-----");
-    return lines.join("\n");
-}
+import { buildTestCrl, pemEncode } from "./TestHelpers.js";
 
 describe("DeviceAttestationValidator", () => {
     const crypto = new StandardCrypto();
@@ -72,6 +59,9 @@ describe("DeviceAttestationValidator", () => {
     let validAttestationElements: Bytes;
     let validAttestationSignature: Bytes;
 
+    // Pre-generated DAC with wrong vendor ID (generated at same time as PAI to avoid date mismatch)
+    let wrongVendorDacDer: Bytes;
+
     before(async () => {
         // Create the cert manager and generate PAI and DAC
         certManager = await AttestationCertificateManager.create(crypto, vendorId);
@@ -80,6 +70,10 @@ describe("DeviceAttestationValidator", () => {
         dacDer = dacResult.dac;
         dacPublicKey = dacResult.keyPair.publicKey;
         dacPrivateKey = PrivateKey(dacResult.keyPair);
+
+        // Generate a DAC with wrong vendorId at the same time as PAI to avoid validity period mismatch
+        const wrongVendorId = VendorId(0xfff2);
+        wrongVendorDacDer = await certManager.generateDaCert(dacPublicKey, wrongVendorId, productId);
 
         // Generate a valid Certification Declaration
         validCdBytes = await CertificationDeclaration.generate(crypto, vendorId, productId);
@@ -118,65 +112,6 @@ describe("DeviceAttestationValidator", () => {
         }
         await storageManager.close();
     });
-
-    /**
-     * Build a minimal DER-encoded CRL containing specified revoked serial numbers.
-     * Reused from DclCertificateServiceTest.
-     */
-    function buildTestCrl(revokedSerialHexes: string[]): Uint8Array {
-        const revokedEntries: Record<string, any> = {};
-        for (let i = 0; i < revokedSerialHexes.length; i++) {
-            revokedEntries[`entry${i}`] = {
-                serial: {
-                    _tag: DerType.Integer,
-                    _bytes: Bytes.fromHex(revokedSerialHexes[i]),
-                },
-                revocationDate: {
-                    _tag: DerType.UtcDate,
-                    _bytes: Bytes.fromString("250101000000Z"),
-                },
-            } as any;
-        }
-
-        const signatureAlgorithm = {
-            _objectId: ObjectId("2a8648ce3d040302"),
-        };
-
-        const tbsCertList: Record<string, any> = {
-            version: {
-                _tag: DerType.Integer,
-                _bytes: Uint8Array.of(1),
-            },
-            signature: signatureAlgorithm,
-            issuer: {
-                cn: ["Test Issuer"],
-            },
-            thisUpdate: {
-                _tag: DerType.UtcDate,
-                _bytes: Bytes.fromString("250101000000Z"),
-            },
-            nextUpdate: {
-                _tag: DerType.UtcDate,
-                _bytes: Bytes.fromString("260101000000Z"),
-            },
-        };
-
-        if (revokedSerialHexes.length > 0) {
-            tbsCertList.revokedCertificates = revokedEntries;
-        }
-
-        const certificateList: any = {
-            tbsCertList,
-            signatureAlgorithm,
-            signatureValue: {
-                _tag: DerType.BitString,
-                _bytes: new Uint8Array(32),
-                _padding: 0,
-            },
-        };
-
-        return Bytes.of(DerCodec.encode(certificateList));
-    }
 
     /**
      * Set up DclCertificateService with a PAA cert in its trust store.
@@ -246,6 +181,11 @@ describe("DeviceAttestationValidator", () => {
                 ],
             });
             fetchMock.addResponse("https://example.com/test.crl", testCrl, { binary: true });
+        } else {
+            // Default empty revocation response
+            fetchMock.addResponse("/dcl/pki/revocation-points", {
+                PkiRevocationDistributionPoint: [],
+            });
         }
 
         fetchMock.install();
@@ -361,17 +301,44 @@ describe("DeviceAttestationValidator", () => {
         });
     });
 
-    describe("VendorID matching", () => {
-        it("throws VendorIdMismatch when DAC vendorId does not match PAI vendorId", async () => {
-            // Use generateDaCert to create a DAC with a different vendorId
-            // but signed by the correct PAI key
-            const wrongVendorId = VendorId(0xfff2);
-            const wrongVendorDac = await certManager.generateDaCert(dacPublicKey, wrongVendorId, productId);
-
+    describe("certificate validity period (Step 3b)", () => {
+        it("passes when DAC notBefore is within PAI and PAA validity window", async () => {
             const dclService = await setupDclService();
 
+            // The default test chain has overlapping validity periods (all created at approx same time
+            // with notBefore = now-1year, notAfter = now+10years). This exercises the Step 3b code path.
+            await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
+        });
+
+        it("validates that test chain has expected overlapping dates", () => {
+            // Parse the certs and verify dates are consistent - ensures Step 3b is meaningful
+            const dac = Dac.fromAsn1(dacDer);
+            const pai = Pai.fromAsn1(paiDer);
+            const paa = Paa.fromAsn1(TestCert_PAA_NoVID_Cert);
+
+            // DAC notBefore should be >= PAI notBefore (both generated with now-1y)
+            expect(dac.cert.notBefore).to.be.greaterThanOrEqual(pai.cert.notBefore);
+            // DAC notBefore should be >= PAA notBefore
+            expect(dac.cert.notBefore).to.be.greaterThanOrEqual(paa.cert.notBefore);
+
+            // PAI notAfter should be > DAC notBefore (PAI is still valid at DAC's start)
+            if (pai.cert.notAfter !== 0) {
+                expect(pai.cert.notAfter).to.be.greaterThan(dac.cert.notBefore);
+            }
+            // PAA notAfter should be > DAC notBefore (PAA is still valid at DAC's start)
+            if (paa.cert.notAfter !== 0) {
+                expect(paa.cert.notAfter).to.be.greaterThan(dac.cert.notBefore);
+            }
+        });
+    });
+
+    describe("VendorID matching", () => {
+        it("throws VendorIdMismatch when DAC vendorId does not match PAI vendorId", async () => {
+            const dclService = await setupDclService();
+
+            // Use the pre-generated DAC with wrong vendorId (created at same time as PAI in before())
             await expect(
-                DeviceAttestationValidator.validate(buildContext(dclService), buildData({ dac: wrongVendorDac })),
+                DeviceAttestationValidator.validate(buildContext(dclService), buildData({ dac: wrongVendorDacDer })),
             ).to.be.rejectedWith(DeviceAttestationError, /DAC vendorId.*does not match PAI vendorId/);
         });
     });

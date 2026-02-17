@@ -760,10 +760,9 @@ describe("ClientNode", () => {
             expect(controller.peers.size).equals(1);
         });
 
-        it("commissions successfully with onAttestationFailure=false when no DclCertificateService", async () => {
+        it("rejects commissioning with onAttestationFailure=false when no DclCertificateService", async () => {
             // When onAttestationFailure is set to false but no DclCertificateService is available,
-            // validation is skipped (not failed), so commissioning should still succeed.
-            // The false policy only rejects when validation actually runs and produces an error.
+            // commissioning should fail because strict attestation was requested but can't be performed.
             await using site = new MockSite();
             const { controller, device } = await site.addUncommissionedPair();
 
@@ -772,25 +771,24 @@ describe("ClientNode", () => {
             controllerCrypto.entropic = deviceCrypto.entropic = true;
 
             const { passcode, discriminator } = device.state.commissioning;
-            await MockTime.resolve(
-                controller.peers.commission({
-                    passcode,
-                    discriminator,
-                    timeout: Seconds(90),
-                    onAttestationFailure: false,
-                }),
-                { macrotasks: true },
-            );
+            await expect(
+                MockTime.resolve(
+                    controller.peers.commission({
+                        passcode,
+                        discriminator,
+                        timeout: Seconds(90),
+                        onAttestationFailure: false,
+                    }),
+                    { macrotasks: true },
+                ),
+            ).to.be.rejectedWith(/DclCertificateService is not available/);
 
             controllerCrypto.entropic = deviceCrypto.entropic = false;
-
-            expect(device.state.commissioning.commissioned).equals(true);
-            expect(controller.peers.size).equals(1);
         });
 
-        it("commissions successfully with custom onAttestationFailure callback", async () => {
-            // A custom callback should be accepted and not interfere with commissioning.
-            // Without DclCertificateService, validation is skipped so the callback is never called.
+        it("rejects commissioning with custom onAttestationFailure callback when no DclCertificateService", async () => {
+            // A custom callback requires attestation validation, so without DclCertificateService
+            // commissioning should fail.
             await using site = new MockSite();
             const { controller, device } = await site.addUncommissionedPair();
 
@@ -798,27 +796,22 @@ describe("ClientNode", () => {
             const deviceCrypto = device.env.get(Crypto) as MockCrypto;
             controllerCrypto.entropic = deviceCrypto.entropic = true;
 
-            let callbackInvoked = false;
             const { passcode, discriminator } = device.state.commissioning;
-            await MockTime.resolve(
-                controller.peers.commission({
-                    passcode,
-                    discriminator,
-                    timeout: Seconds(90),
-                    onAttestationFailure: (_failure: DeviceAttestationFailure, _reason: string) => {
-                        callbackInvoked = true;
-                        return true;
-                    },
-                }),
-                { macrotasks: true },
-            );
+            await expect(
+                MockTime.resolve(
+                    controller.peers.commission({
+                        passcode,
+                        discriminator,
+                        timeout: Seconds(90),
+                        onAttestationFailure: (_failure: DeviceAttestationFailure, _reason: string) => {
+                            return true;
+                        },
+                    }),
+                    { macrotasks: true },
+                ),
+            ).to.be.rejectedWith(/DclCertificateService is not available/);
 
             controllerCrypto.entropic = deviceCrypto.entropic = false;
-
-            expect(device.state.commissioning.commissioned).equals(true);
-            expect(controller.peers.size).equals(1);
-            // Without DclCertificateService, the callback should not be invoked
-            expect(callbackInvoked).equals(false);
         });
     });
 });

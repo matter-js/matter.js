@@ -20,7 +20,6 @@ export enum DeviceAttestationFailure {
     CertificateChainInvalid = "CertificateChainInvalid",
     CertificateExpired = "CertificateExpired",
     VendorIdMismatch = "VendorIdMismatch",
-    ProductIdMismatch = "ProductIdMismatch",
     AttestationSignatureInvalid = "AttestationSignatureInvalid",
     AttestationNonceMismatch = "AttestationNonceMismatch",
     CertificationDeclarationSignatureInvalid = "CertificationDeclarationSignatureInvalid",
@@ -71,7 +70,7 @@ export namespace DeviceAttestationValidator {
         | boolean
         | ((failure: DeviceAttestationFailure, reason: string) => MaybePromise<boolean>);
 
-    export async function validate(context: Context, data: DeviceAttestationData): Promise<void> {
+    export async function validate(context: Context, data: DeviceAttestationData): Promise<{ dacPublicKey: ReturnType<typeof PublicKey> }> {
         const { crypto, dclCertificateService } = context;
 
         // Step 1: Parse DAC and PAI from DER
@@ -118,6 +117,39 @@ export namespace DeviceAttestationValidator {
             throw new DeviceAttestationError(
                 DeviceAttestationFailure.CertificateChainInvalid,
                 `DAC signature verification failed: ${error}`,
+            );
+        }
+
+        // Step 3b: Certificate validity - validate chain at DAC's notBefore timestamp
+        // Per Matter spec Section 6.2.3.1: chain validation SHALL be performed with respect
+        // to the notBefore timestamp of the DAC. A notAfter value of 0 means infinite validity.
+        const dacNotBefore = dac.cert.notBefore;
+
+        // PAI must be valid at DAC's notBefore
+        if (dacNotBefore < pai.cert.notBefore) {
+            throw new DeviceAttestationError(
+                DeviceAttestationFailure.CertificateExpired,
+                `DAC notBefore (${dacNotBefore}) is before PAI notBefore (${pai.cert.notBefore})`,
+            );
+        }
+        if (pai.cert.notAfter !== 0 && dacNotBefore > pai.cert.notAfter) {
+            throw new DeviceAttestationError(
+                DeviceAttestationFailure.CertificateExpired,
+                `DAC notBefore (${dacNotBefore}) is after PAI notAfter (${pai.cert.notAfter})`,
+            );
+        }
+
+        // PAA must be valid at DAC's notBefore
+        if (dacNotBefore < paa.cert.notBefore) {
+            throw new DeviceAttestationError(
+                DeviceAttestationFailure.CertificateExpired,
+                `DAC notBefore (${dacNotBefore}) is before PAA notBefore (${paa.cert.notBefore})`,
+            );
+        }
+        if (paa.cert.notAfter !== 0 && dacNotBefore > paa.cert.notAfter) {
+            throw new DeviceAttestationError(
+                DeviceAttestationFailure.CertificateExpired,
+                `DAC notBefore (${dacNotBefore}) is after PAA notAfter (${paa.cert.notAfter})`,
             );
         }
 
@@ -315,5 +347,12 @@ export namespace DeviceAttestationValidator {
                 );
             }
         }
+
+        // Step 10: Firmware information (log warning if present but validation not yet supported)
+        if (attestationInfo.firmwareInfo !== undefined && Bytes.of(attestationInfo.firmwareInfo).length > 0) {
+            logger.warn("Firmware information present in attestation elements but validation is not yet supported");
+        }
+
+        return { dacPublicKey: PublicKey(dac.cert.ellipticCurvePublicKey) };
     }
 }

@@ -124,7 +124,7 @@ export class DclCertificateService {
 
         // Retrieve DER certificate from storage
         const derBytes = await this.#storage!.get<Bytes>(normalizedId);
-        if (!derBytes) {
+        if (!derBytes || Bytes.of(derBytes).length === 0) {
             throw new MatterDclError(`Certificate data not found in storage`, Diagnostic.dict({ skid: normalizedId }));
         }
 
@@ -146,7 +146,7 @@ export class DclCertificateService {
 
         // Retrieve DER certificate from storage
         const derBytes = await this.#storage!.get<Bytes>(normalizedId);
-        if (!derBytes) {
+        if (!derBytes || Bytes.of(derBytes).length === 0) {
             throw new MatterDclError(`Certificate data not found in storage`, Diagnostic.dict({ skid: normalizedId }));
         }
 
@@ -594,12 +594,29 @@ export class DclCertificateService {
 
     /**
      * Fetch revocation distribution points from DCL and process them.
+     * Mirrors the pattern of #fetchCertificates: always fetches production, optionally fetches test-net.
      */
     async #fetchRevocationData(force = false) {
-        try {
-            logger.debug("Fetching revocation distribution points from DCL");
+        // Always fetch production revocation data
+        await this.#fetchRevocationFromDcl(true, force);
 
-            const dclClient = new DclClient(true); // production
+        // Additionally fetch test revocation data if configured
+        if (this.#options.fetchTestCertificates) {
+            await this.#fetchRevocationFromDcl(false, force);
+        }
+
+        await this.#saveRevocationIndex();
+    }
+
+    /**
+     * Fetch revocation distribution points from a specific DCL environment and process them.
+     */
+    async #fetchRevocationFromDcl(isProduction: boolean, force: boolean) {
+        try {
+            const environment = isProduction ? "production" : "test";
+            logger.debug(`Fetching revocation distribution points from DCL (${environment})`);
+
+            const dclClient = new DclClient(isProduction);
             const points = await dclClient.fetchRevocationDistributionPoints(this.#options);
 
             let updatedCount = 0;
@@ -621,8 +638,7 @@ export class DclCertificateService {
             }
 
             if (updatedCount > 0) {
-                await this.#saveRevocationIndex();
-                logger.info(`Processed ${updatedCount} revocation distribution points`);
+                logger.info(`Processed ${updatedCount} ${environment} revocation distribution points`);
             }
         } catch (error) {
             logger.info("Failed to fetch revocation distribution points", error);
@@ -632,6 +648,7 @@ export class DclCertificateService {
     /**
      * Process a single revocation distribution point: download the CRL and extract revoked serial numbers.
      */
+    // TODO: Validate CRL signature against crlSignerCertificate and verify signer chain per spec 6.2.4.1
     async #processRevocationPoint(point: DeviceAttestationPkiRevocationDclSchema, force: boolean) {
         const issuerKeyId = this.#normalizeSubjectKeyId(point.issuerSubjectKeyId);
 

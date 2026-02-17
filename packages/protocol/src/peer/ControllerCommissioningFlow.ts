@@ -1055,13 +1055,24 @@ export class ControllerCommissioningFlow {
         const { dclCertificateService } = this.commissioningOptions;
 
         if (dclCertificateService === undefined) {
+            const policy = this.commissioningOptions.onAttestationFailure;
+            if (policy === false || typeof policy === "function") {
+                throw new CommissioningError(
+                    "Device attestation validation requested but DclCertificateService is not available. " +
+                        "Register DclCertificateService in the environment or set onAttestationFailure to true/undefined.",
+                );
+            }
             logger.warn(
                 "DclCertificateService not available; skipping device attestation validation. " +
                     "Set up DclCertificateService in the environment for full attestation checks.",
             );
+
+            // Still need to extract DAC public key for CSR signature verification
+            const dac = Dac.fromAsn1(deviceAttestation);
+            this.#dacPublicKey = PublicKey(dac.cert.ellipticCurvePublicKey);
         } else {
             try {
-                await DeviceAttestationValidator.validate(
+                const result = await DeviceAttestationValidator.validate(
                     {
                         crypto: this.fabric.crypto,
                         dclCertificateService,
@@ -1077,21 +1088,21 @@ export class ControllerCommissioningFlow {
                         productId: this.collectedCommissioningData.productId!,
                     },
                 );
+                this.#dacPublicKey = result.dacPublicKey;
             } catch (error) {
                 if (error instanceof DeviceAttestationError) {
                     const proceed = await resolveFailure(error.failure, error.message);
                     if (!proceed) {
                         throw error;
                     }
+                    // Even on failure, extract DAC public key for CSR verification
+                    const dac = Dac.fromAsn1(deviceAttestation);
+                    this.#dacPublicKey = PublicKey(dac.cert.ellipticCurvePublicKey);
                 } else {
                     throw error;
                 }
             }
         }
-
-        // Extract and store the DAC public key for CSR signature verification in #certificates()
-        const dac = Dac.fromAsn1(deviceAttestation);
-        this.#dacPublicKey = PublicKey(dac.cert.ellipticCurvePublicKey);
 
         return {
             code: CommissioningStepResultCode.Success,
