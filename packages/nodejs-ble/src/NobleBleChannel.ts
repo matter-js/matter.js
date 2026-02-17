@@ -344,6 +344,15 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                             return;
                         }
                     }
+                } catch (error) {
+                    // Noble operations (discoverServicesAsync, discoverCharacteristicsAsync, readAsync)
+                    // are wrapped in noble's _withDisconnectHandler, which rejects the promise when the
+                    // peripheral disconnects. If reTryHandler was already called from the disconnect event,
+                    // the connectionGuard is already cleared. Otherwise, handle the error.
+                    if (this.#connectionGuards.has(connectionGuard)) {
+                        reTryHandler(error);
+                    }
+                    return;
                 } finally {
                     this.#connectionsInProgress.delete(address);
                     clearConnectionGuard();

@@ -19,6 +19,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensures that production certificates are always stored correctly
     - Fix: Ensures trying different IPs when we have a timeout-based reconnection process
 
+- @matter/nodejs-ble
+    - Fix: Fix crash when BLE peripheral disconnects during service/characteristic discovery (#1977)
+
 - @matter/nodejs-shell
     - Adjustment: `ota add` stores files as "local" mode; `ota list`, `ota delete`, and `ota copy` support "local" mode filter
 
