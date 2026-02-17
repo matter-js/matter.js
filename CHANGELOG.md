@@ -11,10 +11,14 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/create
+    - Fix: Fixes generated `npm run app` entrypoint path (`dist/src/...` → `dist/...`) (#3228)
+
 - @matter/model
-    - Fix: Constraint evaluation for expressions with negative exponentiation bases (e.g. `-2^62 to 2^62`) and improves precision for large exponent arithmetic by using BigInt when results exceed the safe integer range (#3232)
+    - Fix: Constraint evaluation for expressions with negative exponentiation bases (e.g. `-2^62 to 2^62`) and improves precision for large exponent arithmetic by using BigInt when results exceed the safe integer range
 
 - @matter/nodejs-ble
+    - Fix: Fix crash when BLE peripheral disconnects during service/characteristic discovery
     - Fix: Fix cancelCommissionableDeviceDiscovery not working when called from the discovery callback (#2131)
 
 - @matter/nodejs-shell
@@ -28,6 +32,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/react-native
     - Fix: Bring BleScanner cancel support in line with nodejs-ble, fixing cancelCommissionableDeviceDiscovery not working when called from the discovery callback (#2131)
+
+- @project-chip/matter.js
+    - Fix: Fixes crash when decommissioning a node while a reconnect is in progress (#3237)
 
 ## 0.16.9 (2026-02-16)
 
