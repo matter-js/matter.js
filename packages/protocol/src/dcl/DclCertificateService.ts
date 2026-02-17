@@ -123,6 +123,28 @@ export class DclCertificateService {
     }
 
     /**
+     * Get certificate as DER bytes.
+     * @throws {MatterDclError} if certificate not found
+     */
+    async getCertificateAsDer(subjectKeyId: Bytes | string) {
+        this.construction.assert();
+
+        const normalizedId = this.#normalizeSubjectKeyId(subjectKeyId);
+        const metadata = this.#certificateIndex.get(normalizedId);
+        if (!metadata) {
+            throw new MatterDclError(`Certificate not found`, Diagnostic.dict({ skid: normalizedId }));
+        }
+
+        // Retrieve DER certificate from storage
+        const derBytes = await this.#storage!.get<Bytes>(normalizedId);
+        if (!derBytes) {
+            throw new MatterDclError(`Certificate data not found in storage`, Diagnostic.dict({ skid: normalizedId }));
+        }
+
+        return Bytes.of(derBytes);
+    }
+
+    /**
      * Get certificate metadata by subject key identifier, fetching from DCL if not in local storage. Returns
      * undefined if not found.
      */
