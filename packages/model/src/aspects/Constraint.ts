@@ -153,10 +153,8 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
                         // The inner type check guards against non-numeric types (e.g. undefined
                         // from unresolved references) that would not convert to BigInt.
                         if (typeof lhs === "bigint" || typeof rhs === "bigint") {
-                            const l =
-                                typeof lhs === "number" && Number.isInteger(lhs) ? BigInt(lhs) : lhs;
-                            const r =
-                                typeof rhs === "number" && Number.isInteger(rhs) ? BigInt(rhs) : rhs;
+                            const l = typeof lhs === "number" && Number.isInteger(lhs) ? BigInt(lhs) : lhs;
+                            const r = typeof rhs === "number" && Number.isInteger(rhs) ? BigInt(rhs) : rhs;
                             if (typeof l === "bigint" && typeof r === "bigint") {
                                 return type === "+" ? l + r : l - r;
                             }
