@@ -11,11 +11,13 @@ import {
     DeviceAttestationValidator,
 } from "#certificate/DeviceAttestationValidator.js";
 import { Paa } from "#certificate/kinds/AttestationCertificates.js";
+import { TlvAttestation } from "#common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "#dcl/DclCertificateService.js";
 import {
     Bytes,
     Environment,
     MockFetch,
+    PrivateKey,
     StandardCrypto,
     StorageBackendMemory,
     StorageManager,
@@ -39,6 +41,10 @@ describe("DeviceAttestationValidator", () => {
     const vendorId = VendorId(0xfff1);
     const productId = 0x8000;
 
+    // Fixed attestation challenge (16 bytes) and nonce (32 bytes) for tests
+    const attestationChallenge = crypto.randomBytes(16);
+    const attestationNonce = crypto.randomBytes(32);
+
     let fetchMock: MockFetch;
     let environment: Environment;
     let storage: StorageBackendMemory;
@@ -48,6 +54,11 @@ describe("DeviceAttestationValidator", () => {
     let paiDer: Bytes;
     let dacDer: Bytes;
     let dacPublicKey: Bytes;
+    let dacPrivateKey: PrivateKey;
+
+    // Pre-computed valid attestation elements and signature
+    let validAttestationElements: Bytes;
+    let validAttestationSignature: Bytes;
 
     before(async () => {
         // Create the cert manager and generate PAI and DAC
@@ -56,6 +67,19 @@ describe("DeviceAttestationValidator", () => {
         const dacResult = await certManager.getDACert(productId);
         dacDer = dacResult.dac;
         dacPublicKey = dacResult.keyPair.publicKey;
+        dacPrivateKey = PrivateKey(dacResult.keyPair);
+
+        // Build valid attestation elements (TLV-encoded)
+        validAttestationElements = TlvAttestation.encode({
+            declaration: Bytes.fromHex("00"), // dummy certification declaration
+            attestationNonce,
+            timestamp: 0,
+        });
+
+        // Sign [attestationElements, attestationChallenge] with DAC private key
+        // This mirrors how the device signs in DeviceCertification.ts
+        const sig = await crypto.signEcdsa(dacPrivateKey, [validAttestationElements, attestationChallenge]);
+        validAttestationSignature = sig.bytes;
     });
 
     beforeEach(async () => {
@@ -126,32 +150,36 @@ describe("DeviceAttestationValidator", () => {
         return service;
     }
 
-    /** Build a DeviceAttestationData object. */
+    /** Build a DeviceAttestationData object with valid attestation data by default. */
     function buildData(overrides?: Partial<DeviceAttestationValidator.DeviceAttestationData>): DeviceAttestationValidator.DeviceAttestationData {
         return {
             dac: dacDer,
             pai: paiDer,
-            attestationElements: Bytes.fromHex("00"),
-            attestationSignature: Bytes.fromHex("00"),
-            attestationNonce: Bytes.fromHex("00"),
+            attestationElements: validAttestationElements,
+            attestationSignature: validAttestationSignature,
+            attestationNonce,
             vendorId,
             productId,
             ...overrides,
         };
     }
 
+    /** Build a Context object with valid attestation challenge by default. */
+    function buildContext(dclService: DclCertificateService, overrides?: Partial<DeviceAttestationValidator.Context>): DeviceAttestationValidator.Context {
+        return {
+            crypto,
+            dclCertificateService: dclService,
+            attestationChallenge,
+            ...overrides,
+        };
+    }
+
     describe("valid chain passes validation", () => {
-        it("passes validation for a valid certificate chain", async () => {
+        it("passes validation with valid chain, nonce, and signature", async () => {
             const dclService = await setupDclService();
 
-            const context: DeviceAttestationValidator.Context = {
-                crypto,
-                dclCertificateService: dclService,
-                attestationChallenge: Bytes.fromHex("00"),
-            };
-
             // Should not throw
-            await DeviceAttestationValidator.validate(context, buildData());
+            await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
         });
     });
 
@@ -166,13 +194,7 @@ describe("DeviceAttestationValidator", () => {
             service = new DclCertificateService(environment, { updateInterval: null });
             await service.construction;
 
-            const context: DeviceAttestationValidator.Context = {
-                crypto,
-                dclCertificateService: service,
-                attestationChallenge: Bytes.fromHex("00"),
-            };
-
-            await expect(DeviceAttestationValidator.validate(context, buildData())).to.be.rejectedWith(
+            await expect(DeviceAttestationValidator.validate(buildContext(service), buildData())).to.be.rejectedWith(
                 DeviceAttestationError,
                 /PAA not found in trust store/,
             );
@@ -187,14 +209,8 @@ describe("DeviceAttestationValidator", () => {
             const tamperedPai = Bytes.of(paiDer).slice();
             tamperedPai[tamperedPai.length - 5] ^= 0xff;
 
-            const context: DeviceAttestationValidator.Context = {
-                crypto,
-                dclCertificateService: dclService,
-                attestationChallenge: Bytes.fromHex("00"),
-            };
-
             await expect(
-                DeviceAttestationValidator.validate(context, buildData({ pai: tamperedPai })),
+                DeviceAttestationValidator.validate(buildContext(dclService), buildData({ pai: tamperedPai })),
             ).to.be.rejectedWith(DeviceAttestationError, /PAI signature verification failed/);
         });
 
@@ -205,14 +221,8 @@ describe("DeviceAttestationValidator", () => {
             const tamperedDac = Bytes.of(dacDer).slice();
             tamperedDac[tamperedDac.length - 5] ^= 0xff;
 
-            const context: DeviceAttestationValidator.Context = {
-                crypto,
-                dclCertificateService: dclService,
-                attestationChallenge: Bytes.fromHex("00"),
-            };
-
             await expect(
-                DeviceAttestationValidator.validate(context, buildData({ dac: tamperedDac })),
+                DeviceAttestationValidator.validate(buildContext(dclService), buildData({ dac: tamperedDac })),
             ).to.be.rejectedWith(DeviceAttestationError, /DAC signature verification failed/);
         });
 
@@ -223,16 +233,10 @@ describe("DeviceAttestationValidator", () => {
 
             const dclService = await setupDclService();
 
-            const context: DeviceAttestationValidator.Context = {
-                crypto,
-                dclCertificateService: dclService,
-                attestationChallenge: Bytes.fromHex("00"),
-            };
-
             // Use our DAC (signed by our PAI key) with the other manager's PAI
             // The DAC signature won't verify against the other PAI's public key
             await expect(
-                DeviceAttestationValidator.validate(context, buildData({ pai: otherPai })),
+                DeviceAttestationValidator.validate(buildContext(dclService), buildData({ pai: otherPai })),
             ).to.be.rejectedWith(DeviceAttestationError, /DAC signature verification failed/);
         });
     });
@@ -246,15 +250,99 @@ describe("DeviceAttestationValidator", () => {
 
             const dclService = await setupDclService();
 
-            const context: DeviceAttestationValidator.Context = {
-                crypto,
-                dclCertificateService: dclService,
-                attestationChallenge: Bytes.fromHex("00"),
-            };
+            await expect(
+                DeviceAttestationValidator.validate(buildContext(dclService), buildData({ dac: wrongVendorDac })),
+            ).to.be.rejectedWith(DeviceAttestationError, /DAC vendorId.*does not match PAI vendorId/);
+        });
+    });
+
+    describe("attestation nonce verification", () => {
+        it("passes when attestation nonce matches", async () => {
+            const dclService = await setupDclService();
+
+            // Should not throw - valid nonce is already in buildData defaults
+            await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
+        });
+
+        it("throws AttestationNonceMismatch when nonce does not match", async () => {
+            const dclService = await setupDclService();
+
+            // Use a different nonce than what's in the attestation elements
+            const wrongNonce = crypto.randomBytes(32);
 
             await expect(
-                DeviceAttestationValidator.validate(context, buildData({ dac: wrongVendorDac })),
-            ).to.be.rejectedWith(DeviceAttestationError, /DAC vendorId.*does not match PAI vendorId/);
+                DeviceAttestationValidator.validate(
+                    buildContext(dclService),
+                    buildData({ attestationNonce: wrongNonce }),
+                ),
+            ).to.be.rejectedWith(
+                DeviceAttestationError,
+                /AttestationNonce in response does not match/,
+            );
+        });
+    });
+
+    describe("attestation signature verification", () => {
+        it("passes with valid signature", async () => {
+            const dclService = await setupDclService();
+
+            // Should not throw - valid signature is already in buildData defaults
+            await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
+        });
+
+        it("throws AttestationSignatureInvalid for tampered signature", async () => {
+            const dclService = await setupDclService();
+
+            // Tamper with the signature bytes (flip a byte)
+            const tamperedSignature = Bytes.of(validAttestationSignature).slice();
+            tamperedSignature[10] ^= 0xff;
+
+            await expect(
+                DeviceAttestationValidator.validate(
+                    buildContext(dclService),
+                    buildData({ attestationSignature: tamperedSignature }),
+                ),
+            ).to.be.rejectedWith(
+                DeviceAttestationError,
+                /Attestation signature verification failed/,
+            );
+        });
+
+        it("throws AttestationSignatureInvalid when signed with wrong attestation challenge", async () => {
+            const dclService = await setupDclService();
+
+            // Sign with a different attestation challenge
+            const wrongChallenge = crypto.randomBytes(16);
+            const sig = await crypto.signEcdsa(dacPrivateKey, [validAttestationElements, wrongChallenge]);
+
+            // The signature was made with wrongChallenge, but the context has the original challenge
+            await expect(
+                DeviceAttestationValidator.validate(
+                    buildContext(dclService),
+                    buildData({ attestationSignature: sig.bytes }),
+                ),
+            ).to.be.rejectedWith(
+                DeviceAttestationError,
+                /Attestation signature verification failed/,
+            );
+        });
+
+        it("throws AttestationSignatureInvalid when signed with wrong key", async () => {
+            const dclService = await setupDclService();
+
+            // Sign with a completely different key pair
+            const otherKey = await crypto.createKeyPair();
+            const sig = await crypto.signEcdsa(otherKey, [validAttestationElements, attestationChallenge]);
+
+            await expect(
+                DeviceAttestationValidator.validate(
+                    buildContext(dclService),
+                    buildData({ attestationSignature: sig.bytes }),
+                ),
+            ).to.be.rejectedWith(
+                DeviceAttestationError,
+                /Attestation signature verification failed/,
+            );
         });
     });
 });

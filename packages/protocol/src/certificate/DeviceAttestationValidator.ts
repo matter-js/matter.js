@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto, MaybePromise, PublicKey } from "#general";
+import { Bytes, Crypto, EcdsaSignature, MaybePromise, PublicKey } from "#general";
 import { VendorId } from "#types";
+import { TlvAttestation } from "../common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { Dac, Paa, Pai } from "./kinds/AttestationCertificates.js";
 import { CommissioningError } from "../peer/CommissioningError.js";
@@ -121,6 +122,33 @@ export namespace DeviceAttestationValidator {
             throw new DeviceAttestationError(
                 DeviceAttestationFailure.VendorIdMismatch,
                 `PAA vendorId ${paaVendorId} does not match PAI vendorId ${pai.cert.subject.vendorId}`,
+            );
+        }
+
+        // Step 6: AttestationNonce match
+        const attestationInfo = TlvAttestation.decode(data.attestationElements);
+        if (!Bytes.areEqual(attestationInfo.attestationNonce, data.attestationNonce)) {
+            throw new DeviceAttestationError(
+                DeviceAttestationFailure.AttestationNonceMismatch,
+                "AttestationNonce in response does not match the nonce sent to the device",
+            );
+        }
+
+        // Step 7: Attestation Signature verification
+        // The device signs [attestationElements, attestationChallenge] concatenated.
+        // See DeviceCertification.ts where signEcdsa(privateKey, [data, session.attestationChallengeKey]) is used.
+        // signEcdsa internally concatenates the array elements via Bytes.concat.
+        const dacPublicKey = PublicKey(dac.cert.ellipticCurvePublicKey);
+        try {
+            await crypto.verifyEcdsa(
+                dacPublicKey,
+                Bytes.concat(data.attestationElements, context.attestationChallenge),
+                new EcdsaSignature(data.attestationSignature),
+            );
+        } catch {
+            throw new DeviceAttestationError(
+                DeviceAttestationFailure.AttestationSignatureInvalid,
+                "Attestation signature verification failed against DAC public key",
             );
         }
     }
