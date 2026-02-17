@@ -17,16 +17,21 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/model
     - Fix: Constraint evaluation for expressions with negative exponentiation bases (e.g. `-2^62 to 2^62`) and improves precision for large exponent arithmetic by using BigInt when results exceed the safe integer range
 
+- @matter/nodejs-ble
+    - Fix: Fix crash when BLE peripheral disconnects during service/characteristic discovery
+    - Fix: Fix cancelCommissionableDeviceDiscovery not working when called from the discovery callback (#2131)
+
+- @matter/nodejs-shell
+    - Adjustment: `ota add` stores files as "local" mode; `ota list`, `ota delete`, and `ota copy` support "local" mode filter
+
 - @matter/protocol
     - Adjustment: OTA update files are now stored per software version, allowing different updates to be served to different nodes simultaneously. Former files are migrated.
     - Fix: Ensures that production certificates are always stored correctly
     - Fix: Ensures trying different IPs when we have a timeout-based reconnection process
+    - Fix: Fix cancelCommissionableDeviceDiscovery not working when called from the MDNS discovery callback (#2131)
 
-- @matter/nodejs-ble
-    - Fix: Fix crash when BLE peripheral disconnects during service/characteristic discovery
-
-- @matter/nodejs-shell
-    - Adjustment: `ota add` stores files as "local" mode; `ota list`, `ota delete`, and `ota copy` support "local" mode filter
+- @matter/react-native
+    - Fix: Bring BleScanner cancel support in line with nodejs-ble, fixing cancelCommissionableDeviceDiscovery not working when called from the discovery callback (#2131)
 
 - @project-chip/matter.js
     - Fix: Fixes crash when decommissioning a node while a reconnect is in progress (#3237)

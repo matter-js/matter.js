@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, ChannelType, createPromise, Duration, Logger, Minutes, Seconds, Time, Timer, Timespan } from "#general";
+import { Bytes, ChannelType, createPromise, Duration, Logger, Millis, Seconds, Time, Timer, Timespan } from "#general";
 import { BleError, BtpCodec, CommissionableDevice, CommissionableDeviceIdentifiers, Scanner } from "#protocol";
 import { VendorId } from "#types";
 import { Device } from "react-native-ble-plx";
@@ -31,8 +31,9 @@ export class BleScanner implements Scanner {
         string,
         {
             resolver: () => void;
-            timer: Timer;
+            timer?: Timer;
             resolveOnUpdatedRecords: boolean;
+            cancelResolver?: (value: void) => void;
         }
     >();
     private readonly discoveredMatterDevices = new Map<string, DiscoveredBleDevice>();
@@ -55,12 +56,23 @@ export class BleScanner implements Scanner {
      * Registers a deferred promise for a specific queryId together with a timeout and return the promise.
      * The promise will be resolved when the timer runs out latest.
      */
-    private async registerWaiterPromise(queryId: string, timeout: Duration, resolveOnUpdatedRecords = true) {
+    private async registerWaiterPromise(
+        queryId: string,
+        timeout?: Duration,
+        resolveOnUpdatedRecords = true,
+        cancelResolver?: (value: void) => void,
+    ) {
         const { promise, resolver } = createPromise<void>();
-        const timer = Time.getTimer("BLE query timeout", timeout, () => this.finishWaiter(queryId, true)).start();
-        this.recordWaiters.set(queryId, { resolver, timer, resolveOnUpdatedRecords });
+        let timer;
+        if (timeout) {
+            timer = Time.getTimer("BLE query timeout", timeout, () => {
+                cancelResolver?.();
+                this.finishWaiter(queryId, true);
+            }).start();
+        }
+        this.recordWaiters.set(queryId, { resolver, timer, resolveOnUpdatedRecords, cancelResolver });
         logger.debug(
-            `Registered waiter for query ${queryId} with timeout ${timeout ? Duration.format(timeout) : "(none)"}${
+            `Registered waiter for query ${queryId} with timeout ${timeout === undefined ? "(none)" : Duration.format(timeout)}${
                 resolveOnUpdatedRecords ? "" : " (not resolving on updated records)"
             }`,
         );
@@ -77,16 +89,18 @@ export class BleScanner implements Scanner {
         const { timer, resolver, resolveOnUpdatedRecords } = waiter;
         if (isUpdatedRecord && !resolveOnUpdatedRecords) return;
         logger.debug(`Finishing waiter for query ${queryId}, resolving: ${resolvePromise}`);
-        timer.stop();
+        timer?.stop();
         if (resolvePromise) {
             resolver();
         }
         this.recordWaiters.delete(queryId);
     }
 
-    cancelCommissionableDeviceDiscovery(identifier: CommissionableDeviceIdentifiers) {
+    cancelCommissionableDeviceDiscovery(identifier: CommissionableDeviceIdentifiers, resolvePromise = true) {
         const queryKey = this.buildCommissionableQueryIdentifier(identifier);
-        this.finishWaiter(queryKey, true);
+        const { cancelResolver } = this.recordWaiters.get(queryKey) ?? {};
+        cancelResolver?.();
+        this.finishWaiter(queryKey, resolvePromise);
     }
 
     private handleDiscoveredDevice(peripheral: Device, manufacturerServiceData: Bytes) {
@@ -243,15 +257,34 @@ export class BleScanner implements Scanner {
     async findCommissionableDevicesContinuously(
         identifier: CommissionableDeviceIdentifiers,
         callback: (device: CommissionableDevice) => void,
-        timeout = Minutes.one,
+        timeout?: Duration,
+        cancelSignal?: Promise<void>,
     ): Promise<CommissionableDevice[]> {
         const discoveredDevices = new Set<string>();
 
-        const discoveryEndTime = Time.nowMs + timeout;
+        const discoveryEndTime = timeout ? Time.nowMs + timeout : undefined;
         const queryKey = this.buildCommissionableQueryIdentifier(identifier);
         await this.bleClient.startScanning();
 
-        while (true) {
+        let queryResolver: ((value: void) => void) | undefined;
+        if (cancelSignal === undefined) {
+            const { promise, resolver } = createPromise<void>();
+            cancelSignal = promise;
+            queryResolver = resolver;
+        }
+
+        let canceled = false;
+        cancelSignal?.then(
+            () => {
+                canceled = true;
+                this.finishWaiter(queryKey, true);
+            },
+            cause => {
+                logger.error("Unexpected error canceling commissioning", cause);
+            },
+        );
+
+        while (!canceled) {
             this.getCommissionableDevices(identifier).forEach(({ deviceData }) => {
                 const { deviceIdentifier } = deviceData;
                 if (!discoveredDevices.has(deviceIdentifier)) {
@@ -260,12 +293,15 @@ export class BleScanner implements Scanner {
                 }
             });
 
-            const remainingTime = Timespan(Time.nowMs, discoveryEndTime).duration;
-            if (remainingTime <= 0) {
-                break;
+            let remainingTime;
+            if (discoveryEndTime !== undefined) {
+                remainingTime = Millis.ceil(Timespan(Time.nowMs, discoveryEndTime).duration);
+                if (remainingTime <= 0) {
+                    break;
+                }
             }
 
-            await this.registerWaiterPromise(queryKey, remainingTime, false);
+            await this.registerWaiterPromise(queryKey, remainingTime, false, queryResolver);
         }
         await this.bleClient.stopScanning();
         return this.getCommissionableDevices(identifier).map(({ deviceData }) => deviceData);
