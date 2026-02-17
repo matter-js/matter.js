@@ -17,8 +17,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/nodejs-ble
     - Fix: Fix cancelCommissionableDeviceDiscovery not working when called from the discovery callback (#2131)
 
-- @matter/react-native
-    - Fix: Bring BleScanner cancel support in line with nodejs-ble, fixing cancelCommissionableDeviceDiscovery not working when called from the discovery callback (#2131)
+- @matter/nodejs-shell
+    - Adjustment: `ota add` stores files as "local" mode; `ota list`, `ota delete`, and `ota copy` support "local" mode filter
 
 - @matter/protocol
     - Adjustment: OTA update files are now stored per software version, allowing different updates to be served to different nodes simultaneously. Former files are migrated.
@@ -26,8 +26,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensures trying different IPs when we have a timeout-based reconnection process
     - Fix: Fix cancelCommissionableDeviceDiscovery not working when called from the MDNS discovery callback (#2131)
 
-- @matter/nodejs-shell
-    - Adjustment: `ota add` stores files as "local" mode; `ota list`, `ota delete`, and `ota copy` support "local" mode filter
+- @matter/react-native
+    - Fix: Bring BleScanner cancel support in line with nodejs-ble, fixing cancelCommissionableDeviceDiscovery not working when called from the discovery callback (#2131)
 
 ## 0.16.9 (2026-02-16)
 
