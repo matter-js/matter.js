@@ -89,3 +89,33 @@ export interface DclVendorInfo {
     creator: string;
     schemaVersion?: number;
 }
+
+/**
+ * Raw revocation distribution point entry as returned by the DCL REST API.
+ * Note: The DCL API uses "issuerSubjectKeyID" (capital ID) and "dataURL" (capital URL),
+ * which differ from the DeviceAttestationPkiRevocationDclSchema field naming convention.
+ */
+export interface DclPkiRevocationDistributionPointRaw {
+    vid: number;
+    pid: number;
+    isPAA: boolean;
+    label: string;
+    crlSignerDelegator: string;
+    crlSignerCertificate: string;
+    issuerSubjectKeyID: string;
+    dataURL: string;
+    dataFileSize: string;
+    dataDigest: string;
+    dataDigestType: number;
+    revocationType: number;
+    schemaVersion: number;
+}
+
+/** Response for /dcl/pki/revocation-points/{issuerSubjectKeyId} */
+export interface DclPkiRevocationPointsByIssuerResponse {
+    pkiRevocationDistributionPointsByIssuerSubjectKeyID: {
+        issuerSubjectKeyID: string;
+        points: DclPkiRevocationDistributionPointRaw[];
+        schemaVersion: number;
+    };
+}

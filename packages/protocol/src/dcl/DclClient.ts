@@ -9,11 +9,14 @@ import {
     DclModelVersionsWithVidPidResponse,
     DclModelVersionWithVidPidSoftwareVersionResponse,
     DclPkiCertificateResponse,
+    DclPkiRevocationDistributionPointRaw,
+    DclPkiRevocationPointsByIssuerResponse,
     DclPkiRootCertificatesResponse,
     DclPkiRootCertificateSubjectReference,
     DclVendorInfo,
 } from "#dcl/DclRestApiTypes.js";
 import { Duration, Logger, MatterError, Seconds } from "#general";
+import { DeviceAttestationPkiRevocationDclSchema, VendorId } from "#types";
 
 const logger = new Logger("DclClient");
 
@@ -191,6 +194,60 @@ export class DclClient {
     async fetchAllVendors(options?: DclClient.Options) {
         return this.#fetchPaginatedJson<DclVendorInfo>("/dcl/vendorinfo/vendors", "vendorInfo", options);
     }
+
+    /**
+     * Fetch all revocation distribution point entries from DCL.
+     * Uses pagination to retrieve all entries across multiple pages.
+     */
+    async fetchRevocationDistributionPoints(
+        options?: DclClient.Options,
+    ): Promise<DeviceAttestationPkiRevocationDclSchema[]> {
+        const rawItems = await this.#fetchPaginatedJson<DclPkiRevocationDistributionPointRaw>(
+            "/dcl/pki/revocation-points",
+            "PkiRevocationDistributionPoint",
+            options,
+        );
+        return rawItems.map(mapRawRevocationPoint);
+    }
+
+    /**
+     * Fetch revocation distribution points for a specific issuer by their subject key identifier.
+     */
+    async fetchRevocationDistributionPointsByIssuer(
+        issuerSubjectKeyId: string,
+        options?: DclClient.Options,
+    ): Promise<DeviceAttestationPkiRevocationDclSchema[]> {
+        const path = `/dcl/pki/revocation-points/${encodeURIComponent(issuerSubjectKeyId)}`;
+        const response = await this.#fetchJson<DclPkiRevocationPointsByIssuerResponse>(path, options);
+        const rawPoints =
+            response?.pkiRevocationDistributionPointsByIssuerSubjectKeyID?.points ?? [];
+        return rawPoints.map(mapRawRevocationPoint);
+    }
+}
+
+/**
+ * Maps a raw DCL revocation distribution point entry to the DeviceAttestationPkiRevocationDclSchema format.
+ * The DCL API uses "issuerSubjectKeyID" (capital ID) and "dataURL" (capital URL), while the
+ * DeviceAttestationPkiRevocationDclSchema uses "issuerSubjectKeyId" and "dataUrl".
+ */
+function mapRawRevocationPoint(
+    raw: DclPkiRevocationDistributionPointRaw,
+): DeviceAttestationPkiRevocationDclSchema {
+    return {
+        vid: VendorId(raw.vid, false),
+        pid: raw.pid || undefined,
+        isPAA: raw.isPAA,
+        label: raw.label,
+        crlSignerDelegator: raw.crlSignerDelegator || undefined,
+        crlSignerCertificate: raw.crlSignerCertificate,
+        issuerSubjectKeyId: raw.issuerSubjectKeyID,
+        dataUrl: raw.dataURL,
+        dataFileSize: raw.dataFileSize ? parseInt(raw.dataFileSize, 10) || undefined : undefined,
+        dataDigest: raw.dataDigest || undefined,
+        dataDigestType: raw.dataDigestType || undefined,
+        revocationType: raw.revocationType,
+        schemaVersion: raw.schemaVersion,
+    };
 }
 
 export namespace DclClient {
