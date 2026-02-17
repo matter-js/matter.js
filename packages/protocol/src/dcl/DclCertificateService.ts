@@ -177,6 +177,14 @@ export class DclCertificateService {
     }
 
     /**
+     * Returns true if any revocation data has been fetched and is available.
+     * Can be used to log a warning when no revocation data exists yet.
+     */
+    get hasRevocationData(): boolean {
+        return this.#revocationIndex.size > 0;
+    }
+
+    /**
      * Get certificate metadata by subject key identifier, fetching from DCL if not in local storage. Returns
      * undefined if not found.
      */

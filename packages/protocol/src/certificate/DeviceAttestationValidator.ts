@@ -139,6 +139,32 @@ export namespace DeviceAttestationValidator {
             );
         }
 
+        // Step 5: Revocation check
+        if (!dclCertificateService.hasRevocationData) {
+            logger.warn(
+                "No revocation data available; skipping revocation check (per spec Section 6.2.4.2)",
+            );
+        } else {
+            // Check DAC revocation
+            const dacSerialNumber = dac.cert.serialNumber;
+            const dacAkid = dac.cert.extensions.authorityKeyIdentifier;
+            if (dclCertificateService.isRevoked(dacAkid, dacSerialNumber)) {
+                throw new DeviceAttestationError(
+                    DeviceAttestationFailure.CertificateRevoked,
+                    "Device Attestation Certificate has been revoked",
+                );
+            }
+
+            // Check PAI revocation
+            const paiSerialNumber = pai.cert.serialNumber;
+            if (dclCertificateService.isRevoked(paiAkid, paiSerialNumber)) {
+                throw new DeviceAttestationError(
+                    DeviceAttestationFailure.CertificateRevoked,
+                    "Product Attestation Intermediate certificate has been revoked",
+                );
+            }
+        }
+
         // Step 6: AttestationNonce match
         const attestationInfo = TlvAttestation.decode(data.attestationElements);
         if (!Bytes.areEqual(attestationInfo.attestationNonce, data.attestationNonce)) {

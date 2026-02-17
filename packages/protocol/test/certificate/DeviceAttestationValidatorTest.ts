@@ -10,14 +10,17 @@ import {
     DeviceAttestationError,
     DeviceAttestationValidator,
 } from "#certificate/DeviceAttestationValidator.js";
-import { Paa } from "#certificate/kinds/AttestationCertificates.js";
+import { Dac, Pai, Paa } from "#certificate/kinds/AttestationCertificates.js";
 import { CertificationDeclaration, testCdSignerInfo } from "#certificate/kinds/CertificationDeclaration.js";
 import { TlvAttestation } from "#common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "#dcl/DclCertificateService.js";
 import {
     Bytes,
+    DerCodec,
+    DerType,
     Environment,
     MockFetch,
+    ObjectId,
     PrivateKey,
     PublicKey,
     StandardCrypto,
@@ -117,10 +120,73 @@ describe("DeviceAttestationValidator", () => {
     });
 
     /**
+     * Build a minimal DER-encoded CRL containing specified revoked serial numbers.
+     * Reused from DclCertificateServiceTest.
+     */
+    function buildTestCrl(revokedSerialHexes: string[]): Uint8Array {
+        const revokedEntries: Record<string, any> = {};
+        for (let i = 0; i < revokedSerialHexes.length; i++) {
+            revokedEntries[`entry${i}`] = {
+                serial: {
+                    _tag: DerType.Integer,
+                    _bytes: Bytes.fromHex(revokedSerialHexes[i]),
+                },
+                revocationDate: {
+                    _tag: DerType.UtcDate,
+                    _bytes: Bytes.fromString("250101000000Z"),
+                },
+            } as any;
+        }
+
+        const signatureAlgorithm = {
+            _objectId: ObjectId("2a8648ce3d040302"),
+        };
+
+        const tbsCertList: Record<string, any> = {
+            version: {
+                _tag: DerType.Integer,
+                _bytes: Uint8Array.of(1),
+            },
+            signature: signatureAlgorithm,
+            issuer: {
+                cn: ["Test Issuer"],
+            },
+            thisUpdate: {
+                _tag: DerType.UtcDate,
+                _bytes: Bytes.fromString("250101000000Z"),
+            },
+            nextUpdate: {
+                _tag: DerType.UtcDate,
+                _bytes: Bytes.fromString("260101000000Z"),
+            },
+        };
+
+        if (revokedSerialHexes.length > 0) {
+            tbsCertList.revokedCertificates = revokedEntries;
+        }
+
+        const certificateList: any = {
+            tbsCertList,
+            signatureAlgorithm,
+            signatureValue: {
+                _tag: DerType.BitString,
+                _bytes: new Uint8Array(32),
+                _padding: 0,
+            },
+        };
+
+        return Bytes.of(DerCodec.encode(certificateList));
+    }
+
+    /**
      * Set up DclCertificateService with a PAA cert in its trust store.
      * Uses MockFetch to simulate DCL API responses.
+     * Optionally includes revocation data for the specified issuer SKID and serial numbers.
      */
-    async function setupDclService(paaCert: Bytes = TestCert_PAA_NoVID_Cert) {
+    async function setupDclService(
+        paaCert: Bytes = TestCert_PAA_NoVID_Cert,
+        revocation?: { issuerSkid: string; revokedSerials: string[] },
+    ) {
         const paa = Paa.fromAsn1(paaCert);
         const skid = Bytes.toHex(paa.cert.extensions.subjectKeyIdentifier).toUpperCase();
         const skidWithColons = skid.match(/.{1,2}/g)!.join(":").toUpperCase();
@@ -155,6 +221,33 @@ describe("DeviceAttestationValidator", () => {
                 ],
             },
         });
+
+        if (revocation) {
+            const issuerSkidWithColons = revocation.issuerSkid.match(/.{1,2}/g)!.join(":").toUpperCase();
+            const testCrl = buildTestCrl(revocation.revokedSerials);
+
+            fetchMock.addResponse("/dcl/pki/revocation-points", {
+                PkiRevocationDistributionPoint: [
+                    {
+                        vid: 0xfff1,
+                        pid: 0,
+                        isPAA: false,
+                        label: "test-revocation",
+                        crlSignerDelegator: "",
+                        crlSignerCertificate: "test-cert",
+                        issuerSubjectKeyID: issuerSkidWithColons,
+                        dataURL: "https://example.com/test.crl",
+                        dataFileSize: "",
+                        dataDigest: "",
+                        dataDigestType: 0,
+                        revocationType: 1,
+                        schemaVersion: 0,
+                    },
+                ],
+            });
+            fetchMock.addResponse("https://example.com/test.crl", testCrl, { binary: true });
+        }
+
         fetchMock.install();
 
         service = new DclCertificateService(environment, { updateInterval: null });
@@ -492,6 +585,71 @@ describe("DeviceAttestationValidator", () => {
                 DeviceAttestationError,
                 /DAC vendorId does not match CD vendor_id/,
             );
+        });
+    });
+
+    describe("certificate revocation checks", () => {
+        it("throws CertificateRevoked when DAC serial is in revocation list", async () => {
+            // Parse DAC to get its serial number and authority key identifier
+            const dac = Dac.fromAsn1(dacDer);
+            const dacSerial = Bytes.toHex(dac.cert.serialNumber).toUpperCase();
+            const dacAkid = Bytes.toHex(dac.cert.extensions.authorityKeyIdentifier).toUpperCase();
+
+            // Set up service with revocation data containing the DAC serial
+            const dclService = await setupDclService(TestCert_PAA_NoVID_Cert, {
+                issuerSkid: dacAkid,
+                revokedSerials: [dacSerial],
+            });
+
+            await expect(
+                DeviceAttestationValidator.validate(buildContext(dclService), buildData()),
+            ).to.be.rejectedWith(
+                DeviceAttestationError,
+                /Device Attestation Certificate has been revoked/,
+            );
+        });
+
+        it("throws CertificateRevoked when PAI serial is in revocation list", async () => {
+            // Parse PAI to get its serial number and authority key identifier
+            const pai = Pai.fromAsn1(paiDer);
+            const paiSerial = Bytes.toHex(pai.cert.serialNumber).toUpperCase();
+            const paiAkid = Bytes.toHex(pai.cert.extensions.authorityKeyIdentifier).toUpperCase();
+
+            // Set up service with revocation data containing the PAI serial
+            const dclService = await setupDclService(TestCert_PAA_NoVID_Cert, {
+                issuerSkid: paiAkid,
+                revokedSerials: [paiSerial],
+            });
+
+            await expect(
+                DeviceAttestationValidator.validate(buildContext(dclService), buildData()),
+            ).to.be.rejectedWith(
+                DeviceAttestationError,
+                /Product Attestation Intermediate certificate has been revoked/,
+            );
+        });
+
+        it("passes when revocation data exists but does not contain DAC or PAI serials", async () => {
+            // Parse DAC to get its authority key identifier (for the issuer SKID)
+            const dac = Dac.fromAsn1(dacDer);
+            const dacAkid = Bytes.toHex(dac.cert.extensions.authorityKeyIdentifier).toUpperCase();
+
+            // Set up service with revocation data that does NOT contain our certificate serials
+            const dclService = await setupDclService(TestCert_PAA_NoVID_Cert, {
+                issuerSkid: dacAkid,
+                revokedSerials: ["DEADBEEF"],
+            });
+
+            // Should not throw - our certificates are not revoked
+            await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
+        });
+
+        it("passes when no revocation data is available", async () => {
+            // Set up service without any revocation data (no revocation endpoints mocked)
+            const dclService = await setupDclService();
+
+            // Should not throw - no revocation data means we skip the check
+            await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
         });
     });
 });
