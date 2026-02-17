@@ -23,11 +23,13 @@ import {
     ChannelType,
     Diagnostic,
     Duration,
+    EcdsaSignature,
     ImplementationError,
     Instant,
     Logger,
     MaybePromise,
     Minutes,
+    PublicKey,
     repackErrorAs,
     Seconds,
     Time,
@@ -54,9 +56,11 @@ import {
     DeviceAttestationFailure,
     DeviceAttestationValidator,
 } from "../certificate/DeviceAttestationValidator.js";
+import { Dac } from "../certificate/kinds/AttestationCertificates.js";
 import { ClusterClientObj } from "../cluster/client/ClusterClientTypes.js";
 import type { NodeSession } from "../session/NodeSession.js";
 import { TlvCertSigningRequest } from "../common/OperationalCredentialsTypes.js";
+import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { Fabric } from "../fabric/Fabric.js";
 import { CommissioningError } from "./CommissioningError.js";
 import { PeerAddress } from "./PeerAddress.js";
@@ -116,6 +120,13 @@ export type ControllerCommissioningFlowOptions = {
      * TODO: Make required in next breaking version and remove undefined backward-compatible accept
      */
     onAttestationFailure?: DeviceAttestationValidator.OnAttestationFailure;
+
+    /**
+     * DclCertificateService for PAA trust store lookup and revocation checks during device attestation.
+     * If not provided, attestation validation is skipped with a warning.
+     * This is typically injected by the ControllerCommissioner from the environment.
+     */
+    dclCertificateService?: DclCertificateService;
 };
 
 /** Types representation of a general commissioning response. */
@@ -239,6 +250,7 @@ export class ControllerCommissioningFlow {
     #commissioningStartedTime: Timestamp | undefined;
     #commissioningExpiryTime: Timestamp | undefined;
     #currentFailSafeEndTime: Timestamp | undefined;
+    #dacPublicKey?: ReturnType<typeof PublicKey>;
     protected lastBreadcrumb = 1;
     protected collectedCommissioningData: CollectedCommissioningData = {};
     #defaultFailSafeTime = DEFAULT_FAILSAFE_TIME;
@@ -980,7 +992,6 @@ export class ControllerCommissioningFlow {
             },
         );
 
-        // TODO: extract device public key from deviceAttestation
         const { certificate: productAttestation } = await this.#invokeCommand(
             {
                 endpoint: RootEndpointNumber,
@@ -995,7 +1006,6 @@ export class ControllerCommissioningFlow {
             },
         );
 
-        // TODO: validate deviceAttestation and productAttestation
         const attestationNonce = this.fabric.crypto.randomBytes(32);
         const { attestationElements, attestationSignature } = await this.#invokeCommand(
             {
@@ -1042,40 +1052,51 @@ export class ControllerCommissioningFlow {
                 break;
         }
 
-        try {
-            await DeviceAttestationValidator.validate(
-                {
-                    crypto: this.fabric.crypto,
-                    dclCertificateService: undefined as any, // TODO: wire up DclCertificateService in Task 10
-                    attestationChallenge: (this.interaction.session as NodeSession).attestationChallengeKey,
-                },
-                {
-                    dac: deviceAttestation,
-                    pai: productAttestation,
-                    attestationElements,
-                    attestationSignature,
-                    attestationNonce,
-                    vendorId: this.collectedCommissioningData.vendorId!,
-                    productId: this.collectedCommissioningData.productId!,
-                },
+        const { dclCertificateService } = this.commissioningOptions;
+
+        if (dclCertificateService === undefined) {
+            logger.warn(
+                "DclCertificateService not available; skipping device attestation validation. " +
+                    "Set up DclCertificateService in the environment for full attestation checks.",
             );
-        } catch (error) {
-            if (error instanceof DeviceAttestationError) {
-                const proceed = await resolveFailure(error.failure, error.message);
-                if (!proceed) {
+        } else {
+            try {
+                await DeviceAttestationValidator.validate(
+                    {
+                        crypto: this.fabric.crypto,
+                        dclCertificateService,
+                        attestationChallenge: (this.interaction.session as NodeSession).attestationChallengeKey,
+                    },
+                    {
+                        dac: deviceAttestation,
+                        pai: productAttestation,
+                        attestationElements,
+                        attestationSignature,
+                        attestationNonce,
+                        vendorId: this.collectedCommissioningData.vendorId!,
+                        productId: this.collectedCommissioningData.productId!,
+                    },
+                );
+            } catch (error) {
+                if (error instanceof DeviceAttestationError) {
+                    const proceed = await resolveFailure(error.failure, error.message);
+                    if (!proceed) {
+                        throw error;
+                    }
+                } else {
                     throw error;
                 }
-            } else {
-                throw error;
             }
         }
+
+        // Extract and store the DAC public key for CSR signature verification in #certificates()
+        const dac = Dac.fromAsn1(deviceAttestation);
+        this.#dacPublicKey = PublicKey(dac.cert.ellipticCurvePublicKey);
 
         return {
             code: CommissioningStepResultCode.Success,
             breadcrumb: this.lastBreadcrumb,
         };
-
-        // TODO consider Distributed Compliance Ledger Info about Commissioning Flow
     }
 
     /**
@@ -1108,10 +1129,27 @@ export class ControllerCommissioningFlow {
         );
 
         if (nocsrElements.byteLength === 0 || csrSignature.byteLength === 0) {
-            // TODO: validate the data really
             throw new UnexpectedDataError("Invalid response from device");
         }
-        // TODO: validate csrSignature using device public key
+
+        // Verify CSR attestation signature using DAC public key (extracted in step 10)
+        if (this.#dacPublicKey !== undefined) {
+            try {
+                await this.fabric.crypto.verifyEcdsa(
+                    this.#dacPublicKey,
+                    Bytes.concat(
+                        nocsrElements,
+                        (this.interaction.session as NodeSession).attestationChallengeKey,
+                    ),
+                    new EcdsaSignature(csrSignature),
+                );
+            } catch {
+                throw new CommissioningError(
+                    "CSR signature verification failed against DAC public key",
+                );
+            }
+        }
+
         const { certSigningRequest } = TlvCertSigningRequest.decode(nocsrElements);
         const operationalPublicKey = await Certificate.getPublicKeyFromCsr(this.ca.crypto, certSigningRequest);
 

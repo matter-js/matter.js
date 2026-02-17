@@ -35,6 +35,7 @@ import {
     ControllerCommissioningFlowOptions,
     NodeIdConflictError,
 } from "#peer/ControllerCommissioningFlow.js";
+import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { ControllerDiscovery, PairRetransmissionLimitReachedError } from "#peer/ControllerDiscovery.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { DedicatedChannelExchangeProvider } from "#protocol/ExchangeProvider.js";
@@ -425,10 +426,17 @@ export class ControllerCommissioner {
             commissioningFlowImpl = ControllerCommissioningFlow,
         } = options;
 
+        // Inject DclCertificateService from the environment if available and not already provided
+        const dclCertificateService = options.dclCertificateService ??
+            (this.#context.environment.has(DclCertificateService)
+                ? this.#context.environment.get(DclCertificateService)
+                : undefined);
+
         const commissioningOptions = {
             regulatoryLocation: GeneralCommissioning.RegulatoryLocationType.Outdoor, // Set to the most restrictive if relevant
             regulatoryCountryCode: "XX",
             ...options,
+            dclCertificateService,
         };
 
         // TODO: Create the fabric only when needed before commissioning (to do when refactoring MatterController away)
