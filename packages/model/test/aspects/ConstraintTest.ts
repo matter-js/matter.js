@@ -5,19 +5,78 @@
  */
 
 import { Constraint } from "#aspects/Constraint.js";
+import { FieldValue } from "#common/FieldValue.js";
 
-const TEST_CONSTRAINTS: [text: string, ast: Constraint.Ast, expectedText?: string][] = [
-    ["0", { value: 0 }],
+interface ValueTest {
+    test: FieldValue;
+    ok: boolean;
+}
+
+const TEST_CONSTRAINTS: [text: string, ast: Constraint.Ast, expectedText?: string, valueTests?: ValueTest[]][] = [
+    [
+        "0",
+        { value: 0 },
+        undefined,
+        [
+            { test: 0, ok: true },
+            { test: 1, ok: false },
+        ],
+    ],
     ["desc", { desc: true }],
-    ["4", { value: 4 }],
-    ["-4", { value: -4 }],
+    [
+        "4",
+        { value: 4 },
+        undefined,
+        [
+            { test: 4, ok: true },
+            { test: 3, ok: false },
+        ],
+    ],
+    [
+        "-4",
+        { value: -4 },
+        undefined,
+        [
+            { test: -4, ok: true },
+            { test: 4, ok: false },
+        ],
+    ],
     ["+4", { value: 4 }, "4"],
     ["4%", { value: { type: "percent", value: 4 } }],
     ["4°C", { value: { type: "celsius", value: 4 } }],
     ["3.141592", { value: 3.141592 }],
-    ["min 4", { min: 4 }],
-    ["max 4", { max: 4 }],
-    ["4 to 44", { min: 4, max: 44 }],
+    [
+        "min 4",
+        { min: 4 },
+        undefined,
+        [
+            { test: 5, ok: true },
+            { test: 4, ok: true },
+            { test: 3, ok: false },
+        ],
+    ],
+    [
+        "max 4",
+        { max: 4 },
+        undefined,
+        [
+            { test: 3, ok: true },
+            { test: 4, ok: true },
+            { test: 5, ok: false },
+        ],
+    ],
+    [
+        "4 to 44",
+        { min: 4, max: 44 },
+        undefined,
+        [
+            { test: 3, ok: false },
+            { test: 4, ok: true },
+            { test: 24, ok: true },
+            { test: 44, ok: true },
+            { test: 45, ok: false },
+        ],
+    ],
     ["0x4 to 0x44", { min: 4, max: 68 }, "4 to 68"],
     ["0xff to 0xffff", { min: 255, max: 65535 }, "255 to 65535"],
     ["4[44]", { value: 4, entry: { value: 44 } }],
@@ -97,6 +156,22 @@ const TEST_CONSTRAINTS: [text: string, ast: Constraint.Ast, expectedText?: strin
         },
     ],
     [
+        "2^10",
+        {
+            value: {
+                type: "^",
+                lhs: 2,
+                rhs: 10,
+            },
+        },
+        undefined,
+        [
+            { test: 1024, ok: true },
+            { test: 1024n, ok: true },
+            { test: 1023, ok: false },
+        ],
+    ],
+    [
         "2^62",
         {
             value: {
@@ -105,6 +180,12 @@ const TEST_CONSTRAINTS: [text: string, ast: Constraint.Ast, expectedText?: strin
                 rhs: 62,
             },
         },
+        undefined,
+        [
+            { test: 2 ** 62, ok: true },
+            { test: 2n ** 62n, ok: true },
+            { test: 0, ok: false },
+        ],
     ],
     [
         "-2^62 to 2^62",
@@ -120,6 +201,43 @@ const TEST_CONSTRAINTS: [text: string, ast: Constraint.Ast, expectedText?: strin
                 rhs: 62,
             },
         },
+        undefined,
+        [
+            { test: 0, ok: true },
+            { test: Number.MIN_SAFE_INTEGER, ok: true },
+            { test: Number.MAX_SAFE_INTEGER, ok: true },
+            { test: -(2 ** 62), ok: true },
+            { test: 2 ** 62, ok: true },
+            { test: -(2n ** 62n), ok: true },
+            { test: 2n ** 62n, ok: true },
+            { test: -(2n ** 62n) - 1n, ok: false },
+            { test: 2n ** 62n + 1n, ok: false },
+        ],
+    ],
+    [
+        "-2^53 to 2^53",
+        {
+            min: {
+                type: "^",
+                lhs: -2,
+                rhs: 53,
+            },
+            max: {
+                type: "^",
+                lhs: 2,
+                rhs: 53,
+            },
+        },
+        undefined,
+        [
+            { test: 0, ok: true },
+            { test: Number.MIN_SAFE_INTEGER, ok: true },
+            { test: Number.MAX_SAFE_INTEGER, ok: true },
+            { test: -(2n ** 53n), ok: true },
+            { test: 2n ** 53n, ok: true },
+            { test: -(2n ** 53n) - 1n, ok: false },
+            { test: 2n ** 53n + 1n, ok: false },
+        ],
     ],
     [
         "0 to 2^62",
@@ -131,6 +249,33 @@ const TEST_CONSTRAINTS: [text: string, ast: Constraint.Ast, expectedText?: strin
                 rhs: 62,
             },
         },
+        undefined,
+        [
+            { test: 0, ok: true },
+            { test: 2n ** 62n, ok: true },
+            { test: -1, ok: false },
+            { test: 2n ** 62n + 1n, ok: false },
+        ],
+    ],
+    [
+        "min (2^62) + 1",
+        {
+            min: {
+                type: "+",
+                lhs: {
+                    type: "^",
+                    lhs: 2,
+                    rhs: 62,
+                },
+                rhs: 1,
+            },
+        },
+        "min (2^62) + 1",
+        [
+            { test: 2n ** 62n, ok: false },
+            { test: 2n ** 62n + 1n, ok: true },
+            { test: 2n ** 62n + 2n, ok: true },
+        ],
     ],
     [
         "max (2^62) - 1",
@@ -146,6 +291,11 @@ const TEST_CONSTRAINTS: [text: string, ast: Constraint.Ast, expectedText?: strin
             },
         },
         "max (2^62) - 1",
+        [
+            { test: 0, ok: true },
+            { test: 2n ** 62n - 1n, ok: true },
+            { test: 2n ** 62n, ok: false },
+        ],
     ],
     [
         "holdTimeLimits.holdTimeMin to holdTimeLimits.holdTimeMax",
@@ -180,7 +330,7 @@ const TEST_CONSTRAINTS: [text: string, ast: Constraint.Ast, expectedText?: strin
 ];
 
 describe("Constraint", () => {
-    TEST_CONSTRAINTS.forEach(([text, ast, expectedText]) => {
+    TEST_CONSTRAINTS.forEach(([text, ast, expectedText, valueTests]) => {
         describe(text, () => {
             it("parses", () => {
                 expect(new Constraint(text)).deep.equal(new Constraint({ ...ast, definition: text }));
@@ -189,6 +339,17 @@ describe("Constraint", () => {
             it("serializes", () => {
                 expect(new Constraint(ast).toString()).deep.equal(expectedText ?? text);
             });
+
+            if (valueTests) {
+                const constraint = new Constraint(text);
+
+                for (const vt of valueTests) {
+                    const label = typeof vt.test === "bigint" ? `${vt.test}n` : `${vt.test}`;
+                    it(`${vt.ok ? "accepts" : "rejects"} ${label}`, () => {
+                        expect(constraint.test(vt.test)).equal(vt.ok);
+                    });
+                }
+            }
         });
     });
 });
