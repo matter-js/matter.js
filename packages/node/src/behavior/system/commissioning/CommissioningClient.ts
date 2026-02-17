@@ -46,6 +46,7 @@ import {
     CommissioningMode,
     ControllerCommissioner,
     ControllerCommissioningFlow,
+    DeviceAttestationValidator,
     DiscoveryData,
     Fabric,
     FabricAuthority,
@@ -191,6 +192,7 @@ export class CommissioningClient extends Behavior {
             passcode,
             discoveryData: this.descriptor,
             commissioningFlowImpl: options.commissioningFlowImpl,
+            onAttestationFailure: options.onAttestationFailure,
             // TODO Allow to configure all relevant commissioning options like
             //  * wifi/thread credentials
             //  * regulatory config
@@ -645,6 +647,12 @@ export namespace CommissioningClient {
          * the target device to grant specific permissions based on these tags.
          */
         caseAuthenticatedTags?: CaseAuthenticatedTag[];
+
+        /**
+         * Controls behavior when device attestation validation fails.
+         * See ControllerCommissioningFlowOptions.onAttestationFailure for details.
+         */
+        onAttestationFailure?: DeviceAttestationValidator.OnAttestationFailure;
     }
 
     export interface PasscodeOptions extends BaseCommissioningOptions {

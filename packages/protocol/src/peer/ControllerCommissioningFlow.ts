@@ -26,6 +26,7 @@ import {
     ImplementationError,
     Instant,
     Logger,
+    MaybePromise,
     Minutes,
     repackErrorAs,
     Seconds,
@@ -48,7 +49,13 @@ import {
     VendorId,
 } from "#types";
 import { CertificateAuthority } from "../certificate/CertificateAuthority.js";
+import {
+    DeviceAttestationError,
+    DeviceAttestationFailure,
+    DeviceAttestationValidator,
+} from "../certificate/DeviceAttestationValidator.js";
 import { ClusterClientObj } from "../cluster/client/ClusterClientTypes.js";
+import type { NodeSession } from "../session/NodeSession.js";
 import { TlvCertSigningRequest } from "../common/OperationalCredentialsTypes.js";
 import { Fabric } from "../fabric/Fabric.js";
 import { CommissioningError } from "./CommissioningError.js";
@@ -98,6 +105,17 @@ export type ControllerCommissioningFlowOptions = {
 
     /** The Location of the OTA provider for this fabric set on the commissioned devices if OTA is supported */
     otaUpdateProviderLocation?: OtaProviderLocation;
+
+    /**
+     * Controls behavior when device attestation validation fails.
+     * - false: always reject
+     * - true: always accept with info logging
+     * - callback: custom decision logic, return true to proceed, false to reject
+     * - undefined: accept with warning logging (backward compatibility)
+     *
+     * TODO: Make required in next breaking version and remove undefined backward-compatible accept
+     */
+    onAttestationFailure?: DeviceAttestationValidator.OnAttestationFailure;
 };
 
 /** Types representation of a general commissioning response. */
@@ -978,13 +996,14 @@ export class ControllerCommissioningFlow {
         );
 
         // TODO: validate deviceAttestation and productAttestation
+        const attestationNonce = this.fabric.crypto.randomBytes(32);
         const { attestationElements, attestationSignature } = await this.#invokeCommand(
             {
                 endpoint: RootEndpointNumber,
                 cluster: OperationalCredentials.Complete,
                 command: "attestationRequest",
                 fields: {
-                    attestationNonce: this.fabric.crypto.randomBytes(32),
+                    attestationNonce,
                 },
             },
             {
@@ -992,16 +1011,65 @@ export class ControllerCommissioningFlow {
             },
         );
 
-        // TODO: validate attestationSignature using device public key
-        if (
-            deviceAttestation.byteLength === 0 ||
-            productAttestation.byteLength === 0 ||
-            attestationElements.byteLength === 0 ||
-            attestationSignature.byteLength === 0
-        ) {
-            // TODO: validate the data really
-            throw new CommissioningError("Device Attestation data missing from device");
+        // Resolve attestation failure policy
+        let resolveFailure: (failure: DeviceAttestationFailure, reason: string) => MaybePromise<boolean>;
+
+        switch (this.commissioningOptions.onAttestationFailure) {
+            case undefined:
+                // TODO: Remove backward-compatible accept in next breaking version
+                resolveFailure = (failure, reason) => {
+                    logger.warn("Attestation failed but accepted for backward compatibility:", failure, reason);
+                    return true;
+                };
+                break;
+
+            case true:
+                resolveFailure = (failure, reason) => {
+                    logger.info("Attestation failed but accepted by policy:", failure, reason);
+                    return true;
+                };
+                break;
+
+            case false:
+                resolveFailure = (failure, reason) => {
+                    logger.info("Attestation failed, rejecting:", failure, reason);
+                    return false;
+                };
+                break;
+
+            default:
+                resolveFailure = this.commissioningOptions.onAttestationFailure;
+                break;
         }
+
+        try {
+            await DeviceAttestationValidator.validate(
+                {
+                    crypto: this.fabric.crypto,
+                    dclCertificateService: undefined as any, // TODO: wire up DclCertificateService in Task 10
+                    attestationChallenge: (this.interaction.session as NodeSession).attestationChallengeKey,
+                },
+                {
+                    dac: deviceAttestation,
+                    pai: productAttestation,
+                    attestationElements,
+                    attestationSignature,
+                    attestationNonce,
+                    vendorId: this.collectedCommissioningData.vendorId!,
+                    productId: this.collectedCommissioningData.productId!,
+                },
+            );
+        } catch (error) {
+            if (error instanceof DeviceAttestationError) {
+                const proceed = await resolveFailure(error.failure, error.message);
+                if (!proceed) {
+                    throw error;
+                }
+            } else {
+                throw error;
+            }
+        }
+
         return {
             code: CommissioningStepResultCode.Success,
             breadcrumb: this.lastBreadcrumb,
