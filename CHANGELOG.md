@@ -17,6 +17,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/protocol
     - Adjustment: OTA update files are now stored per software version, allowing different updates to be served to different nodes simultaneously. Former files are migrated.
     - Fix: Ensures that production certificates are always stored correctly
+    - Fix: Ensures trying different IPs when we have a timeout-based reconnection process
 
 - @matter/nodejs-shell
     - Adjustment: `ota add` stores files as "local" mode; `ota list`, `ota delete`, and `ota copy` support "local" mode filter
