@@ -529,7 +529,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                     operationalAddress,
                     discoveryData,
                     // When we use a timeout for discovery also use this for reconnecting to the node
-                    { expectedProcessingTime: timeout, caseAuthenticatedTags },
+                    { caseAuthenticatedTags },
                 );
                 if (directReconnection !== undefined) {
                     return directReconnection;
