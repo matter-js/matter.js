@@ -190,10 +190,6 @@ describe("ClientNode", () => {
         expect(Object.keys(peer1.state).sort()).deep.equals(Object.keys(PEER1_STATE).sort());
     });
 
-    it("commissions and reconnects endpoints after commissioning and restart", () => {
-        // TODO
-    });
-
     it("invokes, receives state updates and emits changed events", async () => {
         // *** SETUP ***
 
