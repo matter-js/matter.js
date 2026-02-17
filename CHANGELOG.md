@@ -11,6 +11,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/create
+    - Fix: Fixes generated `npm run app` entrypoint path (`dist/src/...` → `dist/...`) (#3228)
+
 - @matter/model
     - Fix: Constraint evaluation for expressions with negative exponentiation bases (e.g. `-2^62 to 2^62`) and improves precision for large exponent arithmetic by using BigInt when results exceed the safe integer range (#3232)
 
