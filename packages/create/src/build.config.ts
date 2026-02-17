@@ -33,7 +33,7 @@ export async function before({ project }: Project.Context) {
 
         const baseLength = examplesPkg.resolve(`src/`).length + 1;
         const sources = await examplesPkg.glob(`src/**/*.ts`);
-        let entrypoint;
+        let entrypoint: string | undefined;
         for (const file of sources) {
             const filename = file.slice(baseLength);
             if (!entrypoint && filename.indexOf("/") === -1) {
@@ -50,13 +50,18 @@ export async function before({ project }: Project.Context) {
             continue;
         }
 
+        entrypoint = examplesPkg.json.main ?? entrypoint;
+        if (entrypoint.startsWith("src/")) {
+            entrypoint = entrypoint.slice(4);
+        }
+
         templates.push({
             name,
             dependencies: examplesPkg.json.dependencies ?? {},
             optionalDependencies: examplesPkg.json.optionalDependencies,
             engines: examplesPkg.json.engines,
             description: match[1],
-            entrypoint: examplesPkg.json.main ?? entrypoint,
+            entrypoint,
         });
     }
 
