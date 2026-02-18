@@ -25,6 +25,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: `ota add` stores files as "local" mode; `ota list`, `ota delete`, and `ota copy` support "local" mode filter
 
 - @matter/protocol
+    - Enhancement: Ignore known addresses when current MDNS results do not include them anymore
     - Adjustment: OTA update files are now stored per software version, allowing different updates to be served to different nodes simultaneously. Former files are migrated.
 <<<<<<< optimize-mrp
     - Enhancement: Optimize MRP timings when sending retransmissions to address expected network congestion
