@@ -50,6 +50,13 @@ export abstract class ExchangeProvider {
     abstract readonly peerAddress?: PeerAddress;
     abstract readonly maxPathsPerInvoke?: number;
 
+    /**
+     * Ensure the peer is reachable without creating an exchange.
+     *
+     * The default implementation is a no-op (already connected).
+     */
+    async connect(_options?: NewExchangeOptions): Promise<void> {}
+
     /** @deprecated */
     async reconnectChannel(_options: { asOf?: Timestamp; resetInitialState?: boolean }): Promise<boolean> {
         return false;

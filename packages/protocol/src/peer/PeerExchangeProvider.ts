@@ -37,6 +37,10 @@ export class PeerExchangeProvider extends ExchangeProvider {
     // TODO - TCP support
     readonly channelType = ChannelType.UDP;
 
+    override async connect(options?: NewExchangeOptions): Promise<void> {
+        await this.#peer.connect(options);
+    }
+
     override async initiateExchange(options?: NewExchangeOptions): Promise<MessageExchange> {
         const abort = options?.abort;
 

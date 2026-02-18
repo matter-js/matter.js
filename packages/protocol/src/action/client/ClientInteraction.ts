@@ -19,6 +19,7 @@ import { BdxMessenger } from "#bdx/BdxMessenger.js";
 import { Mark } from "#common/Mark.js";
 import {
     Abort,
+    AbortedError,
     AsyncIterator,
     BasicSet,
     createPromise,
@@ -63,6 +64,8 @@ interface PendingCommand {
     pathKey: string;
     resolve: (entry: InvokeResult.DecodedData | undefined) => void;
     reject: (error: Error) => void;
+    aborted?: boolean;
+    cleanup?: () => void;
 }
 
 export type SubscriptionResult<T extends ClientSubscribe = ClientSubscribe> = Promise<
@@ -146,6 +149,7 @@ export class ClientInteraction<
         // Close batching
         this.#batchTimer?.stop();
         for (const [, pending] of this.#pendingCommands) {
+            pending.cleanup?.();
             pending.reject(new ImplementationError("ClientInteraction closed"));
         }
         this.#pendingCommands.clear();
@@ -441,7 +445,7 @@ export class ClientInteraction<
         if (request.invokeRequests.length === 1 && request.batchDuration !== false && maxPathsPerInvoke) {
             const endpointId = request.invokeRequests[0].commandPath.endpointId;
             if (endpointId !== undefined && endpointId !== 0 && !request.timedRequest) {
-                yield* this.#invokeWithBatching(request);
+                yield* this.#invokeWithBatching(request, session);
                 return;
             }
         }
@@ -459,10 +463,16 @@ export class ClientInteraction<
      * Queue a single command for batched execution.
      * Yields the raw response entry when the batch completes.
      */
-    async *#invokeWithBatching(request: ClientInvoke): DecodedInvokeResult {
+    async *#invokeWithBatching(request: ClientInvoke, session?: SessionT): DecodedInvokeResult {
         if (this.#abort.aborted) {
             throw new ImplementationError("Client interaction unavailable after close");
         }
+
+        // Validate peer connectivity before queuing — respects connectionTimeout and abort
+        await this.#exchangeProvider.connect({
+            connectionTimeout: session?.connectionTimeout,
+            abort: session?.abort,
+        });
 
         const cmd = [...request.commands.values()][0];
         const commandRef = this.#allocateCommandRef();
@@ -470,12 +480,32 @@ export class ClientInteraction<
         const pathKey = `${endpointId}-${clusterId}-${commandId}`;
         const { promise, resolver, rejecter } = createPromise<InvokeResult.DecodedData | undefined>();
 
-        this.#pendingCommands.set(commandRef, {
+        const pending: PendingCommand = {
             request: { ...cmd, commandRef } as Invoke.ConcreteCommandRequest<any>,
             pathKey,
             resolve: resolver,
             reject: rejecter,
-        });
+        };
+
+        this.#pendingCommands.set(commandRef, pending);
+
+        // Register per-command abort listener
+        const abortSignal = session?.abort;
+        if (abortSignal) {
+            if (abortSignal.aborted) {
+                this.#pendingCommands.delete(commandRef);
+                pending.reject(new AbortedError());
+                return;
+            }
+
+            const onAbort = () => {
+                pending.aborted = true;
+                this.#pendingCommands.delete(commandRef);
+                pending.reject(new AbortedError());
+            };
+            abortSignal.addEventListener("abort", onAbort, { once: true });
+            pending.cleanup = () => abortSignal.removeEventListener("abort", onAbort);
+        }
 
         const duration = request.batchDuration || Instant;
 
@@ -496,9 +526,13 @@ export class ClientInteraction<
             this.#batchTimer.start();
         }
 
-        const entry = await promise;
-        if (entry !== undefined) {
-            yield [entry];
+        try {
+            const entry = await promise;
+            if (entry !== undefined) {
+                yield [entry];
+            }
+        } finally {
+            pending.cleanup?.();
         }
     }
 
@@ -577,6 +611,17 @@ export class ClientInteraction<
 
     async #executeBatch(commands: Map<number, PendingCommand>) {
         try {
+            // Filter out commands aborted between snapshot and send
+            for (const [ref, pending] of commands) {
+                if (pending.aborted) {
+                    commands.delete(ref);
+                }
+            }
+
+            if (commands.size === 0) {
+                return;
+            }
+
             const commandList = [...commands.values()];
 
             // For single commands, don't include commandRef (optimization)
@@ -605,10 +650,19 @@ export class ClientInteraction<
                     } else {
                         pending = commands.get(entry.commandRef!);
                         if (!pending) {
-                            logger.warn(`Received response for unknown commandRef ${entry.commandRef}`);
+                            if (entry.commandRef !== undefined) {
+                                logger.info(`Response for aborted commandRef ${entry.commandRef} discarded`);
+                            } else {
+                                logger.warn(`Received response for unknown commandRef ${entry.commandRef}`);
+                            }
                             continue;
                         }
                         commands.delete(entry.commandRef!);
+                    }
+
+                    if (pending.aborted) {
+                        logger.info(`Response for aborted command discarded`);
+                        continue;
                     }
 
                     pending.resolve(entry);
@@ -617,11 +671,15 @@ export class ClientInteraction<
 
             // Resolve any remaining commands with undefined (valid for suppressResponse)
             for (const [, pending] of commands) {
-                pending.resolve(undefined);
+                if (!pending.aborted) {
+                    pending.resolve(undefined);
+                }
             }
         } catch (error) {
             for (const [, pending] of commands) {
-                pending.reject(error as Error);
+                if (!pending.aborted) {
+                    pending.reject(error as Error);
+                }
             }
         }
     }
