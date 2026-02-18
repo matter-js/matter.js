@@ -545,8 +545,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
                 } finally {
                     queueSlot?.close();
                 }
-            }
-            if (knownDiscoveredDevice === undefined) {
+
                 if (requestedDiscoveryType === NodeDiscoveryType.None) {
                     throw new DiscoveryError(`${address} is not reachable right now.`);
                 }
