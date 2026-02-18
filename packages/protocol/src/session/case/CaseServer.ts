@@ -19,7 +19,7 @@ import {
     PublicKey,
     UnexpectedDataError,
 } from "#general";
-import { TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
+import { PeerUnresponsiveError, TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { SessionParametersWithDurations } from "#session/pase/PaseMessages.js";
 import { ResumptionRecord, SessionManager, ShutdownError } from "#session/SessionManager.js";
@@ -87,7 +87,7 @@ export class CaseServer implements ProtocolHandler {
                 await messenger.sendError(SecureChannelStatusCode.NoSharedTrustRoots);
             }
             // If we received a ChannelStatusResponseError we do not need to send one back, so just cancel pairing
-            else if (!causedBy(error, ChannelStatusResponseError)) {
+            else if (!causedBy(error, ChannelStatusResponseError, PeerUnresponsiveError)) {
                 await messenger.sendError(SecureChannelStatusCode.InvalidParam);
             }
         } finally {

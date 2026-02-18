@@ -1274,10 +1274,11 @@ export class ChipToolWebSocketHandler {
             arguments: { "destination-id": destinationId, "commissioner-name": commissionerName },
             command_specifier: commandSpecifier,
         } = data;
-        if (error instanceof StatusResponseError) {
+        const sre = StatusResponseError.of(error);
+        if (sre) {
             return {
                 results: [
-                    { error: decamelize(StatusCode[error.code], "_").toUpperCase(), clusterError: error.clusterCode },
+                    { error: decamelize(StatusCode[sre.code], "_").toUpperCase(), clusterError: sre.clusterCode },
                     { error: "FAILURE" },
                 ],
             };

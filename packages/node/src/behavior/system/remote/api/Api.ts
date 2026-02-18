@@ -168,8 +168,9 @@ export namespace Api {
         error = asError(error);
 
         // User-facing message
-        if (error instanceof StatusResponseError) {
-            return { kind: "error", id, error };
+        const sre = StatusResponseError.of(error);
+        if (sre) {
+            return { kind: "error", id, error: sre };
         }
 
         // Internal error
