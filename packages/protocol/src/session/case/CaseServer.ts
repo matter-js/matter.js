@@ -22,7 +22,7 @@ import {
 import { TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { SessionParametersWithDurations } from "#session/pase/PaseMessages.js";
-import { ResumptionRecord, SessionManager } from "#session/SessionManager.js";
+import { ResumptionRecord, SessionManager, ShutdownError } from "#session/SessionManager.js";
 import { SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "#types";
 import { FabricManager, FabricNotFoundError } from "../../fabric/FabricManager.js";
 import { MessageExchange } from "../../protocol/MessageExchange.js";
@@ -65,10 +65,22 @@ export class CaseServer implements ProtocolHandler {
         } catch (e) {
             const error = asError(e);
 
-            if (causedBy(error, FabricNotFoundError, ChannelStatusResponseError, TransientPeerCommunicationError)) {
+            if (
+                causedBy(
+                    error,
+                    FabricNotFoundError,
+                    ChannelStatusResponseError,
+                    TransientPeerCommunicationError,
+                    ShutdownError,
+                )
+            ) {
                 logger.error(messenger.via, "Error establishing CASE session:", Diagnostic.errorMessage(error));
             } else {
                 logger.error(messenger.via, "Error establishing CASE session:", error);
+            }
+
+            if (exchange.considerClosed) {
+                return;
             }
 
             if (causedBy(error, FabricNotFoundError)) {
