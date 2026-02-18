@@ -135,7 +135,7 @@ describe("EventReadResponse", () => {
 
             it(`reads fabric-scoped concrete event with payload`, async () => {
                 const node = await MockServerNode.createOnline(
-                    ServerNode.RootEndpoint.with(MessagesServer.with("ReceivedConfirmation")),
+                    MockServerNode.RootEndpoint.with(MessagesServer.with("ReceivedConfirmation")),
                 );
                 await node.act(agent =>
                     node.events.messages.messageComplete.emit(

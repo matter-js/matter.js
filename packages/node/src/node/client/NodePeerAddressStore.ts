@@ -37,8 +37,8 @@ export class NodePeerAddressStore extends PeerAddressStore {
     }
 
     async assignNewAddress(node: ClientNode, fabricIndex: FabricIndex, nodeId?: NodeId) {
-        const useSequentialIds = node.owner?.state.controller.nodeIdAssignment !== "random";
-        let nextNodeId: NodeId = node.owner?.state.controller.nextNodeId ?? NodeId(1);
+        const useSequentialIds = node.owner?.stateOf(ControllerBehavior).nodeIdAssignment !== "random";
+        let nextNodeId: NodeId = node.owner?.stateOf(ControllerBehavior).nextNodeId ?? NodeId(1);
 
         while (nodeId === undefined) {
             if (useSequentialIds) {

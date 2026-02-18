@@ -15,7 +15,6 @@ import { GeneralDiagnostics } from "#clusters/general-diagnostics";
 import { Observable } from "#general";
 import { Specification } from "#model";
 import { InteractionServer } from "#node/server/InteractionServer.js";
-import { ServerNode } from "#node/ServerNode.js";
 import {
     BaseDataReport,
     DataReportPayload,
@@ -1086,7 +1085,7 @@ describe("InteractionProtocol", () => {
 
     async function createNode(maxPathsPerInvoke = 100) {
         node = await MockServerNode.createOnline({
-            type: ServerNode.RootEndpoint.with(AdministratorCommissioningServer.with("Basic")),
+            type: MockServerNode.RootEndpoint.with(AdministratorCommissioningServer.with("Basic")),
             basicInformation: {
                 dataModelRevision: 1,
                 vendorName: "vendor",
