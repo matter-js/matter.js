@@ -8,6 +8,7 @@ import {
     AppAddress,
     asError,
     Bytes,
+    causedBy,
     Diagnostic,
     HttpEndpoint,
     HttpService,
@@ -250,7 +251,7 @@ function adaptError(e: unknown) {
     }
 
     if (status === undefined) {
-        if (e instanceof StatusResponseError) {
+        if (causedBy(e, StatusResponseError)) {
             status = 400;
         } else {
             status = 500;

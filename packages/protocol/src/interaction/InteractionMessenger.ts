@@ -20,7 +20,7 @@ import {
     UnexpectedDataError,
 } from "#general";
 import { Specification } from "#model";
-import { TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
+import { PeerUnresponsiveError, TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
 import { RetransmissionLimitReachedError, SessionClosedError, UnexpectedMessageError } from "#protocol/errors.js";
 import {
     ReceivedStatusResponseError,
@@ -298,23 +298,24 @@ export class InteractionServerMessenger extends InteractionMessenger {
                 }
             }
         } catch (error) {
-            if (error instanceof NoResponseTimeoutError) {
+            if (causedBy(error, NoResponseTimeoutError, PeerUnresponsiveError)) {
                 logger.info(this.exchange.via, this.exchange.diagnostics, error);
                 return;
             }
 
             let errorStatusCode = Status.Failure;
-            if (error instanceof StatusResponseError) {
+            const sre = StatusResponseError.of(error);
+            if (sre) {
                 logger.info(
                     "Status response",
                     Mark.OUTBOUND,
                     this.exchange.via,
                     this.exchange.diagnostics,
-                    Diagnostic.strong(`${Status[error.code]}#${error.code}`),
+                    Diagnostic.strong(`${Status[sre.code]}#${sre.code}`),
                     "due to error:",
-                    Diagnostic.errorMessage(error),
+                    Diagnostic.errorMessage(sre),
                 );
-                errorStatusCode = error.code;
+                errorStatusCode = sre.code;
             } else {
                 logger.warn(this.exchange.via, this.exchange.diagnostics, error);
             }
