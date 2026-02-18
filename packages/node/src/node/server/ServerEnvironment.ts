@@ -6,17 +6,16 @@
 
 import { limitNodeDataToAllowedFabrics } from "#behavior/cluster/FabricScopedDataHandler.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
-import { Crypto, Observable } from "#general";
-import { NodePeerAddressStore } from "#node/client/NodePeerAddressStore.js";
+import { Crypto, Environment, Observable, SharedEnvironmentServices } from "#general";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { ServerEndpointInitializer } from "#node/server/ServerEndpointInitializer.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { FabricManager, OccurrenceManager, PeerAddressStore, SessionManager } from "#protocol";
+import { FabricManager, MdnsService, OccurrenceManager, PeerSet, SessionManager } from "#protocol";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { IdentityService } from "./IdentityService.js";
 
 /**
- * Manages the environment of a server.
+ * Manages components that are present for the lifetime of a server.
  */
 export namespace ServerEnvironment {
     /** Emits the fabric-scoped data are sanitized after the removal of a fabric. Only use for testing! */
@@ -25,13 +24,13 @@ export namespace ServerEnvironment {
     export async function initialize(node: ServerNode) {
         const { env } = node;
 
-        // Install support services
+        await SharedNodeServices.install(env);
+
         const store = await ServerNodeStore.create(env, node.id);
         env.set(ServerNodeStore, store);
 
         env.set(EndpointInitializer, new ServerEndpointInitializer(env));
         env.set(IdentityService, new IdentityService(node));
-        env.set(PeerAddressStore, new NodePeerAddressStore(node));
         env.set(ChangeNotificationService, new ChangeNotificationService(node));
 
         // Ensure these are fully initialized
@@ -47,6 +46,9 @@ export namespace ServerEnvironment {
 
         await env.load(SessionManager);
 
+        // Synchronous initialization
+        env.get(PeerSet);
+
         env.get(Crypto).reportUsage(node.id);
     }
 
@@ -54,9 +56,30 @@ export namespace ServerEnvironment {
         const { env } = node;
 
         env.close(FabricManager);
+        await env.close(PeerSet);
         await env.close(ChangeNotificationService);
         await env.close(SessionManager);
         await env.close(OccurrenceManager);
         await env.close(ServerNodeStore);
+        await env.close(SharedNodeServices);
+    }
+}
+
+class SharedNodeServices {
+    #services: SharedEnvironmentServices;
+
+    static async install(env: Environment) {
+        const services = env.asDependent();
+        await services.load(MdnsService);
+
+        env.set(SharedNodeServices, new SharedNodeServices(services));
+    }
+
+    constructor(services: SharedEnvironmentServices) {
+        this.#services = services;
+    }
+
+    async close() {
+        await this.#services.close();
     }
 }

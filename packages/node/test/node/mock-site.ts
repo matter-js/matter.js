@@ -9,8 +9,6 @@ import {
     Crypto,
     Entropy,
     Environment,
-    hex,
-    Logger,
     MatterAggregateError,
     MockCrypto,
     Network,
@@ -24,8 +22,6 @@ import { Node } from "#node/Node.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { FabricId } from "#types";
 import type { MockServerNode } from "./mock-server-node.js";
-
-const logger = Logger.get("MockSite");
 
 /**
  * Manages a mock network with nodes on it.
@@ -55,7 +51,7 @@ export class MockSite {
         );
 
         const index = (config.index ??= this.#nextNetworkIndex++);
-        const id = (config.id ??= `node${hex.byte(index)}`);
+        const id = (config.id ??= `device${index}`);
         const env = (config.environment ??= new Environment(id));
         if (!env.has(Crypto)) {
             const crypto = MockCrypto(index);
@@ -92,12 +88,18 @@ export class MockSite {
 
     async addController(options?: MockServerNode.Options<ServerNode.RootEndpoint>) {
         options ??= {};
+        const index = (options.index ??= this.#nextNetworkIndex++);
+        const id = (options.id ??= `controller${index}`);
+
         if (options.controller?.adminFabricId === undefined) {
             options.controller ??= {};
             options.controller.adminFabricId = FabricId(1);
         }
+
         return await this.addNode(undefined, {
             online: false,
+            id,
+            index,
             ...options,
             commissioning: { enabled: false, ...options.commissioning },
         });
@@ -120,7 +122,7 @@ export class MockSite {
         const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
         const deviceCrypto = device.env.get(Crypto) as MockCrypto;
 
-        // We end up with session collisions without entropy so enable during pairing
+        // We end up with session collisions when pairing so enable entropy by default
         controllerCrypto.entropic = deviceCrypto.entropic = true;
 
         const { passcode, discriminator } = device.state.commissioning;
@@ -128,26 +130,20 @@ export class MockSite {
             macrotasks: true,
         });
 
-        controllerCrypto.entropic = deviceCrypto.entropic = false;
-
         return { controller, device };
     }
 
     async close() {
-        try {
-            await MockTime.resolve(
-                MatterAggregateError.allSettled(
-                    [...this.#nodes].map(async node => {
-                        await node.close();
-                    }),
-                ),
+        await MockTime.resolve(
+            MatterAggregateError.allSettled(
+                [...this.#nodes].map(async node => {
+                    await node.close();
+                }),
+            ),
 
-                // Not sure why macrotasks are necessary; something hangs with microtasks but haven't tracked down
-                { macrotasks: true },
-            );
-        } catch (e) {
-            logger.error("Error closing mock site", e);
-        }
+            // Not sure why macrotasks are necessary; something hangs with microtasks but haven't tracked down
+            { macrotasks: true },
+        );
     }
 
     storageFor(id: string | { id: string }) {

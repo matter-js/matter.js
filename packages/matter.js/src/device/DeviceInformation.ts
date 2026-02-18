@@ -6,8 +6,7 @@
 
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { SupportedStorageTypes } from "#general";
-import type { ClientNodeInteraction } from "#node";
-import { ClientNode } from "#node";
+import { ClientNode, ClientNodePhysicalProperties } from "#node";
 import { PhysicalDeviceProperties } from "#protocol";
 
 export type DeviceInformationData = {
@@ -23,7 +22,7 @@ export class DeviceInformation {
     }
 
     get meta() {
-        return (this.#node.interaction as ClientNodeInteraction).physicalProperties;
+        return ClientNodePhysicalProperties(this.#node);
     }
 
     get basicInformation() {

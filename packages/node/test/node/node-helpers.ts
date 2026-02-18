@@ -7,7 +7,7 @@
 import { BasicInformationBehavior } from "#behaviors/basic-information";
 import { GeneralCommissioning } from "#clusters/general-commissioning";
 import { Bytes, Crypto, InternalError } from "#general";
-import { CommissioningServer, InteractionServer } from "#index.js";
+import { CommissioningServer, InteractionServer, NetworkClient, ServerNode } from "#index.js";
 import { Specification } from "#model";
 import {
     Certificate,
@@ -18,6 +18,7 @@ import {
     Message,
     MessageType,
     SessionType,
+    SustainedSubscription,
     TestFabric,
     TlvCertSigningRequest,
     WriteResponse,
@@ -393,4 +394,16 @@ export namespace interaction {
 
         return { attributes, events };
     }
+}
+
+export async function subscribedPeer(controller: ServerNode, id: string) {
+    const peer = controller.peers.get(id);
+    expect(peer).not.undefined;
+
+    const subscription = peer!.behaviors.internalsOf(NetworkClient).activeSubscription as SustainedSubscription;
+    expect(subscription).not.undefined;
+
+    await MockTime.resolve(subscription.active);
+
+    return peer!;
 }

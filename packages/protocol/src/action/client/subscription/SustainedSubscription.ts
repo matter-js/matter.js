@@ -7,8 +7,10 @@
 import { Subscribe } from "#action/request/Subscribe.js";
 import type { ActiveSubscription } from "#action/response/SubscribeResult.js";
 import {
+    AbortedError,
     asError,
     AsyncObservableValue,
+    causedBy,
     Diagnostic,
     Duration,
     Hours,
@@ -40,7 +42,7 @@ export class SustainedSubscription extends ClientSubscription {
     #request: ClientSubscribe;
     #subscription?: ActiveSubscription;
     #retries: RetrySchedule;
-    #subscribe: (request: Subscribe) => Promise<PeerSubscription>;
+    #subscribe: (request: Subscribe, abort?: AbortSignal) => Promise<PeerSubscription>;
     #active = AsyncObservableValue(false);
     #inactive = AsyncObservableValue(true);
 
@@ -89,18 +91,20 @@ export class SustainedSubscription extends ClientSubscription {
             // Subscribe
             for (const retry of this.#retries) {
                 try {
-                    this.#subscription = await this.#subscribe(request);
+                    this.#subscription = await this.#subscribe(request, this.abort);
                     this.subscriptionId = this.#subscription.subscriptionId;
                     break;
                 } catch (e) {
+                    if (!causedBy(e, AbortedError) || !this.abort.aborted) {
+                        logger.error(
+                            `Failed to establish subscription to ${this.peer}, retry in ${Duration.format(retry)}:`,
+                            Diagnostic.errorMessage(asError(e)),
+                        );
+                    }
+
                     if (this.abort.aborted) {
                         return;
                     }
-
-                    logger.error(
-                        `Failed to establish subscription to ${this.peer}, retry in ${Duration.format(retry)}:`,
-                        Diagnostic.errorMessage(asError(e)),
-                    );
                 }
 
                 const readyForRetry = Time.sleep("subscription retry", retry);
@@ -155,7 +159,7 @@ export namespace SustainedSubscription {
         /**
          * Function to establish underlying subscription.
          */
-        subscribe: (request: Subscribe) => Promise<PeerSubscription>;
+        subscribe: (request: Subscribe, abort?: AbortSignal) => Promise<PeerSubscription>;
 
         /**
          * The schedule we use for retrying subscription connections.

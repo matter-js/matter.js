@@ -17,14 +17,17 @@ const DEFAULT_SUBSCRIPTION_CEILING_BATTERY_POWERED = Minutes(10);
 const THREAD_SUBSCRIPTION_CEILING_JITTER = 0.05; // 5% +/- Jitter for the Subscription ceiling time
 
 export interface PhysicalDeviceProperties {
-    threadConnected: boolean;
-    wifiConnected: boolean;
-    ethernetConnected: boolean;
+    supportsThread: boolean;
+    supportsWifi: boolean;
+    supportsEthernet: boolean;
     rootEndpointServerList: number[];
     isMainsPowered: boolean;
     isBatteryPowered: boolean;
     isIntermittentlyConnected: boolean;
     isThreadSleepyEndDevice: boolean;
+    threadActive?: boolean;
+    threadPan?: bigint;
+    threadChannel?: number;
 }
 
 export namespace PhysicalDeviceProperties {
@@ -50,8 +53,9 @@ export namespace PhysicalDeviceProperties {
             isMainsPowered,
             isBatteryPowered,
             isIntermittentlyConnected,
-            threadConnected,
+            supportsThread,
             isThreadSleepyEndDevice,
+            threadActive,
         } = properties ?? {};
 
         if (isIntermittentlyConnected) {
@@ -71,7 +75,7 @@ export namespace PhysicalDeviceProperties {
                 ? DEFAULT_SUBSCRIPTION_CEILING_BATTERY_POWERED
                 : isThreadSleepyEndDevice
                   ? DEFAULT_SUBSCRIPTION_CEILING_THREAD_SLEEPY
-                  : threadConnected
+                  : supportsThread
                     ? DEFAULT_SUBSCRIPTION_CEILING_THREAD
                     : DEFAULT_SUBSCRIPTION_CEILING_WIFI;
         if (maxIntervalCeiling === undefined) {
@@ -83,7 +87,7 @@ export namespace PhysicalDeviceProperties {
             );
         }
 
-        if (threadConnected) {
+        if (threadActive) {
             // Add some Jitter to the Subscription ceiling time to ensure the device responses are spread a bit when
             // devices are longer idle
             // Logic does not validate if the resulting value gets too small because our defaults are high enough

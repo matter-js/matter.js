@@ -23,6 +23,8 @@ import {
 } from "#general";
 import { Subscription } from "#interaction/Subscription.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
+import { PeerInitiatedCloseError } from "#peer/PeerCommunicationError.js";
+import { PeerLossContext } from "#peer/PeerLossContext.js";
 import { NoAssociatedFabricError } from "#protocol/errors.js";
 import { MessageCounter } from "#protocol/MessageCounter.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
@@ -48,7 +50,7 @@ export class NodeSession extends SecureSession {
     readonly #decryptKey: Bytes;
     readonly #encryptKey: Bytes;
     readonly #attestationKey: Bytes;
-    #caseAuthenticatedTags: CaseAuthenticatedTag[];
+    #caseAuthenticatedTags: readonly CaseAuthenticatedTag[];
     readonly supportsMRP = true;
     readonly type = SessionType.Unicast;
     readonly #closedByPeer = AsyncObservableValue();
@@ -271,16 +273,15 @@ export class NodeSession extends SecureSession {
         return this.#closedByPeer;
     }
 
-    async handlePeerClose() {
+    async handlePeerClose(currentExchange?: MessageExchange) {
         this.#isPeerLost = true;
         await this.#closedByPeer.emit(true);
-        await this.handlePeerLoss();
+        await this.handlePeerLoss({ cause: new PeerInitiatedCloseError(), currentExchange });
     }
 
-    async handlePeerLoss(data: { currentExchange?: MessageExchange; keepSubscriptions?: boolean } = {}) {
+    async handlePeerLoss(context: PeerLossContext) {
         this.#isPeerLost = true;
-        const { currentExchange, keepSubscriptions } = data;
-        await this.initiateForceClose(currentExchange, keepSubscriptions);
+        await this.initiateForceClose(context);
     }
 
     get isPeerLost() {
@@ -312,9 +313,9 @@ export class NodeSession extends SecureSession {
         });
     }
 
-    override async initiateForceClose(currentExchange?: MessageExchange, keepSubscriptions = false) {
+    override async initiateForceClose(context: PeerLossContext) {
         this.#isPeerLost = true;
-        await super.initiateForceClose(currentExchange, keepSubscriptions);
+        await super.initiateForceClose(context);
     }
 
     override addExchange(exchange: MessageExchange) {
@@ -406,7 +407,7 @@ export namespace NodeSession {
         fabric?: Fabric;
         peerNodeId: NodeId;
         peerSessionId: number;
-        caseAuthenticatedTags?: CaseAuthenticatedTag[];
+        caseAuthenticatedTags?: readonly CaseAuthenticatedTag[];
     }
 
     export interface Config extends CommonConfig {

@@ -7,10 +7,16 @@
 import { Boot } from "./boot.js";
 
 export class TestTimeoutError extends Error {
-    diagnostics = MatterHooks?.generateDiagnostics?.();
+    diagnostics;
 
     constructor(message: string) {
         super(`Test timeout: ${message}`);
+
+        try {
+            this.diagnostics = MatterHooks?.generateDiagnostics?.();
+        } catch (e) {
+            this.diagnostics = `(diagnostics generation failed: ${(e as Error).message}`;
+        }
     }
 
     code?: number | string;

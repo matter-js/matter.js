@@ -26,6 +26,7 @@ import {
     Duration,
     Entropy,
     Environment,
+    Forever,
     ImplementationError,
     Instant,
     isObject,
@@ -43,8 +44,6 @@ import { InteractionClientMessenger, MessageType } from "#interaction/Interactio
 import { Subscription } from "#interaction/Subscription.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { ExchangeProvider } from "#protocol/ExchangeProvider.js";
-import { SessionClosedError } from "#protocol/index.js";
-import { SecureSession } from "#session/SecureSession.js";
 import { Status, TlvAttributeReport, TlvNoResponse, TlvSubscribeResponse, TypeFromSchema } from "#types";
 import { ClientWrite } from "./ClientWrite.js";
 import { InputChunk } from "./InputChunk.js";
@@ -75,6 +74,7 @@ export interface ClientInteractionContext {
     sustainRetries?: RetrySchedule.Configuration;
     exchangeProvider?: ExchangeProvider;
     address?: PeerAddress;
+    network?: string;
 }
 
 export const DEFAULT_MIN_INTERVAL_FLOOR = Seconds(1);
@@ -98,12 +98,13 @@ export class ClientInteraction<
 > implements Interactable<SessionT> {
     protected readonly environment: Environment;
     readonly #lifetime: Lifetime;
-    readonly #exchanges: ExchangeProvider;
+    readonly #exchangeProvider: ExchangeProvider;
     readonly #interactions = new BasicSet<Read | Write | Invoke | Subscribe | ClientBdxRequest>();
     #subscriptions?: ClientSubscriptions;
     readonly #abort: Abort;
     readonly #sustainRetries: RetrySchedule;
     readonly #address?: PeerAddress;
+    readonly #network?: string;
 
     // Command batching state
     readonly #pendingCommands = new Map<number, PendingCommand>();
@@ -111,9 +112,9 @@ export class ClientInteraction<
     #batchTimer?: Timer;
     #nextCommandRef = 1;
 
-    constructor({ environment, abort, sustainRetries, exchangeProvider, address }: ClientInteractionContext) {
+    constructor({ environment, abort, sustainRetries, exchangeProvider, address, network }: ClientInteractionContext) {
         this.environment = environment;
-        this.#exchanges = exchangeProvider ?? environment.get(ExchangeProvider);
+        this.#exchangeProvider = exchangeProvider ?? environment.get(ExchangeProvider);
         if (environment.has(ClientSubscriptions)) {
             this.#subscriptions = environment.get(ClientSubscriptions);
         }
@@ -124,6 +125,7 @@ export class ClientInteraction<
         );
         this.#address = address;
         this.#batchMutex = new Mutex(this);
+        this.#network = network;
 
         this.#lifetime = environment.join("interactions");
         Object.defineProperties(this.#lifetime.details, {
@@ -135,14 +137,6 @@ export class ClientInteraction<
                 enumerable: true,
             },
         });
-    }
-
-    get exchanges() {
-        return this.#exchanges;
-    }
-
-    get session() {
-        return this.#exchanges.session;
     }
 
     async close() {
@@ -161,6 +155,10 @@ export class ClientInteraction<
         while (this.#interactions.size) {
             await this.#interactions.deleted;
         }
+    }
+
+    async [Symbol.asyncDispose]() {
+        await this.close();
     }
 
     get subscriptions() {
@@ -185,22 +183,20 @@ export class ClientInteraction<
         }
 
         await using context = await this.#begin("reading", request, session);
-        const { checkAbort, messenger } = context;
+        const { abort, messenger } = context;
 
         logger.info("Read", Mark.OUTBOUND, messenger.exchange.via, request);
-        await messenger.sendReadRequest(request);
-        checkAbort();
+        await messenger.sendReadRequest(request, { abort });
 
         let attributeReportCount = 0;
         let eventReportCount = 0;
 
         const leftOverData = new Array<TypeFromSchema<typeof TlvAttributeReport>>();
-        for await (const report of messenger.readDataReports()) {
-            checkAbort();
+        for await (const report of messenger.readDataReports({ abort })) {
             attributeReportCount += report.attributeReports?.length ?? 0;
             eventReportCount += report.eventReports?.length ?? 0;
             yield InputChunk(report, leftOverData);
-            checkAbort();
+            abort.throwIfAborted();
         }
 
         logger.info(
@@ -221,17 +217,15 @@ export class ClientInteraction<
      */
     async write<T extends ClientWrite>(request: T, session?: SessionT): WriteResult<T> {
         await using context = await this.#begin("writing", request, session);
-        const { checkAbort, messenger } = context;
+        const { abort, messenger } = context;
 
         if (request.timedRequest) {
-            await messenger.sendTimedRequest(request.timeout ?? DEFAULT_TIMED_REQUEST_TIMEOUT);
-            checkAbort();
+            await messenger.sendTimedRequest(request.timeout ?? DEFAULT_TIMED_REQUEST_TIMEOUT, { abort });
         }
 
         logger.info("Write", Mark.OUTBOUND, messenger.exchange.via, request);
 
-        const response = await messenger.sendWriteCommand(request);
-        checkAbort();
+        const response = await messenger.sendWriteCommand(request, session);
         if (request.suppressResponse) {
             return undefined as Awaited<WriteResult<T>>;
         }
@@ -286,11 +280,10 @@ export class ClientInteraction<
      */
     async *#invokeSingle(request: ClientInvoke, session?: SessionT): DecodedInvokeResult {
         await using context = await this.#begin("invoking", request, session);
-        const { checkAbort, messenger } = context;
+        const { abort, messenger } = context;
 
         if (request.timedRequest) {
-            await messenger.sendTimedRequest(request.timeout ?? DEFAULT_TIMED_REQUEST_TIMEOUT);
-            checkAbort();
+            await messenger.sendTimedRequest(request.timeout ?? DEFAULT_TIMED_REQUEST_TIMEOUT, { abort });
         }
 
         logger.info(
@@ -302,14 +295,14 @@ export class ClientInteraction<
         );
 
         const { expectedProcessingTime, useExtendedFailSafeMessageResponseTimeout } = request;
-        const result = await messenger.sendInvokeCommand(
-            request,
-            expectedProcessingTime ??
+        const result = await messenger.sendInvokeCommand(request, {
+            expectedProcessingTime:
+                expectedProcessingTime ??
                 (useExtendedFailSafeMessageResponseTimeout
                     ? DEFAULT_MINIMUM_RESPONSE_TIMEOUT_WITH_FAILSAFE
                     : undefined),
-        );
-        checkAbort();
+            abort,
+        });
         if (!request.suppressResponse) {
             if (result && result.invokeResponses?.length) {
                 const chunk: InvokeResult.Chunk = result.invokeResponses
@@ -384,7 +377,7 @@ export class ClientInteraction<
             } else {
                 yield [];
             }
-            checkAbort();
+            abort.throwIfAborted();
         }
     }
 
@@ -418,16 +411,6 @@ export class ClientInteraction<
         yield* AsyncIterator.merge(iterators, "One or more invoke batches failed");
     }
 
-    /** Get the effective MaxPathsPerInvoke parameter from the session, or 1 as a fallback as defined by spec. */
-    get #maxPathsPerInvoke(): number {
-        try {
-            return this.session.parameters.maxPathsPerInvoke;
-        } catch (error) {
-            SessionClosedError.accept(error);
-            return 1;
-        }
-    }
-
     /**
      * Invoke one or more commands.
      *
@@ -438,8 +421,10 @@ export class ClientInteraction<
      * when the device supports multiple invokes per exchange and the target is not endpoint 0.
      */
     async *invoke(request: ClientInvoke, session?: SessionT): DecodedInvokeResult {
+        const maxPathsPerInvoke = this.#exchangeProvider.maxPathsPerInvoke ?? 1;
+
         // Single command with batching support — auto-batch
-        if (request.invokeRequests.length === 1 && request.batchDuration !== false && this.#maxPathsPerInvoke > 1) {
+        if (request.invokeRequests.length === 1 && request.batchDuration !== false && maxPathsPerInvoke) {
             const endpointId = request.invokeRequests[0].commandPath.endpointId;
             if (endpointId !== undefined && endpointId !== 0) {
                 yield* this.#invokeWithBatching(request);
@@ -447,7 +432,6 @@ export class ClientInteraction<
             }
         }
 
-        const maxPathsPerInvoke = this.#maxPathsPerInvoke;
         const commandCount = request.commands.size;
 
         if (commandCount > maxPathsPerInvoke) {
@@ -551,7 +535,7 @@ export class ClientInteraction<
 
             // Use #invokeSingle directly to avoid re-entering the batching path in invoke()
             const batchRequest = Invoke({ commands: invokeRequests }) as ClientInvoke;
-            const maxPathsPerInvoke = this.#maxPathsPerInvoke;
+            const maxPathsPerInvoke = this.#exchangeProvider.maxPathsPerInvoke ?? 1;
             const chunks =
                 invokeRequests.length > maxPathsPerInvoke
                     ? this.#invokeWithSplitting(batchRequest, maxPathsPerInvoke)
@@ -592,6 +576,8 @@ export class ClientInteraction<
      * Subscribe to attribute values and events.
      */
     async subscribe<T extends ClientSubscribe>(request: T, session?: SessionT): SubscriptionResult<T> {
+        let interactionSession: InteractionSession | undefined = session;
+
         const subscriptionPathsCount = (request.attributeRequests?.length ?? 0) + (request.eventRequests?.length ?? 0);
         if (subscriptionPathsCount === 0) {
             throw new ImplementationError("When subscribing to attributes and events, at least one must be specified.");
@@ -600,8 +586,10 @@ export class ClientInteraction<
             logger.info("Subscribe interactions with more than 3 paths might be not allowed by the device.");
         }
 
-        SecureSession.assert(this.#exchanges.session);
-        const peer = this.#exchanges.session.peerAddress;
+        const peer = this.#exchangeProvider.peerAddress;
+        if (peer === undefined) {
+            throw new ImplementationError("Subscription unavailable because not interacting with a commissioned peer");
+        }
 
         if (!request.keepSubscriptions) {
             for (const subscription of this.subscriptions) {
@@ -630,9 +618,9 @@ export class ClientInteraction<
             );
         }
 
-        const subscribe = async (request: ClientSubscribe) => {
-            await using context = await this.#begin("subscribing", request, session);
-            const { checkAbort, messenger } = context;
+        const subscribe = async (request: ClientSubscribe, extraAbort?: AbortSignal) => {
+            await using context = await this.#begin("subscribing", request, interactionSession, extraAbort);
+            const { abort, messenger } = context;
 
             logger.info(
                 "Subscribe",
@@ -646,17 +634,19 @@ export class ClientInteraction<
                 request,
             );
 
-            await messenger.sendSubscribeRequest({
-                ...request,
-                minIntervalFloorSeconds: Seconds.of(minIntervalFloor),
-                maxIntervalCeilingSeconds: Seconds.of(maxIntervalCeiling),
-            });
-            checkAbort();
+            await messenger.sendSubscribeRequest(
+                {
+                    ...request,
+                    minIntervalFloorSeconds: Seconds.of(minIntervalFloor),
+                    maxIntervalCeilingSeconds: Seconds.of(maxIntervalCeiling),
+                },
+                { abort },
+            );
 
-            await this.#handleSubscriptionResponse(request, readChunks(messenger));
-            checkAbort();
+            await this.#handleSubscriptionResponse(request, readChunks(messenger, abort));
+            abort.throwIfAborted();
 
-            const responseMessage = await messenger.nextMessage(MessageType.SubscribeResponse);
+            const responseMessage = await messenger.nextMessage(MessageType.SubscribeResponse, { abort });
             const response = TlvSubscribeResponse.decode(responseMessage.payload);
 
             const subscription = new PeerSubscription({
@@ -665,8 +655,8 @@ export class ClientInteraction<
                 peer,
                 closed: () => this.subscriptions.delete(subscription),
                 response,
-                abort: session?.abort,
-                maxPeerResponseTime: this.#exchanges.maximumPeerResponseTime(),
+                abort,
+                maxPeerResponseTime: this.maximumPeerResponseTime(),
             });
             this.subscriptions.addPeer(subscription);
 
@@ -696,6 +686,13 @@ export class ClientInteraction<
                 abort: session?.abort,
                 retries: this.#sustainRetries,
             });
+
+            // For sustained subscriptions, the connection process should not time out; it should only stop on abort
+            if (interactionSession === undefined) {
+                interactionSession = { connectionTimeout: Forever };
+            } else {
+                interactionSession = { ...interactionSession, connectionTimeout: Forever };
+            }
         } else {
             subscription = await subscribe(request);
         }
@@ -724,12 +721,12 @@ export class ClientInteraction<
         }
         this.#interactions.add(request);
 
-        const checkAbort = Abort.checkerFor(session);
+        const abort = new Abort({ abort: [session?.abort, this.#abort] });
 
-        const messenger = await BdxMessenger.create(this.#exchanges, request.messageTimeout);
+        const messenger = await BdxMessenger.create(this.#exchangeProvider, request.messageTimeout);
 
         const context: RequestContext<BdxMessenger> = {
-            checkAbort,
+            abort,
             messenger,
             [Symbol.asyncDispose]: async () => {
                 await messenger.close();
@@ -738,27 +735,39 @@ export class ClientInteraction<
         };
 
         try {
-            context.checkAbort();
+            abort.throwIfAborted();
         } catch (e) {
             await context[Symbol.asyncDispose]();
+            throw e;
         }
 
         return { context };
     }
 
-    async #begin(what: string, request: Read | Write | Invoke | Subscribe, session: SessionT | undefined) {
+    async #begin(
+        what: string,
+        request: ClientRead | ClientWrite | ClientInvoke | ClientSubscribe,
+        session: InteractionSession | undefined,
+        extraAbort?: AbortSignal,
+    ) {
         using lifetime = this.#lifetime.join(what);
 
         if (this.#abort.aborted) {
-            throw new ImplementationError("Client interaction unavailable after close");
+            throw new ImplementationError(
+                `Cannot ${what} ${this.#address ?? "uncommissioned node"} because interactable is closed`,
+            );
         }
 
-        const checkAbort = Abort.checkerFor(session);
+        const abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort] });
 
         const now = Time.nowMs;
         let messenger: InteractionClientMessenger;
         try {
-            messenger = await InteractionClientMessenger.create(this.#exchanges);
+            messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
+                network: request.network ?? this.#network,
+                abort: session?.abort,
+                connectionTimeout: session?.connectionTimeout,
+            });
         } catch (error) {
             TimeoutError.accept(error);
 
@@ -767,8 +776,8 @@ export class ClientInteraction<
             // either try the last addresses again (if existing), or do a short-timed re-discovery. This would block
             // the execution max 10s. What's missing is that one layer (like Sustained Subscription) would trigger a
             // FullDiscovery instead of just a timed one, but for the tests and currently this should be enough.
-            await this.exchanges.reconnectChannel({ asOf: now, resetInitialState: true });
-            messenger = await InteractionClientMessenger.create(this.#exchanges);
+            await this.#exchangeProvider.reconnectChannel({ asOf: now, resetInitialState: true });
+            messenger = await InteractionClientMessenger.create(this.#exchangeProvider);
         }
 
         this.#interactions.add(request);
@@ -781,7 +790,7 @@ export class ClientInteraction<
         });
 
         const context: RequestContext = {
-            checkAbort,
+            abort,
             messenger,
             [Symbol.asyncDispose]: async () => {
                 using _closing = lifetime.closing();
@@ -791,41 +800,42 @@ export class ClientInteraction<
         };
 
         try {
-            context.checkAbort();
+            abort.throwIfAborted();
         } catch (e) {
             await context[Symbol.asyncDispose]();
+            throw e;
         }
 
         return context;
     }
 
     get channelType() {
-        return this.#exchanges.channelType;
+        return this.#exchangeProvider.channelType;
     }
 
     /** Calculates the current maximum response time for a message use in additional logic like timers. */
     maximumPeerResponseTime(expectedProcessingTime?: Duration) {
-        return this.#exchanges.maximumPeerResponseTime(expectedProcessingTime);
+        return this.#exchangeProvider.maximumPeerResponseTime(expectedProcessingTime);
     }
 
     get address() {
         if (this.#address === undefined) {
-            throw new ImplementationError("This InteractionClient is not bound to a specific peer.");
+            throw new ImplementationError("Uncommissioned node has no peer address");
         }
         return this.#address;
     }
 }
 
 export interface RequestContext<M extends InteractionClientMessenger | BdxMessenger = InteractionClientMessenger> {
-    checkAbort(): void;
+    abort: Abort;
     messenger: M;
 
     [Symbol.asyncDispose](): Promise<void>;
 }
 
-async function* readChunks(messenger: InteractionClientMessenger) {
+async function* readChunks(messenger: InteractionClientMessenger, abort: Abort) {
     const leftOverData = new Array<TypeFromSchema<typeof TlvAttributeReport>>();
-    for await (const report of messenger.readDataReports()) {
+    for await (const report of messenger.readDataReports({ abort })) {
         yield InputChunk(report, leftOverData);
     }
 }

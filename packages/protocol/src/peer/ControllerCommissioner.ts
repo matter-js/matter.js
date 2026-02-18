@@ -22,6 +22,7 @@ import {
     ImplementationError,
     isIPv6,
     Logger,
+    MaybePromise,
     Millis,
     Minutes,
     NoResponseTimeoutError,
@@ -44,9 +45,14 @@ import { PaseClient } from "#session/pase/PaseClient.js";
 import { SessionManager } from "#session/SessionManager.js";
 import { DiscoveryCapabilitiesBitmap, NodeId, SECURE_CHANNEL_PROTOCOL_ID, TypeFromPartialBitSchema } from "#types";
 import { PeerAddress } from "./PeerAddress.js";
-import { NodeDiscoveryType, PeerSet } from "./PeerSet.js";
+import {
+    CommissioningTransitionError,
+    PeerCommunicationError,
+    TransientPeerCommunicationError,
+} from "./PeerCommunicationError.js";
+import { PeerSet } from "./PeerSet.js";
 
-const logger = Logger.get("PeerCommissioner");
+const logger = Logger.get("ControllerCommissioner");
 
 /**
  * General commissioning options.
@@ -67,7 +73,7 @@ export interface CommissioningOptions extends Partial<ControllerCommissioningFlo
      * This optional callback allows the caller to complete commissioning once PASE commissioning completes.  If it does
      * not throw, the commissioner considers commissioning complete.
      */
-    finalizeCommissioning?: (peerAddress: PeerAddress, discoveryData?: DiscoveryData) => Promise<void>;
+    finalizeCommissioning?: (peerAddress: PeerAddress, discoveryData?: DiscoveryData) => MaybePromise<void>;
 
     /**
      * Commissioning Flow Implementation as class that extends the official implementation to use for commissioning.
@@ -180,15 +186,16 @@ export class ControllerCommissioner {
         let session: NodeSession | undefined;
         for (const address of addresses) {
             try {
-                session = await this.#initializePaseSecureChannel(address, passcode, discoveryData);
+                session = await this.#establishEphemeralNodeSession(address, passcode, discoveryData);
+                break;
             } catch (e) {
-                NoResponseTimeoutError.accept(e);
+                TransientPeerCommunicationError.accept(e);
                 logger.warn(`Could not connect to ${ServerAddress.urlFor(address)}: ${e.message}`);
             }
         }
 
         if (session === undefined) {
-            throw new NoResponseTimeoutError("Could not connect to device");
+            throw new PeerCommunicationError("Could not connect to device");
         }
 
         return await this.#commissionConnectedNode(session, options, discoveryData);
@@ -245,18 +252,18 @@ export class ControllerCommissioner {
         );
 
         // If we have a known address we try this first before we discover the device
-        let paseSession: NodeSession | undefined;
+        let session: NodeSession | undefined;
         let discoveryData: DiscoveryData | undefined;
 
         // If we have a last known address, try this first
         if (knownAddress !== undefined) {
             try {
-                paseSession = await this.#initializePaseSecureChannel(knownAddress, passcode);
+                session = await this.#establishEphemeralNodeSession(knownAddress, passcode);
             } catch (error) {
                 NoResponseTimeoutError.accept(error);
             }
         }
-        if (paseSession === undefined) {
+        if (session === undefined) {
             const discoveredDevices = await ControllerDiscovery.discoverDeviceAddressesByIdentifier(
                 scannersToUse,
                 identifierData,
@@ -269,17 +276,17 @@ export class ControllerCommissioner {
                 async () =>
                     scannersToUse.flatMap(scanner => scanner.getDiscoveredCommissionableDevices(identifierData)),
                 async (address, device) => {
-                    const channel = await this.#initializePaseSecureChannel(address, passcode, device);
+                    const channel = await this.#establishEphemeralNodeSession(address, passcode, device);
                     discoveryData = device;
                     return channel;
                 },
             );
 
             // Pairing was successful, so store the address and assign the established secure channel
-            paseSession = result;
+            session = result;
         }
 
-        return { paseSession, discoveryData };
+        return { paseSession: session, discoveryData };
     }
 
     /**
@@ -304,7 +311,7 @@ export class ControllerCommissioner {
      * If this not successful and throws an RetransmissionLimitReachedError the address is invalid or the passcode
      * is wrong.
      */
-    async #initializePaseSecureChannel(
+    async #establishEphemeralNodeSession(
         address: ServerAddress,
         passcode: number,
         device?: DiscoveryData,
@@ -383,7 +390,9 @@ export class ControllerCommissioner {
             }
             throw e;
         } finally {
-            await unsecuredSession.initiateForceClose();
+            await unsecuredSession.initiateForceClose({
+                cause: new CommissioningTransitionError("PASE session has transitioned to CASE"),
+            });
         }
     }
 
@@ -415,7 +424,7 @@ export class ControllerCommissioner {
      * success.
      */
     async #commissionConnectedNode(
-        paseSession: NodeSession,
+        ephemeralSession: NodeSession,
         options: CommissioningOptions,
         discoveryData?: DiscoveryData,
     ): Promise<PeerAddress> {
@@ -461,15 +470,15 @@ export class ControllerCommissioner {
 
         // The pase session has actual negotiated parameters from the device. Use them over the discoveryData
         discoveryData = discoveryData ?? {};
-        discoveryData.SII = paseSession.parameters.idleInterval;
-        discoveryData.SAI = paseSession.parameters.activeInterval;
-        discoveryData.SAT = paseSession.parameters.activeThreshold;
+        discoveryData.SII = ephemeralSession.parameters.idleInterval;
+        discoveryData.SAI = ephemeralSession.parameters.activeInterval;
+        discoveryData.SAT = ephemeralSession.parameters.activeThreshold;
 
         const address = this.#determineAddress(fabric, commissioningOptions.nodeId);
         logger.info(`Start commissioning of node ${address.toString()} into fabric ${fabric.fabricId}`);
-        const exchangeProvider = new DedicatedChannelExchangeProvider(this.#context.exchanges, paseSession);
-        const commissioningManager = new commissioningFlowImpl(
-            // Use the created secure session to do the commissioning
+        const exchangeProvider = new DedicatedChannelExchangeProvider(this.#context.exchanges, ephemeralSession);
+
+        await using commissioner = new commissioningFlowImpl(
             new ClientInteraction({
                 environment: this.#context.environment,
                 exchangeProvider,
@@ -485,7 +494,12 @@ export class ControllerCommissioner {
                         commissioning flow the commissioning channel SHALL terminate after successful step 12 (trigger
                         joining of operational network at Commissionee).
                      */
-                    await paseSession.initiateClose(); // We reconnect using Case, so close PASE connection
+                    // We've reconnected using CASE so close the ephemeral node ID session
+                    await ephemeralSession.initiateForceClose({
+                        cause: new CommissioningTransitionError(
+                            "Commissioning session closed because node has now joined fabric",
+                        ),
+                    });
                 }
 
                 if (performCaseCommissioning !== undefined) {
@@ -493,39 +507,37 @@ export class ControllerCommissioner {
                     return;
                 }
 
-                // Look for the device broadcast over MDNS and do CASE pairing
-                await this.#context.peers.connect(address, {
-                    discoveryOptions: {
-                        discoveryType: NodeDiscoveryType.TimedDiscovery,
-                        timeout: Minutes(4),
-                        discoveryData,
-                    },
-                }); // Wait to find the operational device for the commissioning process
+                const peer = this.#context.peers.for(address);
+                peer.descriptor.discoveryData = discoveryData;
+                await peer.connect({ connectionTimeout: Minutes(4) });
 
-                // And we use a ClientInteraction backed Interaction client to finish the commissioning because
-                const exchangeProvider = await this.#context.peers.exchangeProviderFor(address);
                 return new ClientInteraction({
                     environment: this.#context.environment,
-                    exchangeProvider,
+                    exchangeProvider: peer.exchangeProvider,
                     address,
                 });
             },
         );
 
         try {
-            await commissioningManager.executeCommissioning();
+            await commissioner.executeCommissioning();
         } catch (error) {
             // We might have added data for an operational address that we need to cleanup
             await this.#context.peers.get(address)?.delete();
             throw error;
         } finally {
-            commissioningManager.close();
+            commissioner.close();
             /*
                 In concurrent connection commissioning flow the commissioning channel SHALL terminate after
                 successful step 15 (CommissioningComplete command invocation).
-                If PaseSecureMessageChannel is not already closed, we are in non-concurrent connection commissioning flow.
-                */
-            await paseSession.initiateClose(); // We are done, so close PASE session
+            */
+            // If the ephemeral session is not already closed, we are in concurrent connection commissioning flow.
+            // Close it now
+            await ephemeralSession.initiateForceClose({
+                cause: new CommissioningTransitionError(
+                    "Commissioning session closed because node has now joined fabric",
+                ),
+            });
         }
 
         return address;

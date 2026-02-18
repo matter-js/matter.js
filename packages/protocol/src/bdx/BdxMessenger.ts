@@ -43,7 +43,7 @@ export class BdxMessenger {
 
     /** Creates a new BdxMessenger instance by initiating a new MessageExchange from the given ExchangeProvider. */
     static async create(exchangeProvider: ExchangeProvider, messageTimeout = BDX_TRANSFER_IDLE_TIMEOUT) {
-        const exchange = await exchangeProvider.initiateExchange(BDX_PROTOCOL_ID);
+        const exchange = await exchangeProvider.initiateExchange({ protocol: BDX_PROTOCOL_ID });
         return new this(exchange, messageTimeout);
     }
 

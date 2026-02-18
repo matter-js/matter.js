@@ -19,7 +19,9 @@ import { OperationalCredentials } from "#clusters/operational-credentials";
 import { OtaSoftwareUpdateRequestor } from "#clusters/ota-software-update-requestor";
 import { TimeSynchronizationCluster } from "#clusters/time-synchronization";
 import {
+    asError,
     Bytes,
+    causedBy,
     ChannelType,
     Diagnostic,
     Duration,
@@ -254,6 +256,10 @@ export class ControllerCommissioningFlow {
         this.#initializeCommissioningSteps();
     }
 
+    async [Symbol.asyncDispose]() {
+        await this.interaction.close();
+    }
+
     /**
      * Execute the commissioning process in the defined order. The steps are sorted before execution based on the step
      * number and sub step number.
@@ -311,14 +317,19 @@ export class ControllerCommissioningFlow {
                 if (result.code === CommissioningStepResultCode.Stop) {
                     break;
                 }
-            } catch (error) {
+            } catch (e) {
+                const error = asError(e);
                 if (error instanceof RecoverableCommissioningError) {
                     logger.warn(
-                        `Commissioning step ${step.stepNumber}.${step.subStepNumber}: ${step.name} failed with recoverable error: ${error.message} ... Continuing with process`,
+                        `Commissioning step ${step.stepNumber}.${step.subStepNumber}: ${step.name} failed with recoverable error:`,
+                        Diagnostic.errorMessage(error),
+                        Diagnostic.weak("(continuing commissioning)"),
                     );
-                } else if (error instanceof CommissioningError || error instanceof StatusResponseError) {
+                } else if (causedBy(error, CommissioningError, StatusResponseError)) {
                     logger.error(
-                        `Commissioning step ${step.stepNumber}.${step.subStepNumber}: ${step.name} failed with error: ${error.message} ... Aborting commissioning`,
+                        `Commissioning step ${step.stepNumber}.${step.subStepNumber}: ${step.name} failed with error:`,
+                        Diagnostic.errorMessage(error),
+                        Diagnostic.weak("(terminating commissioning)"),
                     );
                     // TODO In concurrent connection commissioning flow, the failure of any of the steps 2 through 10
                     //  SHALL result in the Commissioner and Commissionee returning to step 2 (device discovery and
@@ -1612,7 +1623,9 @@ export class ControllerCommissioningFlow {
             };
         }
 
+        await this.interaction.close();
         this.interaction = transitionResult;
+
         this.#clusterClients.clear();
 
         logger.debug("Successfully reconnected with device ...");

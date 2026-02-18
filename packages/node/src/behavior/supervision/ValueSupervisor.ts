@@ -6,7 +6,7 @@
 
 import type { AsyncObservable, Transaction } from "#general";
 import { DataModelPath, Schema } from "#model";
-import type { AccessControl, Val } from "#protocol";
+import type { AccessControl, InteractionSettings, Val } from "#protocol";
 import type { ValidationLocation } from "../state/validation/location.js";
 import type { RootSupervisor } from "./RootSupervisor.js";
 
@@ -68,16 +68,11 @@ export namespace ValueSupervisor {
     /**
      * {@link Session} values that control supervision.
      */
-    export interface SupervisionSettings {
+    export interface SupervisionSettings extends InteractionSettings {
         /**
          * The transaction used for isolating state changes associated with this session.
          */
         transaction: Transaction;
-
-        /**
-         * Signal for terminating asynchronous processes.
-         */
-        abort?: AbortSignal;
 
         /**
          * If this is true, data validation is disabled.  This should only be used in contexts where data validation is
