@@ -30,7 +30,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensures that production certificates are always stored correctly
     - Fix: Ensures trying different IPs when we have a timeout-based reconnection process
     - Fix: Fix cancelCommissionableDeviceDiscovery not working when called from the MDNS discovery callback (#2131)
-    - Fix: Ensures to use correct random MRP retransmission intervals
+    - Fix: Ensure correct random MRP retransmission intervals are used
 
 - @matter/react-native
     - Fix: Bring BleScanner cancel support in line with nodejs-ble, fixing cancelCommissionableDeviceDiscovery not working when called from the discovery callback (#2131)
