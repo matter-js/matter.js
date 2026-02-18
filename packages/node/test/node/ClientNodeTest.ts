@@ -7,7 +7,6 @@
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { GlobalAttributeState } from "#behavior/cluster/ClusterState.js";
 import { DiscoveryError } from "#behavior/system/controller/discovery/DiscoveryError.js";
-import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { BasicInformationBehavior, BasicInformationServer } from "#behaviors/basic-information";
 import { IdentifyClient } from "#behaviors/identify";
 import { OnOffClient } from "#behaviors/on-off";
@@ -16,34 +15,16 @@ import { OnOffLightDevice } from "#devices/on-off-light";
 import { WindowCoveringDevice } from "#devices/window-covering";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
-import {
-    b$,
-    Bytes,
-    causedBy,
-    Crypto,
-    deepCopy,
-    Entropy,
-    Minutes,
-    MockCrypto,
-    Observable,
-    Seconds,
-    Time,
-} from "#general";
+import { b$, Bytes, Crypto, deepCopy, Entropy, MockCrypto, Observable, Seconds } from "#general";
 import { Specification } from "#model";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
 import { ServerNode } from "#node/ServerNode.js";
-import {
-    ClientSubscription,
-    FabricManager,
-    PeerSet,
-    PeerUnreachableError,
-    SustainedSubscription,
-    Val,
-} from "#protocol";
+import { FabricManager, PeerSet, Val } from "#protocol";
 import { FabricIndex } from "#types";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
 import { MockSite } from "./mock-site.js";
+import { subscribedPeer } from "./node-helpers.js";
 
 describe("ClientNode", () => {
     before(() => {
@@ -278,107 +259,6 @@ describe("ClientNode", () => {
         expect(ep1Server.state.identify.identifyTime).equals(5);
     });
 
-    it("throws error if node cannot be reached", async () => {
-        // *** SETUP ***
-
-        await using site = new MockSite();
-        const { controller, device } = await site.addCommissionedPair();
-        const peer1 = controller.peers.get("peer1")!;
-        const ep1 = peer1.parts.get("ep1")!;
-        await MockTime.resolve(device.close());
-
-        // *** INVOCATION ***
-
-        (ep1.env.get(Crypto) as MockCrypto).entropic = true;
-
-        await expectTimeoutError(ep1.commandsOf(OnOffClient).toggle());
-    });
-
-    it("reconnects and updates connection status", async () => {
-        // *** SETUP ***
-
-        await using site = new MockSite();
-        const { controller, device } = await site.addCommissionedPair();
-        const peer1 = controller.peers.get("peer1")!;
-        const ep1 = peer1.parts.get("ep1")!;
-        await MockTime.resolve(device.cancel());
-
-        // *** INVOKE ***
-
-        (ep1.env.get(Crypto) as MockCrypto).entropic = true;
-
-        // We detected the device as offline, and so we get a failure on execution
-        await expectTimeoutError(ep1.commandsOf(OnOffClient).toggle());
-
-        // Delay
-        await MockTime.resolve(Time.sleep("waiting to start device", Seconds(5)));
-
-        // Bring the device online again
-        await MockTime.resolve(device.start());
-
-        // Toggle should now complete
-        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle(undefined, { connectionTimeout: Minutes(5) }));
-    });
-
-    it("resubscribes on timeout", async () => {
-        // *** SETUP ***
-
-        await using site = new MockSite();
-        const { controller, device } = await site.addCommissionedPair();
-        const peer1 = await subscribedPeer(controller, "peer1");
-        const ep1 = peer1.parts.get("ep1")!;
-
-        // *** INITIAL SUBSCRIPTION ***
-
-        const subscription = peer1.behaviors.internalsOf(NetworkClient).activeSubscription!;
-        expect(subscription).not.undefined;
-        const initialSubscriptionId = subscription.subscriptionId;
-        expect(initialSubscriptionId).not.equals(ClientSubscription.NO_SUBSCRIPTION);
-
-        SustainedSubscription.assert(subscription);
-        expect(subscription.active.value).equals(true);
-
-        // *** SUBSCRIPTION TIMEOUT ***
-
-        // Close peer
-        await MockTime.resolve(device.cancel());
-
-        // Wait for subscription to timeout
-        await MockTime.resolve(subscription.inactive);
-
-        // Ensure subscription ID is gone
-        expect(subscription.subscriptionId).equals(ClientSubscription.NO_SUBSCRIPTION);
-
-        // *** NEW SUBSCRIPTION ***
-
-        // Need entropy for this bit so we can verify we have a new subscription ID
-        const crypto = device.env.get(Crypto) as MockCrypto;
-        crypto.entropic = true;
-
-        // Bring peer back online
-        await MockTime.resolve(device.start());
-
-        // Wait for subscription to establish
-        await MockTime.resolve(subscription.active);
-        crypto.entropic = false;
-
-        expect(subscription.subscriptionId).not.equals(ClientSubscription.NO_SUBSCRIPTION);
-        expect(subscription.subscriptionId).not.equals(initialSubscriptionId);
-
-        // *** CONFIRM SUBSCRIPTION FUNCTIONS ***
-
-        expect(ep1.stateOf(OnOffClient).onOff).false;
-        const toggled = new Promise(resolve => {
-            ep1.eventsOf(OnOffClient).onOff$Changed.once(resolve);
-        });
-
-        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle());
-
-        await MockTime.resolve(toggled);
-
-        expect(ep1.stateOf(OnOffClient).onOff).true;
-    });
-
     it("emits Matter events", async () => {
         // *** SETUP ***
 
@@ -463,7 +343,7 @@ describe("ClientNode", () => {
         // *** LEAVE FABRIC ON PEER ***
 
         const deleted = Promise.resolve(peer1.lifecycle.destroyed);
-        await deviceFabric.leave();
+        await MockTime.resolve(deviceFabric.leave());
 
         // *** NOTE DELETION ON CONTROLLER ***
 
@@ -1028,23 +908,3 @@ const EP1_STATE = {
         eventList: undefined,
     },
 };
-
-async function expectTimeoutError(promise: Promise<any>) {
-    try {
-        return await MockTime.resolve(promise);
-    } catch (e) {
-        expect(causedBy(e, PeerUnreachableError));
-    }
-}
-
-async function subscribedPeer(controller: ServerNode, id: string) {
-    const peer = controller.peers.get(id);
-    expect(peer).not.undefined;
-
-    const subscription = peer!.behaviors.internalsOf(NetworkClient).activeSubscription as SustainedSubscription;
-    expect(subscription).not.undefined;
-
-    await MockTime.resolve(subscription.active);
-
-    return peer!;
-}

@@ -276,10 +276,10 @@ export class NodeSession extends SecureSession {
         return this.#closedByPeer;
     }
 
-    async handlePeerClose() {
+    async handlePeerClose(currentExchange?: MessageExchange) {
         this.#isPeerLost = true;
         await this.#closedByPeer.emit(true);
-        await this.handlePeerLoss({ cause: new PeerInitiatedCloseError() });
+        await this.handlePeerLoss({ cause: new PeerInitiatedCloseError(), currentExchange });
     }
 
     async handlePeerLoss(context: PeerLossContext) {

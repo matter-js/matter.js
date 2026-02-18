@@ -23,8 +23,6 @@ import { ServerNode } from "#node/ServerNode.js";
 import { FabricId } from "#types";
 import { MockServerNode } from "./mock-server-node.js";
 
-//const logger = Logger.get("MockSite");
-
 /**
  * Manages a mock network with nodes on it.
  */
