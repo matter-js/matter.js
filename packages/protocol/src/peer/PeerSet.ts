@@ -511,34 +511,47 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             operationalAddress !== undefined &&
             (runningDiscoveryType === NodeDiscoveryType.None || requestedDiscoveryType === NodeDiscoveryType.None)
         ) {
-            const session = this.#sessions.maybeSessionFor(address);
-            const queueSlot = await queue?.obtainSlot();
+            const knownDiscoveredDevice = mdnsScanner.getDiscoveredOperationalDevice(
+                this.#sessions.fabricFor(address),
+                address.nodeId,
+            );
+            if (
+                knownDiscoveredDevice === undefined ||
+                knownDiscoveredDevice.addresses.some(addr => ServerAddress.isEqual(addr, operationalAddress!))
+            ) {
+                const session = this.#sessions.maybeSessionFor(address);
+                const queueSlot = await queue?.obtainSlot();
 
-            if (queueSlot !== undefined) {
-                // If we got a new session while waiting for the queue slot, we assume we are done here
-                const currentSession = this.#sessions.maybeSessionFor(address);
-                if (currentSession?.isSecure && session !== currentSession) {
-                    queueSlot.close();
-                    return currentSession;
+                if (queueSlot !== undefined) {
+                    // If we got a new session while waiting for the queue slot, we assume we are done here
+                    const currentSession = this.#sessions.maybeSessionFor(address);
+                    if (currentSession?.isSecure && session !== currentSession) {
+                        queueSlot.close();
+                        return currentSession;
+                    }
                 }
-            }
 
-            try {
-                const directReconnection = await this.#reconnectKnownAddress(
-                    address,
-                    operationalAddress,
-                    discoveryData,
-                    // Attempt to reconnect using the last known operational address and current discovery context
-                    { caseAuthenticatedTags },
-                );
-                if (directReconnection !== undefined) {
-                    return directReconnection;
+                try {
+                    const directReconnection = await this.#reconnectKnownAddress(
+                        address,
+                        operationalAddress,
+                        discoveryData,
+                        // Attempt to reconnect using the last known operational address and current discovery context
+                        { caseAuthenticatedTags },
+                    );
+                    if (directReconnection !== undefined) {
+                        return directReconnection;
+                    }
+                } finally {
+                    queueSlot?.close();
                 }
-            } finally {
-                queueSlot?.close();
-            }
-            if (requestedDiscoveryType === NodeDiscoveryType.None) {
-                throw new DiscoveryError(`${address} is not reachable right now.`);
+
+                if (requestedDiscoveryType === NodeDiscoveryType.None) {
+                    throw new DiscoveryError(`${address} is not reachable right now.`);
+                }
+            } else {
+                logger.info(address, "Formerly known address is no longer in the MDNS results, discard ...");
+                operationalAddress = undefined;
             }
         }
 

@@ -565,13 +565,13 @@ export class MessageExchange {
 
         this.context.retry(this.#retransmissionCounter);
         const resubmissionBackoffTime = this.channel.getMrpResubmissionBackOffTime(this.#retransmissionCounter);
-        logger.debug(
-            `Resubmitting ${Message.via(this, message)} (retransmission attempt ${this.#retransmissionCounter}, backoff time ${Duration.format(resubmissionBackoffTime)}))`,
-        );
 
         // TODO await
         this.channel
-            .send(message, this)
+            .send(message, this, {
+                "retrans#": this.#retransmissionCounter,
+                backoff: Duration.format(resubmissionBackoffTime),
+            })
             .then(() => this.#initializeResubmission(message, resubmissionBackoffTime, expectedProcessingTime))
             .catch(error => {
                 logger.error(`Error retransmitting ${Message.via(this, message)}:`, error);
@@ -709,7 +709,9 @@ export class MessageExchange {
         // in normal case this timer is cancelled before it triggers when all retries are done.
         let maxResubmissionTime = Instant;
         for (let i = this.#retransmissionCounter; i <= MRP.MAX_TRANSMISSIONS; i++) {
-            maxResubmissionTime = Millis(maxResubmissionTime + this.channel.getMrpResubmissionBackOffTime(i));
+            maxResubmissionTime = Millis(
+                maxResubmissionTime + this.channel.getMrpResubmissionBackOffTime(i, undefined, true),
+            );
         }
         this.#closeTimer = Time.getTimer(
             `Exchange ${this.via} close`,
