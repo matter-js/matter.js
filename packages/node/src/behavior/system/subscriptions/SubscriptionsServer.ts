@@ -241,12 +241,13 @@ export class SubscriptionsServer extends Behavior {
                 }
                 await interactionServer.establishFormerSubscription(subscription, session);
             } catch (error) {
+                const sre = StatusResponseError.of(error);
                 logger.debug(
                     `Failed to re-establish former subscription ${Subscription.idStrOf(subscriptionId)} to ${peerAddress}`,
-                    StatusResponseError.is(error)
-                        ? error.code === StatusCode.InvalidSubscription
+                    sre
+                        ? sre.code === StatusCode.InvalidSubscription
                             ? "Subscription no langer valid for peer"
-                            : error.message
+                            : sre.message
                         : error,
                 );
                 continue;
