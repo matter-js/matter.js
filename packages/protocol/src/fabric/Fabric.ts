@@ -295,10 +295,6 @@ export class Fabric {
     }
 
     async verifyCredentials(operationalCert: Bytes, intermediateCACert?: Bytes) {
-        if (intermediateCACert !== undefined && intermediateCACert.byteLength === 0) {
-            intermediateCACert = undefined;
-        }
-
         const rootCert = Rcac.fromTlv(this.rootCert);
         const nocCert = Noc.fromTlv(operationalCert);
         const icaCert = intermediateCACert !== undefined ? Icac.fromTlv(intermediateCACert) : undefined;
