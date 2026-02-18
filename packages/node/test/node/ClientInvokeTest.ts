@@ -6,6 +6,7 @@
 
 import { OnOffClient, OnOffServer } from "#behaviors/on-off";
 import { OnOffCluster } from "#clusters/on-off";
+import { Minutes } from "#general";
 import { ServerNode } from "#node/ServerNode.js";
 import { ClientInteraction, Invoke } from "#protocol";
 import { EndpointNumber } from "#types";
@@ -132,7 +133,7 @@ describe("ClientInvoke", () => {
 
         // The peer should have reconnected and the cache should be cleared
         // Next command should see the new maxPathsPerInvoke=1
-        await MockTime.resolve(cmds.toggle());
+        await MockTime.resolve(cmds.toggle(undefined, { connectionTimeout: Minutes(5) }));
     });
 
     it("executes multiple commands sequentially", async () => {
@@ -187,7 +188,7 @@ describe("ClientInvoke", () => {
         const promise2 = cmds.toggle().catch(e => e);
 
         // Close the ClientInteraction directly - this should reject pending commands
-        await peer1.env.get(ClientInteraction).close();
+        await (peer1.interaction as ClientInteraction).close();
 
         // Both promises should have resolved to errors
         const error1 = await MockTime.resolve(promise1);
