@@ -193,7 +193,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         // An incoming data report as the first message is not a valid server operation.  We instead delegate to a
         // client implementation if available
         if (message.payloadHeader.messageType === MessageType.ReportData && this.clientHandler) {
-            return this.clientHandler.onNewExchange(exchange, message);
+            return await this.clientHandler.onNewExchange(exchange, message);
         }
 
         // Activity tracking.  This provides diagnostic information and prevents the server from shutting down whilst
@@ -202,9 +202,11 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         (exchange as NodeActivity.WithActivity)[NodeActivity.activityKey] = activity;
 
         // Delegate to InteractionServerMessenger
-        return new InteractionServerMessenger(exchange)
-            .handleRequest(this)
-            .finally(() => delete (exchange as NodeActivity.WithActivity)[NodeActivity.activityKey]);
+        try {
+            return await new InteractionServerMessenger(exchange).handleRequest(this);
+        } finally {
+            delete (exchange as NodeActivity.WithActivity)[NodeActivity.activityKey];
+        }
     }
 
     get aclServer() {

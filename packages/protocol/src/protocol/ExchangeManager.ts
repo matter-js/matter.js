@@ -7,8 +7,10 @@
 import { DecodedMessage, Message, MessageCodec, SessionType } from "#codec/MessageCodec.js";
 import { Mark } from "#common/Mark.js";
 import {
+    asError,
     BasicMultiplex,
     Bytes,
+    causedBy,
     Channel,
     ChannelType,
     ConnectionlessTransport,
@@ -21,7 +23,6 @@ import {
     ImplementationError,
     Lifetime,
     Logger,
-    MatterError,
     MatterFlowError,
     ObserverGroup,
     Time,
@@ -210,11 +211,10 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
 
             if (session === undefined) {
                 logger.warn(
-                    `Ignoring message for unknown session ${Session.idStrOf(packet)}${
-                        packet.header.sourceNodeId !== undefined
-                            ? ` from node ${hex.fixed(packet.header.sourceNodeId, 16)}`
-                            : ""
-                    }`,
+                    Diagnostic.via(
+                        `@${packet.header.sourceNodeId === undefined ? "?" : hex(packet.header.sourceNodeId)}:?${Mark.SESSION}${Session.idStrOf(packet)}`,
+                    ),
+                    "Ignoring message for unknown session",
                 );
                 return;
             }
@@ -300,8 +300,7 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
 
                 await exchange.onMessageReceived(message, isDuplicate);
             } catch (error) {
-                MatterError.accept(error);
-                logger.error(`${Message.via(exchange, message)} Error:`, error);
+                this.#handleIncomingMessageError("message", error, exchange, message);
             }
         } else {
             if (this.#isClosing) return;
@@ -353,8 +352,7 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
                     await exchange.onMessageReceived(message);
                     await protocolHandler.onNewExchange(exchange, message);
                 } catch (error) {
-                    MatterError.accept(error);
-                    logger.error(Message.via(exchange, message), `Error handling message:`, error);
+                    this.#handleIncomingMessageError("initial message", error, exchange, message);
                 }
             } else if (message.payloadHeader.requiresAck) {
                 const exchange = MessageExchange.fromInitialMessage(this.#messageExchangeContextFor(session), message);
@@ -369,8 +367,7 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
                     await exchange.close();
                     logger.debug("Ignore", Mark.INBOUND, "unsolicited message", messageDiagnostics);
                 } catch (error) {
-                    MatterError.accept(error);
-                    logger.error(`${Message.via(exchange, message)} Error:`, error);
+                    this.#handleIncomingMessageError("unsolicited message", error, exchange, message);
                 }
             } else {
                 if (protocolHandler === undefined) {
@@ -394,6 +391,19 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
                 }
             }
         }
+    }
+
+    #handleIncomingMessageError(what: string, error: unknown, exchange: MessageExchange, message: Message) {
+        if (causedBy(error, ShutdownError)) {
+            logger.info(
+                Message.via(exchange, message),
+                `Rejected incoming ${what}:`,
+                Diagnostic.errorMessage(asError(error)),
+            );
+            return;
+        }
+
+        logger.error(Message.via(exchange, message), "Unhandled error handling incoming message:", error);
     }
 
     async deleteExchange(exchangeIndex: number) {
