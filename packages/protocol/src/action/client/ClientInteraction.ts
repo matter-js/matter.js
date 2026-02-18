@@ -373,6 +373,19 @@ export class ClientInteraction<
                                 status,
                                 clusterStatus,
                             };
+
+                            const cmd = request.commands.get(commandRef);
+                            if (cmd) {
+                                logger.info(
+                                    "Invoke",
+                                    Mark.INBOUND,
+                                    messenger.exchange.via,
+                                    messenger.exchange.diagnostics,
+                                    Diagnostic.strong(resolvePathForSpecifier(cmd)),
+                                    Diagnostic.dict({ status: `${Status[status]} (${status})`, clusterStatus }),
+                                );
+                            }
+
                             return res;
                         } else {
                             // Should not happen but if we ignore the response?
