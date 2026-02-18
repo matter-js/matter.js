@@ -26,6 +26,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/protocol
     - Adjustment: OTA update files are now stored per software version, allowing different updates to be served to different nodes simultaneously. Former files are migrated.
+    - Adjustment: Remove ICAC workaround added in 0.16.0
     - Fix: Ensures that production certificates are always stored correctly
     - Fix: Ensures trying different IPs when we have a timeout-based reconnection process
     - Fix: Fix cancelCommissionableDeviceDiscovery not working when called from the MDNS discovery callback (#2131)
