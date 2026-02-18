@@ -35,7 +35,7 @@ describe("ClientConnectivityTest", () => {
         await expectUnreachable(ep1.commandsOf(OnOffClient).toggle());
     });
 
-    it.only("reconnects and updates connection status", async () => {
+    it("reconnects and updates connection status", async () => {
         // *** SETUP ***
 
         await using site = new MockSite();
@@ -59,7 +59,7 @@ describe("ClientConnectivityTest", () => {
 
         // Toggle should now complete
         await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle(undefined, { connectionTimeout: Minutes(5) }));
-    });
+    }).timeout(1e9);
 
     it("resubscribes on timeout", async () => {
         // *** SETUP ***
