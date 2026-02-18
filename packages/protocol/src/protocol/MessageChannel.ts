@@ -170,13 +170,22 @@ export class MessageChannel implements Channel<Message> {
      * If session parameters are provided, the method can be used to calculate the maximum backoff time for the other
      * side of the exchange.
      *
+     * When `calculateMaximum` is set to true, we calculate the maximum time without any randomness.
+     *
      * @see {@link MatterSpecification.v10.Core}, section 4.11.2.1
      */
-    getMrpResubmissionBackOffTime(retransmissionCount: number, sessionParameters?: SessionParameters) {
-        return MRP.maxRetransmissionIntervalOf({
-            transmissionNumber: retransmissionCount,
-            sessionParameters: sessionParameters ?? this.session.parameters,
-            isPeerActive: this.session.isPeerActive,
-        });
+    getMrpResubmissionBackOffTime(
+        retransmissionCount: number,
+        sessionParameters?: SessionParameters,
+        calculateMaximum = false,
+    ) {
+        return MRP.retransmissionIntervalOf(
+            {
+                transmissionNumber: retransmissionCount,
+                sessionParameters: sessionParameters ?? this.session.parameters,
+                isPeerActive: this.session.isPeerActive,
+            },
+            calculateMaximum,
+        );
     }
 }

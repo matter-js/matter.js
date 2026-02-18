@@ -27,10 +27,15 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/protocol
     - Enhancement: Ignore known addresses when current MDNS results do not include them anymore
     - Adjustment: OTA update files are now stored per software version, allowing different updates to be served to different nodes simultaneously. Former files are migrated.
+<<<<<<< optimize-mrp
+    - Enhancement: Optimize MRP timings when sending retransmissions to address expected network congestion
+=======
     - Adjustment: Remove ICAC workaround added in 0.16.0
+>>>>>>> main
     - Fix: Ensures that production certificates are always stored correctly
     - Fix: Ensures trying different IPs when we have a timeout-based reconnection process
     - Fix: Fix cancelCommissionableDeviceDiscovery not working when called from the MDNS discovery callback (#2131)
+    - Fix: Ensure correct random MRP retransmission intervals are used
 
 - @matter/react-native
     - Fix: Bring BleScanner cancel support in line with nodejs-ble, fixing cancelCommissionableDeviceDiscovery not working when called from the discovery callback (#2131)
