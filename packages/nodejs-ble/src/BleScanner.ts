@@ -166,15 +166,16 @@ export class BleScanner implements Scanner {
         }
 
         if (record.VP !== undefined) {
+            const vpParts = record.VP.split("+");
             const vendorIdQueryId = this.#buildCommissionableQueryIdentifier({
-                vendorId: VendorId(parseInt(record.VP.split("+")[0])),
+                vendorId: VendorId(parseInt(vpParts[0])),
             });
             if (this.#recordWaiters.has(vendorIdQueryId)) {
                 return vendorIdQueryId;
             }
-            if (record.VP.includes("+")) {
+            if (vpParts[1] !== undefined) {
                 const productIdQueryId = this.#buildCommissionableQueryIdentifier({
-                    vendorId: VendorId(parseInt(record.VP.split("+")[1])),
+                    productId: parseInt(vpParts[1]),
                 });
                 if (this.#recordWaiters.has(productIdQueryId)) {
                     return productIdQueryId;
@@ -292,10 +293,7 @@ export class BleScanner implements Scanner {
         cancelSignal?.then(
             () => {
                 canceled = true;
-                if (queryResolver === undefined) {
-                    // Always finish when cancelSignal parameter was used, else cancelling is done separately
-                    this.#finishWaiter(queryKey, true);
-                }
+                this.#finishWaiter(queryKey, true);
             },
             cause => {
                 logger.error("Unexpected error canceling commissioning", cause);

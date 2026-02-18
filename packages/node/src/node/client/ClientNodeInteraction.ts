@@ -32,7 +32,7 @@ import { ClientEndpointInitializer } from "./ClientEndpointInitializer.js";
  * A {@link ClientInteraction} that brings the node online before attempting interaction.
  */
 export class ClientNodeInteraction implements Interactable<ActionContext> {
-    #node: ClientNode;
+    readonly #node: ClientNode;
     #physicalProps?: PhysicalDeviceProperties;
 
     constructor(node: ClientNode) {
@@ -132,6 +132,8 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
      *
      * When the number of commands exceeds the peer's MaxPathsPerInvoke limit (or 1 for older nodes),
      * commands are split across multiple parallel exchanges automatically by ClientInteraction.
+     *
+     * Single commands may be automatically batched with other commands invoked in the same timer tick.
      */
     async *invoke(request: ClientInvoke, context?: ActionContext): DecodedInvokeResult {
         // For commands, we always ignore the queue because the user is responsible for managing that themselves

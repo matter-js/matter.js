@@ -144,20 +144,25 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
                         }
                         break;
 
-                    case "+": {
-                        const lhs = valueOf(value.lhs);
-                        const rhs = valueOf(value.rhs);
-                        if (typeof lhs === "number" && typeof rhs === "number") {
-                            return lhs + rhs;
-                        }
-                        return undefined;
-                    }
-
+                    case "+":
                     case "-": {
                         const lhs = valueOf(value.lhs);
                         const rhs = valueOf(value.rhs);
+
+                        // Propagate BigInt if either operand is one (e.g., from exponentiation).
+                        // The inner type check guards against non-numeric types (e.g. undefined
+                        // from unresolved references) that would not convert to BigInt.
+                        if (typeof lhs === "bigint" || typeof rhs === "bigint") {
+                            const l = typeof lhs === "number" && Number.isInteger(lhs) ? BigInt(lhs) : lhs;
+                            const r = typeof rhs === "number" && Number.isInteger(rhs) ? BigInt(rhs) : rhs;
+                            if (typeof l === "bigint" && typeof r === "bigint") {
+                                return type === "+" ? l + r : l - r;
+                            }
+                            return undefined;
+                        }
+
                         if (typeof lhs === "number" && typeof rhs === "number") {
-                            return lhs - rhs;
+                            return type === "+" ? lhs + rhs : lhs - rhs;
                         }
                         return undefined;
                     }
@@ -184,7 +189,19 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
                         const lhs = valueOf(value.lhs);
                         const rhs = valueOf(value.rhs);
                         if (typeof lhs === "number" && typeof rhs === "number") {
-                            return lhs ** rhs;
+                            // Standard mathematical convention: -a^b means -(a^b), not (-a)^b.
+                            // The parser encodes unary minus in the base, so we need to ensure
+                            // negative bases are treated as -(|base|^exp)
+                            const absLhs = Math.abs(lhs);
+                            const result = absLhs ** rhs;
+
+                            // Use BigInt when a result exceeds the JS safe integer range for precision
+                            if (result > Number.MAX_SAFE_INTEGER) {
+                                const bigResult = BigInt(absLhs) ** BigInt(rhs);
+                                return lhs < 0 ? -bigResult : bigResult;
+                            }
+
+                            return lhs < 0 ? -result : result;
                         }
                         return undefined;
                     }
@@ -235,6 +252,18 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
         const v = valueOf(this.value);
         if (v === value) {
             return true;
+        }
+
+        // Support bigint/number cross-type matching (e.g., valueOf returns bigint
+        // for large exponents, but the tested value may be a number, or vice versa)
+        if (
+            (typeof v === "bigint" && typeof value === "number") ||
+            (typeof v === "number" && typeof value === "bigint")
+        ) {
+            // oxlint-disable-next-line eqeqeq -- cross-type bigint/number comparison
+            if (v == value) {
+                return true;
+            }
         }
 
         if (v !== undefined || value === null) {

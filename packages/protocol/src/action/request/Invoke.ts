@@ -24,6 +24,15 @@ export interface Invoke extends InvokeRequest {
 
     /** Whether to use extended timeout for fail-safe messages.  Overwrites the expectedProcessingTime if both are set */
     useExtendedFailSafeMessageResponseTimeout?: boolean;
+
+    /**
+     * Controls automatic command batching for single-command invokes.
+     *
+     * - `undefined` — batch with zero delay (commands in the same timer tick are combined)
+     * - `Duration` — batch with the specified collection window
+     * - `false` — disable batching; execute immediately
+     */
+    batchDuration?: false | Duration;
 }
 
 export interface CommandDecodeDetails {

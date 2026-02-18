@@ -11,6 +11,33 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/create
+    - Fix: Fixes generated `npm run app` entrypoint path (`dist/src/...` → `dist/...`) (#3228)
+
+- @matter/model
+    - Fix: Constraint evaluation for expressions with negative exponentiation bases (e.g. `-2^62 to 2^62`) and improves precision for large exponent arithmetic by using BigInt when results exceed the safe integer range
+
+- @matter/nodejs-ble
+    - Fix: Fix crash when BLE peripheral disconnects during service/characteristic discovery
+    - Fix: Fix cancelCommissionableDeviceDiscovery not working when called from the discovery callback (#2131)
+
+- @matter/nodejs-shell
+    - Adjustment: `ota add` stores files as "local" mode; `ota list`, `ota delete`, and `ota copy` support "local" mode filter
+
+- @matter/protocol
+    - Adjustment: OTA update files are now stored per software version, allowing different updates to be served to different nodes simultaneously. Former files are migrated.
+    - Fix: Ensures that production certificates are always stored correctly
+    - Fix: Ensures trying different IPs when we have a timeout-based reconnection process
+    - Fix: Fix cancelCommissionableDeviceDiscovery not working when called from the MDNS discovery callback (#2131)
+
+- @matter/react-native
+    - Fix: Bring BleScanner cancel support in line with nodejs-ble, fixing cancelCommissionableDeviceDiscovery not working when called from the discovery callback (#2131)
+
+- @project-chip/matter.js
+    - Fix: Fixes crash when decommissioning a node while a reconnect is in progress (#3237)
+
+## 0.16.9 (2026-02-16)
+
 - @matter/general
     - Fix: Fixes Duration string parsing
 
@@ -34,13 +61,19 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/nodejs
     - Fix: Also handle ENETUNREACH as a non-critical network error that triggers the retry logic and MDNS lookup
 
+- @matter/nodejs-ble
+    - Fix: Fixes the parsing of combined "VendorId+ProductId" discovery keys
+
 - @matter/protocol
     - Enhancement: Added some jitter to the subscription max ceiling to spread out subscription responses from devices
     - Fix: Initializes the Message Reception state counter correctly as defined by the Matter specification
     - Fix: Ensures that BDX sessions inform upper layers correctly in all canceled cases
     - Fix: Fixes Session mapping for PASE/CASE messages
     - Fix: When we have sent out the success for a session resumption ensure the session is registered even if we do not get the ack
-    - Fix: Ensures processing of received messages that lead to earlier Standalone Acks for previous messages 
+    - Fix: Ensures processing of received messages that lead to earlier Standalone Acks for previous messages
+
+- @matter/react-native
+  - Dependency: Updated to @react-native-community/netinfo which requires "Access Wi-Fi Information Entitlement" for iOS!
 
 - @matter/types
     - Enhancement: Re-Parsed the Matter 1.4.2 specification to improve captured details. No functional changes
@@ -55,6 +88,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## 0.16.8 (2026-01-30)
 
 - @matter/node
+    - Enhancement: Added automatic Command batching for non-root-endpoint commands when a node supports it and commands come in within the same macro-tick
     - Fix: Prevent error when writing Thermostat systemMode attribute
 
 - @matter/protocol
