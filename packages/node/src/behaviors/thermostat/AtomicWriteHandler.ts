@@ -268,7 +268,7 @@ export class AtomicWriteHandler {
             } catch (error) {
                 await context.transaction?.rollback();
                 logger.info(`Failed to write attribute ${attr} during atomic write commit: ${error}`);
-                statusCode = error instanceof StatusResponseError ? error.code : Status.Failure;
+                statusCode = StatusResponseError.of(error)?.code ?? Status.Failure;
                 // If one fails with ConstraintError, the whole command should return ConstraintError, otherwise Failure
                 commandStatusCode =
                     commandStatusCode === Status.Failure

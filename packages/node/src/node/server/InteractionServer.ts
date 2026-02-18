@@ -642,17 +642,18 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 `Subscription ${Subscription.idStrOf(subscriptionId)} for session ${session.via}: Error while sending initial data reports:`,
                 error instanceof MatterError ? error.message : error,
             );
-            if (error instanceof StatusResponseError && !(error instanceof ReceivedStatusResponseError)) {
+            const sre = StatusResponseError.of(error);
+            if (sre && !(sre instanceof ReceivedStatusResponseError)) {
                 logger.info(
                     "Status",
-                    Diagnostic.strong(`${Status[error.code]}(${error.code})`),
+                    Diagnostic.strong(`${Status[sre.code]}(${sre.code})`),
                     Mark.OUTBOUND,
                     exchange.via,
                     exchange.diagnostics,
                     "Error:",
-                    Diagnostic.errorMessage(error),
+                    Diagnostic.errorMessage(sre),
                 );
-                await messenger.sendStatus(error.code, {
+                await messenger.sendStatus(sre.code, {
                     logContext: {
                         for: "I/SubscriptionSeed-Status",
                     },

@@ -421,9 +421,10 @@ export class AttributeWriteResponse<
             }
         } catch (error) {
             await this.session.transaction?.rollback();
-            if (StatusResponseError.is(error)) {
+            const sre = StatusResponseError.of(error);
+            if (sre) {
                 this.#errorCount++;
-                return this.#asStatus(path, error.code, error.clusterCode);
+                return this.#asStatus(path, sre.code, sre.clusterCode);
             }
             throw error;
         }

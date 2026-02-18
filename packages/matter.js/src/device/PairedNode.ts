@@ -11,6 +11,7 @@ import {
     AsyncObservable,
     AtLeastOne,
     camelize,
+    causedBy,
     Construction,
     Crypto,
     Diagnostic,
@@ -684,15 +685,15 @@ export class PairedNode {
         try {
             await this.#initialize();
         } catch (error) {
-            if (error instanceof UnknownNodeError) {
+            if (causedBy(error, UnknownNodeError)) {
                 logger.info(this.#peerAddress, `Node is unknown by controller, we can not connect.`);
                 this.#setConnectionState(NodeStates.Disconnected);
             } else if (this.#decommissioned || this.#closing || this.#connectionState === NodeStates.Disconnected) {
                 logger.info(this.#peerAddress, `No reconnection desired because requested status is Disconnected.`);
             } else {
-                if (error instanceof ChannelStatusResponseError) {
+                if (causedBy(error, ChannelStatusResponseError)) {
                     logger.info(this.#peerAddress, `Error while establishing new Channel, retrying ...`, error);
-                } else if (error instanceof StatusResponseError) {
+                } else if (causedBy(error, StatusResponseError)) {
                     logger.info(this.#peerAddress, `Error while communicating with the device, retrying ...`, error);
                 } else {
                     logger.info(this.#peerAddress, `Error waiting for device rediscovery, retrying`, error);
@@ -1680,7 +1681,7 @@ export class PairedNode {
             // Accept the error if no window is already open
             if (
                 !StatusResponseError.is(error, StatusCode.Failure) ||
-                error.clusterCode !== AdministratorCommissioning.StatusCode.WindowNotOpen
+                StatusResponseError.of(error)?.clusterCode !== AdministratorCommissioning.StatusCode.WindowNotOpen
             ) {
                 throw error;
             }
@@ -1702,7 +1703,7 @@ export class PairedNode {
             // Accept the error if no window is already open
             if (
                 !StatusResponseError.is(error, StatusCode.Failure) ||
-                error.clusterCode !== AdministratorCommissioning.StatusCode.WindowNotOpen
+                StatusResponseError.of(error)?.clusterCode !== AdministratorCommissioning.StatusCode.WindowNotOpen
             ) {
                 throw error;
             }
