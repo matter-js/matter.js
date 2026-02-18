@@ -410,7 +410,7 @@ export class MessageExchange {
 
     async send(messageType: number, payload: Bytes, options: ExchangeSendOptions = {}) {
         if (this.#closeCause) {
-            throw new ClosedError("Session is closed", { cause: this.#closeCause });
+            throw new ClosedError("Exchange is closed", { cause: this.#closeCause });
         }
 
         this.#sendOptions = options;
@@ -811,17 +811,13 @@ export class MessageExchange {
             return;
         }
 
-        if (this.#closeCause === undefined) {
-            this.#closeCause = cause;
-        }
-
         using closing = this.#lifetime.closing();
 
         if (this.#closeTimer !== undefined) {
             if (cause) {
                 // Force close does not wait any longer
                 this.#closeTimer.stop();
-                return this.#close();
+                return this.#close(cause);
             }
             // close was already called, so let retries happen because close not forced
             return;
@@ -830,7 +826,7 @@ export class MessageExchange {
             // The exchange was never in use, so we can close it directly
             // If we see that in the wild, we should fix the reasons
             logger.info(this.via, `Exchange never used, closing directly`);
-            return this.#close();
+            return this.#close(cause);
         }
 
         {
@@ -850,11 +846,11 @@ export class MessageExchange {
             }
             if (cause) {
                 // We have sent the Ack, so close here, no retries needed
-                await this.#close();
+                await this.#close(cause);
             }
         } else if (this.#sentMessageToAck === undefined || cause) {
             // No message left that we need to ack and no sent message left that waits for an ack, close directly
-            await this.#close();
+            await this.#close(cause);
         }
 
         // Wait until all potential outstanding Resubmissions are done (up to default of MRP.MAX_TRANSMISSIONS), also
@@ -871,12 +867,16 @@ export class MessageExchange {
         this.#closeTimer = Time.getTimer(
             `Exchange ${this.via} close`,
             maxResubmissionTime,
-            async () => await this.#close(),
+            async () => await this.#close(cause),
         ).start();
     }
 
-    async #close() {
+    async #close(cause?: Error) {
         using _closing = this.#lifetime.closing();
+
+        if (this.#closeCause === undefined) {
+            this.#closeCause = cause;
+        }
 
         this.#retransmissionTimer?.stop();
         this.#sentMessageAckSuccess?.(undefined);
