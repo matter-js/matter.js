@@ -1048,7 +1048,7 @@ export class PairedNode {
                 }
                 this.#deviceInformationUpdateNeeded = false;
 
-                if (this.#nodeShutdownDetected) {
+                if (this.#nodeShutdownDetected && !this.#reconnectDelayTimer?.isRunning) {
                     const delay =
                         this.#nodeShutdownReason === NodeShutDownReason.ForUpdate
                             ? RECONNECT_DELAY_AFTER_NODE_UPDATE
