@@ -5,6 +5,7 @@
  */
 
 export * from "../peer/PeerAddress.js";
+export * from "./AbstractBleScanner.js";
 export * from "./ExpandedPath.js";
 export * from "./FailsafeContext.js";
 export * from "./FailsafeTimer.js";
