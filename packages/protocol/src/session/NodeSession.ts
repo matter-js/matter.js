@@ -98,6 +98,7 @@ export class NodeSession extends SecureSession {
             attestationKey,
             caseAuthenticatedTags,
             isInitiator,
+            delayManagerRegistration,
         } = config;
 
         super({
@@ -131,7 +132,9 @@ export class NodeSession extends SecureSession {
             this.parameterDiagnostics,
         );
 
-        manager?.sessions.add(this);
+        if (!delayManagerRegistration) {
+            manager?.sessions.add(this);
+        }
         fabric?.addSession(this);
     }
 
