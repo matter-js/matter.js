@@ -323,9 +323,9 @@ describe("Ota", () => {
         // Simulate device restart with new version
         await MockTime.resolve(device.cancel());
         await device.setStateOf(BasicInformationServer, { softwareVersion: targetSoftwareVersion });
-        await MockTime.resolve(device.start());
+        await MockTime.resolve(device.start(), { stepMs: 250 });
 
-        await MockTime.resolve(notifyUpdateAppliedPromise);
+        await MockTime.resolve(notifyUpdateAppliedPromise, { stepMs: 250 });
 
         // Queue should be empty after completion
         const queue3 = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates);
