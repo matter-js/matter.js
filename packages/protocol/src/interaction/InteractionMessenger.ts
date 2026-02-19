@@ -878,12 +878,19 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
                     logContext: this.#logContextOf(report),
                 });
             } else if (!report.suppressResponse) {
-                // We received the last message and need to send a final success, but we do not need to wait for it and
-                // also don't care if it fails
-                this.sendStatus(Status.Success, {
-                    multipleMessageInteraction: true,
-                    logContext: this.#logContextOf(report),
-                }).catch(error => logger.info("Error sending success after final data report chunk", error));
+                // We don't need to wait for this promise to succeed and any error is non-fatal.  But we do need to
+                // track the promise and thus prevent the session from closing prematurely to prevent errors in the logs
+                // if a dependent process closes its session after the read
+                // TODO - could create separate mechanism for this type of "fire-and-forget" status response
+                try {
+                    await this.sendStatus(Status.Success, {
+                        multipleMessageInteraction: true,
+                        logContext: this.#logContextOf(report),
+                    }).catch(error => logger.info("Error sending success after final data report chunk", error));
+                } catch (e) {
+                    // This error is non-fatal
+                    logger.info(this.exchange.via, `Error reading successful datareport read to peer:`, e);
+                }
             }
 
             if (!report.moreChunkedMessages) {
