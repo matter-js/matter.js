@@ -371,6 +371,11 @@ export abstract class Session {
 export namespace Session {
     export interface CommonConfig {
         manager?: SessionManager;
+
+        /**
+         * When setting this to true the session is not automatically registered to a provided session manager.
+         * You need to do this yourself.
+         */
         delayManagerRegistration?: true;
         channel?: Channel<Bytes>;
     }
