@@ -61,6 +61,7 @@ const MAX_COMMAND_REF = 0xffff;
 
 interface PendingCommand {
     request: Invoke.ConcreteCommandRequest<any>;
+    pathKey: string;
     resolve: (entry: InvokeResult.DecodedData | undefined) => void;
     reject: (error: Error) => void;
 }
@@ -454,7 +455,7 @@ export class ClientInteraction<
         // Single command with batching support — auto-batch
         if (request.invokeRequests.length === 1 && request.batchDuration !== false && this.#maxPathsPerInvoke > 1) {
             const endpointId = request.invokeRequests[0].commandPath.endpointId;
-            if (endpointId !== undefined && endpointId !== 0) {
+            if (endpointId !== undefined && endpointId !== 0 && !request.timedRequest) {
                 yield* this.#invokeWithBatching(request);
                 return;
             }
@@ -481,10 +482,13 @@ export class ClientInteraction<
 
         const cmd = [...request.commands.values()][0];
         const commandRef = this.#allocateCommandRef();
+        const { endpointId, clusterId, commandId } = request.invokeRequests[0].commandPath;
+        const pathKey = `${endpointId}-${clusterId}-${commandId}`;
         const { promise, resolver, rejecter } = createPromise<InvokeResult.DecodedData | undefined>();
 
         this.#pendingCommands.set(commandRef, {
             request: { ...cmd, commandRef } as Invoke.ConcreteCommandRequest<any>,
+            pathKey,
             resolve: resolver,
             reject: rejecter,
         });
@@ -538,16 +542,53 @@ export class ClientInteraction<
         const commands = new Map(this.#pendingCommands);
         this.#pendingCommands.clear();
 
-        try {
-            await this.#batchMutex.produce(async () => {
-                await this.#executeBatch(commands);
-            });
-        } catch (error) {
-            // Mutex may be closed during shutdown — reject remaining commands
-            for (const [, pending] of commands) {
-                pending.reject(error as Error);
+        // Partition into sub-batches with unique command paths per batch
+        const batches = this.#partitionBatch(commands);
+
+        for (const batch of batches) {
+            try {
+                await this.#batchMutex.produce(async () => {
+                    await this.#executeBatch(batch);
+                });
+            } catch (error) {
+                // Mutex may be closed during shutdown — reject remaining commands
+                for (const [, pending] of batch) {
+                    pending.reject(error as Error);
+                }
             }
         }
+    }
+
+    /**
+     * Partition commands into sub-batches where each sub-batch has unique command paths.
+     * Uses greedy fill: each command goes into the first batch that doesn't already contain its path.
+     */
+    #partitionBatch(commands: Map<number, PendingCommand>): Map<number, PendingCommand>[] {
+        if (commands.size <= 1) {
+            return [commands];
+        }
+
+        const batches: { paths: Set<string>; commands: Map<number, PendingCommand> }[] = [];
+
+        for (const [ref, pending] of commands) {
+            let placed = false;
+            for (const batch of batches) {
+                if (!batch.paths.has(pending.pathKey)) {
+                    batch.paths.add(pending.pathKey);
+                    batch.commands.set(ref, pending);
+                    placed = true;
+                    break;
+                }
+            }
+            if (!placed) {
+                batches.push({
+                    paths: new Set([pending.pathKey]),
+                    commands: new Map([[ref, pending]]),
+                });
+            }
+        }
+
+        return batches.map(b => b.commands);
     }
 
     async #executeBatch(commands: Map<number, PendingCommand>) {

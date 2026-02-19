@@ -5,8 +5,10 @@
  */
 
 import { OnOffClient, OnOffServer } from "#behaviors/on-off";
+import { OnOffCluster } from "#clusters/on-off";
 import { ServerNode } from "#node/ServerNode.js";
-import { ClientInteraction } from "#protocol";
+import { ClientInteraction, Invoke } from "#protocol";
+import { EndpointNumber } from "#types";
 import { MockSite } from "./mock-site.js";
 
 describe("ClientInvoke", () => {
@@ -193,5 +195,113 @@ describe("ClientInvoke", () => {
 
         expect(error1).instanceOf(Error);
         expect(error2).instanceOf(Error);
+    });
+
+    it("bypasses batching for timed invoke requests", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair({
+            device: {
+                type: ServerNode.RootEndpoint,
+                basicInformation: {
+                    maxPathsPerInvoke: 10,
+                },
+            },
+        });
+
+        const peer1 = controller.peers.get("peer1")!;
+        expect(peer1).not.undefined;
+
+        const interaction = peer1.env.get(ClientInteraction);
+
+        // Create a timed invoke request for a non-root endpoint command
+        const request = Invoke({
+            commands: [
+                Invoke.ConcreteCommandRequest({
+                    endpoint: EndpointNumber(1),
+                    cluster: OnOffCluster,
+                    command: "toggle",
+                }),
+            ],
+            timed: true,
+        });
+
+        // Timed commands bypass batching and execute directly via #invokeSingle
+        await MockTime.resolve(
+            (async () => {
+                for await (const _chunk of interaction.invoke(request)) {
+                    // consume
+                }
+            })(),
+        );
+
+        const finalState = device.parts.get(1)!.stateOf(OnOffServer).onOff;
+        expect(finalState).equals(true);
+    });
+
+    it("batches different commands together while splitting duplicates", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair({
+            device: {
+                type: ServerNode.RootEndpoint,
+                basicInformation: {
+                    maxPathsPerInvoke: 10,
+                },
+            },
+        });
+
+        const peer1 = controller.peers.get("peer1")!;
+        expect(peer1).not.undefined;
+
+        const ep1 = peer1.endpoints.for(1);
+        const cmds = ep1.commandsOf(OnOffClient);
+
+        // Initial state is false
+        expect(device.parts.get(1)!.stateOf(OnOffServer).onOff).equals(false);
+
+        // Fire: on, toggle, on in same tick
+        // "on" and "toggle" have different paths — can batch together
+        // second "on" duplicates the first — must go to a separate batch
+        // Batch 1: [on, toggle] → state becomes true, then false
+        // Batch 2: [on] → state becomes true
+        const p1 = cmds.on();
+        const p2 = cmds.toggle();
+        const p3 = cmds.on();
+
+        await MockTime.resolve(Promise.all([p1, p2, p3]));
+
+        // Final state should be true (on → toggle off → on again)
+        expect(device.parts.get(1)!.stateOf(OnOffServer).onOff).equals(true);
+    });
+
+    it("splits duplicate command paths into separate batches", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair({
+            device: {
+                type: ServerNode.RootEndpoint,
+                basicInformation: {
+                    maxPathsPerInvoke: 10,
+                },
+            },
+        });
+
+        const peer1 = controller.peers.get("peer1")!;
+        expect(peer1).not.undefined;
+
+        const ep1 = peer1.endpoints.for(1);
+        const cmds = ep1.commandsOf(OnOffClient);
+
+        // Get initial state
+        const initialState = device.parts.get(1)!.stateOf(OnOffServer).onOff;
+
+        // Fire two toggles in the same tick — same endpoint/cluster/command path
+        // Without splitting, the server would reject with InvalidAction
+        const p1 = cmds.toggle();
+        const p2 = cmds.toggle();
+
+        await MockTime.resolve(Promise.all([p1, p2]));
+
+        // Two toggles: state should be back to initial (toggled twice)
+        const finalState = device.parts.get(1)!.stateOf(OnOffServer).onOff;
+        expect(finalState).equals(initialState);
     });
 });
