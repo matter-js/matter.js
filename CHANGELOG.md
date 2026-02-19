@@ -22,7 +22,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/nodejs-ble
     - Fix: Fix crash when BLE peripheral disconnects during service/characteristic discovery
-    - Fix: Fix cancelCommissionableDeviceDiscovery not working when called from the discovery callback (#2131)
+    - Fix: Fix cancelCommissionableDeviceDiscovery not working when called from the discovery callback
 
 - @matter/nodejs-shell
     - Adjustment: `ota add` stores files as "local" mode; `ota list`, `ota delete`, and `ota copy` support "local" mode filter
@@ -34,14 +34,15 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Adjustment: Remove ICAC workaround added in 0.16.0
     - Fix: Ensures that production certificates are always stored correctly
     - Fix: Ensures trying different IPs when we have a timeout-based reconnection process
-    - Fix: Fix cancelCommissionableDeviceDiscovery not working when called from the MDNS discovery callback (#2131)
+    - Fix: Fix cancelCommissionableDeviceDiscovery not working when called from the MDNS discovery callback
     - Fix: Ensure correct random MRP retransmission intervals are used
+    - Fix: Ensure to not batch the same command path twice in the same invoke call 
 
 - @matter/react-native
-    - Fix: Bring BleScanner cancel support in line with nodejs-ble, fixing cancelCommissionableDeviceDiscovery not working when called from the discovery callback (#2131)
+    - Fix: Bring BleScanner cancel support in line with nodejs-ble, fixing cancelCommissionableDeviceDiscovery not working when called from the discovery callback
 
 - @project-chip/matter.js
-    - Fix: Fixes crash when decommissioning a node while a reconnect is in progress (#3237)
+    - Fix: Fixes crash when decommissioning a node while a reconnect is in progress
 
 ## 0.16.9 (2026-02-16)
 
