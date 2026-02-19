@@ -17,6 +17,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/model
     - Fix: Constraint evaluation for expressions with negative exponentiation bases (e.g. `-2^62 to 2^62`) and improves precision for large exponent arithmetic by using BigInt when results exceed the safe integer range
 
+- @matter/node
+    - Breaking: `ControllerBehavior` is no longer present in the `EndpointType` of `ServerNode` by default
+
 - @matter/nodejs-ble
     - Fix: Fix crash when BLE peripheral disconnects during service/characteristic discovery
     - Fix: Fix cancelCommissionableDeviceDiscovery not working when called from the discovery callback (#2131)
@@ -27,34 +30,15 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/protocol
     - Enhancement: Ignore known addresses when current MDNS results do not include them anymore
     - Adjustment: OTA update files are now stored per software version, allowing different updates to be served to different nodes simultaneously. Former files are migrated.
-<<<<<<< optimize-mrp
     - Enhancement: Optimize MRP timings when sending retransmissions to address expected network congestion
-=======
     - Adjustment: Remove ICAC workaround added in 0.16.0
->>>>>>> main
     - Fix: Ensures that production certificates are always stored correctly
     - Fix: Ensures trying different IPs when we have a timeout-based reconnection process
     - Fix: Fix cancelCommissionableDeviceDiscovery not working when called from the MDNS discovery callback (#2131)
     - Fix: Ensure correct random MRP retransmission intervals are used
 
-- @matter/nodejs-ble
-    - Fix: Fix crash when BLE peripheral disconnects during service/characteristic discovery
-
 - @matter/react-native
     - Fix: Bring BleScanner cancel support in line with nodejs-ble, fixing cancelCommissionableDeviceDiscovery not working when called from the discovery callback (#2131)
-
-- @matter/nodejs-shell
-    - Adjustment: `ota add` stores files as "local" mode; `ota list`, `ota delete`, and `ota copy` support "local" mode filter
-=======
-- @matter/node
-    - Breaking: `ControllerBehavior` is no longer present in the `EndpointType` of `ServerNode` by default
-
-- @matter/nodejs-ble
-    - Fix: Fix crash when BLE peripheral disconnects during service/characteristic discovery
-
-- @matter/nodejs-shell
-    - Adjustment: `ota add` stores files as "local" mode; `ota list`, `ota delete`, and `ota copy` support "local" mode filter
->>>>>>> 2c3082601 (Do not include controller in ServerNode by default)
 
 - @project-chip/matter.js
     - Fix: Fixes crash when decommissioning a node while a reconnect is in progress (#3237)
