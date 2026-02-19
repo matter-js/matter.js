@@ -6,6 +6,22 @@
 
 import { Boot } from "./boot.js";
 
+// Fast macrotask yield.  setImmediate (Node) and MessageChannel (browsers) both provide macrotask semantics
+// without the minimum ~1-4ms timer delay of setTimeout(0).
+const yieldMacrotask: () => Promise<void> =
+    typeof setImmediate !== "undefined"
+        ? () => new Promise<void>(resolve => setImmediate(resolve))
+        : typeof MessageChannel !== "undefined"
+          ? (() => {
+                const channel = new MessageChannel();
+                return () =>
+                    new Promise<void>(resolve => {
+                        channel.port1.onmessage = () => resolve();
+                        channel.port2.postMessage(null);
+                    });
+            })()
+          : () => new Promise<void>(resolve => setTimeout(resolve, 0));
+
 export class TestTimeoutError extends Error {
     diagnostics;
 
@@ -239,11 +255,11 @@ export const MockTime = {
         let timeAdvanced = 0;
         while (!resolved) {
             // Interestingly, a Time.yield() works in almost every case.  However, on Node SubtleCrypto.deriveBits hangs
-            // if you only yield via microtask.  It seems to require yielding via macrotask.  So we optionally use
-            // setTimeout here. Probably related to entropy collection but I think it's safe to classify as a Node bug.
-            // Tested on version 20.11.0
+            // if you only yield via microtask.  It seems to require yielding via macrotask.  So we optionally yield to
+            // the event loop here using the fastest available macrotask mechanism.  setTimeout(0) has a minimum ~1-4ms
+            // delay which adds up significantly since resolve() loops many times.
             if (macrotasks ?? defaultToMacrotasks) {
-                await new Promise<void>(resolve => setTimeout(() => resolve(), 0));
+                await yieldMacrotask();
             } else {
                 await MockTime.yield();
             }
@@ -263,13 +279,13 @@ export const MockTime = {
                 await this.advance(stepMs);
                 timeAdvanced += stepMs;
             } else {
-                // Advance time exponentially, trying for granularity but also OK performance.  Note that we are not only
-                // advancing time but also yielding event loop.  So it's possible if we run out of time it's just because
-                // there were too few yields in one virtual hour.  As designed currently it's 360 macrotasks and 360
-                // microtasks (360 loops w/ 1 macro- and 1 micro-yield)
-                // TODO - this isn't exponential, fix comment or fix code
-                await this.advance(1000);
-                timeAdvanced += 1000;
+                // Each loop iteration yields to the event loop ~2 times.  Async operations like CASE handshakes
+                // require many yields to complete (one per crypto.subtle call), so we need enough iterations before
+                // mock-time-based timeouts fire.  With 100ms steps, a 10-second timeout gives ~200 yields, sufficient
+                // for any realistic async chain.  The fast macrotask yield (setImmediate/MessageChannel) keeps real
+                // wall time negligible even at this granularity.
+                await this.advance(100);
+                timeAdvanced += 100;
             }
 
             if (resolved) {
