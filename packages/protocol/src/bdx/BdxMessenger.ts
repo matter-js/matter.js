@@ -6,7 +6,6 @@
 
 import { Message } from "#codec/MessageCodec.js";
 import {
-    Bytes,
     Diagnostic,
     Duration,
     ImplementationError,
@@ -97,20 +96,11 @@ export class BdxMessenger {
                 `Received unexpected message type: ${BdxMessageType[messageType] ?? "unknown"}#${messageType}, expected: ${expectedMessageInfo}`,
             );
 
-        logger.debug(
-            `Received Bdx ${BdxMessageType[messageType]}${message.payload.byteLength > 0 ? ` with ${message.payload.byteLength}bytes` : ""}`,
-            Diagnostic.dict(message),
-        );
         return BdxMessage.decode(messageType, message.payload);
     }
 
     async send(bdxMessage: BdxMessage<any>) {
-        const { kind: messageType, message } = bdxMessage;
-        logger.debug(
-            `Sending Bdx ${BdxMessageType[messageType]}${"data" in message && Bytes.isBytes(message.data) ? ` with ${message.data.byteLength}bytes` : ""}`,
-            message,
-        );
-        await this.exchange.send(messageType, BdxMessage.encode(bdxMessage));
+        await this.exchange.send(bdxMessage.kind, BdxMessage.encode(bdxMessage));
     }
 
     /** Sends a Bdx SendInit message and waits for the SendAccept message as a response and returns it decoded. */
