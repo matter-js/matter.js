@@ -5,8 +5,8 @@
  */
 
 import { OnOffClient, OnOffServer } from "#behaviors/on-off";
-import { ServerNode } from "#node/ServerNode.js";
 import { OnOffCluster } from "#clusters/on-off";
+import { ServerNode } from "#node/ServerNode.js";
 import { ClientInteraction, Invoke } from "#protocol";
 import { EndpointNumber } from "#types";
 import { MockSite } from "./mock-site.js";
