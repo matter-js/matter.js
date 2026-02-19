@@ -4,13 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AbstractBleScanner, DiscoveredBleDevice as BaseDiscoveredBleDevice } from "#protocol";
-import type { Peripheral } from "@stoprocent/noble";
+import { BleScanner as BaseBleScanner } from "#protocol";
 import { NobleBleClient } from "./NobleBleClient.js";
 
-export type DiscoveredBleDevice = BaseDiscoveredBleDevice<Peripheral>;
+export type { DiscoveredBleDevice } from "#protocol";
 
-export class BleScanner extends AbstractBleScanner<Peripheral> {
+export class BleScanner extends BaseBleScanner {
     readonly #nobleClient: NobleBleClient;
 
     constructor(nobleClient: NobleBleClient) {
@@ -18,11 +17,7 @@ export class BleScanner extends AbstractBleScanner<Peripheral> {
         this.#nobleClient = nobleClient;
     }
 
-    protected getPeripheralAddress(peripheral: Peripheral): string {
-        return peripheral.address;
-    }
-
-    protected override async closeClient() {
+    protected override closeClient() {
         this.#nobleClient.close();
     }
 }

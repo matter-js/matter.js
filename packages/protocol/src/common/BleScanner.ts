@@ -11,6 +11,7 @@ import {
     Diagnostic,
     Duration,
     Logger,
+    MaybePromise,
     Millis,
     Seconds,
     Time,
@@ -24,8 +25,12 @@ import { CommissionableDevice, CommissionableDeviceIdentifiers, Scanner } from "
 
 const logger = Logger.get("BleScanner");
 
-export interface BleScannerClient<TPeripheral> {
-    setDiscoveryCallback(callback: (peripheral: TPeripheral, data: Bytes) => void): void;
+export interface BlePeripheral {
+    readonly address: string;
+}
+
+export interface BleScannerClient {
+    setDiscoveryCallback(callback: (peripheral: BlePeripheral, data: Bytes) => void): void;
     startScanning(): Promise<void>;
     stopScanning(): Promise<void>;
 }
@@ -34,16 +39,16 @@ export type CommissionableDeviceData = CommissionableDevice & {
     SD: number; // Additional Field for Short discriminator
 };
 
-export type DiscoveredBleDevice<TPeripheral> = {
+export type DiscoveredBleDevice = {
     deviceData: CommissionableDeviceData;
-    peripheral: TPeripheral;
+    peripheral: BlePeripheral;
     hasAdditionalAdvertisementData: boolean;
 };
 
-export abstract class AbstractBleScanner<TPeripheral> implements Scanner {
+export class BleScanner implements Scanner {
     readonly type = ChannelType.BLE;
 
-    readonly #client: BleScannerClient<TPeripheral>;
+    readonly #client: BleScannerClient;
     readonly #recordWaiters = new Map<
         string,
         {
@@ -53,18 +58,16 @@ export abstract class AbstractBleScanner<TPeripheral> implements Scanner {
             cancelResolver?: (value: void) => void;
         }
     >();
-    readonly #discoveredMatterDevices = new Map<string, DiscoveredBleDevice<TPeripheral>>();
+    readonly #discoveredMatterDevices = new Map<string, DiscoveredBleDevice>();
 
-    constructor(client: BleScannerClient<TPeripheral>) {
+    constructor(client: BleScannerClient) {
         this.#client = client;
         this.#client.setDiscoveryCallback((peripheral, manufacturerData) =>
             this.#handleDiscoveredDevice(peripheral, manufacturerData),
         );
     }
 
-    protected abstract getPeripheralAddress(peripheral: TPeripheral): string;
-
-    public getDiscoveredDevice(address: string): DiscoveredBleDevice<TPeripheral> {
+    public getDiscoveredDevice(address: string): DiscoveredBleDevice {
         const device = this.#discoveredMatterDevices.get(address);
         if (device === undefined) {
             throw new BleError(`No device found for address ${address}`);
@@ -118,14 +121,15 @@ export abstract class AbstractBleScanner<TPeripheral> implements Scanner {
 
     cancelCommissionableDeviceDiscovery(identifier: CommissionableDeviceIdentifiers, resolvePromise = true) {
         const queryKey = this.#buildCommissionableQueryIdentifier(identifier);
+        if (queryKey === undefined) return;
         const { cancelResolver } = this.#recordWaiters.get(queryKey) ?? {};
         // Mark as canceled to not loop further in discovery, if cancel-resolver is used
         cancelResolver?.();
         this.#finishWaiter(queryKey, resolvePromise);
     }
 
-    #handleDiscoveredDevice(peripheral: TPeripheral, manufacturerServiceData: Bytes) {
-        const address = this.getPeripheralAddress(peripheral);
+    #handleDiscoveredDevice(peripheral: BlePeripheral, manufacturerServiceData: Bytes) {
+        const address = peripheral.address;
 
         try {
             const { discriminator, vendorId, productId, hasAdditionalAdvertisementData } =
@@ -164,28 +168,39 @@ export abstract class AbstractBleScanner<TPeripheral> implements Scanner {
 
     #findCommissionableQueryIdentifier(record: CommissionableDeviceData) {
         const longDiscriminatorQueryId = this.#buildCommissionableQueryIdentifier({ longDiscriminator: record.D });
-        if (this.#recordWaiters.has(longDiscriminatorQueryId)) {
+        if (longDiscriminatorQueryId !== undefined && this.#recordWaiters.has(longDiscriminatorQueryId)) {
             return longDiscriminatorQueryId;
         }
 
         const shortDiscriminatorQueryId = this.#buildCommissionableQueryIdentifier({ shortDiscriminator: record.SD });
-        if (this.#recordWaiters.has(shortDiscriminatorQueryId)) {
+        if (shortDiscriminatorQueryId !== undefined && this.#recordWaiters.has(shortDiscriminatorQueryId)) {
             return shortDiscriminatorQueryId;
         }
 
         if (record.VP !== undefined) {
             const vpParts = record.VP.split("+");
-            const vendorIdQueryId = this.#buildCommissionableQueryIdentifier({
-                vendorId: VendorId(parseInt(vpParts[0])),
-            });
-            if (this.#recordWaiters.has(vendorIdQueryId)) {
+            const vendorId = VendorId(parseInt(vpParts[0]));
+            const productId = vpParts[1] !== undefined ? parseInt(vpParts[1]) : undefined;
+
+            // Check vendorId+productId combo first (most specific)
+            if (productId !== undefined) {
+                const vendorProductQueryId = this.#buildCommissionableQueryIdentifier({
+                    vendorId,
+                    productId,
+                });
+                if (vendorProductQueryId !== undefined && this.#recordWaiters.has(vendorProductQueryId)) {
+                    return vendorProductQueryId;
+                }
+            }
+
+            const vendorIdQueryId = this.#buildCommissionableQueryIdentifier({ vendorId });
+            if (vendorIdQueryId !== undefined && this.#recordWaiters.has(vendorIdQueryId)) {
                 return vendorIdQueryId;
             }
-            if (vpParts[1] !== undefined) {
-                const productIdQueryId = this.#buildCommissionableQueryIdentifier({
-                    productId: parseInt(vpParts[1]),
-                });
-                if (this.#recordWaiters.has(productIdQueryId)) {
+
+            if (productId !== undefined) {
+                const productIdQueryId = this.#buildCommissionableQueryIdentifier({ productId });
+                if (productIdQueryId !== undefined && this.#recordWaiters.has(productIdQueryId)) {
                     return productIdQueryId;
                 }
             }
@@ -203,12 +218,20 @@ export abstract class AbstractBleScanner<TPeripheral> implements Scanner {
      * Some identifiers are identical to the official DNS-SD identifiers, others are custom.
      */
     #buildCommissionableQueryIdentifier(identifier: CommissionableDeviceIdentifiers) {
-        if ("longDiscriminator" in identifier) {
+        if ("instanceId" in identifier) {
+            // instanceId is not supported in BLE scanning
+            return undefined;
+        } else if ("longDiscriminator" in identifier) {
             return `D:${identifier.longDiscriminator}`;
         } else if ("shortDiscriminator" in identifier) {
             return `SD:${identifier.shortDiscriminator}`;
+        } else if ("vendorId" in identifier && "productId" in identifier) {
+            return `VP:${identifier.vendorId}+${identifier.productId}`;
         } else if ("vendorId" in identifier) {
             return `V:${identifier.vendorId}`;
+        } else if ("deviceType" in identifier) {
+            // deviceType is not supported in BLE scanning
+            return undefined;
         } else if ("productId" in identifier) {
             // Custom identifier because normally productId is only included in TXT record
             return `P:${identifier.productId}`;
@@ -218,12 +241,21 @@ export abstract class AbstractBleScanner<TPeripheral> implements Scanner {
     #getCommissionableDevices(identifier: CommissionableDeviceIdentifiers) {
         const storedRecords = Array.from(this.#discoveredMatterDevices.values());
 
-        const foundRecords = new Array<DiscoveredBleDevice<TPeripheral>>();
-        if ("longDiscriminator" in identifier) {
+        const foundRecords = new Array<DiscoveredBleDevice>();
+        if ("instanceId" in identifier || "deviceType" in identifier) {
+            // These identifier types are not supported in BLE scanning
+            return foundRecords;
+        } else if ("longDiscriminator" in identifier) {
             foundRecords.push(...storedRecords.filter(({ deviceData: { D } }) => D === identifier.longDiscriminator));
         } else if ("shortDiscriminator" in identifier) {
             foundRecords.push(
                 ...storedRecords.filter(({ deviceData: { SD } }) => SD === identifier.shortDiscriminator),
+            );
+        } else if ("vendorId" in identifier && "productId" in identifier) {
+            foundRecords.push(
+                ...storedRecords.filter(
+                    ({ deviceData: { VP } }) => VP === `${identifier.vendorId}+${identifier.productId}`,
+                ),
             );
         } else if ("vendorId" in identifier) {
             foundRecords.push(
@@ -258,17 +290,20 @@ export abstract class AbstractBleScanner<TPeripheral> implements Scanner {
         timeout = Seconds(10),
         ignoreExistingRecords = false,
     ): Promise<CommissionableDevice[]> {
+        const queryKey = this.#buildCommissionableQueryIdentifier(identifier);
+        if (queryKey === undefined) {
+            return [];
+        }
+
         let storedRecords = this.#getCommissionableDevices(identifier);
         if (ignoreExistingRecords) {
             // We want to have a fresh discovery result, so clear out the stored records because they might be outdated
             for (const record of storedRecords) {
-                this.#discoveredMatterDevices.delete(this.getPeripheralAddress(record.peripheral));
+                this.#discoveredMatterDevices.delete(record.peripheral.address);
             }
             storedRecords = [];
         }
         if (storedRecords.length === 0) {
-            const queryKey = this.#buildCommissionableQueryIdentifier(identifier);
-
             await this.#client.startScanning();
             await this.#registerWaiterPromise(queryKey, timeout);
 
@@ -284,10 +319,14 @@ export abstract class AbstractBleScanner<TPeripheral> implements Scanner {
         timeout?: Duration,
         cancelSignal?: Promise<void>,
     ): Promise<CommissionableDevice[]> {
+        const queryKey = this.#buildCommissionableQueryIdentifier(identifier);
+        if (queryKey === undefined) {
+            return [];
+        }
+
         const discoveredDevices = new Set<string>();
 
         const discoveryEndTime = timeout ? Time.nowMs + timeout : undefined;
-        const queryKey = this.#buildCommissionableQueryIdentifier(identifier);
         await this.#client.startScanning();
 
         let queryResolver: ((value: void) => void) | undefined;
@@ -335,8 +374,8 @@ export abstract class AbstractBleScanner<TPeripheral> implements Scanner {
         return this.#getCommissionableDevices(identifier).map(({ deviceData }) => deviceData);
     }
 
-    protected async closeClient() {
-        await this.#client.stopScanning();
+    protected closeClient(): MaybePromise<void> {
+        return this.#client.stopScanning();
     }
 
     async close() {
