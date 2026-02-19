@@ -36,7 +36,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensures trying different IPs when we have a timeout-based reconnection process
     - Fix: Fix cancelCommissionableDeviceDiscovery not working when called from the MDNS discovery callback
     - Fix: Ensure correct random MRP retransmission intervals are used
-    - Fix: Ensure to not batch the same command path twice in the same invoke call 
+    - Fix: Ensure we do not batch the same command path twice in the same invoke request
 
 - @matter/react-native
     - Fix: Bring BleScanner cancel support in line with nodejs-ble, fixing cancelCommissionableDeviceDiscovery not working when called from the discovery callback
