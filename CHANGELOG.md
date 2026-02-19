@@ -42,12 +42,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Bring BleScanner cancel support in line with nodejs-ble, fixing cancelCommissionableDeviceDiscovery not working when called from the discovery callback
 
 - @project-chip/matter.js
-<<<<<<< fix-same-command-invokes
-    - Fix: Fixes crash when decommissioning a node while a reconnect is in progress
-=======
-    - Fix: Fixes crash when decommissioning a node while a reconnection is in progress (#3237)
+    - Fix: Fixes crash when decommissioning a node while a reconnection is in progress
     - Fix: Keep an active reconnection timer running when we detect a node shutdown
->>>>>>> main
 
 ## 0.16.9 (2026-02-16)
 
