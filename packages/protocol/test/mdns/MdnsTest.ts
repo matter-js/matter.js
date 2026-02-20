@@ -209,10 +209,14 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
         async function close(port = PORT) {
             const advertiser = advertisers[port];
             expect(advertiser.advertisements.size).greaterThan(0);
+            // Advance past the goodbye protection window so TTL=0 packets are not ignored
+            await MockTime.advance(1000);
             await MockTime.resolve(Advertisement.closeAll(advertiser.advertisements));
         }
 
         async function closeAll() {
+            // Advance past the goodbye protection window so TTL=0 packets are not ignored
+            await MockTime.advance(1000);
             for (const port in advertisers) {
                 await MockTime.resolve(advertisers[port].close());
                 delete advertisers[port];
