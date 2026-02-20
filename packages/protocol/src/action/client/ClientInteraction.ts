@@ -858,8 +858,8 @@ export class ClientInteraction<
     }
 
     /** Calculates the current maximum response time for a message use in additional logic like timers. */
-    maximumPeerResponseTime(expectedProcessingTime?: Duration) {
-        return this.#exchanges.maximumPeerResponseTime(expectedProcessingTime);
+    maximumPeerResponseTime(expectedProcessingTime?: Duration, includeMaximumSendingTime = false) {
+        return this.#exchanges.maximumPeerResponseTime(expectedProcessingTime, includeMaximumSendingTime);
     }
 
     get address() {

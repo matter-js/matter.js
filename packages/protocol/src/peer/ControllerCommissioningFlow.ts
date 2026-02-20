@@ -766,7 +766,7 @@ export class ControllerCommissioningFlow {
     }
 
     async #ensureFailsafeTimerFor(maxProcessingTime: Duration) {
-        const minFailsafeTime = this.interaction.maximumPeerResponseTime(maxProcessingTime);
+        const minFailsafeTime = this.interaction.maximumPeerResponseTime(maxProcessingTime, true);
 
         if (this.interaction.channelType === ChannelType.BLE) {
             this.#armFailsafeInterval?.stop();
