@@ -64,7 +64,8 @@ export class QueuedClientInteraction<
     override async subscribe<T extends ClientSubscribe>(request: T, session?: SessionT): SubscriptionResult<T> {
         using _slot = await this.queue.obtainSlot();
 
-        return super.subscribe(request, session);
+        // Needs to be awaited so that the slow is released afterwards
+        return await super.subscribe(request, session);
     }
 
     /**
@@ -73,7 +74,8 @@ export class QueuedClientInteraction<
     override async write<T extends ClientWrite>(request: T, session?: SessionT): WriteResult<T> {
         using _slot = await this.queue.obtainSlot();
 
-        return super.write(request, session);
+        // Needs to be awaited so that the slow is released afterwards
+        return await super.write(request, session);
     }
 
     /**
