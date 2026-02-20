@@ -26,9 +26,6 @@ describe("Ota", () => {
 
     before(() => {
         MockTime.init();
-
-        // Required for crypto to succeed
-        MockTime.forceMacrotasks = true;
     });
 
     beforeEach(() => {
