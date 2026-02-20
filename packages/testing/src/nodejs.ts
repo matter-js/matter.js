@@ -4,23 +4,26 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ansi } from "#tools";
 import Mocha from "mocha";
 import { mkdir, writeFile } from "node:fs/promises";
 import type { Session } from "node:inspector/promises";
-import { relative } from "node:path";
+import { relative, resolve as resolvePath } from "node:path";
+import { pathToFileURL } from "node:url";
 import { adaptReporter, afterRun, beforeRun, extendApi, generalSetup, runMocha } from "./mocha.js";
 import { TestOptions } from "./options.js";
 import type { TestRunner } from "./runner.js";
+import { listSupportFiles } from "./util/files.js";
 
 // Load globals so settings get applied
 import { FailureDetail } from "./failure-detail.js";
 import "./global-definitions.js";
 import { Boot } from "./mocks/boot.js";
-import { TestDescriptor } from "./test-descriptor.js";
+import { TestDescriptor, TestSuiteDescriptor } from "./test-descriptor.js";
 
 extendApi(Mocha);
 
-export async function testNodejs(runner: TestRunner, format: "cjs" | "esm") {
+export async function testNodejs(runner: TestRunner, format: "cjs" | "esm", repeat = 1) {
     Boot.format = format;
 
     // Grr Mocha (as of 10.2.0) classifies certain unhandled rejections as "mocha".  For others, it uninstalls its
@@ -46,40 +49,89 @@ export async function testNodejs(runner: TestRunner, format: "cjs" | "esm") {
     }
 
     try {
-        const mocha = await createNodejsMocha(runner, format);
+        // Resolve file list once; reused across repeat runs
+        const allFiles = await runner.loadFiles(format);
+        const supportFileCount = listSupportFiles(format).length;
 
-        await runMocha(mocha);
+        const resolvedFiles = allFiles.map(path => {
+            path = relative(process.cwd(), path);
+            if (path[0] !== ".") {
+                path = `./${path}`;
+            }
+            return path;
+        });
 
-        const report = mocha.suite.descriptor;
-        const path = runner.pkg.resolve(TestDescriptor.DEFAULT_FILENAME);
-        const previous = await TestDescriptor.open(path);
-        const merged = TestDescriptor.merge(previous, report);
+        let merged: TestSuiteDescriptor | undefined;
 
-        if (format === "esm") {
-            await TestDescriptor.save(path, merged);
+        for (let run = 0; run < repeat; run++) {
+            const mocha = createMochaInstance(runner, format, run, repeat);
+
+            resolvedFiles.forEach(path => mocha.addFile(path));
+
+            if (run === 0) {
+                await mocha.loadFilesAsync();
+            } else if (format === "esm") {
+                // ESM modules are cached by URL; re-import test files with a cache-busting query so describe/it
+                // blocks re-register on the new Mocha root suite.  Support files are skipped since their side effects
+                // (globals, mocks) persist from the first run.
+
+                // Trigger BDD interface setup so global describe/it point to the new root suite
+                mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, globalThis, "", mocha);
+
+                for (let i = supportFileCount; i < resolvedFiles.length; i++) {
+                    const url = pathToFileURL(resolvePath(process.cwd(), resolvedFiles[i]));
+                    url.searchParams.set("run", String(run));
+                    await import(url.href);
+                }
+            } else {
+                // CJS: clear require cache for test files so they re-execute
+                for (let i = supportFileCount; i < resolvedFiles.length; i++) {
+                    const resolved = require.resolve(resolvePath(process.cwd(), resolvedFiles[i]));
+                    delete require.cache[resolved];
+                }
+                await mocha.loadFilesAsync();
+            }
+
+            await runMocha(mocha);
+
+            // Mocha leaks listeners; clean them up between runs to avoid MaxListenersExceededWarning
+            for (const name of ["unhandledRejection", "uncaughtException"]) {
+                for (const listener of process.listeners(name as any)) {
+                    if (listener !== unhandledRejection) {
+                        process.off(name, listener);
+                    }
+                }
+            }
+
+            const report = mocha.suite.descriptor;
+            const path = runner.pkg.resolve(TestDescriptor.DEFAULT_FILENAME);
+            const previous = await TestDescriptor.open(path);
+            merged = TestDescriptor.merge(previous, report);
+        }
+
+        if (format === "esm" && merged) {
+            await TestDescriptor.save(runner.pkg.resolve(TestDescriptor.DEFAULT_FILENAME), merged);
         }
 
         return merged;
     } finally {
         process.off("unhandledRejection", unhandledRejection);
-
-        // Mocha leaks listeners so just remove them all
-        for (const name of ["unhandledRejection", "uncaughtException"]) {
-            for (const listener of process.listeners(name as any)) {
-                process.off(name, listener);
-            }
-        }
     }
 }
 
 let currentMocha: Mocha | undefined;
 
-export async function createNodejsMocha(runner: TestRunner, format: "esm" | "cjs") {
+function createMochaInstance(runner: TestRunner, format: "esm" | "cjs", run: number, repeat: number) {
     const updateStats = runner.pkg.supportsEsm ? format === "esm" : true;
+
+    let title = format.toUpperCase();
+    if (repeat > 1) {
+        title = `${title} ${ansi.dim(`(run ${run + 1}/${repeat})`)}`;
+    }
 
     const mocha = new Mocha({
         inlineDiffs: true,
-        reporter: adaptReporter(Mocha, format.toUpperCase(), runner.reporter, updateStats),
+        reporter: adaptReporter(Mocha, title, runner.reporter, updateStats),
     });
 
     currentMocha = mocha;
@@ -87,6 +139,12 @@ export async function createNodejsMocha(runner: TestRunner, format: "esm" | "cjs
     generalSetup(mocha);
 
     TestOptions.apply(mocha, runner.options);
+
+    return mocha;
+}
+
+export async function createNodejsMocha(runner: TestRunner, format: "esm" | "cjs") {
+    const mocha = createMochaInstance(runner, format, 0, 1);
 
     const files = await runner.loadFiles(format);
     files.forEach(path => {

@@ -73,10 +73,10 @@ export class TestRunner {
         }
     }
 
-    async runNode(format: "esm" | "cjs" = "esm") {
+    async runNode(format: "esm" | "cjs" = "esm", repeat?: number) {
         await this.#configure();
 
-        return await this.#run(this.progress, () => testNodejs(this, format));
+        return await this.#run(this.progress, () => testNodejs(this, format, repeat));
     }
 
     async runWeb(manual = false) {
