@@ -41,6 +41,13 @@ export function MockCrypto(index: number = 0x80, implementation: new () => Crypt
 
     const { randomBytes, createKeyPair } = crypto;
 
+    // Use a single PBKDF2 iteration to avoid ~200ms of real idle time per call waiting on libuv's thread pool.
+    // Both sides derive the same key so protocol correctness is preserved.
+    const origCreatePbkdf2Key = crypto.createPbkdf2Key;
+    crypto.createPbkdf2Key = function (secret: Bytes, salt: Bytes, _iteration: number, keyLength: number) {
+        return origCreatePbkdf2Key.call(crypto, secret, salt, 1, keyLength);
+    } as typeof crypto.createPbkdf2Key;
+
     Object.defineProperties(crypto, {
         index: {
             get() {
