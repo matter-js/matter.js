@@ -17,7 +17,7 @@ describe("ClientInvoke", () => {
         MockTime.init();
 
         // Required for crypto to succeed
-        MockTime.macrotasks = true;
+        MockTime.forceMacrotasks = true;
     });
 
     it("executes commands via the batcher", async () => {

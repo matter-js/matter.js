@@ -17,7 +17,7 @@ describe("ScenesManagementServer", () => {
         MockTime.init();
 
         // Required for crypto to succeed
-        MockTime.macrotasks = true;
+        MockTime.forceMacrotasks = true;
     });
 
     it("add and recall onoff boolean scene value", async () => {

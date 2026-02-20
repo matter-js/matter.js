@@ -69,7 +69,7 @@ export class Time {
         Time.default.getPeriodicTimer(name, duration, callback);
 
     /**
-     * Defer to the next macrotask.
+     * Defer to a new macrotask.
      */
     get macrotask(): Promise<void> {
         throw new NoProviderError();

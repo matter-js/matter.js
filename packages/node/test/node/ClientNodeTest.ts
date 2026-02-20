@@ -31,7 +31,7 @@ describe("ClientNode", () => {
         MockTime.init();
 
         // Required for crypto to succeed
-        MockTime.macrotasks = true;
+        MockTime.forceMacrotasks = true;
     });
 
     it("times out commissioning discovery", async () => {

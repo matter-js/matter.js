@@ -5,6 +5,7 @@
  */
 
 import { ChannelType } from "#net/Channel.js";
+import { Time } from "#time/Time.js";
 import { Bytes } from "#util/Bytes.js";
 import { NetworkError } from "../Network.js";
 import { MAX_UDP_MESSAGE_SIZE, UdpChannel, UdpChannelOptions } from "../udp/UdpChannel.js";
@@ -69,6 +70,8 @@ export class MockUdpChannel implements UdpChannel {
     }
 
     async send(host: string, port: number, payload: Bytes) {
+        await Time.macrotask;
+
         this.#host.simulator.router({
             kind: "udp",
             sourceAddress: this.#sendFrom,

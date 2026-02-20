@@ -14,7 +14,7 @@ describe("GroupKeyManagementServer", () => {
         MockTime.init();
 
         // Required for crypto to succeed
-        MockTime.macrotasks = true;
+        MockTime.forceMacrotasks = true;
     });
 
     it("prevents too many group keys", async () => {
