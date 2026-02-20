@@ -113,6 +113,12 @@ export async function bdxTransfer(params: {
             }),
         ),
     );
+
+    // Clean up exchanges and sessions to prevent lingering timers
+    await sendingExchange.destroy();
+    await receivingExchange.destroy();
+    await sendingExchange.session[Symbol.asyncDispose]();
+    await receivingExchange.session[Symbol.asyncDispose]();
 }
 
 function parseMessage(message: Message): MessageRecords {
