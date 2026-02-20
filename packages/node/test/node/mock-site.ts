@@ -130,6 +130,10 @@ export class MockSite {
             macrotasks: true,
         });
 
+        // Commissioning triggers an auto-subscription whose messages may still be in flight; drain them so tests
+        // start with a quiescent network
+        await MockTime.macrotasks;
+
         return { controller, device };
     }
 
