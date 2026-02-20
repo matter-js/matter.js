@@ -69,6 +69,16 @@ export class Time {
         Time.default.getPeriodicTimer(name, duration, callback);
 
     /**
+     * Defer to the next macrotask.
+     */
+    get macrotask(): Promise<void> {
+        throw new NoProviderError();
+    }
+    static get macrotask() {
+        return Time.default.macrotask;
+    }
+
+    /**
      * Create a promise that resolves after a specific interval or when canceled, whichever comes first.
      */
     sleep(name: string, duration: Duration): CancelablePromise {
