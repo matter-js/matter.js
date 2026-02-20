@@ -197,7 +197,7 @@ class InteractionMessenger {
         const { status } = TlvStatusResponse.decode(payload);
         if (status !== Status.Success)
             throw new ReceivedStatusResponseError(
-                `Received error status: ${status}${logHint ? ` (${logHint})` : ""}`,
+                `Received error status: ${Status[status]}(${status})${logHint ? ` (${logHint})` : ""}`,
                 status,
             );
     }

@@ -420,11 +420,13 @@ export class ExchangeManager {
     calculateMaximumPeerResponseTimeMsFor(
         session: Session,
         expectedProcessingTime = MRP.DEFAULT_EXPECTED_PROCESSING_TIME,
+        includeMaximumSendingTime = false,
     ) {
         return session.channel.calculateMaximumPeerResponseTime(
             session.parameters,
             this.#sessions.sessionParameters,
             expectedProcessingTime,
+            includeMaximumSendingTime,
         );
     }
 

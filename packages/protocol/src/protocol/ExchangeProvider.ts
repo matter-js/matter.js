@@ -35,7 +35,7 @@ export abstract class ExchangeProvider {
         this.exchangeManager.addProtocolHandler(handler);
     }
 
-    abstract maximumPeerResponseTime(expectedProcessingTime?: Duration): Duration;
+    abstract maximumPeerResponseTime(expectedProcessingTime?: Duration, includeMaximumSendingTime?: boolean): Duration;
     abstract initiateExchange(protocol?: number): Promise<MessageExchange>;
     abstract reconnectChannel(options: { asOf?: Timestamp; resetInitialState?: boolean }): Promise<boolean>;
     abstract session: Session;
@@ -69,8 +69,15 @@ export class DedicatedChannelExchangeProvider extends ExchangeProvider {
         return this.#session;
     }
 
-    maximumPeerResponseTime(expectedProcessingTime = MRP.DEFAULT_EXPECTED_PROCESSING_TIME) {
-        return this.exchangeManager.calculateMaximumPeerResponseTimeMsFor(this.#session, expectedProcessingTime);
+    maximumPeerResponseTime(
+        expectedProcessingTime = MRP.DEFAULT_EXPECTED_PROCESSING_TIME,
+        includeMaximumSendingTime?: boolean,
+    ) {
+        return this.exchangeManager.calculateMaximumPeerResponseTimeMsFor(
+            this.#session,
+            expectedProcessingTime,
+            includeMaximumSendingTime,
+        );
     }
 }
 
@@ -130,10 +137,14 @@ export class ReconnectableExchangeProvider extends ExchangeProvider {
         return this.sessions.sessionFor(this.#address);
     }
 
-    maximumPeerResponseTime(expectedProcessingTimeMs = MRP.DEFAULT_EXPECTED_PROCESSING_TIME) {
+    maximumPeerResponseTime(
+        expectedProcessingTime = MRP.DEFAULT_EXPECTED_PROCESSING_TIME,
+        includeMaximumSendingTime?: boolean,
+    ) {
         return this.exchangeManager.calculateMaximumPeerResponseTimeMsFor(
             this.sessions.sessionFor(this.#address),
-            expectedProcessingTimeMs,
+            expectedProcessingTime,
+            includeMaximumSendingTime,
         );
     }
 }

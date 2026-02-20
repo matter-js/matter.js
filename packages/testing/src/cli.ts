@@ -74,6 +74,7 @@ export async function main(argv = process.argv) {
         .option("wtf", { type: "boolean", describe: "Enlist wtfnode to detect test leaks" })
         .option("trace-unhandled", { type: "boolean", describe: "Detail unhandled rejections with trace-unhandled" })
         .option("clear", { type: "boolean", describe: "Clear terminal before testing" })
+        .option("repeat", { type: "number", describe: "Run tests multiple times (avoids VM warmup on reruns)" })
         .option("report", { type: "boolean", describe: "Display test summary after testing" })
         .option("pull", { type: "boolean", describe: "Update containers before testing", default: true })
         .command("*", "run all supported test types")
@@ -187,16 +188,25 @@ export async function main(argv = process.argv) {
             }
         }
 
+        const repeat = args.repeat;
+
+        if (repeat !== undefined && repeat > 1) {
+            if (thisTestTypes.has(TestType.web) && thisTestTypes.size === 1) {
+                throw new Error("--repeat is not supported with web tests");
+            }
+            thisTestTypes.delete(TestType.web);
+        }
+
         const progress = pkg.start("Testing");
         const runner = new TestRunner(pkg, progress, args);
         let report: TestDescriptor | undefined;
 
         if (thisTestTypes.has(TestType.esm)) {
-            report = await runner.runNode("esm");
+            report = await runner.runNode("esm", repeat);
         }
 
         if (thisTestTypes.has(TestType.cjs)) {
-            await runner.runNode("cjs");
+            await runner.runNode("cjs", repeat);
         }
 
         if (thisTestTypes.has(TestType.web)) {

@@ -49,7 +49,10 @@ export namespace MRP {
     const PEER_RESPONSE_TIME_BUFFER = Seconds(5);
 
     export interface ResponseTimeInputs {
-        peerSessionParameters: SessionParameters;
+        /**
+         * When local session parameters are missing we only calculate the expected maximum time from the device back to us
+         */
+        peerSessionParameters?: SessionParameters;
         localSessionParameters: SessionParameters;
         channelType: ChannelType;
         isPeerActive: boolean;
@@ -75,10 +78,10 @@ export namespace MRP {
                 if (!usesMrp) {
                     throw new MatterFlowError("No response expected for this message exchange because UDP and no MRP");
                 }
-                // Calculate the maximum time till the peer got our last retry and worst case for the way back
+                // Calculate the maximum time till the peer got our last retry and worst-case for the way back
                 return Millis(
-                    maxResponseTimeOf(peerSessionParameters, isPeerActive) +
-                        maxResponseTimeOf(localSessionParameters, isPeerActive) +
+                    (peerSessionParameters !== undefined ? maxResponseTimeOf(peerSessionParameters, isPeerActive) : 0) +
+                        maxResponseTimeOf(localSessionParameters, true) + // We consider us as always active initially
                         expectedProcessingTime +
                         PEER_RESPONSE_TIME_BUFFER,
                 );
