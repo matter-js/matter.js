@@ -347,7 +347,7 @@ describe("EventReadResponse", () => {
             MockTime.init();
 
             // Required for crypto to succeed
-            MockTime.macrotasks = true;
+            MockTime.forceMacrotasks = true;
         });
 
         it("Reads startup event via remote read", async () => {

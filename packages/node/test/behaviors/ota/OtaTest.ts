@@ -28,7 +28,7 @@ describe("Ota", () => {
         MockTime.init();
 
         // Required for crypto to succeed
-        MockTime.macrotasks = true;
+        MockTime.forceMacrotasks = true;
     });
 
     beforeEach(() => {
@@ -308,8 +308,12 @@ describe("Ota", () => {
 
         await MockTime.resolve(announceOtaProviderPromise);
 
+        // Messages may still be in flight; ensure they find a home before continuing
+        await MockTime.macrotasks;
+
         // After announcement, verify queue shows in-progress
         const queue2 = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates);
+
         expect(queue2).length(1);
         expect(queue2[0].status).equals("in-progress");
 

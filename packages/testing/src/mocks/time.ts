@@ -29,6 +29,8 @@ type TimerCallback = () => any;
 type MockTimeLike = typeof MockTime;
 export interface MockTime extends MockTimeLike {}
 
+const macrotaskDependents = new Set<Promise<unknown>>();
+
 const registry = {
     timers: new Set<MockTimer>(),
     register(_timer: MockTimer) {},
@@ -102,11 +104,26 @@ function isAsync(fn: (...args: any) => any): fn is (...args: any) => Promise<any
     return fn.constructor.name === "AsyncFunction";
 }
 
+interface TimeLike {
+    macrotask: Promise<void>;
+    sleep(name: string, duration: number): Promise<unknown>;
+}
+
+interface StaticTimeLike {
+    startup: { systemMs: number; processMs: number };
+    default: TimeLike;
+    register(timer: MockTimer): void;
+    unregister(timer: MockTimer): void;
+    timers: Set<MockTimer>;
+}
+
 let callbacks = new Array<{ atMs: number; callback: TimerCallback }>();
 let nowMs = 0;
-let real = undefined as unknown;
+let real = undefined as undefined | TimeLike;
 let enabled = false;
 let defaultToMacrotasks = false;
+
+const instrumentedImplementations = new WeakSet<TimeLike>();
 
 /**
  * An arbitrary start for our mock timeline.  Starting at zero causes problems with Matter dates that cannot encode back
@@ -118,7 +135,7 @@ const epoch = new Date("2025-01-01 12:34:56Z");
 export const MockTime = {
     epoch,
 
-    get activeImplementation(): unknown {
+    get activeImplementation(): TimeLike {
         return enabled ? this : (real ?? this);
     },
 
@@ -163,8 +180,18 @@ export const MockTime = {
      * Microtasks are the default and are more efficient.  Macrotasks are required for e.g. most of node's crypto.subtle
      * methods to resolve.
      */
-    set macrotasks(value: boolean) {
+    get forceMacrotasks() {
+        return defaultToMacrotasks;
+    },
+
+    set forceMacrotasks(value: boolean) {
         defaultToMacrotasks = value;
+    },
+
+    requireMacrotasks<T>(dependent: Promise<T>) {
+        dependent = dependent.finally(() => macrotaskDependents.delete(dependent));
+        macrotaskDependents.add(dependent);
+        return dependent;
     },
 
     atTime<T>(time: number | Date, actor: () => T): T {
@@ -203,11 +230,40 @@ export const MockTime = {
         return new MockInterval(this, name, interval, callback);
     },
 
+    /**
+     * Time compatible sleep.
+     *
+     * This passes the sleep call through to the (possibly mocked) underlying time implementation.
+     */
+    sleep(name: string, duration: number) {
+        if (real === undefined) {
+            throw new Error("Cannot sleep because time implementation is not present");
+        }
+        return real.sleep(name, duration);
+    },
+
+    /**
+     * Use the installed time implementation to yield to the next macrotask.
+     *
+     * We do not mock macrotasks because it keeps tests truer to life and unlike timers it does not have a meaningful
+     * impact on test execution.
+     */
     get macrotask() {
         if (real === undefined) {
-            throw new Error("Cannot yield macrotask because time implementation is not present");
+            throw new Error("Cannot create macrotask because time implementation is not present");
         }
-        return (real as { macrotask: Promise<void> }).macrotask;
+        return real.macrotask;
+    },
+
+    /**
+     * Wait for all registered macrotask dependencies to complete.
+     */
+    get macrotasks() {
+        return (async () => {
+            while (macrotaskDependents.size) {
+                await MockTime.resolve(this.macrotask);
+            }
+        })();
     },
 
     /**
@@ -245,11 +301,12 @@ export const MockTime = {
 
         let timeAdvanced = 0;
         while (!resolved) {
-            // Interestingly, a Time.yield() works in almost every case.  However, on Node SubtleCrypto.deriveBits hangs
-            // if you only yield via microtask.  It seems to require yielding via macrotask.  So we optionally yield to
-            // the event loop here using the fastest available macrotask mechanism.  setTimeout(0) has a minimum ~1-4ms
-            // delay which adds up significantly since resolve() loops many times.
-            if (macrotasks ?? defaultToMacrotasks) {
+            // Macrotasks are necessary for testing code that requires macrotasks, either explicitly or for system logic
+            // such as Node's crypto.subtle.  We use macrotasks if enabled explicitly or if aware of pending promises
+            // requiring macrotasks
+            //
+            // TODO - remove manual macrotask control if/when no longer necessary
+            if ((macrotasks ?? defaultToMacrotasks) || macrotaskDependents.size) {
                 await MockTime.macrotask;
             } else {
                 await MockTime.yield();
@@ -420,21 +477,42 @@ export const MockTime = {
 
 let installActiveImplementation: undefined | (() => void);
 
-export function timeSetup(Time: {
-    startup: { systemMs: number; processMs: number };
-    default: unknown;
-    register(timer: MockTimer): void;
-    unregister(timer: MockTimer): void;
-    timers: Set<MockTimer>;
-}) {
+export function timeSetup(Time: StaticTimeLike) {
     registry.register = Time.register;
     registry.unregister = Time.unregister;
     registry.timers = Time.timers;
     Time.startup.systemMs = Time.startup.processMs = 0;
     real = Time.default;
-    (MockTime as any).sleep = (real as any).sleep;
+    instrumentImplementation(real);
     installActiveImplementation = () => (Time.default = MockTime.activeImplementation);
     installActiveImplementation();
+}
+
+function instrumentImplementation(time: TimeLike) {
+    if (instrumentedImplementations.has(time)) {
+        return;
+    }
+
+    let get;
+    let obj = time;
+    while (obj) {
+        get = Object.getOwnPropertyDescriptor(obj.constructor.prototype, "macrotask")?.get;
+        if (get) {
+            break;
+        }
+        obj = Object.getPrototypeOf(obj);
+    }
+    if (!get) {
+        throw new Error("Time instance does not define macrotask getter");
+    }
+
+    Object.defineProperty(time, "macrotask", {
+        get() {
+            return MockTime.requireMacrotasks(get.apply(time));
+        },
+    });
+
+    instrumentedImplementations.add(time);
 }
 
 Object.assign(globalThis, { MockTime });

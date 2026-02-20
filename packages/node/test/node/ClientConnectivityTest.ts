@@ -16,7 +16,7 @@ describe("ClientConnectivityTest", () => {
         MockTime.init();
 
         // Required for crypto to succeed
-        MockTime.macrotasks = true;
+        MockTime.forceMacrotasks = true;
     });
 
     it("throws error if node cannot be reached", async () => {

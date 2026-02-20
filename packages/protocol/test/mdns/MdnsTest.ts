@@ -215,12 +215,19 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
         }
 
         async function closeAll() {
+            // Ensure in-flight transmissions complete
+            await MockTime.macrotasks;
+
             // Advance past the goodbye protection window so TTL=0 packets are not ignored
             await MockTime.advance(1000);
+
             for (const port in advertisers) {
                 await MockTime.resolve(advertisers[port].close());
                 delete advertisers[port];
             }
+
+            // Ensure in-flight transmissions complete
+            await MockTime.macrotasks;
         }
 
         class MessageCollector extends Array<DnsMessage> {
