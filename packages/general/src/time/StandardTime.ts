@@ -25,6 +25,27 @@ export class StandardTime extends Time {
     }
 }
 
+// Install optimal macrotask functionality based on available vm features
+{
+    let macrotask;
+    if (typeof setImmediate !== "undefined") {
+        // node.js(ish)
+        macrotask = () => new Promise<void>(resolve => setImmediate(resolve));
+    } else if (typeof MessageChannel !== "undefined") {
+        // Modern browsers
+        const channel = new MessageChannel();
+        macrotask = () =>
+            new Promise<void>(resolve => {
+                channel.port1.onmessage = () => resolve();
+                channel.port2.postMessage(null);
+            });
+    } else {
+        // Standard setTimeout but incurs a 1-4ms penalty
+        macrotask = () => new Promise<void>(resolve => setTimeout(resolve, 0));
+    }
+    Object.defineProperty(StandardTime.prototype, "macrotask", { get: macrotask });
+}
+
 /**
  * A {@link Timer} implementation that uses standard JavaScript functions.
  */
