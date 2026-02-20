@@ -6,22 +6,6 @@
 
 import { Boot } from "./boot.js";
 
-// Fast macrotask yield.  setImmediate (Node) and MessageChannel (browsers) both provide macrotask semantics
-// without the minimum ~1-4ms timer delay of setTimeout(0).
-const yieldMacrotask: () => Promise<void> =
-    typeof setImmediate !== "undefined"
-        ? () => new Promise<void>(resolve => setImmediate(resolve))
-        : typeof MessageChannel !== "undefined"
-          ? (() => {
-                const channel = new MessageChannel();
-                return () =>
-                    new Promise<void>(resolve => {
-                        channel.port1.onmessage = () => resolve();
-                        channel.port2.postMessage(null);
-                    });
-            })()
-          : () => new Promise<void>(resolve => setTimeout(resolve, 0));
-
 export class TestTimeoutError extends Error {
     diagnostics;
 
@@ -219,6 +203,13 @@ export const MockTime = {
         return new MockInterval(this, name, interval, callback);
     },
 
+    get macrotask() {
+        if (real === undefined) {
+            throw new Error("Cannot yield macrotask because time implementation is not present");
+        }
+        return (real as { macrotask: Promise<void> }).macrotask;
+    },
+
     /**
      * Resolve a promise with time dependency.
      *
@@ -259,7 +250,7 @@ export const MockTime = {
             // the event loop here using the fastest available macrotask mechanism.  setTimeout(0) has a minimum ~1-4ms
             // delay which adds up significantly since resolve() loops many times.
             if (macrotasks ?? defaultToMacrotasks) {
-                await yieldMacrotask();
+                await MockTime.macrotask;
             } else {
                 await MockTime.yield();
             }
