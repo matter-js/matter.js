@@ -702,7 +702,7 @@ export class CommissioningController {
 
         await this.#controllerInstance.start();
 
-        this.#controllerInstance.node.env.get(SessionManager).sessions.deleted.on(session => {
+        this.#observers.on(this.#controllerInstance.node.env.get(SessionManager).sessions.deleted, session => {
             if (!session.isSecure) {
                 return;
             }
