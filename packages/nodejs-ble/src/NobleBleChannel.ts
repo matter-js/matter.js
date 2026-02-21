@@ -122,8 +122,9 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
             }
 
             // Get the peripheral by address and connect to it.
-            const { peripheral, hasAdditionalAdvertisementData } =
+            const { peripheral: blePeripheral, hasAdditionalAdvertisementData } =
                 this.#bleScanner.getDiscoveredDevice(peripheralAddress);
+            const peripheral = blePeripheral as Peripheral;
 
             if (this.#openChannels.has(address)) {
                 rejectOnce(
