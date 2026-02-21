@@ -5,6 +5,7 @@
  */
 
 import { Access, Conformance, Constraint, Quality } from "../aspects/index.js";
+import { ElementTag } from "../common/index.js";
 import { RequirementElement } from "../elements/index.js";
 import { FieldModel } from "./FieldModel.js";
 import { Model } from "./Model.js";
@@ -49,6 +50,17 @@ export class RequirementModel extends Model<RequirementElement, RequirementModel
     }
     set quality(definition: Quality | Quality.Definition) {
         this.#quality = Quality.create(definition);
+    }
+
+    /**
+     * Condition requirements may derive from ConditionElement models via qualified types
+     * (e.g. type: "RootNode.AclExtensionCond").
+     */
+    override get allowedBaseTags() {
+        if (this.element === RequirementElement.ElementType.Condition) {
+            return [this.tag, ElementTag.Condition];
+        }
+        return [this.tag];
     }
 
     get requirements() {

@@ -139,6 +139,39 @@ const TEST_CONSTRAINTS: [text: string, ast: Constraint.Ast, expectedText?: strin
         },
     ],
     [
+        "2 + 3 * 4",
+        {
+            value: {
+                type: "+",
+                lhs: 2,
+                rhs: {
+                    type: "*",
+                    lhs: 3,
+                    rhs: 4,
+                },
+            },
+        },
+        "2 + (3 * 4)",
+    ],
+    [
+        "foo - 2 + 3",
+        {
+            value: {
+                type: "+",
+                lhs: {
+                    type: "-",
+                    lhs: {
+                        type: "reference",
+                        name: "foo",
+                    },
+                    rhs: 2,
+                },
+                rhs: 3,
+            },
+        },
+        "(foo - 2) + 3",
+    ],
+    [
         "min maxOf(holdTimeMin, 10)",
         {
             min: {
@@ -278,6 +311,37 @@ const TEST_CONSTRAINTS: [text: string, ast: Constraint.Ast, expectedText?: strin
         ],
     ],
     [
+        "0 to segmentDuration / 2",
+        {
+            min: 0,
+            max: {
+                type: "/",
+                lhs: {
+                    type: "reference",
+                    name: "segmentDuration",
+                },
+                rhs: 2,
+            },
+        },
+    ],
+    [
+        "-1 * panMax to panMax",
+        {
+            min: {
+                type: "*",
+                lhs: -1,
+                rhs: {
+                    type: "reference",
+                    name: "panMax",
+                },
+            },
+            max: {
+                type: "reference",
+                name: "panMax",
+            },
+        },
+    ],
+    [
         "max (2^62) - 1",
         {
             max: {
@@ -296,6 +360,21 @@ const TEST_CONSTRAINTS: [text: string, ast: Constraint.Ast, expectedText?: strin
             { test: 2n ** 62n - 1n, ok: true },
             { test: 2n ** 62n, ok: false },
         ],
+    ],
+    [
+        "2 * 3 ^ 4",
+        {
+            value: {
+                type: "*",
+                lhs: 2,
+                rhs: {
+                    type: "^",
+                    lhs: 3,
+                    rhs: 4,
+                },
+            },
+        },
+        "2 * (3^4)",
     ],
     [
         "holdTimeLimits.holdTimeMin to holdTimeLimits.holdTimeMax",

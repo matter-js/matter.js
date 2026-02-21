@@ -167,6 +167,24 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
                         return undefined;
                     }
 
+                    case "*": {
+                        const lhs = valueOf(value.lhs);
+                        const rhs = valueOf(value.rhs);
+                        if (typeof lhs === "number" && typeof rhs === "number") {
+                            return lhs * rhs;
+                        }
+                        return undefined;
+                    }
+
+                    case "/": {
+                        const lhs = valueOf(value.lhs);
+                        const rhs = valueOf(value.rhs);
+                        if (typeof lhs === "number" && typeof rhs === "number") {
+                            return lhs / rhs;
+                        }
+                        return undefined;
+                    }
+
                     case "^": {
                         const lhs = valueOf(value.lhs);
                         const rhs = valueOf(value.rhs);
@@ -344,7 +362,7 @@ export namespace Constraint {
      * Parsed binary operator.
      */
     export interface BinaryOperator {
-        type: "+" | "-" | "." | "^";
+        type: "+" | "-" | "*" | "/" | "." | "^";
 
         lhs: Expression;
 
@@ -393,6 +411,8 @@ namespace Serializer {
         switch (value.type) {
             case "+":
             case "-":
+            case "*":
+            case "/":
             case ".":
             case "^":
                 const sep = value.type === "." || value.type === "^" ? "" : " ";
@@ -609,74 +629,107 @@ namespace Parser {
             return { [kind]: bound };
         }
 
+        // Precedence-climbing expression parser: ^ and . (highest) > * / > + -
         function parseExpression(): Constraint.Expression | undefined {
-            let value: Constraint.Expression | undefined = parseValueExpression();
+            return parseAdditive();
+        }
 
+        function parseAdditive(): Constraint.Expression | undefined {
+            let value = parseMultiplicative();
             if (value === undefined) {
                 return value;
             }
-
-            // Handle chained binary operators (e.g. 2^62 - 1)
-            while (
-                tokens.token?.type === "+" ||
-                tokens.token?.type === "-" ||
-                tokens.token?.type === "." ||
-                tokens.token?.type === "^"
-            ) {
+            while (tokens.token?.type === "+" || tokens.token?.type === "-") {
                 const type = tokens.token.type;
                 tokens.next();
-                const rhs = parseValueExpression();
+                const rhs = parseMultiplicative();
                 if (rhs === undefined) {
                     constraint.error("MISSING_RIGHT_OPERAND", `Missing operand after "${type}"`);
                     return;
                 }
-
-                value = {
-                    type,
-                    lhs: value,
-                    rhs,
-                };
+                value = { type, lhs: value, rhs };
             }
+            return value;
+        }
 
-            switch (tokens.token?.type) {
-                case "(":
-                    const functionName = FieldValue.referenced(value);
-                    if (functionName === undefined) {
-                        unexpected();
+        function parseMultiplicative(): Constraint.Expression | undefined {
+            let value = parsePower();
+            if (value === undefined) {
+                return value;
+            }
+            while (tokens.token?.type === "*" || tokens.token?.type === "/") {
+                const type = tokens.token.type;
+                tokens.next();
+                const rhs = parsePower();
+                if (rhs === undefined) {
+                    constraint.error("MISSING_RIGHT_OPERAND", `Missing operand after "${type}"`);
+                    return;
+                }
+                value = { type, lhs: value, rhs };
+            }
+            return value;
+        }
+
+        function parsePower(): Constraint.Expression | undefined {
+            let value = parsePrimary();
+            if (value === undefined) {
+                return value;
+            }
+            while (tokens.token?.type === "^" || tokens.token?.type === ".") {
+                const type = tokens.token.type;
+                tokens.next();
+                const rhs = parsePrimary();
+                if (rhs === undefined) {
+                    constraint.error("MISSING_RIGHT_OPERAND", `Missing operand after "${type}"`);
+                    return;
+                }
+                value = { type, lhs: value, rhs };
+            }
+            return value;
+        }
+
+        function parsePrimary(): Constraint.Expression | undefined {
+            const value = parseValueExpression();
+
+            // Handle function calls like maxOf(...)
+            if (value !== undefined && tokens.token?.type === "(") {
+                const functionName = FieldValue.referenced(value);
+                if (functionName === undefined) {
+                    unexpected();
+                    return;
+                }
+
+                tokens.next();
+                if (!isFunction(functionName)) {
+                    constraint.error("UNKNOWN_FUNCTION", `Unknown function "${functionName}"`);
+                    return;
+                }
+
+                const args = Array<Constraint.Expression>();
+                while ((tokens.token?.type as BasicToken.Operator) !== ")") {
+                    const expr = parseExpression();
+                    if (expr === undefined) {
                         return;
                     }
+                    args.push(expr);
+                    switch (tokens.token?.type as BasicToken.Operator) {
+                        case ",":
+                            tokens.next();
+                            break;
 
-                    tokens.next();
-                    if (!isFunction(functionName)) {
-                        constraint.error("UNKNOWN_FUNCTION", `Unknown function "${functionName}"`);
-                        return;
-                    }
+                        case ")":
+                            break;
 
-                    const args = Array<Constraint.Expression>();
-                    while ((tokens.token?.type as BasicToken.Operator) !== ")") {
-                        const expr = parseValueExpression();
-                        if (expr === undefined) {
+                        default:
+                            unexpected();
                             return;
-                        }
-                        args.push(expr);
-                        switch (tokens.token?.type as BasicToken.Operator) {
-                            case ",":
-                                tokens.next();
-                                break;
-
-                            case ")":
-                                break;
-
-                            default:
-                                unexpected();
-                                return;
-                        }
                     }
-                    tokens.next();
-                    return {
-                        type: functionName,
-                        args,
-                    };
+                }
+                tokens.next();
+                return {
+                    type: functionName,
+                    args,
+                };
             }
 
             return value;
