@@ -424,7 +424,7 @@ export class MessageExchange {
         }
     }
 
-    async #send(messageType: number, payload: Bytes, includeAcknowledgeMessageId?: number) {
+    async #send(messageType: number, payload: Bytes, standaloneAckMessageId?: number) {
         const {
             expectAckOnly = false,
             disableMrpLogic,
@@ -434,12 +434,12 @@ export class MessageExchange {
 
         using abort = new Abort(this.#sendOptions);
 
-        const isStandaloneAck = messageType === SecureMessageType.StandaloneAck;
-        if (includeAcknowledgeMessageId !== undefined) {
+        const isStandaloneAck = standaloneAckMessageId !== undefined;
+        if (standaloneAckMessageId !== undefined) {
             if (!this.session.usesMrp) {
                 throw new InternalError("Cannot include an acknowledge message ID when MRP is not used");
             }
-            if (!isStandaloneAck) {
+            if (messageType !== SecureMessageType.StandaloneAck) {
                 throw new InternalError("Cannot override an acknowledge message ID for non-standalone acks");
             }
         }
@@ -469,7 +469,7 @@ export class MessageExchange {
         this.#messageSendCounter++;
         this.session.notifyActivity(false);
 
-        let ackedMessageId = includeAcknowledgeMessageId;
+        let ackedMessageId = standaloneAckMessageId;
         if (ackedMessageId === undefined && this.session.usesMrp) {
             ackedMessageId = this.#receivedMessageToAck?.packetHeader.messageId;
             if (ackedMessageId !== undefined) {
