@@ -7,6 +7,7 @@
 import { Mark } from "#common/Mark.js";
 import {
     Bytes,
+    causedBy,
     Channel,
     Crypto,
     Diagnostic,
@@ -101,7 +102,7 @@ export class PaseServer implements ProtocolHandler {
                 );
 
                 // If we received a ChannelStatusResponseError we do not need to send one back, so just cancel pairing
-                const sendError = !(error instanceof ChannelStatusResponseError);
+                const sendError = !causedBy(error, ChannelStatusResponseError);
                 await this.cancelPairing(messenger, sendError);
 
                 if (this.#pairingErrors >= PASE_COMMISSIONING_MAX_ERRORS) {
