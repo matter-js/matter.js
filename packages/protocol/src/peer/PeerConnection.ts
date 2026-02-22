@@ -421,15 +421,16 @@ export async function PeerConnection(
         using _handling = lifetime.join("handling error");
 
         let delay: undefined | Duration;
-        if (e instanceof ChannelStatusResponseError) {
-            if (e.generalStatusCode === GeneralStatusCode.Busy && e.busyDelay !== undefined) {
-                delay = Millis(e.busyDelay + Math.round(Math.random() * context.timing.delayAfterNetworkError));
+        const csre = ChannelStatusResponseError.of(e);
+        if (csre) {
+            if (csre.generalStatusCode === GeneralStatusCode.Busy && csre.busyDelay !== undefined) {
+                delay = Millis(csre.busyDelay + Math.round(Math.random() * context.timing.delayAfterNetworkError));
                 info(
                     address,
-                    `Peer requested to delay and retry the command in earliest ${Duration.format(e.busyDelay)}. Retrying in ${Duration.format(delay)}.`,
+                    `Peer requested to delay and retry the command in earliest ${Duration.format(csre.busyDelay)}. Retrying in ${Duration.format(delay)}.`,
                 );
             } else if (
-                e.protocolStatusCode === SecureChannelStatusCode.NoSharedTrustRoots &&
+                csre.protocolStatusCode === SecureChannelStatusCode.NoSharedTrustRoots &&
                 (await context.sessions.deleteResumptionRecord(peer.address))
             ) {
                 warn(

@@ -10,7 +10,9 @@ import { GeneralCommissioning } from "#clusters/general-commissioning";
 import { CommissionableDevice, CommissionableDeviceIdentifiers, DiscoveryData, ScannerSet } from "#common/Scanner.js";
 import { Fabric } from "#fabric/Fabric.js";
 import {
+    asError,
     Bytes,
+    causedBy,
     Channel,
     ChannelType,
     ClassExtends,
@@ -383,9 +385,9 @@ export class ControllerCommissioner {
             return caseSession;
         } catch (e) {
             // Close the exchange and rethrow
-            if (e instanceof ChannelStatusResponseError) {
+            if (causedBy(e, ChannelStatusResponseError)) {
                 throw new NoResponseTimeoutError(
-                    `Establishing PASE channel failed with channel status response error ${e.message}`,
+                    `Establishing PASE channel failed with channel status response error ${asError(e).message}`,
                 );
             }
             throw e;

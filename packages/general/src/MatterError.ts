@@ -7,7 +7,7 @@
 import { NodeJsStyleInspectable } from "#log/NodeJsStyleInspectable.js";
 import type { MaybePromise } from "#util/Promises.js";
 import { decamelize } from "#util/identifier-case.js";
-import { errorOf } from "./util/Error.js";
+import { asError, errorOf } from "./util/Error.js";
 
 const codes = new WeakMap<{}, string>();
 
@@ -134,6 +134,36 @@ export class MatterError extends Error {
      */
     static formatterFor: (formatName: string) => (value: unknown, indents?: number) => unknown =
         MatterError.defaultFormatterFactory;
+
+    /**
+     * If the causal chain of an error includes an error of type {@link T}, returns the first such error encountered.
+     */
+    static of<T extends MatterError>(
+        this: { new (...args: any[]): T; of: typeof MatterError.of },
+        error: unknown,
+    ): T | undefined {
+        if (error instanceof this) {
+            return error;
+        }
+
+        const e = asError(error);
+
+        if (e.cause) {
+            const sre = this.of(e.cause);
+            if (sre) {
+                return sre;
+            }
+        }
+
+        if (e instanceof AggregateError && e.errors) {
+            for (const e2 of e.errors) {
+                const sre = this.of(e2);
+                if (sre) {
+                    return sre;
+                }
+            }
+        }
+    }
 
     // TODO - this is probably correct; MatterAggregateError should be typeof MatterError.  Need to diagnose some test
     // breakage before enabling though
