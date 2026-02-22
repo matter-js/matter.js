@@ -95,3 +95,12 @@ export class FailsafeExpiredError extends PeerCommunicationError {
  * part of the commissioning flow.
  */
 export class CommissioningTransitionError extends PeerCommunicationError {}
+
+/**
+ * Thrown when an operation aborts because a peer's network address has changed.
+ */
+export class OperationalAddressChangedError extends PeerCommunicationError {
+    constructor(message = "Peer's operational address has changed") {
+        super(message);
+    }
+}

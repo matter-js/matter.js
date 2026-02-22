@@ -124,7 +124,11 @@ const ID_SPACE_UPPER_BOUND = 0xffff;
 /**
  * Thrown when communication terminates due node shutdown.
  */
-export class ShutdownError extends ClosedError {}
+export class ShutdownError extends ClosedError {
+    constructor(message = "Local node shutdown", options?: ErrorOptions) {
+        super(message, options);
+    }
+}
 
 /**
  * Manages Matter sessions associated with peer connections.
