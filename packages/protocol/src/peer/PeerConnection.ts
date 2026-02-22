@@ -426,7 +426,7 @@ export async function PeerConnection(
                 delay = Millis(csre.busyDelay + Math.round(Math.random() * context.timing.delayAfterNetworkError));
                 info(
                     address,
-                    `Peer requested to delay and retry the command in earliest ${Duration.format(csre.busyDelay)}. Retrying in ${Duration.format(delay)}.`,
+                    `Peer requested to delay and retry no earlier than ${Duration.format(csre.busyDelay)} from now (retry in ${Duration.format(delay)})`,
                 );
             } else if (
                 csre.protocolStatusCode === SecureChannelStatusCode.NoSharedTrustRoots &&

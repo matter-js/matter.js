@@ -21,7 +21,7 @@ import {
     Time,
 } from "#general";
 import { NetworkClient, ServerNode } from "#index.js";
-import { ClientSubscription, PeerUnreachableError, SustainedSubscription } from "#protocol";
+import { ClientSubscription, Peer, PeerUnreachableError, SustainedSubscription } from "#protocol";
 import { MockServerNode } from "./mock-server-node.js";
 import { MockSite } from "./mock-site.js";
 import { subscribedPeer } from "./node-helpers.js";
@@ -164,11 +164,19 @@ describe("ClientConnectivityTest", () => {
         expect(addresses![0].type).equals("udp");
     });
 
-    it("connects via last known address when MDNS is unavailable", async () => {
+    it.only("connects via last known address when MDNS is unavailable", async () => {
         // *** SETUP ***
 
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair();
+
+        // *** VALIDATE MDNS STATE ***
+
+        let peer1 = controller.peers.get("peer1")!;
+        expect(peer1).not.undefined;
+
+        let protopeer = peer1.env.get(Peer);
+        expect(protopeer.service.addresses.size).equals(2);
 
         // *** STOP AND BLOCK MDNS ***
 
@@ -190,8 +198,11 @@ describe("ClientConnectivityTest", () => {
         (controller.env.get(Crypto) as MockCrypto).entropic = true;
         await controller.start();
 
-        const peer1 = controller.peers.get("peer1")!;
+        peer1 = controller.peers.get("peer1")!;
         const ep1 = peer1.parts.get("ep1")!;
+
+        protopeer = peer1.env.get(Peer);
+        expect(protopeer.service.addresses.size).equals(0);
 
         // PeerConnection can't discover addresses via MDNS, so it uses the last known
         // operational address (fallback) to establish the session
@@ -202,6 +213,9 @@ describe("ClientConnectivityTest", () => {
         expect(addresses).not.undefined;
         expect(addresses).length(1);
         expect(addresses![0].type).equals("udp");
+
+        // Confirm that we still haven't discovered addresses
+        expect(protopeer.service.addresses.size).equals(0);
     });
 
     it("reconnects after device address change with expired records", async () => {
