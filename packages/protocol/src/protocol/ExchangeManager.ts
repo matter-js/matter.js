@@ -287,10 +287,7 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
                     );
 
                     try {
-                        await exchange.send(SecureMessageType.StandaloneAck, new Uint8Array(0), {
-                            includeAcknowledgeMessageId: message.packetHeader.messageId,
-                            protocolId: SECURE_CHANNEL_PROTOCOL_ID,
-                        });
+                        await exchange.sendStandaloneAckForMessage(message);
                     } finally {
                         // Ensure we close the exchange even if sending the ack failed
                         await exchange.close();
@@ -360,10 +357,7 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
                 this.#addExchange(exchangeIndex, exchange);
 
                 try {
-                    await exchange.send(SecureMessageType.StandaloneAck, new Uint8Array(0), {
-                        includeAcknowledgeMessageId: message.packetHeader.messageId,
-                        protocolId: SECURE_CHANNEL_PROTOCOL_ID,
-                    });
+                    await exchange.sendStandaloneAckForMessage(message);
                     await exchange.close();
                     logger.debug("Ignore", Mark.INBOUND, "unsolicited message", messageDiagnostics);
                 } catch (error) {
@@ -406,7 +400,7 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
         logger.error(Message.via(exchange, message), "Unhandled error handling incoming message:", error);
     }
 
-    async deleteExchange(exchangeIndex: number) {
+    deleteExchange(exchangeIndex: number) {
         this.#exchanges.delete(exchangeIndex);
     }
 

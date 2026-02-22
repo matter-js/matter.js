@@ -8,6 +8,7 @@ import { Message, PacketHeader, SessionType } from "#codec/MessageCodec.js";
 import { Mark } from "#common/Mark.js";
 import {
     Abort,
+    AbortedError,
     asError,
     AsyncObservableValue,
     Bytes,
@@ -26,7 +27,9 @@ import {
     Logger,
     MatterFlowError,
     Millis,
+    NetworkError,
     Time,
+    TimeoutError,
     Timer,
     Timestamp,
 } from "#general";
@@ -73,9 +76,6 @@ export interface ExchangeSendOptions {
     /** Allows to specify if the send message requires to be acknowledged by the receiver or not. */
     requiresAck?: boolean;
 
-    /** Use the provided acknowledge MessageId instead checking the latest to send one */
-    includeAcknowledgeMessageId?: number;
-
     /**
      * Disables the MRP logic which means that no retransmissions are done and receiving an ack is not awaited.
      */
@@ -83,11 +83,6 @@ export interface ExchangeSendOptions {
 
     /** Additional context information for logging to be included at the beginning of the Message log. */
     logContext?: ExchangeLogContext;
-
-    // TODO Restructure exchange logic to not be protocol bound like now. The Protocol binding should move to the
-    //  messages itself
-    /** Allows to override the protocol ID of the message, mainly used for standalone acks. */
-    protocolId?: number;
 
     /** Aborts sending; does not throw */
     abort?: AbortSignal;
@@ -190,7 +185,7 @@ export class MessageExchange {
             const messageToAck = this.#receivedMessageToAck;
             this.#receivedMessageToAck = undefined;
             // TODO await
-            this.#sendStandaloneAckForMessage(messageToAck).catch(error =>
+            this.sendStandaloneAckForMessage(messageToAck).catch(error =>
                 logger.error("An error happened when sending a standalone ack", error),
             );
         }
@@ -352,7 +347,7 @@ export class MessageExchange {
         if (duplicate) {
             // Received a message retransmission, but the reply is not ready yet, ignoring
             if (requiresAck) {
-                await this.#sendStandaloneAckForMessage(message);
+                await this.sendStandaloneAckForMessage(message);
             }
             return;
         }
@@ -400,7 +395,7 @@ export class MessageExchange {
             // We still have a message to ack, so ack the old one as standalone ack directly
             if (this.#receivedMessageToAck !== undefined) {
                 this.#receivedMessageAckTimer.stop();
-                await this.#sendStandaloneAckForMessage(this.#receivedMessageToAck);
+                await this.sendStandaloneAckForMessage(this.#receivedMessageToAck);
             }
             this.#receivedMessageToAck = message;
             this.#receivedMessageAckTimer.start();
@@ -419,7 +414,7 @@ export class MessageExchange {
         try {
             await this.#send(messageType, payload);
         } catch (e) {
-            if (causedBy(e, TransientPeerCommunicationError)) {
+            if (causedBy(e, TransientPeerCommunicationError, TimeoutError, NetworkError)) {
                 await this.#context.peerLost(this, asError(e));
             }
 
@@ -429,20 +424,24 @@ export class MessageExchange {
         }
     }
 
-    async #send(messageType: number, payload: Bytes) {
+    async #send(messageType: number, payload: Bytes, includeAcknowledgeMessageId?: number) {
         const {
             expectAckOnly = false,
             disableMrpLogic,
             expectedProcessingTime = MRP.DEFAULT_EXPECTED_PROCESSING_TIME,
-            includeAcknowledgeMessageId,
-            logContext,
-            protocolId = this.#protocolId,
+            logContext = {},
         } = this.#sendOptions;
 
         using abort = new Abort(this.#sendOptions);
 
-        if (!this.session.usesMrp && includeAcknowledgeMessageId !== undefined) {
-            throw new InternalError("Cannot include an acknowledge message ID when MRP is not used");
+        const isStandaloneAck = messageType === SecureMessageType.StandaloneAck;
+        if (includeAcknowledgeMessageId !== undefined) {
+            if (!this.session.usesMrp) {
+                throw new InternalError("Cannot include an acknowledge message ID when MRP is not used");
+            }
+            if (!isStandaloneAck) {
+                throw new InternalError("Cannot override an acknowledge message ID for non-standalone acks");
+            }
         }
 
         let { requiresAck } = this.#sendOptions;
@@ -450,7 +449,8 @@ export class MessageExchange {
             requiresAck = false;
         }
 
-        const isStandaloneAck = SecureMessageType.isStandaloneAck(protocolId, messageType);
+        // Standalone acks are always sent via the SECURE_CHANNEL_PROTOCOL_ID
+        const protocolId = isStandaloneAck ? SECURE_CHANNEL_PROTOCOL_ID : this.#protocolId;
         if (isStandaloneAck) {
             if (!this.session.usesMrp) {
                 return;
@@ -480,7 +480,9 @@ export class MessageExchange {
 
         let packetHeader: PacketHeader;
         if (this.session.type === SessionType.Unicast) {
-            const messageId = await abort.attempt(this.session.getIncrementedMessageCounter());
+            const messageId = isStandaloneAck
+                ? await this.session.getIncrementedMessageCounter() // Standalone acks always need to be sendable
+                : await abort.attempt(this.session.getIncrementedMessageCounter());
             if (messageId === undefined) {
                 return;
             }
@@ -538,10 +540,10 @@ export class MessageExchange {
         let ackPromise: Promise<Message | undefined> | undefined;
         if (this.session.usesMrp && message.payloadHeader.requiresAck && !disableMrpLogic) {
             this.#sentMessageToAck = message;
-            this.#retransmissionTimer = Time.getTimer(
-                `retransmitting ${Message.via(this, message)}`,
-                this.#mrpResubmissionBackOffTime,
-                () => this.#retransmitMessage(message, expectedProcessingTime),
+            const backOff = this.#mrpResubmissionBackOffTime;
+            logContext.backOff = Duration.format(backOff);
+            this.#retransmissionTimer = Time.getTimer(`retransmitting ${Message.via(this, message)}`, backOff, () =>
+                this.#retransmitMessage(message, expectedProcessingTime),
             );
             this.#kick = () => {
                 if (this.#retransmissionTimer?.isRunning) {
@@ -560,7 +562,11 @@ export class MessageExchange {
 
         this.#onSend?.(message, 0);
         using sending = this.join("sending", Diagnostic.strong(Message.via(this, message)));
-        await abort.attempt(this.channel.send(message, this, logContext));
+        if (isStandaloneAck) {
+            await this.channel.send(message, this, logContext);
+        } else {
+            await abort.attempt(this.channel.send(message, this, logContext));
+        }
         if (abort.aborted) {
             return;
         }
@@ -573,6 +579,11 @@ export class MessageExchange {
             using _waiting = sending.join("waiting for ack");
             const responseMessage = await abort.attempt(ackPromise);
             if (abort.aborted) {
+                // Aborted exchange caused to return undefined, any other
+                // error is thrown
+                if (!causedBy(abort.reason, AbortedError)) {
+                    throw abort.reason;
+                }
                 return;
             }
 
@@ -638,17 +649,16 @@ export class MessageExchange {
         this.#kick?.();
     }
 
-    async #sendStandaloneAckForMessage(message: Message) {
+    async sendStandaloneAckForMessage(message: Message) {
         const {
             packetHeader: { messageId },
             payloadHeader: { requiresAck },
         } = message;
-        if (!requiresAck || !this.session.usesMrp) return;
+        if (!requiresAck || !this.session.usesMrp) {
+            return;
+        }
 
-        await this.send(SecureMessageType.StandaloneAck, new Uint8Array(0), {
-            includeAcknowledgeMessageId: messageId,
-            protocolId: SECURE_CHANNEL_PROTOCOL_ID,
-        });
+        await this.#send(SecureMessageType.StandaloneAck, new Uint8Array(0), messageId);
     }
 
     #retransmitMessage(message: Message, expectedProcessingTime?: Duration) {
@@ -744,7 +754,7 @@ export class MessageExchange {
             const messageToAck = this.#receivedMessageToAck;
             this.#receivedMessageToAck = undefined;
             try {
-                await this.#sendStandaloneAckForMessage(messageToAck);
+                await this.sendStandaloneAckForMessage(messageToAck);
             } catch (error) {
                 logger.error("An error happened when closing the exchange", error);
             }
@@ -840,7 +850,7 @@ export class MessageExchange {
             this.#receivedMessageToAck = undefined;
             try {
                 using _acking = closing.join("acking");
-                await this.#sendStandaloneAckForMessage(messageToAck);
+                await this.sendStandaloneAckForMessage(messageToAck);
             } catch (error) {
                 logger.error(this.via, `Unhandled error closing exchange`, error);
             }
