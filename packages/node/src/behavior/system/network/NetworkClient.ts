@@ -78,6 +78,11 @@ export class NetworkClient extends NetworkBehavior {
         const { isDisabled } = this.state;
         const subscriptionDesired = desiredState && !isDisabled;
 
+        const isNewlyCommissioned = this.internal.isNewlyCommissioned;
+        if (isNewlyCommissioned) {
+            this.internal.isNewlyCommissioned = false;
+        }
+
         if (subscriptionDesired === !!this.internal.activeSubscription) {
             return;
         }
@@ -91,23 +96,32 @@ export class NetworkClient extends NetworkBehavior {
                 ...this.state.defaultSubscription,
             });
 
-            // First, read.  This allows us to retrieve attributes that do not support subscription and gives us
-            // physical device information required to optimize subscription parameters.
-            //
-            // We also load events here so we are fully synced before reporting as online.
-            //
-            // Must read all chunks for the async iterator to complete.
-            for await (const _chunk of this.#node.interaction.read(subscribe));
+            let bootstrapWithRead;
+            if (isNewlyCommissioned) {
+                // For startup as part of commissioning process, read here so that any read error throws from the
+                // commissioning function and attributes are otherwise available immediately
+                for await (const _chunk of this.#node.interaction.read(subscribe));
+                bootstrapWithRead = false;
+            } else {
+                // For non-commissioning startup we also perform an initial read but we do it in the context of the
+                // sustained subscription so network errors don't interfere with subscription establishment
+                bootstrapWithRead = true;
+            }
 
-            // Now subscribe for subsequent updates
             this.internal.activeSubscription = await (this.#node.interaction as ClientNodeInteraction).subscribe({
-                sustain: true,
                 ...subscribe,
+                sustain: true,
                 eventFilters: [{ eventMin: this.state.maxEventNumber + 1n }],
+                bootstrapWithRead,
                 updated: async update => {
                     // Read over all changes
                     for await (const _chunk of update);
-                    this.events.subscriptionAlive.emit(); // Inform that subscription is alive
+
+                    // Trigger subscription alive event but ensure we actually have a subscription and this isn't just
+                    // the bootstrap read
+                    if (this.internal.activeSubscription?.subscriptionId !== ClientSubscription.NO_SUBSCRIPTION) {
+                        this.events.subscriptionAlive.emit(); // Inform that subscription is alive
+                    }
                 },
                 closed: () => {
                     if (!(this.internal.activeSubscription instanceof SustainedSubscription)) {
@@ -116,6 +130,7 @@ export class NetworkClient extends NetworkBehavior {
                     this.internal.activeSubscription = undefined;
                 },
             });
+
             if (this.internal.activeSubscription instanceof SustainedSubscription) {
                 this.internal.activeSubscription.active.on(() => this.events.subscriptionStatusChanged.emit(true));
                 this.internal.activeSubscription.inactive.on(() => this.events.subscriptionStatusChanged.emit(false));
@@ -200,6 +215,15 @@ export namespace NetworkClient {
          * The active default subscription.
          */
         activeSubscription?: ClientSubscription;
+
+        /**
+         * Indicates the node is newly commissioned.
+         *
+         * When newly commissioned, if automatic subscription is enabled we perform a read before returning from
+         * {@link NetworkClient#startup}.  This ensures we have a complete snapshot of the node's state when
+         * commissioning logic is complete.
+         */
+        isNewlyCommissioned = false;
     }
 
     export class State extends NetworkBehavior.State {

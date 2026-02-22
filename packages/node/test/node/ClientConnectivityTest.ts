@@ -5,9 +5,10 @@
  */
 
 import { OnOffClient } from "#behaviors/on-off";
-import { NetworkClient } from "#index.js";
-import { causedBy, Crypto, Minutes, MockCrypto, Seconds, Time } from "@matter/general";
-import { ClientSubscription, PeerUnreachableError, SustainedSubscription } from "@matter/protocol";
+import { causedBy, Crypto, LogDestination, Logger, LogLevel, Minutes, MockCrypto, Seconds, Time } from "#general";
+import { NetworkClient, ServerNode } from "#index.js";
+import { ClientSubscription, PeerUnreachableError, SustainedSubscription } from "#protocol";
+import { MockServerNode } from "./mock-server-node.js";
 import { MockSite } from "./mock-site.js";
 import { subscribedPeer } from "./node-helpers.js";
 
@@ -59,7 +60,7 @@ describe("ClientConnectivityTest", () => {
 
         // Toggle should now complete
         await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle(undefined, { connectionTimeout: Minutes(5) }));
-    }).timeout(1e9);
+    });
 
     it("resubscribes on timeout", async () => {
         // *** SETUP ***
@@ -119,7 +120,86 @@ describe("ClientConnectivityTest", () => {
 
         expect(ep1.stateOf(OnOffClient).onOff).true;
     });
+
+    it("shuts down without errors whilst establishing exchange", async () => {
+        await using site = new MockSite();
+        let { controller, device } = await site.addCommissionedPair();
+        await subscribedPeer(controller, "peer1");
+
+        await MockTime.resolve(controller.stop());
+        await MockTime.resolve(device.stop());
+
+        // Need entropy to initiate session establishment
+        (controller.env.get(Crypto) as MockCrypto).entropic = true;
+
+        await controller.start();
+        await MockTime.advance(Minutes(30));
+
+        let errorsLogged = 0;
+        try {
+            Logger.destinations.capture = LogDestination({
+                add(message) {
+                    if (message.level >= LogLevel.ERROR) {
+                        errorsLogged++;
+                    }
+                },
+            });
+
+            await site[Symbol.asyncDispose]();
+        } finally {
+            delete Logger.destinations.capture;
+        }
+
+        expect(errorsLogged).equals(0);
+    });
+
+    it("subscribes to a peer that is not initially available (start/stop)", async () => {
+        await testEventualSubscription(async ({ controller, device }) => {
+            await controller.stop();
+            await device.stop();
+            return { controller, device };
+        });
+    });
+
+    it("subscribes to a peer that is not initially available (recreate)", async () => {
+        await testEventualSubscription(async ({ site, controller, device }) => {
+            await controller.close();
+            await device.close();
+
+            controller = await site.addController({ index: 1 });
+            (controller.env.get(Crypto) as MockCrypto).entropic = true;
+
+            device = await site.addDevice({ index: 2, online: false });
+
+            return { controller, device };
+        });
+    });
 });
+
+async function testEventualSubscription(
+    restart: (inputs: {
+        site: MockSite;
+        controller: ServerNode<MockServerNode.RootEndpoint>;
+        device: ServerNode<MockServerNode.RootEndpoint>;
+    }) => Promise<{
+        controller: ServerNode<MockServerNode.RootEndpoint>;
+        device: ServerNode<MockServerNode.RootEndpoint>;
+    }>,
+) {
+    await using site = new MockSite();
+    let { controller, device } = await site.addCommissionedPair();
+    await subscribedPeer(controller, "peer1");
+
+    ({ controller, device } = await MockTime.resolve(restart({ site, controller, device })));
+
+    await controller.start();
+    await MockTime.resolve(Time.sleep("delaying before device start", Minutes(5)));
+
+    expect(device.lifecycle.isOnline).false;
+    await device.start();
+
+    await subscribedPeer(controller, "peer1");
+}
 
 async function expectUnreachable(promise: Promise<any>) {
     try {

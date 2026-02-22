@@ -19,9 +19,11 @@ import {
     ClientWrite,
     DecodedInvokeResult,
     Interactable,
+    OperationalAddressChangedError,
     PeerSet,
     PhysicalDeviceProperties,
     ReadResult,
+    ShutdownError,
     Val,
     WriteResult,
 } from "#protocol";
@@ -43,14 +45,15 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
     constructor(node: ClientNode) {
         this.#node = node;
 
-        const closeInteraction = this.#closeInteraction.bind(this);
-        this.#observers.on(this.#node.events.commissioning.peerAddress$Changed, closeInteraction);
-        this.#observers.on(this.#node.owner?.lifecycle.goingOffline, closeInteraction);
+        this.#observers.on(this.#node.events.commissioning.peerAddress$Changed, () =>
+            this.#closeInteraction(new OperationalAddressChangedError()),
+        );
+        this.#observers.on(this.#node.owner?.lifecycle.goingOffline, () => this.#closeInteraction(new ShutdownError()));
     }
 
     async close() {
         this.#observers.close();
-        this.#closeInteraction();
+        this.#closeInteraction(new ShutdownError());
         await this.#interactableClosed;
     }
 
@@ -177,12 +180,12 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
     /**
      * Close currently open interaction.
      */
-    #closeInteraction() {
+    #closeInteraction(reason?: Error) {
         if (!this.#interactable) {
             return;
         }
 
-        const closed = this.#interactable.close().catch(e => {
+        const closed = this.#interactable.close(reason).catch(e => {
             logger.error(`Unhandled error closing client interaction`, e);
         });
 

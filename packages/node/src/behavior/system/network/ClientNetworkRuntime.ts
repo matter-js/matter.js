@@ -6,7 +6,7 @@
 
 import { InternalError, MatterError, ObserverGroup } from "#general";
 import type { ClientNode } from "#node/ClientNode.js";
-import { ExchangeProvider, Peer, PeerAddress, PeerSet, SessionManager } from "#protocol";
+import { ExchangeProvider, Peer, PeerAddress, PeerSet } from "#protocol";
 import { CommissioningClient } from "../commissioning/CommissioningClient.js";
 import { NetworkRuntime } from "./NetworkRuntime.js";
 
@@ -65,9 +65,7 @@ export class ClientNetworkRuntime extends NetworkRuntime {
         // Monitor sessions to maintain online state.  We consider the node "online" if there is an active session.  If
         // not, we consider the node offline.  This is the only real way we have of determining whether the node is
         // healthy without actively polling
-        const { sessions } = env.get(SessionManager);
-
-        if (sessions.find(session => session.peerIs(address))) {
+        if (peer.sessions.size) {
             this.owner.act(({ context }) => lifecycle.online.emit(context));
         }
 

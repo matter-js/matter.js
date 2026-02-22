@@ -77,7 +77,11 @@ export class MockSite {
             await node.add(config.device);
         }
 
-        await node.start();
+        if (options?.online !== false) {
+            await node.start();
+        } else {
+            await node.construction;
+        }
 
         node.lifecycle.destroyed.once(() => {
             this.#nodes.delete(node);
@@ -105,13 +109,17 @@ export class MockSite {
         });
     }
 
+    async addDevice(options?: MockServerNode.Options<MockServerNode.RootEndpoint>) {
+        return await this.addNode(undefined, {
+            device: OnOffLightDevice,
+            ...options,
+        });
+    }
+
     async addUncommissionedPair(options?: MockSite.PairOptions) {
         options ??= {};
         const controller = await this.addController(options.controller);
-        const device = await this.addNode(undefined, {
-            device: OnOffLightDevice,
-            ...options.device,
-        });
+        const device = await this.addDevice(options.device);
 
         return { controller, device };
     }
@@ -122,7 +130,7 @@ export class MockSite {
         const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
         const deviceCrypto = device.env.get(Crypto) as MockCrypto;
 
-        // We end up with session collisions when pairing so enable entropy by default
+        // We end up with session collisions without entropy so enable during pairing
         controllerCrypto.entropic = deviceCrypto.entropic = true;
 
         const { passcode, discriminator } = device.state.commissioning;
@@ -130,9 +138,7 @@ export class MockSite {
             macrotasks: true,
         });
 
-        // Commissioning triggers an auto-subscription whose messages may still be in flight; drain them so tests
-        // start with a quiescent network
-        await MockTime.macrotasks;
+        controllerCrypto.entropic = deviceCrypto.entropic = false;
 
         return { controller, device };
     }

@@ -347,7 +347,11 @@ export class AbortedError extends CanceledError {
 /**
  * Thrown when an operation can't complete because a resource is closed.
  */
-export class ClosedError extends CanceledError {}
+export class ClosedError extends CanceledError {
+    constructor(message = "Component closed", options?: ErrorOptions) {
+        super(message, options);
+    }
+}
 
 /**
  * Node.js-style object inspection.

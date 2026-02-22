@@ -240,6 +240,8 @@ export class CommissioningClient extends Behavior {
         // Nodes we commission are auto-subscribed by default, unless disabled explicitly
         network.state.autoSubscribe = opts.autoSubscribe !== false;
 
+        network.internal.isNewlyCommissioned = true;
+
         await this.context.transaction.commit();
 
         logger.notice(
