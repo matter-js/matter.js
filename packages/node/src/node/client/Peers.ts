@@ -104,16 +104,16 @@ export class Peers extends EndpointContainer<ClientNode> {
 
     async #nodeOnline() {
         // TODO start all peers on node startup in a non blocking way respecting queuing for thread and such
-        /*for (const peer of this) {
+        for (const peer of this) {
             await peer.start();
-        }*/
+        }
         this.#manageExpiration();
     }
 
     async #nodeOffline() {
         this.#cancelExpiration();
         for (const peer of this) {
-            await peer.cancel();
+            await peer.stop();
         }
     }
 

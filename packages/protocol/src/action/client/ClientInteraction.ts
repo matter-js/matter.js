@@ -22,6 +22,7 @@ import {
     AbortedError,
     AsyncIterator,
     BasicSet,
+    ClosedError,
     createPromise,
     Diagnostic,
     Duration,
@@ -143,19 +144,23 @@ export class ClientInteraction<
         });
     }
 
-    async close() {
+    async close(reason?: Error) {
+        if (reason === undefined) {
+            reason = new ClosedError("Interaction component closed");
+        }
+
         using _closing = this.#lifetime.closing();
 
         // Close batching
         this.#batchTimer?.stop();
         for (const [, pending] of this.#pendingCommands) {
             pending.cleanup?.();
-            pending.reject(new ImplementationError("ClientInteraction closed"));
+            pending.reject(reason);
         }
         this.#pendingCommands.clear();
         await this.#batchMutex.close();
 
-        this.#abort();
+        this.#abort(reason);
 
         while (this.#interactions.size) {
             await this.#interactions.deleted;
@@ -700,7 +705,7 @@ export class ClientInteraction<
 
         const peer = this.#exchangeProvider.peerAddress;
         if (peer === undefined) {
-            throw new ImplementationError("Subscription unavailable because not interacting with a commissioned peer");
+            throw new ImplementationError("Subscription unavailable because peer is uncommissioned");
         }
 
         if (!request.keepSubscriptions) {
@@ -787,6 +792,12 @@ export class ClientInteraction<
             return subscription;
         };
 
+        const read = (request: Read, extraAbort?: AbortSignal) => {
+            const abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort] });
+
+            return this.read(request, { ...session, abort } as unknown as SessionT);
+        };
+
         let subscription: ClientSubscription;
         if (request.sustain) {
             subscription = new SustainedSubscription({
@@ -797,6 +808,7 @@ export class ClientInteraction<
                 request,
                 abort: session?.abort,
                 retries: this.#sustainRetries,
+                read,
             });
 
             // For sustained subscriptions, the connection process should not time out; it should only stop on abort
@@ -908,6 +920,7 @@ export class ClientInteraction<
                 using _closing = lifetime.closing();
                 await messenger.close();
                 this.#interactions.delete(request);
+                abort[Symbol.dispose]();
             },
         };
 

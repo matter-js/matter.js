@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Read } from "#action/request/Read.js";
 import { Subscribe } from "#action/request/Subscribe.js";
+import { ReadResult } from "#action/response/ReadResult.js";
 import type { ActiveSubscription } from "#action/response/SubscribeResult.js";
 import {
     AbortedError,
-    asError,
     AsyncObservableValue,
     causedBy,
-    Diagnostic,
     Duration,
     Hours,
     ImplementationError,
@@ -42,18 +42,20 @@ export class SustainedSubscription extends ClientSubscription {
     #request: ClientSubscribe;
     #subscription?: ActiveSubscription;
     #retries: RetrySchedule;
-    #subscribe: (request: Subscribe, abort?: AbortSignal) => Promise<PeerSubscription>;
+    #subscribe: (request: Subscribe, abort: AbortSignal) => Promise<PeerSubscription>;
+    #read: (request: Read, abort: AbortSignal) => ReadResult;
     #active = AsyncObservableValue(false);
     #inactive = AsyncObservableValue(true);
 
     constructor(config: SustainedSubscription.Configuration) {
         super(config);
 
-        const { request, retries, subscribe } = config;
+        const { request, read, retries, subscribe } = config;
 
         this.#request = request;
         this.#retries = retries;
         this.#subscribe = subscribe;
+        this.#read = read;
         this.done = this.#run();
     }
 
@@ -74,6 +76,8 @@ export class SustainedSubscription extends ClientSubscription {
     async #run() {
         const updated = this.#request.updated?.bind(this.#request);
 
+        let { bootstrapWithRead } = this.#request;
+
         while (true) {
             // Create a request and promise that will inform us when the underlying subscription closes
             const request = { ...this.#request, updated };
@@ -91,6 +95,15 @@ export class SustainedSubscription extends ClientSubscription {
             // Subscribe
             for (const retry of this.#retries) {
                 try {
+                    if (bootstrapWithRead) {
+                        const response = this.#read(request, this.abort);
+                        if (request.updated) {
+                            await request.updated(response);
+                        } else {
+                            for await (const _chunk of response);
+                        }
+                        bootstrapWithRead = false;
+                    }
                     this.#subscription = await this.#subscribe(request, this.abort);
                     this.subscriptionId = this.#subscription.subscriptionId;
                     break;
@@ -98,7 +111,7 @@ export class SustainedSubscription extends ClientSubscription {
                     if (!causedBy(e, AbortedError) || !this.abort.aborted) {
                         logger.error(
                             `Failed to establish subscription to ${this.peer}, retry in ${Duration.format(retry)}:`,
-                            Diagnostic.errorMessage(asError(e)),
+                            e /*Diagnostic.errorMessage(asError(e))*/,
                         );
                     }
 
@@ -157,9 +170,14 @@ export namespace SustainedSubscription {
      */
     export interface Configuration extends ClientSubscription.Configuration {
         /**
-         * Function to establish underlying subscription.
+         * Establishes underlying subscription.
          */
-        subscribe: (request: Subscribe, abort?: AbortSignal) => Promise<PeerSubscription>;
+        subscribe: (request: Subscribe, abort: AbortSignal) => Promise<PeerSubscription>;
+
+        /**
+         * Performs bootstrap read.
+         */
+        read: (request: Read, abort: AbortSignal) => ReadResult;
 
         /**
          * The schedule we use for retrying subscription connections.

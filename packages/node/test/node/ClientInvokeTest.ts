@@ -212,8 +212,6 @@ describe("ClientInvoke", () => {
         const peer1 = controller.peers.get("peer1")!;
         expect(peer1).not.undefined;
 
-        const interaction = peer1.env.get(ClientInteraction);
-
         // Create a timed invoke request for a non-root endpoint command
         const request = Invoke({
             commands: [
@@ -229,7 +227,7 @@ describe("ClientInvoke", () => {
         // Timed commands bypass batching and execute directly via #invokeSingle
         await MockTime.resolve(
             (async () => {
-                for await (const _chunk of interaction.invoke(request)) {
+                for await (const _chunk of peer1.interaction.invoke(request)) {
                     // consume
                 }
             })(),

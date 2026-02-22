@@ -175,9 +175,16 @@ export abstract class Node<T extends Node.CommonRootEndpoint = Node.CommonRootEn
      *
      * Once the node is offline you may use {@link start} to bring the node online again.
      */
-    async cancel() {
+    async stop() {
         this.lifecycle.targetState = "offline";
         await this.lifecycle.mutex.produce(this.cancelWithMutex.bind(this));
+    }
+
+    /**
+     * @deprecated use {@link stop}
+     */
+    cancel() {
+        return this.stop();
     }
 
     /**
