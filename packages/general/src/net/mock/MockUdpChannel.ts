@@ -23,9 +23,12 @@ export class MockUdpChannel implements UdpChannel {
     constructor(
         network: MockNetwork,
         { listeningAddress, listeningPort, netInterface, type }: UdpChannelOptions,
-        packetManipulator?: MockRouter.PacketManipulator,
+        interceptor?: MockRouter.Interceptor,
     ) {
-        this.#router = MockRouter(packetManipulator);
+        this.#router = MockRouter();
+        if (interceptor) {
+            this.#router.intercept(interceptor);
+        }
         const { ipV4, ipV6 } = network.getIpMac(netInterface ?? "fake0");
         let addresses = type === "udp4" ? ipV4 : ipV6;
 
