@@ -841,7 +841,7 @@ export class InteractionServerMessenger extends InteractionMessenger {
 }
 
 export class IncomingInteractionClientMessenger extends InteractionMessenger {
-    async waitFor(expectedMessageInfo: string, messageType: number, options?: ExchangeSendOptions) {
+    async waitFor(expectedMessageInfo: string, messageType: number, options?: ExchangeReceiveOptions) {
         const message = await this.anyNextMessage(expectedMessageInfo, options);
         const {
             payloadHeader: { messageType: receivedMessageType },
@@ -865,7 +865,7 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
      *
      * Data reports payloads are decoded but list attributes may be split across messages; these will require reassembly.
      */
-    async *readDataReports(options?: ExchangeSendOptions) {
+    async *readDataReports(options?: ExchangeReceiveOptions) {
         while (true) {
             const dataReportMessage = await this.waitFor("DataReport", MessageType.ReportData, options);
             const report = TlvDataReport.decode(dataReportMessage.payload);
