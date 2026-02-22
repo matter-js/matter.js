@@ -4,8 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { OnOffClient } from "#behaviors/on-off";
-import { causedBy, Crypto, LogDestination, Logger, LogLevel, Minutes, MockCrypto, Seconds, Time } from "#general";
+import {
+    causedBy,
+    Crypto,
+    LogDestination,
+    Logger,
+    LogLevel,
+    Minutes,
+    MockCrypto,
+    MockNetwork,
+    Network,
+    Seconds,
+    Time,
+} from "#general";
 import { NetworkClient, ServerNode } from "#index.js";
 import { ClientSubscription, PeerUnreachableError, SustainedSubscription } from "#protocol";
 import { MockServerNode } from "./mock-server-node.js";
@@ -60,6 +73,50 @@ describe("ClientConnectivityTest", () => {
 
         // Toggle should now complete
         await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle(undefined, { connectionTimeout: Minutes(5) }));
+    });
+
+    it("connects to second address after delay when first is unreachable", async () => {
+        // *** SETUP ***
+
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer1 = controller.peers.get("peer1")!;
+        const ep1 = peer1.parts.get("ep1")!;
+        await MockTime.resolve(device.cancel());
+
+        // *** FIRST ATTEMPT FAILS (device offline) ***
+
+        (ep1.env.get(Crypto) as MockCrypto).entropic = true;
+
+        await expectUnreachable(ep1.commandsOf(OnOffClient).toggle());
+
+        // *** BLOCK DEVICE IPv6 ADDRESS ***
+
+        // Install interceptor to drop packets to device's IPv6 address (higher priority than IPv4).
+        // MDNS multicast discovery still works since it uses multicast addresses, not unicast.
+        const deviceNetwork = device.env.get(Network) as MockNetwork;
+        deviceNetwork.simulator.router.intercept((packet, route) => {
+            if (packet.destAddress === "abcd::2") {
+                return;
+            }
+            route(packet);
+        });
+
+        // *** RECONNECT VIA SECOND ADDRESS ***
+
+        await MockTime.resolve(Time.sleep("waiting to start device", Seconds(5)));
+        await MockTime.resolve(device.start());
+
+        // PeerConnection discovers both addresses via MDNS, tries IPv6 first (blocked by interceptor),
+        // waits delayBeforeNextAddress (60s), then tries IPv4 (10.10.10.2) which succeeds
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle(undefined, { connectionTimeout: Minutes(5) }));
+
+        // Verify the connection used the IPv4 address
+        const addresses = peer1.stateOf(CommissioningClient).addresses;
+        expect(addresses).not.undefined;
+        expect(addresses).length(1);
+        expect(addresses![0].type).equals("udp");
+        expect((addresses![0] as { ip: string }).ip).equals("10.10.10.2");
     });
 
     it("resubscribes on timeout", async () => {
