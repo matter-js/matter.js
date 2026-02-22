@@ -204,6 +204,101 @@ describe("ClientConnectivityTest", () => {
         expect(addresses![0].type).equals("udp");
     });
 
+    it("reconnects after device address change with expired records", async () => {
+        // *** SETUP ***
+
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer1 = controller.peers.get("peer1")!;
+        const ep1 = peer1.parts.get("ep1")!;
+
+        // *** DEVICE GOES OFFLINE ***
+
+        await MockTime.resolve(device.cancel());
+
+        (ep1.env.get(Crypto) as MockCrypto).entropic = true;
+
+        await expectUnreachable(ep1.commandsOf(OnOffClient).toggle());
+
+        // *** EXPIRE MDNS RECORDS ***
+
+        // Advance time past MDNS TTL (default 120s) so all records fully expire
+        await MockTime.resolve(Time.sleep("waiting for MDNS records to expire", Minutes(3)));
+
+        // *** CHANGE DEVICE ADDRESSES ***
+
+        const deviceNetwork = device.env.get(Network) as MockNetwork;
+        deviceNetwork.deleteAddr("abcd::2", "10.10.10.2");
+        deviceNetwork.addAddr("abcd::3", "10.10.10.3");
+
+        // *** RECONNECT AT NEW ADDRESSES ***
+
+        await MockTime.resolve(device.start());
+
+        // PeerConnection initially falls back to old operational address (fails because
+        // device no longer responds there), discovers new addresses via MDNS, connects
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle(undefined, { connectionTimeout: Forever }));
+
+        // Verify connection used a new address
+        const addresses = peer1.stateOf(CommissioningClient).addresses;
+        expect(addresses).not.undefined;
+        expect(addresses).length(1);
+        expect(addresses![0].type).equals("udp");
+        const ip = (addresses![0] as { ip: string }).ip;
+        expect(ip === "abcd::3" || ip === "10.10.10.3").true;
+    });
+
+    it("reconnects after device address change with stale MDNS records", async () => {
+        // *** SETUP ***
+
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer1 = controller.peers.get("peer1")!;
+        const ep1 = peer1.parts.get("ep1")!;
+
+        // *** BLOCK MDNS AND TAKE DEVICE OFFLINE ***
+
+        // Block MDNS to prevent goodbye messages from reaching controller
+        const deviceNetwork = device.env.get(Network) as MockNetwork;
+        let blockMdns = true;
+        deviceNetwork.simulator.router.intercept((packet, route) => {
+            if (blockMdns && packet.destPort === 5353) {
+                return;
+            }
+            route(packet);
+        });
+
+        // Cancel device — goodbyes blocked, so controller retains stale MDNS records
+        await MockTime.resolve(device.cancel());
+
+        (ep1.env.get(Crypto) as MockCrypto).entropic = true;
+
+        await expectUnreachable(ep1.commandsOf(OnOffClient).toggle());
+
+        // *** UNBLOCK MDNS AND CHANGE ADDRESSES ***
+
+        blockMdns = false;
+
+        deviceNetwork.deleteAddr("abcd::2", "10.10.10.2");
+        deviceNetwork.addAddr("abcd::3", "10.10.10.3");
+
+        // *** RECONNECT AT NEW ADDRESSES ***
+
+        await MockTime.resolve(device.start());
+
+        // Controller has stale records (old IPs) AND discovers new records (new IPs).
+        // PeerConnection may try old addresses (fail) and new addresses (succeed).
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle(undefined, { connectionTimeout: Forever }));
+
+        // Verify connection used a new address
+        const addresses = peer1.stateOf(CommissioningClient).addresses;
+        expect(addresses).not.undefined;
+        expect(addresses).length(1);
+        expect(addresses![0].type).equals("udp");
+        const ip = (addresses![0] as { ip: string }).ip;
+        expect(ip === "abcd::3" || ip === "10.10.10.3").true;
+    });
+
     it("resubscribes on timeout", async () => {
         // *** SETUP ***
 
