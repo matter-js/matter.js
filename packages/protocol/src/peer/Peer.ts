@@ -19,6 +19,7 @@ import {
     DnssdNames,
     Duration,
     Identity,
+    Instant,
     IpService,
     isIpNetworkChannel,
     Lifetime,
@@ -257,8 +258,10 @@ export class Peer {
             let timeout: Duration | undefined =
                 options?.connectionTimeout ??
                 (options?.abort ? undefined : this.#context.timing.defaultConnectionTimeout);
-            if (timeout === undefined || timeout <= 0 || timeout === Infinity) {
+            if (timeout === undefined || timeout === Infinity) {
                 timeout = undefined;
+            } else if (timeout <= 0) {
+                timeout = Instant;
             } else if (!options?.kick) {
                 timeout = Millis(timeout - this.timeOffline);
             }
