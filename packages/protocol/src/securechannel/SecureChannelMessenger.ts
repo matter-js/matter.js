@@ -4,23 +4,33 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic, Duration, Seconds, UnexpectedDataError } from "#general";
+import { Bytes, DataReader, Diagnostic, Duration, Endian, Millis, Seconds, UnexpectedDataError } from "#general";
 import { TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
-import { GeneralStatusCode, SecureChannelStatusCode, SecureMessageType, TlvSchema } from "#types";
+import { GeneralStatusCode, SecureChannelStatusCode, SecureMessageType, TlvSchema, VendorId } from "#types";
 import { Message } from "../codec/MessageCodec.js";
 import { ExchangeSendOptions, MessageExchange } from "../protocol/MessageExchange.js";
 import { SecureChannelStatusMessage } from "./SecureChannelStatusMessageSchema.js";
 
 /** Error base Class for all errors related to the status response messages. */
 export class ChannelStatusResponseError extends TransientPeerCommunicationError {
+    public busyDelay?: Duration;
     public constructor(
         message: string,
         public readonly generalStatusCode: GeneralStatusCode,
         public readonly protocolStatusCode: SecureChannelStatusCode,
+        public readonly vendorId?: VendorId,
+        public readonly protocolData?: Bytes,
     ) {
         super(
             `(${GeneralStatusCode[generalStatusCode]} (${generalStatusCode}) / ${SecureChannelStatusCode[protocolStatusCode]} (${protocolStatusCode})) ${message}`,
         );
+        if (
+            generalStatusCode === GeneralStatusCode.Busy &&
+            protocolStatusCode === SecureChannelStatusCode.Busy &&
+            protocolData?.byteLength === 2
+        ) {
+            this.busyDelay = Millis(new DataReader(protocolData, Endian.Little).readUInt16());
+        }
     }
 }
 
@@ -53,7 +63,12 @@ export class SecureChannelMessenger {
      *
      * {@link expectedProcessingTime} defaults to {@link EXPECTED_CRYPTO_PROCESSING_TIME}.
      */
-    async nextMessage({ type, expectedProcessingTime, description, abort }: SecureChannelMessenger.ReadOptions = {}) {
+    async nextMessage({
+        type,
+        expectedProcessingTime = this.#defaultExpectedProcessingTime,
+        description,
+        abort,
+    }: SecureChannelMessenger.ReadOptions = {}) {
         const message = await this.exchange.nextMessage({ expectedProcessingTime, abort });
         const messageType = message.payloadHeader.messageType;
         if (type !== undefined && description === undefined) {
@@ -157,12 +172,15 @@ export class SecureChannelMessenger {
         } = message;
         if (messageType !== SecureMessageType.StatusReport) return;
 
-        const { generalStatus, protocolId, protocolStatus } = SecureChannelStatusMessage.decode(payload);
+        const { generalStatus, protocolId, protocolStatus, vendorId, protocolData } =
+            SecureChannelStatusMessage.decode(payload);
         if (generalStatus !== GeneralStatusCode.Success) {
             throw new ChannelStatusResponseError(
                 `Received general error status for protocol ${protocolId}${logHint ? ` (${logHint})` : ""}`,
                 generalStatus,
                 protocolStatus,
+                vendorId,
+                protocolData,
             );
         }
         if (protocolStatus !== SecureChannelStatusCode.Success) {
