@@ -7,43 +7,35 @@
 import { ChannelType } from "#net/Channel.js";
 import { Time } from "#time/Time.js";
 import { Bytes } from "#util/Bytes.js";
-import { NetworkError } from "../Network.js";
-import { MAX_UDP_MESSAGE_SIZE, UdpChannel, UdpChannelOptions } from "../udp/UdpChannel.js";
+import { isIPv4, isIPv6 } from "#util/Ip.js";
+import { MAX_UDP_MESSAGE_SIZE, UdpChannel, UdpChannelOptions, UdpSocketType } from "../udp/UdpChannel.js";
 import type { MockNetwork } from "./MockNetwork.js";
 import { MockRouter } from "./MockRouter.js";
 
 export class MockUdpChannel implements UdpChannel {
     readonly #host: MockNetwork;
     readonly #router: MockRouter;
-    readonly #sendFrom: string;
-    readonly #receiveFrom: Set<string>;
+    readonly #listeningIp?: string;
     readonly #listeningPort: number;
+    readonly #type: UdpSocketType;
     readonly maxPayloadSize = MAX_UDP_MESSAGE_SIZE;
 
     constructor(
         network: MockNetwork,
-        { listeningAddress, listeningPort, netInterface, type }: UdpChannelOptions,
+        { listeningAddress, listeningPort, type }: UdpChannelOptions,
         interceptor?: MockRouter.Interceptor,
     ) {
         this.#router = MockRouter();
         if (interceptor) {
             this.#router.intercept(interceptor);
         }
-        const { ipV4, ipV6 } = network.getIpMac(netInterface ?? "fake0");
-        let addresses = type === "udp4" ? ipV4 : ipV6;
 
-        this.#sendFrom = addresses[0];
-
-        if (listeningAddress !== undefined && listeningAddress !== "*") {
-            addresses = addresses.filter(addr => addr === listeningAddress);
+        if (listeningAddress !== "*") {
+            this.#listeningIp = listeningAddress;
         }
-
-        if (!addresses.length) {
-            throw new NetworkError(`No ${type} IP matches ${listeningAddress ?? "*"} on the specified interface`);
-        }
+        this.#type = type;
 
         this.#host = network;
-        this.#receiveFrom = new Set(addresses);
         this.#listeningPort = listeningPort ?? 1024 + Math.floor(Math.random() * 64511); // Random port 1024-65535
 
         network.router.add(this.#router);
@@ -54,8 +46,28 @@ export class MockUdpChannel implements UdpChannel {
             if (packet.kind !== "udp") {
                 return;
             }
-            if (!this.#receiveFrom.has(packet.destAddress)) {
+            if (!this.#host.shouldReceive(packet.destAddress)) {
                 return;
+            }
+            if (
+                this.#listeningIp &&
+                packet.destAddress !== this.#listeningIp &&
+                !this.#host.isMemberOf(packet.destAddress)
+            ) {
+                return;
+            }
+            switch (this.#type) {
+                case "udp4":
+                    if (!isIPv4(packet.destAddress)) {
+                        return;
+                    }
+                    break;
+
+                case "udp6":
+                    if (!isIPv6(packet.destAddress)) {
+                        return;
+                    }
+                    break;
             }
             if (packet.destPort !== this.#listeningPort) {
                 return;
@@ -77,7 +89,7 @@ export class MockUdpChannel implements UdpChannel {
 
         this.#host.simulator.router({
             kind: "udp",
-            sourceAddress: this.#sendFrom,
+            sourceAddress: this.#host.defaultRoute,
             sourcePort: this.#listeningPort,
             destAddress: host,
             destPort: port,
@@ -102,10 +114,10 @@ export class MockUdpChannel implements UdpChannel {
     }
 
     addMembership(address: string): void {
-        this.#receiveFrom.add(address);
+        this.#host.addMembership(address);
     }
 
     dropMembership(address: string): void {
-        this.#receiveFrom.delete(address);
+        this.#host.dropMembership(address);
     }
 }
