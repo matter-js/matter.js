@@ -78,6 +78,12 @@ export class Abort
                     continue;
                 }
 
+                // If the dependency is already aborted, propagate immediately
+                if (dependency.aborted) {
+                    this.abort(asError(dependency.reason));
+                    continue;
+                }
+
                 const listener = () => this.abort(asError(dependency.reason));
                 dependency.addEventListener("abort", listener);
                 const unregisterPrev = this.#unregisterDependencies;
@@ -103,9 +109,14 @@ export class Abort
             }
 
             if (timeout <= 0) {
-                timeoutHandler.call(this);
+                // Defer to the next microtask so any already-pending promise has a chance to resolve
+                Promise.resolve().then(() => {
+                    if (!this.aborted) {
+                        timeoutHandler!.call(this);
+                    }
+                });
             } else {
-                this.#timeout = Time.getPeriodicTimer("subtask timeout", timeout, () => {
+                this.#timeout = Time.getTimer("subtask timeout", timeout, () => {
                     if (this.aborted) {
                         return;
                     }
