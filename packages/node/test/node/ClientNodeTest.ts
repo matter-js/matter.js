@@ -372,8 +372,7 @@ describe("ClientNode", () => {
 
         // *** INVOCATION ***
 
-        // Need smaller stepMs (time resolution) here to complete task within timeout
-        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle(), { stepMs: 250 });
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle());
 
         await MockTime.resolve(ep1.commandsOf(OnOffClient).offWithEffect({ effectIdentifier: 0, effectVariant: 0 }));
     });
