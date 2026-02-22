@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Environment, Environmental, MatterError, Millis, Semaphore } from "#general";
+import { Duration, Environment, Environmental, MatterError, Millis, Seconds, Semaphore } from "#general";
 import { Peer } from "./Peer.js";
 
 /**
@@ -12,15 +12,7 @@ import { Peer } from "./Peer.js";
  */
 export class UnknownNetworkProfileError extends MatterError {}
 
-/**
- * A single logical Matter networking segment.
- *
- * A "network profile" is a logical grouping of nodes that share rate limits.  By default matter.js selects a network
- * based on medium, falling back to {@link NetworkProfiles.conservative} if the medium is unknown.
- *
- * TODO - record latency and packet loss to support dynamic rate limits
- */
-export interface NetworkProfile {
+export interface ConcreteNetworkProfile {
     /**
      * The ID of the NetworkProfile used to register with {@link NetworkProfiles}.
      */
@@ -30,11 +22,21 @@ export interface NetworkProfile {
      * A {@link Semaphore} that limits communications for this particular profile.
      */
     semaphore: Semaphore;
+}
 
+/**
+ * A single logical Matter networking segment.
+ *
+ * A "network profile" is a logical grouping of nodes that share rate limits.  By default matter.js selects a network
+ * based on medium, falling back to {@link NetworkProfiles.conservative} if the medium is unknown.
+ *
+ * TODO - record latency and packet loss to support dynamic rate limits
+ */
+export interface NetworkProfile extends ConcreteNetworkProfile {
     /**
      * An additional profile that applies only to the establishment of new CASE sessions.
      */
-    connect?: NetworkProfile;
+    connect?: ConcreteNetworkProfile;
 }
 
 /**
@@ -87,7 +89,7 @@ export class NetworkProfiles {
     configure(id: string, limits: NetworkProfiles.Limits) {
         const network: NetworkProfile = {
             id,
-            semaphore: new Semaphore(`network semaphore ${id}`, limits.exchanges, limits.delay),
+            semaphore: new Semaphore(`network semaphore ${id}`, limits.exchanges, limits.delay, limits.timeout),
         };
         if (limits.connect) {
             network.connect = this.configure(`${id}:connect`, { ...limits, ...limits.connect, connect: undefined });
@@ -125,10 +127,7 @@ export class NetworkProfiles {
 export namespace NetworkProfiles {
     export interface Options extends Partial<Templates> {}
 
-    /**
-     * Parameters that control exchange throttling for a specific medium.
-     */
-    export interface Limits {
+    export interface ConcreteLimits {
         /**
          * Maximum number of concurrent exchanges.
          */
@@ -140,11 +139,21 @@ export namespace NetworkProfiles {
         delay?: Duration;
 
         /**
+         * Maximum timeout for one exchange before trying the next in any case.
+         */
+        timeout?: Duration;
+    }
+
+    /**
+     * Parameters that control exchange throttling for a specific medium.
+     */
+    export interface Limits extends ConcreteLimits {
+        /**
          * Overrides specifically for establishing new sessions.
          *
          * If present, any values here act as limits specifically for CASE session establishment.
          */
-        connect?: Partial<Limits>;
+        connect?: Partial<ConcreteLimits>;
     }
 
     /**
@@ -187,8 +196,9 @@ export namespace NetworkProfiles {
         delay: Millis(100),
 
         connect: {
-            exchanges: 10,
-            delay: Millis(50),
+            exchanges: 4,
+            delay: Millis(100),
+            timeout: Seconds(10), // Release slot for connections after 15s latest
         },
     };
 
