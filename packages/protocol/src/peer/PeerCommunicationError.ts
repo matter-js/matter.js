@@ -32,7 +32,9 @@ export class PeerUnreachableError extends TransientPeerCommunicationError {
  */
 export class PeerUnresponsiveError extends TransientPeerCommunicationError {
     constructor(timeWaited: Duration) {
-        super(`Peer is no longer responding to active session (timed out after ${Duration.format(timeWaited)})`);
+        super(
+            `Peer is no longer responding to active session${timeWaited > 0 ? ` (timed out after ${Duration.format(timeWaited)})` : ""}`,
+        );
     }
 }
 
