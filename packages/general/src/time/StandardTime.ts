@@ -33,14 +33,14 @@ export class StandardTime extends Time {
         macrotask = () => new Promise<void>(resolve => setImmediate(resolve));
     } else if (typeof MessageChannel !== "undefined") {
         // Modern browsers
-        const channel = new MessageChannel();
         macrotask = () =>
             new Promise<void>(resolve => {
+                const channel = new MessageChannel();
                 channel.port1.onmessage = () => resolve();
                 channel.port2.postMessage(null);
             });
     } else {
-        // Standard setTimeout but incurs a 1-4ms penalty
+        // Standard setTimeout but incurs a 1-4ms (node) or 4ms (browser) penalty
         macrotask = () => new Promise<void>(resolve => setTimeout(resolve, 0));
     }
     Object.defineProperty(StandardTime.prototype, "macrotask", { get: macrotask });
