@@ -114,8 +114,8 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
         let client: MdnsClient;
         let scanListener: UdpChannel;
         let broadcastListener: UdpChannel;
-        let scannerManipulator: MockRouter.PacketManipulator | undefined;
-        let broadcasterManipulator: MockRouter.PacketManipulator | undefined;
+        let scannerInterceptor: MockRouter.Interceptor | undefined;
+        let broadcasterInterceptor: MockRouter.Interceptor | undefined;
 
         let advertisers = {} as Record<number, MdnsAdvertiser>;
 
@@ -155,13 +155,17 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                     listeningAddress: testIpv4Enabled ? SERVER_IPv4 : SERVER_IPv6,
                     type,
                 },
-                packet => {
-                    return scannerManipulator ? scannerManipulator(packet) : packet;
+                (packet, route) => {
+                    if (scannerInterceptor) {
+                        scannerInterceptor(packet, route);
+                    } else {
+                        route(packet);
+                    }
                 },
             );
             (scanListener as any).foo = "scannerChannel";
             scanListener.addMembership(multicastIp);
-            scannerManipulator = undefined; // Reset
+            scannerInterceptor = undefined; // Reset
 
             // Add an additional listener on the scanner to detect broadcaster announcements
             broadcastListener = new MockUdpChannel(
@@ -171,13 +175,17 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                     listeningAddress: testIpv4Enabled ? CLIENT_IPv4 : CLIENT_IPv6,
                     type,
                 },
-                packet => {
-                    return broadcasterManipulator ? broadcasterManipulator(packet) : packet;
+                (packet, route) => {
+                    if (broadcasterInterceptor) {
+                        broadcasterInterceptor(packet, route);
+                    } else {
+                        route(packet);
+                    }
                 },
             );
             (broadcastListener as any).foo = "broadcasterChannel";
             broadcastListener.addMembership(multicastIp);
-            broadcasterManipulator = undefined; // Reset
+            broadcasterInterceptor = undefined; // Reset
         });
 
         afterEach(async () => {
@@ -1257,7 +1265,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                     sentData.push(data),
                 );
                 let packetManipulated = false;
-                scannerManipulator = (packet: MockRouter.Packet) => {
+                scannerInterceptor = (packet, route) => {
                     const message = DnsCodec.decode(packet.payload);
                     if (message) {
                         // If Authoritative response turn into unauthoritative answer
@@ -1267,7 +1275,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                             packetManipulated = true;
                         }
                     }
-                    return packet;
+                    route(packet);
                 };
 
                 advertise(OPERATIONAL_SERVICE);

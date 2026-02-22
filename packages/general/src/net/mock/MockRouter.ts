@@ -10,21 +10,15 @@ import { Bytes } from "#util/Bytes.js";
 const logger = Logger.get("MockRouter");
 
 export interface MockRouter extends MockRouter.Route {
+    intercept(route: MockRouter.Interceptor): void;
     add(route: MockRouter.Route): void;
     delete(route: MockRouter.Route): void;
 }
 
-export function MockRouter(manipulator?: MockRouter.PacketManipulator): MockRouter {
+export function MockRouter(): MockRouter {
     const routes = new Set<MockRouter.Route>();
 
-    const router = function router(packet: MockRouter.Packet) {
-        if (manipulator) {
-            const manipulatedPacket = manipulator(packet);
-            if (manipulatedPacket === null) {
-                return;
-            }
-            packet = manipulatedPacket;
-        }
+    let route = (packet: MockRouter.Packet) => {
         for (const route of routes) {
             Promise.resolve()
                 .then(() => route(packet))
@@ -32,6 +26,16 @@ export function MockRouter(manipulator?: MockRouter.PacketManipulator): MockRout
         }
     };
 
+    const router = function router(packet: MockRouter.Packet) {
+        route(packet);
+    } as MockRouter;
+
+    router.intercept = intercept => {
+        const next = route;
+        route = packet => {
+            intercept(packet, next);
+        };
+    };
     router.add = routes.add.bind(routes);
     router.delete = routes.delete.bind(routes);
 
@@ -39,6 +43,11 @@ export function MockRouter(manipulator?: MockRouter.PacketManipulator): MockRout
 }
 
 export namespace MockRouter {
+    /**
+     * A mock network packet.
+     *
+     * Currently we only support UDP.
+     */
     export interface Packet {
         kind: "udp";
         sourceAddress: string;
@@ -48,9 +57,22 @@ export namespace MockRouter {
         payload: Bytes;
     }
 
+    /**
+     * A route.
+     *
+     * Takes a packet and does something with it.
+     */
     export interface Route {
         (packet: Packet): void;
     }
 
-    export type PacketManipulator = (packet: Packet) => Packet | null;
+    /**
+     * A route wrapper.
+     *
+     * Takes a packet and a route.  Does something with {@link packet}, optionally passing along to {@link route} to
+     * allow normal routing to proceed.
+     */
+    export interface Interceptor {
+        (packet: Packet, route: Route): void;
+    }
 }
