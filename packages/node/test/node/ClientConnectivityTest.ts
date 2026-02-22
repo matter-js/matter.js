@@ -9,6 +9,7 @@ import { OnOffClient } from "#behaviors/on-off";
 import {
     causedBy,
     Crypto,
+    Forever,
     LogDestination,
     Logger,
     LogLevel,
@@ -117,6 +118,50 @@ describe("ClientConnectivityTest", () => {
         expect(addresses).length(1);
         expect(addresses![0].type).equals("udp");
         expect((addresses![0] as { ip: string }).ip).equals("10.10.10.2");
+    });
+
+    it("connects via last known address when MDNS records expire", async () => {
+        // *** SETUP ***
+
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer1 = controller.peers.get("peer1")!;
+        const ep1 = peer1.parts.get("ep1")!;
+
+        // *** EXPIRE MDNS RECORDS ***
+
+        // Block MDNS while session is still active so records can't be refreshed
+        const deviceNetwork = device.env.get(Network) as MockNetwork;
+        deviceNetwork.simulator.router.intercept((packet, route) => {
+            if (packet.destPort === 5353) {
+                return;
+            }
+            route(packet);
+        });
+
+        // Advance time well past MDNS TTL (default 120s); the active session keeps
+        // working but MDNS records expire since refreshes are blocked
+        await MockTime.resolve(Time.sleep("waiting for records to expire", Minutes(5)));
+
+        // *** DEVICE GOES OFFLINE AND RESTARTS ***
+
+        // Cancel device - goodbye messages are also blocked by the MDNS interceptor
+        await MockTime.resolve(device.cancel());
+
+        (ep1.env.get(Crypto) as MockCrypto).entropic = true;
+
+        await MockTime.resolve(Time.sleep("waiting to start device", Seconds(5)));
+        await MockTime.resolve(device.start());
+
+        // PeerConnection finds no discovered addresses (all expired, MDNS blocked),
+        // falls back to last known operational address
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle(undefined, { connectionTimeout: Forever }));
+
+        // Verify connection succeeded
+        const addresses = peer1.stateOf(CommissioningClient).addresses;
+        expect(addresses).not.undefined;
+        expect(addresses).length(1);
+        expect(addresses![0].type).equals("udp");
     });
 
     it("connects via last known address when MDNS is unavailable", async () => {
