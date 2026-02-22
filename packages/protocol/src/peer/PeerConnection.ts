@@ -33,7 +33,7 @@ import { CaseClient } from "#session/case/CaseClient.js";
 import type { NodeSession } from "#session/NodeSession.js";
 import type { Session } from "#session/Session.js";
 import type { SessionManager } from "#session/SessionManager.js";
-import { SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "#types";
+import { GeneralStatusCode, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "#types";
 import { NetworkProfiles } from "./NetworkProfile.js";
 import type { Peer } from "./Peer.js";
 import { TransientPeerCommunicationError } from "./PeerCommunicationError.js";
@@ -298,6 +298,10 @@ export async function PeerConnection(
         logger.warn(logHeaderFor(address), ...message);
     }
 
+    function info(address: ServerAddressUdp, ...message: unknown[]) {
+        logger.info(logHeaderFor(address), ...message);
+    }
+
     function debug(via: string, address: ServerAddressUdp, ...message: unknown[]) {
         logger.debug(logHeaderFor(address, via), ...message);
     }
@@ -363,7 +367,7 @@ export async function PeerConnection(
         await using exchange = PeerConnection.createExchange(peer, context.exchanges, unsecuredSession);
 
         debug(
-            exchange.via,
+            Diagnostic.via(`${peer.address.toString()}${exchange.via}`),
             address,
             "Connecting",
             Diagnostic.dict({
@@ -417,15 +421,14 @@ export async function PeerConnection(
         using _handling = lifetime.join("handling error");
 
         let delay: undefined | Duration;
-        if (causedBy(e, NetworkError, TransientPeerCommunicationError)) {
-            error(
-                address,
-                `Connection error (retry in ${Duration.format(context.timing.delayAfterNetworkError)}):`,
-                Diagnostic.errorMessage(e),
-            );
-            delay = context.timing.delayAfterNetworkError;
-        } else if (e instanceof ChannelStatusResponseError) {
-            if (
+        if (e instanceof ChannelStatusResponseError) {
+            if (e.generalStatusCode === GeneralStatusCode.Busy && e.busyDelay !== undefined) {
+                delay = Millis(e.busyDelay + Math.round(Math.random() * context.timing.delayAfterNetworkError));
+                info(
+                    address,
+                    `Peer requested to delay and retry the command in earliest ${Duration.format(e.busyDelay)}. Retrying in ${Duration.format(delay)}.`,
+                );
+            } else if (
                 e.protocolStatusCode === SecureChannelStatusCode.NoSharedTrustRoots &&
                 (await context.sessions.deleteResumptionRecord(peer.address))
             ) {
@@ -434,20 +437,15 @@ export async function PeerConnection(
                     "Authorization rejected by peer on session resumption; clearing resumption data and retrying",
                 );
             } else {
-                error(
-                    address,
-                    `Peer error (retry in ${Duration.format(context.timing.delayAfterPeerError)}):`,
-                    Diagnostic.errorMessage(e),
-                );
                 delay = context.timing.delayAfterPeerError;
+                error(address, `Peer error (retry in ${Duration.format(delay)}):`, Diagnostic.errorMessage(e));
             }
+        } else if (causedBy(e, TransientPeerCommunicationError, NetworkError)) {
+            delay = context.timing.delayAfterNetworkError;
+            error(address, `Connection error (retry in ${Duration.format(delay)}):`, Diagnostic.errorMessage(e));
         } else {
-            error(
-                address,
-                `Unhandled connection error (retry in ${Duration.format(context.timing.delayAfterUnhandledError)}):`,
-                e,
-            );
             delay = context.timing.delayAfterUnhandledError;
+            error(address, `Unhandled connection error (retry in ${Duration.format(delay)}):`, e);
         }
 
         if (addressAbort.aborted) {
