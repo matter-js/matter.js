@@ -157,8 +157,6 @@ export class CaseClient {
             const resumeKey = await abort.attempt(crypto.createHkdfKey(sharedSecret, resumeSalt, KDFSR2_KEY_INFO));
             crypto.decrypt(resumeKey, resumeMic, RESUME2_MIC_NONCE);
 
-            await messenger.sendSuccess(abort);
-
             const secureSessionSalt = Bytes.concat(initiatorRandom, resumptionRecord.resumptionId);
             secureSession = await abort.attempt(
                 this.#sessions.createSecureSession({

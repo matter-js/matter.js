@@ -127,7 +127,7 @@ export abstract class Session {
     notifyActivity(messageReceived: boolean) {
         this.timestamp = Time.nowMs;
         if (messageReceived) {
-            // only update active timestamp if we received a message
+            // only update the active timestamp if we received a message
             this.activeTimestamp = this.timestamp;
         }
     }
