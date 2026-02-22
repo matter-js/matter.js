@@ -19,7 +19,6 @@ import {
     Lifetime,
     Logger,
     Millis,
-    NetworkError,
     Observable,
     ServerAddress,
     ServerAddressSet,
@@ -441,12 +440,12 @@ export async function PeerConnection(
                 delay = context.timing.delayAfterPeerError;
                 error(address, `Peer error (retry in ${Duration.format(delay)}):`, Diagnostic.errorMessage(e));
             }
-        } else if (causedBy(e, TransientPeerCommunicationError, NetworkError)) {
+        } else if (causedBy(e, TransientPeerCommunicationError)) {
             delay = context.timing.delayAfterNetworkError;
             error(address, `Connection error (retry in ${Duration.format(delay)}):`, Diagnostic.errorMessage(e));
         } else {
             delay = context.timing.delayAfterUnhandledError;
-            error(address, `Unhandled connection error (retry in ${Duration.format(delay)}):`, e);
+            error(address, `General connection error (retry in ${Duration.format(delay)}):`, e);
         }
 
         if (addressAbort.aborted) {
@@ -455,9 +454,6 @@ export async function PeerConnection(
 
         if (delay) {
             await Abort.sleep("peer connection retry", addressAbort, delay);
-            if (addressAbort.aborted) {
-                return;
-            }
         }
     }
 }
