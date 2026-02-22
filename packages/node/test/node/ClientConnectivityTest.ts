@@ -119,6 +119,46 @@ describe("ClientConnectivityTest", () => {
         expect((addresses![0] as { ip: string }).ip).equals("10.10.10.2");
     });
 
+    it("connects via last known address when MDNS is unavailable", async () => {
+        // *** SETUP ***
+
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+
+        // *** STOP AND BLOCK MDNS ***
+
+        await MockTime.resolve(controller.stop());
+        await MockTime.resolve(device.stop());
+
+        // Block all MDNS traffic to simulate MDNS outage
+        const deviceNetwork = device.env.get(Network) as MockNetwork;
+        deviceNetwork.simulator.router.intercept((packet, route) => {
+            if (packet.destPort === 5353) {
+                return;
+            }
+            route(packet);
+        });
+
+        // *** RESTART AND CONNECT VIA FALLBACK ***
+
+        await device.start();
+        (controller.env.get(Crypto) as MockCrypto).entropic = true;
+        await controller.start();
+
+        const peer1 = controller.peers.get("peer1")!;
+        const ep1 = peer1.parts.get("ep1")!;
+
+        // PeerConnection can't discover addresses via MDNS, so it uses the last known
+        // operational address (fallback) to establish the session
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle(undefined, { connectionTimeout: Minutes(5) }));
+
+        // Verify connection succeeded using the fallback address
+        const addresses = peer1.stateOf(CommissioningClient).addresses;
+        expect(addresses).not.undefined;
+        expect(addresses).length(1);
+        expect(addresses![0].type).equals("udp");
+    });
+
     it("resubscribes on timeout", async () => {
         // *** SETUP ***
 
