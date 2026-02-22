@@ -140,7 +140,7 @@ describe("Ota", () => {
         await MockTime.resolve(applyUpdatePromise);
 
         // Shutdown node because our test node does not restart automatically and simulate update applied
-        await MockTime.resolve(device.cancel());
+        await MockTime.resolve(device.stop());
         await device.setStateOf(BasicInformationServer, { softwareVersion: 1 });
 
         await MockTime.resolve(device.start());
@@ -320,7 +320,7 @@ describe("Ota", () => {
         await MockTime.resolve(applyUpdatePromise);
 
         // Simulate device restart with new version
-        await MockTime.resolve(device.cancel());
+        await MockTime.resolve(device.stop());
         await device.setStateOf(BasicInformationServer, { softwareVersion: targetSoftwareVersion });
         await MockTime.resolve(device.start());
 

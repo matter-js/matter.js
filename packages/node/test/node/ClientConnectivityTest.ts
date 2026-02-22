@@ -57,7 +57,7 @@ describe("ClientConnectivityTest", () => {
         const { controller, device } = await site.addCommissionedPair();
         const peer1 = controller.peers.get("peer1")!;
         const ep1 = peer1.parts.get("ep1")!;
-        await MockTime.resolve(device.cancel());
+        await MockTime.resolve(device.stop());
 
         // *** INVOKE ***
 
@@ -83,7 +83,7 @@ describe("ClientConnectivityTest", () => {
         const { controller, device } = await site.addCommissionedPair();
         const peer1 = controller.peers.get("peer1")!;
         const ep1 = peer1.parts.get("ep1")!;
-        await MockTime.resolve(device.cancel());
+        await MockTime.resolve(device.stop());
 
         // *** FIRST ATTEMPT FAILS (device offline) ***
 
@@ -146,7 +146,7 @@ describe("ClientConnectivityTest", () => {
         // *** DEVICE GOES OFFLINE AND RESTARTS ***
 
         // Cancel device - goodbye messages are also blocked by the MDNS interceptor
-        await MockTime.resolve(device.cancel());
+        await MockTime.resolve(device.stop());
 
         (ep1.env.get(Crypto) as MockCrypto).entropic = true;
 
@@ -214,7 +214,7 @@ describe("ClientConnectivityTest", () => {
 
         // *** DEVICE GOES OFFLINE ***
 
-        await MockTime.resolve(device.cancel());
+        await MockTime.resolve(device.stop());
 
         (ep1.env.get(Crypto) as MockCrypto).entropic = true;
 
@@ -269,7 +269,7 @@ describe("ClientConnectivityTest", () => {
         });
 
         // Cancel device — goodbyes blocked, so controller retains stale MDNS records
-        await MockTime.resolve(device.cancel());
+        await MockTime.resolve(device.stop());
 
         (ep1.env.get(Crypto) as MockCrypto).entropic = true;
 
@@ -320,7 +320,7 @@ describe("ClientConnectivityTest", () => {
         // *** SUBSCRIPTION TIMEOUT ***
 
         // Close peer
-        await MockTime.resolve(device.cancel());
+        await MockTime.resolve(device.stop());
 
         // Wait for subscription to timeout
         await MockTime.resolve(subscription.inactive);

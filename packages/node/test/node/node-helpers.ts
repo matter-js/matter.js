@@ -60,7 +60,7 @@ export async function testFactoryReset(
     node.lifecycle.offline.on(() => void changes.push("offline"));
 
     if (mode === "offline-after-commission") {
-        await node.cancel();
+        await node.stop();
     }
     if (mode !== "offline") {
         expectedChanges.push("offline");
@@ -77,7 +77,7 @@ export async function testFactoryReset(
     if (mode === "offline-during-reset") {
         // Wait a tick to ensure erase has started
         await MockTime.yield();
-        offlinePromise = node.cancel();
+        offlinePromise = node.stop();
         expect(node.lifecycle.shouldBeOffline).equals(true);
     } else if (mode !== "offline-after-commission" && mode !== "offline") {
         expectedChanges.push("online");

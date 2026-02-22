@@ -219,7 +219,7 @@ describe("ServerNode", () => {
     it("commissions", async () => {
         const { node } = await commissioning.commission();
 
-        await MockTime.resolve(node.cancel());
+        await MockTime.resolve(node.stop());
 
         await node.close();
     });
