@@ -170,8 +170,8 @@ export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNo
         });
     }
 
-    override async cancel() {
-        await MockTime.resolve(super.cancel());
+    override async stop() {
+        await MockTime.resolve(super.stop());
     }
 
     override async close(stepMs?: number) {

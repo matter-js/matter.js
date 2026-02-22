@@ -465,7 +465,7 @@ describe("ClientNode", () => {
 
         // *** REPLACE CLUSTER ***
 
-        await MockTime.resolve(device.cancel());
+        await MockTime.resolve(device.stop());
 
         await serverEp1.erase();
 
@@ -561,7 +561,7 @@ describe("ClientNode", () => {
         expect(clientEp1.behaviors.supported["windowCovering"]).to.be.ok;
         // *** REMOVE CLUSTER ***
 
-        await MockTime.resolve(device.cancel());
+        await MockTime.resolve(device.stop());
 
         await serverEp1.erase();
 

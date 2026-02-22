@@ -123,7 +123,7 @@ describe("ClientInvoke", () => {
         await MockTime.resolve(cmds.toggle());
 
         // Take the device offline
-        await MockTime.resolve(device.cancel());
+        await MockTime.resolve(device.stop());
 
         // Bring it back online with different maxPathsPerInvoke
         await device.act(agent => {
