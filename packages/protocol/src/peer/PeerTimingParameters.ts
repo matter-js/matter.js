@@ -83,10 +83,13 @@ export function PeerTimingParameters(options?: Partial<PeerTimingParameters>) {
 export namespace PeerTimingParameters {
     // TODO - tune these
     export const defaults: PeerTimingParameters = {
-        defaultConnectionTimeout: Seconds(10),
+        defaultConnectionTimeout: Seconds(90),
         maxDelayBetweenInitialContactRetries: Minutes(2),
-        delayBeforeNextAddress: Seconds(5),
-        delayAfterNetworkError: Seconds(30),
+
+        // We assume 30s processing time on peer for single Sigma actions, so give one IP a bit of time
+        // to have a chance before potentially adding a load with a second try
+        delayBeforeNextAddress: Seconds(60),
+        delayAfterNetworkError: Seconds(15),
         delayAfterPeerError: Minutes(1),
         delayAfterUnhandledError: Minutes(2),
         minimumTimeBetweenMrpKicks: Seconds(3),
