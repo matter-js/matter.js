@@ -1501,7 +1501,9 @@ export class ControllerCommissioningFlow {
         );
 
         if (addNetworkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
-            throw new ThreadNetworkSetupFailedError(`Commissionee failed to add Thread network: ${addDebugText}`);
+            throw new ThreadNetworkSetupFailedError(
+                `Commissionee failed to add Thread network: status=${NetworkCommissioning.NetworkCommissioningStatus[addNetworkingStatus]} (${addNetworkingStatus})${addDebugText ? ` ${addDebugText}` : ""}`,
+            );
         }
         if (networkIndex === undefined) {
             throw new ThreadNetworkSetupFailedError(`Commissionee did not return network index`);
@@ -1538,7 +1540,7 @@ export class ControllerCommissioningFlow {
 
         await this.#ensureFailsafeTimerFor(Seconds(connectMaxTimeSeconds));
 
-        const connectResult = await this.#invokeCommand(
+        const { networkingStatus, debugText } = await this.#invokeCommand(
             {
                 endpoint: RootEndpointNumber,
                 cluster: NetworkCommissioning.Complete,
@@ -1553,9 +1555,9 @@ export class ControllerCommissioningFlow {
             },
         );
 
-        if (connectResult.networkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
+        if (networkingStatus !== NetworkCommissioning.NetworkCommissioningStatus.Success) {
             throw new ThreadNetworkSetupFailedError(
-                `Commissionee failed to connect to Thread network: ${connectResult.debugText}`,
+                `Commissionee failed to connect to Thread network: status=${NetworkCommissioning.NetworkCommissioningStatus[networkingStatus]} (${networkingStatus})${debugText ? ` ${debugText}` : ""}`,
             );
         }
         logger.debug(
