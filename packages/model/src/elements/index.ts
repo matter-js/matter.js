@@ -10,6 +10,7 @@ export * from "./AttributeElement.js";
 export * from "./BaseElement.js";
 export * from "./ClusterElement.js";
 export * from "./CommandElement.js";
+export * from "./ConditionElement.js";
 export * from "./DatatypeElement.js";
 export * from "./DeviceTypeElement.js";
 export * from "./EndpointElement.js";

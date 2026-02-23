@@ -28,6 +28,9 @@ export enum ElementTag {
     // Device cluster element requirement - not formally an "element" in the specification
     Requirement = "requirement",
 
+    // Device condition definition - not formally an "element" in the specification
+    Condition = "condition",
+
     // Root element type - not formally part of specification
     Matter = "matter",
 }

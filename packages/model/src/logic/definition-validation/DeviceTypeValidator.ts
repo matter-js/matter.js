@@ -6,12 +6,12 @@
 
 import { DeviceClassification } from "../../common/DeviceClassification.js";
 import { DeviceTypeElement } from "../../elements/index.js";
-import { DeviceTypeModel, FieldModel, RequirementModel } from "../../models/index.js";
+import { ConditionModel, DeviceTypeModel, FieldModel, RequirementModel } from "../../models/index.js";
 import { ModelValidator } from "./ModelValidator.js";
 
 ModelValidator.validators[DeviceTypeElement.Tag] = class DeviceTypeValidator extends ModelValidator<DeviceTypeModel> {
     override validate() {
-        this.validateStructure(false, DeviceTypeModel, RequirementModel, FieldModel);
+        this.validateStructure(false, DeviceTypeModel, RequirementModel, FieldModel, ConditionModel);
         this.validateProperty({
             name: "classification",
             type: DeviceClassification,
