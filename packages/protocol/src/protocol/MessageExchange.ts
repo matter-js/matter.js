@@ -92,6 +92,9 @@ export interface ExchangeSendOptions {
 
     /** Maximum MRP retransmission time (default: unlimited) */
     maxRetransmissionTime?: Duration;
+
+    /** Initial MRP retransmission time (default: calculated as by Matter specification) */
+    initialRetransmissionTime?: Duration;
 }
 
 export interface ExchangeReceiveOptions {
@@ -922,10 +925,11 @@ export class MessageExchange {
     }
 
     get #mrpResubmissionBackOffTime() {
-        return Duration.min(
-            this.channel.getMrpResubmissionBackOffTime(this.#retransmissionCounter),
-            this.#sendOptions.maxRetransmissionTime ?? Forever,
-        );
+        let backOff = this.channel.getMrpResubmissionBackOffTime(this.#retransmissionCounter);
+        if (this.#sendOptions.initialRetransmissionTime !== undefined) {
+            backOff = Millis(backOff + this.#sendOptions.initialRetransmissionTime);
+        }
+        return Duration.min(backOff, this.#sendOptions.maxRetransmissionTime ?? Forever);
     }
 }
 

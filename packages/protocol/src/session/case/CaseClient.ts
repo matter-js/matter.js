@@ -59,6 +59,7 @@ export class CaseClient {
             return await this.#doPair(messenger, exchange, fabric, peerNodeId, localAbort, caseAuthenticatedTags, {
                 maxRetransmissions: options?.maxInitialRetransmissions,
                 maxRetransmissionTime: options?.maxInitialRetransmissionTime,
+                initialRetransmissionTime: options?.initialRetransmissionTime,
             });
         } catch (error) {
             if (
@@ -336,5 +337,6 @@ export namespace CaseClient {
         abort?: AbortSignal;
         maxInitialRetransmissions?: number;
         maxInitialRetransmissionTime?: Duration;
+        initialRetransmissionTime?: Duration;
     }
 }

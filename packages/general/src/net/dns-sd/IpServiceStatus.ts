@@ -167,7 +167,7 @@ export class IpServiceStatus {
 
         switch (numAddresses) {
             case 0:
-                why = "need address";
+                why = "no address known";
                 break;
 
             case 1:
@@ -175,7 +175,7 @@ export class IpServiceStatus {
                 break;
 
             default:
-                why = `${numAddresses} known addresses are unreachable`;
+                why = `some of the ${numAddresses} known addresses are unreachable`;
         }
 
         logger.info(this.#service.via, "Resolving", Diagnostic.weak(`(${why})`));

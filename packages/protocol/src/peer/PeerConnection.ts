@@ -135,7 +135,7 @@ export async function PeerConnection(
     // Start the attempt scheduler
     workers.add(scheduleAttempts());
 
-    // Enqueue "fallback" address if service is undiscovered
+    // Enqueue the "fallback" address if the service is undiscovered
     maybeAttemptFallback();
 
     // Manage connection attempts until connected or aborted
@@ -147,6 +147,7 @@ export async function PeerConnection(
 
             case "delete":
                 deleteAddress(address, "Aborting attempt because address is expired");
+                maybeAttemptFallback();
                 break;
         }
     }
@@ -216,10 +217,12 @@ export async function PeerConnection(
         address = addresses.add(address);
 
         // Skip if we're already attempting connection to this address
-        if (attempts.has(address)) {
+        const attempt = attempts.get(address);
+        if (attempt !== undefined) {
             if (attemptingFallback && ServerAddress.isEqual(attemptingFallback, address)) {
                 // The "fallback" is now a "real" address
                 attemptingFallback = undefined;
+                kicker?.emit(); // ... and kick the MRP loop
             }
 
             return;
@@ -281,6 +284,17 @@ export async function PeerConnection(
         const attempt = attempts.get(address);
 
         if (attempt) {
+            const operationalAddress = peer.descriptor.operationalAddress;
+            if (
+                attempts.size === 1 &&
+                operationalAddress !== undefined &&
+                ServerAddress.isEqual(operationalAddress, address)
+            ) {
+                // If we only have one attempt running and this is for the known operational address,
+                // fall back to fallback mode and just keep it running
+                attemptingFallback = address;
+                return;
+            }
             debug(via, address, why);
             attempt.abort();
             attempts.delete(address);
@@ -357,6 +371,9 @@ export async function PeerConnection(
             }
         }
 
+        // When we try the fallback address, and it is not the first one, then we directly use a higher MRP interval
+        const isFallback = attemptingFallback && addrsAttempted > 1;
+
         await using unsecuredSession = context.sessions.createUnsecuredSession({
             channel: socket,
             sessionParameters: peer.sessionParameters,
@@ -397,6 +414,7 @@ export async function PeerConnection(
                 caseAuthenticatedTags: peer.descriptor.caseAuthenticatedTags,
                 maxInitialRetransmissions: Infinity,
                 maxInitialRetransmissionTime: context.timing.maxDelayBetweenInitialContactRetries,
+                initialRetransmissionTime: isFallback ? context.timing.maxDelayBetweenInitialContactRetries : undefined,
             });
 
             // Success
