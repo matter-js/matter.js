@@ -29,18 +29,18 @@ export abstract class RemoteInterface {
     #abort = new Abort();
     #root: ApiPath;
     #workers: Multiplex;
+    #certificate?: string;
+    #key?: string;
 
-    constructor(node: ServerNode, address: AppAddress) {
-        if (address.appProtocol !== (this.constructor as unknown as RemoteInterface.Type).protocol) {
-            throw new ImplementationError(
-                `API endpoint type ${this.constructor.name} does not support address ${address}`,
-            );
-        }
+    constructor({ node, address, certificate, key }: RemoteInterface.Configuration) {
+        this.assertProtocol(address.appProtocol);
         this.#node = node;
         this.#lifetime = node.env.join(decamelize(this.constructor.name, " "));
         this.#workers = new BasicMultiplex();
         this.#address = address;
         this.#root = new ApiPath(address);
+        this.#certificate = certificate;
+        this.#key = key;
     }
 
     join(...name: unknown[]) {
@@ -63,6 +63,14 @@ export abstract class RemoteInterface {
         return this.#address;
     }
 
+    get certificate() {
+        return this.#certificate;
+    }
+
+    get key() {
+        return this.#key;
+    }
+
     get isAborted() {
         return this.#abort.aborted;
     }
@@ -71,12 +79,11 @@ export abstract class RemoteInterface {
         return this.#abort.signal;
     }
 
-    static async create<This extends new (node: ServerNode, address: AppAddress) => RemoteInterface>(
+    static async create<This extends new (config: RemoteInterface.Configuration) => RemoteInterface>(
         this: This,
-        node: ServerNode,
-        address: AppAddress,
+        config: RemoteInterface.Configuration,
     ) {
-        const instance = new this(node, address);
+        const instance = new this(config);
         try {
             await instance.start();
         } catch (e) {
@@ -103,7 +110,8 @@ export abstract class RemoteInterface {
     }
 
     protected assertProtocol(appProtocol: string) {
-        if (this.address.appProtocol !== appProtocol) {
+        const baseProtocol = (this.constructor as unknown as RemoteInterface.Type).protocol;
+        if (appProtocol !== baseProtocol && appProtocol !== `${baseProtocol}s`) {
             throw new ImplementationError(
                 `Invalid protocol ${this.address} for API endpoin type ${this.constructor.name}`,
             );
@@ -132,6 +140,13 @@ export abstract class RemoteInterface {
 export namespace RemoteInterface {
     export interface Type {
         protocol: string;
-        create(node: ServerNode, address: AppAddress): Promise<RemoteInterface>;
+        create(config: Configuration): Promise<RemoteInterface>;
+    }
+
+    export interface Configuration {
+        node: ServerNode;
+        address: AppAddress;
+        certificate?: string;
+        key?: string;
     }
 }

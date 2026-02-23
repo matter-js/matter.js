@@ -35,7 +35,7 @@ export class HttpInterface extends RemoteInterface {
     #http?: HttpEndpoint;
 
     protected override async start() {
-        this.#http = await this.env.get(HttpService).create(this.address);
+        this.#http = await this.env.get(HttpService).create(this);
         this.#http.http = this.#handleRequest.bind(this);
     }
 

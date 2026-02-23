@@ -68,6 +68,9 @@ export class MqttJsEndpointFactory extends MqttEndpointFactory {
             opts.will = MqttJsMessage.encode(options.will);
         }
 
+        opts.cert = options.certificate;
+        opts.key = options.key;
+
         const client = await connectAsync(opts);
 
         return new MqttJsEndpoint(client, options);

@@ -25,8 +25,8 @@ let tempFileNum = 0;
 
 let environment: Environment;
 
-// TODO The timeouts of 5s are needed when the test runs locally with more network interfaces because it uses the
-//  real network. We should change that to use a mock network layer instead.
+// TODO The timeouts of 5s are needed when the test runs locally with more network interfaces because it uses the real
+//  network. We should change that to use a mock network layer instead.
 
 describe("WebSocket", () => {
     beforeEach(async () => {
@@ -249,7 +249,7 @@ describe("WebSocket", () => {
     });
 });
 
-async function setup() {
+async function setup(proto = "ws+unix") {
     const socketPath = join(tmpdir(), `${process.pid}-${tempFileNum++}.sock`);
 
     const node = new ServerNode(ServerNode.RootEndpoint.with(WebSocketServer), {
@@ -257,7 +257,7 @@ async function setup() {
         environment: environment,
 
         websocket: {
-            address: `ws+unix://${encodeURIComponent(socketPath)}/`,
+            address: `${proto}://${encodeURIComponent(socketPath)}/`,
         },
 
         parts: [new Endpoint(OnOffLightDevice.with(OnOffServer.with("Lighting")), { id: "light" })],
@@ -267,7 +267,7 @@ async function setup() {
         await node.lifecycle.partsReady;
     }
 
-    const ws = new WebSocket(`ws+unix://${socketPath}:/`);
+    const ws = new WebSocket(`${proto}://${socketPath}:/`);
 
     await new Promise<void>((resolve, reject) => {
         ws.addEventListener("open", onOpen);

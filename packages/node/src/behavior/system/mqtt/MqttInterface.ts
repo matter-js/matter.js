@@ -49,6 +49,8 @@ export class MqttInterface extends RemoteInterface {
         this.#endpoint = await this.env.get(MqttService).connect({
             address: this.address,
             environment: this.node.env,
+            certificate: this.certificate,
+            key: this.key,
 
             will: {
                 topic: this.root.at("status").toString(),
