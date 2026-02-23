@@ -7,7 +7,7 @@
 # Includes dev tools required for matter.js, claude code, quality-of-life tweaks, and attempts to lock down the
 # "matter" user so that it cannot run arbitrary code as root
 
-FROM mcr.microsoft.com/devcontainers/javascript-node:24-bookworm
+FROM mcr.microsoft.com/devcontainers/javascript-node:22-bookworm
 
 ARG TZ
 ENV TZ="$TZ"
@@ -92,6 +92,7 @@ USER root
 # Configure scripts we run as sudo; these must be copied at build time to prevent edits from within container
 COPY ./bin/set-permissions.sh ./bin/init-firewall.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/init-firewall.sh && \
+  echo "$USERNAME ALL=(root) NOPASSWD: /usr/local/share/docker-init.sh" > /etc/sudoers.d/$USERNAME-docker && \
   echo "$USERNAME ALL=(root) NOPASSWD: /usr/local/bin/set-permissions.sh" > /etc/sudoers.d/$USERNAME-permissions && \
   echo "$USERNAME ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/$USERNAME-firewall && \
   chmod 0440 /etc/sudoers.d/$USERNAME-*

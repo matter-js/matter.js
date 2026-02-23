@@ -57,6 +57,7 @@ ip6tables -t mangle -F
 ip6tables -t mangle -X 2>/dev/null || true
 
 ipset destroy allowed-domains 2>/dev/null || true
+ipset destroy allowed-domains-v6 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
 # 3. Restore Docker DNS resolution rules
@@ -67,7 +68,7 @@ if [ -n "$DOCKER_DNS_RULES" ]; then
     iptables -t nat -N DOCKER_POSTROUTING 2>/dev/null || true
     echo "$DOCKER_DNS_RULES" | xargs -L 1 iptables -t nat
 else
-    : #echo "No Docker DNS rules to restore"
+    echo "No Docker DNS rules to restore"
 fi
 
 # ---------------------------------------------------------------------------
@@ -116,15 +117,16 @@ ip6tables -A OUTPUT -p udp --dport 5540:5560 -j ACCEPT
 ip6tables -A INPUT -p udp --dport 5540:5560 -j ACCEPT
 
 # ---------------------------------------------------------------------------
-# 5. Build allowed-domains ipset (IPv4)
+# 5. Build allowed-domains ipsets (IPv4 + IPv6)
 # ---------------------------------------------------------------------------
 ipset create allowed-domains hash:net
+ipset create allowed-domains-v6 hash:net family inet6
 
 # Fetch GitHub meta information and aggregate + add their IP ranges
 #echo "Fetching GitHub IP ranges..."
 gh_ranges=$(curl -s https://api.github.com/meta)
 if [ -z "$gh_ranges" ]; then
-    : #echo "ERROR: Failed to fetch GitHub IP ranges"
+    echo "ERROR: Failed to fetch GitHub IP ranges"
     exit 1
 fi
 
@@ -133,20 +135,31 @@ if ! echo "$gh_ranges" | jq -e '.web and .api and .git' >/dev/null; then
     exit 1
 fi
 
-#echo "Processing GitHub IPs..."
+# GitHub IPv4 ranges (aggregated)
+echo "Processing GitHub IPv4 ranges..."
 while read -r cidr; do
     if [[ ! "$cidr" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}$ ]]; then
         echo "ERROR: Invalid CIDR range from GitHub meta: $cidr"
         exit 1
     fi
-    #echo "Adding GitHub range $cidr"
     ipset add allowed-domains "$cidr"
-done < <(echo "$gh_ranges" | jq -r '(.web + .api + .git)[]' | aggregate -q)
+done < <(echo "$gh_ranges" | jq -r '(.web + .api + .git)[]' | grep -v ':' | aggregate -q)
+
+# GitHub IPv6 ranges
+echo "Processing GitHub IPv6 ranges..."
+while read -r cidr; do
+    if [[ ! "$cidr" =~ : ]]; then
+        continue
+    fi
+    ipset add allowed-domains-v6 "$cidr" 2>/dev/null || true
+done < <(echo "$gh_ranges" | jq -r '(.web + .api + .git)[]' | grep ':')
 
 # Resolve and add other allowed domains (including Docker registries for Docker-in-Docker)
 for domain in \
     "registry.npmjs.org" \
     "api.anthropic.com" \
+    "claude.ai" \
+    "platform.claude.com" \
     "sentry.io" \
     "statsig.anthropic.com" \
     "statsig.com" \
@@ -159,21 +172,35 @@ for domain in \
     "ghcr.io" \
     "on.dcl.csa-iot.org" \
     "on.test-net.dcl.csa-iot.org"; do
-    #echo "Resolving $domain..."
+    echo "Resolving $domain..."
+
+    # IPv4 A records
     ips=$(dig +noall +answer A "$domain" | awk '$4 == "A" {print $5}')
-    if [ -z "$ips" ]; then
-        echo "WARNING: Failed to resolve $domain (skipping)"
-        continue
+    if [ -n "$ips" ]; then
+        while read -r ip; do
+            if [[ ! "$ip" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+                echo "ERROR: Invalid IPv4 from DNS for $domain: $ip"
+                exit 1
+            fi
+            ipset add allowed-domains "$ip" 2>/dev/null || true
+        done < <(echo "$ips")
     fi
 
-    while read -r ip; do
-        if [[ ! "$ip" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
-            echo "ERROR: Invalid IP from DNS for $domain: $ip"
-            exit 1
-        fi
-        #echo "Adding $ip for $domain"
-        ipset add allowed-domains "$ip" 2>/dev/null || true
-    done < <(echo "$ips")
+    # IPv6 AAAA records
+    ips6=$(dig +noall +answer AAAA "$domain" | awk '$4 == "AAAA" {print $5}')
+    if [ -n "$ips6" ]; then
+        while read -r ip6; do
+            if [[ ! "$ip6" =~ : ]]; then
+                echo "ERROR: Invalid IPv6 from DNS for $domain: $ip6"
+                exit 1
+            fi
+            ipset add allowed-domains-v6 "$ip6" 2>/dev/null || true
+        done < <(echo "$ips6")
+    fi
+
+    if [ -z "$ips" ] && [ -z "$ips6" ]; then
+        echo "WARNING: Failed to resolve $domain (skipping)"
+    fi
 done
 
 # ---------------------------------------------------------------------------
@@ -186,7 +213,7 @@ if [ -z "$HOST_IP" ]; then
 fi
 
 HOST_NETWORK=$(echo "$HOST_IP" | sed "s/\.[0-9]*$/.0\/24/")
-#echo "Host network detected as: $HOST_NETWORK"
+echo "Host network detected as: $HOST_NETWORK"
 
 iptables -A INPUT -s "$HOST_NETWORK" -j ACCEPT
 iptables -A OUTPUT -d "$HOST_NETWORK" -j ACCEPT
@@ -214,8 +241,9 @@ iptables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 ip6tables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 ip6tables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 
-# Allow only specific outbound traffic to allowed domains (IPv4)
+# Allow only specific outbound traffic to allowed domains (IPv4 + IPv6)
 iptables -A OUTPUT -m set --match-set allowed-domains dst -j ACCEPT
+ip6tables -A OUTPUT -m set --match-set allowed-domains-v6 dst -j ACCEPT
 
 # Explicitly REJECT all other outbound traffic for immediate feedback
 iptables -A OUTPUT -j REJECT --reject-with icmp-admin-prohibited
@@ -224,18 +252,18 @@ ip6tables -A OUTPUT -j REJECT --reject-with icmp6-adm-prohibited
 # ---------------------------------------------------------------------------
 # 8. Verification
 # ---------------------------------------------------------------------------
-#echo "Firewall configuration complete"
-#echo "Verifying firewall rules..."
+echo "Firewall configuration complete"
+echo "Verifying firewall rules..."
 if curl --connect-timeout 5 https://example.com >/dev/null 2>&1; then
     echo "ERROR: Firewall verification failed - was able to reach https://example.com"
     exit 1
 else
-    : #echo "Firewall verification passed - unable to reach https://example.com as expected"
+    echo "Firewall verification passed - unable to reach https://example.com as expected"
 fi
 
 if ! curl --connect-timeout 5 https://api.github.com/zen >/dev/null 2>&1; then
     echo "ERROR: Firewall verification failed - unable to reach https://api.github.com"
     exit 1
 else
-    : #echo "Firewall verification passed - able to reach https://api.github.com as expected"
+    echo "Firewall verification passed - able to reach https://api.github.com as expected"
 fi
