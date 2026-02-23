@@ -171,6 +171,7 @@ for domain in \
     "production.cloudflare.docker.com" \
     "ghcr.io" \
     "on.dcl.csa-iot.org" \
+    "cdn.playwright.dev" \
     "on.test-net.dcl.csa-iot.org"; do
     echo "Resolving $domain..."
 
