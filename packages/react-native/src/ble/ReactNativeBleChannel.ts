@@ -61,9 +61,10 @@ export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
         }
 
         // Get the peripheral by address and connect to it.
-        const { peripheral, hasAdditionalAdvertisementData } = (this.#ble.scanner as BleScanner).getDiscoveredDevice(
-            address.peripheralAddress,
-        );
+        const { peripheral: blePeripheral, hasAdditionalAdvertisementData } = (
+            this.#ble.scanner as BleScanner
+        ).getDiscoveredDevice(address.peripheralAddress);
+        const peripheral = blePeripheral.device;
         if (this.#openChannels.has(address)) {
             throw new BleError(
                 `Peripheral ${address.peripheralAddress} is already connected. Only one connection supported right now.`,
