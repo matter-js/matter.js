@@ -52,11 +52,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Fixes Duration string parsing
 
 - @matter/model
-    - Enhancement: Re-Parsed the Matter 1.4.2 specification to improve captured details. No functional changes
+    - Enhancement: Re-parsed the Matter 1.4.2 specification to improve captured details. No functional changes
     - Enhancement: Adds "writable" as decorator to mark attributes writable
 
 - @matter/node
     - Feature: We now allocate node IDs as sequential numbers; the old behavior of randomized node behavior is available if you set `ControllerBehavior` state property `nodeIdAssignment` to `"random"`
+    - Feature: HttpServer and WebSocketServer now optionally support SSL; matter.js will generate a self-signed certificate if you do not provide one
     - Enhancement: Also export Matter events via ChangeNotificationService
     - Enhancement: Added updateFailed event to the OTA behavior
     - Enhancement: Allows to access the update queue 

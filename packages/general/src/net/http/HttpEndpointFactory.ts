@@ -23,5 +23,5 @@ export abstract class HttpEndpointFactory {
      */
     supportsWs = true;
 
-    abstract create(options: HttpEndpoint.Options): Promise<HttpEndpoint>;
+    abstract create(options: HttpEndpoint.Configuration): Promise<HttpEndpoint>;
 }

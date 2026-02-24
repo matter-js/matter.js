@@ -6,7 +6,9 @@
 
 import { AppAddress, asError, HttpEndpoint, HttpEndpointFactory, Logger, NetworkError } from "#general";
 import { existsSync, ReadStream, rmSync, statSync } from "node:fs";
-import { createServer, IncomingMessage, Server, ServerResponse } from "node:http";
+import type { Server, ServerResponse } from "node:http";
+import { createServer as createHttpServer, IncomingMessage } from "node:http";
+import { createServer as createHttpsServer } from "node:https";
 import { ListenOptions } from "node:net";
 import { normalize, resolve } from "node:path";
 import { Duplex } from "node:stream";
@@ -37,8 +39,8 @@ export class NodeJsHttpEndpoint implements HttpEndpoint {
     #wsAdapter?: WsAdapter;
     #wsAdapterFactory?: WsAdapter.Factory;
 
-    static async create(options: NodeJsHttpEndpoint.Options): Promise<NodeJsHttpEndpoint> {
-        const endpoint = new NodeJsHttpEndpoint(options);
+    static async create(config: NodeJsHttpEndpoint.Configuration): Promise<NodeJsHttpEndpoint> {
+        const endpoint = new NodeJsHttpEndpoint(config);
         await endpoint.ready;
         return endpoint;
     }
@@ -46,16 +48,16 @@ export class NodeJsHttpEndpoint implements HttpEndpoint {
     /**
      * Create a new endpoint.
      *
-     * You may pass an existing {@link Server} or pass {@link NodeJsHttpEndpoint.Options} to create a server dedicated
+     * You may pass an existing {@link Server} or pass {@link NodeJsHttpEndpoint.Configuration} to create a server dedicated
      * to this endpoint.
      */
-    constructor(optionsOrServer: Server | NodeJsHttpEndpoint.Options) {
+    constructor(config: Server | NodeJsHttpEndpoint.Configuration) {
         let close, ready, server, notFound;
 
-        if ("on" in optionsOrServer) {
-            ({ close, ready, server, notFound } = this.#bindToServer(optionsOrServer));
+        if ("on" in config) {
+            ({ close, ready, server, notFound } = this.#bindToServer(config));
         } else {
-            ({ close, ready, server, notFound } = this.#createDedicatedServer(optionsOrServer));
+            ({ close, ready, server, notFound } = this.#createDedicatedServer(config));
         }
 
         this.#server = server;
@@ -80,17 +82,32 @@ export class NodeJsHttpEndpoint implements HttpEndpoint {
         };
     }
 
-    #createDedicatedServer(options: NodeJsHttpEndpoint.Options) {
-        const server = createServer({ keepAlive: true });
+    #createDedicatedServer(options: NodeJsHttpEndpoint.Configuration) {
+        const address = AppAddress.for(options.address);
+
+        let server;
+        if (address.isTls) {
+            if (options.certificate === undefined || options.key === undefined) {
+                throw new NetworkError(
+                    `Cannot create HTTPS endpoint for ${address} because no certificate and/or key is present`,
+                );
+            }
+            server = createHttpsServer({
+                keepAlive: true,
+                cert: options.certificate,
+                key: options.key,
+            });
+        } else {
+            server = createHttpServer({ keepAlive: true });
+        }
 
         const opts = {} as ListenOptions;
 
-        const address = AppAddress.for(options.address);
         const { transport } = address;
         switch (transport.kind) {
             case "ip":
                 if (!address.isWildcardHost) {
-                    opts.host = address.host;
+                    opts.host = address.hostname;
                 }
                 if (!address.isWildcardPort) {
                     opts.port = address.portNum;
@@ -336,7 +353,7 @@ function respondError(res: ServerResponse, code: number) {
 }
 
 export namespace NodeJsHttpEndpoint {
-    export interface Options extends HttpEndpoint.Options {
+    export interface Configuration extends HttpEndpoint.Configuration {
         basePathForUnixSockets?: string;
     }
 
@@ -348,10 +365,10 @@ export namespace NodeJsHttpEndpoint {
             this.#basePathForUnixSockets = basePathForUnixSockets;
         }
 
-        async create(options: HttpEndpoint.Options) {
+        async create(config: HttpEndpoint.Configuration) {
             return NodeJsHttpEndpoint.create({
                 basePathForUnixSockets: this.#basePathForUnixSockets,
-                ...options,
+                ...config,
             });
         }
     }
