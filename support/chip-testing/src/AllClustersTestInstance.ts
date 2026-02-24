@@ -240,6 +240,12 @@ export class AllClustersTestInstance extends NodeTestInstance {
                 }
                 break;
             }
+            case "setBooleanState":
+                if (endpoint === undefined) {
+                    throw new Error(`Endpoint ${endpointId} not found`);
+                }
+                await endpoint.setStateOf(BooleanStateServer, { stateValue: command.newState });
+                break;
             default:
                 await super.backchannel(command);
         }
