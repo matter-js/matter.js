@@ -34,9 +34,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   vim \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Configure non-privileged user
+# Rename the base image's default "node" user to "matter"
 ARG USERNAME=matter
-RUN adduser --disabled-password --gecos "" $USERNAME
+RUN usermod -l $USERNAME -d /home/$USERNAME -m node && \
+  groupmod -n $USERNAME node && \
+  sed -i "s/^node:/$USERNAME:/" /etc/subuid /etc/subgid
 
 # Configure bash history mount
 RUN mkdir /home/$USERNAME/.commandhistory \
@@ -59,6 +61,15 @@ RUN ARCH=$(dpkg --print-architecture) && \
 # Prep for Playwright
 RUN npx playwright install-deps
 
+# Configure scripts we run as sudo; these must be copied at build time to prevent edits from within container
+COPY ./bin/set-permissions.sh ./bin/init-firewall.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/init-firewall.sh && \
+  echo "$USERNAME ALL=(root) NOPASSWD: /usr/local/share/docker-init.sh" > /etc/sudoers.d/$USERNAME-docker && \
+  echo "$USERNAME ALL=(root) NOPASSWD: /usr/local/bin/set-permissions.sh" > /etc/sudoers.d/$USERNAME-permissions && \
+  echo "$USERNAME ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/$USERNAME-firewall && \
+  chmod 0440 /etc/sudoers.d/$USERNAME-* && \
+  rm -f /etc/sudoers.d/$USERNAME
+
 # Configure non-privileged user
 USER $USERNAME
 
@@ -77,25 +88,16 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
   -a "export PROMPT_COMMAND='history -a' && export HISTFILE=/home/$USERNAME/.commandhistory/history" \
   -x
 
-# Default p9k config only tells you the immediate dir you're in
-RUN echo 'POWERLEVEL9K_SHORTEN_STRATEGY="truncate_from_left"' >> /home/$USERNAME/.zshrc
+# Add shell configuration to zshr
+COPY ./bin/shell-vars.sh /usr/local/bin/
+RUN echo 'source /usr/local/bin/shell-vars.sh' >> /home/$USERNAME/.bashrc
+RUN echo 'source /usr/local/bin/shell-vars.sh' >> /home/$USERNAME/.zshrc
 
 # Install Claude Code globally
 RUN curl -fsSL https://claude.ai/install.sh | bash
 
 # The user we use for LLMs should not have elevated privileges beyond the sudoable scripts below
 RUN rm -f /etc/sudoers.d/$USERNAME
-
-# Switch back to root to install files that we may have edited
-USER root
-
-# Configure scripts we run as sudo; these must be copied at build time to prevent edits from within container
-COPY ./bin/set-permissions.sh ./bin/init-firewall.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/init-firewall.sh && \
-  echo "$USERNAME ALL=(root) NOPASSWD: /usr/local/share/docker-init.sh" > /etc/sudoers.d/$USERNAME-docker && \
-  echo "$USERNAME ALL=(root) NOPASSWD: /usr/local/bin/set-permissions.sh" > /etc/sudoers.d/$USERNAME-permissions && \
-  echo "$USERNAME ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/$USERNAME-firewall && \
-  chmod 0440 /etc/sudoers.d/$USERNAME-*
 
 # Do not run as superuser by default
 USER $USERNAME

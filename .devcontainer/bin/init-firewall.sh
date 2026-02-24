@@ -169,10 +169,16 @@ for domain in \
     "registry-1.docker.io" \
     "auth.docker.io" \
     "production.cloudflare.docker.com" \
-    "ghcr.io" \
     "on.dcl.csa-iot.org" \
     "cdn.playwright.dev" \
-    "on.test-net.dcl.csa-iot.org"; do
+    "on.test-net.dcl.csa-iot.org" \
+    "ghcr.io" \
+    "docker.io" \
+    "index.docker.io" \
+    "registry-1.docker.io" \
+    "auth.docker.io" \
+    "download.docker.io" \
+    "production.cloudflare.docker.com" ; do
     echo "Resolving $domain..."
 
     # IPv4 A records

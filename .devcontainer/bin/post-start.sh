@@ -8,4 +8,4 @@
 set -e
 
 sudo /usr/local/share/docker-init.sh
-#sudo /usr/local/bin/init-firewall.sh
+sudo /usr/local/bin/init-firewall.sh
