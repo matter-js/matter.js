@@ -1088,21 +1088,18 @@ export class AllClustersTestInstance extends NodeTestInstance {
         );
         await serverNode.add(endpoint1);
 
-        const endpoint2 = new Endpoint(
-            OnOffLightDevice.with(DescriptorServer.with(Descriptor.Feature.TagList)),
-            {
-                number: EndpointNumber(2),
-                id: "ep2",
-                descriptor: {
-                    tagList: [
-                        {
-                            ...NumberTag.Two,
-                            label: "EP2",
-                        },
-                    ],
-                },
+        const endpoint2 = new Endpoint(OnOffLightDevice.with(DescriptorServer.with(Descriptor.Feature.TagList)), {
+            number: EndpointNumber(2),
+            id: "ep2",
+            descriptor: {
+                tagList: [
+                    {
+                        ...NumberTag.Two,
+                        label: "EP2",
+                    },
+                ],
             },
-        );
+        });
         await serverNode.add(endpoint2);
 
         const endpoint3 = new Endpoint(
