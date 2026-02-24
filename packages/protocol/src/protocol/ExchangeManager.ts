@@ -445,7 +445,7 @@ export class ExchangeManager {
             netInterface.onData((socket, data) => {
                 if (udpInterface && data.byteLength > socket.maxPayloadSize) {
                     logger.warn(
-                        `Received UDP message on channel ${socket.name} with size ${data.byteLength} from ${socket.name}, which is larger than the maximum allowed size of ${socket.maxPayloadSize}`,
+                        `Received UDP message from ${socket.name} with size ${data.byteLength}, which is larger than the maximum allowed size of ${socket.maxPayloadSize}`,
                     );
                 }
 

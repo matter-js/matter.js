@@ -12,10 +12,10 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/model
-  - Enhancement: First Model preparations for Matter 1.5 
+    - Enhancement: First Model preparations for Matter 1.5
 
 - @matter/protocol
-  - Adjustment: No longer ignore too long incoming Matter messges but still log a warning
+    - Adjustment: No longer ignore too long incoming Matter messages but still log a warning
 
 ## 0.16.10 (2026-02-22)
 
