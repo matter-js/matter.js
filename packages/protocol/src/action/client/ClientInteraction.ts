@@ -39,7 +39,6 @@ import {
     RetrySchedule,
     Seconds,
     Time,
-    TimeoutError,
     Timer,
 } from "#general";
 import { InteractionClientMessenger, MessageType } from "#interaction/InteractionMessenger.js";
@@ -884,25 +883,11 @@ export class ClientInteraction<
 
         const abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort] });
 
-        const now = Time.nowMs;
-        let messenger: InteractionClientMessenger;
-        try {
-            messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
-                network: request.network ?? this.#network,
-                abort: session?.abort,
-                connectionTimeout: session?.connectionTimeout,
-            });
-        } catch (error) {
-            TimeoutError.accept(error);
-
-            // This logic implements a very basic automatic reconnection mechanism which is a bit like PairedNode
-            // The exchange creation fails only when the node is considered to be unavailable, so in this case we
-            // either try the last addresses again (if existing), or do a short-timed re-discovery. This would block
-            // the execution max 10s. What's missing is that one layer (like Sustained Subscription) would trigger a
-            // FullDiscovery instead of just a timed one, but for the tests and currently this should be enough.
-            await this.#exchangeProvider.reconnectChannel({ asOf: now, resetInitialState: true });
-            messenger = await InteractionClientMessenger.create(this.#exchangeProvider);
-        }
+        const messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
+            network: request.network ?? this.#network,
+            abort: session?.abort,
+            connectionTimeout: session?.connectionTimeout,
+        });
 
         this.#interactions.add(request);
 

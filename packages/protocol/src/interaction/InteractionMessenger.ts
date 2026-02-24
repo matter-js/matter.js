@@ -16,12 +16,11 @@ import {
     MatterFlowError,
     Millis,
     NoResponseTimeoutError,
-    Time,
     UnexpectedDataError,
 } from "#general";
 import { Specification } from "#model";
-import { PeerUnresponsiveError, TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
-import { RetransmissionLimitReachedError, SessionClosedError, UnexpectedMessageError } from "#protocol/errors.js";
+import { PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
+import { UnexpectedMessageError } from "#protocol/errors.js";
 import {
     ReceivedStatusResponseError,
     Status,
@@ -914,47 +913,9 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
 }
 
 export class InteractionClientMessenger extends IncomingInteractionClientMessenger {
-    #exchangeProvider: ExchangeProvider;
-
     static async create(exchangeProvider: ExchangeProvider, options?: NewExchangeOptions) {
         const exchange = await exchangeProvider.initiateExchange(options);
-        return new this(exchange, exchangeProvider);
-    }
-
-    constructor(exchange: MessageExchange, exchangeProvider: ExchangeProvider) {
-        super(exchange);
-        this.#exchangeProvider = exchangeProvider;
-    }
-
-    /** Implements a send method with an automatic reconnection mechanism */
-    override async send(messageType: number, payload: Bytes, options?: ExchangeSendOptions) {
-        const now = Time.nowMs;
-        try {
-            if (this.exchange.channel.closed) {
-                throw new SessionClosedError("The exchange channel is closed. Please connect the device first.");
-            }
-
-            return await this.exchange.send(messageType, payload, options);
-        } catch (error) {
-            if (
-                this.#exchangeProvider.supportsReconnect &&
-                causedBy(error, TransientPeerCommunicationError, SessionClosedError, RetransmissionLimitReachedError) &&
-                !options?.multipleMessageInteraction
-            ) {
-                // When retransmission failed (most likely due to a lost connection or invalid session), try to
-                // reconnect if possible and resend the message one more time
-                logger.debug(
-                    `${causedBy(error, RetransmissionLimitReachedError) ? "Retransmission limit reached" : "Channel not connected"}, trying to reconnect and resend the message.`,
-                );
-                await this.exchange.close();
-                if (await this.#exchangeProvider.reconnectChannel({ asOf: now })) {
-                    this.exchange = await this.#exchangeProvider.initiateExchange();
-                    return await this.exchange.send(messageType, payload, options);
-                }
-            } else {
-                throw error;
-            }
-        }
+        return new this(exchange);
     }
 
     async sendReadRequest(readRequest: ReadRequest, options?: ExchangeSendOptions) {

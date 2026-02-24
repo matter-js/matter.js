@@ -40,7 +40,6 @@ import {
     PeerSet,
     Read,
     ReadResult,
-    ReconnectableExchangeProvider,
     SecureSession,
     Subscribe,
     Write,
@@ -287,13 +286,10 @@ export class InteractionClient {
     }
 
     get isReconnectable() {
-        return this.#exchanges instanceof ReconnectableExchangeProvider;
+        return false;
     }
 
-    get channelUpdated() {
-        if (this.#exchanges instanceof ReconnectableExchangeProvider) {
-            return this.#exchanges.channelUpdated;
-        }
+    get channelUpdated(): never {
         throw new ImplementationError("ExchangeProvider does not support channelUpdated");
     }
 
