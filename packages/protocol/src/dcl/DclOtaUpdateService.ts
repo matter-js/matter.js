@@ -26,6 +26,7 @@ import {
 import { DeviceSoftwareVersionModelDclSchema, VendorId } from "#types";
 import { OtaImageReader } from "../ota/OtaImageReader.js";
 import { DclClient, MatterDclError, MatterDclResponseError } from "./DclClient.js";
+import { DclConfig } from "./DclConfig.js";
 
 const logger = Logger.get("DclOtaUpdateService");
 
@@ -65,6 +66,7 @@ const OTA_FILENAME_REGEX = /^[0-9a-f]+[./][0-9a-f]+[./](?:prod|test|local)[./]\d
 export class DclOtaUpdateService {
     readonly #construction: Construction<DclOtaUpdateService>;
     readonly #crypto: Crypto;
+    readonly #options?: DclOtaUpdateService.Options;
     #storageManager?: StorageManager;
     #storage?: ScopedStorage;
 
@@ -72,9 +74,10 @@ export class DclOtaUpdateService {
         return this.#construction;
     }
 
-    constructor(environment: Environment) {
+    constructor(environment: Environment, options?: DclOtaUpdateService.Options) {
         environment.set(DclOtaUpdateService, this);
         this.#crypto = environment.get(Crypto);
+        this.#options = options;
 
         // THe construction is async and will be enforced when needed
         this.#construction = Construction(this, async () => {
@@ -157,7 +160,10 @@ export class DclOtaUpdateService {
     }) {
         const { vendorId, productId, currentSoftwareVersion, isProduction, targetSoftwareVersion } = options;
 
-        const dclClient = new DclClient(isProduction);
+        const config = isProduction
+            ? (this.#options?.productionDclConfig ?? DclConfig.production)
+            : (this.#options?.testDclConfig ?? DclConfig.test);
+        const dclClient = new DclClient(config);
         const dclLogStr = isProduction ? "Prod-DCL" : "Test-DCL";
 
         const diagnosticInfo = {
@@ -1038,6 +1044,13 @@ export class DclOtaUpdateService {
 }
 
 export namespace DclOtaUpdateService {
+    export interface Options {
+        /** DCL config for production endpoint. Defaults to DclConfig.production. */
+        productionDclConfig?: DclConfig;
+        /** DCL config for test endpoint. Defaults to DclConfig.test. */
+        testDclConfig?: DclConfig;
+    }
+
     export type OtaUpdateListEntry = {
         filename: string;
         vendorId: number;

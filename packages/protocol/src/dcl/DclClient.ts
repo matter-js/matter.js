@@ -37,8 +37,8 @@ export class MatterDclResponseError extends MatterDclError {
 export class DclClient {
     #baseUrl: string;
 
-    constructor(private readonly production: boolean = true) {
-        this.#baseUrl = this.production ? DclConfig.dcl.productionUrl : DclConfig.dcl.testUrl;
+    constructor(config: DclConfig = DclConfig.production) {
+        this.#baseUrl = config.url;
     }
 
     async #fetchPaginatedJson<ItemT>(

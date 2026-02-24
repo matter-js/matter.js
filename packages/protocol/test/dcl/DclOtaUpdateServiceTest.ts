@@ -1312,4 +1312,79 @@ describe("DclOtaUpdateService", () => {
             expect(updates[0].softwareVersion).to.equal(3);
         });
     });
+
+    describe("custom DCL config", () => {
+        it("uses custom production config for prod queries", async () => {
+            fetchMock.addResponse("custom-prod.dcl/dcl/model/versions/65521/32768", mockVersionsList);
+            fetchMock.addResponse("custom-prod.dcl/dcl/model/versions/65521/32768/3", createVersionMetadata(3));
+            fetchMock.install();
+
+            const service = new DclOtaUpdateService(environment, {
+                productionDclConfig: { url: "https://custom-prod.dcl" },
+            });
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 2,
+                isProduction: true,
+            });
+
+            expect(update).to.not.be.undefined;
+            expect(update?.softwareVersion).to.equal(3);
+
+            const callLog = fetchMock.getCallLog();
+            expect(callLog.every(call => call.url.includes("custom-prod.dcl"))).to.be.true;
+            expect(callLog.some(call => call.url.includes("on.dcl.csa-iot.org"))).to.be.false;
+        });
+
+        it("uses custom test config for test queries", async () => {
+            // Production query returns nothing
+            fetchMock.addResponse(
+                "on.dcl.csa-iot.org/dcl/model/versions/65521/32768",
+                { code: 5, message: "Not found", details: [] },
+                { status: 404 },
+            );
+
+            // Custom test DCL
+            fetchMock.addResponse("custom-test.dcl/dcl/model/versions/65521/32768", mockVersionsList);
+            fetchMock.addResponse("custom-test.dcl/dcl/model/versions/65521/32768/3", createVersionMetadata(3));
+            fetchMock.install();
+
+            const service = new DclOtaUpdateService(environment, {
+                testDclConfig: { url: "https://custom-test.dcl" },
+            });
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 2,
+                isProduction: false,
+            });
+
+            expect(update).to.not.be.undefined;
+            expect(update?.softwareVersion).to.equal(3);
+
+            const callLog = fetchMock.getCallLog();
+            expect(callLog.some(call => call.url.includes("custom-test.dcl"))).to.be.true;
+            expect(callLog.some(call => call.url.includes("on.test-net.dcl.csa-iot.org"))).to.be.false;
+        });
+
+        it("uses defaults when no options provided", async () => {
+            fetchMock.addResponse("/dcl/model/versions/65521/32768", mockVersionsList);
+            fetchMock.addResponse("/dcl/model/versions/65521/32768/3", createVersionMetadata(3));
+            fetchMock.install();
+
+            const service = new DclOtaUpdateService(environment);
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 2,
+                isProduction: true,
+            });
+
+            expect(update).to.not.be.undefined;
+
+            const callLog = fetchMock.getCallLog();
+            expect(callLog.some(call => call.url.includes("on.dcl.csa-iot.org"))).to.be.true;
+        });
+    });
 });

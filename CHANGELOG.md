@@ -14,8 +14,13 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/model
     - Enhancement: First Model preparations for Matter 1.5
 
+- @matter/node
+    - Feature: Added `DclBehavior` for centralized DCL configuration via environment variables (`MATTER_DCL_*`), config files, or programmatic setup (@adeepn)
+
 - @matter/protocol
     - Adjustment: No longer ignore too long incoming Matter messages but still log a warning
+    - Feature: `DclConfig` is now an interface with namespace defaults instead of a singleton; `DclClient` accepts `DclConfig` for configurable endpoints (@adeepn)
+    - Feature: `DclCertificateService` and `DclOtaUpdateService` accept custom DCL endpoint configuration via options (@adeepn)
 
 ## 0.16.10 (2026-02-22)
 
