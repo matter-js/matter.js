@@ -521,6 +521,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                     "AverageMeasurement",
                 ),
                 UserLabelServer,
+                WaterHeaterModeServer,
                 //TestWaterTankLevelMonitoringServer, // invalid according to Device Composition test
                 TestWindowCoveringServer,
             ),
@@ -1039,6 +1040,21 @@ export class AllClustersTestInstance extends NodeTestInstance {
                     measurementMedium: ConcentrationMeasurement.MeasurementMedium.Water,
                     levelValue: ConcentrationMeasurement.LevelValue.Critical,
                 },
+                waterHeaterMode: {
+                    supportedModes: [
+                        {
+                            label: "Manual",
+                            mode: 2,
+                            modeTags: [{ value: WaterHeaterMode.ModeTag.Manual }],
+                        },
+                        {
+                            label: "Off",
+                            mode: 1,
+                            modeTags: [{ value: WaterHeaterMode.ModeTag.Off }],
+                        },
+                    ],
+                    currentMode: 2,
+                },
                 /*waterTankLevelMonitoring: {
                     condition: 20,
                     degradationDirection: ResourceMonitoring.DegradationDirection.Up,
@@ -1073,7 +1089,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
         await serverNode.add(endpoint1);
 
         const endpoint2 = new Endpoint(
-            OnOffLightDevice.with(DescriptorServer.with(Descriptor.Feature.TagList), WaterHeaterModeServer),
+            OnOffLightDevice.with(DescriptorServer.with(Descriptor.Feature.TagList)),
             {
                 number: EndpointNumber(2),
                 id: "ep2",
@@ -1084,22 +1100,6 @@ export class AllClustersTestInstance extends NodeTestInstance {
                             label: "EP2",
                         },
                     ],
-                },
-                // TODO: Move into an own Energymanagement app later
-                waterHeaterMode: {
-                    supportedModes: [
-                        {
-                            label: "Manual",
-                            mode: 2,
-                            modeTags: [{ value: WaterHeaterMode.ModeTag.Manual }],
-                        },
-                        {
-                            label: "Off",
-                            mode: 1,
-                            modeTags: [{ value: WaterHeaterMode.ModeTag.Off }],
-                        },
-                    ],
-                    currentMode: 2,
                 },
             },
         );
