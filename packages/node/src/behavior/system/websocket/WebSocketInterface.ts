@@ -25,7 +25,7 @@ export class WebSocketInterface extends RemoteInterface {
     #mutex = new Mutex(this);
 
     protected override async start() {
-        this.#http = await this.env.get(HttpService).create(this.address);
+        this.#http = await this.env.get(HttpService).create(this);
         this.#http.ws = this.#handleConnection.bind(this);
     }
 

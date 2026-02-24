@@ -24,16 +24,18 @@ export class HttpService {
         this.#factory = factory;
     }
 
-    async create(...addresses: AppAddress.Definition[]) {
+    async create({ address, certificate, key }: HttpService.Configuration) {
+        const addresses = Array.isArray(address) ? address : [address];
+
         if (addresses.length === 1) {
-            return this.#forAddress(addresses[0]);
+            return this.#forConfig({ address: addresses[0], certificate, key });
         }
 
         const endpoints = Array<HttpEndpoint>();
 
         try {
             for (const address of addresses) {
-                endpoints.push(await this.#forAddress(address));
+                endpoints.push(await this.#forConfig({ address, certificate, key }));
             }
         } catch (e) {
             await Promise.allSettled(endpoints.map(endpoint => endpoint.close()));
@@ -43,9 +45,9 @@ export class HttpService {
         return new HttpEndpointGroup(endpoints);
     }
 
-    async #forAddress(address: AppAddress.Definition) {
-        const addr = AppAddress.for(address);
-        if (addr.appProtocol !== "http" && addr.appProtocol !== "ws") {
+    async #forConfig(config: HttpEndpoint.Configuration) {
+        const addr = AppAddress.for(config.address);
+        if (!["http", "https", "ws", "wss"].includes(addr.appProtocol)) {
             throw new ImplementationError(`Unsupported address ${addr} for HTTP endpoint`);
         }
 
@@ -60,7 +62,7 @@ export class HttpService {
                 );
             }
         } else {
-            endpoint = new HttpSharedEndpoint(addr.isTls, () => this.#factory.create({ address }));
+            endpoint = new HttpSharedEndpoint(addr.isTls, () => this.#factory.create(config));
             this.#endpoints[key] = endpoint;
         }
 
@@ -71,5 +73,11 @@ export class HttpService {
         const instance = new HttpService(env.get(HttpEndpointFactory));
         env.set(HttpService, instance);
         return instance;
+    }
+}
+
+export namespace HttpService {
+    export interface Configuration extends HttpEndpoint.Options {
+        address: AppAddress.Definition | AppAddress.Definition[];
     }
 }

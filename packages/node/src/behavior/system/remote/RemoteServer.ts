@@ -6,11 +6,26 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
-import { AppAddress, ImplementationError, InternalError } from "#general";
+import {
+    AppAddress,
+    Crypto,
+    CurveType,
+    Diagnostic,
+    ImplementationError,
+    InternalError,
+    Key,
+    KeyType,
+    Logger,
+    X509,
+    X520,
+    X962,
+} from "#general";
 import { DatatypeModel, FieldElement } from "#model";
 import type { ServerNode } from "#node/ServerNode.js";
 import { ServerEndpointInitializer } from "#node/server/ServerEndpointInitializer.js";
 import { RemoteInterface } from "./RemoteInterface.js";
+
+const logger = Logger.get("RemoteServer");
 
 /**
  * Base class for {@link Behavior}s that enable remote access to a {@link ServerNode} via a non-Matter API.
@@ -33,6 +48,14 @@ export abstract class RemoteServer extends Behavior {
     declare state: RemoteServer.State;
 
     override async initialize() {
+        if (this.state.key === undefined) {
+            this.state.key = await this.#createKey();
+        }
+
+        if (this.state.certificate === undefined) {
+            this.state.certificate = await this.#createCertificate(this.state.key);
+        }
+
         if (!(this.env.get(EndpointInitializer) instanceof ServerEndpointInitializer)) {
             throw new ImplementationError("Remote server is not installed in a ServerNode");
         }
@@ -64,9 +87,17 @@ export abstract class RemoteServer extends Behavior {
         }
 
         const address = new AppAddress(this.state.address);
-        const intf = await interfaceType.create(this.endpoint as ServerNode, address);
+        const { key, certificate } = this.state;
+        const intf = await interfaceType.create({
+            node: this.endpoint as ServerNode,
+            address,
+            key,
+            certificate,
+        });
 
         this.internal.interface = intf;
+
+        logger.info("Listening on", Diagnostic.strong(intf.address));
     }
 
     async #stop() {
@@ -94,7 +125,43 @@ export abstract class RemoteServer extends Behavior {
         FieldElement({ name: "address", type: "string" }),
         FieldElement({ name: "enabled", type: "bool" }),
         FieldElement({ name: "allowOfflineUse", type: "bool" }),
+        FieldElement({ name: "certificate", type: "octstr" }),
+        FieldElement({ name: "key", type: "octstr" }),
     );
+
+    async #createKey() {
+        const key = await this.env.get(Crypto).createKeyPair();
+        if (key.pem === undefined) {
+            throw new InternalError("PEM form of new private key is missing");
+        }
+        return key.pem;
+    }
+
+    async #createCertificate(pkcs8: string) {
+        const crypto = this.env.get(Crypto);
+        const key = Key({ pem: pkcs8, kty: KeyType.EC, crv: CurveType.p256 });
+        const notBefore = new Date();
+        const notAfter = new Date();
+        notAfter.setFullYear(notAfter.getFullYear() + 10);
+        const unsigned: X509.UnsignedCertificate = {
+            serialNumber: crypto.randomBytes(20),
+            subject: { commonName: X520.CommonName("localhost") },
+            validity: {
+                notBefore,
+                notAfter,
+            },
+            issuer: { commonName: X520.CommonName("matter.js") },
+            extensions: {
+                basicConstraints: {
+                    isCa: true,
+                },
+            },
+            signatureAlgorithm: X962.EcdsaWithSHA256,
+            publicKey: X962.PublicKeyEcPrime256v1(key.publicBits!),
+        };
+        const certificate = await X509.sign(this.env.get(Crypto), key, unsigned);
+        return X509.certificateToPem(certificate);
+    }
 }
 
 export namespace RemoteServer {
@@ -128,5 +195,15 @@ export namespace RemoteServer {
          * also online.
          */
         allowOfflineUse = true;
+
+        /**
+         * Certificate for encrypted endpoints in PEM format.
+         */
+        certificate?: string;
+
+        /**
+         * Private key for encrypted endpoints in PEM format.
+         */
+        key?: string;
     }
 }

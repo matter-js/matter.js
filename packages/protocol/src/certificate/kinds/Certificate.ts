@@ -326,7 +326,7 @@ export namespace Certificate {
             const valueNode = DerCodec.decode(valueOctetString);
 
             switch (oidValue) {
-                case X509.Extension.BASIC_CONSTRAINTS:
+                case X509.Extensions.BASIC_CONSTRAINTS:
                     {
                         const { _elements: bcElements } = valueNode;
                         // Always initialize basicConstraints when extension is present
@@ -345,7 +345,7 @@ export namespace Certificate {
                     }
                     break;
 
-                case X509.Extension.KEY_USAGE:
+                case X509.Extensions.KEY_USAGE:
                     {
                         // Note: DerKey.Bytes for BIT STRING returns data without the padding byte
                         const bitString = Bytes.of(valueNode._bytes);
@@ -369,7 +369,7 @@ export namespace Certificate {
                     }
                     break;
 
-                case X509.Extension.EXTENDED_KEY_USAGE:
+                case X509.Extensions.EXTENDED_KEY_USAGE:
                     {
                         const { _elements: ekuElements } = valueNode;
                         if (ekuElements) {
@@ -404,11 +404,11 @@ export namespace Certificate {
                     }
                     break;
 
-                case X509.Extension.SUBJECT_KEY_IDENTIFIER:
+                case X509.Extensions.SUBJECT_KEY_IDENTIFIER:
                     result.subjectKeyIdentifier = valueNode._bytes;
                     break;
 
-                case X509.Extension.AUTHORITY_KEY_IDENTIFIER:
+                case X509.Extensions.AUTHORITY_KEY_IDENTIFIER:
                     {
                         const { _elements: akiElements } = valueNode;
                         if (akiElements && akiElements.length > 0) {
