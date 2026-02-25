@@ -182,9 +182,6 @@ export class ClientInteraction<
      */
     async *read(request: ClientRead, session?: SessionT): ReadResult {
         const readPathsCount = (request.attributeRequests?.length ?? 0) + (request.eventRequests?.length ?? 0);
-        if (readPathsCount === 0) {
-            throw new ImplementationError("When reading attributes and events, at least one must be specified.");
-        }
         if (readPathsCount > 9) {
             logger.info(
                 "Read interactions with more than 9 paths might be not allowed by the device. Consider splitting them into several read requests.",
