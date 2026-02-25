@@ -5,6 +5,7 @@
  */
 
 import type { ActionContext } from "#behavior/context/ActionContext.js";
+import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { ImplementationError, Lifecycle, Logger, MatterAggregateError, ObserverGroup } from "#general";
 import type { ClientNode } from "#node/ClientNode.js";
@@ -103,6 +104,15 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
                 } else {
                     for await (const _chunk of result);
                 }
+            },
+
+            refreshRequest: request => {
+                const updated = {
+                    ...request,
+                    dataVersionFilters: undefined,
+                    eventFilters: [{ eventMin: this.#node.stateOf(NetworkClient).maxEventNumber + 1n }],
+                };
+                return this.#structure.injectVersionFilters(updated);
             },
 
             closed: request.closed?.bind(request),

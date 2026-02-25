@@ -88,7 +88,7 @@ export namespace PeerTimingParameters {
 
         // We assume 30s processing time on peer for single Sigma actions, so give one IP a bit of time
         // to have a chance before potentially adding a load with a second try
-        delayBeforeNextAddress: Seconds(60),
+        delayBeforeNextAddress: Seconds(45),
         delayAfterNetworkError: Seconds(15),
         delayAfterPeerError: Minutes(1),
         delayAfterUnhandledError: Minutes(2),

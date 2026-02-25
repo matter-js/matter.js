@@ -45,6 +45,7 @@ import { InteractionClientMessenger, MessageType } from "#interaction/Interactio
 import { Subscription } from "#interaction/Subscription.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { ExchangeProvider } from "#protocol/ExchangeProvider.js";
+import type { ExchangeLogContext } from "#protocol/MessageExchange.js";
 import { Status, TlvAttributeReport, TlvNoResponse, TlvSubscribeResponse, TypeFromSchema } from "#types";
 import { ClientWrite } from "./ClientWrite.js";
 import { InputChunk } from "./InputChunk.js";
@@ -191,7 +192,7 @@ export class ClientInteraction<
         await using context = await this.#begin("reading", request, session);
         const { abort, messenger } = context;
 
-        logger.info("Read", Mark.OUTBOUND, messenger.exchange.via, request);
+        logger.info("Read", Mark.OUTBOUND, messenger.exchange.via, session?.logContext ?? "", request);
         await messenger.sendReadRequest(request, { abort });
 
         let attributeReportCount = 0;
@@ -788,9 +789,15 @@ export class ClientInteraction<
             return subscription;
         };
 
-        const read = (request: Read, extraAbort?: AbortSignal) => {
+        const read = (request: Read, extraAbort?: AbortSignal, logContext?: ExchangeLogContext) => {
             const abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort] });
 
+            if (logContext !== undefined) {
+                session = {
+                    ...session,
+                    logContext: session?.logContext ? { ...session.logContext, ...logContext } : logContext,
+                } as unknown as SessionT;
+            }
             return this.read(request, { ...session, abort } as unknown as SessionT);
         };
 

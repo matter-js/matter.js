@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Transaction } from "@matter/general";
+import { Duration, Transaction } from "#general";
+import { ExchangeLogContext } from "#protocol/MessageExchange.js";
 
 /**
  * Configuration that applies to all interactions.
@@ -42,4 +43,7 @@ export interface InteractionSettings {
      * This parameter has no effect when interacting with local nodes.
      */
     connectionTimeout?: Duration;
+
+    /** Additional context information for logging to be included at the beginning of the Message log. */
+    logContext?: ExchangeLogContext;
 }
