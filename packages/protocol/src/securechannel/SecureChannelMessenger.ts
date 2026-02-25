@@ -129,7 +129,7 @@ export class SecureChannelMessenger {
     }
 
     sendCloseSession(abort?: AbortSignal) {
-        return this.#sendStatusReport(GeneralStatusCode.Success, SecureChannelStatusCode.CloseSession, abort);
+        return this.#sendStatusReport(GeneralStatusCode.Success, SecureChannelStatusCode.CloseSession, abort, false);
     }
 
     get channelName() {
@@ -148,6 +148,7 @@ export class SecureChannelMessenger {
         generalStatus: GeneralStatusCode,
         protocolStatus: SecureChannelStatusCode,
         abort?: AbortSignal,
+        requiresAck?: boolean,
     ) {
         await this.exchange.send(
             SecureMessageType.StatusReport,
@@ -156,6 +157,7 @@ export class SecureChannelMessenger {
                 protocolStatus,
             }),
             {
+                requiresAck,
                 logContext: {
                     generalStatus: GeneralStatusCode[generalStatus] ?? Diagnostic.hex(generalStatus),
                     protocolStatus: SecureChannelStatusCode[protocolStatus] ?? Diagnostic.hex(protocolStatus),

@@ -860,10 +860,12 @@ export class MessageExchange {
             if (cause) {
                 // We have sent the Ack, so close here, no retries needed
                 await this.#close(cause);
+                return;
             }
         } else if (this.#sentMessageToAck === undefined || cause) {
             // No message left that we need to ack and no sent message left that waits for an ack, close directly
             await this.#close(cause);
+            return;
         }
 
         // Wait until all potential outstanding Resubmissions are done (up to default of MRP.MAX_TRANSMISSIONS), also
