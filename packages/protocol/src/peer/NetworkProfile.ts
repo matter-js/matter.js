@@ -92,7 +92,7 @@ export class NetworkProfiles {
             semaphore: new Semaphore(`network semaphore ${id}`, limits.exchanges, limits.delay, limits.timeout),
         };
         if (limits.connect) {
-            network.connect = this.configure(`${id}:connect`, { ...limits, ...limits.connect, connect: undefined });
+            network.connect = this.configure(`${id}:connect`, { ...limits.connect, connect: undefined });
         }
         this.#networks.set(id, network);
         return network;
@@ -112,7 +112,12 @@ export class NetworkProfiles {
                 id = "thread";
             }
             defaults = this.#defaults.thread;
-        } else if (pp.supportsWifi || pp.supportsEthernet) {
+        } else if (
+            pp.supportsWifi ||
+            pp.supportsEthernet ||
+            // We have data but no Network Commissioning cluster, means "other means"
+            (!pp.supportsWifi && !pp.supportsEthernet && !pp.supportsThread && pp.rootEndpointServerList.length > 0)
+        ) {
             id = "fast";
             defaults = this.#defaults.fast;
         } else {
@@ -153,7 +158,7 @@ export namespace NetworkProfiles {
          *
          * If present, any values here act as limits specifically for CASE session establishment.
          */
-        connect?: Partial<ConcreteLimits>;
+        connect?: ConcreteLimits;
     }
 
     /**
@@ -197,7 +202,6 @@ export namespace NetworkProfiles {
 
         connect: {
             exchanges: 4,
-            delay: Millis(100),
             timeout: Seconds(10), // Release slot for connections after 15s latest
         },
     };
