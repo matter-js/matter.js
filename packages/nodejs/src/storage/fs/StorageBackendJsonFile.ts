@@ -66,11 +66,6 @@ export class StorageBackendJsonFile extends StorageBackendMemory {
         this.triggerCommit();
     }
 
-    override clear(): void {
-        super.clear();
-        this.triggerCommit();
-    }
-
     private async commit() {
         if (!this.initialized || this.closed) return;
         if (this.commitTimer.isRunning) {

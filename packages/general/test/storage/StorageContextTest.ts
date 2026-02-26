@@ -226,7 +226,7 @@ describe("StorageContext", () => {
         storageContext.set("key3", "value3");
         storageContext.set("key4", "value4");
 
-        storageContext.clear();
+        storageContext.clearAll();
 
         expect(storageContext.has("key")).equal(false);
         expect(storageContext.has("ke2")).equal(false);

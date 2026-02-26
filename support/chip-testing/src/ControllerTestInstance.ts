@@ -8,6 +8,7 @@ import { InternalError, Logger } from "@matter/general";
 import { Environment, NodeId, StorageService } from "@matter/main";
 import { CommissioningController, ControllerStore } from "@project-chip/matter.js";
 import { mkdirSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { ChipToolWebSocketHandler } from "./ChipToolWebSocketHandler.js";
 import {
     getIntParameter,
@@ -45,10 +46,11 @@ export async function startControllerTestApp(
     const storageName = `${storageDir}${getParameter("KVS") ?? "/chip_tool_kvs"}`;
     logger.info(`Using storage directory: ${storageName}`);
 
-    const storage = new storageType(storageName);
     if (hasParameter("factoryreset")) {
-        await storage.clear();
+        await rm(storageName, { recursive: true, force: true });
     }
+
+    const storage = new storageType(storageName);
 
     const testInstance = new testInstanceClass({
         storage,

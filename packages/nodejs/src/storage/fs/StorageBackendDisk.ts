@@ -52,7 +52,8 @@ export class StorageBackendDisk extends Storage {
 
     async initialize() {
         if (this.#clear) {
-            await this.clear();
+            this.#index = {};
+            await rm(this.#path, { recursive: true, force: true });
         }
         await mkdir(this.#path, { recursive: true });
 
@@ -115,13 +116,6 @@ export class StorageBackendDisk extends Storage {
 
     filePath(fileName: string) {
         return join(this.#path, fileName);
-    }
-
-    async clear() {
-        await this.#finishAllWrites();
-        this.#index = {};
-        await rm(this.#path, { recursive: true, force: true });
-        await mkdir(this.#path, { recursive: true });
     }
 
     getContextBaseKey(contexts: string[], allowEmptyContext = false) {

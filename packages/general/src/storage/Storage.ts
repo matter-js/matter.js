@@ -25,8 +25,10 @@ export abstract class Storage {
     abstract values(contexts: string[]): MaybePromise<Record<string, SupportedStorageTypes>>;
     abstract contexts(contexts: string[]): MaybePromise<string[]>;
     abstract clearAll(contexts: string[]): MaybePromise<void>;
-    // TODO: use `completely` variable for removing storage completely
-    abstract clear(completely?: boolean): MaybePromise<void>;
+    /** @deprecated Use {@link clearAll} instead. */
+    clear(_completely?: boolean): MaybePromise<void> {
+        throw new StorageError("clear() is deprecated; use clearAll() instead");
+    }
 
     /**
      * Checks if a key exists in the storage for the given contexts.

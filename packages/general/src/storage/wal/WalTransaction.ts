@@ -180,14 +180,6 @@ export class WalTransaction extends StorageTransaction {
         return applyBuffered(baseContexts as string[]);
     }
 
-    override clear(completely?: boolean): MaybePromise<void> {
-        this.assertActive();
-        if (completely) {
-            this.#ops.length = 0;
-            this.#ops.push({ op: "del", key: "" });
-        }
-    }
-
     override openBlob(contexts: string[], key: string): MaybePromise<Blob> {
         return this.storage.openBlob(contexts, key);
     }
