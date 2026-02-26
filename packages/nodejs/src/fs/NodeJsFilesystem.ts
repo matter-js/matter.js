@@ -16,7 +16,7 @@ import {
     type MaybePromise,
 } from "#general";
 import { createReadStream, createWriteStream, type WriteStream } from "node:fs";
-import { rename as fsRename, mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { open as fsOpen, rename as fsRename, mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { finished } from "node:stream/promises";
 
@@ -240,6 +240,16 @@ class NodeJsFile extends File {
         await writeData(this.#path, data);
     }
 
+    async open(mode?: File.OpenMode): Promise<File.Handle> {
+        const m = mode ?? "r";
+        const flags = m === "w" ? "w" : m === "a" ? "a" : "r";
+        if (flags === "w" || flags === "a") {
+            await mkdir(dirname(this.#path), { recursive: true });
+        }
+        const fh = await fsOpen(this.#path, flags);
+        return new NodeJsFileHandle(this.#path, this.#name, fh);
+    }
+
     async rename(newName: string): Promise<void> {
         const newPath = join(dirname(this.#path), newName);
         await fsRename(this.#path, newPath);
@@ -312,5 +322,90 @@ class NodeJsDirectory extends Directory {
 
     async mkdir(): Promise<void> {
         await mkdir(this.#path, { recursive: true });
+    }
+}
+
+class NodeJsFileHandle extends File.Handle {
+    #path: string;
+    #name: string;
+    readonly #fh: import("node:fs/promises").FileHandle;
+
+    constructor(path: string, name: string, fh: import("node:fs/promises").FileHandle) {
+        super();
+        this.#path = path;
+        this.#name = name;
+        this.#fh = fh;
+    }
+
+    get name() {
+        return this.#name;
+    }
+
+    async exists(): Promise<boolean> {
+        return nodeExists(this.#path);
+    }
+
+    stat(): MaybePromise<FilesystemNode.Stat> {
+        return nodeStat(this.#path);
+    }
+
+    async *readBytes(): AsyncIterable<Uint8Array> {
+        const stream = createReadStream(this.#path);
+        for await (const chunk of stream) {
+            yield chunk;
+        }
+    }
+
+    async *readText(options?: File.ReadTextOptions): AsyncIterable<string> {
+        if (options?.lines) {
+            const stream = createReadStream(this.#path, { encoding: "utf8" });
+            let carry = "";
+            for await (const chunk of stream) {
+                const parts = (carry + chunk).split("\n");
+                carry = parts.pop()!;
+                yield* parts;
+            }
+            yield carry;
+        } else {
+            const stream = createReadStream(this.#path, { encoding: "utf8" });
+            for await (const chunk of stream) {
+                yield chunk;
+            }
+        }
+    }
+
+    async write(data: Bytes | string | MaybeAsyncIterable<Bytes> | MaybeAsyncIterable<string>): Promise<void> {
+        await writeData(this.#path, data);
+    }
+
+    async open(): Promise<File.Handle> {
+        return this;
+    }
+
+    async writeHandle(data: Bytes | string): Promise<void> {
+        if (typeof data === "string") {
+            await this.#fh.write(data, undefined, "utf8");
+        } else {
+            await this.#fh.write(toBytes(data));
+        }
+    }
+
+    async fsync(): Promise<void> {
+        await this.#fh.datasync();
+    }
+
+    async close(): Promise<void> {
+        await this.#fh.close();
+    }
+
+    async rename(newName: string): Promise<void> {
+        const newPath = join(dirname(this.#path), newName);
+        await fsRename(this.#path, newPath);
+        this.#path = newPath;
+        this.#name = newName;
+    }
+
+    async delete(): Promise<void> {
+        await rm(this.#path, { recursive: true, force: true });
     }
 }
