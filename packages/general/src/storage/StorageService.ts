@@ -9,20 +9,20 @@ import { NoProviderError } from "../MatterError.js";
 import { Environment } from "../environment/Environment.js";
 import { Environmental } from "../environment/Environmental.js";
 import { Diagnostic } from "../log/Diagnostic.js";
-import { Storage } from "./Storage.js";
+import { StorageDriver } from "./StorageDriver.js";
 import { StorageManager } from "./StorageManager.js";
 
 /**
  * Service adapter for the Matter.js storage API.
  */
 export class StorageService {
-    #factory?: (namespace: string) => MaybePromise<Storage>;
+    #factory?: (namespace: string) => MaybePromise<StorageDriver>;
     #location?: string;
 
     constructor(
         environment: Environment,
 
-        factory?: (namespace: string) => MaybePromise<Storage>,
+        factory?: (namespace: string) => MaybePromise<StorageDriver>,
         resolver?: (...paths: string[]) => string,
     ) {
         environment.set(StorageService, this);
@@ -56,7 +56,7 @@ export class StorageService {
     /**
      * Install a factory for opening storage.  Without such a factory storage is unavailable.
      */
-    set factory(factory: (namespace: string) => MaybePromise<Storage>) {
+    set factory(factory: (namespace: string) => MaybePromise<StorageDriver>) {
         this.#factory = factory;
     }
 

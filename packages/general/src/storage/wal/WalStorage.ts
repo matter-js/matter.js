@@ -11,7 +11,7 @@ import { Abort } from "#util/Abort.js";
 import { Bytes } from "#util/Bytes.js";
 import { BasicMultiplex } from "#util/Multiplex.js";
 import type { Directory } from "../../fs/Directory.js";
-import { Storage, StorageError } from "../Storage.js";
+import { StorageDriver, StorageError } from "../StorageDriver.js";
 import type { SupportedStorageTypes } from "../StringifyTools.js";
 import { WalCleaner } from "./WalCleaner.js";
 import { type WalCommitId, encodeContextKey } from "./WalCommit.js";
@@ -30,7 +30,7 @@ type StoreData = Record<string, Record<string, SupportedStorageTypes>>;
  * Data is loaded from the snapshot + WAL on first read and cached until a write invalidates the cache.  This keeps
  * memory free during steady-state operation when only writes occur.
  */
-export class WalStorage extends Storage {
+export class WalStorage extends StorageDriver {
     readonly #storageDir: Directory;
     readonly #options: WalStorage.Options;
     #cache?: StoreData;

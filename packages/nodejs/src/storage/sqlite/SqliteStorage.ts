@@ -9,7 +9,7 @@ import {
     type CloneableStorage,
     type SupportedStorageTypes,
     fromJson,
-    Storage,
+    StorageDriver,
     StorageTransaction,
     toJson,
 } from "@matter/general";
@@ -53,7 +53,7 @@ type SqlRunnableKV<
  *
  * Supports `node:sqlite`, `bun:sqlite`. (maybe also `better-sqlite3` support)
  */
-export class SqliteStorage extends Storage implements CloneableStorage {
+export class SqliteStorage extends StorageDriver implements CloneableStorage {
     public static readonly memoryPath = ":memory:";
     public static readonly defaultTableName = "kvstore";
 
@@ -289,7 +289,7 @@ export class SqliteStorage extends Storage implements CloneableStorage {
         this.isInitialized = true;
     }
 
-    public clone(): Storage {
+    public clone(): StorageDriver {
         const clonedStorage = new SqliteStorage({
             databaseCreator: this.databaseCreator,
             path: null,

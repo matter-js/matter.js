@@ -5,13 +5,13 @@
  */
 
 import { MaybePromise } from "../util/Promises.js";
-import { Storage, StorageError } from "./Storage.js";
 import { StorageContext, StorageContextFactory } from "./StorageContext.js";
+import { StorageDriver, StorageError } from "./StorageDriver.js";
 
 export class StorageManager implements StorageContextFactory {
     private initialized = false;
 
-    constructor(private storage: Storage) {}
+    constructor(private storage: StorageDriver) {}
 
     initialize(): MaybePromise<void> {
         if (!this.storage.initialized) {

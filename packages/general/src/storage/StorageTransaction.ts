@@ -6,15 +6,15 @@
 
 import type { Bytes } from "#util/Bytes.js";
 import type { MaybePromise } from "#util/Promises.js";
-import { Storage, StorageError } from "./Storage.js";
+import { StorageDriver, StorageError } from "./StorageDriver.js";
 import type { SupportedStorageTypes } from "./StringifyTools.js";
 
 export class StorageCommitError extends StorageError {}
 
 /**
- * A transactional wrapper around a {@link Storage}.
+ * A transactional wrapper around a {@link StorageDriver}.
  *
- * Use {@link Storage#begin} to create a transaction, then use `await using` for automatic cleanup:
+ * Use {@link StorageDriver#begin} to create a transaction, then use `await using` for automatic cleanup:
  *
  * ```ts
  * await using tx = storage.begin();
@@ -24,11 +24,11 @@ export class StorageCommitError extends StorageError {}
  *
  * If `commit()` is not called before disposal, the transaction is rolled back.
  */
-export class StorageTransaction extends Storage implements AsyncDisposable {
+export class StorageTransaction extends StorageDriver implements AsyncDisposable {
     #committed = false;
     #disposed = false;
 
-    constructor(protected readonly storage: Storage) {
+    constructor(protected readonly storage: StorageDriver) {
         super();
     }
 

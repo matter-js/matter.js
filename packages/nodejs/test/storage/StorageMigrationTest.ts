@@ -6,7 +6,7 @@
 
 import { StorageFactory, StorageType } from "#storage/index.js";
 import { supportsSqlite } from "#util/runtimeChecks.js";
-import { Bytes, Storage } from "@matter/general";
+import { Bytes, StorageDriver } from "@matter/general";
 import * as assert from "node:assert";
 import { mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -56,8 +56,8 @@ describe("StorageMigration", () => {
                 namespace: `test_${source}to${target}`,
             };
 
-            let sourceStorage: Storage;
-            let targetStorage: Storage | null = null;
+            let sourceStorage: StorageDriver;
+            let targetStorage: StorageDriver | null = null;
             // BeforeEach
             beforeEach(async () => {
                 if (sourceStorage != null) {
