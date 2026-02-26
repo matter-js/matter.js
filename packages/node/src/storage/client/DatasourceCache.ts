@@ -45,12 +45,14 @@ export function DatasourceCache(
             participant.set(store.number, behaviorId, values);
         },
 
-        async externalSet(values: Val.Struct) {
-            if (typeof values[DatasourceCache.VERSION_KEY] === "number") {
-                version = values[DatasourceCache.VERSION_KEY];
+        async externalSet(values: Val.StructMap) {
+            const versionVal = values.get(DatasourceCache.VERSION_KEY);
+            if (typeof versionVal === "number") {
+                version = versionVal;
             }
 
-            await store.set({ [behaviorId]: values });
+            const valuesStruct = Object.fromEntries(values) as Val.Struct;
+            await store.set({ [behaviorId]: valuesStruct });
 
             if (this.externalChangeListener) {
                 await this.externalChangeListener(values);
@@ -58,7 +60,7 @@ export function DatasourceCache(
                 if (!this.initialValues) {
                     this.initialValues = {};
                 }
-                Object.assign(this.initialValues, values);
+                Object.assign(this.initialValues, valuesStruct);
             }
         },
 
