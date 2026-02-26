@@ -22,6 +22,11 @@ export abstract class File extends FilesystemNode {
     abstract write(data: Bytes | string | MaybeAsyncIterable<Bytes> | MaybeAsyncIterable<string>): Promise<void>;
 
     /**
+     * Open the file and return a handle for low-level operations (append, fsync).
+     */
+    abstract open(mode?: File.OpenMode): Promise<File.Handle>;
+
+    /**
      * Read all bytes from the file into a single buffer.
      */
     async readAllBytes(): Promise<Uint8Array> {
@@ -56,9 +61,31 @@ export abstract class File extends FilesystemNode {
 }
 
 export namespace File {
+    export type OpenMode = "r" | "w" | "a";
+
     export interface ReadTextOptions {
         /** When true, yields individual lines with newlines stripped. */
         lines?: boolean;
+    }
+
+    /**
+     * An opened file handle supporting append writes and fsync.
+     */
+    export abstract class Handle extends File {
+        /**
+         * Write data to the open file handle (appends at current position).
+         */
+        abstract writeHandle(data: Bytes | string): Promise<void>;
+
+        /**
+         * Flush file data to persistent storage.
+         */
+        abstract fsync(): Promise<void>;
+
+        /**
+         * Close the file handle.
+         */
+        abstract close(): Promise<void>;
     }
 }
 

@@ -161,6 +161,29 @@ class MockFile extends File {
         this.#cachedStat = cachedStat;
     }
 
+    async open(mode?: File.OpenMode): Promise<File.Handle> {
+        const m = mode ?? "r";
+        if (m === "w" || m === "a") {
+            // Ensure parent directories exist
+            mkdirp(this.#segments.slice(0, -1), this.#root);
+            const parent = resolvePath(this.#segments.slice(0, -1), this.#root)!;
+            let node = resolvePath(this.#segments, this.#root);
+            if (!node) {
+                node = createFileNode(new Uint8Array(0));
+                parent.children!.set(this.name, node);
+            }
+            if (m === "w") {
+                node.content = new Uint8Array(0);
+            }
+        } else {
+            const node = resolvePath(this.#segments, this.#root);
+            if (!node) {
+                throw new FileNotFoundError(`File not found: ${this.#segments.join("/")}`);
+            }
+        }
+        return new MockFileHandle(this.#segments, this.#root);
+    }
+
     get name() {
         return this.#segments[this.#segments.length - 1];
     }
@@ -368,5 +391,123 @@ class MockDirectory extends Directory {
 
     async mkdir(): Promise<void> {
         mkdirp(this.#segments, this.#root);
+    }
+}
+
+class MockFileHandle extends File.Handle {
+    readonly #segments: string[];
+    readonly #root: MockNode;
+    #closed = false;
+
+    constructor(segments: string[], root: MockNode) {
+        super();
+        this.#segments = segments;
+        this.#root = root;
+    }
+
+    get name() {
+        return this.#segments[this.#segments.length - 1];
+    }
+
+    async exists(): Promise<boolean> {
+        return resolvePath(this.#segments, this.#root) !== undefined;
+    }
+
+    stat(): MaybePromise<FilesystemNode.Stat> {
+        const node = resolvePath(this.#segments, this.#root);
+        if (!node) {
+            throw new FileNotFoundError(`File not found: ${this.#segments.join("/")}`);
+        }
+        return statOf(node);
+    }
+
+    async *readBytes(): AsyncIterable<Uint8Array> {
+        const node = resolvePath(this.#segments, this.#root);
+        if (!node) {
+            throw new FileNotFoundError(`File not found: ${this.#segments.join("/")}`);
+        }
+        if (node.content && node.content.length > 0) {
+            yield node.content;
+        }
+    }
+
+    async *readText(options?: File.ReadTextOptions): AsyncIterable<string> {
+        const node = resolvePath(this.#segments, this.#root);
+        if (!node) {
+            throw new FileNotFoundError(`File not found: ${this.#segments.join("/")}`);
+        }
+        const text = new TextDecoder().decode(node.content ?? new Uint8Array());
+        if (options?.lines) {
+            for (const line of text.split("\n")) {
+                yield line;
+            }
+        } else {
+            yield text;
+        }
+    }
+
+    async write(data: Bytes | string | MaybeAsyncIterable<Bytes> | MaybeAsyncIterable<string>): Promise<void> {
+        // Delegate full write to a MockFile
+        const file = new MockFile(this.#segments, this.#root);
+        return file.write(data);
+    }
+
+    async open(): Promise<File.Handle> {
+        return this;
+    }
+
+    async writeHandle(data: Bytes | string): Promise<void> {
+        if (this.#closed) {
+            throw new FileTypeError("File handle is closed");
+        }
+        const node = resolvePath(this.#segments, this.#root);
+        if (!node) {
+            throw new FileNotFoundError(`File not found: ${this.#segments.join("/")}`);
+        }
+        const newBytes =
+            typeof data === "string"
+                ? new TextEncoder().encode(data)
+                : data instanceof Uint8Array
+                  ? data
+                  : Bytes.of(data);
+        const existing = node.content ?? new Uint8Array(0);
+        const combined = new Uint8Array(existing.length + newBytes.length);
+        combined.set(existing);
+        combined.set(newBytes, existing.length);
+        node.content = combined;
+        node.mtime = new Date();
+    }
+
+    async fsync(): Promise<void> {
+        if (this.#closed) {
+            throw new FileTypeError("File handle is closed");
+        }
+        // No-op for mock
+    }
+
+    async close(): Promise<void> {
+        this.#closed = true;
+    }
+
+    async rename(newName: string): Promise<void> {
+        const parent = resolvePath(this.#segments.slice(0, -1), this.#root);
+        if (!parent?.children) {
+            throw new FileNotFoundError(`File not found: ${this.#segments.join("/")}`);
+        }
+        const node = parent.children.get(this.name);
+        if (!node) {
+            throw new FileNotFoundError(`File not found: ${this.#segments.join("/")}`);
+        }
+        parent.children.delete(this.name);
+        parent.children.set(newName, node);
+        this.#segments[this.#segments.length - 1] = newName;
+    }
+
+    async delete(): Promise<void> {
+        const parent = resolvePath(this.#segments.slice(0, -1), this.#root);
+        if (parent?.children) {
+            parent.children.delete(this.name);
+        }
+        this.#closed = true;
     }
 }
