@@ -44,29 +44,39 @@ export class PeerExchangeProvider extends ExchangeProvider {
     override async initiateExchange(options?: NewExchangeOptions): Promise<MessageExchange> {
         const abort = options?.abort;
 
-        // Connections grab their own network slot so connect before obtaining our own
-        const session = await this.#peer.connect(options);
+        while (true) {
+            // Connections grab their own network slot so connect before getting our own
+            await this.#peer.connect(options);
+            abort?.throwIfAborted();
 
-        const network = this.#context.networks.select(this.#peer, options?.network);
-        const slot = await network.semaphore.obtainSlot(abort);
-        abort?.throwIfAborted();
+            const network = this.#context.networks.select(this.#peer, options?.network);
+            const slot = await network.semaphore.obtainSlot(abort);
+            abort?.throwIfAborted();
 
-        try {
-            const exchange = PeerConnection.createExchange(
-                this.#peer,
-                this.#context.exchanges,
-                session,
-                options?.protocol ?? INTERACTION_PROTOCOL_ID,
-            );
+            try {
+                const session = this.#peer.newestSession;
+                if (session === undefined) {
+                    // We had a session before getting the slot, but it was closed. Restart
+                    slot.close();
+                    continue;
+                }
 
-            exchange.closed.on(() => {
+                const exchange = PeerConnection.createExchange(
+                    this.#peer,
+                    this.#context.exchanges,
+                    session,
+                    options?.protocol ?? INTERACTION_PROTOCOL_ID,
+                );
+
+                exchange.closed.on(() => {
+                    slot.close();
+                });
+
+                return exchange;
+            } catch (e) {
                 slot.close();
-            });
-
-            return exchange;
-        } catch (e) {
-            slot.close();
-            throw e;
+                throw e;
+            }
         }
     }
 

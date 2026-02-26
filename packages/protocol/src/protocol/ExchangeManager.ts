@@ -450,6 +450,7 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
     }
 
     #messageExchangeContextFor(session: Session): MessageExchangeContext {
+        const createdAt = Time.nowMs;
         return {
             session,
             localSessionParameters: this.#sessions.sessionParameters,
@@ -471,8 +472,8 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
                     return;
                 }
 
-                // Report peer loss to the session manager; this notify all sessions for the peer
-                await this.#sessions.handlePeerLoss(session.peerAddress, cause, Time.nowMs);
+                // Report peer loss to the session manager; this notifies all (relevant) sessions for the peer
+                await this.#sessions.handlePeerLoss(session.peerAddress, cause, createdAt);
             },
 
             retry: number => this.#sessions.retry.emit(session, number),
