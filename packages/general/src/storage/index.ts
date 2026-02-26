@@ -13,3 +13,4 @@ export * from "./StorageMigration.js";
 export * from "./StorageService.js";
 export * from "./StorageTransaction.js";
 export * from "./StringifyTools.js";
+export * from "./wal/index.js";
