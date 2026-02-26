@@ -10,6 +10,7 @@ import {
     type SupportedStorageTypes,
     fromJson,
     Storage,
+    StorageTransaction,
     toJson,
 } from "@matter/general";
 
@@ -568,5 +569,26 @@ export class SqliteStorage extends Storage implements CloneableStorage {
                 `Something went wrong! Value wasn't changed.`,
             );
         }
+    }
+
+    override begin(): StorageTransaction {
+        return new SqliteStorageTransaction(this);
+    }
+}
+
+class SqliteStorageTransaction extends StorageTransaction {
+    constructor(private readonly sqliteStorage: SqliteStorage) {
+        super(sqliteStorage);
+        sqliteStorage.transaction(Transaction.BEGIN);
+    }
+
+    override commit() {
+        this.assertActive();
+        this.sqliteStorage.transaction(Transaction.COMMIT);
+        super.commit();
+    }
+
+    protected override rollback() {
+        this.sqliteStorage.transaction(Transaction.ROLLBACK);
     }
 }

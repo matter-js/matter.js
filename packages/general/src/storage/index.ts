@@ -11,4 +11,5 @@ export * from "./StorageContext.js";
 export * from "./StorageManager.js";
 export * from "./StorageMigration.js";
 export * from "./StorageService.js";
+export * from "./StorageTransaction.js";
 export * from "./StringifyTools.js";
