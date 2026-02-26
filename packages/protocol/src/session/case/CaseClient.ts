@@ -172,6 +172,7 @@ export class CaseClient {
                     isResumption: true,
                     peerSessionParameters: sessionParameters,
                     caseAuthenticatedTags,
+                    delayManagerRegistration: true,
                 }),
             );
             NodeSession.logNew(logger, "Resumed", secureSession, messenger, fabric, peerNodeId);
@@ -180,8 +181,12 @@ export class CaseClient {
             resumptionRecord.sessionParameters = secureSession.parameters; /* update mrpParams */
             resumed = true;
 
+            const successPromise = messenger.sendSuccess();
+
+            this.#sessions.sessions.add(secureSession); // Triggers interactions to the node
+
             try {
-                await messenger.sendSuccess();
+                await successPromise;
             } catch (error) {
                 MatterError.accept(error);
                 logger.info(
@@ -305,6 +310,7 @@ export class CaseClient {
                     isResumption: false,
                     peerSessionParameters,
                     caseAuthenticatedTags: sessionCaseAuthenticatedTags,
+                    delayManagerRegistration: true,
                 }),
             );
             NodeSession.logNew(logger, "New", secureSession, messenger, fabric, peerNodeId);
@@ -316,6 +322,8 @@ export class CaseClient {
                 sessionParameters: secureSession.parameters,
                 caseAuthenticatedTags: sessionCaseAuthenticatedTags,
             };
+
+            this.#sessions.sessions.add(secureSession);
         }
 
         // These are not abortable
