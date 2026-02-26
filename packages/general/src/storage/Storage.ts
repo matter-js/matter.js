@@ -43,6 +43,11 @@ export abstract class Storage {
 
     abstract openBlob(contexts: string[], key: string): MaybePromise<Blob>;
     abstract writeBlobFromStream(contexts: string[], key: string, stream: ReadableStream<Bytes>): MaybePromise<void>;
+
+    begin(): MaybePromise<import("./StorageTransaction.js").StorageTransaction> {
+        // Dynamic import to avoid circular dependency (StorageTransaction extends Storage)
+        return import("./StorageTransaction.js").then(({ StorageTransaction }) => new StorageTransaction(this));
+    }
 }
 
 /**
