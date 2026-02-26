@@ -386,7 +386,14 @@ export class BtpSessionHandler {
             const packet = BtpCodec.encodeBtpPacket(btpPacket);
             logger.debug(`Sending BTP packet raw: ${Bytes.toHex(packet)}`);
 
-            await this.writeBleCallback(packet);
+            try {
+                await this.writeBleCallback(packet);
+            } catch (error) {
+                // BLE connection was lost mid-send; the disconnect event will close the session
+                logger.debug(`BTP packet send failed, BLE connection likely already closed: ${error}`);
+                this.sendInProgress = false;
+                return;
+            }
 
             if (!this.ackReceiveTimer.isRunning) {
                 this.ackReceiveTimer.start(); // starts the timer
@@ -431,6 +438,7 @@ export class BtpSessionHandler {
      * acknowledgement
      */
     private async btpSendAckTimeoutTriggered() {
+        if (!this.isActive) return;
         if (this.prevIncomingSequenceNumber > this.prevAckedSequenceNumber) {
             logger.debug(`Sending BTP ACK for sequence number ${this.prevIncomingSequenceNumber}`);
             const btpPacket = {
@@ -449,7 +457,13 @@ export class BtpSessionHandler {
             };
             this.prevAckedSequenceNumber = this.prevIncomingSequenceNumber;
             const packet = BtpCodec.encodeBtpPacket(btpPacket);
-            await this.writeBleCallback(packet);
+            try {
+                await this.writeBleCallback(packet);
+            } catch (error) {
+                // BLE connection was lost while sending the ACK; the disconnect event will close the session
+                logger.debug(`BTP ACK send failed, BLE connection likely already closed: ${error}`);
+                return;
+            }
             if (!this.ackReceiveTimer.isRunning) {
                 this.ackReceiveTimer.start(); // starts the timer
             }
