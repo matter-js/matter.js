@@ -51,9 +51,10 @@ export class PeerExchangeProvider extends ExchangeProvider {
 
             const network = this.#context.networks.select(this.#peer, options?.network);
             const slot = await network.semaphore.obtainSlot(abort);
-            abort?.throwIfAborted();
 
             try {
+                abort?.throwIfAborted();
+
                 const session = this.#peer.newestSession;
                 if (session === undefined) {
                     // We had a session before getting the slot, but it was closed. Restart
@@ -68,7 +69,7 @@ export class PeerExchangeProvider extends ExchangeProvider {
                     options?.protocol ?? INTERACTION_PROTOCOL_ID,
                 );
 
-                exchange.closed.on(() => {
+                exchange.closing.on(() => {
                     slot.close();
                 });
 
@@ -80,12 +81,12 @@ export class PeerExchangeProvider extends ExchangeProvider {
         }
     }
 
-    override maximumPeerResponseTime(expectedProcessingTime?: Duration): Duration {
+    override maximumPeerResponseTime(expectedProcessingTime?: Duration, includeMaximumSendingTime?: boolean): Duration {
         return MRP.maxPeerResponseTimeOf({
             channelType: this.channelType,
             isPeerActive: true,
             localSessionParameters: this.#context.sessions.sessionParameters,
-            peerSessionParameters: this.#peer.sessionParameters,
+            peerSessionParameters: includeMaximumSendingTime ? this.#peer.sessionParameters : undefined,
             expectedProcessingTime,
         });
     }
