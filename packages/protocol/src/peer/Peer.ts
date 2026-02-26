@@ -248,7 +248,7 @@ export class Peer {
      */
     async connect(options?: Peer.ConnectOptions) {
         while (true) {
-            const session = this.#newestSession;
+            const session = this.newestSession;
             if (session) {
                 return session;
             }
@@ -354,7 +354,7 @@ export class Peer {
         await this.#updated.emit(this);
     }
 
-    get #newestSession() {
+    get newestSession() {
         // Prefer the most recently used session.  Older ones may not work with broken peers (e.g. CHIP test harness)
         let found: NodeSession | undefined;
 
