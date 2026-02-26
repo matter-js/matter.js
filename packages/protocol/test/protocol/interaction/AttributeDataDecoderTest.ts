@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import "#clusters/window-covering";
 import { Bytes } from "#general";
 import {
     decodeUnknownAttributeValue,
@@ -22,12 +23,11 @@ import {
     TlvField,
     TlvNullable,
     TlvObject,
-    TlvUInt8,
     TlvUInt16,
+    TlvUInt8,
     TypeFromSchema,
     VendorId,
 } from "#types";
-import "#clusters/window-covering";
 
 const TlvAclTestSchema = TlvObject({
     privilege: TlvField(1, TlvUInt8),
@@ -959,21 +959,33 @@ describe("AttributeDataDecoder", () => {
             const data: TypeFromSchema<typeof TlvAttributeReport>[] = [
                 {
                     attributeData: {
-                        path: { endpointId: EndpointNumber(1), clusterId: ClusterId(0x102), attributeId: AttributeId(0xe) },
+                        path: {
+                            endpointId: EndpointNumber(1),
+                            clusterId: ClusterId(0x102),
+                            attributeId: AttributeId(0xe),
+                        },
                         data: TlvNullable(TlvUInt16).encodeTlv(10000),
                         dataVersion,
                     },
                 },
                 {
                     attributeData: {
-                        path: { endpointId: EndpointNumber(1), clusterId: ClusterId(0x102), attributeId: AttributeId(0xa) },
+                        path: {
+                            endpointId: EndpointNumber(1),
+                            clusterId: ClusterId(0x102),
+                            attributeId: AttributeId(0xa),
+                        },
                         data: TlvUInt8.encodeTlv(0),
                         dataVersion,
                     },
                 },
                 {
                     attributeData: {
-                        path: { endpointId: EndpointNumber(1), clusterId: ClusterId(0x102), attributeId: AttributeId(0xe) },
+                        path: {
+                            endpointId: EndpointNumber(1),
+                            clusterId: ClusterId(0x102),
+                            attributeId: AttributeId(0xe),
+                        },
                         data: TlvNullable(TlvUInt16).encodeTlv(10000),
                         dataVersion,
                     },
