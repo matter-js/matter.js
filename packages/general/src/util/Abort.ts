@@ -110,11 +110,13 @@ export class Abort
 
             if (timeout <= 0) {
                 // Defer to the next microtask so any already-pending promise has a chance to resolve
-                Promise.resolve().then(() => {
-                    if (!this.aborted) {
-                        timeoutHandler!.call(this);
-                    }
-                });
+                Promise.resolve()
+                    .then(() => {
+                        if (!this.aborted) {
+                            timeoutHandler!.call(this);
+                        }
+                    })
+                    .catch(_e => {}); //catch case handled in timeoutHandler
             } else {
                 this.#timeout = Time.getTimer("subtask timeout", timeout, () => {
                     if (this.aborted) {
