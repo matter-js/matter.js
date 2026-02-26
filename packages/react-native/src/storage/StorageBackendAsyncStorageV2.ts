@@ -38,7 +38,7 @@ export class StorageBackendAsyncStorageV2 extends Storage {
         this.isInitialized = false;
     }
 
-    clear() {
+    override clear() {
         if (!this.#namespace.length) {
             return AsyncStorage.clear();
         }

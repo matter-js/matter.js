@@ -123,8 +123,9 @@ export class StorageTransaction extends Storage implements AsyncDisposable {
         return this.storage.clearAll(contexts);
     }
 
-    override clear(completely?: boolean): MaybePromise<void> {
-        return this.storage.clear(completely);
+    /** @deprecated Use {@link clearAll} instead. */
+    override clear(_completely?: boolean): MaybePromise<void> {
+        throw new StorageError("clear() is deprecated; use clearAll() instead");
     }
 
     override openBlob(contexts: string[], key: string): MaybePromise<Blob> {

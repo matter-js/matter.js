@@ -81,9 +81,9 @@ describe("StorageDrivers", () => {
                 assert.equal(value, undefined);
             });
 
-            it("write and clear success", async () => {
+            it("write and clearAll success", async () => {
                 await storage.set(CONTEXTx1, "key", "value");
-                await storage.clear();
+                await storage.clearAll(CONTEXTx1);
 
                 const value = await storage.get(CONTEXTx1, "key");
                 assert.equal(value, undefined);

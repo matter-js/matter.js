@@ -50,10 +50,6 @@ export class StorageBackendMemory extends Storage implements CloneableStorage {
         // nothing to do
     }
 
-    clear() {
-        this.store = {};
-    }
-
     get data() {
         return this.store;
     }

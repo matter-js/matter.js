@@ -40,7 +40,7 @@ export class StorageBackendAsyncStorage extends Storage {
         this.isInitialized = false;
     }
 
-    clear() {
+    override clear() {
         return this.#storage.clear();
     }
 

@@ -103,14 +103,6 @@ export class StorageBackendAsyncJsonFile extends Storage {
         await this.commit();
     }
 
-    async clear() {
-        if (this.store === undefined) {
-            throw new InternalError("Storage not initialized.");
-        }
-        this.store.clear();
-        await this.commit();
-    }
-
     private async commit() {
         if (this.store === undefined) {
             throw new InternalError("Storage not initialized.");

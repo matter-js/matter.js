@@ -77,7 +77,6 @@ export class SqliteStorage extends Storage implements CloneableStorage {
     readonly #queryKeys: SqlRunnableKV<"context", "key">;
     readonly #queryValues: SqlRunnable<{ context: string }, { key: string; value_json: string }>;
     readonly #queryContextSub: SqlRunnable<{ contextGlob: string }, { context: string }>;
-    readonly #queryClear: SqlRunnable<void, void>;
     readonly #queryClearAll: SqlRunnable<{ context: string; contextGlob: string }, void>;
     readonly #queryHas: SqlRunnable<{ context: string; key: string }, { has_record: 1 }>;
     readonly #queryOpenBlob: SqlRunnable<
@@ -179,10 +178,6 @@ export class SqliteStorage extends Storage implements CloneableStorage {
       DELETE FROM ${this.tableName} WHERE
         context=$context AND
         key=$key
-    `);
-
-        this.#queryClear = this.database.prepare(`
-      DELETE FROM ${this.tableName}
     `);
 
         this.#queryClearAll = this.database.prepare(`
@@ -289,7 +284,7 @@ export class SqliteStorage extends Storage implements CloneableStorage {
 
     override async initialize(): Promise<void> {
         if (this.clearOnInit) {
-            await this.clear(false);
+            this.database.prepare(`DELETE FROM ${this.tableName}`).run();
         }
         this.isInitialized = true;
     }
@@ -506,16 +501,6 @@ export class SqliteStorage extends Storage implements CloneableStorage {
 
         // Remove duplicates and empty values
         return [...new Set(subContexts.filter(c => c != null && c.trim().length > 0))];
-    }
-
-    /**
-     * Should be implement to platform specific class
-     * when `completely = true`
-     *
-     * basic cleanup query for here.
-     */
-    public async clear(_completely?: boolean) {
-        this.#queryClear.run();
     }
 
     override clearAll(contexts: string[]) {

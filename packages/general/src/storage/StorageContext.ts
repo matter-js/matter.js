@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MatterAggregateError } from "#MatterError.js";
 import { Bytes } from "#util/Bytes.js";
 import { MaybePromise } from "../util/Promises.js";
 import { Storage, StorageError } from "./Storage.js";
@@ -98,28 +97,9 @@ export class StorageContext implements StorageContextFactory {
         return this.storage.contexts(this.thisContexts);
     }
 
-    /** Clears all keys in this context */
+    /** @deprecated Use {@link clearAll} instead. */
     clear() {
-        const keys = this.keys();
-        if (MaybePromise.is(keys)) {
-            return keys.then(keys => {
-                return MatterAggregateError.allSettled(
-                    keys.map(key => this.delete(key)),
-                    "Error while clearing storage",
-                ).then(() => {});
-            });
-        }
-        const promises = new Array<PromiseLike<void>>();
-        keys.forEach(key => {
-            const promise = this.delete(key);
-            if (promise !== undefined && MaybePromise.is(promise)) {
-                promises.push(promise);
-            }
-        });
-        if (promises.length > 0) {
-            return MatterAggregateError.allSettled(promises, "Error while clearing storage").then(() => {});
-        }
-        return undefined;
+        throw new StorageError("clear() is deprecated; use clearAll() instead");
     }
 
     /** Clears all keys in this context and all created sub-contexts. */

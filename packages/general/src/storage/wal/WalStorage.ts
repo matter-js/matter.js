@@ -182,13 +182,6 @@ export class WalStorage extends Storage {
         await tx.commit();
     }
 
-    async clear(): Promise<void> {
-        this.#assertInitialized();
-        await using tx = await this.begin();
-        await tx.clear(true);
-        await tx.commit();
-    }
-
     // --- Transactions ---
 
     override async begin(): Promise<WalTransaction> {
