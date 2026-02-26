@@ -15,6 +15,7 @@ let initializeStorage = true;
 let trapProcessSignals = true;
 let trapUnhandledErrors = true;
 let setProcessExitCodeOnError = true;
+let installFilesystem = true;
 let installNetwork = true;
 // Automatic replace to `StandardCrypto` in bun.js
 let installCrypto = true;
@@ -135,6 +136,18 @@ export const config = {
     set installCrypto(value: boolean) {
         assertUninitialized("installNodeJsCrypto");
         installCrypto = value;
+    },
+
+    /**
+     * Enables installation of node.js filesystem into default environment.
+     */
+    get installFilesystem() {
+        return installFilesystem;
+    },
+
+    set installFilesystem(value: boolean) {
+        assertUninitialized("installNodeJsFilesystem");
+        installFilesystem = value;
     },
 
     /**

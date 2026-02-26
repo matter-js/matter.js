@@ -12,6 +12,7 @@ import {
     Crypto,
     Entropy,
     Environment,
+    Filesystem,
     HttpEndpointFactory,
     ImplementationError,
     LogFormat,
@@ -31,6 +32,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
+import { NodeJsFilesystem } from "../fs/NodeJsFilesystem.js";
 import { NodeJsNetwork } from "../net/NodeJsNetwork.js";
 import { ProcessManager } from "./ProcessManager.js";
 
@@ -69,6 +71,7 @@ import { ProcessManager } from "./ProcessManager.js";
  * * `storage.clear` - Clear storage on start? Default: false
  * * `storage.driver` - Storage driver to use: "file" (default) or "sqlite" (requires Node.js v22+). Automatically migrates data when switching drivers.
  * * `nodejs.crypto` - Enables crypto implementation in this package.  Default: true
+ * * `nodejs.filesystem` - Enables filesystem implementation in this package.  Default: true
  * * `nodejs.network` - Enables network implementation in this package.  Default: true
  * * `nodejs.storage` - Enables storage implementation in this package.  Default: true
  * * `runtime.signals` - By default register SIGINT and SIGUSR2 (diag) handlers, set to false if not wanted
@@ -85,6 +88,7 @@ export function NodeJsEnvironment() {
     configureRuntime(env);
     configureStorage(env);
     configureNetwork(env);
+    configureFilesystem(env);
 
     // When no logger format is set, we still use the default, and the process is running in a TTY, use ANSI formatting
     // If a user wants to change the log format he still can do after the environment was initialized (which should be
@@ -227,6 +231,19 @@ function configureStorage(env: Environment) {
     });
 }
 
+function configureFilesystem(env: Environment) {
+    Boot.init(() => {
+        if (env.vars.boolean("nodejs.filesystem")) {
+            env.set(Filesystem, new NodeJsFilesystem(env.vars.get("storage.path", rootDirOf(env))));
+            return;
+        }
+        // Extends default Filesystem
+        if (Environment.default.has(Filesystem)) {
+            env.set(Filesystem, Environment.default.get(Filesystem));
+        }
+    });
+}
+
 export function loadConfigFile(vars: VariableService) {
     const configPath = vars.get("path.config", "config.json");
 
@@ -287,6 +304,7 @@ export function getDefaults(vars: VariableService) {
         },
         nodejs: {
             crypto: config.installCrypto,
+            filesystem: config.installFilesystem,
             network: config.installNetwork,
             storage: config.initializeStorage,
         },

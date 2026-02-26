@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Directory, Logger, Repo, Seconds } from "#general";
+import { Github, Logger, Seconds } from "#general";
 import { AnyElement, ClusterElement, DatatypeElement, Matter, Metatype, ValueElement } from "#model";
 import { JSDOM } from "jsdom";
 import { readFileSync } from "node:fs";
@@ -24,7 +24,7 @@ const parser = new new JSDOM("").window.DOMParser();
 export async function loadChip(version: string): Promise<ClusterElement[]> {
     const elements = Array<AnyElement>();
 
-    const repo = new Repo(
+    const repo = new Github.Repo(
         "project-chip",
         "connectedhomeip",
         `v${version}-branch`,
@@ -137,7 +137,7 @@ function installDatatypes(elements: AnyElement[]) {
     return clusters;
 }
 
-async function loadDirectory(from: string, path: Directory, elements: AnyElement[]) {
+async function loadDirectory(from: string, path: Github.Directory, elements: AnyElement[]) {
     logger.info(`index ${from}`);
 
     for (const filename of await path.ls()) {
