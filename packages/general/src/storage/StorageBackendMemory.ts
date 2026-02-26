@@ -6,10 +6,10 @@
 
 import { Bytes } from "#util/Bytes.js";
 import { deepCopy } from "#util/DeepCopy.js";
-import { CloneableStorage, Storage, StorageError } from "./Storage.js";
+import { CloneableStorage, StorageDriver, StorageError } from "./StorageDriver.js";
 import { SupportedStorageTypes } from "./StringifyTools.js";
 
-export class StorageBackendMemory extends Storage implements CloneableStorage {
+export class StorageBackendMemory extends StorageDriver implements CloneableStorage {
     protected isInitialized = false;
 
     constructor(protected store: any = {}) {

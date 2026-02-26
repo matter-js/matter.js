@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Storage, StorageError, SupportedStorageTypes, fromJson, toJson } from "@matter/general";
+import { Bytes, StorageDriver, StorageError, SupportedStorageTypes, fromJson, toJson } from "@matter/general";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 /**
@@ -13,7 +13,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
  * This backend exists as migration path when apps need to keep using the legacy
  * singleton storage behavior before switching to the v3 scoped storage backend.
  */
-export class StorageBackendAsyncStorageV2 extends Storage {
+export class StorageBackendAsyncStorageV2 extends StorageDriver {
     #namespace: string;
     protected isInitialized = false;
 

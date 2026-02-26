@@ -6,7 +6,7 @@
 
 import { SqliteStorageError, StorageFactory, StorageType } from "#storage/index.js";
 import { supportsSqlite } from "#util/runtimeChecks.js";
-import { Bytes, Storage, StorageError } from "@matter/general";
+import { Bytes, StorageDriver, StorageError } from "@matter/general";
 import * as assert from "node:assert";
 import { mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -36,7 +36,7 @@ describe("StorageDrivers", () => {
                 namespace: `test_${driver}`,
             };
 
-            let storage: Storage;
+            let storage: StorageDriver;
 
             beforeEach(async () => {
                 storage = await StorageFactory.create({

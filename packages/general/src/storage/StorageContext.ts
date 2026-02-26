@@ -6,7 +6,7 @@
 
 import { Bytes } from "#util/Bytes.js";
 import { MaybePromise } from "../util/Promises.js";
-import { Storage, StorageError } from "./Storage.js";
+import { StorageDriver, StorageError } from "./StorageDriver.js";
 import type { StorageTransaction } from "./StorageTransaction.js";
 import { SupportedStorageTypes } from "./StringifyTools.js";
 
@@ -16,7 +16,7 @@ export interface StorageContextFactory {
 
 export class StorageContext implements StorageContextFactory {
     constructor(
-        protected readonly storage: Storage,
+        protected readonly storage: StorageDriver,
         readonly thisContexts: string[],
     ) {}
 

@@ -13,7 +13,7 @@ export class StorageError extends MatterError {}
 /**
  * Matter.js uses this key/value API to manage persistent state.
  */
-export abstract class Storage {
+export abstract class StorageDriver {
     abstract readonly initialized: boolean;
     abstract initialize(): MaybePromise<void>;
     abstract close(): MaybePromise<void>;
@@ -53,10 +53,20 @@ export abstract class Storage {
 }
 
 /**
+ * @deprecated Use {@link StorageDriver}.
+ */
+export const Storage = StorageDriver;
+
+/**
+ * @deprecated Use {@link StorageDriver}.
+ */
+export interface Storage extends StorageDriver {}
+
+/**
  * Extended interface for storage that supports snapshotting.
  */
 export interface CloneableStorage {
-    clone(): MaybePromise<Storage>;
+    clone(): MaybePromise<StorageDriver>;
 }
 
 export namespace CloneableStorage {

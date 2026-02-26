@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Storage, StorageError, SupportedStorageTypes, fromJson, toJson } from "@matter/general";
+import { Bytes, StorageDriver, StorageError, SupportedStorageTypes, fromJson, toJson } from "@matter/general";
 import { createAsyncStorage, type AsyncStorage } from "@react-native-async-storage/async-storage";
 
 /**
@@ -18,7 +18,7 @@ import { createAsyncStorage, type AsyncStorage } from "@react-native-async-stora
  * behavior, use {@link StorageBackendAsyncStorageV2} from
  * `@matter/react-native/storage` instead.
  */
-export class StorageBackendAsyncStorage extends Storage {
+export class StorageBackendAsyncStorage extends StorageDriver {
     #storage: AsyncStorage;
     protected isInitialized = false;
 

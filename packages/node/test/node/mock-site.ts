@@ -16,8 +16,8 @@ import {
     Network,
     NetworkSimulator,
     Seconds,
-    Storage,
     StorageBackendMemory,
+    StorageDriver,
     StorageService,
 } from "@matter/general";
 import { FabricId } from "@matter/types";
@@ -30,7 +30,7 @@ export class MockSite {
     #simulator = new NetworkSimulator();
     #nodes = new Set<ServerNode>();
     #nextNetworkIndex = 1;
-    #storage = {} as Record<string, Storage>;
+    #storage = {} as Record<string, StorageDriver>;
 
     addNode<T extends MockServerNode.RootEndpoint = MockServerNode.RootEndpoint>(
         type?: T,

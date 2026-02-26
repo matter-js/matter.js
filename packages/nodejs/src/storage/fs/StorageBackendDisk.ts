@@ -10,7 +10,7 @@ import {
     fromJson,
     Logger,
     MatterAggregateError,
-    Storage,
+    StorageDriver,
     StorageError,
     SupportedStorageTypes,
     toJson,
@@ -33,7 +33,7 @@ interface ContextIndex {
     keys?: Set<string>;
 }
 
-export class StorageBackendDisk extends Storage {
+export class StorageBackendDisk extends StorageDriver {
     readonly #path: string;
     readonly #clear: boolean;
     protected isInitialized = false;
