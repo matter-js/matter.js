@@ -8,6 +8,7 @@ import { MatterAggregateError } from "#MatterError.js";
 import { Bytes } from "#util/Bytes.js";
 import { MaybePromise } from "../util/Promises.js";
 import { Storage, StorageError } from "./Storage.js";
+import type { StorageTransaction } from "./StorageTransaction.js";
 import { SupportedStorageTypes } from "./StringifyTools.js";
 
 export interface StorageContextFactory {
@@ -73,6 +74,10 @@ export class StorageContext implements StorageContextFactory {
 
     delete(key: string) {
         return this.storage.delete(this.thisContexts, key);
+    }
+
+    begin(): MaybePromise<StorageTransaction> {
+        return this.storage.begin();
     }
 
     createContext(context: string): StorageContext {

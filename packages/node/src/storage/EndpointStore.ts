@@ -47,9 +47,12 @@ export class EndpointStore {
      * See {@link Datasource.Store.set} for the patch semantics the individual structs use.
      */
     async set(values: Record<string, undefined | Val.Struct>) {
+        await using tx = await this.storage.begin();
+        const txContext = new StorageContext(tx, this.storage.thisContexts);
+
         for (const behaviorId in values) {
             const behaviorValues = values[behaviorId];
-            const behaviorStorage = this.storage.createContext(behaviorId);
+            const behaviorStorage = txContext.createContext(behaviorId);
 
             if (behaviorValues === undefined) {
                 if (this.knownBehaviors.has(behaviorId)) {
@@ -78,6 +81,8 @@ export class EndpointStore {
                 await behaviorStorage.set(toSave);
             }
         }
+
+        tx.commit();
     }
 
     /**
