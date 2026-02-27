@@ -179,13 +179,13 @@ export const config = {
     /**
      * Set storage driver to use (default: 'file').
      *
-     * Currently, 'file' and 'sqlite' (Node.js v22+) is supported.
+     * Built-in drivers: `"file"`, `"sqlite"` (Node.js v22+), `"wal"`, `"memory"`.
      */
     get storageDriver() {
-        return storageDriver as "file" | "sqlite";
+        return storageDriver;
     },
 
-    set storageDriver(value: "file" | "sqlite") {
+    set storageDriver(value: string) {
         assertUninitialized("initializeStorage");
         storageDriver = value;
     },

@@ -14,6 +14,7 @@ import {
     StorageError,
     SupportedStorageTypes,
     toJson,
+    type Directory,
 } from "@matter/general";
 import { openAsBlob } from "node:fs";
 import { mkdir, open, readdir, readFile, rename, rm } from "node:fs/promises";
@@ -34,6 +35,12 @@ interface ContextIndex {
 }
 
 export class StorageBackendDisk extends StorageDriver {
+    static readonly id = "file";
+
+    static create(dir: Directory) {
+        return new StorageBackendDisk(dir.path);
+    }
+
     readonly #path: string;
     readonly #clear: boolean;
     protected isInitialized = false;

@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { SqliteStorageError, StorageFactory, StorageType } from "#storage/index.js";
+import { StorageBackendDisk } from "#storage/fs/StorageBackendDisk.js";
+import { SqliteStorageError } from "#storage/sqlite/SqliteStorageError.js";
+import { PlatformSqlite } from "#storage/sqlite/index.js";
 import { supportsSqlite } from "#util/runtimeChecks.js";
 import { Bytes, StorageDriver, StorageError } from "@matter/general";
 import * as assert from "node:assert";
@@ -18,36 +20,59 @@ const CONTEXTx1 = ["context"];
 const CONTEXTx2 = [...CONTEXTx1, "subcontext"];
 const CONTEXTx3 = [...CONTEXTx2, "subsubcontext"];
 
-describe("StorageDrivers", () => {
-    const drivers = [StorageType.FILE];
-    if (supportsSqlite()) {
-        drivers.push(StorageType.SQLITE);
-    }
+interface DriverFactory {
+    name: string;
+    create(namespace: string): Promise<StorageDriver>;
+    remove(namespace: string): Promise<void>;
+}
 
+const drivers: DriverFactory[] = [
+    {
+        name: "file",
+        async create(namespace) {
+            const path = resolve(TEST_STORAGE_LOCATION, namespace);
+            const storage = new StorageBackendDisk(path);
+            await storage.initialize();
+            return storage;
+        },
+        async remove(namespace) {
+            await rm(resolve(TEST_STORAGE_LOCATION, namespace), { recursive: true, force: true });
+        },
+    },
+];
+
+if (supportsSqlite()) {
+    drivers.push({
+        name: "sqlite",
+        async create(namespace) {
+            const path = resolve(TEST_STORAGE_LOCATION, `${namespace}.db`);
+            const storage = await PlatformSqlite(path, false);
+            await storage.initialize();
+            return storage;
+        },
+        async remove(namespace) {
+            await rm(resolve(TEST_STORAGE_LOCATION, `${namespace}.db`), { recursive: true, force: true });
+        },
+    });
+}
+
+describe("StorageDrivers", () => {
     before(async () => {
         await mkdir(TEST_STORAGE_LOCATION, { recursive: true });
     });
 
     for (const driver of drivers) {
-        describe(`${driver} driver`, () => {
-            const driverInfo = {
-                driver,
-                rootDir: TEST_STORAGE_LOCATION,
-                namespace: `test_${driver}`,
-            };
+        describe(`${driver.name} driver`, () => {
+            const namespace = `test_${driver.name}`;
 
             let storage: StorageDriver;
 
             beforeEach(async () => {
-                storage = await StorageFactory.create({
-                    driver,
-                    rootDir: TEST_STORAGE_LOCATION,
-                    namespace: `test_${driver}`,
-                });
+                storage = await driver.create(namespace);
             });
             afterEach(async () => {
                 await storage?.close();
-                await StorageFactory.remove(driverInfo);
+                await driver.remove(namespace);
             });
 
             it("write and read success", async () => {
@@ -144,9 +169,6 @@ describe("StorageDrivers", () => {
                 await storage.set(CONTEXTx2, "key", "value");
                 await storage.set(["context", "sub's/fun"], "key", "value");
                 await storage.set(CONTEXTx3, "key", "value");
-
-                // const storageRead = new StorageBackendDisk(TEST_STORAGE_LOCATION)
-                // await storageRead.initialize()
 
                 expect(await storage.contexts(CONTEXTx3)).deep.equal([]);
                 expect(await storage.contexts(CONTEXTx2)).deep.equal(["subsubcontext"]);

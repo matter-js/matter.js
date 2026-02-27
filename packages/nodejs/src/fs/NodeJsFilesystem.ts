@@ -35,6 +35,10 @@ export class NodeJsFilesystem extends Filesystem {
         return "";
     }
 
+    override get path() {
+        return this.#rootPath;
+    }
+
     async exists(): Promise<boolean> {
         return nodeExists(this.#rootPath);
     }
@@ -276,6 +280,10 @@ class NodeJsDirectory extends Directory {
 
     get name() {
         return this.#name;
+    }
+
+    override get path() {
+        return this.#path;
     }
 
     async exists(): Promise<boolean> {

@@ -10,6 +10,8 @@ import { CloneableStorage, StorageDriver, StorageError } from "./StorageDriver.j
 import { SupportedStorageTypes } from "./StringifyTools.js";
 
 export class StorageBackendMemory extends StorageDriver implements CloneableStorage {
+    static readonly id = "memory";
+
     protected isInitialized = false;
 
     constructor(protected store: any = {}) {

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { Bytes } from "#util/Bytes.js";
+import type { Directory } from "../fs/Directory.js";
 import { ImplementationError, MatterError } from "../MatterError.js";
 import { MaybePromise } from "../util/Promises.js";
 import { SupportedStorageTypes } from "./StringifyTools.js";
@@ -54,6 +55,33 @@ export abstract class StorageDriver {
 }
 
 export namespace StorageDriver {
+    /**
+     * Serializable descriptor stored as `driver.json` inside the storage directory.  The `kind` field identifies the
+     * driver implementation.  Drivers extend this with optional fields for driver-specific options so that a plain
+     * `{ kind }` is always a valid descriptor for any driver.
+     */
+    export interface Descriptor {
+        kind: string;
+    }
+
+    /**
+     * Static interface that a registerable driver class must satisfy.
+     */
+    export interface Implementation<D extends Descriptor = Descriptor> {
+        /** Short identifier such as `"file"`, `"sqlite"`, `"wal"`, or `"memory"`. */
+        id: string;
+
+        /** Create a storage driver for the given directory and descriptor. */
+        create(dir: Directory, descriptor: D): MaybePromise<StorageDriver>;
+
+        /**
+         * Optional hook called before {@link create}.  Allows the driver to rearrange files on disk (e.g. move a
+         * legacy `.db` file into its directory).  If no directory exists after this call, `driver.json` will not be
+         * written.
+         */
+        preinitialize?(parentDir: Directory, descriptor: D): MaybePromise<void>;
+    }
+
     /**
      * A transactional wrapper around a {@link StorageDriver}.
      *
