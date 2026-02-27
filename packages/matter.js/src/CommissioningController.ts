@@ -49,6 +49,7 @@ import {
     PeerSet,
     SecureSession,
     Session,
+    SessionManager,
 } from "#protocol";
 import {
     CaseAuthenticatedTag,
@@ -462,8 +463,12 @@ export class CommissioningController {
         }
         await this.#controllerInstance?.disconnect(nodeId);
         if (force) {
-            const peer = this.node.env.get(PeerSet).for(this.fabric.addressOf(nodeId));
-            await peer.delete();
+            const address = this.fabric.addressOf(nodeId);
+            const peer = this.node.env.get(PeerSet).for(address);
+            await peer.disconnect();
+            for (const session of [...this.node.env.get(SessionManager).sessionsFor(address)]) {
+                await session.initiateClose();
+            }
         }
     }
 
