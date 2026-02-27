@@ -51,6 +51,7 @@ export * from "./formaldehyde-concentration-measurement/index.js";
 export * from "./general-commissioning/index.js";
 export * from "./general-diagnostics/index.js";
 export * from "./group-key-management/index.js";
+export * from "./groupcast/index.js";
 export * from "./groups/index.js";
 export * from "./hepa-filter-monitoring/index.js";
 export * from "./icd-management/index.js";

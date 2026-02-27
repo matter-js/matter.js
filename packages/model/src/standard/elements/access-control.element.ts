@@ -18,12 +18,15 @@ import {
 
 export const AccessControl = Cluster(
     { name: "AccessControl", id: 0x1f, classification: "node" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
+
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
         Field({ name: "EXTS", conformance: "O", constraint: "0", title: "Extension" }),
-        Field({ name: "MNGD", conformance: "desc", constraint: "1", title: "ManagedDevice" })
+        Field({ name: "MNGD", conformance: "desc", constraint: "1", title: "ManagedDevice" }),
+        Field({ name: "AUX", conformance: "P, desc", constraint: "2", title: "Auxiliary" })
     ),
+
     Attribute(
         { name: "Acl", id: 0x0, type: "list", access: "RW F A", conformance: "M", constraint: "desc" },
         Field({ name: "entry", type: "AccessControlEntryStruct" })
@@ -56,6 +59,10 @@ export const AccessControl = Cluster(
     Attribute(
         { name: "Arl", id: 0x6, type: "list", access: "R F V", conformance: "MNGD", constraint: "desc", default: [] },
         Field({ name: "entry", type: "AccessRestrictionEntryStruct" })
+    ),
+    Attribute(
+        { name: "AuxiliaryAcl", id: 0x7, type: "list", access: "R F A", conformance: "P, AUX", constraint: "max 2000" },
+        Field({ name: "entry", type: "AccessControlEntryStruct" })
     ),
 
     Event(
@@ -96,6 +103,12 @@ export const AccessControl = Cluster(
         Field({ name: "Token", id: 0x0, type: "uint64", access: "S", conformance: "M" }),
         Field({ name: "Instruction", id: 0x1, type: "string", access: "S", conformance: "O", constraint: "max 512" }),
         Field({ name: "ArlRequestFlowUrl", id: 0x2, type: "string", access: "S", conformance: "O", constraint: "max 256" }),
+        Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
+    ),
+
+    Event(
+        { name: "AuxiliaryAccessUpdated", id: 0x3, access: "S A", conformance: "P, AUX", priority: "info" },
+        Field({ name: "AdminNodeId", id: 0x0, type: "node-id", access: "S", conformance: "M", quality: "X" }),
         Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
     ),
 
@@ -174,7 +187,8 @@ export const AccessControl = Cluster(
             Field({ name: "entry", type: "AccessControlTargetStruct" })
         ),
 
-        Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
+        Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" }),
+        Field({ name: "AuxiliaryType", id: 0x5, type: "AccessControlAuxiliaryTypeEnum", access: "S", conformance: "P, O" })
     ),
 
     Datatype(
@@ -207,6 +221,12 @@ export const AccessControl = Cluster(
             { name: "Restrictions", id: 0x2, type: "list", conformance: "M", constraint: "min 1" },
             Field({ name: "entry", type: "AccessRestrictionStruct" })
         )
+    ),
+
+    Datatype(
+        { name: "AccessControlAuxiliaryTypeEnum", type: "enum8" },
+        Field({ name: "System", id: 0x0, conformance: "M" }),
+        Field({ name: "Groupcast", id: 0x1, conformance: "M" })
     )
 );
 

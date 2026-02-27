@@ -6,7 +6,7 @@
 
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { AccessControl as AccessControlTypes } from "#clusters/access-control";
-import { Bytes, deepCopy, InternalError, Logger } from "#general";
+import { Bytes, deepCopy, InternalError, isDeepEqual, Logger, ObservableValue } from "#general";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
 import {
     AccessControl,
@@ -39,6 +39,7 @@ import {
 import { AccessControlBehavior } from "./AccessControlBehavior.js";
 
 const logger = Logger.get("AccessControlServer");
+const AccessControlBase = AccessControlBehavior.with("Extension", "Auxiliary");
 
 /**
  * This is the default server implementation of AccessControlBehavior.
@@ -46,7 +47,7 @@ const logger = Logger.get("AccessControlServer");
  * When custom extensions are used, the `extensionEntryValidator` and `extensionEntryAccessCheck` methods can be
  * overridden to implement custom validation and access checks for the extension entries.
  */
-export class AccessControlServer extends AccessControlBehavior.with("Extension") {
+export class AccessControlServer extends AccessControlBase {
     declare internal: AccessControlServer.Internal;
 
     override initialize() {
@@ -431,7 +432,77 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
     /** A fabric was added or updated, so we need to initialize the ACL for this fabric */
     #updateFabricAcls(fabric: Fabric) {
         const fabricIndex = fabric.fabricIndex;
-        fabric.accessControl.aclList = deepCopy(this.state.acl).filter(entry => entry.fabricIndex === fabricIndex);
+        const realAcl = deepCopy(this.state.acl).filter(entry => entry.fabricIndex === fabricIndex);
+        const syntheticAcl = this.state.auxiliaryAcl.filter(entry => entry.fabricIndex === fabricIndex);
+        fabric.accessControl.aclList = [...realAcl, ...syntheticAcl];
+    }
+
+    /**
+     * Register an observable that supplies auxiliary ACL entries. AccessControlServer subscribes to the observable
+     * and rebuilds fabric ACLs whenever it emits new entries. Multiple providers are supported.
+     *
+     * The observable should emit `AccessControlEntry[]` (all entries for all fabrics from this provider).
+     * AccessControlServer reads the current `observable.value` immediately on registration for initial sync.
+     */
+    registerAuxAclProvider(observable: AccessControlServer.AuxAclObservable) {
+        this.internal.auxiliaryAclProviders.add(observable);
+        this.reactTo(observable, this.callback(this.#onProviderAuxAclChanged));
+        // Sync initial value without emitting events (node is still initializing)
+        if (observable.value?.length) {
+            this.#syncAuxAcl(false);
+        }
+    }
+
+    /** When provider entries change after initialization, rebuild auxiliaryAcl and update changed fabrics. */
+    #onProviderAuxAclChanged() {
+        this.#syncAuxAcl(true);
+    }
+
+    /**
+     * Recompute auxiliaryAcl from all registered providers.
+     * Updates state once, then updates fabric ACL lists for any fabric whose entries changed.
+     * Only emits auxiliaryAccessUpdated events when emitEvents is true and entries actually changed.
+     */
+    #syncAuxAcl(emitEvents: boolean) {
+        // Collect all new aux entries from all providers in one pass
+        const newAuxAcl: AccessControlTypes.AccessControlEntry[] = [];
+        for (const obs of this.internal.auxiliaryAclProviders) {
+            for (const entry of obs.value ?? []) {
+                newAuxAcl.push({ ...entry });
+            }
+        }
+
+        const oldAuxAcl = deepCopy(this.state.auxiliaryAcl);
+
+        // Determine which fabrics have changed entries
+        const allFabrics = new Set([...oldAuxAcl.map(e => e.fabricIndex), ...newAuxAcl.map(e => e.fabricIndex)]);
+        const changedFabrics = [...allFabrics].filter(fi => {
+            const oldEntries = oldAuxAcl.filter(e => e.fabricIndex === fi);
+            const newEntries = newAuxAcl.filter(e => e.fabricIndex === fi);
+            return !isDeepEqual(oldEntries, newEntries);
+        });
+
+        if (changedFabrics.length === 0) {
+            return;
+        }
+
+        // Update the attribute once for all fabrics
+        this.state.auxiliaryAcl = newAuxAcl;
+
+        const fabrics = this.env.get(FabricManager);
+        const session = hasRemoteActor(this.context) ? this.context.session : undefined;
+        const { adminNodeId } = this.#adminDataFromSession(session);
+
+        // Update fabric ACL lists and optionally emit change events
+        for (const fi of changedFabrics) {
+            if (!fabrics.has(fi)) {
+                continue;
+            }
+            this.#updateFabricAcls(fabrics.for(fi));
+            if (emitEvents) {
+                this.events.auxiliaryAccessUpdated.emit({ adminNodeId, fabricIndex: fi }, this.context);
+            }
+        }
     }
 
     /**
@@ -515,8 +586,9 @@ export class AccessControlServer extends AccessControlBehavior.with("Extension")
 
         const fabrics = this.env.get(FabricManager);
         for (const fabric of fabrics) {
-            // Update all Fabrics and set the ACL list for each fabric, empty ACLs when none are present
-            fabric.accessControl.aclList = aclsForFabric.get(fabric.fabricIndex) ?? [];
+            const realAcl = aclsForFabric.get(fabric.fabricIndex) ?? [];
+            const syntheticAcl = this.state.auxiliaryAcl.filter(e => e.fabricIndex === fabric.fabricIndex);
+            fabric.accessControl.aclList = [...realAcl, ...syntheticAcl];
         }
     }
 
@@ -576,6 +648,9 @@ export namespace AccessControlServer {
 
         /** Latest delayed data of acl attribute */
         delayedAclData = new Map<FabricIndex, AccessControlTypes.AccessControlEntry[]>();
+
+        /** Registered observable providers that supply auxiliary ACL entries. */
+        auxiliaryAclProviders = new Set<AccessControlServer.AuxAclObservable>();
     }
 
     export declare const ExtensionInterface: {
@@ -588,4 +663,13 @@ export namespace AccessControlServer {
             clusterId: ClusterId,
         ) => boolean;
     };
+
+    /**
+     * An observable that supplies auxiliary ACL entries to {@link AccessControlServer}.
+     * Register via {@link AccessControlServer.registerAuxAclProvider}.
+     *
+     * Emit `AccessControlEntry[]` (all entries across all fabrics) whenever the provider's entries change.
+     * AccessControlServer subscribes and rebuilds its ACL cache automatically.
+     */
+    export type AuxAclObservable = ObservableValue<[AccessControlTypes.AccessControlEntry[]]>;
 }

@@ -66,6 +66,7 @@ export {
 export { GeneralCommissioningCluster, GeneralCommissioning } from "./general-commissioning.js";
 export { GeneralDiagnosticsCluster, GeneralDiagnostics } from "./general-diagnostics.js";
 export { GroupKeyManagementCluster, GroupKeyManagement } from "./group-key-management.js";
+export { GroupcastCluster, Groupcast } from "./groupcast.js";
 export { GroupsCluster, Groups } from "./groups.js";
 export { HepaFilterMonitoringCluster, HepaFilterMonitoring } from "./hepa-filter-monitoring.js";
 export { IcdManagementCluster, IcdManagement } from "./icd-management.js";

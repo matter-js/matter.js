@@ -26,9 +26,9 @@ import { TlvNullable } from "../tlv/TlvNullable.js";
 import { TlvUInt16, TlvEnum, TlvUInt32, TlvUInt64 } from "../tlv/TlvNumber.js";
 import { TlvEndpointNumber } from "../datatype/EndpointNumber.js";
 import { TlvClusterId } from "../datatype/ClusterId.js";
-import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvSubjectId } from "../datatype/SubjectId.js";
 import { TlvDeviceTypeId } from "../datatype/DeviceTypeId.js";
+import { BitFlag } from "../schema/BitmapSchema.js";
 import { Identity } from "#general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
@@ -61,20 +61,20 @@ export namespace AccessControl {
          * using an Access Restriction List (ARL).
          *
          * The purpose of this feature on the Access Control cluster is to indicate to a fabric Administrator that
-         * access by it to specific attributes, commands and/or events for specific clusters iscurrentlyprohibited.
+         * access by it to specific attributes, commands and/or events for specific clusters is currently prohibited.
          * Attempts to access these restricted data model elements shall result in an error of ACCESS_RESTRICTED.
          *
          * A device that implements this feature shall have a mechanism to honor the ReviewFabricRestrictions command,
          * such as user interfaces or service interactions associated with a service provider or the device
-         * manufacturer, which allows the owner (or subscriber) to manage access restrictions foreachfabric. The user
+         * manufacturer, which allows the owner (or subscriber) to manage access restrictions for each fabric. The user
          * interface design, which includes the way restrictions are organized and presented to the user, is not
          * specified, but SHOULD be usable by non-expert end-users from common mobile devices, personal computers, or an
          * on-device user interface.
          *
          * Controllers and clients SHOULD incorporate generic handling of the ACCESS_RESTRICTED error code, when it
-         * appears in allowed contexts, in order to gracefully handle situations where this featureisencountered. Device
-         * vendors that adopt this feature SHOULD be judicious in its use given the risk of unexpected behavior in
-         * controllers and clients.
+         * appears in allowed contexts, in order to gracefully handle situations where this feature is encountered.
+         * Device vendors that adopt this feature SHOULD be judicious in its use given the risk of unexpected behavior
+         * in controllers and clients.
          *
          * For certification testing, a device that implements this feature shall provide a way for all restrictions to
          * be removed.
@@ -121,7 +121,17 @@ export namespace AccessControl {
          *
          * @see {@link MatterSpecification.v142.Core} § 9.10.4.2
          */
-        ManagedDevice = "ManagedDevice"
+        ManagedDevice = "ManagedDevice",
+
+        /**
+         * Auxiliary (AUX)
+         *
+         * This feature indicates that there may be entries in the AuxiliaryACL attribute which indicate synthesized ACL
+         * entries. For example, when this feature is supported, the configuration of groups via the Groupcast cluster
+         * may lead, under some circumstances, to some access being granted automatically to some subjects by virtue of
+         * group membership.
+         */
+        Auxiliary = "Auxiliary"
     }
 
     /**
@@ -135,8 +145,8 @@ export namespace AccessControl {
          * The contents shall consist of a top-level anonymous list; each list element shall include a profile-specific
          * tag encoded in fully-qualified form.
          *
-         * Administrators may iterate over this list of elements, and interpret selected elements attheirdiscretion. The
-         * content of each element is not specified, but may be coordinated among manufacturers at their discretion.
+         * Administrators may iterate over this list of elements, and interpret selected elements at their discretion.
+         * The content of each element is not specified, but may be coordinated among manufacturers at their discretion.
          *
          * E.g. a manufacturer could use this field to store structured data, including various metadata and
          * cryptographic signatures. The manufacturer could then verify a fabric’s Access Control List by generating a
@@ -193,8 +203,8 @@ export namespace AccessControl {
         adminNodeId: TlvField(1, TlvNullable(TlvNodeId)),
 
         /**
-         * The Passcode ID of the Administrator that made the change, if the change occurred via a PASEsession. Non-zero
-         * values are reserved for future use (see PasscodeId generation in PBKDFParamRequest).
+         * The Passcode ID of the Administrator that made the change, if the change occurred via a PASE session.
+         * Non-zero values are reserved for future use (see PasscodeId generation in PBKDFParamRequest).
          *
          * Exactly one of AdminNodeID and AdminPasscodeID shall be set, depending on whether the change occurred via a
          * CASE or PASE session; the other shall be null.
@@ -382,8 +392,8 @@ export namespace AccessControl {
      */
     export const TlvReviewFabricRestrictionsRequest = TlvObject({
         /**
-         * When the ARL field is provided, it indicates the specific restrictions that are requested forreview. An empty
-         * list represents a generic request for review of all restrictions.
+         * When the ARL field is provided, it indicates the specific restrictions that are requested for review. An
+         * empty list represents a generic request for review of all restrictions.
          *
          * @see {@link MatterSpecification.v142.Core} § 9.10.8.1.1
          */
@@ -700,6 +710,18 @@ export namespace AccessControl {
      */
     export interface AccessControlTarget extends TypeFromSchema<typeof TlvAccessControlTarget> {}
 
+    export enum AccessControlAuxiliaryType {
+        /**
+         * This ACL entry exists because of some system reason and is likely non-revocable.
+         */
+        System = 0,
+
+        /**
+         * Synthesized via Groupcast Cluster administrator-configured group membership.
+         */
+        Groupcast = 1
+    }
+
     /**
      * @see {@link MatterSpecification.v142.Core} § 9.10.5.6
      */
@@ -715,7 +737,7 @@ export namespace AccessControl {
          * levels as well. The following diagram illustrates how the higher privilege levels subsume the lower privilege
          * levels:
          *
-         * Individual clusters shall define whether attributes are readable, writable, or both readableandwritable.
+         * Individual clusters shall define whether attributes are readable, writable, or both readable and writable.
          * Clusters also shall define which privilege is minimally required to be able to perform a particular read or
          * write action on those attributes, or invoke particular commands. Device type specifications may further
          * restrict the privilege required.
@@ -731,7 +753,7 @@ export namespace AccessControl {
          * current RPM, but will not be granted sufficient privilege to change the level or configure each level’s RPM.
          *
          * E.g. A Fan Control Cluster may be included in a more industrial device type. To ensure proper operation, this
-         * device type may restrict configuration of fan level RPM settings to requireManageprivilege. Clients granted
+         * device type may restrict configuration of fan level RPM settings to require Manage privilege. Clients granted
          * Manage privilege will have sufficient privilege to configure each level’s RPM; clients granted Operate
          * privilege will not be able to perform such configuration, but will still be able to change the level. This
          * additional restriction would apply only to the Fan Control Cluster as included in this particular device
@@ -844,13 +866,33 @@ export namespace AccessControl {
          */
         targets: TlvField(4, TlvNullable(TlvArray(TlvAccessControlTarget))),
 
-        fabricIndex: TlvField(254, TlvFabricIndex)
+        fabricIndex: TlvField(254, TlvFabricIndex),
+        auxiliaryType: TlvOptionalField(5, TlvEnum<AccessControlAuxiliaryType>())
     });
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 9.10.5.6
      */
     export interface AccessControlEntry extends TypeFromSchema<typeof TlvAccessControlEntry> {}
+
+    /**
+     * Body of the AccessControl auxiliaryAccessUpdated event
+     */
+    export const TlvAuxiliaryAccessUpdatedEvent = TlvObject({
+        /**
+         * The AdminNodeID field SHALL contain the NodeID of the Administrator that caused the action which led to
+         * changes to the AuxiliaryACL. If no information is available, such as when a change is internally initiated,
+         * this field SHALL be null.
+         */
+        adminNodeId: TlvField(0, TlvNullable(TlvNodeId)),
+
+        fabricIndex: TlvField(254, TlvFabricIndex)
+    });
+
+    /**
+     * Body of the AccessControl auxiliaryAccessUpdated event
+     */
+    export interface AuxiliaryAccessUpdatedEvent extends TypeFromSchema<typeof TlvAuxiliaryAccessUpdatedEvent> {}
 
     /**
      * Body of the AccessControl accessControlEntryChanged event
@@ -869,8 +911,8 @@ export namespace AccessControl {
         adminNodeId: TlvField(1, TlvNullable(TlvNodeId)),
 
         /**
-         * The Passcode ID of the Administrator that made the change, if the change occurred via a PASEsession. Non-zero
-         * values are reserved for future use (see PasscodeId generation in PBKDFParamRequest).
+         * The Passcode ID of the Administrator that made the change, if the change occurred via a PASE session.
+         * Non-zero values are reserved for future use (see PasscodeId generation in PBKDFParamRequest).
          *
          * Exactly one of AdminNodeID and AdminPasscodeID shall be set, depending on whether the change occurred via a
          * CASE or PASE session; the other shall be null.
@@ -976,9 +1018,9 @@ export namespace AccessControl {
              * This attribute shall provide the set of AccessRestrictionEntryStruct applied to the associated fabric on
              * a managed device.
              *
-             * When present, the ARL attribute shall indicate the access restrictions applying to theaccessingfabric. In
-             * contrast, the CommissioningARL attribute indicates the accessing restrictions that apply when there is no
-             * accessing fabric, such as during commissioning.
+             * When present, the ARL attribute shall indicate the access restrictions applying to the accessing fabric.
+             * In contrast, the CommissioningARL attribute indicates the accessing restrictions that apply when there is
+             * no accessing fabric, such as during commissioning.
              *
              * The access restrictions are externally added/removed based on the particular relationship the device
              * hosting this server has with external entities such as its owner, external service provider, or end-user.
@@ -1046,12 +1088,34 @@ export namespace AccessControl {
     });
 
     /**
+     * A AccessControlCluster supports these elements if it supports feature Auxiliary.
+     */
+    export const AuxiliaryComponent = MutableCluster.Component({
+        attributes: {
+            auxiliaryAcl: FabricScopedAttribute(
+                0x7,
+                TlvArray(TlvAccessControlEntry, { maxLength: 2000 }),
+                { default: [], readAcl: AccessLevel.Administer, writeAcl: AccessLevel.Administer }
+            )
+        },
+
+        events: {
+            auxiliaryAccessUpdated: Event(
+                0x3,
+                Priority.Info,
+                TlvAuxiliaryAccessUpdatedEvent,
+                { readAcl: AccessLevel.Administer }
+            )
+        }
+    });
+
+    /**
      * These elements and properties are present in all AccessControl clusters.
      */
     export const Base = MutableCluster.Component({
         id: 0x1f,
         name: "AccessControl",
-        revision: 2,
+        revision: 3,
 
         features: {
             /**
@@ -1072,18 +1136,19 @@ export namespace AccessControl {
              * restrictions are expressed using an Access Restriction List (ARL).
              *
              * The purpose of this feature on the Access Control cluster is to indicate to a fabric Administrator that
-             * access by it to specific attributes, commands and/or events for specific clusters iscurrentlyprohibited.
-             * Attempts to access these restricted data model elements shall result in an error of ACCESS_RESTRICTED.
+             * access by it to specific attributes, commands and/or events for specific clusters is currently
+             * prohibited. Attempts to access these restricted data model elements shall result in an error of
+             * ACCESS_RESTRICTED.
              *
              * A device that implements this feature shall have a mechanism to honor the ReviewFabricRestrictions
              * command, such as user interfaces or service interactions associated with a service provider or the device
-             * manufacturer, which allows the owner (or subscriber) to manage access restrictions foreachfabric. The
+             * manufacturer, which allows the owner (or subscriber) to manage access restrictions for each fabric. The
              * user interface design, which includes the way restrictions are organized and presented to the user, is
              * not specified, but SHOULD be usable by non-expert end-users from common mobile devices, personal
              * computers, or an on-device user interface.
              *
              * Controllers and clients SHOULD incorporate generic handling of the ACCESS_RESTRICTED error code, when it
-             * appears in allowed contexts, in order to gracefully handle situations where this featureisencountered.
+             * appears in allowed contexts, in order to gracefully handle situations where this feature is encountered.
              * Device vendors that adopt this feature SHOULD be judicious in its use given the risk of unexpected
              * behavior in controllers and clients.
              *
@@ -1132,7 +1197,15 @@ export namespace AccessControl {
              *
              * @see {@link MatterSpecification.v142.Core} § 9.10.4.2
              */
-            managedDevice: BitFlag(1)
+            managedDevice: BitFlag(1),
+
+            /**
+             * This feature indicates that there may be entries in the AuxiliaryACL attribute which indicate synthesized
+             * ACL entries. For example, when this feature is supported, the configuration of groups via the Groupcast
+             * cluster may lead, under some circumstances, to some access being granted automatically to some subjects
+             * by virtue of group membership.
+             */
+            auxiliary: BitFlag(2)
         },
 
         attributes: {
@@ -1221,7 +1294,8 @@ export namespace AccessControl {
          */
         extensions: MutableCluster.Extensions(
             { flags: { extension: true }, component: ExtensionComponent },
-            { flags: { managedDevice: true }, component: ManagedDeviceComponent }
+            { flags: { managedDevice: true }, component: ManagedDeviceComponent },
+            { flags: { auxiliary: true }, component: AuxiliaryComponent }
         )
     });
 
@@ -1249,6 +1323,7 @@ export namespace AccessControl {
     export const Cluster: Cluster = ClusterInstance;
     const EXTS = { extension: true };
     const MNGD = { managedDevice: true };
+    const AUX = { auxiliary: true };
 
     /**
      * @see {@link Complete}
@@ -1266,7 +1341,11 @@ export namespace AccessControl {
                 ManagedDeviceComponent.attributes.commissioningArl,
                 { mandatoryIf: [MNGD] }
             ),
-            arl: MutableCluster.AsConditional(ManagedDeviceComponent.attributes.arl, { mandatoryIf: [MNGD] })
+            arl: MutableCluster.AsConditional(ManagedDeviceComponent.attributes.arl, { mandatoryIf: [MNGD] }),
+            auxiliaryAcl: MutableCluster.AsConditional(
+                AuxiliaryComponent.attributes.auxiliaryAcl,
+                { mandatoryIf: [AUX] }
+            )
         },
 
         commands: {
@@ -1285,6 +1364,10 @@ export namespace AccessControl {
             fabricRestrictionReviewUpdate: MutableCluster.AsConditional(
                 ManagedDeviceComponent.events.fabricRestrictionReviewUpdate,
                 { mandatoryIf: [MNGD] }
+            ),
+            auxiliaryAccessUpdated: MutableCluster.AsConditional(
+                AuxiliaryComponent.events.auxiliaryAccessUpdated,
+                { mandatoryIf: [AUX] }
             )
         }
     });

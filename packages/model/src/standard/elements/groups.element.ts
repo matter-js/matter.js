@@ -20,16 +20,12 @@ export const Groups = Cluster(
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 4 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
-        Field({ name: "GN", constraint: "0", default: 1, title: "GroupNames" })
+        Field({ name: "GN", constraint: "0", title: "GroupNames" })
     ),
-
-    Attribute(
-        {
-            name: "NameSupport", id: 0x0, type: "NameSupportBitmap", access: "R V", conformance: "M",
-            constraint: "desc", quality: "F"
-        },
-        Field({ name: "GroupNames", constraint: "7", default: 1 })
-    ),
+    Attribute({
+        name: "NameSupport", id: 0x0, type: "NameSupportBitmap", access: "R V", conformance: "M",
+        constraint: "desc", quality: "F"
+    }),
 
     Command(
         {

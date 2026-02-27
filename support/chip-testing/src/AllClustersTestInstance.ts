@@ -7,6 +7,7 @@
 import { Bytes, InternalError, Logger, Millis, Seconds } from "@matter/general";
 import { Endpoint, NumberTag, ServerNode } from "@matter/main";
 import {
+    AccessControlServer,
     AdministratorCommissioningServer,
     AirQualityServer,
     BooleanStateServer,
@@ -21,6 +22,7 @@ import {
     FixedLabelServer,
     FlowMeasurementServer,
     FormaldehydeConcentrationMeasurementServer,
+    GroupcastServer,
     IlluminanceMeasurementServer,
     LaundryWasherModeServer,
     LocalizationConfigurationServer,
@@ -263,12 +265,14 @@ export class AllClustersTestInstance extends NodeTestInstance {
 
         const serverNode = await ServerNode.create(
             ServerNode.RootEndpoint.with(
+                AccessControlServer.with("Auxiliary", "Extension"),
                 //BasicInformationServer.enable({ events: { shutDown: true, leave: true } }),
                 // We upgrade the AdminCommissioningCluster to also allow Basic Commissioning, so we can use for more testcases
                 AdministratorCommissioningServer.with("Basic"),
                 TestGeneralDiagnosticsServer.enable({
                     events: { hardwareFaultChange: true, radioFaultChange: true, networkFaultChange: true },
                 }),
+                GroupcastServer.with("Listener", "Sender", "PerGroup"),
                 LocalizationConfigurationServer,
                 NetworkCommissioningServer.with("EthernetNetworkInterface"), // Set the correct Ethernet network Commissioning cluster
                 TimeFormatLocalizationServer.with("CalendarFormat"),
