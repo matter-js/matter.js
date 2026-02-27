@@ -52,7 +52,8 @@ export namespace Stream {
             return;
         }
 
-        const reader = stream.getReader();
+        // tsgo narrows stream to never after the in check above; cast back
+        const reader = (stream as ReadableStream<T>).getReader();
         try {
             while (true) {
                 const next = await reader.read();

@@ -15,12 +15,8 @@ import { TypescriptContext } from "./context.js";
 export function createTsgoContext(workspace: Package): TypescriptContext {
     const bin = join(workspace.resolve("node_modules", ".bin", "tsgo"));
     return {
-        async build(pkg, path, _refreshCallback, emit) {
-            const args = ["--project", path];
-
-            if (emit === false) {
-                args.push("--noEmit");
-            }
+        async build(pkg, path, _refreshCallback, _emit) {
+            const args = ["--project", pkg.resolve(join(path, "tsconfig.json"))];
 
             await new Promise<void>((resolve, reject) => {
                 const tsgo = spawn(bin, args, { stdio: "inherit" });
@@ -51,16 +47,18 @@ export function createTsgoContext(workspace: Package): TypescriptContext {
                 });
             });
 
-            await cp(pkg.resolve("dist/esm"), pkg.resolve("dist/cjs"), {
-                recursive: true,
-                filter(src) {
-                    if (isDirectory(src)) {
-                        return true;
-                    }
+            if (path !== "test") {
+                await cp(pkg.resolve("dist/esm"), pkg.resolve("dist/cjs"), {
+                    recursive: true,
+                    filter(src) {
+                        if (isDirectory(src)) {
+                            return true;
+                        }
 
-                    return src.endsWith(".d.ts") || src.endsWith(".d.ts.map");
-                },
-            });
+                        return src.endsWith(".d.ts") || src.endsWith(".d.ts.map");
+                    },
+                });
+            }
         },
     };
 }
