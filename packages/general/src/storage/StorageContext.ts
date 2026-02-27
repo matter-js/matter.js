@@ -7,7 +7,6 @@
 import { Bytes } from "#util/Bytes.js";
 import { MaybePromise } from "../util/Promises.js";
 import { StorageDriver, StorageError } from "./StorageDriver.js";
-import type { StorageTransaction } from "./StorageTransaction.js";
 import { SupportedStorageTypes } from "./StringifyTools.js";
 
 export interface StorageContextFactory {
@@ -75,7 +74,7 @@ export class StorageContext implements StorageContextFactory {
         return this.storage.delete(this.thisContexts, key);
     }
 
-    begin(): MaybePromise<StorageTransaction> {
+    begin(): MaybePromise<StorageDriver.Transaction> {
         return this.storage.begin();
     }
 
