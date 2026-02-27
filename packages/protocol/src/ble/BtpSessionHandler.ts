@@ -344,7 +344,6 @@ export class BtpSessionHandler {
             //checks if last ack number sent < ack number to be sent
             const hasAckNumber = this.prevIncomingSequenceNumber !== this.prevAckedSequenceNumber;
             if (hasAckNumber) {
-                this.prevAckedSequenceNumber = this.prevIncomingSequenceNumber;
                 this.sendAckTimer.stop();
             }
 
@@ -393,6 +392,10 @@ export class BtpSessionHandler {
                 logger.debug("BTP packet send failed, BLE connection likely already closed", error);
                 this.sendInProgress = false;
                 return;
+            }
+            // Update ACK bookkeeping only after the packet was sent successfully
+            if (hasAckNumber) {
+                this.prevAckedSequenceNumber = this.prevIncomingSequenceNumber;
             }
 
             if (!this.ackReceiveTimer.isRunning) {
@@ -455,15 +458,15 @@ export class BtpSessionHandler {
                     sequenceNumber: this.getNextSequenceNumber(),
                 },
             };
-            this.prevAckedSequenceNumber = this.prevIncomingSequenceNumber;
             const packet = BtpCodec.encodeBtpPacket(btpPacket);
             try {
                 await this.writeBleCallback(packet);
             } catch (error) {
                 // BLE connection was lost while sending the ACK; the disconnect event will close the session
-                logger.debug(`BTP ACK send failed, BLE connection likely already closed: ${error}`);
+                logger.debug("BTP ACK send failed, BLE connection likely already closed", error);
                 return;
             }
+            this.prevAckedSequenceNumber = this.prevIncomingSequenceNumber;
             if (!this.ackReceiveTimer.isRunning) {
                 this.ackReceiveTimer.start(); // starts the timer
             }
