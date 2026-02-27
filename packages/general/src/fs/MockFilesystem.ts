@@ -33,6 +33,7 @@ function createFileNode(content: Uint8Array): MockNode {
  */
 export class MockFilesystem extends Filesystem {
     readonly #root: MockNode;
+    #tempCounter = 0;
 
     constructor() {
         super();
@@ -69,23 +70,35 @@ export class MockFilesystem extends Filesystem {
         }
         for (const [name, child] of this.#root.children) {
             if (child.type === "directory") {
-                yield new MockDirectory([name], this.#root, statOf(child));
+                yield new MockDirectory(this, [name], this.#root, statOf(child));
             } else {
-                yield new MockFile([name], this.#root, statOf(child));
+                yield new MockFile(this, [name], this.#root, statOf(child));
             }
         }
     }
 
     file(name: string): File {
-        return new MockFile([name], this.#root);
+        return new MockFile(this, [name], this.#root);
     }
 
     directory(name: string): Directory {
-        return new MockDirectory([name], this.#root);
+        return new MockDirectory(this, [name], this.#root);
     }
 
     async mkdir(): Promise<void> {
         // Root always exists
+    }
+
+    async copy(source: string | FilesystemNode, target: string | FilesystemNode): Promise<void> {
+        mockCopy(this.#root, source, target);
+    }
+
+    tempFilename(): string {
+        return `tmp-${Date.now()}-${this.#tempCounter++}`;
+    }
+
+    tempDirectory(): Directory {
+        return this.directory(this.tempFilename());
     }
 }
 
@@ -150,15 +163,22 @@ async function textToBytes(data: string | MaybeAsyncIterable<string>): Promise<U
 }
 
 class MockFile extends File {
+    readonly #fs: Filesystem;
     readonly #segments: string[];
     readonly #root: MockNode;
     readonly #cachedStat?: FilesystemNode.Stat;
 
-    constructor(segments: string[], root: MockNode, cachedStat?: FilesystemNode.Stat) {
+    constructor(fs: Filesystem, segments: string[], root: MockNode, cachedStat?: FilesystemNode.Stat) {
         super();
+        this.#fs = fs;
         this.#segments = segments;
         this.#root = root;
         this.#cachedStat = cachedStat;
+        mockSegmentsMap.set(this, segments);
+    }
+
+    override get fs() {
+        return this.#fs;
     }
 
     async open(mode?: File.OpenMode): Promise<File.Handle> {
@@ -181,7 +201,7 @@ class MockFile extends File {
                 throw new FileNotFoundError(`File not found: ${this.#segments.join("/")}`);
             }
         }
-        return new MockFileHandle(this.#segments, this.#root);
+        return new MockFileHandle(this.#fs, this.#segments, this.#root);
     }
 
     get name() {
@@ -311,15 +331,22 @@ class MockFile extends File {
 }
 
 class MockDirectory extends Directory {
+    readonly #fs: Filesystem;
     readonly #segments: string[];
     readonly #root: MockNode;
     readonly #cachedStat?: FilesystemNode.Stat;
 
-    constructor(segments: string[], root: MockNode, cachedStat?: FilesystemNode.Stat) {
+    constructor(fs: Filesystem, segments: string[], root: MockNode, cachedStat?: FilesystemNode.Stat) {
         super();
+        this.#fs = fs;
         this.#segments = segments;
         this.#root = root;
         this.#cachedStat = cachedStat;
+        mockSegmentsMap.set(this, segments);
+    }
+
+    override get fs() {
+        return this.#fs;
     }
 
     get name() {
@@ -374,35 +401,118 @@ class MockDirectory extends Directory {
         }
         for (const [name, child] of node.children) {
             if (child.type === "directory") {
-                yield new MockDirectory([...this.#segments, name], this.#root, statOf(child));
+                yield new MockDirectory(this.#fs, [...this.#segments, name], this.#root, statOf(child));
             } else {
-                yield new MockFile([...this.#segments, name], this.#root, statOf(child));
+                yield new MockFile(this.#fs, [...this.#segments, name], this.#root, statOf(child));
             }
         }
     }
 
     file(name: string): File {
-        return new MockFile([...this.#segments, name], this.#root);
+        return new MockFile(this.#fs, [...this.#segments, name], this.#root);
     }
 
     directory(name: string): Directory {
-        return new MockDirectory([...this.#segments, name], this.#root);
+        return new MockDirectory(this.#fs, [...this.#segments, name], this.#root);
     }
 
     async mkdir(): Promise<void> {
         mkdirp(this.#segments, this.#root);
     }
+
+    async copy(source: string | FilesystemNode, target: string | FilesystemNode): Promise<void> {
+        mockCopy(this.#root, source, target);
+    }
+}
+
+const mockSegmentsMap = new WeakMap<FilesystemNode, string[]>();
+
+function deepCloneNode(node: MockNode): MockNode {
+    if (node.type === "file") {
+        return {
+            type: "file",
+            mtime: new Date(node.mtime.getTime()),
+            content: node.content ? new Uint8Array(node.content) : undefined,
+        };
+    }
+    const children = new Map<string, MockNode>();
+    if (node.children) {
+        for (const [name, child] of node.children) {
+            children.set(name, deepCloneNode(child));
+        }
+    }
+    return { type: "directory", mtime: new Date(node.mtime.getTime()), children };
+}
+
+function resolveArg(arg: string | FilesystemNode): string[] {
+    if (typeof arg === "string") {
+        return arg.split("/").filter(s => s !== "");
+    }
+    const segments = mockSegmentsMap.get(arg);
+    if (segments) {
+        return segments;
+    }
+    // Root filesystem has empty segments
+    if (arg.name === "") {
+        return [];
+    }
+    throw new FileTypeError("Cannot resolve non-mock filesystem node in MockFilesystem.copy()");
+}
+
+function mockCopy(root: MockNode, source: string | FilesystemNode, target: string | FilesystemNode) {
+    const sourceSegments = resolveArg(source);
+    const targetSegments = resolveArg(target);
+
+    let sourceNode: MockNode | undefined;
+    if (sourceSegments.length === 0) {
+        sourceNode = root;
+    } else {
+        sourceNode = resolvePath(sourceSegments, root);
+    }
+    if (!sourceNode) {
+        throw new FileNotFoundError(`Source not found: ${sourceSegments.join("/")}`);
+    }
+
+    const cloned = deepCloneNode(sourceNode);
+
+    if (targetSegments.length === 0) {
+        // Copying to root — merge children
+        if (cloned.children) {
+            if (!root.children) {
+                root.children = new Map();
+            }
+            for (const [name, child] of cloned.children) {
+                root.children.set(name, child);
+            }
+        }
+        return;
+    }
+
+    const parentSegments = targetSegments.slice(0, -1);
+    const parent = parentSegments.length > 0 ? mkdirp(parentSegments, root) : root;
+    const targetName = targetSegments[targetSegments.length - 1];
+    if (!parent.children) {
+        parent.children = new Map();
+    }
+    parent.children.set(targetName, cloned);
 }
 
 class MockFileHandle extends File.Handle {
+    readonly #fs: Filesystem;
     readonly #segments: string[];
     readonly #root: MockNode;
     #closed = false;
 
-    constructor(segments: string[], root: MockNode) {
+    constructor(fs: Filesystem, segments: string[], root: MockNode) {
         super();
+        this.#fs = fs;
         this.#segments = segments;
         this.#root = root;
+        mockSegmentsMap.set(this, segments);
+    }
+
+    override get fs() {
+        return this.#fs;
     }
 
     get name() {
@@ -448,7 +558,7 @@ class MockFileHandle extends File.Handle {
 
     async write(data: Bytes | string | MaybeAsyncIterable<Bytes> | MaybeAsyncIterable<string>): Promise<void> {
         // Delegate full write to a MockFile
-        const file = new MockFile(this.#segments, this.#root);
+        const file = new MockFile(this.#fs, this.#segments, this.#root);
         return file.write(data);
     }
 

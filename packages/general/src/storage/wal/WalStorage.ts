@@ -12,7 +12,7 @@ import { Bytes } from "#util/Bytes.js";
 import { Gzip } from "#util/Gzip.js";
 import { BasicMultiplex } from "#util/Multiplex.js";
 import type { Directory } from "../../fs/Directory.js";
-import { StorageDriver, StorageError } from "../StorageDriver.js";
+import { type CloneableStorage, StorageDriver, StorageError } from "../StorageDriver.js";
 import type { SupportedStorageTypes } from "../StringifyTools.js";
 import { WalCleaner } from "./WalCleaner.js";
 import { type WalCommitId, encodeContextKey } from "./WalCommit.js";
@@ -31,7 +31,7 @@ type StoreData = Record<string, Record<string, SupportedStorageTypes>>;
  * Data is loaded from the snapshot + WAL on first read and cached until a write invalidates the cache.  This keeps
  * memory free during steady-state operation when only writes occur.
  */
-export class WalStorage extends StorageDriver {
+export class WalStorage extends StorageDriver implements CloneableStorage {
     static readonly id = "wal";
 
     static create(dir: Directory, descriptor: WalStorage.Descriptor) {
@@ -118,6 +118,22 @@ export class WalStorage extends StorageDriver {
         await this.#writer?.close();
         this.#cache = undefined;
         this.#initialized = false;
+    }
+
+    async clone(): Promise<StorageDriver> {
+        this.#assertInitialized();
+
+        // Flush current state to snapshot so the copy is consistent
+        await this.#runSnapshot();
+
+        // Copy the entire storage directory to a temp location
+        const tempDir = this.#storageDir.fs.tempDirectory();
+        await this.#storageDir.fs.copy(this.#storageDir, tempDir);
+
+        // Return a new WalStorage backed by the copy
+        const clone = new WalStorage(tempDir, this.#options);
+        await clone.initialize();
+        return clone;
     }
 
     // --- Read operations (loaded from cache) ---

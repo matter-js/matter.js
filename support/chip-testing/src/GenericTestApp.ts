@@ -51,7 +51,7 @@ export abstract class TestInstance {
         return this.#id;
     }
 
-    get storage() {
+    get storage(): Storage | undefined {
         return this.#config.storage;
     }
 
@@ -138,7 +138,7 @@ export namespace log {
 }
 
 export interface TestInstanceConfig {
-    storage: Storage;
+    storage?: Storage;
     discriminator?: number;
     passcode?: number;
     domain?: string;

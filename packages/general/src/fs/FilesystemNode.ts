@@ -13,6 +13,11 @@ export abstract class FilesystemNode {
     abstract readonly kind: "file" | "directory";
     abstract readonly name: string;
 
+    /**
+     * Back-reference to the root {@link Filesystem} that owns this node.
+     */
+    abstract readonly fs: import("./Filesystem.js").Filesystem;
+
     abstract exists(): Promise<boolean>;
     abstract stat(): MaybePromise<FilesystemNode.Stat>;
     abstract rename(name: string): Promise<void>;
