@@ -455,7 +455,6 @@ export class BtpSessionHandler {
                     sequenceNumber: this.getNextSequenceNumber(),
                 },
             };
-            this.prevAckedSequenceNumber = this.prevIncomingSequenceNumber;
             const packet = BtpCodec.encodeBtpPacket(btpPacket);
             try {
                 await this.writeBleCallback(packet);
@@ -464,6 +463,7 @@ export class BtpSessionHandler {
                 logger.debug(`BTP ACK send failed, BLE connection likely already closed: ${error}`);
                 return;
             }
+            this.prevAckedSequenceNumber = this.prevIncomingSequenceNumber;
             if (!this.ackReceiveTimer.isRunning) {
                 this.ackReceiveTimer.start(); // starts the timer
             }
