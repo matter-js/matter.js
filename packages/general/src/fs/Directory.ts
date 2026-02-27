@@ -29,6 +29,11 @@ export abstract class Directory extends FilesystemNode {
     abstract mkdir(): Promise<void>;
 
     /**
+     * Recursively copy a filesystem node into this directory.  String arguments are resolved relative to this directory.
+     */
+    abstract copy(source: string | FilesystemNode, target: string | FilesystemNode): Promise<void>;
+
+    /**
      * Open an existing entry at a relative path.  Returns a {@link File} or {@link Directory} based on what exists,
      * or throws {@link FileNotFoundError} if the path does not exist.
      */

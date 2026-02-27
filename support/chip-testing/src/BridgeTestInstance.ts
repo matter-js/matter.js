@@ -25,7 +25,7 @@ export class BridgeTestInstance extends NodeTestInstance {
     }
 
     async setupServer(): Promise<ServerNode> {
-        Environment.default.get(StorageService).factory = (_namespace: string) => this.config.storage;
+        Environment.default.get(StorageService).factory = (_namespace: string) => this.config.storage!;
 
         const networkId = new Uint8Array(32);
 

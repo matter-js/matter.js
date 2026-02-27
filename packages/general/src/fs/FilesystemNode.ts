@@ -5,6 +5,7 @@
  */
 
 import type { MaybePromise } from "../util/Promises.js";
+import type { Filesystem } from "./Filesystem.js";
 
 /**
  * Base class for filesystem entries (files and directories).
@@ -12,6 +13,11 @@ import type { MaybePromise } from "../util/Promises.js";
 export abstract class FilesystemNode {
     abstract readonly kind: "file" | "directory";
     abstract readonly name: string;
+
+    /**
+     * Back-reference to the root {@link Filesystem} that owns this node.
+     */
+    abstract readonly fs: Filesystem;
 
     abstract exists(): Promise<boolean>;
     abstract stat(): MaybePromise<FilesystemNode.Stat>;

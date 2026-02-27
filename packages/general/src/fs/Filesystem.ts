@@ -17,4 +17,18 @@ import { Directory } from "./Directory.js";
  *
  *     const fs = env.get(Filesystem)
  */
-export abstract class Filesystem extends Directory {}
+export abstract class Filesystem extends Directory {
+    override get fs(): Filesystem {
+        return this;
+    }
+
+    /**
+     * Return a unique filename suitable for use as a temporary file or directory.
+     */
+    abstract tempFilename(): string;
+
+    /**
+     * Return a new temporary {@link Directory}.  The directory is not created on disk yet.
+     */
+    abstract tempDirectory(): Directory;
+}

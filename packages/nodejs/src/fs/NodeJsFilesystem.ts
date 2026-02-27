@@ -16,7 +16,18 @@ import {
     type MaybePromise,
 } from "#general";
 import { createReadStream, createWriteStream, type WriteStream } from "node:fs";
-import { open as fsOpen, rename as fsRename, mkdir, readdir, rm, stat, writeFile, type FileHandle } from "node:fs/promises";
+import {
+    cp,
+    open as fsOpen,
+    rename as fsRename,
+    mkdir,
+    readdir,
+    rm,
+    stat,
+    writeFile,
+    type FileHandle,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { basename, dirname, resolve } from "node:path";
 import { finished } from "node:stream/promises";
 
@@ -25,6 +36,7 @@ import { finished } from "node:stream/promises";
  */
 export class NodeJsFilesystem extends Filesystem {
     readonly #rootPath: string;
+    #tempCounter = 0;
 
     constructor(workingDirectory: string) {
         super();
@@ -56,19 +68,31 @@ export class NodeJsFilesystem extends Filesystem {
     }
 
     async *entries(): AsyncIterable<Directory.Entry> {
-        yield* nodeEntries(this.#rootPath);
+        yield* nodeEntries(this, this.#rootPath);
     }
 
     file(name: string): File {
-        return new NodeJsFile(resolve(this.#rootPath, name), name);
+        return new NodeJsFile(this, resolve(this.#rootPath, name), name);
     }
 
     directory(name: string): Directory {
-        return new NodeJsDirectory(resolve(this.#rootPath, name), name);
+        return new NodeJsDirectory(this, resolve(this.#rootPath, name), name);
     }
 
     async mkdir(): Promise<void> {
         await mkdir(this.#rootPath, { recursive: true });
+    }
+
+    async copy(source: string | FilesystemNode, target: string | FilesystemNode): Promise<void> {
+        await nodeCopy(this.#rootPath, source, target);
+    }
+
+    tempFilename(): string {
+        return resolve(tmpdir(), `matter-${process.pid}-${Date.now()}-${this.#tempCounter++}`);
+    }
+
+    tempDirectory(): Directory {
+        return new NodeJsDirectory(this, this.tempFilename(), "");
     }
 }
 
@@ -101,7 +125,7 @@ async function nodeStat(path: string): Promise<FilesystemNode.Stat> {
     };
 }
 
-async function* nodeEntries(dirPath: string): AsyncGenerator<Directory.Entry> {
+async function* nodeEntries(fs: Filesystem, dirPath: string): AsyncGenerator<Directory.Entry> {
     const dirents = await readdir(dirPath, { withFileTypes: true });
     for (const dirent of dirents) {
         const fullPath = resolve(dirPath, dirent.name);
@@ -112,11 +136,28 @@ async function* nodeEntries(dirPath: string): AsyncGenerator<Directory.Entry> {
             type: dirent.isDirectory() ? "directory" : "file",
         };
         if (dirent.isDirectory()) {
-            yield new NodeJsDirectory(fullPath, dirent.name, cached);
+            yield new NodeJsDirectory(fs, fullPath, dirent.name, cached);
         } else {
-            yield new NodeJsFile(fullPath, dirent.name, cached);
+            yield new NodeJsFile(fs, fullPath, dirent.name, cached);
         }
     }
+}
+
+function resolveCopyArg(basePath: string, arg: string | FilesystemNode): string {
+    if (typeof arg === "string") {
+        return resolve(basePath, arg);
+    }
+    // FilesystemNode — must expose a path property (NodeJsFile/NodeJsDirectory do via Directory.path)
+    if ("path" in arg && typeof arg.path === "string") {
+        return arg.path;
+    }
+    throw new FileTypeError("Cannot resolve path for copy argument");
+}
+
+async function nodeCopy(basePath: string, source: string | FilesystemNode, target: string | FilesystemNode) {
+    const srcPath = resolveCopyArg(basePath, source);
+    const dstPath = resolveCopyArg(basePath, target);
+    await cp(srcPath, dstPath, { recursive: true });
 }
 
 function isBytes(value: unknown): value is Bytes {
@@ -181,15 +222,21 @@ async function writeData(
 }
 
 class NodeJsFile extends File {
+    readonly #fs: Filesystem;
     #path: string;
     #name: string;
     readonly #cachedStat?: FilesystemNode.Stat;
 
-    constructor(path: string, name: string, cachedStat?: FilesystemNode.Stat) {
+    constructor(fs: Filesystem, path: string, name: string, cachedStat?: FilesystemNode.Stat) {
         super();
+        this.#fs = fs;
         this.#path = path;
         this.#name = name;
         this.#cachedStat = cachedStat;
+    }
+
+    override get fs() {
+        return this.#fs;
     }
 
     get name() {
@@ -263,7 +310,7 @@ class NodeJsFile extends File {
             await mkdir(dirname(this.#path), { recursive: true });
         }
         const fh = await fsOpen(this.#path, flags);
-        return new NodeJsFileHandle(this.#path, this.#name, fh);
+        return new NodeJsFileHandle(this.#fs, this.#path, this.#name, fh);
     }
 
     async rename(newName: string): Promise<void> {
@@ -279,15 +326,21 @@ class NodeJsFile extends File {
 }
 
 class NodeJsDirectory extends Directory {
+    readonly #fs: Filesystem;
     #path: string;
     #name: string;
     readonly #cachedStat?: FilesystemNode.Stat;
 
-    constructor(path: string, name: string, cachedStat?: FilesystemNode.Stat) {
+    constructor(fs: Filesystem, path: string, name: string, cachedStat?: FilesystemNode.Stat) {
         super();
+        this.#fs = fs;
         this.#path = path;
         this.#name = name;
         this.#cachedStat = cachedStat;
+    }
+
+    override get fs() {
+        return this.#fs;
     }
 
     get name() {
@@ -329,32 +382,42 @@ class NodeJsDirectory extends Directory {
     }
 
     async *entries(): AsyncIterable<Directory.Entry> {
-        yield* nodeEntries(this.#path);
+        yield* nodeEntries(this.#fs, this.#path);
     }
 
     file(name: string): File {
-        return new NodeJsFile(resolve(this.#path, name), name);
+        return new NodeJsFile(this.#fs, resolve(this.#path, name), name);
     }
 
     directory(name: string): Directory {
-        return new NodeJsDirectory(resolve(this.#path, name), name);
+        return new NodeJsDirectory(this.#fs, resolve(this.#path, name), name);
     }
 
     async mkdir(): Promise<void> {
         await mkdir(this.#path, { recursive: true });
     }
+
+    async copy(source: string | FilesystemNode, target: string | FilesystemNode): Promise<void> {
+        await nodeCopy(this.#path, source, target);
+    }
 }
 
 class NodeJsFileHandle extends File.Handle {
+    readonly #fs: Filesystem;
     #path: string;
     #name: string;
     readonly #fh: FileHandle;
 
-    constructor(path: string, name: string, fh: FileHandle) {
+    constructor(fs: Filesystem, path: string, name: string, fh: FileHandle) {
         super();
+        this.#fs = fs;
         this.#path = path;
         this.#name = name;
         this.#fh = fh;
+    }
+
+    override get fs() {
+        return this.#fs;
     }
 
     get name() {
