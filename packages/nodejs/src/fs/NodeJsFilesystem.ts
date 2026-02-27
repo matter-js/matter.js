@@ -213,8 +213,12 @@ class NodeJsFile extends File {
             throw new FileTypeError("Cannot read bytes from a directory");
         }
         const stream = createReadStream(this.#path);
-        for await (const chunk of stream) {
-            yield chunk;
+        try {
+            for await (const chunk of stream) {
+                yield chunk;
+            }
+        } finally {
+            stream.destroy();
         }
     }
 
@@ -225,17 +229,25 @@ class NodeJsFile extends File {
         }
         if (options?.lines) {
             const stream = createReadStream(this.#path, { encoding: "utf8" });
-            let carry = "";
-            for await (const chunk of stream) {
-                const parts = (carry + chunk).split("\n");
-                carry = parts.pop()!;
-                yield* parts;
+            try {
+                let carry = "";
+                for await (const chunk of stream) {
+                    const parts = (carry + chunk).split("\n");
+                    carry = parts.pop()!;
+                    yield* parts;
+                }
+                yield carry;
+            } finally {
+                stream.destroy();
             }
-            yield carry;
         } else {
             const stream = createReadStream(this.#path, { encoding: "utf8" });
-            for await (const chunk of stream) {
-                yield chunk;
+            try {
+                for await (const chunk of stream) {
+                    yield chunk;
+                }
+            } finally {
+                stream.destroy();
             }
         }
     }
@@ -359,25 +371,37 @@ class NodeJsFileHandle extends File.Handle {
 
     async *readBytes(): AsyncIterable<Uint8Array> {
         const stream = createReadStream(this.#path);
-        for await (const chunk of stream) {
-            yield chunk;
+        try {
+            for await (const chunk of stream) {
+                yield chunk;
+            }
+        } finally {
+            stream.destroy();
         }
     }
 
     async *readText(options?: File.ReadTextOptions): AsyncIterable<string> {
         if (options?.lines) {
             const stream = createReadStream(this.#path, { encoding: "utf8" });
-            let carry = "";
-            for await (const chunk of stream) {
-                const parts = (carry + chunk).split("\n");
-                carry = parts.pop()!;
-                yield* parts;
+            try {
+                let carry = "";
+                for await (const chunk of stream) {
+                    const parts = (carry + chunk).split("\n");
+                    carry = parts.pop()!;
+                    yield* parts;
+                }
+                yield carry;
+            } finally {
+                stream.destroy();
             }
-            yield carry;
         } else {
             const stream = createReadStream(this.#path, { encoding: "utf8" });
-            for await (const chunk of stream) {
-                yield chunk;
+            try {
+                for await (const chunk of stream) {
+                    yield chunk;
+                }
+            } finally {
+                stream.destroy();
             }
         }
     }

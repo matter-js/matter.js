@@ -221,7 +221,7 @@ export class StorageService {
             return;
         }
 
-        logger.info(`Migrating storage "${namespace}" from "${fromKind}" to "${toKind}"`);
+        logger.notice(`Migrating storage "${namespace}" from "${fromKind}" to "${toKind}"`);
 
         const fromDescriptor: StorageDriver.Descriptor = { kind: fromKind };
         const toDescriptor: StorageDriver.Descriptor = { kind: toKind };
