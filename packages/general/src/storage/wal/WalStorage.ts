@@ -264,7 +264,7 @@ export class WalStorage extends StorageDriver {
             Object.assign(store, snap.data);
             afterCommitId = snap.commitId;
             this.#lastSnapshotCommitId = snap.commitId;
-            logger.info("Loaded snapshot at commit", snap.commitId);
+            logger.debug("Loaded snapshot at commit", snap.commitId);
         }
 
         // Replay WAL from after the snapshot (or from the beginning)
@@ -275,7 +275,7 @@ export class WalStorage extends StorageDriver {
             replayCount++;
         }
         if (replayCount > 0) {
-            logger.info(`Replayed ${replayCount} WAL commits`);
+            logger.debug(`Replayed ${replayCount} WAL commits`);
         } else if (afterCommitId) {
             this.#lastCommitId = afterCommitId;
         }
