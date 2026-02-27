@@ -388,8 +388,10 @@ export class BtpSessionHandler {
             try {
                 await this.writeBleCallback(packet);
             } catch (error) {
-                // BLE connection was lost mid-send; the disconnect event will close the session
+                // BLE connection was lost mid-send; the disconnect event will close the session.
+                // Clear the queue to avoid malformed state from partially-consumed DataReaders.
                 logger.debug("BTP packet send failed, BLE connection likely already closed", error);
+                this.queuedOutgoingMatterMessages.length = 0;
                 this.sendInProgress = false;
                 return;
             }

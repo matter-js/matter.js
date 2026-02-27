@@ -5,6 +5,7 @@
  */
 
 import { BtpFlowError, BtpProtocolError, BtpSessionHandler } from "#ble/BtpSessionHandler.js";
+import { BTP_SEND_ACK_TIMEOUT } from "#ble/BleConsts.js";
 import { BtpCodec } from "#codec/BtpCodec.js";
 import { Bytes, createPromise } from "#general";
 
@@ -492,6 +493,74 @@ describe("BtpSessionHandler", () => {
                 const result = await writeBlePromise;
                 expect(result).deep.equal(Bytes.fromHex("0d00010900090807060504030201"));
             }
+        });
+
+        it("write failure during sendMatterMessage does not cause unhandled rejection and resets sendInProgress", async () => {
+            const { promise: secondWritePromise, resolver: secondWriteResolver } = createPromise<Bytes>();
+
+            let callCount = 0;
+            onWriteBleCallback = async (data: Bytes) => {
+                callCount++;
+                if (callCount === 1) throw new Error("Disconnected 19");
+                secondWriteResolver(data);
+            };
+
+            // First send: write fails internally, sendMatterMessage must not throw
+            await btpSessionHandler!.sendMatterMessage(Bytes.fromHex("090807060504030201"));
+
+            // Second send: queue was cleared on failure so this message can be sent cleanly;
+            // it also proves sendInProgress was reset
+            await btpSessionHandler!.sendMatterMessage(Bytes.fromHex("0102030405060708"));
+
+            const result = await secondWritePromise;
+            expect(result).to.exist;
+        });
+
+        it("write failure during sendAckTimer does not cause unhandled rejection and does not advance prevAckedSequenceNumber", async () => {
+            const segmentPayload = Bytes.fromHex("010203040506070809");
+            const incomingMsg = BtpCodec.encodeBtpPacket({
+                header: {
+                    isHandshakeRequest: false,
+                    hasManagementOpcode: false,
+                    hasAckNumber: true,
+                    isEndingSegment: true,
+                    isContinuingSegment: false,
+                    isBeginningSegment: true,
+                },
+                payload: {
+                    ackNumber: 0,
+                    sequenceNumber: 0,
+                    messageLength: segmentPayload.byteLength,
+                    segmentPayload,
+                },
+            });
+
+            const { promise: handlePromise, resolver: handleResolver } = createPromise<void>();
+            onHandleMatterMessageCallback = async () => {
+                handleResolver();
+            };
+
+            let writeCount = 0;
+            const { promise: finalWritePromise, resolver: finalWriteResolver } = createPromise<Bytes>();
+            onWriteBleCallback = async (data: Bytes) => {
+                writeCount++;
+                if (writeCount === 1) throw new Error("Disconnected 19"); // ACK timer write fails
+                finalWriteResolver(data);
+            };
+
+            await btpSessionHandler!.handleIncomingBleData(incomingMsg);
+            await handlePromise;
+
+            // Advance time to trigger the sendAckTimer – write fails, must not throw
+            await MockTime.advance(BTP_SEND_ACK_TIMEOUT);
+
+            // Now send a Matter message; since prevAckedSequenceNumber was NOT advanced by the
+            // failed ACK write, the outgoing packet must still carry the pending hasAckNumber flag
+            await btpSessionHandler!.sendMatterMessage(Bytes.fromHex("090807060504030201"));
+
+            const packet = await finalWritePromise;
+            const decoded = BtpCodec.decodeBtpPacket(packet);
+            expect(decoded.header.hasAckNumber).to.equal(true);
         });
     });
 });
