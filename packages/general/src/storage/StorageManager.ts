@@ -13,6 +13,10 @@ export class StorageManager implements StorageContextFactory {
 
     constructor(private storage: StorageDriver) {}
 
+    get driverId() {
+        return this.storage.id;
+    }
+
     initialize(): MaybePromise<void> {
         if (!this.storage.initialized) {
             const init = this.storage.initialize();
