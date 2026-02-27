@@ -9,6 +9,7 @@ import type { Duration } from "#time/Duration.js";
 import { Seconds } from "#time/TimeUnit.js";
 import { Abort } from "#util/Abort.js";
 import { Bytes } from "#util/Bytes.js";
+import { Gzip } from "#util/Gzip.js";
 import { BasicMultiplex } from "#util/Multiplex.js";
 import type { Directory } from "../../fs/Directory.js";
 import { StorageDriver, StorageError } from "../StorageDriver.js";
@@ -37,6 +38,7 @@ export class WalStorage extends StorageDriver {
         return new WalStorage(dir, {
             maxSegmentSize: descriptor.maxSegmentSize,
             fsync: descriptor.fsync,
+            compressSnapshot: descriptor.compressSnapshot,
         });
     }
 
@@ -84,7 +86,7 @@ export class WalStorage extends StorageDriver {
             maxSegmentSize: this.#options.maxSegmentSize,
             fsync: this.#options.fsync,
         });
-        this.#snapshot = new WalSnapshot(this.#storageDir);
+        this.#snapshot = new WalSnapshot(this.#storageDir, this.#options.compressSnapshot ?? Gzip.isAvailable);
         this.#cleaner = new WalCleaner(walDir);
 
         // Start background workers
@@ -342,6 +344,8 @@ export namespace WalStorage {
         maxSegmentSize?: number;
         /** Whether to fsync after each WAL write. */
         fsync?: boolean;
+        /** Whether to gzip-compress snapshots. Default: true if runtime supports gzip. */
+        compressSnapshot?: boolean;
     }
 
     export interface Options {
@@ -353,5 +357,7 @@ export namespace WalStorage {
         snapshotInterval?: Duration;
         /** Interval between periodic WAL cleanup. Default 120s. */
         cleanInterval?: Duration;
+        /** Whether to gzip-compress snapshots. Default: true if runtime supports gzip. */
+        compressSnapshot?: boolean;
     }
 }

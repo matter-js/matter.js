@@ -218,6 +218,49 @@ describe("WalStorage", () => {
             await storage3.close();
         });
 
+        it("recovers from compressed snapshot + WAL on restart", async () => {
+            const storageDir = fs.directory("storage");
+            const storage = new WalStorage(storageDir, {
+                fsync: false,
+                compressSnapshot: true,
+                snapshotInterval: Seconds(600),
+                cleanInterval: Seconds(1200),
+            });
+            await storage.initialize();
+
+            await storage.set(["ctx"], "key1", "from-wal-1");
+            await storage.set(["ctx"], "key2", "from-wal-2");
+            await storage.close(); // close triggers compressed snapshot
+
+            // Verify compressed snapshot was written
+            expect(await storageDir.file("snapshot.json.gz").exists()).equal(true);
+            expect(await storageDir.file("snapshot.json").exists()).equal(false);
+
+            // Write more data after snapshot
+            const storage2 = new WalStorage(storageDir, {
+                fsync: false,
+                compressSnapshot: true,
+                snapshotInterval: Seconds(600),
+                cleanInterval: Seconds(1200),
+            });
+            await storage2.initialize();
+            await storage2.set(["ctx"], "key3", "from-wal-3");
+            await storage2.close();
+
+            // Reopen — should load compressed snapshot + replay remaining WAL
+            const storage3 = new WalStorage(storageDir, {
+                fsync: false,
+                compressSnapshot: true,
+                snapshotInterval: Seconds(600),
+                cleanInterval: Seconds(1200),
+            });
+            await storage3.initialize();
+            expect(await storage3.get(["ctx"], "key1")).equal("from-wal-1");
+            expect(await storage3.get(["ctx"], "key2")).equal("from-wal-2");
+            expect(await storage3.get(["ctx"], "key3")).equal("from-wal-3");
+            await storage3.close();
+        });
+
         it("handles truncated WAL lines", async () => {
             const storageDir = fs.directory("storage");
             await storageDir.mkdir();
