@@ -6,6 +6,7 @@
 
 export * from "./DclCertificateService.js";
 export * from "./DclClient.js";
+export * from "./DclConfig.js";
 export * from "./DclOtaUpdateService.js";
 export * from "./DclRestApiTypes.js";
 export * from "./DclVendorInfoService.js";
