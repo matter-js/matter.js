@@ -20,13 +20,15 @@ import {
     Network,
     ServiceBundle,
     StandardCrypto,
+    StorageBackendMemory,
     StorageService,
     VariableService,
+    WalStorage,
 } from "#general";
 import { NodeJsHttpEndpoint } from "#net/NodeJsHttpEndpoint.js";
-import { StorageFactory } from "#storage/index.js";
+import { StorageBackendDisk } from "#storage/fs/StorageBackendDisk.js";
 
-import { isBunjs } from "#util/runtimeChecks.js";
+import { isBunjs, supportsSqlite } from "#util/runtimeChecks.js";
 
 import { existsSync, readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
@@ -204,22 +206,33 @@ function configureStorage(env: Environment) {
                 service.location = env.vars.get("storage.path", rootDirOf(env));
             });
 
-            const shouldClear = env.vars.boolean("storage.clear") ?? false;
-            let storageDriver = env.vars.string("storage.driver") ?? "file";
+            // Register general-package drivers
+            service.registerDriver(StorageBackendMemory);
+            service.registerDriver(WalStorage);
 
-            // fallback 'file' when storageDriver is blank
-            if (storageDriver.length === 0) {
-                storageDriver = "file";
+            // Register nodejs-specific drivers
+            service.registerDriver(StorageBackendDisk);
+
+            if (supportsSqlite()) {
+                service.registerDriver({
+                    id: "sqlite",
+
+                    async create(dir, _descriptor) {
+                        const { PlatformSqlite } = await import("#storage/sqlite/index.js");
+                        const dbPath = resolve(dir.path, "storage.db");
+                        return await PlatformSqlite(dbPath, false);
+                    },
+                });
             }
 
-            service.factory = async namespace => {
-                return await StorageFactory.create({
-                    driver: storageDriver as "file" | "sqlite",
-                    rootDir: service.location ?? ".",
-                    namespace,
-                    clear: shouldClear,
-                });
-            };
+            // Default to "file" in nodejs (temporary until WAL is proven)
+            service.defaultDriver = "file";
+
+            // Apply user-configured driver
+            let storageDriver = env.vars.string("storage.driver");
+            if (storageDriver && storageDriver.length > 0) {
+                service.configuredDriver = storageDriver;
+            }
 
             service.resolve = (...paths) => resolve(rootDirOf(env), ...paths);
             return;

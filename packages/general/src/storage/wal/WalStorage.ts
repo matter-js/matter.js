@@ -31,6 +31,15 @@ type StoreData = Record<string, Record<string, SupportedStorageTypes>>;
  * memory free during steady-state operation when only writes occur.
  */
 export class WalStorage extends StorageDriver {
+    static readonly id = "wal";
+
+    static create(dir: Directory, descriptor: WalStorage.Descriptor) {
+        return new WalStorage(dir, {
+            maxSegmentSize: descriptor.maxSegmentSize,
+            fsync: descriptor.fsync,
+        });
+    }
+
     readonly #storageDir: Directory;
     readonly #options: WalStorage.Options;
     #cache?: StoreData;
@@ -328,6 +337,13 @@ export class WalStorage extends StorageDriver {
 }
 
 export namespace WalStorage {
+    export interface Descriptor extends StorageDriver.Descriptor {
+        /** Maximum WAL segment size in bytes. */
+        maxSegmentSize?: number;
+        /** Whether to fsync after each WAL write. */
+        fsync?: boolean;
+    }
+
     export interface Options {
         /** Maximum WAL segment size in bytes. Default 16 MB. */
         maxSegmentSize?: number;

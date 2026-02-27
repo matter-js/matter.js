@@ -34,6 +34,12 @@ interface ContextIndex {
 }
 
 export class StorageBackendDisk extends StorageDriver {
+    static readonly id = "file";
+
+    static create(dir: import("@matter/general").Directory) {
+        return new StorageBackendDisk(dir.path);
+    }
+
     readonly #path: string;
     readonly #clear: boolean;
     protected isInitialized = false;

@@ -15,6 +15,14 @@ import { FilesystemNode } from "./FilesystemNode.js";
 export abstract class Directory extends FilesystemNode {
     readonly kind = "directory";
 
+    /**
+     * Return the native filesystem path for this directory, if available.  Throws by default; platform-specific
+     * subclasses (e.g. NodeJsDirectory) override this.
+     */
+    get path(): string {
+        throw new Error("This directory does not expose a native path");
+    }
+
     abstract entries(): AsyncIterable<Directory.Entry>;
     abstract file(name: string): File;
     abstract directory(name: string): Directory;
