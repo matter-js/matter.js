@@ -6,7 +6,7 @@
 
 import { Logger } from "#log/Logger.js";
 import type { Duration } from "#time/Duration.js";
-import { Seconds } from "#time/TimeUnit.js";
+import { Hours } from "#time/TimeUnit.js";
 import { Abort } from "#util/Abort.js";
 import { Bytes } from "#util/Bytes.js";
 import { Gzip } from "#util/Gzip.js";
@@ -86,21 +86,26 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
             maxSegmentSize: this.#options.maxSegmentSize,
             fsync: this.#options.fsync,
         });
-        this.#snapshot = new WalSnapshot(this.#storageDir, this.#options.compressSnapshot ?? Gzip.isAvailable);
+        this.#snapshot = new WalSnapshot(
+            this.#storageDir,
+            this.#options.compressSnapshot ?? WalStorage.defaults.compressSnapshot,
+        );
         this.#cleaner = new WalCleaner(walDir);
 
         // Start background workers
-        const snapshotInterval = this.#options.snapshotInterval ?? Seconds(60);
+        const snapshotInterval = this.#options.snapshotInterval ?? WalStorage.defaults.snapshotInterval;
         this.#workers.add(
             this.#runWorker("wal-snapshot", snapshotInterval, () => this.#runSnapshot()),
             "wal-snapshot",
         );
 
-        const cleanInterval = this.#options.cleanInterval ?? Seconds(120);
-        this.#workers.add(
-            this.#runWorker("wal-clean", cleanInterval, () => this.#runClean()),
-            "wal-clean",
-        );
+        const cleanInterval = this.#options.cleanInterval ?? WalStorage.defaults.cleanInterval;
+        if (cleanInterval !== undefined) {
+            this.#workers.add(
+                this.#runWorker("wal-clean", cleanInterval, () => this.#runClean()),
+                "wal-clean",
+            );
+        }
 
         this.#initialized = true;
     }
@@ -356,24 +361,55 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
 
 export namespace WalStorage {
     export interface Descriptor extends StorageDriver.Descriptor {
-        /** Maximum WAL segment size in bytes. */
+        /**
+         * Maximum WAL segment size in bytes.
+         */
         maxSegmentSize?: number;
-        /** Whether to fsync after each WAL write. */
+
+        /**
+         * Whether to fsync after each WAL write.
+         */
         fsync?: boolean;
-        /** Whether to gzip-compress snapshots. Default: true if runtime supports gzip. */
+
+        /**
+         * Whether to gzip-compress snapshots.  Defaults to true if the runtime supports gzip.
+         */
         compressSnapshot?: boolean;
     }
 
     export interface Options {
-        /** Maximum WAL segment size in bytes. Default 16 MB. */
+        /**
+         * Maximum WAL segment size in bytes before the writer rotates to a new file.
+         */
         maxSegmentSize?: number;
-        /** Whether to fsync after each WAL write. Default true. */
+
+        /**
+         * Whether to fsync after each WAL write for durability against unexpected process termination.
+         */
         fsync?: boolean;
-        /** Interval between periodic snapshots. Default 60s. */
+
+        /**
+         * Interval between periodic snapshots that consolidate WAL state into a single file.
+         */
         snapshotInterval?: Duration;
-        /** Interval between periodic WAL cleanup. Default 120s. */
+
+        /**
+         * Interval between periodic WAL cleanup that removes segments already captured in a snapshot.  Undefined
+         * disables cleanup.
+         */
         cleanInterval?: Duration;
-        /** Whether to gzip-compress snapshots. Default: true if runtime supports gzip. */
+
+        /**
+         * Whether to gzip-compress snapshots.  Defaults to true if the runtime supports gzip.
+         */
         compressSnapshot?: boolean;
     }
+
+    export const defaults = {
+        maxSegmentSize: 16 * 1024 * 1024,
+        fsync: true,
+        snapshotInterval: Hours(6),
+        cleanInterval: undefined as Duration | undefined,
+        compressSnapshot: Gzip.isAvailable,
+    } as const satisfies { [K in keyof Required<Options>]: Options[K] };
 }
