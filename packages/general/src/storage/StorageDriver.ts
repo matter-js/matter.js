@@ -17,6 +17,10 @@ export class StorageCommitError extends StorageError {}
  * Matter.js uses this key/value API to manage persistent state.
  */
 export abstract class StorageDriver {
+    get id(): string {
+        return (this.constructor as { id?: string }).id ?? this.constructor.name;
+    }
+
     abstract readonly initialized: boolean;
     abstract initialize(): MaybePromise<void>;
     abstract close(): MaybePromise<void>;
