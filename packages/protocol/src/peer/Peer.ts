@@ -32,6 +32,7 @@ import {
     Timestamp,
 } from "#general";
 import { getOperationalDeviceQname } from "#mdns/MdnsConsts.js";
+import { PeerAddress } from "#peer/PeerAddress.js";
 import type { ExchangeProvider } from "#protocol/ExchangeProvider.js";
 import type { NodeSession } from "#session/NodeSession.js";
 import { SessionParameters } from "#session/SessionParameters.js";
@@ -247,6 +248,10 @@ export class Peer {
      * Obtain a session with the peer, establishing anew as necessary.
      */
     async connect(options?: Peer.ConnectOptions) {
+        if (PeerAddress.isGroup(this.address)) {
+            return await this.#context.sessions.groupSessionForAddress(this.address, this.#context.exchanges);
+        }
+
         while (true) {
             const session = this.newestSession;
             if (session) {
