@@ -90,7 +90,7 @@ export namespace PeerTimingParameters {
         // to have a chance before potentially adding a load with a second try
         delayBeforeNextAddress: Seconds(45),
         delayAfterNetworkError: Seconds(15),
-        delayAfterPeerError: Minutes(1),
+        delayAfterPeerError: Minutes(5),
         delayAfterUnhandledError: Minutes(2),
         minimumTimeBetweenMrpKicks: Seconds(3),
     };
