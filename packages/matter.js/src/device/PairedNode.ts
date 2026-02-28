@@ -1418,6 +1418,7 @@ export class PairedNode {
             this.events.decommissioned.emit();
         }
         this.#setConnectionState(NodeStates.Disconnected);
+        this.#construction.close();
     }
 
     /**

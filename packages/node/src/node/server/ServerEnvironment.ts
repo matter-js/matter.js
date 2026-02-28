@@ -10,7 +10,7 @@ import { Crypto, Environment, Observable, SharedEnvironmentServices } from "#gen
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { ServerEndpointInitializer } from "#node/server/ServerEndpointInitializer.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { FabricManager, MdnsService, OccurrenceManager, PeerSet, SessionManager } from "#protocol";
+import { FabricAuthority, FabricManager, MdnsService, OccurrenceManager, PeerSet, SessionManager } from "#protocol";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { IdentityService } from "./IdentityService.js";
 
@@ -62,6 +62,7 @@ export namespace ServerEnvironment {
         await env.close(OccurrenceManager);
         await env.close(ServerNodeStore);
         await env.close(SharedNodeServices);
+        env.close(FabricAuthority);
     }
 }
 
