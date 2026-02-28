@@ -8,7 +8,7 @@ import { deepCopy, isIpNetworkChannel, Logger, MatterError, MaybePromise, Second
 import { DatatypeModel, FieldElement } from "#model";
 import { InteractionServer, PeerSubscription } from "#node/server/InteractionServer.js";
 import { ServerSubscription } from "#node/server/ServerSubscription.js";
-import { PeerAddress, PeerAddressSet, PeerSet, Subscription } from "#protocol";
+import { GroupSession, PeerAddress, PeerAddressSet, PeerSet, Subscription } from "#protocol";
 import { StatusCode, StatusResponseError } from "#types";
 import { Behavior } from "../../Behavior.js";
 import { SessionsBehavior } from "../sessions/SessionsBehavior.js";
@@ -222,6 +222,10 @@ export class SubscriptionsServer extends Behavior {
             let session;
             try {
                 session = await peer.connect({ connectionTimeout: REESTABLISH_SUBSCRIPTIONS_TIMEOUT });
+                if (GroupSession.is(session)) {
+                    // Should never happen but add for easier typing
+                    continue;
+                }
             } catch (error) {
                 peerStopList.add(peerAddress);
                 logger.debug(
