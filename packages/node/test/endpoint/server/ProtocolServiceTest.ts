@@ -127,16 +127,27 @@ describe("ProtocolServiceTest", () => {
 
         const fabric1Acls = await readAcls(node, fabric1, true);
 
-        expect(fabric1Acls).deep.equals([{ privilege: 5, authMode: 2, subjects: null, targets: null, auxiliaryType: undefined, fabricIndex: 1 }]);
+        expect(fabric1Acls).deep.equals([
+            { privilege: 5, authMode: 2, subjects: null, targets: null, auxiliaryType: undefined, fabricIndex: 1 },
+        ]);
 
         const fabric2Acls = await readAcls(node, fabric2, true);
-        expect(fabric2Acls).deep.equals([{ privilege: 5, authMode: 2, subjects: null, targets: null, auxiliaryType: undefined, fabricIndex: 2 }]);
+        expect(fabric2Acls).deep.equals([
+            { privilege: 5, authMode: 2, subjects: null, targets: null, auxiliaryType: undefined, fabricIndex: 2 },
+        ]);
 
         const allAclsReadAsFabric1 = await readAcls(node, fabric1, false);
 
         expect(allAclsReadAsFabric1).deep.equals([
             { privilege: 5, authMode: 2, subjects: null, targets: null, auxiliaryType: undefined, fabricIndex: 1 },
-            { privilege: undefined, authMode: undefined, subjects: undefined, targets: undefined, auxiliaryType: undefined, fabricIndex: 2 },
+            {
+                privilege: undefined,
+                authMode: undefined,
+                subjects: undefined,
+                targets: undefined,
+                auxiliaryType: undefined,
+                fabricIndex: 2,
+            },
         ]);
 
         const fabric1Nocs = await readNocs(node, fabric1, true);
