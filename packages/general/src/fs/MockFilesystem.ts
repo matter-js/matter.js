@@ -145,7 +145,7 @@ function mkdirp(segments: string[], root: MockNode): MockNode {
 }
 
 function isBytes(value: unknown): value is Bytes {
-    return ArrayBuffer.isView(value) || value instanceof ArrayBuffer || value instanceof SharedArrayBuffer;
+    return Bytes.isBytes(value);
 }
 
 async function textToBytes(data: string | MaybeAsyncIterable<string>): Promise<Uint8Array> {
