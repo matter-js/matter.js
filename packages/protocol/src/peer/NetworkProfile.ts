@@ -5,6 +5,7 @@
  */
 
 import { Duration, Environment, Environmental, MatterError, Millis, Seconds, Semaphore } from "#general";
+import { PeerAddress } from "#peer/PeerAddress.js";
 import { Peer } from "./Peer.js";
 
 /**
@@ -102,7 +103,10 @@ export class NetworkProfiles {
         const pp = peer.physicalProperties;
 
         let id: string, defaults: NetworkProfiles.Limits;
-        if (pp === undefined) {
+        if (PeerAddress.isGroup(peer.address)) {
+            id = "group";
+            defaults = this.#defaults.fast;
+        } else if (pp === undefined) {
             id = "unknown";
             defaults = this.#defaults.conservative;
         } else if (pp.threadActive || (pp.threadActive === undefined && pp.supportsThread)) {
