@@ -283,12 +283,18 @@ export class NodeJsUdpChannel implements UdpChannel {
             }
         };
 
+        // IPv6 multicast addresses require interface scoping for the kernel to route them correctly
+        let sendHost = host;
+        if (this.#netInterface && host.startsWith("ff") && !host.includes("%")) {
+            sendHost = `${host}%${this.#netInterface}`;
+        }
+
         this.#sendsInProgress.set(promise, { sendMs: Time.nowMs, rejecter });
         if (!this.#sendTimer.isRunning) {
             this.#sendTimer.start();
         }
         try {
-            this.#socket.send(Bytes.of(data), port, host, error => rejectOrResolve(error));
+            this.#socket.send(Bytes.of(data), port, sendHost, error => rejectOrResolve(error));
         } catch (error) {
             rejectOrResolve(repackErrorAs(error, NetworkError));
         }
