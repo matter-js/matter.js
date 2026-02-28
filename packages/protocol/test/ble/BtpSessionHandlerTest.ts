@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { BleDisconnectedError } from "#ble/Ble.js";
 import { BTP_SEND_ACK_TIMEOUT } from "#ble/BleConsts.js";
 import { BtpFlowError, BtpProtocolError, BtpSessionHandler } from "#ble/BtpSessionHandler.js";
 import { BtpCodec } from "#codec/BtpCodec.js";
@@ -501,7 +502,9 @@ describe("BtpSessionHandler", () => {
             let callCount = 0;
             onWriteBleCallback = async (data: Bytes) => {
                 callCount++;
-                if (callCount === 1) throw new Error("Disconnected 19");
+                if (callCount === 1) {
+                    throw new BleDisconnectedError("Disconnected 19");
+                }
                 secondWriteResolver(data);
             };
 
@@ -544,7 +547,9 @@ describe("BtpSessionHandler", () => {
             const { promise: finalWritePromise, resolver: finalWriteResolver } = createPromise<Bytes>();
             onWriteBleCallback = async (data: Bytes) => {
                 writeCount++;
-                if (writeCount === 1) throw new Error("Disconnected 19"); // ACK timer write fails
+                if (writeCount === 1) {
+                    throw new BleDisconnectedError("Disconnected 19");
+                } // ACK timer write fails
                 finalWriteResolver(data);
             };
 

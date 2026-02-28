@@ -14,6 +14,7 @@ import {
     BTP_MAXIMUM_WINDOW_SIZE,
     BTP_SEND_ACK_TIMEOUT,
 } from "./BleConsts.js";
+import { BleDisconnectedError } from "./Ble.js";
 
 export class BtpMatterError extends MatterError {}
 export class BtpProtocolError extends BtpMatterError {}
@@ -388,9 +389,11 @@ export class BtpSessionHandler {
             try {
                 await this.writeBleCallback(packet);
             } catch (error) {
-                // BLE connection was lost mid-send; the disconnect event will close the session.
+                // Only silently absorb BleDisconnectedError (expected during peripheral disconnect).
                 // Clear the queue to avoid malformed state from partially-consumed DataReaders.
-                logger.debug("BTP packet send failed, BLE connection likely already closed", error);
+                // Any other error is unexpected and is rethrown so the session can handle it.
+                BleDisconnectedError.accept(error);
+                logger.debug("BTP packet send failed because BLE is disconnected", error);
                 this.queuedOutgoingMatterMessages.length = 0;
                 this.sendInProgress = false;
                 return;
@@ -464,8 +467,10 @@ export class BtpSessionHandler {
             try {
                 await this.writeBleCallback(packet);
             } catch (error) {
-                // BLE connection was lost while sending the ACK; the disconnect event will close the session
-                logger.debug("BTP ACK send failed, BLE connection likely already closed", error);
+                // Only silently absorb BleDisconnectedError (expected during peripheral disconnect).
+                // Any other error is unexpected and is rethrown so the session can handle it.
+                BleDisconnectedError.accept(error);
+                logger.debug("BTP ACK send failed because BLE is disconnected", error);
                 return;
             }
             this.prevAckedSequenceNumber = this.prevIncomingSequenceNumber;

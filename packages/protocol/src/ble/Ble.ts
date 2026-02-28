@@ -10,6 +10,9 @@ import { BLE_MAX_MATTER_PAYLOAD_SIZE } from "./BleConsts.js";
 
 export class BleError extends MatterError {}
 
+/** Thrown when a BLE write or subscribe operation fails because the peripheral disconnected. */
+export class BleDisconnectedError extends BleError {}
+
 // TODO - need to factor out the general platform BLE from Matter/BTP so this can move into matter.js-general
 export abstract class Ble {
     abstract get peripheralInterface(): BlePeripheralInterface;
