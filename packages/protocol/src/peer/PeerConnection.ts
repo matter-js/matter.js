@@ -474,6 +474,20 @@ export async function PeerConnection(
             error(address, `General connection error (retry in ${Duration.format(delay)}):`, e);
         }
 
+        if (delay !== undefined && context.handleError) {
+            try {
+                const result = context.handleError(e);
+                if (result !== undefined) {
+                    delay = result;
+                }
+            } catch (thrown) {
+                error(address, "Fatal peer error, aborting connection:", Diagnostic.errorMessage(asError(thrown)));
+                fatalError = asError(thrown);
+                overallAbort();
+                return;
+            }
+        }
+
         if (addressAbort.aborted) {
             return;
         }
@@ -496,6 +510,15 @@ export namespace PeerConnection {
         openSocket(address: ServerAddressUdp, abort: AbortSignal): Promise<Channel<Bytes> | void>;
 
         timing: PeerTimingParameters;
+
+        /**
+         * Optional hook to customize error handling during connection attempts.
+         *
+         * Invoked for errors that would result in a delay-and-retry (not for Busy or resumption-clearing). If the hook
+         * returns a {@link Duration}, that overrides the default delay. If it returns undefined, the default delay is
+         * used. If it throws, the connection is aborted with the thrown error as a fatal error.
+         */
+        handleError?: (error: Error) => Duration | void;
     }
 
     export interface Options {

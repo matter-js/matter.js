@@ -32,6 +32,7 @@ import { SessionManager } from "#session/SessionManager.js";
 import { FabricIndex } from "#types";
 import { NetworkProfiles } from "./NetworkProfile.js";
 import { Peer } from "./Peer.js";
+import { PeerConnection } from "./PeerConnection.js";
 import { PeerDescriptor } from "./PeerDescriptor.js";
 import { PeerTimingParameters } from "./PeerTimingParameters.js";
 
@@ -45,6 +46,7 @@ export interface PeerSetContext {
     networks: NetworkProfiles;
     connectionRetries?: RetrySchedule;
     timing?: PeerTimingParameters;
+    handleError?: PeerConnection.Context["handleError"];
 }
 
 /**
@@ -61,7 +63,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     #exchanges?: ExchangeManager;
 
     constructor(context: PeerSetContext) {
-        const { lifetime, sessions, names, networks, timing } = context;
+        const { lifetime, sessions, names, networks, timing, handleError } = context;
 
         this.#lifetime = lifetime.join("peers");
         this.#sessions = sessions;
@@ -74,6 +76,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
             names,
             networks,
             timing: PeerTimingParameters(timing),
+            handleError,
 
             get exchanges() {
                 if (self.#exchanges === undefined) {
@@ -201,6 +204,10 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
 
     set timing(timing: Partial<PeerTimingParameters>) {
         this.#peerContext.timing = PeerTimingParameters(timing);
+    }
+
+    set handleError(handler: PeerConnection.Context["handleError"]) {
+        this.#peerContext.handleError = handler;
     }
 
     /**

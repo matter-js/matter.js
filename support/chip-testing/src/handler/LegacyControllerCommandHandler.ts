@@ -10,9 +10,11 @@ import { GeneralCommissioning, GroupKeyManagement } from "@matter/main/clusters"
 import {
     Certificate,
     CertificateAuthority,
+    ChannelStatusResponseError,
     ExchangeManager,
     IPK_DEFAULT_EPOCH_START_TIME,
     PeerAddress,
+    PeerSet,
     SecureSession,
     SessionManager,
     SupportedTransportsSchema,
@@ -25,6 +27,7 @@ import {
     GroupId,
     ManualPairingCodeCodec,
     QrPairingCodeCodec,
+    SecureChannelStatusCode,
     TlvAny,
     TlvBoolean,
     TlvByteString,
@@ -88,6 +91,13 @@ export class LegacyControllerCommandHandler extends CommandHandler {
         try {
             await this.#controllerInstance.start();
             logger.info(`-----> Controller ${this.#identity} started`);
+
+            this.#controllerInstance.node.env.get(PeerSet).handleError = error => {
+                const csre = ChannelStatusResponseError.of(error);
+                if (csre?.protocolStatusCode === SecureChannelStatusCode.NoSharedTrustRoots) {
+                    throw error;
+                }
+            };
 
             // Add Default Group configuration as also used in Chip:
             // https://github.com/project-chip/connectedhomeip/blob/master/src/lib/support/TestGroupData.h
