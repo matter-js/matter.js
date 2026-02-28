@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { PeerAddress } from "#peer/PeerAddress.js";
 import { ExchangeProvider, NewExchangeOptions } from "#protocol/ExchangeProvider.js";
 import type { MessageExchange } from "#protocol/MessageExchange.js";
 import { MRP } from "#protocol/MRP.js";
@@ -43,11 +44,14 @@ export class PeerExchangeProvider extends ExchangeProvider {
 
     override async initiateExchange(options?: NewExchangeOptions): Promise<MessageExchange> {
         const abort = options?.abort;
+        const isGroup = PeerAddress.isGroup(this.#peer.address);
 
         while (true) {
-            // Connections grab their own network slot so connect before getting our own
-            await this.#peer.connect(options);
-            abort?.throwIfAborted();
+            if (!isGroup) {
+                // Connections grab their own network slot so connect before getting our own
+                await this.#peer.connect(options);
+                abort?.throwIfAborted();
+            }
 
             const network = this.#context.networks.select(this.#peer, options?.network);
             const slot = await network.semaphore.obtainSlot(abort);
@@ -55,7 +59,9 @@ export class PeerExchangeProvider extends ExchangeProvider {
             try {
                 abort?.throwIfAborted();
 
-                const session = this.#peer.newestSession;
+                const session = isGroup
+                    ? await this.#context.sessions.groupSessionForAddress(this.#peer.address, this.#context.exchanges)
+                    : this.#peer.newestSession;
                 if (session === undefined) {
                     // We had a session before getting the slot, but it was closed. Restart
                     slot.close();
