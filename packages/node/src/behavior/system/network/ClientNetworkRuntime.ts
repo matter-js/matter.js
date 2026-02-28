@@ -58,7 +58,7 @@ export class ClientNetworkRuntime extends NetworkRuntime {
         const peers = env.get(PeerSet);
         const peer = peers.get(address);
         if (peer === undefined) {
-            throw new InternalError(`Commissioned node ${this.owner} has no peer installed`);
+            throw new InternalError(`Commissioned node ${this.owner} has no peer ${address.toString()} installed`);
         }
         env.set(ExchangeProvider, peer.exchangeProvider);
 

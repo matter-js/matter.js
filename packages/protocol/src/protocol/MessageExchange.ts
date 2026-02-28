@@ -33,6 +33,7 @@ import {
     Timer,
     Timestamp,
 } from "#general";
+import { NetworkProfile } from "#peer/NetworkProfile.js";
 import { PeerUnresponsiveError, TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
 import { GroupSession } from "#session/GroupSession.js";
 import type { NodeSession } from "#session/NodeSession.js";
@@ -222,8 +223,18 @@ export class MessageExchange {
     #kick?: () => void;
 
     constructor(config: MessageExchange.Config) {
-        const { context, isInitiator, peerSessionId, nodeId, peerNodeId, exchangeId, protocolId, onSend, onReceive } =
-            config;
+        const {
+            context,
+            isInitiator,
+            peerSessionId,
+            nodeId,
+            peerNodeId,
+            exchangeId,
+            protocolId,
+            onSend,
+            onReceive,
+            network,
+        } = config;
 
         this.#context = context;
         this.#isInitiator = isInitiator;
@@ -254,6 +265,7 @@ export class MessageExchange {
                 exchangeFlags: Diagnostic.asFlags({
                     MRP: this.session.usesMrp,
                     I: this.isInitiator,
+                    ...(network ? { [network.id]: true } : {}),
                 }),
             }),
         );
@@ -946,6 +958,11 @@ export namespace MessageExchange {
          * Invoked upon message receipt.
          */
         onReceive?: ReceiveNotifier;
+
+        /**
+         * Network Profile used
+         */
+        network?: NetworkProfile;
     }
 
     export interface Config extends Options {

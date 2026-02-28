@@ -72,6 +72,7 @@ export class PeerExchangeProvider extends ExchangeProvider {
                     this.#peer,
                     this.#context.exchanges,
                     session,
+                    network,
                     options?.protocol ?? INTERACTION_PROTOCOL_ID,
                 );
 
