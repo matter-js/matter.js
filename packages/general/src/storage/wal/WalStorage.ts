@@ -15,7 +15,13 @@ import type { Directory } from "../../fs/Directory.js";
 import { type CloneableStorage, StorageDriver, StorageError } from "../StorageDriver.js";
 import type { SupportedStorageTypes } from "../StringifyTools.js";
 import { WalCleaner } from "./WalCleaner.js";
-import { type WalCommitId, encodeContextKey } from "./WalCommit.js";
+import {
+    type WalCommitId,
+    compressedSegmentFilename,
+    encodeContextKey,
+    parseSegmentFilename,
+    segmentFilename,
+} from "./WalCommit.js";
 import { WalReader } from "./WalReader.js";
 import { WalSnapshot } from "./WalSnapshot.js";
 import { WalTransaction, applyCommit } from "./WalTransaction.js";
@@ -39,6 +45,7 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
             maxSegmentSize: descriptor.maxSegmentSize,
             fsync: descriptor.fsync,
             compressSnapshot: descriptor.compressSnapshot,
+            compressLog: descriptor.compressLog,
         });
     }
 
@@ -81,10 +88,17 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
         const walDir = this.#storageDir.directory("wal");
         await walDir.mkdir();
 
+        const compressLog = this.#options.compressLog ?? WalStorage.defaults.compressLog;
+
         this.#reader = new WalReader(walDir);
         this.#writer = new WalWriter(walDir, {
             maxSegmentSize: this.#options.maxSegmentSize,
             fsync: this.#options.fsync,
+            onRotate: compressLog
+                ? () => {
+                      this.#workers.add(this.#compressRotatedSegments(), "wal-compress");
+                  }
+                : undefined,
         });
         this.#snapshot = new WalSnapshot(
             this.#storageDir,
@@ -340,6 +354,42 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
         }
     }
 
+    async #compressRotatedSegments(): Promise<void> {
+        const walDir = this.#storageDir.directory("wal");
+        if (!(await walDir.exists())) return;
+
+        const activeSegment = this.#writer!.currentSegment;
+
+        for await (const entry of walDir.entries()) {
+            if (entry.kind !== "file") continue;
+            if (!entry.name.endsWith(".jsonl")) continue;
+
+            const seg = parseSegmentFilename(entry.name);
+            if (seg === undefined || seg === activeSegment) continue;
+
+            try {
+                const gzName = compressedSegmentFilename(seg);
+                const gzFile = walDir.file(gzName);
+
+                if (await gzFile.exists()) {
+                    // Compressed file already exists — just remove the original
+                    await entry.delete();
+                    continue;
+                }
+
+                const srcFile = walDir.file(segmentFilename(seg));
+                const tmpName = gzName + ".tmp";
+                const tmpFile = walDir.file(tmpName);
+
+                await tmpFile.write(Gzip.compress(srcFile.readBytes()));
+                await tmpFile.rename(gzName);
+                await srcFile.delete();
+            } catch (e) {
+                logger.warn(`Failed to compress WAL segment ${seg}:`, e);
+            }
+        }
+    }
+
     #contextKey(contexts: string[]): string {
         const key = contexts.join(".");
         if (!key.length || key.includes("..") || key.startsWith(".") || key.endsWith(".")) {
@@ -375,6 +425,11 @@ export namespace WalStorage {
          * Whether to gzip-compress snapshots.  Defaults to true if the runtime supports gzip.
          */
         compressSnapshot?: boolean;
+
+        /**
+         * Whether to gzip-compress rotated WAL segments.  Defaults to true if the runtime supports gzip.
+         */
+        compressLog?: boolean;
     }
 
     export interface Options {
@@ -403,6 +458,11 @@ export namespace WalStorage {
          * Whether to gzip-compress snapshots.  Defaults to true if the runtime supports gzip.
          */
         compressSnapshot?: boolean;
+
+        /**
+         * Whether to gzip-compress rotated WAL segments.  Defaults to true if the runtime supports gzip.
+         */
+        compressLog?: boolean;
     }
 
     export const defaults = {
@@ -411,5 +471,6 @@ export namespace WalStorage {
         snapshotInterval: Hours(6),
         cleanInterval: undefined as Duration | undefined,
         compressSnapshot: Gzip.isAvailable,
+        compressLog: Gzip.isAvailable,
     } as const satisfies { [K in keyof Required<Options>]: Options[K] };
 }
