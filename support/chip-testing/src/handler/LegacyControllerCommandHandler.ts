@@ -10,8 +10,11 @@ import { GeneralCommissioning, GroupKeyManagement } from "@matter/main/clusters"
 import {
     Certificate,
     CertificateAuthority,
+    ExchangeManager,
     IPK_DEFAULT_EPOCH_START_TIME,
+    PeerAddress,
     SecureSession,
+    SessionManager,
     SupportedTransportsSchema,
     TlvCertSigningRequest,
 } from "@matter/main/protocol";
@@ -344,6 +347,14 @@ export class LegacyControllerCommandHandler extends CommandHandler {
                     forcedConnection: true,
                 },
             );
+        } else if (GroupId.isGroupNodeId(nodeId)) {
+            const env = this.#controllerInstance.node.env;
+            const fabric = this.#controllerInstance.fabric;
+            const address = PeerAddress({ fabricIndex: fabric.fabricIndex, nodeId });
+            const groupSession = await env
+                .get(SessionManager)
+                .groupSessionForAddress(address, env.get(ExchangeManager));
+            client = await this.#controllerInstance.createInteractionClient(groupSession);
         } else {
             const node = await this.#controllerInstance.getNode(nodeId, true);
             client = node.isConnected
