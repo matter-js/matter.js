@@ -87,6 +87,7 @@ export class NodeJsUdpChannel implements UdpChannel {
     readonly #type: UdpSocketType;
     readonly #socket: dgram.Socket;
     readonly #netInterface: string | undefined;
+    #observedInterface?: string;
 
     static async create({
         lifetime: lifetimeOwner,
@@ -132,6 +133,9 @@ export class NodeJsUdpChannel implements UdpChannel {
 
         socket.setBroadcast(true);
         let netInterfaceZone: string | undefined;
+        if (netInterface === undefined && listeningAddress !== undefined) {
+            netInterfaceZone = NodeJsNetwork.getNetInterfaceForIp(listeningAddress) || undefined;
+        }
         if (netInterface !== undefined) {
             netInterfaceZone = NodeJsNetwork.getNetInterfaceZoneIpv6(netInterface);
             let multicastInterface: string | undefined;
@@ -216,6 +220,9 @@ export class NodeJsUdpChannel implements UdpChannel {
     onData(listener: (netInterface: string | undefined, peerAddress: string, peerPort: number, data: Bytes) => void) {
         const messageListener = (data: Bytes, { address, port }: dgram.RemoteInfo) => {
             const netInterface = this.#netInterface ?? NodeJsNetwork.getNetInterfaceForIp(address);
+            if (netInterface && this.#observedInterface === undefined) {
+                this.#observedInterface = netInterface;
+            }
             listener(netInterface, address, port, data);
         };
 
@@ -285,8 +292,16 @@ export class NodeJsUdpChannel implements UdpChannel {
 
         // IPv6 multicast addresses require interface scoping for the kernel to route them correctly
         let sendHost = host;
-        if (this.#netInterface && host.startsWith("ff") && !host.includes("%")) {
-            sendHost = `${host}%${this.#netInterface}`;
+        if (host.startsWith("ff") && !host.includes("%")) {
+            const effectiveInterface = this.#netInterface ?? this.#observedInterface;
+            if (effectiveInterface) {
+                sendHost = `${host}%${effectiveInterface}`;
+            } else {
+                throw new NetworkError(
+                    `Cannot send to multicast address ${host} without a known network interface. ` +
+                        `Configure network.listeningAddressIpv6 to bind to a specific interface.`,
+                );
+            }
         }
 
         this.#sendsInProgress.set(promise, { sendMs: Time.nowMs, rejecter });
