@@ -70,6 +70,10 @@ export class FabricAuthority {
         return this.#construction;
     }
 
+    close() {
+        return this.#construction.close();
+    }
+
     /**
      * Access the certificate authority.
      */
