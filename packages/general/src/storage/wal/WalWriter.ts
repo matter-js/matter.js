@@ -10,6 +10,7 @@ import {
     MAX_SEGMENT_LINES,
     type WalCommit,
     type WalCommitId,
+    isCompressedSegmentFile,
     parseSegmentFilename,
     segmentFilename,
     serializeCommit,
@@ -22,6 +23,7 @@ export class WalWriter {
     readonly #walDir: Directory;
     readonly #maxSegmentSize: number;
     readonly #fsync: boolean;
+    readonly #onRotate?: (closedSegment: number) => void;
 
     #handle?: File.Handle;
     #currentSegment = 0;
@@ -32,6 +34,14 @@ export class WalWriter {
         this.#walDir = walDir;
         this.#maxSegmentSize = options?.maxSegmentSize ?? 16 * 1024 * 1024; // 16 MB default
         this.#fsync = options?.fsync ?? true;
+        this.#onRotate = options?.onRotate;
+    }
+
+    /**
+     * The segment number currently being written to.
+     */
+    get currentSegment(): number {
+        return this.#currentSegment;
     }
 
     /**
@@ -79,39 +89,50 @@ export class WalWriter {
 
         // Scan existing segments to determine the next segment number
         let maxSegment = 0;
+        let maxSegmentCompressed = false;
         if (await this.#walDir.exists()) {
             for await (const entry of this.#walDir.entries()) {
                 if (entry.kind !== "file") continue;
                 const seg = parseSegmentFilename(entry.name);
-                if (seg !== undefined && seg > maxSegment) {
-                    maxSegment = seg;
+                if (seg !== undefined) {
+                    if (seg > maxSegment) {
+                        maxSegment = seg;
+                        maxSegmentCompressed = isCompressedSegmentFile(entry.name);
+                    } else if (seg === maxSegment && isCompressedSegmentFile(entry.name)) {
+                        maxSegmentCompressed = true;
+                    }
                 }
             }
         }
 
         if (maxSegment > 0) {
-            // Check how many lines exist in the last segment
-            const lastFile = this.#walDir.file(segmentFilename(maxSegment));
-            let lineCount = 0;
-            let byteSize = 0;
-            for await (const line of lastFile.readText({ lines: true })) {
-                if (line.trim() !== "") {
-                    lineCount++;
+            // If the max segment is compressed, we can't append — start a new one
+            if (maxSegmentCompressed) {
+                this.#currentSegment = maxSegment + 1;
+            } else {
+                // Check how many lines exist in the last segment
+                const lastFile = this.#walDir.file(segmentFilename(maxSegment));
+                let lineCount = 0;
+                let byteSize = 0;
+                for await (const line of lastFile.readText({ lines: true })) {
+                    if (line.trim() !== "") {
+                        lineCount++;
+                    }
+                    byteSize += new TextEncoder().encode(line + "\n").length;
                 }
-                byteSize += new TextEncoder().encode(line + "\n").length;
-            }
 
-            if (byteSize < this.#maxSegmentSize && lineCount < MAX_SEGMENT_LINES) {
-                // Append to existing segment
-                this.#currentSegment = maxSegment;
-                this.#currentOffset = lineCount;
-                this.#currentSize = byteSize;
-                this.#handle = await lastFile.open("a");
-                return;
-            }
+                if (byteSize < this.#maxSegmentSize && lineCount < MAX_SEGMENT_LINES) {
+                    // Append to existing segment
+                    this.#currentSegment = maxSegment;
+                    this.#currentOffset = lineCount;
+                    this.#currentSize = byteSize;
+                    this.#handle = await lastFile.open("a");
+                    return;
+                }
 
-            // Start a new segment
-            this.#currentSegment = maxSegment + 1;
+                // Start a new segment
+                this.#currentSegment = maxSegment + 1;
+            }
         } else {
             this.#currentSegment = 1;
         }
@@ -126,11 +147,13 @@ export class WalWriter {
         if (this.#handle) {
             await this.#handle.close();
         }
+        const closedSegment = this.#currentSegment;
         this.#currentSegment++;
         this.#currentOffset = 0;
         this.#currentSize = 0;
         const file = this.#walDir.file(segmentFilename(this.#currentSegment));
         this.#handle = await file.open("a");
+        this.#onRotate?.(closedSegment);
     }
 }
 
@@ -140,5 +163,7 @@ export namespace WalWriter {
         maxSegmentSize?: number;
         /** Whether to fsync after each write. Default true. */
         fsync?: boolean;
+        /** Called after a segment is rotated, with the closed segment number. */
+        onRotate?: (closedSegment: number) => void;
     }
 }

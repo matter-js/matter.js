@@ -5,13 +5,16 @@
  */
 
 import { Logger } from "#log/Logger.js";
+import { Gzip } from "#util/Gzip.js";
 import type { Directory } from "../../fs/Directory.js";
 import {
     type WalCommit,
     type WalCommitId,
     compareCommitIds,
+    compressedSegmentFilename,
     deserializeCommit,
     parseSegmentFilename,
+    segmentFilename,
 } from "./WalCommit.js";
 
 const logger = Logger.get("WalReader");
@@ -33,15 +36,15 @@ export class WalReader {
         if (!(await this.#walDir.exists())) {
             return [];
         }
-        const segments: number[] = [];
+        const segments = new Set<number>();
         for await (const entry of this.#walDir.entries()) {
             if (entry.kind !== "file") continue;
             const seg = parseSegmentFilename(entry.name);
             if (seg !== undefined) {
-                segments.push(seg);
+                segments.add(seg);
             }
         }
-        return segments.sort((a, b) => a - b);
+        return [...segments].sort((a, b) => a - b);
     }
 
     /**
@@ -56,10 +59,9 @@ export class WalReader {
                 continue;
             }
 
-            const file = this.#walDir.file(segment.toString(16).padStart(8, "0") + ".jsonl");
             let lineNumber = 0;
 
-            for await (const line of file.readText({ lines: true })) {
+            for await (const line of this.#readSegmentLines(segment)) {
                 const offset = lineNumber;
                 lineNumber++;
 
@@ -83,5 +85,35 @@ export class WalReader {
                 }
             }
         }
+    }
+
+    /**
+     * Read lines from a segment, transparently handling gzip-compressed files.
+     */
+    async *#readSegmentLines(segment: number): AsyncIterable<string> {
+        // Prefer compressed file if it exists
+        const gzFile = this.#walDir.file(compressedSegmentFilename(segment));
+        if (await gzFile.exists()) {
+            const chunks = Array<Uint8Array>();
+            for await (const chunk of Gzip.decompress(gzFile.readBytes())) {
+                chunks.push(chunk);
+            }
+            const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
+            const combined = new Uint8Array(totalLength);
+            let offset = 0;
+            for (const chunk of chunks) {
+                combined.set(chunk, offset);
+                offset += chunk.length;
+            }
+            const text = new TextDecoder().decode(combined);
+            for (const line of text.split("\n")) {
+                yield line;
+            }
+            return;
+        }
+
+        // Fall back to uncompressed file
+        const file = this.#walDir.file(segmentFilename(segment));
+        yield* file.readText({ lines: true });
     }
 }

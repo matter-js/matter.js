@@ -65,10 +65,24 @@ export function segmentFilename(segment: number): string {
 }
 
 /**
+ * Format a segment number as a compressed segment filename.
+ */
+export function compressedSegmentFilename(segment: number): string {
+    return segment.toString(16).padStart(8, "0") + ".jsonl.gz";
+}
+
+/**
+ * Returns true if the filename is a gzip-compressed segment file.
+ */
+export function isCompressedSegmentFile(name: string): boolean {
+    return /^[0-9a-f]{8}\.jsonl\.gz$/i.test(name);
+}
+
+/**
  * Parse a segment number from a filename.  Returns undefined if not a valid segment file.
  */
 export function parseSegmentFilename(name: string): number | undefined {
-    const match = name.match(/^([0-9a-f]{8})\.jsonl$/i);
+    const match = name.match(/^([0-9a-f]{8})\.jsonl(\.gz)?$/i);
     if (!match) {
         return undefined;
     }
