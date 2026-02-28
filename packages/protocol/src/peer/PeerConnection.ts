@@ -33,7 +33,7 @@ import type { NodeSession } from "#session/NodeSession.js";
 import type { Session } from "#session/Session.js";
 import type { SessionManager } from "#session/SessionManager.js";
 import { GeneralStatusCode, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "#types";
-import { NetworkProfiles } from "./NetworkProfile.js";
+import { NetworkProfile, NetworkProfiles } from "./NetworkProfile.js";
 import type { Peer } from "./Peer.js";
 import { TransientPeerCommunicationError } from "./PeerCommunicationError.js";
 import { PeerTimingParameters } from "./PeerTimingParameters.js";
@@ -387,7 +387,7 @@ export async function PeerConnection(
             isInitiator: true,
         });
 
-        await using exchange = PeerConnection.createExchange(peer, context.exchanges, unsecuredSession);
+        await using exchange = PeerConnection.createExchange(peer, context.exchanges, unsecuredSession, network);
 
         debug(
             Diagnostic.via(`${peer.address.toString()}${exchange.via}`),
@@ -400,6 +400,7 @@ export async function PeerConnection(
                 "addr time": Duration.format(Timestamp.delta(attemptLifetime.startedAt)),
             }),
             Diagnostic.asFlags({
+                [network.id]: true,
                 fallback: address === attemptingFallback,
             }),
         );
@@ -463,8 +464,7 @@ export async function PeerConnection(
                 );
             } else if (
                 csre.protocolStatusCode === SecureChannelStatusCode.NoSharedTrustRoots ||
-                csre.protocolStatusCode === SecureChannelStatusCode.InvalidParam ||
-                csre.protocolStatusCode === SecureChannelStatusCode.RequiredCatMismatch
+                csre.protocolStatusCode === SecureChannelStatusCode.InvalidParam
             ) {
                 // These errors indicate a configuration mismatch that is unlikely to resolve without intervention so
                 // we treat them as fatal and terminate the connection process.
@@ -530,9 +530,10 @@ export namespace PeerConnection {
         peer: Peer,
         exchanges: ExchangeManager,
         session: Session,
+        network: NetworkProfile,
         protocol = SECURE_CHANNEL_PROTOCOL_ID,
     ) {
-        return exchanges.initiateExchangeForSession(session, protocol, { onSend, onReceive });
+        return exchanges.initiateExchangeForSession(session, protocol, { onSend, onReceive, network });
 
         function onSend(_message: Message, retransmission: number) {
             if (retransmission) {
