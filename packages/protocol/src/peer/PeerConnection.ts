@@ -462,28 +462,6 @@ export async function PeerConnection(
                     address,
                     "Authorization rejected by peer on session resumption; clearing resumption data and retrying",
                 );
-            } else if (
-                csre.protocolStatusCode === SecureChannelStatusCode.NoSharedTrustRoots ||
-                csre.protocolStatusCode === SecureChannelStatusCode.InvalidParam
-            ) {
-                // These errors indicate a configuration mismatch that is unlikely to resolve without intervention so
-                // we treat them as fatal and terminate the connection process.
-                //
-                // Caveats:
-                //
-                //   - There could conceivably be a transient configuration error on the peer, which would mean these
-                //     apparently fatal errors are in fact recoverable.  We may need to revisit this if that becomes a
-                //     practical concern.
-                //
-                //   - If a higher level continuously retries connection, terminating here could increase the rate of
-                //     connection attempts vs. leaving the internal retry loop running with its own delays.
-                //
-                //   - The NoSharedTrustRoots behavior specifically is assumed by the CHIP test suite when operating in
-                //     controller role (e.g. CADMIN/1.16 expects prompt failure after fabric removal).
-                error(address, "Fatal peer error, aborting connection:", Diagnostic.errorMessage(e));
-                fatalError = e;
-                overallAbort();
-                return;
             } else {
                 delay = context.timing.delayAfterPeerError;
                 error(address, `Peer error (retry in ${Duration.format(delay)}):`, Diagnostic.errorMessage(e));
