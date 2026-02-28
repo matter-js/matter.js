@@ -6,6 +6,7 @@
 
 import { Bytes, DataReader, Diagnostic, Endian, Logger, MatterError, Time } from "#general";
 import { BtpCodec } from "../codec/BtpCodec.js";
+import { BleDisconnectedError } from "./Ble.js";
 import {
     BLE_MAXIMUM_BTP_MTU,
     BLE_MINIMUM_ATT_MTU,
@@ -14,7 +15,6 @@ import {
     BTP_MAXIMUM_WINDOW_SIZE,
     BTP_SEND_ACK_TIMEOUT,
 } from "./BleConsts.js";
-import { BleDisconnectedError } from "./Ble.js";
 
 export class BtpMatterError extends MatterError {}
 export class BtpProtocolError extends BtpMatterError {}
@@ -393,7 +393,7 @@ export class BtpSessionHandler {
                 // Clear the queue to avoid malformed state from partially-consumed DataReaders.
                 // Any other error is unexpected and is rethrown so the session can handle it.
                 BleDisconnectedError.accept(error);
-                logger.debug("BTP packet send failed because BLE is disconnected", error);
+                logger.debug("BTP packet send failed because BLE is disconnected", Diagnostic.errorMessage(error));
                 this.queuedOutgoingMatterMessages.length = 0;
                 this.sendInProgress = false;
                 return;
@@ -470,7 +470,7 @@ export class BtpSessionHandler {
                 // Only silently absorb BleDisconnectedError (expected during peripheral disconnect).
                 // Any other error is unexpected and is rethrown so the session can handle it.
                 BleDisconnectedError.accept(error);
-                logger.debug("BTP ACK send failed because BLE is disconnected", error);
+                logger.debug("BTP ACK send failed because BLE is disconnected", Diagnostic.errorMessage(error));
                 return;
             }
             this.prevAckedSequenceNumber = this.prevIncomingSequenceNumber;
