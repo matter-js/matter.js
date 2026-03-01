@@ -56,6 +56,18 @@ export class ClientBehaviorBacking extends BehaviorBacking {
         return options;
     }
 
+    /**
+     * Map attribute ID keys back to property names before broadcasting.
+     *
+     * The Datasource reports changed keys using the backing's primaryKey format.  Since this backing uses
+     * `primaryKey: "id"`, props are attribute ID strings (e.g. "0" for onOff).  Downstream consumers
+     * ({@link ChangeNotificationService}, {@link ProtocolService}) expect property names.
+     */
+    protected override broadcastChanges(props: string[]) {
+        const idToName = this.type.supervisor.propertyIdsAndNames;
+        super.broadcastChanges(props.map(id => idToName.get(id) ?? id));
+    }
+
     override close(): MaybePromise {
         // Prepare the store for reuse in the case of reset
         (this.store as DatasourceCache).reclaimValues?.();
