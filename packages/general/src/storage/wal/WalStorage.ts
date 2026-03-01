@@ -17,6 +17,7 @@ import type { SupportedStorageTypes } from "../StringifyTools.js";
 import { WalCleaner } from "./WalCleaner.js";
 import {
     type WalCommitId,
+    compareCommitIds,
     compressedSegmentFilename,
     encodeContextKey,
     parseSegmentFilename,
@@ -57,11 +58,12 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
     #workers = new BasicMultiplex();
     #initialized = false;
     #lastCommitId?: WalCommitId;
+    #lastCommitTs?: number;
     #lastSnapshotCommitId?: WalCommitId;
     #writer?: WalWriter;
     #reader?: WalReader;
-    #snapshot?: WalSnapshot;
     #cleaner?: WalCleaner;
+    #compressSnapshot = true;
 
     constructor(storageDir: Directory, options?: WalStorage.Options) {
         super();
@@ -82,6 +84,7 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
         this.#workers = new BasicMultiplex();
         this.#cache = undefined;
         this.#lastCommitId = undefined;
+        this.#lastCommitTs = undefined;
         this.#lastSnapshotCommitId = undefined;
 
         await this.#storageDir.mkdir();
@@ -101,15 +104,15 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
                   }
                 : undefined,
         });
-        const compressSnapshot = this.#options.compressSnapshot ?? WalStorage.defaults.compressSnapshot;
-        this.#snapshot = new WalSnapshot(this.#storageDir, compressSnapshot);
+        this.#compressSnapshot = this.#options.compressSnapshot ?? WalStorage.defaults.compressSnapshot;
 
         const headSnapshot = this.#options.headSnapshot ?? WalStorage.defaults.headSnapshot;
         this.#cleaner = new WalCleaner(
             walDir,
             headSnapshot
                 ? {
-                      headSnapshot: new WalSnapshot(this.#storageDir, compressSnapshot, "head"),
+                      dir: this.#storageDir,
+                      compress: this.#compressSnapshot,
                       reader: this.#reader,
                   }
                 : undefined,
@@ -241,10 +244,50 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
 
     override async begin(): Promise<WalTransaction> {
         this.#assertInitialized();
-        return new WalTransaction(this, this.#writer!, id => {
+        return new WalTransaction(this, this.#writer!, (id, ts) => {
             this.#lastCommitId = id;
+            this.#lastCommitTs = ts;
             this.#cache = undefined;
         });
+    }
+
+    // --- Snapshot reconstruction ---
+
+    /**
+     * Reconstruct a snapshot as of the given timestamp.
+     *
+     * If `asOf` is omitted, returns the full current state.
+     */
+    async snapshotAtTime(asOf?: number): Promise<WalSnapshot> {
+        this.#assertInitialized();
+
+        if (asOf !== undefined && asOf > Date.now()) {
+            throw new StorageError("Timestamp is in the future");
+        }
+
+        return this.#reconstruct(
+            asOf !== undefined ? (_id, commitTs) => commitTs > asOf : undefined,
+            asOf !== undefined
+                ? baseTs => {
+                      if (baseTs > 0 && asOf < baseTs) {
+                          throw new StorageError("Timestamp predates available logs");
+                      }
+                  }
+                : undefined,
+        );
+    }
+
+    /**
+     * Reconstruct a snapshot at the given commit ID.
+     *
+     * If `commitId` is omitted, returns the full current state.
+     */
+    async snapshotAtCommit(commitId?: WalCommitId): Promise<WalSnapshot> {
+        this.#assertInitialized();
+
+        return this.#reconstruct(
+            commitId !== undefined ? (id, _commitTs) => compareCommitIds(id, commitId) > 0 : undefined,
+        );
     }
 
     // --- Blobs (not transactional, stored as separate files) ---
@@ -305,11 +348,12 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
         let afterCommitId: WalCommitId | undefined;
 
         // Load snapshot
-        const snap = await this.#snapshot!.load();
+        const snap = await WalSnapshot.load(this.#storageDir);
         if (snap) {
             Object.assign(store, snap.data);
             afterCommitId = snap.commitId;
             this.#lastSnapshotCommitId = snap.commitId;
+            this.#lastCommitTs = snap.ts || undefined;
             logger.debug("Loaded snapshot at commit", snap.commitId);
         }
 
@@ -318,6 +362,7 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
         for await (const { id, commit } of this.#reader!.read(afterCommitId)) {
             applyCommit(store, commit);
             this.#lastCommitId = id;
+            this.#lastCommitTs = commit.ts || this.#lastCommitTs;
             replayCount++;
         }
         if (replayCount > 0) {
@@ -328,6 +373,49 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
 
         this.#cache = store;
         return store;
+    }
+
+    /**
+     * Shared reconstruction logic for snapshotAtTime/snapshotAtCommit.
+     *
+     * @param shouldStop - if provided, called for each commit; return true to stop before applying that commit
+     * @param validateBase - if provided, called with the base snapshot ts for pre-condition checks
+     */
+    async #reconstruct(
+        shouldStop?: (id: WalCommitId, commitTs: number) => boolean,
+        validateBase?: (baseTs: number) => void,
+    ): Promise<WalSnapshot> {
+        const store: StoreData = {};
+        let afterCommitId: WalCommitId | undefined;
+        let lastId: WalCommitId | undefined;
+        let lastTs = 0;
+
+        // Load base snapshot
+        const snap = await WalSnapshot.load(this.#storageDir);
+        if (snap) {
+            Object.assign(store, snap.data);
+            afterCommitId = snap.commitId;
+            lastId = snap.commitId;
+            lastTs = snap.ts;
+        }
+
+        validateBase?.(lastTs);
+
+        // Replay WAL commits
+        for await (const { id, commit } of this.#reader!.read(afterCommitId)) {
+            if (shouldStop?.(id, commit.ts)) {
+                break;
+            }
+            applyCommit(store, commit);
+            lastId = id;
+            lastTs = commit.ts || lastTs;
+        }
+
+        if (!lastId) {
+            throw new StorageError("No data available");
+        }
+
+        return new WalSnapshot(lastId, lastTs, store);
     }
 
     async #runWorker(name: string, interval: Duration, task: () => Promise<void>): Promise<void> {
@@ -347,7 +435,8 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
         if (!this.#lastCommitId) return;
         try {
             const store = await this.#loadCache();
-            await this.#snapshot!.run(this.#lastCommitId, store);
+            const snapshot = new WalSnapshot(this.#lastCommitId, this.#lastCommitTs ?? 0, store);
+            await snapshot.save(this.#storageDir, { compress: this.#compressSnapshot });
             this.#lastSnapshotCommitId = this.#lastCommitId;
         } catch (e) {
             logger.warn("Snapshot failed:", e);

@@ -8,7 +8,7 @@ import type { Directory } from "../../fs/Directory.js";
 import type { SupportedStorageTypes } from "../StringifyTools.js";
 import { type WalCommitId, parseSegmentFilename } from "./WalCommit.js";
 import type { WalReader } from "./WalReader.js";
-import type { WalSnapshot } from "./WalSnapshot.js";
+import { WalSnapshot } from "./WalSnapshot.js";
 import { applyCommit } from "./WalTransaction.js";
 
 type StoreData = Record<string, Record<string, SupportedStorageTypes>>;
@@ -54,7 +54,7 @@ export class WalCleaner {
         }
 
         // Build head snapshot before deleting segments
-        if (this.#options?.headSnapshot && this.#options.reader) {
+        if (this.#options?.dir && this.#options.reader) {
             await this.#buildHeadSnapshot(lastSnapshotCommitId);
         }
 
@@ -69,12 +69,13 @@ export class WalCleaner {
      * Replay commits from the segments about to be deleted and save them as a head snapshot.
      */
     async #buildHeadSnapshot(lastSnapshotCommitId: WalCommitId): Promise<void> {
-        const { headSnapshot, reader } = this.#options!;
+        const { dir, compress, reader } = this.#options!;
 
         // Load previous head snapshot as base state
-        const existing = await headSnapshot!.load();
+        const existing = await WalSnapshot.load(dir!, { basename: "head" });
         const store: StoreData = existing?.data ?? {};
         const baseCommitId = existing?.commitId;
+        let lastTs = existing?.ts ?? 0;
 
         // Replay commits from base through the deletion boundary
         let lastAppliedId: WalCommitId | undefined = baseCommitId;
@@ -85,10 +86,12 @@ export class WalCleaner {
             }
             applyCommit(store, commit);
             lastAppliedId = id;
+            lastTs = commit.ts || lastTs;
         }
 
         if (lastAppliedId) {
-            await headSnapshot!.run(lastAppliedId, store);
+            const snapshot = new WalSnapshot(lastAppliedId, lastTs, store);
+            await snapshot.save(dir!, { compress, basename: "head" });
         }
     }
 }
@@ -96,9 +99,14 @@ export class WalCleaner {
 export namespace WalCleaner {
     export interface Options {
         /**
-         * Snapshot instance (with basename "head") for capturing state at the truncation boundary.
+         * Directory for storing the head snapshot.
          */
-        headSnapshot?: WalSnapshot;
+        dir?: Directory;
+
+        /**
+         * Whether to compress the head snapshot.
+         */
+        compress?: boolean;
 
         /**
          * Reader for replaying WAL segments before they are deleted.

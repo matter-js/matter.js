@@ -85,9 +85,8 @@ describe("WalCleaner", () => {
             const commit3: WalCommit = { ts: 3000, ops: [{ op: "upd", key: "ctx", values: { key3: "c" } }] };
             await walDir.file(segmentFilename(3)).write(serializeCommit(commit3) + "\n");
 
-            const headSnapshot = new WalSnapshot(storageDir, false, "head");
             const reader = new WalReader(walDir);
-            const cleaner = new WalCleaner(walDir, { headSnapshot, reader });
+            const cleaner = new WalCleaner(walDir, { dir: storageDir, compress: false, reader });
 
             await cleaner.run({ segment: 3, offset: 0 });
 
@@ -97,7 +96,7 @@ describe("WalCleaner", () => {
             expect(await walDir.file(segmentFilename(3)).exists()).equal(true);
 
             // Head snapshot should exist with state from segments 1 and 2 only
-            const loaded = await headSnapshot.load();
+            const loaded = await WalSnapshot.load(storageDir, { basename: "head" });
             expect(loaded).not.equal(undefined);
             expect(loaded!.data["ctx"].key1).equal("a");
             expect(loaded!.data["ctx"].key2).equal("b");
@@ -118,9 +117,8 @@ describe("WalCleaner", () => {
             const commit2: WalCommit = { ts: 2000, ops: [{ op: "upd", key: "ctx", values: { key2: "b" } }] };
             await walDir.file(segmentFilename(2)).write(serializeCommit(commit2) + "\n");
 
-            const headSnapshot = new WalSnapshot(storageDir, false, "head");
             const reader = new WalReader(walDir);
-            const cleaner = new WalCleaner(walDir, { headSnapshot, reader });
+            const cleaner = new WalCleaner(walDir, { dir: storageDir, compress: false, reader });
 
             // First clean: delete segment 1
             await cleaner.run({ segment: 2, offset: 0 });
@@ -135,7 +133,7 @@ describe("WalCleaner", () => {
             expect(await walDir.file(segmentFilename(2)).exists()).equal(false);
 
             // Head snapshot should have accumulated state from segments 1 and 2
-            const loaded = await headSnapshot.load();
+            const loaded = await WalSnapshot.load(storageDir, { basename: "head" });
             expect(loaded).not.equal(undefined);
             expect(loaded!.data["ctx"].key1).equal("a");
             expect(loaded!.data["ctx"].key2).equal("b");
@@ -150,9 +148,8 @@ describe("WalCleaner", () => {
 
             await walDir.file(segmentFilename(1)).write("data\n");
 
-            const headSnapshot = new WalSnapshot(storageDir, false, "head");
             const reader = new WalReader(walDir);
-            const cleaner = new WalCleaner(walDir, { headSnapshot, reader });
+            const cleaner = new WalCleaner(walDir, { dir: storageDir, compress: false, reader });
 
             await cleaner.run({ segment: 1, offset: 0 });
 

@@ -12,25 +12,115 @@ import type { WalCommitId } from "./WalCommit.js";
 type StoreData = Record<string, Record<string, SupportedStorageTypes>>;
 
 /**
- * Manages periodic snapshots of the in-memory store.
+ * An immutable snapshot of WAL storage state at a specific point in history.
+ *
+ * Provides synchronous query methods for programmatic access and persistence methods for disk I/O.
  */
 export class WalSnapshot {
-    readonly #storageDir: Directory;
-    readonly #compress: boolean;
-    readonly #basename: string;
+    readonly commitId: WalCommitId;
+    readonly ts: number;
+    readonly data: StoreData;
 
-    constructor(storageDir: Directory, compress = true, basename = "snapshot") {
-        this.#storageDir = storageDir;
-        this.#compress = compress;
-        this.#basename = basename;
+    constructor(commitId: WalCommitId, ts: number, data: StoreData) {
+        this.commitId = commitId;
+        this.ts = ts;
+        this.data = data;
+    }
+
+    // --- Programmatic access (synchronous — data is in memory) ---
+
+    /**
+     * Get a single value.
+     */
+    get(contexts: string[], key: string): SupportedStorageTypes | undefined {
+        const contextKey = contexts.join(".");
+        return this.data[contextKey]?.[key];
+    }
+
+    /**
+     * Get all keys in a context.
+     */
+    keys(contexts: string[]): string[] {
+        const contextKey = contexts.join(".");
+        return Object.keys(this.data[contextKey] ?? {});
+    }
+
+    /**
+     * Get all values in a context.
+     */
+    values(contexts: string[]): Record<string, SupportedStorageTypes> {
+        const contextKey = contexts.join(".");
+        return { ...(this.data[contextKey] ?? {}) };
+    }
+
+    /**
+     * Get sub-contexts under the given context prefix.
+     */
+    contexts(contexts: string[]): string[] {
+        const contextKey = contexts.length ? contexts.join(".") : "";
+        const prefix = contextKey.length ? `${contextKey}.` : "";
+        const found = new Set<string>();
+        for (const key of Object.keys(this.data)) {
+            if (key.startsWith(prefix)) {
+                const sub = key.substring(prefix.length).split(".");
+                if (sub.length >= 1 && sub[0].length > 0) {
+                    found.add(sub[0]);
+                }
+            }
+        }
+        return [...found];
+    }
+
+    // --- Persistence ---
+
+    /**
+     * Write this snapshot to disk (atomic via write+rename).
+     */
+    async save(dir: Directory, options?: { compress?: boolean; basename?: string }): Promise<void> {
+        const compress = options?.compress ?? true;
+        const basename = options?.basename ?? "snapshot";
+
+        const snapshot = {
+            commitId: this.commitId,
+            ts: this.ts,
+            data: this.data,
+        };
+
+        const json = toJson(snapshot as unknown as SupportedStorageTypes, 2);
+
+        if (compress) {
+            const encoded = new TextEncoder().encode(json);
+
+            const tmpFile = dir.file(`${basename}.tmp.json.gz`);
+            await tmpFile.write(Gzip.compress([encoded]));
+            await tmpFile.rename(`${basename}.json.gz`);
+
+            // Clean up uncompressed file if it exists
+            const jsonFile = dir.file(`${basename}.json`);
+            if (await jsonFile.exists()) {
+                await jsonFile.delete();
+            }
+        } else {
+            const tmpFile = dir.file(`${basename}.tmp.json`);
+            await tmpFile.write(json);
+            await tmpFile.rename(`${basename}.json`);
+
+            // Clean up compressed file if it exists
+            const gzFile = dir.file(`${basename}.json.gz`);
+            if (await gzFile.exists()) {
+                await gzFile.delete();
+            }
+        }
     }
 
     /**
      * Load an existing snapshot from disk, auto-detecting the format.
      */
-    async load(): Promise<{ commitId: WalCommitId; data: StoreData } | undefined> {
-        const gzFile = this.#storageDir.file(`${this.#basename}.json.gz`);
-        const jsonFile = this.#storageDir.file(`${this.#basename}.json`);
+    static async load(dir: Directory, options?: { basename?: string }): Promise<WalSnapshot | undefined> {
+        const basename = options?.basename ?? "snapshot";
+
+        const gzFile = dir.file(`${basename}.json.gz`);
+        const jsonFile = dir.file(`${basename}.json`);
 
         const gzExists = await gzFile.exists();
         const jsonExists = await jsonFile.exists();
@@ -67,47 +157,8 @@ export class WalSnapshot {
             text = await jsonFile.readAllText();
         }
 
-        const parsed = fromJson(text) as unknown as { commitId: WalCommitId; data: StoreData };
+        const parsed = fromJson(text) as unknown as { commitId: WalCommitId; ts?: number; data: StoreData };
 
-        return {
-            commitId: parsed.commitId,
-            data: parsed.data,
-        };
-    }
-
-    /**
-     * Write a snapshot of the current state to disk (atomic via write+rename).
-     */
-    async run(commitId: WalCommitId, currentState: StoreData): Promise<void> {
-        const snapshot = {
-            commitId,
-            data: currentState,
-        };
-
-        const json = toJson(snapshot as unknown as SupportedStorageTypes, 2);
-
-        if (this.#compress) {
-            const encoded = new TextEncoder().encode(json);
-
-            const tmpFile = this.#storageDir.file(`${this.#basename}.tmp.json.gz`);
-            await tmpFile.write(Gzip.compress([encoded]));
-            await tmpFile.rename(`${this.#basename}.json.gz`);
-
-            // Clean up uncompressed file if it exists
-            const jsonFile = this.#storageDir.file(`${this.#basename}.json`);
-            if (await jsonFile.exists()) {
-                await jsonFile.delete();
-            }
-        } else {
-            const tmpFile = this.#storageDir.file(`${this.#basename}.tmp.json`);
-            await tmpFile.write(json);
-            await tmpFile.rename(`${this.#basename}.json`);
-
-            // Clean up compressed file if it exists
-            const gzFile = this.#storageDir.file(`${this.#basename}.json.gz`);
-            if (await gzFile.exists()) {
-                await gzFile.delete();
-            }
-        }
+        return new WalSnapshot(parsed.commitId, parsed.ts ?? 0, parsed.data);
     }
 }
