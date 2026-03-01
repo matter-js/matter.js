@@ -10,3 +10,4 @@ export * from "./HttpEndpointGroup.js";
 export * from "./HttpService.js";
 export * from "./HttpSharedEndpoint.js";
 export * from "./MockWsConnection.js";
+export * from "./WebSocketClient.js";
