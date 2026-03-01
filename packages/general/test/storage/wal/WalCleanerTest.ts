@@ -6,7 +6,9 @@
 
 import { MockFilesystem } from "#fs/MockFilesystem.js";
 import { WalCleaner } from "#storage/wal/WalCleaner.js";
-import { segmentFilename } from "#storage/wal/WalCommit.js";
+import { segmentFilename, serializeCommit, type WalCommit } from "#storage/wal/WalCommit.js";
+import { WalReader } from "#storage/wal/WalReader.js";
+import { WalSnapshot } from "#storage/wal/WalSnapshot.js";
 
 describe("WalCleaner", () => {
     let fs: MockFilesystem;
@@ -62,5 +64,100 @@ describe("WalCleaner", () => {
 
         expect(await walDir.file(segmentFilename(1)).exists()).equal(false);
         expect(await walDir.file("readme.txt").exists()).equal(true);
+    });
+
+    describe("head snapshot", () => {
+        it("builds head snapshot from segments before deletion", async () => {
+            const storageDir = fs.directory("storage");
+            await storageDir.mkdir();
+            const walDir = storageDir.directory("wal");
+            await walDir.mkdir();
+
+            // Segment 1: set ctx.key1 = "a"
+            const commit1: WalCommit = [{ op: "upd", key: "ctx", values: { key1: "a" } }];
+            await walDir.file(segmentFilename(1)).write(serializeCommit(commit1) + "\n");
+
+            // Segment 2: set ctx.key2 = "b"
+            const commit2: WalCommit = [{ op: "upd", key: "ctx", values: { key2: "b" } }];
+            await walDir.file(segmentFilename(2)).write(serializeCommit(commit2) + "\n");
+
+            // Segment 3: set ctx.key3 = "c" (this segment is kept — it's the snapshot segment)
+            const commit3: WalCommit = [{ op: "upd", key: "ctx", values: { key3: "c" } }];
+            await walDir.file(segmentFilename(3)).write(serializeCommit(commit3) + "\n");
+
+            const headSnapshot = new WalSnapshot(storageDir, false, "head");
+            const reader = new WalReader(walDir);
+            const cleaner = new WalCleaner(walDir, { headSnapshot, reader });
+
+            await cleaner.run({ segment: 3, offset: 0 });
+
+            // Segments 1 and 2 should be deleted
+            expect(await walDir.file(segmentFilename(1)).exists()).equal(false);
+            expect(await walDir.file(segmentFilename(2)).exists()).equal(false);
+            expect(await walDir.file(segmentFilename(3)).exists()).equal(true);
+
+            // Head snapshot should exist with state from segments 1 and 2 only
+            const loaded = await headSnapshot.load();
+            expect(loaded).not.equal(undefined);
+            expect(loaded!.data["ctx"].key1).equal("a");
+            expect(loaded!.data["ctx"].key2).equal("b");
+            expect(loaded!.data["ctx"].key3).equal(undefined);
+        });
+
+        it("accumulates state across multiple clean runs", async () => {
+            const storageDir = fs.directory("storage");
+            await storageDir.mkdir();
+            const walDir = storageDir.directory("wal");
+            await walDir.mkdir();
+
+            // Segment 1: set ctx.key1 = "a"
+            const commit1: WalCommit = [{ op: "upd", key: "ctx", values: { key1: "a" } }];
+            await walDir.file(segmentFilename(1)).write(serializeCommit(commit1) + "\n");
+
+            // Segment 2: set ctx.key2 = "b"
+            const commit2: WalCommit = [{ op: "upd", key: "ctx", values: { key2: "b" } }];
+            await walDir.file(segmentFilename(2)).write(serializeCommit(commit2) + "\n");
+
+            const headSnapshot = new WalSnapshot(storageDir, false, "head");
+            const reader = new WalReader(walDir);
+            const cleaner = new WalCleaner(walDir, { headSnapshot, reader });
+
+            // First clean: delete segment 1
+            await cleaner.run({ segment: 2, offset: 0 });
+            expect(await walDir.file(segmentFilename(1)).exists()).equal(false);
+
+            // Add segment 3
+            const commit3: WalCommit = [{ op: "upd", key: "ctx", values: { key3: "c" } }];
+            await walDir.file(segmentFilename(3)).write(serializeCommit(commit3) + "\n");
+
+            // Second clean: delete segment 2
+            await cleaner.run({ segment: 3, offset: 0 });
+            expect(await walDir.file(segmentFilename(2)).exists()).equal(false);
+
+            // Head snapshot should have accumulated state from segments 1 and 2
+            const loaded = await headSnapshot.load();
+            expect(loaded).not.equal(undefined);
+            expect(loaded!.data["ctx"].key1).equal("a");
+            expect(loaded!.data["ctx"].key2).equal("b");
+            expect(loaded!.data["ctx"].key3).equal(undefined);
+        });
+
+        it("does not build head snapshot when no segments to delete", async () => {
+            const storageDir = fs.directory("storage");
+            await storageDir.mkdir();
+            const walDir = storageDir.directory("wal");
+            await walDir.mkdir();
+
+            await walDir.file(segmentFilename(1)).write("data\n");
+
+            const headSnapshot = new WalSnapshot(storageDir, false, "head");
+            const reader = new WalReader(walDir);
+            const cleaner = new WalCleaner(walDir, { headSnapshot, reader });
+
+            await cleaner.run({ segment: 1, offset: 0 });
+
+            // No segments deleted, so no head snapshot
+            expect(await storageDir.file("head.json").exists()).equal(false);
+        });
     });
 });

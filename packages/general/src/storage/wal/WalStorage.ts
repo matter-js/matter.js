@@ -46,6 +46,7 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
             fsync: descriptor.fsync,
             compressSnapshot: descriptor.compressSnapshot,
             compressLog: descriptor.compressLog,
+            headSnapshot: descriptor.headSnapshot,
         });
     }
 
@@ -100,11 +101,19 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
                   }
                 : undefined,
         });
-        this.#snapshot = new WalSnapshot(
-            this.#storageDir,
-            this.#options.compressSnapshot ?? WalStorage.defaults.compressSnapshot,
+        const compressSnapshot = this.#options.compressSnapshot ?? WalStorage.defaults.compressSnapshot;
+        this.#snapshot = new WalSnapshot(this.#storageDir, compressSnapshot);
+
+        const headSnapshot = this.#options.headSnapshot ?? WalStorage.defaults.headSnapshot;
+        this.#cleaner = new WalCleaner(
+            walDir,
+            headSnapshot
+                ? {
+                      headSnapshot: new WalSnapshot(this.#storageDir, compressSnapshot, "head"),
+                      reader: this.#reader,
+                  }
+                : undefined,
         );
-        this.#cleaner = new WalCleaner(walDir);
 
         // Start background workers
         const snapshotInterval = this.#options.snapshotInterval ?? WalStorage.defaults.snapshotInterval;
@@ -430,6 +439,11 @@ export namespace WalStorage {
          * Whether to gzip-compress rotated WAL segments.  Defaults to true if the runtime supports gzip.
          */
         compressLog?: boolean;
+
+        /**
+         * Whether to capture a head snapshot at the truncation boundary when cleaning old WAL segments.
+         */
+        headSnapshot?: boolean;
     }
 
     export interface Options {
@@ -463,6 +477,11 @@ export namespace WalStorage {
          * Whether to gzip-compress rotated WAL segments.  Defaults to true if the runtime supports gzip.
          */
         compressLog?: boolean;
+
+        /**
+         * Whether to capture a head snapshot at the truncation boundary when cleaning old WAL segments.
+         */
+        headSnapshot?: boolean;
     }
 
     export const defaults = {
@@ -472,5 +491,6 @@ export namespace WalStorage {
         cleanInterval: undefined as Duration | undefined,
         compressSnapshot: Gzip.isAvailable,
         compressLog: Gzip.isAvailable,
+        headSnapshot: true,
     } as const satisfies { [K in keyof Required<Options>]: Options[K] };
 }
