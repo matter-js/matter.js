@@ -194,7 +194,7 @@ export async function PeerConnection(
                     using _delaying = scheduling.join("delaying");
 
                     const changed = await overallAbort.race<ServerAddressUdp | void>(
-                        Time.sleep("connection delay", delayInterval),
+                        Abort.sleep("connection delay", overallAbort, delayInterval),
                         pendingAddresses.added,
                         pendingAddresses.deleted,
                     );
