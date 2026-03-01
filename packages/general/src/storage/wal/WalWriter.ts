@@ -8,8 +8,8 @@ import type { Directory } from "../../fs/Directory.js";
 import type { File } from "../../fs/File.js";
 import {
     MAX_SEGMENT_LINES,
-    type WalCommit,
     type WalCommitId,
+    type WalOp,
     isCompressedSegmentFile,
     parseSegmentFilename,
     segmentFilename,
@@ -47,7 +47,7 @@ export class WalWriter {
     /**
      * Write a commit to the WAL, returning its commit ID.
      */
-    async write(commit: WalCommit): Promise<WalCommitId> {
+    async write(ops: WalOp[]): Promise<WalCommitId> {
         if (!this.#handle) {
             await this.#openSegment();
         }
@@ -60,7 +60,7 @@ export class WalWriter {
             await this.#rotate();
         }
 
-        const line = serializeCommit(commit) + "\n";
+        const line = serializeCommit({ ts: Date.now(), ops }) + "\n";
         const id: WalCommitId = { segment: this.#currentSegment, offset: this.#currentOffset };
 
         await this.#handle!.writeHandle(line);

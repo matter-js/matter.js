@@ -14,9 +14,19 @@ export type WalOp =
     | { op: "del"; key: string; values?: string[] };
 
 /**
- * A commit is an array of operations serialized as one WAL line.
+ * A commit is a timestamped array of operations serialized as one WAL line.
  */
-export type WalCommit = WalOp[];
+export interface WalCommit {
+    /**
+     * Millis since Unix epoch when the commit was written.
+     */
+    ts: number;
+
+    /**
+     * The operations in this commit.
+     */
+    ops: WalOp[];
+}
 
 /**
  * 48-bit commit ID: high 32 bits = segment number, low 16 bits = line offset.
@@ -47,14 +57,20 @@ export function decodeContextKey(key: string): string[] {
  * Serialize a commit to a JSON line for the WAL.
  */
 export function serializeCommit(commit: WalCommit): string {
-    return toJson(commit as SupportedStorageTypes);
+    return toJson({ ts: commit.ts, ops: commit.ops } as unknown as SupportedStorageTypes);
 }
 
 /**
  * Deserialize a JSON line back to a commit.
+ *
+ * Handles legacy bare-array format by wrapping as `{ ts: 0, ops }`.
  */
 export function deserializeCommit(line: string): WalCommit {
-    return fromJson(line) as WalCommit;
+    const parsed = fromJson(line);
+    if (Array.isArray(parsed)) {
+        return { ts: 0, ops: parsed as WalOp[] };
+    }
+    return parsed as unknown as WalCommit;
 }
 
 /**

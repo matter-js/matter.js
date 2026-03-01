@@ -5,7 +5,7 @@
  */
 
 import { MockFilesystem } from "#fs/MockFilesystem.js";
-import { type WalCommit, deserializeCommit, segmentFilename } from "#storage/wal/WalCommit.js";
+import { type WalOp, deserializeCommit, segmentFilename } from "#storage/wal/WalCommit.js";
 import { WalWriter } from "#storage/wal/WalWriter.js";
 
 describe("WalWriter", () => {
@@ -19,8 +19,8 @@ describe("WalWriter", () => {
         const walDir = fs.directory("wal");
         const writer = new WalWriter(walDir, { fsync: false });
 
-        const commit: WalCommit = [{ op: "upd", key: "a", values: { x: 1 } }];
-        const id = await writer.write(commit);
+        const ops: WalOp[] = [{ op: "upd", key: "a", values: { x: 1 } }];
+        const id = await writer.write(ops);
         await writer.close();
 
         expect(id).deep.equal({ segment: 1, offset: 0 });
@@ -29,18 +29,21 @@ describe("WalWriter", () => {
         const text = await file.readAllText();
         const lines = text.split("\n").filter(l => l.length > 0);
         expect(lines.length).equal(1);
-        expect(deserializeCommit(lines[0])).deep.equal(commit);
+
+        const commit = deserializeCommit(lines[0]);
+        expect(commit.ops).deep.equal(ops);
+        expect(commit.ts).greaterThan(0);
     });
 
     it("writes multiple commits to the same segment", async () => {
         const walDir = fs.directory("wal");
         const writer = new WalWriter(walDir, { fsync: false });
 
-        const commit1: WalCommit = [{ op: "upd", key: "a", values: { x: 1 } }];
-        const commit2: WalCommit = [{ op: "upd", key: "b", values: { y: 2 } }];
+        const ops1: WalOp[] = [{ op: "upd", key: "a", values: { x: 1 } }];
+        const ops2: WalOp[] = [{ op: "upd", key: "b", values: { y: 2 } }];
 
-        const id1 = await writer.write(commit1);
-        const id2 = await writer.write(commit2);
+        const id1 = await writer.write(ops1);
+        const id2 = await writer.write(ops2);
         await writer.close();
 
         expect(id1).deep.equal({ segment: 1, offset: 0 });
@@ -57,11 +60,11 @@ describe("WalWriter", () => {
         // Very small max size to force rotation
         const writer = new WalWriter(walDir, { fsync: false, maxSegmentSize: 10 });
 
-        const commit1: WalCommit = [{ op: "upd", key: "a", values: { x: "hello world this is a long value" } }];
-        const commit2: WalCommit = [{ op: "upd", key: "b", values: { y: "another value" } }];
+        const ops1: WalOp[] = [{ op: "upd", key: "a", values: { x: "hello world this is a long value" } }];
+        const ops2: WalOp[] = [{ op: "upd", key: "b", values: { y: "another value" } }];
 
-        const id1 = await writer.write(commit1);
-        const id2 = await writer.write(commit2);
+        const id1 = await writer.write(ops1);
+        const id2 = await writer.write(ops2);
         await writer.close();
 
         // First commit goes to segment 1, second should trigger rotation to segment 2
@@ -74,14 +77,14 @@ describe("WalWriter", () => {
 
         // Write one commit, then close
         const writer1 = new WalWriter(walDir, { fsync: false });
-        const commit1: WalCommit = [{ op: "upd", key: "a", values: { x: 1 } }];
-        await writer1.write(commit1);
+        const ops1: WalOp[] = [{ op: "upd", key: "a", values: { x: 1 } }];
+        await writer1.write(ops1);
         await writer1.close();
 
         // Open new writer, should continue from existing segment
         const writer2 = new WalWriter(walDir, { fsync: false });
-        const commit2: WalCommit = [{ op: "upd", key: "b", values: { y: 2 } }];
-        const id2 = await writer2.write(commit2);
+        const ops2: WalOp[] = [{ op: "upd", key: "b", values: { y: 2 } }];
+        const id2 = await writer2.write(ops2);
         await writer2.close();
 
         expect(id2).deep.equal({ segment: 1, offset: 1 });
@@ -96,8 +99,8 @@ describe("WalWriter", () => {
         const walDir = fs.directory("wal");
         const writer = new WalWriter(walDir, { fsync: false });
 
-        const commit: WalCommit = [{ op: "upd", key: "a", values: { x: 1 } }];
-        await writer.write(commit);
+        const ops: WalOp[] = [{ op: "upd", key: "a", values: { x: 1 } }];
+        await writer.write(ops);
         await writer.close();
 
         expect(await walDir.exists()).equal(true);

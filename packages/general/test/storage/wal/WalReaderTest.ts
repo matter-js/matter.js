@@ -41,8 +41,8 @@ describe("WalReader", () => {
         const walDir = fs.directory("wal");
         await walDir.mkdir();
 
-        const commit1: WalCommit = [{ op: "upd", key: "a", values: { x: 1 } }];
-        const commit2: WalCommit = [{ op: "del", key: "b", values: ["y"] }];
+        const commit1: WalCommit = { ts: 1000, ops: [{ op: "upd", key: "a", values: { x: 1 } }] };
+        const commit2: WalCommit = { ts: 2000, ops: [{ op: "del", key: "b", values: ["y"] }] };
         const content = serializeCommit(commit1) + "\n" + serializeCommit(commit2) + "\n";
         await walDir.file(segmentFilename(1)).write(content);
 
@@ -60,8 +60,8 @@ describe("WalReader", () => {
         const walDir = fs.directory("wal");
         await walDir.mkdir();
 
-        const commit1: WalCommit = [{ op: "upd", key: "a", values: { x: 1 } }];
-        const commit2: WalCommit = [{ op: "upd", key: "b", values: { y: 2 } }];
+        const commit1: WalCommit = { ts: 1000, ops: [{ op: "upd", key: "a", values: { x: 1 } }] };
+        const commit2: WalCommit = { ts: 2000, ops: [{ op: "upd", key: "b", values: { y: 2 } }] };
         await walDir.file(segmentFilename(1)).write(serializeCommit(commit1) + "\n");
         await walDir.file(segmentFilename(2)).write(serializeCommit(commit2) + "\n");
 
@@ -77,9 +77,9 @@ describe("WalReader", () => {
         const walDir = fs.directory("wal");
         await walDir.mkdir();
 
-        const commit1: WalCommit = [{ op: "upd", key: "a", values: { x: 1 } }];
-        const commit2: WalCommit = [{ op: "upd", key: "b", values: { y: 2 } }];
-        const commit3: WalCommit = [{ op: "upd", key: "c", values: { z: 3 } }];
+        const commit1: WalCommit = { ts: 1000, ops: [{ op: "upd", key: "a", values: { x: 1 } }] };
+        const commit2: WalCommit = { ts: 2000, ops: [{ op: "upd", key: "b", values: { y: 2 } }] };
+        const commit3: WalCommit = { ts: 3000, ops: [{ op: "upd", key: "c", values: { z: 3 } }] };
         const content =
             serializeCommit(commit1) + "\n" + serializeCommit(commit2) + "\n" + serializeCommit(commit3) + "\n";
         await walDir.file(segmentFilename(1)).write(content);
@@ -97,8 +97,8 @@ describe("WalReader", () => {
         const walDir = fs.directory("wal");
         await walDir.mkdir();
 
-        const commit1: WalCommit = [{ op: "upd", key: "a", values: { x: 1 } }];
-        const commit2: WalCommit = [{ op: "upd", key: "b", values: { y: 2 } }];
+        const commit1: WalCommit = { ts: 1000, ops: [{ op: "upd", key: "a", values: { x: 1 } }] };
+        const commit2: WalCommit = { ts: 2000, ops: [{ op: "upd", key: "b", values: { y: 2 } }] };
         await walDir.file(segmentFilename(1)).write(serializeCommit(commit1) + "\n");
         await walDir.file(segmentFilename(2)).write(serializeCommit(commit2) + "\n");
 
@@ -113,7 +113,7 @@ describe("WalReader", () => {
         const walDir = fs.directory("wal");
         await walDir.mkdir();
 
-        const commit1: WalCommit = [{ op: "upd", key: "a", values: { x: 1 } }];
+        const commit1: WalCommit = { ts: 1000, ops: [{ op: "upd", key: "a", values: { x: 1 } }] };
         const content = serializeCommit(commit1) + "\n" + "NOT VALID JSON{{{" + "\n";
         await walDir.file(segmentFilename(1)).write(content);
 

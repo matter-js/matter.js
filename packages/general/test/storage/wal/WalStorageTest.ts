@@ -268,7 +268,7 @@ describe("WalStorage", () => {
             await walDir.mkdir();
 
             // Write valid commit followed by truncated line
-            const commit: WalCommit = [{ op: "upd", key: "ctx", values: { key: "value" } }];
+            const commit: WalCommit = { ts: 1000, ops: [{ op: "upd", key: "ctx", values: { key: "value" } }] };
             const content = serializeCommit(commit) + "\n" + '{"truncated\n';
             await walDir.file(segmentFilename(1)).write(content);
 
