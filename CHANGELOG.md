@@ -18,6 +18,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: (@adeepn) Added `DclBehavior` for centralized DCL configuration via environment variables (`MATTER_DCL_*`), config files, or programmatic setup
 
 - @matter/protocol
+    - Feature: We have rewritten the logic for establishing operational connections to other nodes.  The new implementation should be faster, more resilient and offers more knobs for tuning
+    - Breaking: Some of the lower-level APIs in @matter/protocol have changed.  This will be transparent to most users
+    - Feature: A new "network profile" feature allows you to tune parallelism and other interaction parameters based on categories including transport type and thread channel
+    - Feature: matter.js now responds immediately to IP changes advertised via MDNS
     - Feature: (@adeepn) `DclConfig` is now an interface with namespace defaults instead of a singleton; `DclClient` accepts `DclConfig` for configurable endpoints
     - Feature: (@adeepn) `DclCertificateService` and `DclOtaUpdateService` accept custom DCL endpoint configuration via options
     - Adjustment: No longer ignore too long incoming Matter messages but still log a warning
