@@ -167,6 +167,13 @@ export class Abort
     }
 
     /**
+     * Sleep for a duration, returning early if aborted.
+     */
+    sleep(description: string, duration: Duration) {
+        return Abort.sleep(description, this, duration);
+    }
+
+    /**
      * Free resources.
      *
      * You must abort or invoke {@link close} when finished if you construct with {@link Abort.Options#abort} or

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Endpoint, Environment, ServerNode, StorageService } from "@matter/main";
+import { Endpoint, ServerNode } from "@matter/main";
 import { AdministratorCommissioningServer } from "@matter/main/behaviors/administrator-commissioning";
 import { BridgedDeviceBasicInformationServer } from "@matter/main/behaviors/bridged-device-basic-information";
 import { NetworkCommissioningServer } from "@matter/main/behaviors/network-commissioning";
@@ -25,8 +25,6 @@ export class BridgeTestInstance extends NodeTestInstance {
     }
 
     async setupServer(): Promise<ServerNode> {
-        Environment.default.get(StorageService).factory = (_namespace: string) => this.config.storage;
-
         const networkId = new Uint8Array(32);
 
         const serverNode = await ServerNode.create(

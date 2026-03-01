@@ -732,7 +732,7 @@ describe("DclCertificateService", () => {
             // Clear the index to simulate the certificate not being present
             const storage = await environment.get(StorageService).open("certificates");
             const approvedStorage = storage.createContext("approved");
-            await approvedStorage.clear();
+            await approvedStorage.clearAll();
 
             // Reset mocks and install again for the fetch
             fetchMock.uninstall();

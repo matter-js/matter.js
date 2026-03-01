@@ -15,6 +15,7 @@ let initializeStorage = true;
 let trapProcessSignals = true;
 let trapUnhandledErrors = true;
 let setProcessExitCodeOnError = true;
+let installFilesystem = true;
 let installNetwork = true;
 // Automatic replace to `StandardCrypto` in bun.js
 let installCrypto = true;
@@ -138,6 +139,18 @@ export const config = {
     },
 
     /**
+     * Enables installation of node.js filesystem into default environment.
+     */
+    get installFilesystem() {
+        return installFilesystem;
+    },
+
+    set installFilesystem(value: boolean) {
+        assertUninitialized("installNodeJsFilesystem");
+        installFilesystem = value;
+    },
+
+    /**
      * Enables installation of node.js networking into default environment.
      */
     get installNetwork() {
@@ -166,13 +179,13 @@ export const config = {
     /**
      * Set storage driver to use (default: 'file').
      *
-     * Currently, 'file' and 'sqlite' (Node.js v22+) is supported.
+     * Built-in drivers: `"file"`, `"sqlite"` (Node.js v22+), `"wal"`, `"memory"`.
      */
     get storageDriver() {
-        return storageDriver as "file" | "sqlite";
+        return storageDriver;
     },
 
-    set storageDriver(value: "file" | "sqlite") {
+    set storageDriver(value: string) {
         assertUninitialized("initializeStorage");
         storageDriver = value;
     },

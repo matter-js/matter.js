@@ -9,6 +9,7 @@ import { Logger } from "@matter/general";
 import { Environment, MaybePromise, Storage } from "@matter/main";
 import { ValidationError } from "@matter/main/types";
 import { BackchannelCommand, CommandPipe, PicsFile } from "@matter/testing";
+import { rm } from "node:fs/promises";
 import { NamedPipeCommandHandler } from "./NamedPipeCommandHandler.js";
 import { StorageBackendAsyncJsonFile } from "./storage/StorageBackendAsyncJsonFile.js";
 
@@ -50,7 +51,7 @@ export abstract class TestInstance {
         return this.#id;
     }
 
-    get storage() {
+    get storage(): Storage | undefined {
         return this.#config.storage;
     }
 
@@ -137,7 +138,7 @@ export namespace log {
 }
 
 export interface TestInstanceConfig {
-    storage: Storage;
+    storage?: Storage;
     discriminator?: number;
     passcode?: number;
     domain?: string;
@@ -164,10 +165,11 @@ export async function startDeviceTestApp(
 ) {
     const storageName = `/tmp/chip_${getParameter("KVS") ?? "kvs"}`;
 
-    const storage = new storageType(storageName);
     if (hasParameter("factoryreset")) {
-        await storage.clear();
+        await rm(storageName, { recursive: true, force: true });
     }
+
+    const storage = new storageType(storageName);
 
     const testInstance = new testInstanceClass({
         storage,

@@ -1,0 +1,34 @@
+/**
+ * @license
+ * Copyright 2022-2026 Matter.js Authors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { Directory } from "./Directory.js";
+
+/**
+ * Root directory and Environment service key for filesystem access.
+ *
+ * Register as an environment service:
+ *
+ *     env.set(Filesystem, new MyFilesystem(...))
+ *
+ * Retrieve from the environment:
+ *
+ *     const fs = env.get(Filesystem)
+ */
+export abstract class Filesystem extends Directory {
+    override get fs(): Filesystem {
+        return this;
+    }
+
+    /**
+     * Return a unique filename suitable for use as a temporary file or directory.
+     */
+    abstract tempFilename(): string;
+
+    /**
+     * Return a new temporary {@link Directory}.  The directory is not created on disk yet.
+     */
+    abstract tempDirectory(): Directory;
+}

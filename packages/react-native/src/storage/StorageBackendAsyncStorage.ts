@@ -32,11 +32,6 @@ export class StorageBackendAsyncStorage extends Storage {
         this.isInitialized = false;
     }
 
-    clear() {
-        // @ts-expect-error AsyncStorage types are not correct
-        return AsyncStorage.clear();
-    }
-
     getContextBaseKey(contexts: string[], allowEmptyContext = false) {
         const contextKey = contexts.join(".");
         if (

@@ -6,7 +6,7 @@
 
 import { Logger } from "#log/Logger.js";
 import { MatterAggregateError } from "#MatterError.js";
-import type { Storage } from "./Storage.js";
+import type { StorageDriver } from "./StorageDriver.js";
 
 const logger = new Logger("StorageMigrator");
 
@@ -32,7 +32,7 @@ export namespace StorageMigration {
     /**
      * Migrate storage from `source` to `target`.
      */
-    export async function migrate(source: Storage, target: Storage): Promise<MigrationResult> {
+    export async function migrate(source: StorageDriver, target: StorageDriver): Promise<MigrationResult> {
         const result = {
             success: true,
             migratedCount: 0,
@@ -81,8 +81,8 @@ export namespace StorageMigration {
  * Migrate a specific context and its sub-contexts recursively
  */
 async function migrateContext(args: {
-    source: Storage;
-    target: Storage;
+    source: StorageDriver;
+    target: StorageDriver;
     contexts: string[];
     result: StorageMigration.MigrationResult;
 }) {
