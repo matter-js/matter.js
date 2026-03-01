@@ -14,9 +14,9 @@ import type { WalWriter } from "./WalWriter.js";
 type StoreData = Record<string, Record<string, SupportedStorageTypes>>;
 
 /**
- * Callback to notify the owning storage of a new commit ID.
+ * Callback to notify the owning storage of a new commit ID and timestamp.
  */
-export type WalCommitNotify = (id: WalCommitId) => void;
+export type WalCommitNotify = (id: WalCommitId, ts: number) => void;
 
 /**
  * A transaction that buffers WAL operations and writes them atomically on commit.
@@ -191,8 +191,8 @@ export class WalTransaction extends StorageTransaction {
     override async commit(): Promise<void> {
         this.assertActive();
         if (this.#ops.length > 0) {
-            const id = await this.#writer.write(this.#ops);
-            this.#onCommit(id);
+            const { id, ts } = await this.#writer.write(this.#ops);
+            this.#onCommit(id, ts);
         }
         super.commit();
     }

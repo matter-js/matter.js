@@ -20,10 +20,11 @@ describe("WalWriter", () => {
         const writer = new WalWriter(walDir, { fsync: false });
 
         const ops: WalOp[] = [{ op: "upd", key: "a", values: { x: 1 } }];
-        const id = await writer.write(ops);
+        const result = await writer.write(ops);
         await writer.close();
 
-        expect(id).deep.equal({ segment: 1, offset: 0 });
+        expect(result.id).deep.equal({ segment: 1, offset: 0 });
+        expect(result.ts).greaterThan(0);
 
         const file = walDir.file(segmentFilename(1));
         const text = await file.readAllText();
@@ -42,12 +43,12 @@ describe("WalWriter", () => {
         const ops1: WalOp[] = [{ op: "upd", key: "a", values: { x: 1 } }];
         const ops2: WalOp[] = [{ op: "upd", key: "b", values: { y: 2 } }];
 
-        const id1 = await writer.write(ops1);
-        const id2 = await writer.write(ops2);
+        const r1 = await writer.write(ops1);
+        const r2 = await writer.write(ops2);
         await writer.close();
 
-        expect(id1).deep.equal({ segment: 1, offset: 0 });
-        expect(id2).deep.equal({ segment: 1, offset: 1 });
+        expect(r1.id).deep.equal({ segment: 1, offset: 0 });
+        expect(r2.id).deep.equal({ segment: 1, offset: 1 });
 
         const file = walDir.file(segmentFilename(1));
         const text = await file.readAllText();
@@ -63,13 +64,13 @@ describe("WalWriter", () => {
         const ops1: WalOp[] = [{ op: "upd", key: "a", values: { x: "hello world this is a long value" } }];
         const ops2: WalOp[] = [{ op: "upd", key: "b", values: { y: "another value" } }];
 
-        const id1 = await writer.write(ops1);
-        const id2 = await writer.write(ops2);
+        const r1 = await writer.write(ops1);
+        const r2 = await writer.write(ops2);
         await writer.close();
 
         // First commit goes to segment 1, second should trigger rotation to segment 2
-        expect(id1.segment).equal(1);
-        expect(id2.segment).equal(2);
+        expect(r1.id.segment).equal(1);
+        expect(r2.id.segment).equal(2);
     });
 
     it("resumes writing to existing segment", async () => {
@@ -84,10 +85,10 @@ describe("WalWriter", () => {
         // Open new writer, should continue from existing segment
         const writer2 = new WalWriter(walDir, { fsync: false });
         const ops2: WalOp[] = [{ op: "upd", key: "b", values: { y: 2 } }];
-        const id2 = await writer2.write(ops2);
+        const r2 = await writer2.write(ops2);
         await writer2.close();
 
-        expect(id2).deep.equal({ segment: 1, offset: 1 });
+        expect(r2.id).deep.equal({ segment: 1, offset: 1 });
 
         const file = walDir.file(segmentFilename(1));
         const text = await file.readAllText();

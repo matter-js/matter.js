@@ -45,9 +45,9 @@ export class WalWriter {
     }
 
     /**
-     * Write a commit to the WAL, returning its commit ID.
+     * Write a commit to the WAL, returning its commit ID and timestamp.
      */
-    async write(ops: WalOp[]): Promise<WalCommitId> {
+    async write(ops: WalOp[]): Promise<{ id: WalCommitId; ts: number }> {
         if (!this.#handle) {
             await this.#openSegment();
         }
@@ -60,7 +60,8 @@ export class WalWriter {
             await this.#rotate();
         }
 
-        const line = serializeCommit({ ts: Date.now(), ops }) + "\n";
+        const ts = Date.now();
+        const line = serializeCommit({ ts, ops }) + "\n";
         const id: WalCommitId = { segment: this.#currentSegment, offset: this.#currentOffset };
 
         await this.#handle!.writeHandle(line);
@@ -71,7 +72,7 @@ export class WalWriter {
         this.#currentOffset++;
         this.#currentSize += new TextEncoder().encode(line).length;
 
-        return id;
+        return { id, ts };
     }
 
     /**

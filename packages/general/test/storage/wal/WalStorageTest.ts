@@ -358,6 +358,215 @@ describe("WalStorage", () => {
         });
     });
 
+    describe("snapshotAtTime", () => {
+        it("returns full state when no asOf given", async () => {
+            const storageDir = fs.directory("storage");
+            await storageDir.mkdir();
+            const walDir = storageDir.directory("wal");
+            await walDir.mkdir();
+
+            const commit1: WalCommit = { ts: 1000, ops: [{ op: "upd", key: "ctx", values: { key1: "a" } }] };
+            const commit2: WalCommit = { ts: 2000, ops: [{ op: "upd", key: "ctx", values: { key2: "b" } }] };
+            await walDir
+                .file(segmentFilename(1))
+                .write(serializeCommit(commit1) + "\n" + serializeCommit(commit2) + "\n");
+
+            const storage = new WalStorage(storageDir, {
+                fsync: false,
+                snapshotInterval: Seconds(600),
+            });
+            await storage.initialize();
+
+            const snap = await storage.snapshotAtTime();
+            expect(snap.get(["ctx"], "key1")).equal("a");
+            expect(snap.get(["ctx"], "key2")).equal("b");
+            expect(snap.ts).equal(2000);
+
+            await storage.close();
+        });
+
+        it("returns partial state at mid-history time", async () => {
+            const storageDir = fs.directory("storage");
+            await storageDir.mkdir();
+            const walDir = storageDir.directory("wal");
+            await walDir.mkdir();
+
+            const commit1: WalCommit = { ts: 1000, ops: [{ op: "upd", key: "ctx", values: { key1: "a" } }] };
+            const commit2: WalCommit = { ts: 2000, ops: [{ op: "upd", key: "ctx", values: { key2: "b" } }] };
+            const commit3: WalCommit = { ts: 3000, ops: [{ op: "upd", key: "ctx", values: { key3: "c" } }] };
+            await walDir
+                .file(segmentFilename(1))
+                .write(
+                    serializeCommit(commit1) + "\n" + serializeCommit(commit2) + "\n" + serializeCommit(commit3) + "\n",
+                );
+
+            const storage = new WalStorage(storageDir, {
+                fsync: false,
+                snapshotInterval: Seconds(600),
+            });
+            await storage.initialize();
+
+            const snap = await storage.snapshotAtTime(2500);
+            expect(snap.get(["ctx"], "key1")).equal("a");
+            expect(snap.get(["ctx"], "key2")).equal("b");
+            expect(snap.get(["ctx"], "key3")).equal(undefined);
+            expect(snap.ts).equal(2000);
+
+            await storage.close();
+        });
+
+        it("throws for future timestamp", async () => {
+            const storage = await createStorage();
+            await storage.set(["ctx"], "key", "value");
+
+            await expect(storage.snapshotAtTime(Date.now() + 1_000_000)).rejectedWith("Timestamp is in the future");
+
+            await storage.close();
+        });
+
+        it("throws when timestamp predates available logs", async () => {
+            const storageDir = fs.directory("storage");
+            await storageDir.mkdir();
+            const walDir = storageDir.directory("wal");
+            await walDir.mkdir();
+
+            // Create a snapshot with ts=5000 as the base
+            const { WalSnapshot } = await import("#storage/wal/WalSnapshot.js");
+            const baseSnap = new WalSnapshot({ segment: 1, offset: 0 }, 5000, { ctx: { key: "val" } });
+            await baseSnap.save(storageDir, { compress: false });
+
+            // Add a WAL commit after the snapshot
+            const commit: WalCommit = { ts: 6000, ops: [{ op: "upd", key: "ctx", values: { key2: "val2" } }] };
+            await walDir.file(segmentFilename(1)).write(serializeCommit(commit) + "\n");
+
+            const storage = new WalStorage(storageDir, {
+                fsync: false,
+                snapshotInterval: Seconds(600),
+            });
+            await storage.initialize();
+
+            await expect(storage.snapshotAtTime(3000)).rejectedWith("Timestamp predates available logs");
+
+            await storage.close();
+        });
+
+        it("handles legacy commits with ts=0", async () => {
+            const storageDir = fs.directory("storage");
+            await storageDir.mkdir();
+            const walDir = storageDir.directory("wal");
+            await walDir.mkdir();
+
+            // Legacy bare-array format (will be parsed as ts=0)
+            const { toJson } = await import("#storage/StringifyTools.js");
+            const legacyLine = toJson([{ op: "upd", key: "ctx", values: { key1: "legacy" } }] as any);
+            const commit2: WalCommit = { ts: 2000, ops: [{ op: "upd", key: "ctx", values: { key2: "modern" } }] };
+            await walDir.file(segmentFilename(1)).write(legacyLine + "\n" + serializeCommit(commit2) + "\n");
+
+            const storage = new WalStorage(storageDir, {
+                fsync: false,
+                snapshotInterval: Seconds(600),
+            });
+            await storage.initialize();
+
+            // Legacy commits (ts=0) are always included since 0 > asOf is false
+            const snap = await storage.snapshotAtTime(1500);
+            expect(snap.get(["ctx"], "key1")).equal("legacy");
+            expect(snap.get(["ctx"], "key2")).equal(undefined);
+
+            await storage.close();
+        });
+
+        it("returns snapshot state when WAL is empty after snapshot", async () => {
+            const storageDir = fs.directory("storage");
+            await storageDir.mkdir();
+            const walDir = storageDir.directory("wal");
+            await walDir.mkdir();
+
+            // Create a base snapshot
+            const { WalSnapshot } = await import("#storage/wal/WalSnapshot.js");
+            const baseSnap = new WalSnapshot({ segment: 1, offset: 0 }, 5000, { ctx: { key: "val" } });
+            await baseSnap.save(storageDir, { compress: false });
+
+            const storage = new WalStorage(storageDir, {
+                fsync: false,
+                snapshotInterval: Seconds(600),
+            });
+            await storage.initialize();
+
+            const snap = await storage.snapshotAtTime(6000);
+            expect(snap.get(["ctx"], "key")).equal("val");
+            expect(snap.ts).equal(5000);
+
+            await storage.close();
+        });
+    });
+
+    describe("snapshotAtCommit", () => {
+        it("returns full state when no commitId given", async () => {
+            const storageDir = fs.directory("storage");
+            await storageDir.mkdir();
+            const walDir = storageDir.directory("wal");
+            await walDir.mkdir();
+
+            const commit1: WalCommit = { ts: 1000, ops: [{ op: "upd", key: "ctx", values: { key1: "a" } }] };
+            const commit2: WalCommit = { ts: 2000, ops: [{ op: "upd", key: "ctx", values: { key2: "b" } }] };
+            await walDir
+                .file(segmentFilename(1))
+                .write(serializeCommit(commit1) + "\n" + serializeCommit(commit2) + "\n");
+
+            const storage = new WalStorage(storageDir, {
+                fsync: false,
+                snapshotInterval: Seconds(600),
+            });
+            await storage.initialize();
+
+            const snap = await storage.snapshotAtCommit();
+            expect(snap.get(["ctx"], "key1")).equal("a");
+            expect(snap.get(["ctx"], "key2")).equal("b");
+
+            await storage.close();
+        });
+
+        it("returns state through the given commit", async () => {
+            const storageDir = fs.directory("storage");
+            await storageDir.mkdir();
+            const walDir = storageDir.directory("wal");
+            await walDir.mkdir();
+
+            const commit1: WalCommit = { ts: 1000, ops: [{ op: "upd", key: "ctx", values: { key1: "a" } }] };
+            const commit2: WalCommit = { ts: 2000, ops: [{ op: "upd", key: "ctx", values: { key2: "b" } }] };
+            const commit3: WalCommit = { ts: 3000, ops: [{ op: "upd", key: "ctx", values: { key3: "c" } }] };
+            await walDir
+                .file(segmentFilename(1))
+                .write(
+                    serializeCommit(commit1) + "\n" + serializeCommit(commit2) + "\n" + serializeCommit(commit3) + "\n",
+                );
+
+            const storage = new WalStorage(storageDir, {
+                fsync: false,
+                snapshotInterval: Seconds(600),
+            });
+            await storage.initialize();
+
+            // Stop at commit {segment: 1, offset: 1} — includes commits 0 and 1
+            const snap = await storage.snapshotAtCommit({ segment: 1, offset: 1 });
+            expect(snap.get(["ctx"], "key1")).equal("a");
+            expect(snap.get(["ctx"], "key2")).equal("b");
+            expect(snap.get(["ctx"], "key3")).equal(undefined);
+            expect(snap.commitId).deep.equal({ segment: 1, offset: 1 });
+
+            await storage.close();
+        });
+
+        it("throws when no data available", async () => {
+            const storage = await createStorage();
+
+            await expect(storage.snapshotAtCommit()).rejectedWith("No data available");
+
+            await storage.close();
+        });
+    });
+
     describe("blobs", () => {
         it("writes and reads a blob", async () => {
             const storage = await createStorage();
