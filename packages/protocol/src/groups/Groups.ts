@@ -10,6 +10,12 @@ import { BasicMap, DataWriter, ImplementationError, ipv6BytesToString } from "#g
 import { EndpointNumber, GroupId } from "#types";
 import { KeySets, OperationalKeySet } from "./KeySets.js";
 
+/** Multicast address policy for a group. IanaAddr uses the shared FF05::FA address; PerGroupId derives from GroupId. */
+export type GroupMulticastPolicy = "ianaAddr" | "perGroupId";
+
+/** IANA-assigned shared multicast address for Groupcast cluster (Matter 1.6). */
+export const IANA_GROUPCAST_MULTICAST_ADDRESS = "ff05::fa";
+
 export class Groups {
     #fabric: Fabric;
     #keySets: KeySets<OperationalKeySet>;
@@ -19,6 +25,9 @@ export class Groups {
 
     /** Operational variant of the group table, maps group Ids to a list of enabled endpoints. */
     readonly endpointMap = new Map<GroupId, EndpointNumber[]>();
+
+    /** Per-group multicast address policy (Groupcast cluster, Matter 1.6). Defaults to PerGroupId when not set. */
+    readonly #groupMulticastPolicy = new Map<GroupId, GroupMulticastPolicy>();
 
     constructor(fabric: Fabric, keySets: KeySets<OperationalKeySet>) {
         this.#fabric = fabric;
@@ -51,12 +60,25 @@ export class Groups {
         });
     }
 
+    /** Sets the multicast address policy for a specific group (Groupcast cluster, Matter 1.6). */
+    setGroupMulticastPolicy(groupId: GroupId, policy: GroupMulticastPolicy) {
+        this.#groupMulticastPolicy.set(groupId, policy);
+    }
+
+    /** Removes the multicast address policy for a specific group, reverting to the default (PerGroupId). */
+    removeGroupMulticastPolicy(groupId: GroupId) {
+        this.#groupMulticastPolicy.delete(groupId);
+    }
+
     /** Returns the multicast address for a given group id for this fabric. */
     multicastAddress(groupId: GroupId) {
         GroupId.assertGroupId(groupId);
 
-        // If GroupKeyMulticastPolicy ever becomes non-provisional then we need to adjust logic here, but so far we
-        // just use the default which is PerGroupId, which means we use the GroupId to create the multicast address.
+        // When the Groupcast cluster assigns IanaAddr policy, all groups in the fabric share FF05::FA.
+        // Legacy groups and new groups without explicit policy use PerGroupId (fabric-derived address).
+        if (this.#groupMulticastPolicy.get(groupId) === "ianaAddr") {
+            return IANA_GROUPCAST_MULTICAST_ADDRESS;
+        }
 
         const writer = new DataWriter();
         writer.writeUInt16(0xff35);

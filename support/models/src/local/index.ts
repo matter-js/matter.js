@@ -12,6 +12,7 @@
 // ID and name so we provide both even though only one is required for
 // matching.
 
+import "./AccessControlOverrides.js";
 import "./AdministratorCommissioningOverrides.js";
 import "./AlarmBaseOverrides.js";
 import "./any.js";
@@ -24,7 +25,7 @@ import "./epoch-s.js";
 import "./epoch-us.js";
 import "./FanControl.js";
 import "./GroupKeyManagementOverrides.js";
-import "./GroupsOverrides.js";
+import "./GroupcastCluster.js";
 import "./hwadr.js";
 import "./IlluminanceMeasurementOverrides.js";
 import "./ipadr.js";

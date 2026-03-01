@@ -7,7 +7,6 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
-import { BitFlag } from "../schema/BitmapSchema.js";
 import {
     WritableFabricScopedAttribute,
     FabricScopedAttribute,
@@ -17,11 +16,13 @@ import {
 } from "../cluster/Cluster.js";
 import { TlvArray } from "../tlv/TlvArray.js";
 import { TlvField, TlvObject, TlvOptionalField } from "../tlv/TlvObject.js";
-import { TlvGroupId } from "../datatype/GroupId.js";
-import { TlvUInt16, TlvEnum, TlvEpochUs } from "../tlv/TlvNumber.js";
+import { TlvBoolean } from "../tlv/TlvBoolean.js";
 import { TlvFabricIndex } from "../datatype/FabricIndex.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { AccessLevel } from "#model";
+import { BitFlag } from "../schema/BitmapSchema.js";
+import { TlvGroupId } from "../datatype/GroupId.js";
+import { TlvUInt16, TlvEnum, TlvEpochUs } from "../tlv/TlvNumber.js";
 import { TlvEndpointNumber } from "../datatype/EndpointNumber.js";
 import { TlvString, TlvByteString } from "../tlv/TlvString.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
@@ -41,8 +42,27 @@ export namespace GroupKeyManagement {
          *
          * The ability to support CacheAndSync security policy and MCSP.
          */
-        CacheAndSync = "CacheAndSync"
+        CacheAndSync = "CacheAndSync",
+
+        /**
+         * Groupcast (GCAST)
+         *
+         * When set, group management is done using the Groupcast cluster. This cluster is used solely for key
+         * management.
+         */
+        Groupcast = "Groupcast"
     }
+
+    export const TlvGroupcastAdoption = TlvObject({
+        /**
+         * Indicates whether Groupcast was adopted by the associated Fabric's administrators.
+         */
+        groupcastAdopted: TlvField(0, TlvBoolean),
+
+        fabricIndex: TlvField(254, TlvFabricIndex)
+    });
+
+    export interface GroupcastAdoption extends TypeFromSchema<typeof TlvGroupcastAdoption> {}
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.2.5.3
@@ -268,8 +288,8 @@ export namespace GroupKeyManagement {
     export interface KeySetReadRequest extends TypeFromSchema<typeof TlvKeySetReadRequest> {}
 
     /**
-     * This command shall be generated in response to the KeySetRead command, if a valid Group Key Setwasfound. It shall
-     * contain the configuration of the requested Group Key Set, with the EpochKey0, EpochKey1 and EpochKey2 key
+     * This command shall be generated in response to the KeySetRead command, if a valid Group Key Set was found. It
+     * shall contain the configuration of the requested Group Key Set, with the EpochKey0, EpochKey1 and EpochKey2 key
      * contents replaced by null.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.2.7.3
@@ -277,8 +297,8 @@ export namespace GroupKeyManagement {
     export const TlvKeySetReadResponse = TlvObject({ groupKeySet: TlvField(0, TlvGroupKeySet) });
 
     /**
-     * This command shall be generated in response to the KeySetRead command, if a valid Group Key Setwasfound. It shall
-     * contain the configuration of the requested Group Key Set, with the EpochKey0, EpochKey1 and EpochKey2 key
+     * This command shall be generated in response to the KeySetRead command, if a valid Group Key Set was found. It
+     * shall contain the configuration of the requested Group Key Set, with the EpochKey0, EpochKey1 and EpochKey2 key
      * contents replaced by null.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.2.7.3
@@ -326,18 +346,37 @@ export namespace GroupKeyManagement {
     export interface KeySetReadAllIndicesResponse extends TypeFromSchema<typeof TlvKeySetReadAllIndicesResponse> {}
 
     /**
+     * A GroupKeyManagementCluster supports these elements if it supports feature Groupcast.
+     */
+    export const GroupcastComponent = MutableCluster.Component({
+        attributes: {
+            groupcastAdoption: WritableFabricScopedAttribute(
+                0x4,
+                TlvArray(TlvGroupcastAdoption),
+                { persistent: true, default: [], readAcl: AccessLevel.Administer, writeAcl: AccessLevel.Administer }
+            )
+        }
+    });
+
+    /**
      * These elements and properties are present in all GroupKeyManagement clusters.
      */
     export const Base = MutableCluster.Component({
         id: 0x3f,
         name: "GroupKeyManagement",
-        revision: 2,
+        revision: 3,
 
         features: {
             /**
              * The ability to support CacheAndSync security policy and MCSP.
              */
-            cacheAndSync: BitFlag(0)
+            cacheAndSync: BitFlag(0),
+
+            /**
+             * When set, group management is done using the Groupcast cluster. This cluster is used solely for key
+             * management.
+             */
+            groupcast: BitFlag(1)
         },
 
         attributes: {
@@ -533,7 +572,10 @@ export namespace GroupKeyManagement {
          * This metadata controls which GroupKeyManagementCluster elements matter.js activates for specific feature
          * combinations.
          */
-        extensions: MutableCluster.Extensions()
+        extensions: MutableCluster.Extensions(
+            { flags: { groupcast: true }, component: GroupcastComponent },
+            { flags: { groupcast: false }, component: false }
+        )
     });
 
     /**
@@ -560,7 +602,37 @@ export namespace GroupKeyManagement {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+    const GCAST = { groupcast: true };
+
+    /**
+     * @see {@link Complete}
+     */
+    export const CompleteInstance = MutableCluster({
+        id: Cluster.id,
+        name: Cluster.name,
+        revision: Cluster.revision,
+        features: Cluster.features,
+
+        attributes: {
+            ...Cluster.attributes,
+            groupcastAdoption: MutableCluster.AsConditional(
+                GroupcastComponent.attributes.groupcastAdoption,
+                { mandatoryIf: [GCAST] }
+            )
+        },
+
+        commands: Cluster.commands
+    });
+
+    /**
+     * This cluster supports all GroupKeyManagement features. It may support illegal feature combinations.
+     *
+     * If you use this cluster you must manually specify which features are active and ensure the set of active features
+     * is legal per the Matter specification.
+     */
+    export interface Complete extends Identity<typeof CompleteInstance> {}
+
+    export const Complete: Complete = CompleteInstance;
 }
 
 export type GroupKeyManagementCluster = GroupKeyManagement.Cluster;

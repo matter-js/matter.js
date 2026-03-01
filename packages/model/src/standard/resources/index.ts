@@ -127,6 +127,7 @@ import "./ota-software-update-requestor.resource.js";
 import "./joint-fabric-datastore.resource.js";
 import "./joint-fabric-administrator-cluster.resource.js";
 import "./commissioner-control.resource.js";
+import "./groupcast.resource.js";
 import "./measurement-type-enum.resource.js";
 import "./measurement-accuracy-range-struct.resource.js";
 import "./measurement-accuracy-struct.resource.js";

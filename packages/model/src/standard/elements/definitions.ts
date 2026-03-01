@@ -126,6 +126,7 @@ export * from "./ota-software-update-requestor.element.js";
 export * from "./joint-fabric-datastore.element.js";
 export * from "./joint-fabric-administrator-cluster.element.js";
 export * from "./commissioner-control.element.js";
+export * from "./groupcast.element.js";
 export * from "./measurement-type-enum.element.js";
 export * from "./measurement-accuracy-range-struct.element.js";
 export * from "./measurement-accuracy-struct.element.js";

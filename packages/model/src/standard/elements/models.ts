@@ -134,6 +134,7 @@ export const OtaSoftwareUpdateRequestor = new ClusterModel(definitions.OtaSoftwa
 export const JointFabricDatastore = new ClusterModel(definitions.JointFabricDatastore);
 export const JointFabricAdministrator = new ClusterModel(definitions.JointFabricAdministrator);
 export const CommissionerControl = new ClusterModel(definitions.CommissionerControl);
+export const Groupcast = new ClusterModel(definitions.Groupcast);
 export const MeasurementTypeEnum = new DatatypeModel(definitions.MeasurementTypeEnum);
 export const MeasurementAccuracyRangeStruct = new DatatypeModel(definitions.MeasurementAccuracyRangeStruct);
 export const MeasurementAccuracyStruct = new DatatypeModel(definitions.MeasurementAccuracyStruct);
