@@ -15,7 +15,6 @@ import {
     NetworkSimulator,
     Seconds,
     StorageBackendMemory,
-    StorageDriver,
     StorageService,
 } from "#general";
 import { Node } from "#node/Node.js";
@@ -30,7 +29,7 @@ export class MockSite {
     #simulator = new NetworkSimulator();
     #nodes = new Set<ServerNode>();
     #nextNetworkIndex = 1;
-    #storage = {} as Record<string, StorageDriver>;
+    #storage = {} as Record<string, Record<string, any>>;
 
     addNode<T extends MockServerNode.RootEndpoint = MockServerNode.RootEndpoint>(
         type?: T,
@@ -66,7 +65,7 @@ export class MockSite {
         const location = `/memory/${id}`;
         if (storage.location !== location) {
             storage.location = location;
-            storage.factory = () => this.storageFor(id);
+            storage.factory = () => new StorageBackendMemory(this.storageFor(id));
         }
 
         // Note that we don't use MockServerNode as we don't actually want anything mocked
@@ -161,7 +160,7 @@ export class MockSite {
             id = id.id;
         }
         if (!(id in this.#storage)) {
-            this.#storage[id] = new StorageBackendMemory();
+            this.#storage[id] = {};
         }
         return this.#storage[id];
     }
