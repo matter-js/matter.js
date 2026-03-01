@@ -206,7 +206,7 @@ export class WalTransaction extends StorageTransaction {
  * Apply a WAL commit to an in-memory store.  Used by WalStorage when loading the cache from snapshot + WAL replay.
  */
 export function applyCommit(store: StoreData, commit: WalCommit): void {
-    for (const op of commit) {
+    for (const op of commit.ops) {
         if (op.op === "upd") {
             if (!store[op.key]) {
                 store[op.key] = {};

@@ -74,15 +74,15 @@ describe("WalCleaner", () => {
             await walDir.mkdir();
 
             // Segment 1: set ctx.key1 = "a"
-            const commit1: WalCommit = [{ op: "upd", key: "ctx", values: { key1: "a" } }];
+            const commit1: WalCommit = { ts: 1000, ops: [{ op: "upd", key: "ctx", values: { key1: "a" } }] };
             await walDir.file(segmentFilename(1)).write(serializeCommit(commit1) + "\n");
 
             // Segment 2: set ctx.key2 = "b"
-            const commit2: WalCommit = [{ op: "upd", key: "ctx", values: { key2: "b" } }];
+            const commit2: WalCommit = { ts: 2000, ops: [{ op: "upd", key: "ctx", values: { key2: "b" } }] };
             await walDir.file(segmentFilename(2)).write(serializeCommit(commit2) + "\n");
 
             // Segment 3: set ctx.key3 = "c" (this segment is kept — it's the snapshot segment)
-            const commit3: WalCommit = [{ op: "upd", key: "ctx", values: { key3: "c" } }];
+            const commit3: WalCommit = { ts: 3000, ops: [{ op: "upd", key: "ctx", values: { key3: "c" } }] };
             await walDir.file(segmentFilename(3)).write(serializeCommit(commit3) + "\n");
 
             const headSnapshot = new WalSnapshot(storageDir, false, "head");
@@ -111,11 +111,11 @@ describe("WalCleaner", () => {
             await walDir.mkdir();
 
             // Segment 1: set ctx.key1 = "a"
-            const commit1: WalCommit = [{ op: "upd", key: "ctx", values: { key1: "a" } }];
+            const commit1: WalCommit = { ts: 1000, ops: [{ op: "upd", key: "ctx", values: { key1: "a" } }] };
             await walDir.file(segmentFilename(1)).write(serializeCommit(commit1) + "\n");
 
             // Segment 2: set ctx.key2 = "b"
-            const commit2: WalCommit = [{ op: "upd", key: "ctx", values: { key2: "b" } }];
+            const commit2: WalCommit = { ts: 2000, ops: [{ op: "upd", key: "ctx", values: { key2: "b" } }] };
             await walDir.file(segmentFilename(2)).write(serializeCommit(commit2) + "\n");
 
             const headSnapshot = new WalSnapshot(storageDir, false, "head");
@@ -127,7 +127,7 @@ describe("WalCleaner", () => {
             expect(await walDir.file(segmentFilename(1)).exists()).equal(false);
 
             // Add segment 3
-            const commit3: WalCommit = [{ op: "upd", key: "ctx", values: { key3: "c" } }];
+            const commit3: WalCommit = { ts: 3000, ops: [{ op: "upd", key: "ctx", values: { key3: "c" } }] };
             await walDir.file(segmentFilename(3)).write(serializeCommit(commit3) + "\n");
 
             // Second clean: delete segment 2

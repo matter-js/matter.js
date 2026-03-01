@@ -46,34 +46,55 @@ describe("WalCommit", () => {
 
     describe("serializeCommit / deserializeCommit", () => {
         it("roundtrips an update op", () => {
-            const commit: WalCommit = [{ op: "upd", key: "ctx.sub", values: { foo: "bar", num: 42 } }];
+            const commit: WalCommit = {
+                ts: 1000,
+                ops: [{ op: "upd", key: "ctx.sub", values: { foo: "bar", num: 42 } }],
+            };
             const line = serializeCommit(commit);
             const result = deserializeCommit(line);
             expect(result).deep.equal(commit);
         });
 
         it("roundtrips a delete op with values", () => {
-            const commit: WalCommit = [{ op: "del", key: "ctx.sub", values: ["a", "b"] }];
+            const commit: WalCommit = { ts: 2000, ops: [{ op: "del", key: "ctx.sub", values: ["a", "b"] }] };
             const line = serializeCommit(commit);
             const result = deserializeCommit(line);
             expect(result).deep.equal(commit);
         });
 
         it("roundtrips a delete op without values (subtree clear)", () => {
-            const commit: WalCommit = [{ op: "del", key: "ctx" }];
+            const commit: WalCommit = { ts: 3000, ops: [{ op: "del", key: "ctx" }] };
             const line = serializeCommit(commit);
             const result = deserializeCommit(line);
             expect(result).deep.equal(commit);
         });
 
         it("roundtrips multiple ops", () => {
-            const commit: WalCommit = [
-                { op: "upd", key: "a", values: { x: 1 } },
-                { op: "del", key: "b", values: ["y"] },
-            ];
+            const commit: WalCommit = {
+                ts: 4000,
+                ops: [
+                    { op: "upd", key: "a", values: { x: 1 } },
+                    { op: "del", key: "b", values: ["y"] },
+                ],
+            };
             const line = serializeCommit(commit);
             const result = deserializeCommit(line);
             expect(result).deep.equal(commit);
+        });
+
+        it("preserves ts through roundtrip", () => {
+            const commit: WalCommit = { ts: 1709312400000, ops: [{ op: "upd", key: "a", values: { x: 1 } }] };
+            const line = serializeCommit(commit);
+            const result = deserializeCommit(line);
+            expect(result.ts).equal(1709312400000);
+            expect(result.ops).deep.equal(commit.ops);
+        });
+
+        it("deserializes legacy bare-array format", () => {
+            const legacyLine = '[{"op":"upd","key":"a","values":{"x":1}}]';
+            const result = deserializeCommit(legacyLine);
+            expect(result.ts).equal(0);
+            expect(result.ops).deep.equal([{ op: "upd", key: "a", values: { x: 1 } }]);
         });
     });
 
