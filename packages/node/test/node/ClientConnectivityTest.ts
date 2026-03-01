@@ -164,7 +164,7 @@ describe("ClientConnectivityTest", () => {
         expect(addresses![0].type).equals("udp");
     });
 
-    it.only("connects via last known address when MDNS is unavailable", async () => {
+    it("connects via last known address when MDNS is unavailable", async () => {
         // *** SETUP ***
 
         await using site = new MockSite();

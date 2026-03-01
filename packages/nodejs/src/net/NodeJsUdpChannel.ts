@@ -319,6 +319,7 @@ export class NodeJsUdpChannel implements UdpChannel {
 
     async close() {
         using _closing = this.#lifetime.closing();
+        this.#sendTimer.stop();
         try {
             await new Promise<void>(resolve => this.#socket.close(resolve));
         } catch (error) {

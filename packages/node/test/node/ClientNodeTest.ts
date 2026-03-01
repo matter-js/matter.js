@@ -177,8 +177,7 @@ describe("ClientNode", () => {
         await using site = new MockSite();
         const { controller } = await site.addCommissionedPair();
 
-        const peer1 = controller.peers.get("peer1")!;
-        expect(peer1).not.undefined;
+        const peer1 = await subscribedPeer(controller, "peer1");
 
         const ep1 = peer1.parts.get("ep1")!;
         expect(ep1).not.undefined;
